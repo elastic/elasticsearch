@@ -290,6 +290,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final BigArrays bigArrays;
 
     private final FetchPhase fetchPhase;
+    private final CircuitBreaker circuitBreaker;
     private volatile Executor searchExecutor;
     private volatile boolean enableQueryPhaseParallelCollection;
 
@@ -340,11 +341,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.scriptService = scriptService;
         this.bigArrays = bigArrays;
         this.fetchPhase = fetchPhase;
-        this.multiBucketConsumerService = new MultiBucketConsumerService(
-            clusterService,
-            settings,
-            circuitBreakerService.getBreaker(CircuitBreaker.REQUEST)
-        );
+        circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
+        this.multiBucketConsumerService = new MultiBucketConsumerService(clusterService, settings, circuitBreaker);
         this.executorSelector = executorSelector;
         this.tracer = tracer;
 
@@ -788,7 +786,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     return searchContext.rankFeatureResult();
                 }
                 RankFeatureShardPhase.prepareForFetch(searchContext, request);
-                fetchPhase.execute(searchContext, docIds, null);
+                fetchPhase.execute(searchContext, docIds, null, circuitBreaker);
                 RankFeatureShardPhase.processFetch(searchContext);
                 var rankFeatureResult = searchContext.rankFeatureResult();
                 rankFeatureResult.incRef();
@@ -806,7 +804,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             Releasable scope = tracer.withScope(context.getTask());
             SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context, true, afterQueryTime)
         ) {
-            fetchPhase.execute(context, shortcutDocIdsToLoad(context), null);
+            fetchPhase.execute(context, shortcutDocIdsToLoad(context), null, circuitBreaker);
             if (reader.singleSession()) {
                 freeReaderContext(reader.id());
             }
@@ -972,7 +970,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                             System.nanoTime()
                         )
                     ) {
-                        fetchPhase.execute(searchContext, request.docIds(), request.getRankDocks());
+                        fetchPhase.execute(searchContext, request.docIds(), request.getRankDocks(), circuitBreaker);
                         if (readerContext.singleSession()) {
                             freeReaderContext(request.contextId());
                         }

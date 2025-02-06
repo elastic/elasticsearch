@@ -13,6 +13,8 @@ import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -83,6 +85,8 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     private long primaryTerm;
 
     private BytesReference source;
+    @Nullable
+    private BytesReference unfilteredSourceRef;
 
     private final Map<String, DocumentField> documentFields;
     private final Map<String, DocumentField> metaFields;
@@ -110,21 +114,27 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     private Map<String, SearchHits> innerHits;
 
     private final RefCounted refCounted;
+    private final CircuitBreaker circuitBreaker;
 
-    // used only in tests
-    public SearchHit(int docId) {
-        this(docId, null);
+    public SearchHit(int docId, CircuitBreaker circuitBreaker) {
+        this(docId, null, circuitBreaker);
     }
 
-    public SearchHit(int docId, String id) {
-        this(docId, id, null);
+    public SearchHit(int docId, String id, CircuitBreaker circuitBreaker) {
+        this(docId, id, null, circuitBreaker);
     }
 
-    public SearchHit(int nestedTopDocId, String id, NestedIdentity nestedIdentity) {
-        this(nestedTopDocId, id, nestedIdentity, null);
+    public SearchHit(int nestedTopDocId, String id, NestedIdentity nestedIdentity, CircuitBreaker circuitBreaker) {
+        this(nestedTopDocId, id, nestedIdentity, null, circuitBreaker);
     }
 
-    private SearchHit(int nestedTopDocId, String id, NestedIdentity nestedIdentity, @Nullable RefCounted refCounted) {
+    private SearchHit(
+        int nestedTopDocId,
+        String id,
+        NestedIdentity nestedIdentity,
+        @Nullable RefCounted refCounted,
+        @Nullable CircuitBreaker circuitBreaker
+    ) {
         this(
             nestedTopDocId,
             DEFAULT_SCORE,
@@ -145,7 +155,8 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             null,
             new HashMap<>(),
             new HashMap<>(),
-            refCounted
+            refCounted,
+            circuitBreaker
         );
     }
 
@@ -169,7 +180,8 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         Map<String, SearchHits> innerHits,
         Map<String, DocumentField> documentFields,
         Map<String, DocumentField> metaFields,
-        @Nullable RefCounted refCounted
+        @Nullable RefCounted refCounted,
+        @Nullable CircuitBreaker circuitBreaker
     ) {
         this.docId = docId;
         this.score = score;
@@ -191,6 +203,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         this.documentFields = documentFields;
         this.metaFields = metaFields;
         this.refCounted = refCounted == null ? LeakTracker.wrap(new SimpleRefCounted()) : refCounted;
+        this.circuitBreaker = circuitBreaker;
     }
 
     public static SearchHit readFrom(StreamInput in, boolean pooled) throws IOException {
@@ -280,7 +293,8 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             innerHits,
             documentFields,
             metaFields,
-            isPooled ? null : ALWAYS_REFERENCED
+            isPooled ? null : ALWAYS_REFERENCED,
+            null
         );
     }
 
@@ -293,7 +307,8 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     }
 
     public static SearchHit unpooled(int nestedTopDocId, String id, NestedIdentity nestedIdentity) {
-        return new SearchHit(nestedTopDocId, id, nestedIdentity, ALWAYS_REFERENCED);
+        // always referenced search hits do NOT call #deallocate
+        return new SearchHit(nestedTopDocId, id, nestedIdentity, ALWAYS_REFERENCED, null);
     }
 
     private static final Text SINGLE_MAPPING_TYPE = new Text(MapperService.SINGLE_MAPPING_NAME);
@@ -444,6 +459,17 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
      */
     public SearchHit sourceRef(BytesReference source) {
         this.source = source;
+        return this;
+    }
+
+    /**
+     * We track the unfiltered, entire, source so we can release the entire size from the
+     * circuit breakers when the hit is released.
+     * The regular source might be a subset of the unfiltered source due to either
+     * source filtering, field collapsing or inner hits.
+     */
+    public SearchHit unfilteredSourceRef(BytesReference source) {
+        this.unfilteredSourceRef = source;
         return this;
     }
 
@@ -724,6 +750,12 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             r.decRef();
         }
         SearchHit.this.source = null;
+
+        if (unfilteredSourceRef != null && circuitBreaker != null) {
+            System.out.println(" removing source loaded by inner hit " + unfilteredSourceRef.length());
+            circuitBreaker.addWithoutBreaking(-unfilteredSourceRef.length());
+        }
+        this.unfilteredSourceRef = null;
     }
 
     @Override
@@ -758,7 +790,8 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
                 : innerHits.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().asUnpooled())),
             documentFields,
             metaFields,
-            ALWAYS_REFERENCED
+            ALWAYS_REFERENCED,
+            null
         );
     }
 

@@ -13,6 +13,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.IdLoader;
@@ -51,6 +54,7 @@ import java.util.function.Supplier;
  */
 public final class FetchPhase {
     private static final Logger LOGGER = LogManager.getLogger(FetchPhase.class);
+    public static final NoopCircuitBreaker NOOP_CIRCUIT_BREAKER = new NoopCircuitBreaker("fetch_phase_nested_hits");
 
     private final FetchSubPhase[] fetchSubPhases;
 
@@ -59,7 +63,7 @@ public final class FetchPhase {
         this.fetchSubPhases[fetchSubPhases.size()] = new InnerHitsPhase(this);
     }
 
-    public void execute(SearchContext context, int[] docIdsToLoad, RankDocShardInfo rankDocs) {
+    public void execute(SearchContext context, int[] docIdsToLoad, RankDocShardInfo rankDocs, CircuitBreaker circuitBreaker) {
         if (LOGGER.isTraceEnabled()) {
             LOGGER.trace("{}", new SearchContextSourcePrinter(context));
         }
@@ -81,7 +85,7 @@ public final class FetchPhase {
                 : Profilers.startProfilingFetchPhase();
         SearchHits hits = null;
         try {
-            hits = buildSearchHits(context, docIdsToLoad, profiler, rankDocs);
+            hits = buildSearchHits(context, docIdsToLoad, profiler, rankDocs, circuitBreaker);
         } finally {
             // Always finish profiling
             ProfileResult profileResult = profiler.finish();
@@ -103,7 +107,13 @@ public final class FetchPhase {
         }
     }
 
-    private SearchHits buildSearchHits(SearchContext context, int[] docIdsToLoad, Profiler profiler, RankDocShardInfo rankDocs) {
+    private SearchHits buildSearchHits(
+        SearchContext context,
+        int[] docIdsToLoad,
+        Profiler profiler,
+        RankDocShardInfo rankDocs,
+        CircuitBreaker circuitBreaker
+    ) {
 
         FetchContext fetchContext = new FetchContext(context);
         SourceLoader sourceLoader = context.newSourceLoader();
@@ -172,7 +182,8 @@ public final class FetchPhase {
                     ctx,
                     leafSourceLoader,
                     leafIdLoader,
-                    rankDocs == null ? null : rankDocs.get(doc)
+                    rankDocs == null ? null : rankDocs.get(doc),
+                    circuitBreaker
                 );
                 boolean success = false;
                 try {
@@ -226,7 +237,7 @@ public final class FetchPhase {
         }
     }
 
-    private static HitContext prepareHitContext(
+    private HitContext prepareHitContext(
         SearchContext context,
         boolean requiresSource,
         Profiler profiler,
@@ -236,7 +247,8 @@ public final class FetchPhase {
         LeafReaderContext subReaderContext,
         SourceLoader.Leaf sourceLoader,
         IdLoader.Leaf idLoader,
-        RankDoc rankDoc
+        RankDoc rankDoc,
+        CircuitBreaker circuitBreaker
     ) throws IOException {
         if (nestedDocuments.advance(docId - subReaderContext.docBase) == null) {
             return prepareNonNestedHitContext(
@@ -247,7 +259,8 @@ public final class FetchPhase {
                 subReaderContext,
                 sourceLoader,
                 idLoader,
-                rankDoc
+                rankDoc,
+                circuitBreaker
             );
         } else {
             return prepareNestedHitContext(
@@ -278,7 +291,8 @@ public final class FetchPhase {
         LeafReaderContext subReaderContext,
         SourceLoader.Leaf sourceLoader,
         IdLoader.Leaf idLoader,
-        RankDoc rankDoc
+        RankDoc rankDoc,
+        CircuitBreaker circuitBreaker
     ) throws IOException {
         int subDocId = docId - subReaderContext.docBase;
 
@@ -286,36 +300,55 @@ public final class FetchPhase {
 
         String id = idLoader.getId(subDocId);
         if (id == null) {
-            SearchHit hit = new SearchHit(docId);
+            SearchHit hit = new SearchHit(docId, circuitBreaker);
             // TODO: can we use real pooled buffers here as well?
-            Source source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId));
+            Source source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId, hit, circuitBreaker));
             return new HitContext(hit, subReaderContext, subDocId, Map.of(), source, rankDoc);
         } else {
-            SearchHit hit = new SearchHit(docId, id);
+            SearchHit hit = new SearchHit(docId, id, circuitBreaker);
             Source source;
             if (requiresSource) {
                 Timer timer = profiler.startLoadingSource();
                 try {
                     source = sourceLoader.source(leafStoredFieldLoader, subDocId);
+                    BytesReference sourceRef = source.internalSourceRef();
+                    circuitBreaker.addEstimateBytesAndMaybeBreak(sourceRef.length(), "fetch phase source loader");
+                    hit.unfilteredSourceRef(sourceRef);
                 } finally {
                     if (timer != null) {
                         timer.stop();
                     }
                 }
             } else {
-                source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId));
+                source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId, hit, circuitBreaker));
             }
             return new HitContext(hit, subReaderContext, subDocId, leafStoredFieldLoader.storedFields(), source, rankDoc);
         }
     }
 
-    private static Supplier<Source> lazyStoredSourceLoader(Profiler profiler, LeafReaderContext ctx, int doc) {
+    private static Supplier<Source> lazyStoredSourceLoader(
+        Profiler profiler,
+        LeafReaderContext ctx,
+        int doc,
+        SearchHit hit,
+        CircuitBreaker circuitBreaker
+    ) {
         return () -> {
             StoredFieldLoader rootLoader = profiler.storedFields(StoredFieldLoader.create(true, Collections.emptySet()));
             try {
                 LeafStoredFieldLoader leafRootLoader = rootLoader.getLoader(ctx, null);
                 leafRootLoader.advanceTo(doc);
-                return Source.fromBytes(leafRootLoader.source());
+                BytesReference source = leafRootLoader.source();
+                circuitBreaker.addEstimateBytesAndMaybeBreak(source.length(), "fetch phase source loader");
+                // Saving the entire source we loaded in the hit, so that we can release it entirely when the hit is released
+                // This is important for the circuit breaker accounting - note that this lazy loader can be triggered in the case of
+                // inner hits even though the top hit source is not requested (see {@link FetchPhase#prepareNestedHitContext} when
+                // the `nestedSource` is created), so we need to save the entire source on the hit - we account
+                // for the top level source via the {@link SearchHit#unfilteredSourceRef(BytesReference)} method because the
+                // {@link SearchHit#source()} method can be null when the top level source is not requested.
+                // NB all of the above also applies for source filtering and field collapsing
+                hit.unfilteredSourceRef(source);
+                return Source.fromBytes(source);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -357,8 +390,10 @@ public final class FetchPhase {
             rootId = leafRootLoader.id();
 
             if (requiresSource) {
-                if (leafRootLoader.source() != null) {
-                    rootSource = Source.fromBytes(leafRootLoader.source());
+                BytesReference source = leafRootLoader.source();
+                if (source != null) {
+                    NOOP_CIRCUIT_BREAKER.addEstimateBytesAndMaybeBreak(source.length(), "fetch phase nested hit source loader");
+                    rootSource = Source.fromBytes(source);
                 }
             }
         }
@@ -369,8 +404,10 @@ public final class FetchPhase {
         assert nestedIdentity != null;
         Source nestedSource = nestedIdentity.extractSource(rootSource);
 
-        SearchHit hit = new SearchHit(topDocId, rootId, nestedIdentity);
-        return new HitContext(hit, subReaderContext, nestedInfo.doc(), childFieldLoader.storedFields(), nestedSource, rankDoc);
+        // nested hits do not record their source size, as the top level hit will do so (nested hits will only reference part of the top
+        // level source)
+        SearchHit nestedHit = new SearchHit(topDocId, rootId, nestedIdentity, FetchPhase.NOOP_CIRCUIT_BREAKER);
+        return new HitContext(nestedHit, subReaderContext, nestedInfo.doc(), childFieldLoader.storedFields(), nestedSource, rankDoc);
     }
 
     interface Profiler {

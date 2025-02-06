@@ -12,6 +12,8 @@ package org.elasticsearch.search.fetch.subphase;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -32,6 +34,10 @@ import java.util.Set;
 
 public final class InnerHitsPhase implements FetchSubPhase {
 
+    // inner hits will potentially load deeper inner hits, so we need to make sure we don't count their source towards the breaker
+    // because the sub-top-hit-source they reference is already accounted for in the outer hits (i.e. the top level hit will account for
+    // the entire source which all inner hits will sub reference)
+    private static final NoopCircuitBreaker NOOP_CIRCUIT_BREAKER = new NoopCircuitBreaker("inner_hits_phase");
     private final FetchPhase fetchPhase;
 
     public InnerHitsPhase(FetchPhase fetchPhase) {
@@ -93,7 +99,7 @@ public final class InnerHitsPhase implements FetchSubPhase {
             innerHitsContext.setRootId(hit.getId());
             innerHitsContext.setRootLookup(rootSource);
 
-            fetchPhase.execute(innerHitsContext, docIdsToLoad, null);
+            fetchPhase.execute(innerHitsContext, docIdsToLoad, null, NOOP_CIRCUIT_BREAKER);
             FetchSearchResult fetchResult = innerHitsContext.fetchResult();
             SearchHit[] internalHits = fetchResult.fetchResult().hits().getHits();
             for (int j = 0; j < internalHits.length; j++) {

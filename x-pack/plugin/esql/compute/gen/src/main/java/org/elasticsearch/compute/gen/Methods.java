@@ -9,7 +9,6 @@ package org.elasticsearch.compute.gen;
 
 import com.squareup.javapoet.TypeName;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -17,13 +16,11 @@ import java.util.function.Predicate;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
-import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.ElementFilter;
 import javax.lang.model.util.Elements;
 
@@ -166,32 +163,6 @@ public class Methods {
         } else {
             return Stream.of(declarationType);
         }
-    }
-
-    static ExecutableElement findRequiredMethod(TypeElement declarationType, String[] names, Predicate<ExecutableElement> filter) {
-        ExecutableElement result = findMethod(names, filter, declarationType, superClassOf(declarationType));
-        if (result == null) {
-            if (names.length == 1) {
-                throw new IllegalArgumentException(declarationType + "#" + names[0] + " is required");
-            }
-            throw new IllegalArgumentException("one of " + declarationType + "#" + Arrays.toString(names) + " is required");
-        }
-        return result;
-    }
-
-    static ExecutableElement findMethod(TypeElement declarationType, String name) {
-        return findMethod(new String[] { name }, e -> true, declarationType, superClassOf(declarationType));
-    }
-
-    private static TypeElement superClassOf(TypeElement declarationType) {
-        TypeMirror superclass = declarationType.getSuperclass();
-        if (superclass instanceof DeclaredType declaredType) {
-            Element superclassElement = declaredType.asElement();
-            if (superclassElement instanceof TypeElement) {
-                return (TypeElement) superclassElement;
-            }
-        }
-        return null;
     }
 
     static ExecutableElement findMethod(TypeElement declarationType, String[] names, Predicate<ExecutableElement> filter) {

@@ -323,7 +323,10 @@ public class RoutingTableTests extends ESAllocationTestCase {
         assertThat(clusterState.routingTable().allShards(new String[] { TEST_INDEX_1 }).getShardRoutings().size(), is(this.shardsPerIndex));
 
         startInitializingShards(TEST_INDEX_2);
-        assertThat(clusterState.routingTable().allShards(new String[] { TEST_INDEX_1, TEST_INDEX_2 }).getShardRoutings().size(), is(this.totalNumberOfShards));
+        assertThat(
+            clusterState.routingTable().allShards(new String[] { TEST_INDEX_1, TEST_INDEX_2 }).getShardRoutings().size(),
+            is(this.totalNumberOfShards)
+        );
 
         try {
             clusterState.routingTable().allShards(new String[] { TEST_INDEX_1, "not_exists" });

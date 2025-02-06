@@ -194,14 +194,18 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
                     maxDoc = leafReaderContext.reader().maxDoc();
                 } while (docRecord.docID() >= docBase + maxDoc);
 
+                // TODO: instead of building an array, let's just check whether doc ids are (semi) dense
                 IntArrayList nextDocIds = new IntArrayList();
                 for (int j = i; j < documentRecords.size(); j++) {
-                    int docID = documentRecords.get(j).docID();
-                    if (docBase + maxDoc >= docID) {
-                        break;
+                    var record = documentRecords.get(j);
+                    if (record.isTombstone()) {
+                        continue;
                     }
-                    int segmentDocID = docID - docBase;
-                    nextDocIds.add(segmentDocID);
+                    int docID = record.docID();
+                    if (docID >= docBase && docID < docBase + maxDoc) {
+                        int segmentDocID = docID - docBase;
+                        nextDocIds.add(segmentDocID);
+                    }
                 }
 
                 int[] nextDocIdArray = nextDocIds.toArray();

@@ -2497,6 +2497,7 @@ public class EsqlBaseParser extends ParserConfig {
   @SuppressWarnings("CheckReturnValue")
   public static class ClusterStringContext extends ParserRuleContext {
     public TerminalNode UNQUOTED_SOURCE() { return getToken(EsqlBaseParser.UNQUOTED_SOURCE, 0); }
+    public TerminalNode QUOTED_STRING() { return getToken(EsqlBaseParser.QUOTED_STRING, 0); }
     @SuppressWarnings("this-escape")
     public ClusterStringContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
@@ -2520,11 +2521,20 @@ public class EsqlBaseParser extends ParserConfig {
   public final ClusterStringContext clusterString() throws RecognitionException {
     ClusterStringContext _localctx = new ClusterStringContext(_ctx, getState());
     enterRule(_localctx, 42, RULE_clusterString);
+    int _la;
     try {
       enterOuterAlt(_localctx, 1);
       {
       setState(363);
-      match(UNQUOTED_SOURCE);
+      _la = _input.LA(1);
+      if ( !(_la==QUOTED_STRING || _la==UNQUOTED_SOURCE) ) {
+      _errHandler.recoverInline(this);
+      }
+      else {
+        if ( _input.LA(1)==Token.EOF ) matchedEOF = true;
+        _errHandler.reportMatch(this);
+        consume();
+      }
       }
     }
     catch (RecognitionException re) {
@@ -6150,7 +6160,7 @@ public class EsqlBaseParser extends ParserConfig {
     "\u0000\u0165\u0166\u0005%\u0000\u0000\u0166\u0168\u0001\u0000\u0000\u0000"+
     "\u0167\u0164\u0001\u0000\u0000\u0000\u0167\u0168\u0001\u0000\u0000\u0000"+
     "\u0168\u0169\u0001\u0000\u0000\u0000\u0169\u016a\u0003,\u0016\u0000\u016a"+
-    ")\u0001\u0000\u0000\u0000\u016b\u016c\u0005R\u0000\u0000\u016c+\u0001"+
+    ")\u0001\u0000\u0000\u0000\u016b\u016c\u0007\u0002\u0000\u0000\u016c+\u0001"+
     "\u0000\u0000\u0000\u016d\u016e\u0007\u0002\u0000\u0000\u016e-\u0001\u0000"+
     "\u0000\u0000\u016f\u0172\u00030\u0018\u0000\u0170\u0172\u00032\u0019\u0000"+
     "\u0171\u016f\u0001\u0000\u0000\u0000\u0171\u0170\u0001\u0000\u0000\u0000"+

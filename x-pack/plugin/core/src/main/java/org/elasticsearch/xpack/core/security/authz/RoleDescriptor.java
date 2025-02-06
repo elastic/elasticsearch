@@ -1646,6 +1646,10 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 if (indicesPrivileges.privileges == null || indicesPrivileges.privileges.length == 0) {
                     throw new IllegalArgumentException("indices privileges must define at least one privilege");
                 }
+                // TODO
+                if (indicesPrivileges.selectors == null || indicesPrivileges.selectors.isEmpty()) {
+                    indicesPrivileges.selectors = DEFAULT_SELECTORS;
+                }
                 return indicesPrivileges;
             }
         }

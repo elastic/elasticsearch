@@ -74,14 +74,6 @@ final class FetchSearchPhase extends SearchPhase {
         BiFunction<SearchResponseSections, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory
     ) {
         super(NAME);
-        if (context.getNumShards() != resultConsumer.getNumShards()) {
-            throw new IllegalStateException(
-                "number of shards must match the length of the query results but doesn't:"
-                    + context.getNumShards()
-                    + "!="
-                    + resultConsumer.getNumShards()
-            );
-        }
         this.searchPhaseShardResults = resultConsumer.getAtomicArray();
         this.aggregatedDfs = aggregatedDfs;
         this.nextPhaseFactory = nextPhaseFactory;
@@ -112,10 +104,10 @@ final class FetchSearchPhase extends SearchPhase {
         assert this.reducedQueryPhase == null ^ this.resultConsumer == null;
         // depending on whether we executed the RankFeaturePhase we may or may not have the reduced query result computed already
         final var reducedQueryPhase = this.reducedQueryPhase == null ? resultConsumer.reduce() : this.reducedQueryPhase;
-        final int numShards = context.getNumShards();
         // Usually when there is a single shard, we force the search type QUERY_THEN_FETCH. But when there's kNN, we might
         // still use DFS_QUERY_THEN_FETCH, which does not perform the "query and fetch" optimization during the query phase.
-        final boolean queryAndFetchOptimization = searchPhaseShardResults.length() == 1
+        final int numShards = searchPhaseShardResults.length();
+        final boolean queryAndFetchOptimization = numShards == 1
             && context.getRequest().hasKnnSearch() == false
             && reducedQueryPhase.queryPhaseRankCoordinatorContext() == null
             && (context.getRequest().source() == null || context.getRequest().source().rankBuilder() == null);
@@ -130,7 +122,7 @@ final class FetchSearchPhase extends SearchPhase {
                 // we have to release contexts here to free up resources
                 searchPhaseShardResults.asList()
                     .forEach(searchPhaseShardResult -> releaseIrrelevantSearchContext(searchPhaseShardResult, context));
-                moveToNextPhase(new AtomicArray<>(numShards), reducedQueryPhase);
+                moveToNextPhase(new AtomicArray<>(0), reducedQueryPhase);
             } else {
                 innerRunFetch(scoreDocs, numShards, reducedQueryPhase);
             }

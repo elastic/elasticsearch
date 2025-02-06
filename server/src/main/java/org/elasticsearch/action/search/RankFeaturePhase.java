@@ -56,18 +56,10 @@ public class RankFeaturePhase extends SearchPhase {
         super(NAME);
         assert rankFeaturePhaseRankCoordinatorContext != null;
         this.rankFeaturePhaseRankCoordinatorContext = rankFeaturePhaseRankCoordinatorContext;
-        if (context.getNumShards() != queryPhaseResults.getNumShards()) {
-            throw new IllegalStateException(
-                "number of shards must match the length of the query results but doesn't:"
-                    + context.getNumShards()
-                    + "!="
-                    + queryPhaseResults.getNumShards()
-            );
-        }
         this.context = context;
         this.queryPhaseResults = queryPhaseResults;
         this.aggregatedDfs = aggregatedDfs;
-        this.rankPhaseResults = new ArraySearchPhaseResults<>(context.getNumShards());
+        this.rankPhaseResults = new ArraySearchPhaseResults<>(queryPhaseResults.getNumShards());
         context.addReleasable(rankPhaseResults);
         this.progressListener = context.getTask().getProgressListener();
     }
@@ -96,10 +88,11 @@ public class RankFeaturePhase extends SearchPhase {
         // to operate on the first `rank_window_size * num_shards` results and merge them appropriately.
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase = queryPhaseResults.reduce();
         ScoreDoc[] queryScoreDocs = reducedQueryPhase.sortedTopDocs().scoreDocs(); // rank_window_size
-        final List<Integer>[] docIdsToLoad = SearchPhaseController.fillDocIdsToLoad(context.getNumShards(), queryScoreDocs);
+        final int numShards = queryPhaseResults.getNumShards();
+        final List<Integer>[] docIdsToLoad = SearchPhaseController.fillDocIdsToLoad(numShards, queryScoreDocs);
         final CountedCollector<SearchPhaseResult> rankRequestCounter = new CountedCollector<>(
             rankPhaseResults,
-            context.getNumShards(),
+            numShards,
             () -> onPhaseDone(rankFeaturePhaseRankCoordinatorContext, reducedQueryPhase),
             context
         );

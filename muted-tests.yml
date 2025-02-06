@@ -382,9 +382,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClustersCancellationIT
   method: testCancelSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/121631
-- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
-  method: test {p0=mixed_cluster/110_enrich/Enrich stats query smoke test for mixed cluster}
-  issue: https://github.com/elastic/elasticsearch/issues/121642
 - class: org.elasticsearch.search.CrossClusterSearchUnavailableClusterIT
   method: testSearchSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/121497

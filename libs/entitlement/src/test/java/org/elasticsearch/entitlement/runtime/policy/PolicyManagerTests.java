@@ -34,6 +34,7 @@ import java.util.stream.Stream;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.ALL_UNNAMED;
+import static org.elasticsearch.entitlement.runtime.policy.PolicyManager.SERVER_COMPONENT_NAME;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
@@ -77,9 +78,9 @@ public class PolicyManagerTests extends ESTestCase {
         var callerClass = this.getClass();
         var requestingModule = callerClass.getModule();
 
-        assertEquals("No policy for the unnamed module", ModuleEntitlements.NONE, policyManager.getEntitlements(callerClass));
+        assertEquals("No policy for the unnamed module", ModuleEntitlements.none("plugin1"), policyManager.getEntitlements(callerClass));
 
-        assertEquals(Map.of(requestingModule, ModuleEntitlements.NONE), policyManager.moduleEntitlementsMap);
+        assertEquals(Map.of(requestingModule, ModuleEntitlements.none("plugin1")), policyManager.moduleEntitlementsMap);
     }
 
     public void testGetEntitlementsThrowsOnMissingPolicyForPlugin() {
@@ -96,9 +97,9 @@ public class PolicyManagerTests extends ESTestCase {
         var callerClass = this.getClass();
         var requestingModule = callerClass.getModule();
 
-        assertEquals("No policy for this plugin", ModuleEntitlements.NONE, policyManager.getEntitlements(callerClass));
+        assertEquals("No policy for this plugin", ModuleEntitlements.none("plugin1"), policyManager.getEntitlements(callerClass));
 
-        assertEquals(Map.of(requestingModule, ModuleEntitlements.NONE), policyManager.moduleEntitlementsMap);
+        assertEquals(Map.of(requestingModule, ModuleEntitlements.none("plugin1")), policyManager.moduleEntitlementsMap);
     }
 
     public void testGetEntitlementsFailureIsCached() {
@@ -115,14 +116,14 @@ public class PolicyManagerTests extends ESTestCase {
         var callerClass = this.getClass();
         var requestingModule = callerClass.getModule();
 
-        assertEquals(ModuleEntitlements.NONE, policyManager.getEntitlements(callerClass));
-        assertEquals(Map.of(requestingModule, ModuleEntitlements.NONE), policyManager.moduleEntitlementsMap);
+        assertEquals(ModuleEntitlements.none("plugin1"), policyManager.getEntitlements(callerClass));
+        assertEquals(Map.of(requestingModule, ModuleEntitlements.none("plugin1")), policyManager.moduleEntitlementsMap);
 
         // A second time
-        assertEquals(ModuleEntitlements.NONE, policyManager.getEntitlements(callerClass));
+        assertEquals(ModuleEntitlements.none("plugin1"), policyManager.getEntitlements(callerClass));
 
         // Nothing new in the map
-        assertEquals(Map.of(requestingModule, ModuleEntitlements.NONE), policyManager.moduleEntitlementsMap);
+        assertEquals(Map.of(requestingModule, ModuleEntitlements.none("plugin1")), policyManager.moduleEntitlementsMap);
     }
 
     public void testGetEntitlementsReturnsEntitlementsForPluginUnnamedModule() {
@@ -159,9 +160,13 @@ public class PolicyManagerTests extends ESTestCase {
         var mockServerClass = ModuleLayer.boot().findLoader("jdk.httpserver").loadClass("com.sun.net.httpserver.HttpServer");
         var requestingModule = mockServerClass.getModule();
 
-        assertEquals("No policy for this module in server", ModuleEntitlements.NONE, policyManager.getEntitlements(mockServerClass));
+        assertEquals(
+            "No policy for this module in server",
+            ModuleEntitlements.none(SERVER_COMPONENT_NAME),
+            policyManager.getEntitlements(mockServerClass)
+        );
 
-        assertEquals(Map.of(requestingModule, ModuleEntitlements.NONE), policyManager.moduleEntitlementsMap);
+        assertEquals(Map.of(requestingModule, ModuleEntitlements.none(SERVER_COMPONENT_NAME)), policyManager.moduleEntitlementsMap);
     }
 
     public void testGetEntitlementsReturnsEntitlementsForServerModule() throws ClassNotFoundException {
@@ -238,7 +243,6 @@ public class PolicyManagerTests extends ESTestCase {
     }
 
     public void testRequestingModuleWithStackWalk() throws IOException, ClassNotFoundException {
-        var agentsClass = new TestAgent();
         var entitlementsClass = makeClassInItsOwnModule();    // A class in the entitlements library itself
         var requestingClass = makeClassInItsOwnModule();      // This guy is always the right answer
         var instrumentedClass = makeClassInItsOwnModule();    // The class that called the check method
@@ -272,7 +276,7 @@ public class PolicyManagerTests extends ESTestCase {
             createEmptyTestServerPolicy(),
             List.of(new CreateClassLoaderEntitlement()),
             Map.of(),
-            c -> "test",
+            c -> c.getPackageName().startsWith(TEST_AGENTS_PACKAGE_NAME) ? null : "test",
             TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE
         );
@@ -305,8 +309,7 @@ public class PolicyManagerTests extends ESTestCase {
             )
         );
         assertEquals(
-            "[server] using module [test] found duplicate flag entitlements "
-                + "[org.elasticsearch.entitlement.runtime.policy.CreateClassLoaderEntitlement]",
+            "[(server)] using module [test] found duplicate flag entitlements " + "[" + CreateClassLoaderEntitlement.class.getName() + "]",
             iae.getMessage()
         );
 
@@ -322,8 +325,10 @@ public class PolicyManagerTests extends ESTestCase {
             )
         );
         assertEquals(
-            "[agent] using module [unnamed] found duplicate flag entitlements "
-                + "[org.elasticsearch.entitlement.runtime.policy.CreateClassLoaderEntitlement]",
+            "[(APM agent)] using module [unnamed] found duplicate flag entitlements "
+                + "["
+                + CreateClassLoaderEntitlement.class.getName()
+                + "]",
             iae.getMessage()
         );
 
@@ -355,20 +360,28 @@ public class PolicyManagerTests extends ESTestCase {
             )
         );
         assertEquals(
-            "[plugin1] using module [test] found duplicate flag entitlements "
-                + "[org.elasticsearch.entitlement.runtime.policy.CreateClassLoaderEntitlement]",
+            "[plugin1] using module [test] found duplicate flag entitlements " + "[" + CreateClassLoaderEntitlement.class.getName() + "]",
             iae.getMessage()
         );
     }
 
-    private static Class<?> makeClassInItsOwnModule() throws IOException, ClassNotFoundException {
-        final Path home = createTempDir();
-        Path jar = createMockPluginJar(home);
-        var layer = createLayerForJar(jar, "org.example.plugin");
-        return layer.findLoader("org.example.plugin").loadClass("q.B");
+    /**
+     * If the plugin resolver tells us a class is in a plugin, don't conclude that it's in an agent.
+     */
+    public void testPluginResolverOverridesAgents() {
+        var policyManager = new PolicyManager(
+            createEmptyTestServerPolicy(),
+            List.of(new CreateClassLoaderEntitlement()),
+            Map.of(),
+            c -> "test", // Insist that the class is in a plugin
+            TEST_AGENTS_PACKAGE_NAME,
+            NO_ENTITLEMENTS_MODULE
+        );
+        ModuleEntitlements notAgentsEntitlements = policyManager.getEntitlements(TestAgent.class);
+        assertThat(notAgentsEntitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(false));
     }
 
-    private static Class<?> makeClassInItsOwnUnnamedModule() throws IOException, ClassNotFoundException {
+    private static Class<?> makeClassInItsOwnModule() throws IOException, ClassNotFoundException {
         final Path home = createTempDir();
         Path jar = createMockPluginJar(home);
         var layer = createLayerForJar(jar, "org.example.plugin");

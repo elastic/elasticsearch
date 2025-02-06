@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAct
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -44,6 +45,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
@@ -51,9 +53,11 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate;
+import org.elasticsearch.xpack.migrate.MigrateTemplateRegistry;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
 
@@ -268,13 +272,41 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         logger.debug("Reindex to destination index [{}] from source index [{}]", destIndexName, sourceIndexName);
         var reindexRequest = new ReindexRequest();
         reindexRequest.setSourceIndices(sourceIndexName);
+        reindexRequest.setDestPipeline(MigrateTemplateRegistry.REINDEX_DATA_STREAM_PIPELINE_NAME);
         reindexRequest.getSearchRequest().allowPartialSearchResults(false);
         reindexRequest.getSearchRequest().source().fetchSource(true);
         reindexRequest.setDestIndex(destIndexName);
         reindexRequest.setParentTask(parentTaskId);
         reindexRequest.setRequestsPerSecond(clusterService.getClusterSettings().get(REINDEX_MAX_REQUESTS_PER_SECOND_SETTING));
         reindexRequest.setSlices(0); // equivalent to slices=auto in rest api
-        client.execute(ReindexAction.INSTANCE, reindexRequest, listener);
+        // Since we delete the source index on success, we want to fail the whole job if there are _any_ documents that fail to reindex:
+        ActionListener<BulkByScrollResponse> checkForFailuresListener = ActionListener.wrap(bulkByScrollResponse -> {
+            if (bulkByScrollResponse.getSearchFailures().isEmpty() == false) {
+                ScrollableHitSource.SearchFailure firstSearchFailure = bulkByScrollResponse.getSearchFailures().get(0);
+                listener.onFailure(
+                    new ElasticsearchException(
+                        "Failure reading data from {} caused by {}",
+                        firstSearchFailure.getReason(),
+                        sourceIndexName,
+                        firstSearchFailure.getReason().getMessage()
+                    )
+                );
+            } else if (bulkByScrollResponse.getBulkFailures().isEmpty() == false) {
+                BulkItemResponse.Failure firstBulkFailure = bulkByScrollResponse.getBulkFailures().get(0);
+                listener.onFailure(
+                    new ElasticsearchException(
+                        "Failure loading data from {} into {} caused by {}",
+                        firstBulkFailure.getCause(),
+                        sourceIndexName,
+                        destIndexName,
+                        firstBulkFailure.getCause().getMessage()
+                    )
+                );
+            } else {
+                listener.onResponse(bulkByScrollResponse);
+            }
+        }, listener::onFailure);
+        client.execute(ReindexAction.INSTANCE, reindexRequest, checkForFailuresListener);
     }
 
     private void updateSettings(
@@ -341,6 +373,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         TaskId parentTaskId
     ) {
         AddIndexBlockRequest addIndexBlockRequest = new AddIndexBlockRequest(block, index);
+        addIndexBlockRequest.markVerified(false);
         addIndexBlockRequest.setParentTask(parentTaskId);
         client.admin().indices().execute(TransportAddIndexBlockAction.TYPE, addIndexBlockRequest, listener);
     }
@@ -366,26 +399,24 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
     ) {
         if (Assertions.ENABLED) {
             logger.debug("Comparing source [{}] and dest [{}] doc counts", sourceIndexName, destIndexName);
-            client.execute(
-                RefreshAction.INSTANCE,
-                new RefreshRequest(destIndexName),
-                listener.delegateFailureAndWrap((delegate, ignored) -> {
-                    getIndexDocCount(sourceIndexName, parentTaskId, delegate.delegateFailureAndWrap((delegate1, sourceCount) -> {
-                        getIndexDocCount(destIndexName, parentTaskId, delegate1.delegateFailureAndWrap((delegate2, destCount) -> {
-                            assert sourceCount == destCount
-                                : String.format(
-                                    Locale.ROOT,
-                                    "source index [%s] has %d docs and dest [%s] has %d docs",
-                                    sourceIndexName,
-                                    sourceCount,
-                                    destIndexName,
-                                    destCount
-                                );
-                            delegate2.onResponse(null);
-                        }));
+            RefreshRequest refreshRequest = new RefreshRequest(destIndexName);
+            refreshRequest.setParentTask(parentTaskId);
+            client.execute(RefreshAction.INSTANCE, refreshRequest, listener.delegateFailureAndWrap((delegate, ignored) -> {
+                getIndexDocCount(sourceIndexName, parentTaskId, delegate.delegateFailureAndWrap((delegate1, sourceCount) -> {
+                    getIndexDocCount(destIndexName, parentTaskId, delegate1.delegateFailureAndWrap((delegate2, destCount) -> {
+                        assert Objects.equals(sourceCount, destCount)
+                            : String.format(
+                                Locale.ROOT,
+                                "source index [%s] has %d docs and dest [%s] has %d docs",
+                                sourceIndexName,
+                                sourceCount,
+                                destIndexName,
+                                destCount
+                            );
+                        delegate2.onResponse(null);
                     }));
-                })
-            );
+                }));
+            }));
         } else {
             listener.onResponse(null);
         }

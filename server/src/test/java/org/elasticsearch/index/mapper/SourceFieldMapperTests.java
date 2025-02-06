@@ -489,8 +489,13 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             MapperService mapperService = createMapperService(settings, topMapping(b -> {}));
             DocumentMapper docMapper = mapperService.documentMapper();
             ParsedDocument doc = docMapper.parse(source(b -> b.field("field1", "value1")));
-            assertNotNull(doc.rootDoc().getField("_recovery_source"));
-            assertThat(doc.rootDoc().getField("_recovery_source").binaryValue(), equalTo(new BytesRef("{\"field1\":\"value1\"}")));
+            if (IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE.isEnabled() == false) {
+                // TODO: remove this if branch when removing the 'index_recovery_use_synthetic_source' feature flag
+                assertNotNull(doc.rootDoc().getField("_recovery_source"));
+                assertThat(doc.rootDoc().getField("_recovery_source").binaryValue(), equalTo(new BytesRef("{\"field1\":\"value1\"}")));
+            } else {
+                assertNull(doc.rootDoc().getField("_recovery_source"));
+            }
         }
         {
             Settings settings = Settings.builder()
@@ -521,8 +526,16 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             MapperService mapperService = createMapperService(settings, mapping(b -> {}));
             DocumentMapper docMapper = mapperService.documentMapper();
             ParsedDocument doc = docMapper.parse(source(b -> { b.field("@timestamp", "2012-02-13"); }));
-            assertNotNull(doc.rootDoc().getField("_recovery_source"));
-            assertThat(doc.rootDoc().getField("_recovery_source").binaryValue(), equalTo(new BytesRef("{\"@timestamp\":\"2012-02-13\"}")));
+            if (IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE.isEnabled() == false) {
+                // TODO: remove this if branch when removing the 'index_recovery_use_synthetic_source' feature flag
+                assertNotNull(doc.rootDoc().getField("_recovery_source"));
+                assertThat(
+                    doc.rootDoc().getField("_recovery_source").binaryValue(),
+                    equalTo(new BytesRef("{\"@timestamp\":\"2012-02-13\"}"))
+                );
+            } else {
+                assertNull(doc.rootDoc().getField("_recovery_source"));
+            }
         }
         {
             Settings settings = Settings.builder()
@@ -715,8 +728,16 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             MapperService mapperService = createMapperService(settings, mappings);
             DocumentMapper docMapper = mapperService.documentMapper();
             ParsedDocument doc = docMapper.parse(source(b -> { b.field("@timestamp", "2012-02-13"); }));
-            assertNotNull(doc.rootDoc().getField("_recovery_source"));
-            assertThat(doc.rootDoc().getField("_recovery_source").binaryValue(), equalTo(new BytesRef("{\"@timestamp\":\"2012-02-13\"}")));
+            if (IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE.isEnabled() == false) {
+                // TODO: remove this if branch when removing the 'index_recovery_use_synthetic_source' feature flag
+                assertNotNull(doc.rootDoc().getField("_recovery_source"));
+                assertThat(
+                    doc.rootDoc().getField("_recovery_source").binaryValue(),
+                    equalTo(new BytesRef("{\"@timestamp\":\"2012-02-13\"}"))
+                );
+            } else {
+                assertNull(doc.rootDoc().getField("_recovery_source"));
+            }
         }
         {
             Settings settings = Settings.builder()
@@ -742,11 +763,16 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             }));
             DocumentMapper docMapper = mapperService.documentMapper();
             ParsedDocument doc = docMapper.parse(source("123", b -> b.field("@timestamp", "2012-02-13").field("field", "value1"), null));
-            assertNotNull(doc.rootDoc().getField("_recovery_source"));
-            assertThat(
-                doc.rootDoc().getField("_recovery_source").binaryValue(),
-                equalTo(new BytesRef("{\"@timestamp\":\"2012-02-13\",\"field\":\"value1\"}"))
-            );
+            if (IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE.isEnabled() == false) {
+                // TODO: remove this if branch when removing the 'index_recovery_use_synthetic_source' feature flag
+                assertNotNull(doc.rootDoc().getField("_recovery_source"));
+                assertThat(
+                    doc.rootDoc().getField("_recovery_source").binaryValue(),
+                    equalTo(new BytesRef("{\"@timestamp\":\"2012-02-13\",\"field\":\"value1\"}"))
+                );
+            } else {
+                assertNull(doc.rootDoc().getField("_recovery_source"));
+            }
         }
         {
             Settings settings = Settings.builder()
@@ -790,11 +816,16 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             MapperService mapperService = createMapperService(settings, mappings);
             DocumentMapper docMapper = mapperService.documentMapper();
             ParsedDocument doc = docMapper.parse(source("123", b -> b.field("@timestamp", "2012-02-13").field("field", "value1"), null));
-            assertNotNull(doc.rootDoc().getField("_recovery_source"));
-            assertThat(
-                doc.rootDoc().getField("_recovery_source").binaryValue(),
-                equalTo(new BytesRef("{\"@timestamp\":\"2012-02-13\",\"field\":\"value1\"}"))
-            );
+            if (IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE.isEnabled() == false) {
+                // TODO: remove this if branch when removing the 'index_recovery_use_synthetic_source' feature flag
+                assertNotNull(doc.rootDoc().getField("_recovery_source"));
+                assertThat(
+                    doc.rootDoc().getField("_recovery_source").binaryValue(),
+                    equalTo(new BytesRef("{\"@timestamp\":\"2012-02-13\",\"field\":\"value1\"}"))
+                );
+            } else {
+                assertNull(doc.rootDoc().getField("_recovery_source"));
+            }
         }
         {
             Settings settings = Settings.builder()

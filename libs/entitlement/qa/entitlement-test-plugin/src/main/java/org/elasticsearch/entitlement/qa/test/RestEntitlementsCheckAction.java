@@ -13,18 +13,6 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.entitlement.qa.test.DummyImplementations.DummyBreakIteratorProvider;
-import org.elasticsearch.entitlement.qa.test.DummyImplementations.DummyCalendarDataProvider;
-import org.elasticsearch.entitlement.qa.test.DummyImplementations.DummyCalendarNameProvider;
-import org.elasticsearch.entitlement.qa.test.DummyImplementations.DummyCollatorProvider;
-import org.elasticsearch.entitlement.qa.test.DummyImplementations.DummyCurrencyNameProvider;
-import org.elasticsearch.entitlement.qa.test.DummyImplementations.DummyDateFormatProvider;
-import org.elasticsearch.entitlement.qa.test.DummyImplementations.DummyDateFormatSymbolsProvider;
-import org.elasticsearch.entitlement.qa.test.DummyImplementations.DummyDecimalFormatSymbolsProvider;
-import org.elasticsearch.entitlement.qa.test.DummyImplementations.DummyLocaleNameProvider;
-import org.elasticsearch.entitlement.qa.test.DummyImplementations.DummyLocaleServiceProvider;
-import org.elasticsearch.entitlement.qa.test.DummyImplementations.DummyNumberFormatProvider;
-import org.elasticsearch.entitlement.qa.test.DummyImplementations.DummyTimeZoneNameProvider;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -33,6 +21,9 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.HttpURLConnection;
@@ -51,9 +42,12 @@ import java.net.URLConnection;
 import java.net.URLStreamHandler;
 import java.net.spi.URLStreamHandlerProvider;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -61,6 +55,7 @@ import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
 import static org.elasticsearch.entitlement.qa.test.RestEntitlementsCheckAction.CheckAction.alwaysDenied;
 import static org.elasticsearch.entitlement.qa.test.RestEntitlementsCheckAction.CheckAction.deniedToPlugins;
 import static org.elasticsearch.entitlement.qa.test.RestEntitlementsCheckAction.CheckAction.forPlugins;
@@ -69,7 +64,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 @SuppressWarnings("unused")
 public class RestEntitlementsCheckAction extends BaseRestHandler {
     private static final Logger logger = LogManager.getLogger(RestEntitlementsCheckAction.class);
-    public static final Thread NO_OP_SHUTDOWN_HOOK = new Thread(() -> {}, "Shutdown hook for testing");
 
     record CheckAction(CheckedRunnable<Exception> action, boolean isAlwaysDeniedToPlugins, Integer fromJavaVersion) {
         /**
@@ -88,143 +82,168 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         }
     }
 
-    private static final Map<String, CheckAction> checkActions = Stream.<Map.Entry<String, CheckAction>>of(
-        entry("runtime_exit", deniedToPlugins(RestEntitlementsCheckAction::runtimeExit)),
-        entry("runtime_halt", deniedToPlugins(RestEntitlementsCheckAction::runtimeHalt)),
-        entry("system_exit", deniedToPlugins(RestEntitlementsCheckAction::systemExit)),
-        entry("create_classloader", forPlugins(RestEntitlementsCheckAction::createClassLoader)),
-        entry("processBuilder_start", deniedToPlugins(RestEntitlementsCheckAction::processBuilder_start)),
-        entry("processBuilder_startPipeline", deniedToPlugins(RestEntitlementsCheckAction::processBuilder_startPipeline)),
-        entry("set_https_connection_properties", forPlugins(RestEntitlementsCheckAction::setHttpsConnectionProperties)),
-        entry("set_default_ssl_socket_factory", alwaysDenied(RestEntitlementsCheckAction::setDefaultSSLSocketFactory)),
-        entry("set_default_hostname_verifier", alwaysDenied(RestEntitlementsCheckAction::setDefaultHostnameVerifier)),
-        entry("set_default_ssl_context", alwaysDenied(RestEntitlementsCheckAction::setDefaultSSLContext)),
-        entry("system_setIn", alwaysDenied(RestEntitlementsCheckAction::system$$setIn)),
-        entry("system_setOut", alwaysDenied(RestEntitlementsCheckAction::system$$setOut)),
-        entry("system_setErr", alwaysDenied(RestEntitlementsCheckAction::system$$setErr)),
-        entry("runtime_addShutdownHook", alwaysDenied(RestEntitlementsCheckAction::runtime$addShutdownHook)),
-        entry("runtime_removeShutdownHook", alwaysDenied(RestEntitlementsCheckAction::runtime$$removeShutdownHook)),
-        entry(
-            "thread_setDefaultUncaughtExceptionHandler",
-            alwaysDenied(RestEntitlementsCheckAction::thread$$setDefaultUncaughtExceptionHandler)
+    private static final Map<String, CheckAction> checkActions = Stream.of(
+        Stream.<Entry<String, CheckAction>>of(
+            entry("create_classloader", forPlugins(RestEntitlementsCheckAction::createClassLoader)),
+            entry("processBuilder_start", deniedToPlugins(RestEntitlementsCheckAction::processBuilder_start)),
+            entry("processBuilder_startPipeline", deniedToPlugins(RestEntitlementsCheckAction::processBuilder_startPipeline)),
+            entry("set_https_connection_properties", forPlugins(RestEntitlementsCheckAction::setHttpsConnectionProperties)),
+            entry("set_default_ssl_socket_factory", alwaysDenied(RestEntitlementsCheckAction::setDefaultSSLSocketFactory)),
+            entry("set_default_hostname_verifier", alwaysDenied(RestEntitlementsCheckAction::setDefaultHostnameVerifier)),
+            entry("set_default_ssl_context", alwaysDenied(RestEntitlementsCheckAction::setDefaultSSLContext)),
+            entry(
+                "thread_setDefaultUncaughtExceptionHandler",
+                alwaysDenied(RestEntitlementsCheckAction::thread$$setDefaultUncaughtExceptionHandler)
+            ),
+            entry("logManager", alwaysDenied(RestEntitlementsCheckAction::logManager$)),
+
+            entry("locale_setDefault", alwaysDenied(WritePropertiesCheckActions::setDefaultLocale)),
+            entry("locale_setDefaultForCategory", alwaysDenied(WritePropertiesCheckActions::setDefaultLocaleForCategory)),
+            entry("timeZone_setDefault", alwaysDenied(WritePropertiesCheckActions::setDefaultTimeZone)),
+
+            entry("system_setProperty", forPlugins(WritePropertiesCheckActions::setSystemProperty)),
+            entry("system_clearProperty", forPlugins(WritePropertiesCheckActions::clearSystemProperty)),
+            entry("system_setSystemProperties", alwaysDenied(WritePropertiesCheckActions::setSystemProperties)),
+
+            // This group is a bit nasty: if entitlements don't prevent these, then networking is
+            // irreparably borked for the remainder of the test run.
+            entry(
+                "datagramSocket_setDatagramSocketImplFactory",
+                alwaysDenied(RestEntitlementsCheckAction::datagramSocket$$setDatagramSocketImplFactory)
+            ),
+            entry("httpURLConnection_setFollowRedirects", alwaysDenied(RestEntitlementsCheckAction::httpURLConnection$$setFollowRedirects)),
+            entry("serverSocket_setSocketFactory", alwaysDenied(RestEntitlementsCheckAction::serverSocket$$setSocketFactory)),
+            entry("socket_setSocketImplFactory", alwaysDenied(RestEntitlementsCheckAction::socket$$setSocketImplFactory)),
+            entry("url_setURLStreamHandlerFactory", alwaysDenied(RestEntitlementsCheckAction::url$$setURLStreamHandlerFactory)),
+            entry("urlConnection_setFileNameMap", alwaysDenied(RestEntitlementsCheckAction::urlConnection$$setFileNameMap)),
+            entry(
+                "urlConnection_setContentHandlerFactory",
+                alwaysDenied(RestEntitlementsCheckAction::urlConnection$$setContentHandlerFactory)
+            ),
+
+            entry("proxySelector_setDefault", alwaysDenied(RestEntitlementsCheckAction::setDefaultProxySelector)),
+            entry("responseCache_setDefault", alwaysDenied(RestEntitlementsCheckAction::setDefaultResponseCache)),
+            entry(
+                "createInetAddressResolverProvider",
+                new CheckAction(VersionSpecificNetworkChecks::createInetAddressResolverProvider, true, 18)
+            ),
+            entry("createURLStreamHandlerProvider", alwaysDenied(RestEntitlementsCheckAction::createURLStreamHandlerProvider)),
+            entry("createURLWithURLStreamHandler", alwaysDenied(RestEntitlementsCheckAction::createURLWithURLStreamHandler)),
+            entry("createURLWithURLStreamHandler2", alwaysDenied(RestEntitlementsCheckAction::createURLWithURLStreamHandler2)),
+            entry("datagram_socket_bind", forPlugins(RestEntitlementsCheckAction::bindDatagramSocket)),
+            entry("datagram_socket_connect", forPlugins(RestEntitlementsCheckAction::connectDatagramSocket)),
+            entry("datagram_socket_send", forPlugins(RestEntitlementsCheckAction::sendDatagramSocket)),
+            entry("datagram_socket_receive", forPlugins(RestEntitlementsCheckAction::receiveDatagramSocket)),
+            entry("datagram_socket_join_group", forPlugins(RestEntitlementsCheckAction::joinGroupDatagramSocket)),
+            entry("datagram_socket_leave_group", forPlugins(RestEntitlementsCheckAction::leaveGroupDatagramSocket)),
+
+            entry("create_socket_with_proxy", forPlugins(NetworkAccessCheckActions::createSocketWithProxy)),
+            entry("socket_bind", forPlugins(NetworkAccessCheckActions::socketBind)),
+            entry("socket_connect", forPlugins(NetworkAccessCheckActions::socketConnect)),
+            entry("server_socket_bind", forPlugins(NetworkAccessCheckActions::serverSocketBind)),
+            entry("server_socket_accept", forPlugins(NetworkAccessCheckActions::serverSocketAccept)),
+
+            entry("url_open_connection_proxy", forPlugins(NetworkAccessCheckActions::urlOpenConnectionWithProxy)),
+            entry("http_client_send", forPlugins(VersionSpecificNetworkChecks::httpClientSend)),
+            entry("http_client_send_async", forPlugins(VersionSpecificNetworkChecks::httpClientSendAsync)),
+            entry("create_ldap_cert_store", forPlugins(NetworkAccessCheckActions::createLDAPCertStore)),
+
+            entry("server_socket_channel_bind", forPlugins(NetworkAccessCheckActions::serverSocketChannelBind)),
+            entry("server_socket_channel_bind_backlog", forPlugins(NetworkAccessCheckActions::serverSocketChannelBindWithBacklog)),
+            entry("server_socket_channel_accept", forPlugins(NetworkAccessCheckActions::serverSocketChannelAccept)),
+            entry("asynchronous_server_socket_channel_bind", forPlugins(NetworkAccessCheckActions::asynchronousServerSocketChannelBind)),
+            entry(
+                "asynchronous_server_socket_channel_bind_backlog",
+                forPlugins(NetworkAccessCheckActions::asynchronousServerSocketChannelBindWithBacklog)
+            ),
+            entry(
+                "asynchronous_server_socket_channel_accept",
+                forPlugins(NetworkAccessCheckActions::asynchronousServerSocketChannelAccept)
+            ),
+            entry(
+                "asynchronous_server_socket_channel_accept_with_handler",
+                forPlugins(NetworkAccessCheckActions::asynchronousServerSocketChannelAcceptWithHandler)
+            ),
+            entry("socket_channel_bind", forPlugins(NetworkAccessCheckActions::socketChannelBind)),
+            entry("socket_channel_connect", forPlugins(NetworkAccessCheckActions::socketChannelConnect)),
+            entry("asynchronous_socket_channel_bind", forPlugins(NetworkAccessCheckActions::asynchronousSocketChannelBind)),
+            entry("asynchronous_socket_channel_connect", forPlugins(NetworkAccessCheckActions::asynchronousSocketChannelConnect)),
+            entry(
+                "asynchronous_socket_channel_connect_with_completion",
+                forPlugins(NetworkAccessCheckActions::asynchronousSocketChannelConnectWithCompletion)
+            ),
+            entry("datagram_channel_bind", forPlugins(NetworkAccessCheckActions::datagramChannelBind)),
+            entry("datagram_channel_connect", forPlugins(NetworkAccessCheckActions::datagramChannelConnect)),
+            entry("datagram_channel_send", forPlugins(NetworkAccessCheckActions::datagramChannelSend)),
+            entry("datagram_channel_receive", forPlugins(NetworkAccessCheckActions::datagramChannelReceive)),
+
+            entry("runtime_load", forPlugins(LoadNativeLibrariesCheckActions::runtimeLoad)),
+            entry("runtime_load_library", forPlugins(LoadNativeLibrariesCheckActions::runtimeLoadLibrary)),
+            entry("system_load", forPlugins(LoadNativeLibrariesCheckActions::systemLoad)),
+            entry("system_load_library", forPlugins(LoadNativeLibrariesCheckActions::systemLoadLibrary)),
+            entry("enable_native_access", new CheckAction(VersionSpecificNativeChecks::enableNativeAccess, false, 22)),
+            entry("address_target_layout", new CheckAction(VersionSpecificNativeChecks::addressLayoutWithTargetLayout, false, 22)),
+            entry("donwncall_handle", new CheckAction(VersionSpecificNativeChecks::linkerDowncallHandle, false, 22)),
+            entry(
+                "donwncall_handle_with_address",
+                new CheckAction(VersionSpecificNativeChecks::linkerDowncallHandleWithAddress, false, 22)
+            ),
+            entry("upcall_stub", new CheckAction(VersionSpecificNativeChecks::linkerUpcallStub, false, 22)),
+            entry("reinterpret", new CheckAction(VersionSpecificNativeChecks::memorySegmentReinterpret, false, 22)),
+            entry("reinterpret_cleanup", new CheckAction(VersionSpecificNativeChecks::memorySegmentReinterpretWithCleanup, false, 22)),
+            entry(
+                "reinterpret_size_cleanup",
+                new CheckAction(VersionSpecificNativeChecks::memorySegmentReinterpretWithSizeAndCleanup, false, 22)
+            ),
+            entry("symbol_lookup_name", new CheckAction(VersionSpecificNativeChecks::symbolLookupWithName, false, 22)),
+            entry("symbol_lookup_path", new CheckAction(VersionSpecificNativeChecks::symbolLookupWithPath, false, 22))
         ),
-        entry("localeServiceProvider", alwaysDenied(RestEntitlementsCheckAction::localeServiceProvider$)),
-        entry("breakIteratorProvider", alwaysDenied(RestEntitlementsCheckAction::breakIteratorProvider$)),
-        entry("collatorProvider", alwaysDenied(RestEntitlementsCheckAction::collatorProvider$)),
-        entry("dateFormatProvider", alwaysDenied(RestEntitlementsCheckAction::dateFormatProvider$)),
-        entry("dateFormatSymbolsProvider", alwaysDenied(RestEntitlementsCheckAction::dateFormatSymbolsProvider$)),
-        entry("decimalFormatSymbolsProvider", alwaysDenied(RestEntitlementsCheckAction::decimalFormatSymbolsProvider$)),
-        entry("numberFormatProvider", alwaysDenied(RestEntitlementsCheckAction::numberFormatProvider$)),
-        entry("calendarDataProvider", alwaysDenied(RestEntitlementsCheckAction::calendarDataProvider$)),
-        entry("calendarNameProvider", alwaysDenied(RestEntitlementsCheckAction::calendarNameProvider$)),
-        entry("currencyNameProvider", alwaysDenied(RestEntitlementsCheckAction::currencyNameProvider$)),
-        entry("localeNameProvider", alwaysDenied(RestEntitlementsCheckAction::localeNameProvider$)),
-        entry("timeZoneNameProvider", alwaysDenied(RestEntitlementsCheckAction::timeZoneNameProvider$)),
-        entry("logManager", alwaysDenied(RestEntitlementsCheckAction::logManager$)),
-
-        entry("locale_setDefault", alwaysDenied(WritePropertiesCheckActions::setDefaultLocale)),
-        entry("locale_setDefaultForCategory", alwaysDenied(WritePropertiesCheckActions::setDefaultLocaleForCategory)),
-        entry("timeZone_setDefault", alwaysDenied(WritePropertiesCheckActions::setDefaultTimeZone)),
-
-        entry("system_setProperty", forPlugins(WritePropertiesCheckActions::setSystemProperty)),
-        entry("system_clearProperty", forPlugins(WritePropertiesCheckActions::clearSystemProperty)),
-        entry("system_setSystemProperties", alwaysDenied(WritePropertiesCheckActions::setSystemProperties)),
-
-        // This group is a bit nasty: if entitlements don't prevent these, then networking is
-        // irreparably borked for the remainder of the test run.
-        entry(
-            "datagramSocket_setDatagramSocketImplFactory",
-            alwaysDenied(RestEntitlementsCheckAction::datagramSocket$$setDatagramSocketImplFactory)
-        ),
-        entry("httpURLConnection_setFollowRedirects", alwaysDenied(RestEntitlementsCheckAction::httpURLConnection$$setFollowRedirects)),
-        entry("serverSocket_setSocketFactory", alwaysDenied(RestEntitlementsCheckAction::serverSocket$$setSocketFactory)),
-        entry("socket_setSocketImplFactory", alwaysDenied(RestEntitlementsCheckAction::socket$$setSocketImplFactory)),
-        entry("url_setURLStreamHandlerFactory", alwaysDenied(RestEntitlementsCheckAction::url$$setURLStreamHandlerFactory)),
-        entry("urlConnection_setFileNameMap", alwaysDenied(RestEntitlementsCheckAction::urlConnection$$setFileNameMap)),
-        entry("urlConnection_setContentHandlerFactory", alwaysDenied(RestEntitlementsCheckAction::urlConnection$$setContentHandlerFactory)),
-
-        entry("proxySelector_setDefault", alwaysDenied(RestEntitlementsCheckAction::setDefaultProxySelector)),
-        entry("responseCache_setDefault", alwaysDenied(RestEntitlementsCheckAction::setDefaultResponseCache)),
-        entry(
-            "createInetAddressResolverProvider",
-            new CheckAction(VersionSpecificNetworkChecks::createInetAddressResolverProvider, true, 18)
-        ),
-        entry("createURLStreamHandlerProvider", alwaysDenied(RestEntitlementsCheckAction::createURLStreamHandlerProvider)),
-        entry("createURLWithURLStreamHandler", alwaysDenied(RestEntitlementsCheckAction::createURLWithURLStreamHandler)),
-        entry("createURLWithURLStreamHandler2", alwaysDenied(RestEntitlementsCheckAction::createURLWithURLStreamHandler2)),
-        entry("datagram_socket_bind", forPlugins(RestEntitlementsCheckAction::bindDatagramSocket)),
-        entry("datagram_socket_connect", forPlugins(RestEntitlementsCheckAction::connectDatagramSocket)),
-        entry("datagram_socket_send", forPlugins(RestEntitlementsCheckAction::sendDatagramSocket)),
-        entry("datagram_socket_receive", forPlugins(RestEntitlementsCheckAction::receiveDatagramSocket)),
-        entry("datagram_socket_join_group", forPlugins(RestEntitlementsCheckAction::joinGroupDatagramSocket)),
-        entry("datagram_socket_leave_group", forPlugins(RestEntitlementsCheckAction::leaveGroupDatagramSocket)),
-
-        entry("create_socket_with_proxy", forPlugins(NetworkAccessCheckActions::createSocketWithProxy)),
-        entry("socket_bind", forPlugins(NetworkAccessCheckActions::socketBind)),
-        entry("socket_connect", forPlugins(NetworkAccessCheckActions::socketConnect)),
-        entry("server_socket_bind", forPlugins(NetworkAccessCheckActions::serverSocketBind)),
-        entry("server_socket_accept", forPlugins(NetworkAccessCheckActions::serverSocketAccept)),
-
-        entry("url_open_connection_proxy", forPlugins(NetworkAccessCheckActions::urlOpenConnectionWithProxy)),
-        entry("http_client_send", forPlugins(VersionSpecificNetworkChecks::httpClientSend)),
-        entry("http_client_send_async", forPlugins(VersionSpecificNetworkChecks::httpClientSendAsync)),
-        entry("create_ldap_cert_store", forPlugins(NetworkAccessCheckActions::createLDAPCertStore)),
-
-        entry("server_socket_channel_bind", forPlugins(NetworkAccessCheckActions::serverSocketChannelBind)),
-        entry("server_socket_channel_bind_backlog", forPlugins(NetworkAccessCheckActions::serverSocketChannelBindWithBacklog)),
-        entry("server_socket_channel_accept", forPlugins(NetworkAccessCheckActions::serverSocketChannelAccept)),
-        entry("asynchronous_server_socket_channel_bind", forPlugins(NetworkAccessCheckActions::asynchronousServerSocketChannelBind)),
-        entry(
-            "asynchronous_server_socket_channel_bind_backlog",
-            forPlugins(NetworkAccessCheckActions::asynchronousServerSocketChannelBindWithBacklog)
-        ),
-        entry("asynchronous_server_socket_channel_accept", forPlugins(NetworkAccessCheckActions::asynchronousServerSocketChannelAccept)),
-        entry(
-            "asynchronous_server_socket_channel_accept_with_handler",
-            forPlugins(NetworkAccessCheckActions::asynchronousServerSocketChannelAcceptWithHandler)
-        ),
-        entry("socket_channel_bind", forPlugins(NetworkAccessCheckActions::socketChannelBind)),
-        entry("socket_channel_connect", forPlugins(NetworkAccessCheckActions::socketChannelConnect)),
-        entry("asynchronous_socket_channel_bind", forPlugins(NetworkAccessCheckActions::asynchronousSocketChannelBind)),
-        entry("asynchronous_socket_channel_connect", forPlugins(NetworkAccessCheckActions::asynchronousSocketChannelConnect)),
-        entry(
-            "asynchronous_socket_channel_connect_with_completion",
-            forPlugins(NetworkAccessCheckActions::asynchronousSocketChannelConnectWithCompletion)
-        ),
-        entry("datagram_channel_bind", forPlugins(NetworkAccessCheckActions::datagramChannelBind)),
-        entry("datagram_channel_connect", forPlugins(NetworkAccessCheckActions::datagramChannelConnect)),
-        entry("datagram_channel_send", forPlugins(NetworkAccessCheckActions::datagramChannelSend)),
-        entry("datagram_channel_receive", forPlugins(NetworkAccessCheckActions::datagramChannelReceive)),
-
-        entry("runtime_load", forPlugins(LoadNativeLibrariesCheckActions::runtimeLoad)),
-        entry("runtime_load_library", forPlugins(LoadNativeLibrariesCheckActions::runtimeLoadLibrary)),
-        entry("system_load", forPlugins(LoadNativeLibrariesCheckActions::systemLoad)),
-        entry("system_load_library", forPlugins(LoadNativeLibrariesCheckActions::systemLoadLibrary)),
-        entry("enable_native_access", new CheckAction(VersionSpecificNativeChecks::enableNativeAccess, false, 22)),
-        entry("address_target_layout", new CheckAction(VersionSpecificNativeChecks::addressLayoutWithTargetLayout, false, 22)),
-        entry("donwncall_handle", new CheckAction(VersionSpecificNativeChecks::linkerDowncallHandle, false, 22)),
-        entry("donwncall_handle_with_address", new CheckAction(VersionSpecificNativeChecks::linkerDowncallHandleWithAddress, false, 22)),
-        entry("upcall_stub", new CheckAction(VersionSpecificNativeChecks::linkerUpcallStub, false, 22)),
-        entry("reinterpret", new CheckAction(VersionSpecificNativeChecks::memorySegmentReinterpret, false, 22)),
-        entry("reinterpret_cleanup", new CheckAction(VersionSpecificNativeChecks::memorySegmentReinterpretWithCleanup, false, 22)),
-        entry(
-            "reinterpret_size_cleanup",
-            new CheckAction(VersionSpecificNativeChecks::memorySegmentReinterpretWithSizeAndCleanup, false, 22)
-        ),
-        entry("symbol_lookup_name", new CheckAction(VersionSpecificNativeChecks::symbolLookupWithName, false, 22)),
-        entry("symbol_lookup_path", new CheckAction(VersionSpecificNativeChecks::symbolLookupWithPath, false, 22)),
-        entry("create_scanner", forPlugins(FileCheckActions::createScannerFile)),
-        entry("create_scanner_with_charset", forPlugins(FileCheckActions::createScannerFileWithCharset)),
-        entry("create_scanner_with_charset_name", forPlugins(FileCheckActions::createScannerFileWithCharsetName)),
-        entry("create_file_output_stream_string", forPlugins(FileCheckActions::createFileOutputStreamString)),
-        entry("create_file_output_stream_string_with_append", forPlugins(FileCheckActions::createFileOutputStreamStringWithAppend)),
-        entry("create_file_output_stream_file", forPlugins(FileCheckActions::createFileOutputStreamFile)),
-        entry("create_file_output_stream_file_with_append", forPlugins(FileCheckActions::createFileOutputStreamFileWithAppend)),
-        entry("files_probe_content_type", forPlugins(FileCheckActions::filesProbeContentType)),
-        entry("files_set_owner", forPlugins(FileCheckActions::filesSetOwner))
+        getTestEntries(FileCheckActions.class),
+        getTestEntries(SpiActions.class),
+        getTestEntries(SystemActions.class)
     )
+        .flatMap(Function.identity())
         .filter(entry -> entry.getValue().fromJavaVersion() == null || Runtime.version().feature() >= entry.getValue().fromJavaVersion())
-        .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+        .collect(Collectors.toUnmodifiableMap(Entry::getKey, Entry::getValue));
+
+    @SuppressForbidden(reason = "Need package private methods so we don't have to make them all public")
+    private static Method[] getDeclaredMethods(Class<?> clazz) {
+        return clazz.getDeclaredMethods();
+    }
+
+    private static Stream<Entry<String, CheckAction>> getTestEntries(Class<?> actionsClass) {
+        List<Entry<String, CheckAction>> entries = new ArrayList<>();
+        for (var method : getDeclaredMethods(actionsClass)) {
+            var testAnnotation = method.getAnnotation(EntitlementTest.class);
+            if (testAnnotation == null) {
+                continue;
+            }
+            if (Modifier.isStatic(method.getModifiers()) == false) {
+                throw new AssertionError("Entitlement test method [" + method + "] must be static");
+            }
+            if (method.getParameterTypes().length != 0) {
+                throw new AssertionError("Entitlement test method [" + method + "] must not have parameters");
+            }
+
+            CheckedRunnable<Exception> runnable = () -> {
+                try {
+                    method.invoke(null);
+                } catch (IllegalAccessException e) {
+                    throw new AssertionError(e);
+                } catch (InvocationTargetException e) {
+                    if (e.getCause() instanceof Exception exc) {
+                        throw exc;
+                    } else {
+                        throw new AssertionError(e);
+                    }
+                }
+            };
+            boolean deniedToPlugins = testAnnotation.expectedAccess() != PLUGINS;
+            Integer fromJavaVersion = testAnnotation.fromJavaVersion() == -1 ? null : testAnnotation.fromJavaVersion();
+            entries.add(entry(method.getName(), new CheckAction(runnable, deniedToPlugins, fromJavaVersion)));
+        }
+        return entries.stream();
+    }
 
     private static void createURLStreamHandlerProvider() {
         var x = new URLStreamHandlerProvider() {
@@ -275,21 +294,6 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         HttpsURLConnection.setDefaultSSLSocketFactory(new DummyImplementations.DummySSLSocketFactory());
     }
 
-    @SuppressForbidden(reason = "Specifically testing Runtime.exit")
-    private static void runtimeExit() {
-        Runtime.getRuntime().exit(123);
-    }
-
-    @SuppressForbidden(reason = "Specifically testing Runtime.halt")
-    private static void runtimeHalt() {
-        Runtime.getRuntime().halt(123);
-    }
-
-    @SuppressForbidden(reason = "Specifically testing System.exit")
-    private static void systemExit() {
-        System.exit(123);
-    }
-
     private static void createClassLoader() throws IOException {
         try (var classLoader = new URLClassLoader("test", new URL[0], RestEntitlementsCheckAction.class.getClassLoader())) {
             logger.info("Created URLClassLoader [{}]", classLoader.getName());
@@ -308,78 +312,8 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         new DummyImplementations.DummyHttpsURLConnection().setSSLSocketFactory(new DummyImplementations.DummySSLSocketFactory());
     }
 
-    private static void system$$setIn() {
-        System.setIn(System.in);
-    }
-
-    @SuppressForbidden(reason = "This should be a no-op so we don't interfere with system streams")
-    private static void system$$setOut() {
-        System.setOut(System.out);
-    }
-
-    @SuppressForbidden(reason = "This should be a no-op so we don't interfere with system streams")
-    private static void system$$setErr() {
-        System.setErr(System.err);
-    }
-
-    private static void runtime$addShutdownHook() {
-        Runtime.getRuntime().addShutdownHook(NO_OP_SHUTDOWN_HOOK);
-    }
-
-    private static void runtime$$removeShutdownHook() {
-        Runtime.getRuntime().removeShutdownHook(NO_OP_SHUTDOWN_HOOK);
-    }
-
     private static void thread$$setDefaultUncaughtExceptionHandler() {
         Thread.setDefaultUncaughtExceptionHandler(Thread.getDefaultUncaughtExceptionHandler());
-    }
-
-    private static void localeServiceProvider$() {
-        new DummyLocaleServiceProvider();
-    }
-
-    private static void breakIteratorProvider$() {
-        new DummyBreakIteratorProvider();
-    }
-
-    private static void collatorProvider$() {
-        new DummyCollatorProvider();
-    }
-
-    private static void dateFormatProvider$() {
-        new DummyDateFormatProvider();
-    }
-
-    private static void dateFormatSymbolsProvider$() {
-        new DummyDateFormatSymbolsProvider();
-    }
-
-    private static void decimalFormatSymbolsProvider$() {
-        new DummyDecimalFormatSymbolsProvider();
-    }
-
-    private static void numberFormatProvider$() {
-        new DummyNumberFormatProvider();
-    }
-
-    private static void calendarDataProvider$() {
-        new DummyCalendarDataProvider();
-    }
-
-    private static void calendarNameProvider$() {
-        new DummyCalendarNameProvider();
-    }
-
-    private static void currencyNameProvider$() {
-        new DummyCurrencyNameProvider();
-    }
-
-    private static void localeNameProvider$() {
-        new DummyLocaleNameProvider();
-    }
-
-    private static void timeZoneNameProvider$() {
-        new DummyTimeZoneNameProvider();
     }
 
     private static void logManager$() {
@@ -470,7 +404,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         return checkActions.entrySet()
             .stream()
             .filter(kv -> kv.getValue().isAlwaysDeniedToPlugins() == false)
-            .map(Map.Entry::getKey)
+            .map(Entry::getKey)
             .collect(Collectors.toSet());
     }
 

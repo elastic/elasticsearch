@@ -363,6 +363,25 @@ steps:
             - signal_reason: agent_stop
               limit: 3
 
+      - label: 8.19.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.19.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+          preemptible: true
+        env:
+          BWC_VERSION: 8.19.0
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3
+
       - label: 9.0.0 / bwc
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v9.0.0#bwcTest
         timeout_in_minutes: 300
@@ -374,6 +393,25 @@ steps:
           preemptible: true
         env:
           BWC_VERSION: 9.0.0
+        retry:
+          automatic:
+            - exit_status: "-1"
+              limit: 3
+              signal_reason: none
+            - signal_reason: agent_stop
+              limit: 3
+
+      - label: 9.1.0 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v9.1.0#bwcTest
+        timeout_in_minutes: 300
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          machineType: n1-standard-32
+          buildDirectory: /dev/shm/bk
+          preemptible: true
+        env:
+          BWC_VERSION: 9.1.0
         retry:
           automatic:
             - exit_status: "-1"
@@ -448,7 +486,7 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - openjdk21
-            BWC_VERSION: ["8.16.4", "8.17.2", "8.18.0", "9.0.0"]
+            BWC_VERSION: ["8.16.4", "8.17.2", "8.18.0", "8.19.0", "9.0.0", "9.1.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -467,6 +505,7 @@ steps:
             ES_RUNTIME_JAVA:
               - openjdk21
               - openjdk23
+              - openjdk24
             GRADLE_TASK:
               - checkPart1
               - checkPart2
@@ -490,7 +529,7 @@ steps:
             ES_RUNTIME_JAVA:
               - openjdk21
               - openjdk23
-            BWC_VERSION: ["8.16.4", "8.17.2", "8.18.0", "9.0.0"]
+            BWC_VERSION: ["8.16.4", "8.17.2", "8.18.0", "8.19.0", "9.0.0", "9.1.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004

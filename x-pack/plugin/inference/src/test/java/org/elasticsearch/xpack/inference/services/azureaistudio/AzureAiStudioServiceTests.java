@@ -61,6 +61,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -1389,60 +1390,71 @@ public class AzureAiStudioServiceTests extends ESTestCase {
     @SuppressWarnings("checkstyle:LineLength")
     public void testGetConfiguration() throws Exception {
         try (var service = createService()) {
-            String content = XContentHelper.stripWhitespace("""
-                {
-                    "service": "azureaistudio",
-                    "name": "Azure AI Studio",
-                    "task_types": ["text_embedding", "completion"],
-                    "configurations": {
-                        "endpoint_type": {
-                            "description": "Specifies the type of endpoint that is used in your model deployment.",
-                            "label": "Endpoint Type",
-                            "required": true,
-                            "sensitive": false,
-                            "updatable": false,
-                            "type": "str",
-                            "supported_task_types": ["text_embedding", "completion"]
-                        },
-                        "provider": {
-                            "description": "The model provider for your deployment.",
-                            "label": "Provider",
-                            "required": true,
-                            "sensitive": false,
-                            "updatable": false,
-                            "type": "str",
-                            "supported_task_types": ["text_embedding", "completion"]
-                        },
-                        "api_key": {
-                            "description": "API Key for the provider you're connecting to.",
-                            "label": "API Key",
-                            "required": true,
-                            "sensitive": true,
-                            "updatable": true,
-                            "type": "str",
-                            "supported_task_types": ["text_embedding", "completion"]
-                        },
-                        "rate_limit.requests_per_minute": {
-                            "description": "Minimize the number of rate limit errors.",
-                            "label": "Rate Limit",
-                            "required": false,
-                            "sensitive": false,
-                            "updatable": false,
-                            "type": "int",
-                            "supported_task_types": ["text_embedding", "completion"]
-                        },
-                        "target": {
-                            "description": "The target URL of your Azure AI Studio model deployment.",
-                            "label": "Target",
-                            "required": true,
-                            "sensitive": false,
-                            "updatable": false,
-                            "type": "str",
-                            "supported_task_types": ["text_embedding", "completion"]
+            String content = XContentHelper.stripWhitespace(
+                """
+                    {
+                        "service": "azureaistudio",
+                        "name": "Azure AI Studio",
+                        "task_types": ["text_embedding", "completion"],
+                        "configurations": {
+                            "dimensions": {
+                                "description": "The number of dimensions the resulting embeddings should have. For more information refer to https://learn.microsoft.com/en-us/azure/ai-studio/reference/reference-model-inference-embeddings.",
+                                "label": "Dimensions",
+                                "required": false,
+                                "sensitive": false,
+                                "updatable": false,
+                                "type": "int",
+                                "supported_task_types": ["text_embedding"]
+                            },
+                            "endpoint_type": {
+                                "description": "Specifies the type of endpoint that is used in your model deployment.",
+                                "label": "Endpoint Type",
+                                "required": true,
+                                "sensitive": false,
+                                "updatable": false,
+                                "type": "str",
+                                "supported_task_types": ["text_embedding", "completion"]
+                            },
+                            "provider": {
+                                "description": "The model provider for your deployment.",
+                                "label": "Provider",
+                                "required": true,
+                                "sensitive": false,
+                                "updatable": false,
+                                "type": "str",
+                                "supported_task_types": ["text_embedding", "completion"]
+                            },
+                            "api_key": {
+                                "description": "API Key for the provider you're connecting to.",
+                                "label": "API Key",
+                                "required": true,
+                                "sensitive": true,
+                                "updatable": true,
+                                "type": "str",
+                                "supported_task_types": ["text_embedding", "completion"]
+                            },
+                            "rate_limit.requests_per_minute": {
+                                "description": "Minimize the number of rate limit errors.",
+                                "label": "Rate Limit",
+                                "required": false,
+                                "sensitive": false,
+                                "updatable": false,
+                                "type": "int",
+                                "supported_task_types": ["text_embedding", "completion"]
+                            },
+                            "target": {
+                                "description": "The target URL of your Azure AI Studio model deployment.",
+                                "label": "Target",
+                                "required": true,
+                                "sensitive": false,
+                                "updatable": false,
+                                "type": "str",
+                                "supported_task_types": ["text_embedding", "completion"]
+                            }
                         }
                     }
-                }
-                """);
+                    """
+            );
             InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
                 new BytesArray(content),
                 XContentType.JSON
@@ -1460,8 +1472,8 @@ public class AzureAiStudioServiceTests extends ESTestCase {
 
     public void testSupportsStreaming() throws IOException {
         try (var service = new AzureAiStudioService(mock(), createWithEmptySettings(mock()))) {
-            assertTrue(service.canStream(TaskType.COMPLETION));
-            assertTrue(service.canStream(TaskType.ANY));
+            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION)));
+            assertFalse(service.canStream(TaskType.ANY));
         }
     }
 

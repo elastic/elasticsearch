@@ -393,6 +393,9 @@ tests:
 - class: org.elasticsearch.transport.InboundHandlerTests
   method: testLogsSlowInboundProcessing
   issue: https://github.com/elastic/elasticsearch/issues/121816
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/cat/health/cat-health-no-timestamp-example}
+  issue: https://github.com/elastic/elasticsearch/issues/121867
 
 # Examples:
 #

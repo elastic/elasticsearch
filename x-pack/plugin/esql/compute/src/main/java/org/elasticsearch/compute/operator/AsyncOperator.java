@@ -37,7 +37,7 @@ import java.util.concurrent.atomic.LongAdder;
  * output.
  * <p>
  *     This operator will also take care of merging response headers from the thread context into the main thread,
- *     which <b>must</b> be the that closes this.
+ *     which <b>must</b> be the one that closes this.
  * </p>
  *
  * @see #performAsync(Page, ActionListener)

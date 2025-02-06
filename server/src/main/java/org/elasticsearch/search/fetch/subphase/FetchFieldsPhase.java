@@ -71,7 +71,6 @@ public final class FetchFieldsPhase implements FetchSubPhase {
                         .stream()
                         .filter(
                             fieldAndFormat -> (searchExecutionContext.isMetadataField(fieldAndFormat.field) == false
-                                || searchExecutionContext.fieldExistsInIndex(fieldAndFormat.field) == false
                                 || searchExecutionContext.getFieldType(fieldAndFormat.field).isStored() == false
                                 || IdFieldMapper.NAME.equals(fieldAndFormat.field)
                                 || SourceFieldMapper.NAME.equals(fieldAndFormat.field))
@@ -88,7 +87,6 @@ public final class FetchFieldsPhase implements FetchSubPhase {
                     continue;
                 }
                 if (searchExecutionContext.isMetadataField(fieldAndFormat.field)
-                    && searchExecutionContext.fieldExistsInIndex(fieldAndFormat.field)
                     && searchExecutionContext.getFieldType(fieldAndFormat.field).isStored()) {
                     fetchContextMetadataFields.add(fieldAndFormat);
                 }

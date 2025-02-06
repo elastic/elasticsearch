@@ -650,3 +650,42 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.total.relation: eq }
   - match: { hits.hits.0._source.dense_field.text: "updated text" }
+
+---
+"Skip fetching _inference_fields":
+  - requires:
+      cluster_features: semantic_text.skip_inference_fields
+      reason: Skip _inference_fields when search is performed on legacy semantic_text format.
+
+  - do:
+      indices.create:
+        index: test-skip-inference_field-index
+        body:
+          settings:
+            index:
+              mapping:
+                semantic_text:
+                  use_legacy_format: true
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+
+  - do:
+      index:
+        index: test-skip-inference_field-index
+        id: doc_1
+        body:
+          inference_field: "test value"
+        refresh: true
+
+  - do:
+      search:
+        index: test-skip-inference_field-index
+        body:
+          fields: [ _inference_fields ]
+          query:
+            match_all: { }
+
+  - not_exists: hits.hits.0._source._inference_fields

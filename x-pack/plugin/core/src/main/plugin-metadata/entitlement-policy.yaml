@@ -6,6 +6,7 @@ org.apache.httpcomponents.httpclient:
   - set_thread_property
 org.apache.httpcomponents.httpcore.nio:
   - outbound_network
+  - create_thread
 unboundid.ldapsdk:
   - write_system_properties:
       properties:

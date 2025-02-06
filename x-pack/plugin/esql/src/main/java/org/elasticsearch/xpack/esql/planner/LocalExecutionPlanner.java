@@ -601,7 +601,6 @@ public class LocalExecutionPlanner {
         return source.with(
             new LookupFromIndexOperator.Factory(
                 sessionId,
-                configuration,
                 parentTask,
                 context.queryPragmas().enrichMaxWorkers(),
                 matchConfig.channel(),

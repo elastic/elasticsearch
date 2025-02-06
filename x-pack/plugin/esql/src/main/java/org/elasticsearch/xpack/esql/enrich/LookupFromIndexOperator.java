@@ -39,7 +39,6 @@ import java.util.function.Function;
 public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndexOperator.OngoingJoin> {
     public record Factory(
         String sessionId,
-        Configuration configuration,
         CancellableTask parentTask,
         int maxOutstandingRequests,
         int inputChannel,
@@ -69,7 +68,6 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         public Operator get(DriverContext driverContext) {
             return new LookupFromIndexOperator(
                 sessionId,
-                configuration,
                 driverContext,
                 parentTask,
                 maxOutstandingRequests,

@@ -12,7 +12,6 @@ package org.elasticsearch.search.fetch.subphase;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.search.SearchHit;

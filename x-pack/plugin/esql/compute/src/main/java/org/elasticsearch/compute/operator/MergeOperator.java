@@ -76,12 +76,12 @@ public class MergeOperator extends SourceOperator {
 
     @Override
     public void close() {
-         // The blocks are closable by the other exchange? so we have to copy them
-         if (subPlanBlocks != null) {
-             while (subPlanBlocks.hasNext()) {
-                 Releasables.close(subPlanBlocks.next());
-             }
-         }
+        // The blocks are closable by the other exchange? so we have to copy them
+        if (subPlanBlocks != null) {
+            while (subPlanBlocks.hasNext()) {
+                Releasables.close(subPlanBlocks.next());
+            }
+        }
     }
 
     @Override

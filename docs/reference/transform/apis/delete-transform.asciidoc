@@ -23,7 +23,7 @@ Deletes an existing {transform}.
 [[delete-transform-prereqs]]
 == {api-prereq-title}
 
-* Requires the `manage_transform` cluster privilege. This privilege is included 
+* Requires the `manage_transform` cluster privilege. This privilege is included
 in the `transform_admin` built-in role.
 * Before you can delete the {transform}, you must stop it.
 
@@ -44,8 +44,9 @@ current state. The default value is `false`, meaning that the {transform} must b
 
 `delete_dest_index`::
 (Optional, Boolean) When `true`, the destination index is deleted together with
-the {transform}. The default value is `false`, meaning that the destination
-index will not be deleted.
+the {transform}. If the destination index is an alias, then the alias's backing
+write index will be deleted. The default value is `false`, meaning that the
+destination index will not be deleted.
 
 `timeout`::
 (Optional, time)

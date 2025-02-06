@@ -412,7 +412,7 @@ public abstract class TransformRestTestCase extends TransformCommonRestTestCase 
         }
         updateTransformRequest.setJsonEntity(update);
 
-        client().performRequest(updateTransformRequest);
+        assertOKAndConsume(client().performRequest(updateTransformRequest));
     }
 
     protected void startTransform(String transformId) throws IOException {
@@ -683,5 +683,36 @@ public abstract class TransformRestTestCase extends TransformCommonRestTestCase 
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
         int actual = (Integer) ((List<?>) XContentMapValues.extractValue(field, searchResult)).get(0);
         assertEquals(expected, actual);
+    }
+
+    protected String createAlias(String index) throws IOException {
+        var alias = index + "_alias";
+        var createNewIndexRequest = new Request("POST", Strings.format("/_create_from/%s/%s-new", index, index));
+        assertOKAndConsume(adminClient().performRequest(createNewIndexRequest));
+        var createAlias = new Request("POST", "/_aliases");
+        createAlias.setJsonEntity(Strings.format("""
+            {
+              "actions": [
+                {
+                  "add": {
+                    "index": "%s",
+                    "alias": "%s"
+                  }
+                }
+              ]
+            }
+            """, index, alias));
+        assertOKAndConsume(adminClient().performRequest(createAlias));
+        return alias;
+    }
+
+    protected void updateTransformIndex(String transformId, String index) throws IOException {
+        updateTransform(transformId, Strings.format("""
+            {
+              "dest": {
+                "index": "%s"
+              }
+            }
+            """, index), false);
     }
 }

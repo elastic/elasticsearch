@@ -138,6 +138,35 @@ public class TransformResetIT extends TransformRestTestCase {
         assertFalse(indexExists(transformDest));
     }
 
+    public void testResetDeletesDestinationAlias() throws Exception {
+        String transformId = "transform-3";
+        String transformDest = transformId + "_idx";
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME, transformDest);
+
+        final Request createTransformRequest = createRequestWithAuth(
+            "PUT",
+            getTransformEndpoint() + transformId,
+            BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1
+        );
+        String config = createConfig(transformDest);
+        createTransformRequest.setJsonEntity(config);
+        Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+        assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+        assertFalse(indexExists(transformDest));
+
+        startTransform(transformId);
+        waitForTransformCheckpoint(transformId, 1);
+        stopTransform(transformId, false);
+        assertTrue(indexExists(transformDest));
+
+        var transformDestAlias = createAlias(transformDest);
+        updateTransformIndex(transformId, transformDestAlias);
+
+        resetTransform(transformId, false);
+        assertFalse(indexExists(transformDest));
+    }
+
     private static String createConfig(String transformDestIndex) {
         boolean isContinuous = randomBoolean();
         return Strings.format("""

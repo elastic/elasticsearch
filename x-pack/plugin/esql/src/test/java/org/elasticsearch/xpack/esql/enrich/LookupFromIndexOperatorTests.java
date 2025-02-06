@@ -53,7 +53,6 @@ import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.esql.ConfigurationTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -138,7 +137,6 @@ public class LookupFromIndexOperatorTests extends OperatorTestCase {
         );
         return new LookupFromIndexOperator.Factory(
             sessionId,
-            ConfigurationTestUtils.randomConfiguration(),
             parentTask,
             maxOutstandingRequests,
             inputChannel,

@@ -1,2 +1,3 @@
 org.elasticsearch.ml:
   - create_thread
+  - set_thread_property

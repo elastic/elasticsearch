@@ -12,13 +12,9 @@ package org.elasticsearch.search.rank.context;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
-import org.elasticsearch.search.rank.feature.RankFeatureResult;
-import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.List;
 
 import static org.elasticsearch.search.SearchService.DEFAULT_FROM;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
@@ -96,18 +92,5 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
             topResults[rank].rank = from + rank + 1;
         }
         return topResults;
-    }
-
-    private RankFeatureDoc[] extractFeatureDocs(List<RankFeatureResult> rankSearchResults) {
-        List<RankFeatureDoc> docFeatures = new ArrayList<>();
-        for (RankFeatureResult rankFeatureResult : rankSearchResults) {
-            RankFeatureShardResult shardResult = rankFeatureResult.shardResult();
-            for (RankFeatureDoc rankFeatureDoc : shardResult.rankFeatureDocs) {
-                if (rankFeatureDoc.featureData != null) {
-                    docFeatures.add(rankFeatureDoc);
-                }
-            }
-        }
-        return docFeatures.toArray(new RankFeatureDoc[0]);
     }
 }

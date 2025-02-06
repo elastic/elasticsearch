@@ -182,11 +182,6 @@ public class RankFeaturePhase extends SearchPhase {
         RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext,
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase
     ) {
-        RankFeatureDoc[] docs = rankPhaseResults.getSuccessfulResults()
-            .flatMap(r -> Arrays.stream(r.rankFeatureResult().shardResult().rankFeatureDocs))
-            .filter(rfd -> rfd.featureData != null)
-            .toArray(RankFeatureDoc[]::new);
-
         ThreadedActionListener<RankFeatureDoc[]> rankResultListener = new ThreadedActionListener<>(
             context::execute,
             new ActionListener<>() {
@@ -204,18 +199,29 @@ public class RankFeaturePhase extends SearchPhase {
                 public void onFailure(Exception e) {
                     if (rankFeaturePhaseRankCoordinatorContext.isLenient()) {
                         // TODO: handle the exception somewhere
-                        logger.warn("Exception computing updated ranks. Continuing with existing ranks.", e);
-                        // use the existing docs as-is
+                        // don't want to log the entire stack trace, it's not helpful here
+                        logger.warn("Exception computing updated ranks: {}. Continuing with existing ranks.", e.toString());
+                        // use the existing score docs as-is
+                        RankFeatureDoc[] existingScores = Arrays.stream(reducedQueryPhase.sortedTopDocs().scoreDocs())
+                            .map(sd -> new RankFeatureDoc(sd.doc, sd.score, sd.shardIndex))
+                            .toArray(RankFeatureDoc[]::new);
+
                         // AbstractThreadedActionListener forks onFailure to the same executor as onResponse,
                         // so we can just call this direct
-                        onResponse(docs);
+                        onResponse(existingScores);
                     } else {
                         context.onPhaseFailure(NAME, "Computing updated ranks for results failed", e);
                     }
                 }
             }
         );
-        rankFeaturePhaseRankCoordinatorContext.computeRankScoresForGlobalResults(docs, rankResultListener);
+        rankFeaturePhaseRankCoordinatorContext.computeRankScoresForGlobalResults(
+            rankPhaseResults.getSuccessfulResults()
+                .flatMap(r -> Arrays.stream(r.rankFeatureResult().shardResult().rankFeatureDocs))
+                .filter(rfd -> rfd.featureData != null)
+                .toArray(RankFeatureDoc[]::new),
+            rankResultListener
+        );
     }
 
     private SearchPhaseController.ReducedQueryPhase newReducedQueryPhaseResults(

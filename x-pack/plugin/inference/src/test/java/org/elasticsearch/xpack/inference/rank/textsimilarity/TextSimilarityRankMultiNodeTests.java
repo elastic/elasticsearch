@@ -34,6 +34,7 @@ public class TextSimilarityRankMultiNodeTests extends AbstractRerankerIT {
             inferenceId,
             inferenceText,
             minScore,
+            false,
             type.name()
         );
     }

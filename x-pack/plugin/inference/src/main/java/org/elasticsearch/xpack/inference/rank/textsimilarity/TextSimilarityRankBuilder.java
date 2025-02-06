@@ -184,17 +184,22 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         return minScore;
     }
 
+    public boolean isLenient() {
+        return lenient;
+    }
+
     @Override
     protected boolean doEquals(RankBuilder other) {
         TextSimilarityRankBuilder that = (TextSimilarityRankBuilder) other;
         return Objects.equals(inferenceId, that.inferenceId)
             && Objects.equals(inferenceText, that.inferenceText)
             && Objects.equals(field, that.field)
-            && Objects.equals(minScore, that.minScore);
+            && Objects.equals(minScore, that.minScore)
+            && lenient == that.lenient;
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(inferenceId, inferenceText, field, minScore);
+        return Objects.hash(inferenceId, inferenceText, field, minScore, lenient);
     }
 }

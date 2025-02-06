@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Level;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -235,7 +234,7 @@ public class TransportHandshakerTests extends ESTestCase {
         TaskId.EMPTY_TASK_ID.writeTo(futureHandshake);
         final var extraDataSize = between(0, 1024);
         try (BytesStreamOutput internalMessage = new BytesStreamOutput()) {
-            Version.writeVersion(Version.CURRENT, internalMessage);
+            TransportVersion.writeVersion(TransportVersionUtils.getNextVersion(TransportVersion.current(), true), internalMessage);
             internalMessage.writeString(buildVersion);
             lengthCheckingHandshake.writeBytesReference(internalMessage.bytes());
             internalMessage.write(new byte[extraDataSize]);

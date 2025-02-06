@@ -40,8 +40,10 @@ import java.util.Map;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
@@ -287,7 +289,6 @@ public class RestEsqlIT extends RestEsqlTestCase {
             equalTo(List.of(List.of(499.5d)))
         );
 
-        List<List<String>> signatures = new ArrayList<>();
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> profiles = (List<Map<String, Object>>) ((Map<String, Object>) result.get("profile")).get("drivers");
         for (Map<String, Object> p : profiles) {
@@ -299,26 +300,34 @@ public class RestEsqlIT extends RestEsqlTestCase {
             for (Map<String, Object> o : operators) {
                 sig.add(checkOperatorProfile(o));
             }
-            signatures.add(sig);
+            String taskDescription = p.get("task_description").toString();
+            switch (taskDescription) {
+                case "data" -> assertMap(
+                    sig,
+                    matchesList().item("LuceneSourceOperator")
+                        .item("ValuesSourceReaderOperator")
+                        .item("AggregationOperator")
+                        .item("ExchangeSinkOperator")
+                );
+                case "node_reduce" -> assertThat(
+                    sig,
+                    either(matchesList().item("ExchangeSourceOperator").item("ExchangeSinkOperator")).or(
+                        matchesList().item("ExchangeSourceOperator").item("AggregationOperator").item("ExchangeSinkOperator")
+                    )
+                );
+                case "final" -> assertMap(
+                    sig,
+                    matchesList().item("ExchangeSourceOperator")
+                        .item("AggregationOperator")
+                        .item("ProjectOperator")
+                        .item("LimitOperator")
+                        .item("EvalOperator")
+                        .item("ProjectOperator")
+                        .item("OutputOperator")
+                );
+                default -> throw new IllegalArgumentException("can't match " + taskDescription);
+            }
         }
-        var readProfile = matchesList().item("LuceneSourceOperator")
-            .item("ValuesSourceReaderOperator")
-            .item("AggregationOperator")
-            .item("ExchangeSinkOperator");
-        var mergeProfile = matchesList().item("ExchangeSourceOperator")
-            .item("AggregationOperator")
-            .item("ProjectOperator")
-            .item("LimitOperator")
-            .item("EvalOperator")
-            .item("ProjectOperator")
-            .item("OutputOperator");
-        var emptyReduction = matchesList().item("ExchangeSourceOperator").item("ExchangeSinkOperator");
-        var reduction = matchesList().item("ExchangeSourceOperator").item("AggregationOperator").item("ExchangeSinkOperator");
-        assertThat(
-            signatures,
-            Matchers.either(containsInAnyOrder(readProfile, reduction, mergeProfile))
-                .or(containsInAnyOrder(readProfile, emptyReduction, mergeProfile))
-        );
     }
 
     public void testProfileOrdinalsGroupingOperator() throws IOException {
@@ -391,6 +400,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
             }
             signatures.add(sig);
         }
+        // TODO adapt this to use task_description once this is reenabled
         assertThat(
             signatures,
             containsInAnyOrder(
@@ -491,10 +501,10 @@ public class RestEsqlIT extends RestEsqlTestCase {
             MapMatcher sleepMatcher = matchesMap().entry("reason", "exchange empty")
                 .entry("sleep_millis", greaterThan(0L))
                 .entry("wake_millis", greaterThan(0L));
-            if (operators.contains("LuceneSourceOperator")) {
-                assertMap(sleeps, matchesMap().entry("counts", Map.of()).entry("first", List.of()).entry("last", List.of()));
-            } else if (operators.contains("ExchangeSourceOperator")) {
-                if (operators.contains("ExchangeSinkOperator")) {
+            String taskDescription = p.get("task_description").toString();
+            switch (taskDescription) {
+                case "data" -> assertMap(sleeps, matchesMap().entry("counts", Map.of()).entry("first", List.of()).entry("last", List.of()));
+                case "node_reduce" -> {
                     assertMap(sleeps, matchesMap().entry("counts", matchesMap().entry("exchange empty", greaterThan(0))).extraOk());
                     @SuppressWarnings("unchecked")
                     List<Map<String, Object>> first = (List<Map<String, Object>>) sleeps.get("first");
@@ -506,8 +516,8 @@ public class RestEsqlIT extends RestEsqlTestCase {
                     for (Map<String, Object> s : last) {
                         assertMap(s, sleepMatcher);
                     }
-
-                } else {
+                }
+                case "final" -> {
                     assertMap(
                         sleeps,
                         matchesMap().entry("counts", matchesMap().entry("exchange empty", 1))
@@ -515,14 +525,14 @@ public class RestEsqlIT extends RestEsqlTestCase {
                             .entry("last", List.of(sleepMatcher))
                     );
                 }
-            } else {
-                fail("unknown signature: " + operators);
+                default -> throw new IllegalArgumentException("unknown task: " + taskDescription);
             }
         }
     }
 
     private MapMatcher commonProfile() {
-        return matchesMap().entry("start_millis", greaterThan(0L))
+        return matchesMap().entry("task_description", any(String.class))
+            .entry("start_millis", greaterThan(0L))
             .entry("stop_millis", greaterThan(0L))
             .entry("iterations", greaterThan(0L))
             .entry("cpu_nanos", greaterThan(0L))

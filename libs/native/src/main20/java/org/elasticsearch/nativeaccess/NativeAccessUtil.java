@@ -11,7 +11,9 @@ package org.elasticsearch.nativeaccess;
 
 public class NativeAccessUtil {
     /**
-     * Enables native access for the provided module. Available to JDK 22+, required for JDK 24+ when using --illegal-native-access=deny
+     * Enables native access for the provided module.
+     * Preview in JDK 20 and 21.
+     * Available to JDK 22+, required for JDK 24+ when using --illegal-native-access=deny
      */
     public static void enableNativeAccess(ModuleLayer.Controller controller, Module module) {
         controller.enableNativeAccess(module);

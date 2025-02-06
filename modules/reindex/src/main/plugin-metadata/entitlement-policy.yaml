@@ -1,2 +1,3 @@
 ALL-UNNAMED:
+  - create_thread
   - outbound_network

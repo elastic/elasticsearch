@@ -128,6 +128,9 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
         return targetNodesIterator.asList();
     }
 
+    /**
+     * Resets the iterator to its initial state.
+     */
     void reset() {
         targetNodesIterator.reset();
     }

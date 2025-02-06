@@ -24,20 +24,12 @@ import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorCont
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.rerank.RerankingRankFeaturePhaseRankShardContext;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.FIELD_FIELD;
-import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.INFERENCE_ID_FIELD;
-import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.INFERENCE_TEXT_FIELD;
-import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.LENIENT_FIELD;
-import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.MIN_SCORE_FIELD;
 
 /**
  * A {@code RankBuilder} that enables ranking with text similarity model inference. Supports parameters for configuring the inference call.
@@ -51,26 +43,6 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         "text-similarity-reranker",
         License.OperationMode.ENTERPRISE
     );
-
-    static final ConstructingObjectParser<TextSimilarityRankBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME, args -> {
-        String inferenceId = (String) args[0];
-        String inferenceText = (String) args[1];
-        String field = (String) args[2];
-        Integer rankWindowSize = args[3] == null ? DEFAULT_RANK_WINDOW_SIZE : (Integer) args[3];
-        Float minScore = (Float) args[4];
-        boolean lenient = args[5] != null && (Boolean) args[5];
-
-        return new TextSimilarityRankBuilder(field, inferenceId, inferenceText, rankWindowSize, minScore, lenient);
-    });
-
-    static {
-        PARSER.declareString(constructorArg(), INFERENCE_ID_FIELD);
-        PARSER.declareString(constructorArg(), INFERENCE_TEXT_FIELD);
-        PARSER.declareString(constructorArg(), FIELD_FIELD);
-        PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
-        PARSER.declareFloat(optionalConstructorArg(), MIN_SCORE_FIELD);
-        PARSER.declareBoolean(optionalConstructorArg(), LENIENT_FIELD);
-    }
 
     private final String inferenceId;
     private final String inferenceText;
@@ -132,16 +104,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
 
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
-        // rankWindowSize serialization is handled by the parent class RankBuilder
-        builder.field(INFERENCE_ID_FIELD.getPreferredName(), inferenceId);
-        builder.field(INFERENCE_TEXT_FIELD.getPreferredName(), inferenceText);
-        builder.field(FIELD_FIELD.getPreferredName(), field);
-        if (minScore != null) {
-            builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
-        }
-        if (lenient) {
-            builder.field(LENIENT_FIELD.getPreferredName(), lenient);
-        }
+        throw new UnsupportedEncodingException("This should not be XContent serialized");
     }
 
     @Override

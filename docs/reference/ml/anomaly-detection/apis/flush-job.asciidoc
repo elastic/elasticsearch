@@ -5,8 +5,6 @@
 <titleabbrev>Flush jobs</titleabbrev>
 ++++
 
-deprecated::[9.1.0, "Forcing any buffered data to be processed is deprecated, in a future major version a <<ml-api-datafeed-endpoint,{dfeed}>> will be required."]
-
 .New API reference
 [sidebar]
 --

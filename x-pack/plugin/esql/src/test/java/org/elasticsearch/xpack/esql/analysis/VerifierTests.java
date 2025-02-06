@@ -2021,6 +2021,8 @@ public class VerifierTests extends ESTestCase {
         var airports = AnalyzerTestUtils.analyzer(loadMapping("mapping-airports.json", "airports"));
         assertEquals("1:30: Unknown column [blahblah]", error("FROM airports | CHANGE_POINT blahblah ON scalerank", airports));
         assertEquals("1:43: Unknown column [blahblah]", error("FROM airports | CHANGE_POINT scalerank ON blahblah", airports));
+        // TODO: nicer error message for missing default column "@timestamp"
+        assertEquals("1:17: Unknown column [@timestamp]", error("FROM airports | CHANGE_POINT scalerank", airports));
     }
 
     public void testChangePoint_keySortable() {

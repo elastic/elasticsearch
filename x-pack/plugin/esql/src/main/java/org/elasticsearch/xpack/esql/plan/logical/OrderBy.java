@@ -26,7 +26,12 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
-public class OrderBy extends UnaryPlan implements PostAnalysisVerificationAware, PostOptimizationVerificationAware, TelemetryAware {
+public class OrderBy extends UnaryPlan
+    implements
+        PostAnalysisVerificationAware,
+        PostOptimizationVerificationAware,
+        TelemetryAware,
+        SortAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "OrderBy", OrderBy::new);
 
     private final List<Order> order;

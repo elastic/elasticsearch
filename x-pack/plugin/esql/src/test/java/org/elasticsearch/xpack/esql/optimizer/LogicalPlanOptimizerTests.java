@@ -96,6 +96,7 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.LiteralsOnTheRight;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineLimits;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEnrich;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownEval;
@@ -7508,4 +7509,25 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("line 2:5: Unbounded sort not supported yet [SORT x] please add a limit"));
     }
 
+    public void testPruneRedundantOrderBy() {
+        var rule = new PruneRedundantOrderBy();
+
+        var query = """
+            row x = [1,2,3], y = 1
+            | sort x
+            | mv_expand x
+            | sort x
+            | mv_expand x
+            | sort y
+            """;
+        LogicalPlan analyzed = analyzer.analyze(parser.createStatement(query));
+        LogicalPlan optimized = rule.apply(analyzed);
+
+        // check that all the redundant SORTs are removed in a single run
+        var limit = as(optimized, Limit.class);
+        var orderBy = as(limit.child(), OrderBy.class);
+        var mvExpand = as(orderBy.child(), MvExpand.class);
+        var mvExpand2 = as(mvExpand.child(), MvExpand.class);
+        as(mvExpand2.child(), Row.class);
+    }
 }

@@ -8,25 +8,15 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.esql.plan.logical.Drop;
-import org.elasticsearch.xpack.esql.plan.logical.Enrich;
-import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.Filter;
-import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.Lookup;
-import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
-import org.elasticsearch.xpack.esql.plan.logical.Rename;
+import org.elasticsearch.xpack.esql.plan.logical.SortAware;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
-import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 
-import java.util.ArrayList;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.IdentityHashMap;
-import java.util.List;
 
 /**
  * SORT cannot be executed without a LIMIT, as ES|QL doesn't support unbounded sort (yet).
@@ -56,7 +46,7 @@ public class PruneRedundantOrderBy extends OptimizerRules.OptimizerRule<LogicalP
             if (redundant.isEmpty()) {
                 return plan;
             }
-            return plan.transformUp(p -> {
+            return plan.transformDown(p -> {
                 if (redundant.containsKey(p)) {
                     return ((OrderBy) p).child();
                 }
@@ -67,50 +57,27 @@ public class PruneRedundantOrderBy extends OptimizerRules.OptimizerRule<LogicalP
         }
     }
 
+    /**
+     * breadth-first recursion to find redundant SORTs in the children tree.
+     */
     private IdentityHashMap<OrderBy, Void> findRedundantSort(LogicalPlan plan) {
-        List<LogicalPlan> toCheck = new ArrayList<>();
-        toCheck.add(plan);
-
         IdentityHashMap<OrderBy, Void> result = new IdentityHashMap<>();
-        LogicalPlan p = null;
+
+        Deque<LogicalPlan> toCheck = new ArrayDeque<>();
+        toCheck.push(plan);
+
         while (true) {
-            if (p == null) {
-                if (toCheck.isEmpty()) {
-                    return result;
-                } else {
-                    p = toCheck.remove(0);
-                }
-            } else if (p instanceof OrderBy ob) {
+            if (toCheck.isEmpty()) {
+                return result;
+            }
+            LogicalPlan p = toCheck.pop();
+            if (p instanceof OrderBy ob) {
                 result.put(ob, null);
-                p = ob.child();
-            } else if (p instanceof UnaryPlan unary) {
-                if (unary instanceof Project
-                    || unary instanceof Drop
-                    || unary instanceof Rename
-                    || unary instanceof MvExpand
-                    || unary instanceof Enrich
-                    || unary instanceof RegexExtract
-                    || unary instanceof InlineStats
-                    || unary instanceof Lookup
-                // IMPORTANT
-                // If we introduce window functions or order-sensitive aggs (eg. STREAMSTATS),
-                // the previous sort could actually become relevant
-                // so we have to be careful with plans that could use them, ie. the following
-                    || unary instanceof Filter
-                    || unary instanceof Eval
-                    || unary instanceof Aggregate) {
-                    p = unary.child();
-                } else {
-                    // stop here, other unary plans could be sensitive to SORT
-                    p = null;
+                toCheck.push(ob.child());
+            } else if (p instanceof SortAware sa && sa.dependsOnInputOrder() == false) {
+                for (LogicalPlan child : p.children()) {
+                    toCheck.push(child);
                 }
-            } else if (p instanceof Join lj) {
-                toCheck.add(lj.left());
-                toCheck.add(lj.right());
-                p = null;
-            } else {
-                // stop here, other unary plans could be sensitive to SORT
-                p = null;
             }
         }
     }

@@ -11,7 +11,7 @@ package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoaderEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
-import org.elasticsearch.entitlement.runtime.policy.entitlements.FileEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.InboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetworkEntitlement;
@@ -84,7 +84,12 @@ public class PolicyParserTests extends ESTestCase {
             .parsePolicy();
         Policy expected = new Policy(
             "test-policy.yaml",
-            List.of(new Scope("entitlement-module-name", List.of(FileEntitlement.create("test/path/to/file", "read_write"))))
+            List.of(
+                new Scope(
+                    "entitlement-module-name",
+                    List.of(FilesEntitlement.build(List.of(Map.of("path", "test/path/to/file", "mode", "read_write"))))
+                )
+            )
         );
         assertEquals(expected, parsedPolicy);
     }
@@ -94,7 +99,12 @@ public class PolicyParserTests extends ESTestCase {
             .parsePolicy();
         Policy expected = new Policy(
             "test-policy.yaml",
-            List.of(new Scope("entitlement-module-name", List.of(FileEntitlement.create("test/path/to/file", "read_write"))))
+            List.of(
+                new Scope(
+                    "entitlement-module-name",
+                    List.of(FilesEntitlement.build(List.of(Map.of("path", "test/path/to/file", "mode", "read_write"))))
+                )
+            )
         );
         assertEquals(expected, parsedPolicy);
     }

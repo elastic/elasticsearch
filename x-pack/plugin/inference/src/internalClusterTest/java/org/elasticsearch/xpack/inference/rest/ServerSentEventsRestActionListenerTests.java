@@ -44,10 +44,12 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.results.XContentFormattedException;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventField;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
@@ -80,6 +82,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
     private static final String REQUEST_COUNT = "request_count";
     private static final String WITH_ERROR = "with_error";
     private static final String ERROR_ROUTE = "/_inference_error";
+    private static final String FORMATTED_ERROR_ROUTE = "/_formatted_inference_error";
     private static final String NO_STREAM_ROUTE = "/_inference_no_stream";
     private static final Exception expectedException = new IllegalStateException("hello there");
     private static final String expectedExceptionAsServerSentEvent = """
@@ -87,6 +90,11 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
         "error":{"root_cause":[{"type":"illegal_state_exception","reason":"hello there"}],\
         "type":"illegal_state_exception","reason":"hello there"},"status":500\
         }""";
+
+    private static final Exception expectedFormattedException = new XContentFormattedException(
+        expectedException,
+        RestStatus.INTERNAL_SERVER_ERROR
+    );
 
     @Override
     protected boolean addMockHttpTransport() {
@@ -144,6 +152,16 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
                 @Override
                 public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
                     new ServerSentEventsRestActionListener(channel, threadPool).onFailure(expectedException);
+                }
+            }, new RestHandler() {
+                @Override
+                public List<Route> routes() {
+                    return List.of(new Route(RestRequest.Method.POST, FORMATTED_ERROR_ROUTE));
+                }
+
+                @Override
+                public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
+                    new ServerSentEventsRestActionListener(channel, threadPool).onFailure(expectedFormattedException);
                 }
             }, new RestHandler() {
                 @Override
@@ -422,6 +440,21 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
         assertThat(collector.stringsVerified.size(), equalTo(expectedTestCount + 1)); // normal payload count + last error byte
         assertThat("DONE chunk is not sent on error", collector.stringsVerified.stream().anyMatch("[DONE]"::equals), equalTo(false));
         assertThat(collector.stringsVerified.getLast(), equalTo(expectedExceptionAsServerSentEvent));
+    }
+
+    public void testFormattedError() throws IOException {
+        var request = new Request(RestRequest.Method.POST.name(), FORMATTED_ERROR_ROUTE);
+
+        try {
+            getRestClient().performRequest(request);
+            fail("Expected an exception to be thrown from the error route");
+        } catch (ResponseException e) {
+            var response = e.getResponse();
+            assertThat(response.getStatusLine().getStatusCode(), is(HttpStatus.SC_INTERNAL_SERVER_ERROR));
+            assertThat(EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8), equalTo("""
+                \uFEFFevent: error
+                data:\s""" + expectedExceptionAsServerSentEvent + "\n\n"));
+        }
     }
 
     public void testNoStream() {

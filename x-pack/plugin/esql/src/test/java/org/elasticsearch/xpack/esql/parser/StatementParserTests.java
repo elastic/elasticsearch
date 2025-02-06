@@ -2267,6 +2267,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("from test | eval A = coalesce(\"Å\", Å)", "line 1:36: token recognition error at: 'Å'");
     }
 
+    public void testInvalidRemoteClusterPattern() {
+        expectError("from \"rem:ote\":index", "cluster string [rem:ote] must not contain ':'");
+    }
+
     private LogicalPlan unresolvedRelation(String index) {
         return new UnresolvedRelation(EMPTY, new IndexPattern(EMPTY, index), false, List.of(), IndexMode.STANDARD, null, "FROM");
     }

@@ -7463,7 +7463,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             """;
 
         VerificationException e = expectThrows(VerificationException.class, () -> plan(query));
-        assertThat(e.getMessage(), containsString("line 2:5: Unbounded sort not supported yet, please add a limit"));
+        assertThat(e.getMessage(), containsString("line 2:5: Unbounded sort not supported yet [SORT y] please add a limit"));
     }
 
     public void testUnboundedSortWithMvExpandAndFilter() {
@@ -7478,7 +7478,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             """;
 
         VerificationException e = expectThrows(VerificationException.class, () -> plan(query));
-        assertThat(e.getMessage(), containsString("line 4:3: Unbounded sort not supported yet, please add a limit"));
+        assertThat(e.getMessage(), containsString("line 4:3: Unbounded sort not supported yet [SORT language_name] please add a limit"));
     }
 
     public void testUnboundedSortWithLookupJoinAndFilter() {
@@ -7493,7 +7493,19 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             """;
 
         VerificationException e = expectThrows(VerificationException.class, () -> plan(query));
-        assertThat(e.getMessage(), containsString("line 5:3: Unbounded sort not supported yet, please add a limit"));
+        assertThat(e.getMessage(), containsString("line 5:3: Unbounded sort not supported yet [SORT foo] please add a limit"));
+    }
+
+    public void testUnboundedSortExpandFilter() {
+        var query = """
+              ROW x = [1,2,3], y = 1
+              | SORT x
+              | MV_EXPAND x
+              | WHERE x > 2
+            """;
+
+        VerificationException e = expectThrows(VerificationException.class, () -> plan(query));
+        assertThat(e.getMessage(), containsString("line 2:5: Unbounded sort not supported yet [SORT x] please add a limit"));
     }
 
 }

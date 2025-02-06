@@ -357,6 +357,9 @@ tests:
 - class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
   method: testTimestampNotAddedIfExists
   issue: https://github.com/elastic/elasticsearch/issues/121842
+- class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
+  method: testDestIndexNameSet_withDotPrefix
+  issue: https://github.com/elastic/elasticsearch/issues/121977
 
 # Examples:
 #

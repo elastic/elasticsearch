@@ -94,7 +94,7 @@ class SamlMetadataCommand extends KeyStoreAwareCommand {
 
     SamlMetadataCommand() {
         this((environment) -> {
-            KeyStoreWrapper ksWrapper = KeyStoreWrapper.load(environment.configFile());
+            KeyStoreWrapper ksWrapper = KeyStoreWrapper.load(environment.configDir());
             return ksWrapper;
         });
     }
@@ -459,7 +459,7 @@ class SamlMetadataCommand extends KeyStoreAwareCommand {
             final RealmConfig.RealmIdentifier identifier = new RealmConfig.RealmIdentifier(SingleSpSamlRealmSettings.TYPE, name);
             final Settings realmSettings = realms.get(identifier);
             if (realmSettings == null) {
-                throw new UserException(ExitCodes.CONFIG, "No such realm '" + name + "' defined in " + env.configFile());
+                throw new UserException(ExitCodes.CONFIG, "No such realm '" + name + "' defined in " + env.configDir());
             }
             if (isSamlRealm(identifier)) {
                 return buildRealm(identifier, env, settings);
@@ -472,10 +472,10 @@ class SamlMetadataCommand extends KeyStoreAwareCommand {
                 .filter(entry -> isSamlRealm(entry.getKey()))
                 .toList();
             if (saml.isEmpty()) {
-                throw new UserException(ExitCodes.CONFIG, "There is no SAML realm configured in " + env.configFile());
+                throw new UserException(ExitCodes.CONFIG, "There is no SAML realm configured in " + env.configDir());
             }
             if (saml.size() > 1) {
-                terminal.errorPrintln("Using configuration in " + env.configFile());
+                terminal.errorPrintln("Using configuration in " + env.configDir());
                 terminal.errorPrintln(
                     "Found multiple SAML realms: "
                         + saml.stream().map(Map.Entry::getKey).map(Object::toString).collect(Collectors.joining(", "))

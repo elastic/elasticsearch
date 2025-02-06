@@ -106,7 +106,7 @@ public class AbstractFileWatchingServiceTests extends ESTestCase {
 
         env = newEnvironment(Settings.EMPTY);
 
-        Files.createDirectories(env.configFile());
+        Files.createDirectories(env.configDir());
 
         watchedFile = getWatchedFilePath(env);
         updates = new ArrayBlockingQueue<>(5);
@@ -206,7 +206,7 @@ public class AbstractFileWatchingServiceTests extends ESTestCase {
     }
 
     private static Path getWatchedFilePath(Environment env) {
-        return env.configFile().toAbsolutePath().resolve("test").resolve("test.json");
+        return env.configDir().toAbsolutePath().resolve("test").resolve("test.json");
     }
 
 }

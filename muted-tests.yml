@@ -134,6 +134,12 @@ tests:
 - class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
   method: test {p0=data_stream/120_data_streams_stats/Multiple data stream}
   issue: https://github.com/elastic/elasticsearch/issues/118217
+  # TODO: re-enable after backporting https://github.com/elastic/elasticsearch/pull/119110
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=update/100_synthetic_source/keyword}
+  # TODO: re-enable after backporting https://github.com/elastic/elasticsearch/pull/119110
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=update/100_synthetic_source/stored text}
 - class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
   method: testSearcherId
   issue: https://github.com/elastic/elasticsearch/issues/118374
@@ -376,18 +382,17 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClustersCancellationIT
   method: testCancelSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/121631
-- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
-  method: test {p0=mixed_cluster/110_enrich/Enrich stats query smoke test for mixed cluster}
-  issue: https://github.com/elastic/elasticsearch/issues/121642
 - class: org.elasticsearch.search.CrossClusterSearchUnavailableClusterIT
   method: testSearchSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/121497
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
   method: testStopQueryLocal
   issue: https://github.com/elastic/elasticsearch/issues/121672
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
-  method: testLookupExplosionBigStringManyMatches
-  issue: https://github.com/elastic/elasticsearch/issues/121465
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  issue: https://github.com/elastic/elasticsearch/issues/121411
+- class: org.elasticsearch.transport.InboundHandlerTests
+  method: testLogsSlowInboundProcessing
+  issue: https://github.com/elastic/elasticsearch/issues/121816
 
 # Examples:
 #

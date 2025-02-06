@@ -7,6 +7,8 @@ org.apache.httpcomponents.httpclient:
 org.apache.httpcomponents.httpcore.nio:
   - outbound_network
   - create_thread
+org.elasticsearch.xcore:
+  - set_thread_context_class_loader
 unboundid.ldapsdk:
   - write_system_properties:
       properties:

@@ -56,7 +56,7 @@ Our current build does not yet tick off all those rules everywhere but the ultim
 The reasons for following those rules besides better readability or maintenance are also the goal to support newer Gradle
 features that we will benefit from in terms of performance and reliability.
 E.g. [configuration-cache support](https://github.com/elastic/elasticsearch/issues/57918), [Project Isolation]([https://gradle.github.io/configuration-cache/#project_isolation) or
-[predictive test selection](https://gradle.com/gradle-enterprise-solutions/predictive-test-selection/)
+[predictive test selection](https://gradle.com/gradle-enterprise-solutions/predictive-test-selection/).
 
 ### Make a change in the build
 
@@ -216,7 +216,7 @@ and is compliant with our CI builds.
      }
    }
 ```
-2. Add the dependency in the following format
+2. Add the dependency in the following format:
 ```
 dependencies {
   implementation 'com.github.User:Repo:Tag'

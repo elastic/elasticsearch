@@ -222,7 +222,7 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             FROM test
             | FORK
                [ WHERE content:"fox" ]
-               [ LIMIT 3 ]
+               [ SORT id | LIMIT 3 ]
             | SORT _fork, id
             | KEEP _fork, id, content
             """;

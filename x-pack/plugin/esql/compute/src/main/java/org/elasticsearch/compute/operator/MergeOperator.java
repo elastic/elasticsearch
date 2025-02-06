@@ -10,6 +10,7 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasables;
 
 import java.util.List;
 import java.util.ListIterator;
@@ -75,15 +76,12 @@ public class MergeOperator extends SourceOperator {
 
     @Override
     public void close() {
-        // if (prev != null) {
-        // prev.releaseBlocks();
-        // }
-        // The blocks are closable by the other exchange? so we have to copy them
-        // if (subPlanBlocks != null) {
-        // while (subPlanBlocks.hasNext()) {
-        // Releasables.close(subPlanBlocks.next());
-        // }
-        // }
+         // The blocks are closable by the other exchange? so we have to copy them
+         if (subPlanBlocks != null) {
+             while (subPlanBlocks.hasNext()) {
+                 Releasables.close(subPlanBlocks.next());
+             }
+         }
     }
 
     @Override

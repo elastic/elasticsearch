@@ -11,8 +11,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -69,12 +67,6 @@ public class MergeExec extends LeafExec {
     @Override
     protected NodeInfo<MergeExec> info() {
         return NodeInfo.create(this, MergeExec::new, physSubPlans, output);
-    }
-
-    @Override
-    public AttributeSet references() {
-        return Expressions.references(List.of());
-        // return Expressions.references(output.stream().filter(at -> at.name().equals("_fork") == false).toList());
     }
 
     @Override

@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -62,14 +61,6 @@ public class Fork extends UnaryPlan {
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
         return NodeInfo.create(this, Fork::new, child(), subPlans);
-    }
-
-    @Override
-    public List<Attribute> output() {
-        if (lazyOutput == null) {
-            lazyOutput = new ArrayList<>(subPlans.get(0).output()); // assumes all plans are identical
-        }
-        return lazyOutput;
     }
 
     @Override

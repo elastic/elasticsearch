@@ -26,7 +26,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.Iterator;

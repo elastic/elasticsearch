@@ -108,7 +108,7 @@ public class TransportNodesReloadSecureSettingsAction extends TransportNodesActi
         Task task
     ) {
         // We default to using an empty string as the keystore password so that we mimic pre 7.3 API behavior
-        try (KeyStoreWrapper keystore = KeyStoreWrapper.load(environment.configFile())) {
+        try (KeyStoreWrapper keystore = KeyStoreWrapper.load(environment.configDir())) {
             // reread keystore from config file
             if (keystore == null) {
                 return new NodesReloadSecureSettingsResponse.NodeResponse(

@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -69,6 +70,7 @@ import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -85,12 +87,14 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction.Response.RESULTS_FIELD;
 import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86;
@@ -1778,6 +1782,67 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
 
         try (var service = createService(client)) {
             service.updateModelsWithDynamicFields(modelsToUpdate, resultsListener);
+        }
+    }
+
+    public void testUpdateWithoutMlEnabled() throws IOException, InterruptedException {
+        var cs = mock(ClusterService.class);
+        var cSettings = new ClusterSettings(Settings.EMPTY, Set.of(MachineLearningField.MAX_LAZY_ML_NODES));
+        when(cs.getClusterSettings()).thenReturn(cSettings);
+        var context = new InferenceServiceExtension.InferenceServiceFactoryContext(
+            mock(),
+            threadPool,
+            cs,
+            Settings.builder().put("xpack.ml.enabled", false).build()
+        );
+        try (var service = new ElasticsearchInternalService(context)) {
+            var models = List.of(mock(Model.class));
+            var latch = new CountDownLatch(1);
+            service.updateModelsWithDynamicFields(models, ActionTestUtils.assertNoFailureListener(r -> {
+                latch.countDown();
+                assertThat(r, Matchers.sameInstance(models));
+            }));
+            assertTrue(latch.await(30, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testUpdateWithMlEnabled() throws IOException, InterruptedException {
+        var deploymentId = "deploymentId";
+        var model = mock(ElasticsearchInternalModel.class);
+        when(model.mlNodeDeploymentId()).thenReturn(deploymentId);
+
+        AssignmentStats stats = mock();
+        when(stats.getDeploymentId()).thenReturn(deploymentId);
+        when(stats.getNumberOfAllocations()).thenReturn(3);
+
+        var client = mock(Client.class);
+        doAnswer(ans -> {
+            QueryPage<AssignmentStats> queryPage = new QueryPage<>(List.of(stats), 1, RESULTS_FIELD);
+
+            GetDeploymentStatsAction.Response response = mock();
+            when(response.getStats()).thenReturn(queryPage);
+
+            ActionListener<GetDeploymentStatsAction.Response> listener = ans.getArgument(2);
+            listener.onResponse(response);
+            return null;
+        }).when(client).execute(eq(GetDeploymentStatsAction.INSTANCE), any(), any());
+        when(client.threadPool()).thenReturn(threadPool);
+
+        var cs = mock(ClusterService.class);
+        var cSettings = new ClusterSettings(Settings.EMPTY, Set.of(MachineLearningField.MAX_LAZY_ML_NODES));
+        when(cs.getClusterSettings()).thenReturn(cSettings);
+        var context = new InferenceServiceExtension.InferenceServiceFactoryContext(
+            client,
+            threadPool,
+            cs,
+            Settings.builder().put("xpack.ml.enabled", true).build()
+        );
+        try (var service = new ElasticsearchInternalService(context)) {
+            List<Model> models = List.of(model);
+            var latch = new CountDownLatch(1);
+            service.updateModelsWithDynamicFields(models, ActionTestUtils.assertNoFailureListener(r -> latch.countDown()));
+            assertTrue(latch.await(30, TimeUnit.SECONDS));
+            verify(model).updateNumAllocations(3);
         }
     }
 

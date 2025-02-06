@@ -578,6 +578,7 @@ count:long | type:keyword | pvalue:double
 
 
 all four columns the same
+required_capability: change_point
 
 FROM k8s
   | STATS count=COUNT() BY BUCKET(@timestamp, 1 MINUTE)

@@ -16,7 +16,7 @@ import java.util.List;
 
 /**
  * The {@link ShardIterator} is a {@link ShardsIterator} which iterates all
- * shards or a given {@link ShardId shard id}
+ * shards of a given {@link ShardId shard id}
  */
 public final class ShardIterator extends PlainShardsIterator implements Comparable<ShardIterator> {
 
@@ -37,8 +37,8 @@ public final class ShardIterator extends PlainShardsIterator implements Comparab
     }
 
     /**
-     * Creates a {@link ShardIterator} instance that iterates over a subset of the given shards
-     * this the a given <code>shardId</code>.
+     * Creates a {@link ShardIterator} instance that iterates all shards
+     * of a given <code>shardId</code>.
      *
      * @param shardId shard id of the group
      * @param shards  shards to iterate

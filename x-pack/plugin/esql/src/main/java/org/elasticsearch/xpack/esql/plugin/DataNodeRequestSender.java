@@ -328,7 +328,7 @@ abstract class DataNodeRequestSender {
             filter,
             null,
             null,
-            false,
+            true,
             clusterAlias
         );
         transportService.sendChildRequest(

@@ -24,10 +24,14 @@ import java.nio.file.Path;
  */
 public interface Java20PreviewEntitlementChecker {
 
-    // Docs with function signature:
-    // https://github.com/openjdk/jdk20u/blob/9ced461a4d8cb2ecfe2d6a74ec218ec589dcd617/src/java.base/share/classes/java/lang/foreign/Linker.java#L211
-    // Implementation:
-    // https://docs.oracle.com/en/java/javase/20/docs/api/java.base/java/lang/foreign/Linker.html#downcallHandle(java.lang.foreign.MemorySegment,java.lang.foreign.FunctionDescriptor,java.lang.foreign.Linker.Option...)
+    /**
+     * This downcallHandle overload has its final signature in Java 20.
+     * See docs: https://docs.oracle.com/en/java/javase/20/docs/api/java.base/java/lang/foreign/Linker.html#downcallHandle(java.lang.foreign.MemorySegment,java.lang.foreign.FunctionDescriptor,java.lang.foreign.Linker.Option...)
+     *
+     * However in Java 20 it is implemented as a default interface method.
+     * Later implementations (Java 21+) use an implementation class for this overload too, so we need a specific check method for this.
+     * See https://github.com/openjdk/jdk20u/blob/9ced461a4d8cb2ecfe2d6a74ec218ec589dcd617/src/java.base/share/classes/java/lang/foreign/Linker.java#L211
+     */
     void check$java_lang_foreign_Linker$downcallHandle(
         Class<?> callerClass,
         Linker that,
@@ -36,8 +40,11 @@ public interface Java20PreviewEntitlementChecker {
         Linker.Option... options
     );
 
-    // Implementation:
-    // https://github.com/openjdk/jdk20u/blob/9ced461a4d8cb2ecfe2d6a74ec218ec589dcd617/src/java.base/share/classes/jdk/internal/foreign/abi/AbstractLinker.java#L69
+    /**
+     * upcallStub has a different signature in Java 20 (SegmentScope parameter),
+     * Its only allowed implementation is in AbstractLinker:
+     * https://github.com/openjdk/jdk20u/blob/9ced461a4d8cb2ecfe2d6a74ec218ec589dcd617/src/java.base/share/classes/jdk/internal/foreign/abi/AbstractLinker.java#L69
+     */
     void check$jdk_internal_foreign_abi_AbstractLinker$upcallStub(
         Class<?> callerClass,
         Linker that,
@@ -46,16 +53,25 @@ public interface Java20PreviewEntitlementChecker {
         SegmentScope scope
     );
 
-    // Docs with function signature:
-    // https://docs.oracle.com/en/java/javase/20/docs/api/java.base/java/lang/foreign/MemorySegment.html#ofAddress(long,long,java.lang.foreign.SegmentScope)
-    // Implementation:
-    // https://github.com/openjdk/jdk20u/blob/9ced461a4d8cb2ecfe2d6a74ec218ec589dcd617/src/java.base/share/classes/java/lang/foreign/MemorySegment.java#L1071C5-L1071C64
+    /**
+     * This function signature changes from Java 19 to Java 20.
+     * See docs: https://docs.oracle.com/en/java/javase/20/docs/api/java.base/java/lang/foreign/MemorySegment.html#ofAddress(long,long,java.lang.foreign.SegmentScope)
+     *
+     * It is superseded by {@code MemorySegment.reinterpret} in the final implementation (Java 21+)
+     * See https://github.com/openjdk/jdk20u/blob/9ced461a4d8cb2ecfe2d6a74ec218ec589dcd617/src/java.base/share/classes/java/lang/foreign/MemorySegment.java#L1071C5-L1071C64
+     */
     void check$java_lang_foreign_MemorySegment$$ofAddress(Class<?> callerClass, long address, long byteSize);
 
-    // Java20 only -- superseded by MemorySegment.reinterpret
+    /**
+     * This function overload is new to Java 20.
+     * It is superseded by {@code MemorySegment.reinterpret} in the final implementation (Java 21+)
+     */
     void check$java_lang_foreign_MemorySegment$$ofAddress(Class<?> callerClass, long address, long byteSize, SegmentScope scope);
 
-    // Java20 only -- superseded by MemorySegment.reinterpret
+    /**
+     * This function overload is new to Java 20.
+     * It is superseded by {@code MemorySegment.reinterpret} in the final implementation (Java 21+)
+     */
     void check$java_lang_foreign_MemorySegment$$ofAddress(
         Class<?> callerClass,
         long address,
@@ -64,12 +80,20 @@ public interface Java20PreviewEntitlementChecker {
         Runnable cleanupAction
     );
 
-    // Java20 only -- superseded by MemorySegment.reinterpret
-    // Implementation:
-    // https://github.com/openjdk/jdk20u/blob/9ced461a4d8cb2ecfe2d6a74ec218ec589dcd617/src/java.base/share/classes/jdk/internal/foreign/layout/ValueLayouts.java#L442
+    /**
+     * This function is specific to Java 20.
+     * It is superseded by {@code MemorySegment.reinterpret} in the final implementation (Java 21+)
+     * See https://github.com/openjdk/jdk20u/blob/9ced461a4d8cb2ecfe2d6a74ec218ec589dcd617/src/java.base/share/classes/jdk/internal/foreign/layout/ValueLayouts.java#L442
+     */
     void check$jdk_internal_foreign_layout_ValueLayouts$OfAddressImpl$asUnbounded(Class<?> callerClass, ValueLayout.OfAddress that);
 
+    /**
+     * This function signature changes from Java 20 to Java 21 (SegmentScope parameter).
+     */
     void check$java_lang_foreign_SymbolLookup$$libraryLookup(Class<?> callerClass, String name, SegmentScope scope);
 
+    /**
+     * This function signature changes from Java 20 to Java 21 (SegmentScope parameter).
+     */
     void check$java_lang_foreign_SymbolLookup$$libraryLookup(Class<?> callerClass, Path path, SegmentScope scope);
 }

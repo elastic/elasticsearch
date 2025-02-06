@@ -24,18 +24,27 @@ import java.nio.file.Path;
  */
 public interface Java19PreviewEntitlementChecker {
 
-    // Docs with function signature:
-    // https://docs.oracle.com/en/java/javase/19/docs/api/java.base/java/lang/foreign/Linker.html#downcallHandle(java.lang.foreign.FunctionDescriptor)
-    // Implementation:
-    // https://github.com/openjdk/jdk19u/blob/677bec11078ff41c21821fec46590752e0fc5128/src/java.base/share/classes/jdk/internal/foreign/abi/AbstractLinker.java#L47
+    /**
+     * downcallHandle has a different signature in Java 19.
+     * See docs: https://docs.oracle.com/en/java/javase/19/docs/api/java.base/java/lang/foreign/Linker.html#downcallHandle(java.lang.foreign.FunctionDescriptor)
+     *
+     * Its only allowed implementation is in AbstractLinker:
+     * https://github.com/openjdk/jdk19u/blob/677bec11078ff41c21821fec46590752e0fc5128/src/java.base/share/classes/jdk/internal/foreign/abi/AbstractLinker.java#L47
+     */
     void check$jdk_internal_foreign_abi_AbstractLinker$downcallHandle(Class<?> callerClass, Linker that, FunctionDescriptor function);
 
-    // Docs with function signature:
-    // https://docs.oracle.com/en/java/javase/19/docs/api/java.base/java/lang/foreign/Linker.html#downcallHandle(java.lang.foreign.Addressable,java.lang.foreign.FunctionDescriptor)
+    /**
+     * downcallHandle has a different signature in Java 19, and it is a default interface method. Later implementations (Java 21+)
+     * use an implementation class for this overload too.
+     * See docs: https://docs.oracle.com/en/java/javase/19/docs/api/java.base/java/lang/foreign/Linker.html#downcallHandle(java.lang.foreign.Addressable,java.lang.foreign.FunctionDescriptor)
+     */
     void check$java_lang_foreign_Linker$downcallHandle(Class<?> callerClass, Linker that, Addressable address, FunctionDescriptor function);
 
-    // Implementation:
-    // https://github.com/openjdk/jdk19u/blob/677bec11078ff41c21821fec46590752e0fc5128/src/java.base/share/classes/jdk/internal/foreign/abi/AbstractLinker.java#L60
+    /**
+     * upcallStub has a different signature in Java 19,
+     * Its only allowed implementation is in AbstractLinker:
+     * https://github.com/openjdk/jdk19u/blob/677bec11078ff41c21821fec46590752e0fc5128/src/java.base/share/classes/jdk/internal/foreign/abi/AbstractLinker.java#L60
+     */
     void check$jdk_internal_foreign_abi_AbstractLinker$upcallStub(
         Class<?> callerClass,
         Linker that,
@@ -44,9 +53,13 @@ public interface Java19PreviewEntitlementChecker {
         MemorySession scope
     );
 
-    // Java19 only -- superseded by MemorySegment.reinterpret
-    // Docs with function signature:
-    // https://docs.oracle.com/en/java/javase/19/docs/api/java.base/java/lang/foreign/MemorySegment.html#ofAddress(java.lang.foreign.MemoryAddress,long,java.lang.foreign.MemorySession)
+    /**
+     * This function has a different signature in Java 20.
+     * See docs: https://docs.oracle.com/en/java/javase/19/docs/api/java.base/java/lang/foreign/MemorySegment.html#ofAddress(java.lang.foreign.MemoryAddress,long,java.lang.foreign.MemorySession)
+     *
+     * It is superseded by {@code MemorySegment.reinterpret} in the final
+     * implementation (Java 21+)
+     */
     void check$java_lang_foreign_MemorySegment$$ofAddress(
         Class<?> callerClass,
         MemoryAddress address,
@@ -54,7 +67,13 @@ public interface Java19PreviewEntitlementChecker {
         MemorySession session
     );
 
+    /**
+     * This function signature changes from Java 19 to Java 20 (MemorySession parameter).
+     */
     void check$java_lang_foreign_SymbolLookup$$libraryLookup(Class<?> callerClass, String name, MemorySession session);
 
+    /**
+     * This function signature changes from Java 19 to Java 20 (MemorySession parameter).
+     */
     void check$java_lang_foreign_SymbolLookup$$libraryLookup(Class<?> callerClass, Path path, MemorySession session);
 }

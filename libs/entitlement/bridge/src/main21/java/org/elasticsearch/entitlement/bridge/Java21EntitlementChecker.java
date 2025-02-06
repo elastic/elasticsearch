@@ -21,20 +21,26 @@ import java.util.function.Consumer;
 
 public interface Java21EntitlementChecker extends Java20StableEntitlementChecker {
 
-    // Docs with function signature:
-    // https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/foreign/AddressLayout.html#withTargetLayout(java.lang.foreign.MemoryLayout)
-    // Implementation: sealed implementation of java.lang.foreign.AddressLayout
-    // https://github.com/openjdk/jdk21u/blob/7069f193f1f8c61869fc68a36c17f3a9a7b7b2a0/src/java.base/share/classes/jdk/internal/foreign/layout/ValueLayouts.java#L350
+    /**
+     * This function is in preview in Java 21, but it already has its final signature.
+     * See docs: https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/foreign/AddressLayout.html#withTargetLayout(java.lang.foreign.MemoryLayout)
+     *
+     * It has only one allowed implementation (interface is sealed).
+     * See https://github.com/openjdk/jdk21u/blob/7069f193f1f8c61869fc68a36c17f3a9a7b7b2a0/src/java.base/share/classes/jdk/internal/foreign/layout/ValueLayouts.java#L350
+     */
     void check$jdk_internal_foreign_layout_ValueLayouts$OfAddressImpl$withTargetLayout(
         Class<?> callerClass,
         AddressLayout that,
         MemoryLayout memoryLayout
     );
 
-    // Docs with function signature:
-    // https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/foreign/Linker.html#downcallHandle(java.lang.foreign.FunctionDescriptor,java.lang.foreign.Linker.Option...)
-    // Implementation: sealed implementation of java.lang.foreign.Linker
-    // https://github.com/openjdk/jdk21u/blob/d2cbada0b7c88521dfb4d3696205c9beb77018af/src/java.base/share/classes/jdk/internal/foreign/abi/AbstractLinker.java#L77
+    /**
+     * This function is in preview in Java 21, but it already has its final signature.
+     * See docs: https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/foreign/Linker.html#downcallHandle(java.lang.foreign.FunctionDescriptor,java.lang.foreign.Linker.Option...)
+     *
+     * It has only one allowed implementation (interface is sealed).
+     * See https://github.com/openjdk/jdk21u/blob/d2cbada0b7c88521dfb4d3696205c9beb77018af/src/java.base/share/classes/jdk/internal/foreign/abi/AbstractLinker.java#L77
+     */
     void check$jdk_internal_foreign_abi_AbstractLinker$downcallHandle(
         Class<?> callerClass,
         Linker that,
@@ -43,8 +49,12 @@ public interface Java21EntitlementChecker extends Java20StableEntitlementChecker
         Linker.Option... options
     );
 
-    // Implementation:
-    // https://github.com/openjdk/jdk21u/blob/d2cbada0b7c88521dfb4d3696205c9beb77018af/src/java.base/share/classes/jdk/internal/foreign/abi/AbstractLinker.java#L112
+    /**
+     * This function is in preview in Java 21, but it already has its final signature.
+     *
+     * It has only one allowed implementation (interface is sealed).
+     * See https://github.com/openjdk/jdk21u/blob/d2cbada0b7c88521dfb4d3696205c9beb77018af/src/java.base/share/classes/jdk/internal/foreign/abi/AbstractLinker.java#L112
+     */
     void check$jdk_internal_foreign_abi_AbstractLinker$upcallStub(
         Class<?> callerClass,
         Linker that,
@@ -54,10 +64,18 @@ public interface Java21EntitlementChecker extends Java20StableEntitlementChecker
         Linker.Option... options
     );
 
-    // Implementation: sealed implementation for java.lang.foreign.MemorySegment.reinterpret(long)
-    // https://github.com/openjdk/jdk21u/blob/d2cbada0b7c88521dfb4d3696205c9beb77018af/src/java.base/share/classes/jdk/internal/foreign/AbstractMemorySegmentImpl.java#L135
+    /**
+     * This function is in preview in Java 21, but it already has its final signature.
+     *
+     * It has only one allowed implementation (interface is sealed).
+     * See https://github.com/openjdk/jdk21u/blob/d2cbada0b7c88521dfb4d3696205c9beb77018af/src/java.base/share/classes/jdk/internal/foreign/AbstractMemorySegmentImpl.java#L135
+     */
     void check$jdk_internal_foreign_AbstractMemorySegmentImpl$reinterpret(Class<?> callerClass, MemorySegment that, long newSize);
 
+    /**
+     * This function is in preview in Java 21, but it already has its final signature.
+     * It has only one allowed implementation in AbstractMemorySegmentImpl (interface is sealed).
+     */
     void check$jdk_internal_foreign_AbstractMemorySegmentImpl$reinterpret(
         Class<?> callerClass,
         MemorySegment that,
@@ -66,6 +84,10 @@ public interface Java21EntitlementChecker extends Java20StableEntitlementChecker
         Consumer<MemorySegment> cleanup
     );
 
+    /**
+     * This function is in preview in Java 21, but it already has its final signature.
+     * It has only one allowed implementation in AbstractMemorySegmentImpl (interface is sealed).
+     */
     void check$jdk_internal_foreign_AbstractMemorySegmentImpl$reinterpret(
         Class<?> callerClass,
         MemorySegment that,
@@ -73,7 +95,13 @@ public interface Java21EntitlementChecker extends Java20StableEntitlementChecker
         Consumer<MemorySegment> cleanup
     );
 
+    /**
+     * This function is in preview in Java 21, but it already has its final signature.
+     */
     void check$java_lang_foreign_SymbolLookup$$libraryLookup(Class<?> callerClass, String name, Arena arena);
 
+    /**
+     * This function is in preview in Java 21, but it already has its final signature.
+     */
     void check$java_lang_foreign_SymbolLookup$$libraryLookup(Class<?> callerClass, Path path, Arena arena);
 }

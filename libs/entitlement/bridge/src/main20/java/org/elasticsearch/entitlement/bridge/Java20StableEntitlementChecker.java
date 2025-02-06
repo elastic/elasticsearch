@@ -18,10 +18,14 @@ import java.lang.foreign.Linker;
  * API to instrument.
  */
 public interface Java20StableEntitlementChecker extends EntitlementChecker {
-
-    // https://docs.oracle.com/en/java/javase/20/docs/api/java.base/java/lang/foreign/Linker.html#downcallHandle(java.lang.foreign.FunctionDescriptor,java.lang.foreign.Linker.Option...)
-    // Sealed implementation of java.lang.foreign.Linker
-    // https://github.com/openjdk/jdk20u/blob/9ced461a4d8cb2ecfe2d6a74ec218ec589dcd617/src/java.base/share/classes/jdk/internal/foreign/abi/AbstractLinker.java#L52
+    
+    /**
+     * This overload of downcallHandle has its final form starting from Java 20
+     * See docs: https://docs.oracle.com/en/java/javase/20/docs/api/java.base/java/lang/foreign/Linker.html#downcallHandle(java.lang.foreign.FunctionDescriptor,java.lang.foreign.Linker.Option...)
+     *
+     * Its only allowed implementation is in AbstractLinker:
+     * https://github.com/openjdk/jdk20u/blob/9ced461a4d8cb2ecfe2d6a74ec218ec589dcd617/src/java.base/share/classes/jdk/internal/foreign/abi/AbstractLinker.java#L52
+     */
     void check$jdk_internal_foreign_abi_AbstractLinker$downcallHandle(
         Class<?> callerClass,
         Linker that,

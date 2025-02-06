@@ -80,7 +80,10 @@ public class PolicyParser {
         }
 
         var strippedClassName = entitlementClassName.substring(0, entitlementClassName.indexOf("Entitlement"));
-        return Arrays.stream(strippedClassName.split("(?=\\p{Lu})"))
+        // Identify word boundaries by uppercase letters with \p{Lu}, but retain those
+        // characters, rather than discarding them as separators, with (?=).
+        String[] words = strippedClassName.split("(?=\\p{Lu})");
+        return Arrays.stream(words)
             .filter(Predicate.not(String::isEmpty))
             .map(s -> s.toLowerCase(Locale.ROOT))
             .collect(Collectors.joining("_"));

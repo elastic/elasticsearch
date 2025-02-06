@@ -429,7 +429,10 @@ public class Lucene {
         } else {
             out.writeByte((byte) 0);
             writeTotalHits(out, topDocs.totalHits);
-            out.writeArray(Lucene::writeScoreDocWithShardIndex, topDocs.scoreDocs);
+            out.writeArray((o, scoreDoc) -> {
+                writeScoreDoc(o, scoreDoc);
+                o.writeVInt(scoreDoc.shardIndex);
+            }, topDocs.scoreDocs);
         }
     }
 
@@ -585,15 +588,6 @@ public class Lucene {
         }
         out.writeVInt(scoreDoc.doc);
         out.writeFloat(scoreDoc.score);
-    }
-
-    public static void writeScoreDocWithShardIndex(StreamOutput out, ScoreDoc scoreDoc) throws IOException {
-        if (scoreDoc.getClass().equals(ScoreDoc.class) == false) {
-            throw new IllegalArgumentException("This method can only be used to serialize a ScoreDoc, not a " + scoreDoc.getClass());
-        }
-        out.writeVInt(scoreDoc.doc);
-        out.writeFloat(scoreDoc.score);
-        out.writeVInt(scoreDoc.shardIndex);
     }
 
     // LUCENE 4 UPGRADE: We might want to maintain our own ordinal, instead of Lucene's ordinal

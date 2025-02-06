@@ -1,0 +1,38 @@
+//
+// CSV spec for FORK command
+//
+
+simpleFork
+required_capability: fork
+
+from employees
+| fork [ where emp_no == 10001]
+       [ where emp_no == 10002]
+| keep emp_no, _fork
+| sort emp_no
+;
+
+emp_no:integer | _fork:keyword
+10001          | fork0
+10002          | fork1
+;
+
+forkWithWhereSortAndLimit
+required_capability: fork
+
+from employees
+| fork [ where hire_date < "1985-03-01T00:00:00Z" | SORT first_name | LIMIT 5]
+       [ where hire_date < "1988-03-01T00:00:00Z" | SORT first_name | LIMIT 5]
+| keep emp_no, first_name, _fork
+| sort emp_no, _fork
+;
+
+emp_no:integer | first_name:keyword | _fork:keyword
+10002          | Bezalel            | fork1
+10009          | Sumant             | fork0
+10014          | Berni              | fork1
+10048          | Florian            | fork0
+10058          | Berhard            | fork1
+10060          | Breannda           | fork1
+10094          | Arumugam           | fork1
+;

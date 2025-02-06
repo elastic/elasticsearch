@@ -820,7 +820,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             final String tmpRepositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
             createRepositoryNoVerify(tmpRepositoryName, "fs");
             final Path repoPath = internalCluster().getCurrentMasterNodeInstance(Environment.class)
-                .resolveRepoFile(
+                .resolveRepoDir(
                     clusterAdmin().prepareGetRepositories(TEST_REQUEST_TIMEOUT, tmpRepositoryName)
                         .get()
                         .repositories()

@@ -110,17 +110,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (errors.hasNext() == false) {
             return p;
         } else {
-            StringBuilder message = new StringBuilder();
-            int i = 0;
-
-            while (errors.hasNext()) {
-                if (i > 0) {
-                    message.append("; ");
-                }
-                message.append(errors.next().getMessage());
-                i++;
-            }
-            throw new ParsingException(message.toString());
+            throw ParsingException.combineParsingExceptions(errors);
         }
     }
 

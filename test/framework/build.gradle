@@ -34,6 +34,7 @@ dependencies {
   api "org.elasticsearch:mocksocket:${versions.mocksocket}"
 
   testImplementation project(':x-pack:plugin:mapper-unsigned-long')
+  testImplementation project(':x-pack:plugin:mapper-counted-keyword')
   testImplementation project(":modules:mapper-extras")
 }
 

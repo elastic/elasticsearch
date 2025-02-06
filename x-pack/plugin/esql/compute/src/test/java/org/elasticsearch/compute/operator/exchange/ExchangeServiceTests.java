@@ -436,8 +436,8 @@ public class ExchangeServiceTests extends ESTestCase {
             exchangeSink
         );
         assertThat(actualSeqNos, equalTo(expectedSeqNos));
+        safeGet(sourceCompletionFuture);
         assertThat(completedSinks.get() + failedSinks.get(), equalTo(totalSinks.get()));
-        sourceCompletionFuture.actionGet();
         if (failedRequests.get() > 0) {
             assertThat(failedSinks.get(), greaterThan(0));
         } else {

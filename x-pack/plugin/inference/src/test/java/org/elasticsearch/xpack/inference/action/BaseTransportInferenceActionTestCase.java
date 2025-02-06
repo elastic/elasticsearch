@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.action;
 
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
-import org.elasticsearch.xpack.inference.common.InferenceServiceNodeLocalRateLimitCalculator;
+import org.elasticsearch.xpack.inference.common.InferenceServiceRateLimitCalculator;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 import org.junit.Before;
@@ -47,9 +47,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.assertArg;
-import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -64,7 +64,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
     protected static final String inferenceId = "inferenceEntityId";
     protected InferenceServiceRegistry serviceRegistry;
     protected InferenceStats inferenceStats;
-    protected InferenceServiceNodeLocalRateLimitCalculator inferenceServiceNodeLocalRateLimitCalculator;
+    protected InferenceServiceRateLimitCalculator inferenceServiceRateLimitCalculator;
     protected TransportService transportService;
     protected NodeClient nodeClient;
 
@@ -79,7 +79,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         ThreadPool threadPool = mock();
         nodeClient = mock();
         transportService = mock();
-        inferenceServiceNodeLocalRateLimitCalculator = mock();
+        inferenceServiceRateLimitCalculator = mock();
         licenseState = mock();
         modelRegistry = mock();
         serviceRegistry = mock();
@@ -94,7 +94,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             serviceRegistry,
             inferenceStats,
             streamingTaskManager,
-            inferenceServiceNodeLocalRateLimitCalculator,
+            inferenceServiceRateLimitCalculator,
             nodeClient,
             threadPool
         );
@@ -110,7 +110,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         InferenceServiceRegistry serviceRegistry,
         InferenceStats inferenceStats,
         StreamingTaskManager streamingTaskManager,
-        InferenceServiceNodeLocalRateLimitCalculator inferenceServiceNodeLocalRateLimitCalculator,
+        InferenceServiceRateLimitCalculator inferenceServiceNodeLocalRateLimitCalculator,
         NodeClient nodeClient,
         ThreadPool threadPool
     );
@@ -127,8 +127,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             return null;
         }).when(modelRegistry).getModelWithSecrets(any(), any());
 
-        var listener = doExecute(taskType);
-        verify(listener).onFailure(same(expectedException));
+        doExecute(taskType);
 
         verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
             assertThat(attributes.get("service"), nullValue());
@@ -148,7 +147,13 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         when(request.getInferenceEntityId()).thenReturn(inferenceId);
         when(request.getTaskType()).thenReturn(taskType);
         when(request.isStreaming()).thenReturn(stream);
-        ActionListener<InferenceAction.Response> listener = mock();
+        ActionListener<InferenceAction.Response> listener = spy(new ActionListener<>() {
+            @Override
+            public void onResponse(InferenceAction.Response o) {}
+
+            @Override
+            public void onFailure(Exception e) {}
+        });
         action.doExecute(mock(), request, listener);
         return listener;
     }
@@ -161,9 +166,9 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         var listener = doExecute(taskType);
 
         verify(listener).onFailure(assertArg(e -> {
-            assertThat(e, isA(ElasticsearchStatusException.class));
+            assertThat(e, isA(ElasticsearchException.class));
             assertThat(e.getMessage(), is("Unknown service [" + serviceId + "] for model [" + inferenceId + "]. "));
-            assertThat(((ElasticsearchStatusException) e).status(), is(RestStatus.BAD_REQUEST));
+            assertThat(((ElasticsearchException) e).status(), is(RestStatus.BAD_REQUEST));
         }));
         verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
             assertThat(attributes.get("service"), is(serviceId));
@@ -192,7 +197,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         var listener = doExecute(requestTaskType);
 
         verify(listener).onFailure(assertArg(e -> {
-            assertThat(e, isA(ElasticsearchStatusException.class));
+            assertThat(e, isA(ElasticsearchException.class));
             assertThat(
                 e.getMessage(),
                 is(
@@ -203,7 +208,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
                         + "]"
                 )
             );
-            assertThat(((ElasticsearchStatusException) e).status(), is(RestStatus.BAD_REQUEST));
+            assertThat(((ElasticsearchException) e).status(), is(RestStatus.BAD_REQUEST));
         }));
         verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
             assertThat(attributes.get("service"), is(serviceId));
@@ -221,7 +226,6 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
 
         var listener = doExecute(taskType);
 
-        verify(listener).onFailure(same(expectedException));
         verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
             assertThat(attributes.get("service"), is(serviceId));
             assertThat(attributes.get("task_type"), is(taskType.toString()));
@@ -239,8 +243,8 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         var listener = doExecute(taskType, true);
 
         verify(listener).onFailure(assertArg(e -> {
-            assertThat(e, isA(ElasticsearchStatusException.class));
-            var ese = (ElasticsearchStatusException) e;
+            assertThat(e, isA(ElasticsearchException.class));
+            var ese = (ElasticsearchException) e;
             assertThat(ese.getMessage(), is("Streaming is not allowed for service [" + serviceId + "]."));
             assertThat(ese.status(), is(expectedStatus));
         }));

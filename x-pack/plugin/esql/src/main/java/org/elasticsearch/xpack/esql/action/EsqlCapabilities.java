@@ -553,7 +553,7 @@ public class EsqlCapabilities {
         /**
          * Support simplified syntax for named parameters for field and function names.
          */
-        NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX(Build.current().isSnapshot()),
+        NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX(),
 
         /**
          * Fix pushdown of LIMIT past MV_EXPAND
@@ -564,6 +564,13 @@ public class EsqlCapabilities {
 
         /** Capability for remote metadata test */
         METADATA_FIELDS_REMOTE_TEST(false),
+
+        /**
+         * Support specifically for *just* the _index METADATA field. Used by CsvTests, since that is the only metadata field currently
+         * supported.
+         */
+        INDEX_METADATA_FIELD,
+
         /**
          * WIP on Join planning
          * - Introduce BinaryPlan and co

@@ -21,7 +21,7 @@ Forces any buffered data to be processed by the job.
 [[ml-flush-job-prereqs]]
 == {api-prereq-title}
 
-Requires the `manage_ml` cluster privilege. This privilege is included in the
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
 `machine_learning_admin` built-in role.
 
 [[ml-flush-job-desc]]

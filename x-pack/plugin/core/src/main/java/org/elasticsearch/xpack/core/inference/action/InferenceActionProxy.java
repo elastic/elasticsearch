@@ -30,7 +30,7 @@ import java.util.Objects;
  */
 public class InferenceActionProxy extends ActionType<InferenceAction.Response> {
     public static final InferenceActionProxy INSTANCE = new InferenceActionProxy();
-    public static final String NAME = "cluster:monitor/xpack/inference";
+    public static final String NAME = "cluster:monitor/xpack/inference/post";
 
     public InferenceActionProxy() {
         super(NAME);
@@ -99,7 +99,6 @@ public class InferenceActionProxy extends ActionType<InferenceAction.Response> {
 
         @Override
         public ActionRequestValidationException validate() {
-            // TODO confirm that we don't need any validation
             return null;
         }
 
@@ -121,7 +120,9 @@ public class InferenceActionProxy extends ActionType<InferenceAction.Response> {
             return taskType == request.taskType
                 && Objects.equals(inferenceEntityId, request.inferenceEntityId)
                 && Objects.equals(content, request.content)
-                && contentType == request.contentType;
+                && contentType == request.contentType
+                && timeout == request.timeout
+                && stream == request.stream;
         }
 
         @Override

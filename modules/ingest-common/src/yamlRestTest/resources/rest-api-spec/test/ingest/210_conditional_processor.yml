@@ -74,3 +74,39 @@ teardown:
   - match: { _source.bytes_source_field: "1kb" }
   - match: { _source.conditional_field: "bar" }
   - is_false: _source.bytes_target_field
+
+---
+"Test conditional processor with dotted field":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "bytes" : {
+                  "if" : "field('conditional.field').get('') == 'bar'",
+                  "field" : "bytes_source_field",
+                  "target_field" : "bytes_target_field"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body: {bytes_source_field: "1kb", conditional.field: "bar"}
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.bytes_source_field: "1kb" }
+  - match: { _source.conditional.field: "bar" }
+  - match: { _source.bytes_target_field: 1024 }
+

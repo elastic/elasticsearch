@@ -16,9 +16,9 @@ import java.util.Map;
 /**
  * A script used by {@link org.elasticsearch.ingest.ConditionalProcessor}.
  */
-public abstract class IngestConditionalScript {
+public abstract class IngestConditionalScript extends WriteScript {
 
-    public static final String[] PARAMETERS = { "ctx" };
+    public static final String[] PARAMETERS = { "ctxdsf" /*todo change param name*/ };
 
     /** The context used to compile {@link IngestConditionalScript} factories. */
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>(
@@ -33,7 +33,8 @@ public abstract class IngestConditionalScript {
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;
 
-    public IngestConditionalScript(Map<String, Object> params) {
+    public IngestConditionalScript(Map<String, Object> params, CtxMap<?> ctxMap) {
+        super(ctxMap);
         this.params = params;
     }
 
@@ -42,9 +43,9 @@ public abstract class IngestConditionalScript {
         return params;
     }
 
-    public abstract boolean execute(Map<String, Object> ctx);
+    public abstract boolean execute(Map<String, Object> params);
 
     public interface Factory {
-        IngestConditionalScript newInstance(Map<String, Object> params);
+        IngestConditionalScript newInstance(Map<String, Object> params, CtxMap<?> ctxMap);
     }
 }

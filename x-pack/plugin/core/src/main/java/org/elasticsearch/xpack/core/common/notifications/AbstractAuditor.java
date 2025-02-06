@@ -18,6 +18,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
@@ -27,6 +28,7 @@ import java.util.Date;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -50,6 +52,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
 
     private Queue<ToXContent> backlog;
     private final AtomicBoolean indexAndAliasCreationInProgress;
+    private final ExecutorService executorService;
 
     protected AbstractAuditor(
         OriginSettingClient client,
@@ -57,7 +60,8 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
         String nodeName,
         AbstractAuditMessageFactory<T> messageFactory,
         ClusterService clusterService,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ExecutorService executorService
     ) {
         this.client = Objects.requireNonNull(client);
         this.auditIndexWriteAlias = Objects.requireNonNull(auditIndexWriteAlias);
@@ -68,6 +72,7 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
         this.backlog = new ConcurrentLinkedQueue<>();
         this.indexAndAliasCreated = new AtomicBoolean();
         this.indexAndAliasCreationInProgress = new AtomicBoolean();
+        this.executorService = executorService;
     }
 
     public void audit(Level level, String resourceId, String message) {
@@ -147,7 +152,16 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
     }
 
     private void writeDoc(ToXContent toXContent) {
-        client.index(indexRequest(toXContent), ActionListener.wrap(AbstractAuditor::onIndexResponse, AbstractAuditor::onIndexFailure));
+        client.index(indexRequest(toXContent), ActionListener.wrap(AbstractAuditor::onIndexResponse, e -> {
+            if (e instanceof IndexNotFoundException) {
+                executorService.execute(() -> {
+                    reset();
+                    indexDoc(toXContent);
+                });
+            } else {
+                onIndexFailure(e);
+            }
+        }));
     }
 
     private IndexRequest indexRequest(ToXContent toXContent) {

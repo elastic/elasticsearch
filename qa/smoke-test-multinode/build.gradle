@@ -28,7 +28,5 @@ tasks.named("yamlRestTest").configure {
     'cat.templates/10_basic/No templates',
     'cat.templates/10_basic/Sort templates',
     'cat.templates/10_basic/Multiple template',
-    'update/100_synthetic_source/keyword',
-    'update/100_synthetic_source/stored text'
   ].join(',')
 }

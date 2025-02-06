@@ -32,8 +32,6 @@ tasks.named("yamlRestTest").configure {
   ArrayList<String> blacklist = [
     'index/10_with_id/Index with ID',
     'indices.get_alias/10_basic/Get alias against closed indices',
-    'update/100_synthetic_source/keyword',
-    'update/100_synthetic_source/stored text'
   ];
   if (buildParams.isSnapshotBuild() == false) {
     blacklist += [

@@ -9,7 +9,7 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
-import org.elasticsearch.entitlement.runtime.policy.entitlements.FileEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -20,18 +20,19 @@ import java.util.Objects;
 import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
 
 public final class FileAccessTree {
-    public static final FileAccessTree EMPTY = new FileAccessTree(List.of());
+    public static final FileAccessTree EMPTY = new FileAccessTree(FilesEntitlement.EMPTY);
     private static final String FILE_SEPARATOR = getDefaultFileSystem().getSeparator();
 
     private final String[] readPaths;
     private final String[] writePaths;
 
-    private FileAccessTree(List<FileEntitlement> fileEntitlements) {
+    private FileAccessTree(FilesEntitlement filesEntitlement) {
         List<String> readPaths = new ArrayList<>();
         List<String> writePaths = new ArrayList<>();
-        for (FileEntitlement fileEntitlement : fileEntitlements) {
-            String path = normalizePath(Path.of(fileEntitlement.path()));
-            if (fileEntitlement.mode() == FileEntitlement.Mode.READ_WRITE) {
+        for (FilesEntitlement.FileData fileData : filesEntitlement.filesData()) {
+            var path = normalizePath(Path.of(fileData.path()));
+            var mode = fileData.mode();
+            if (mode == FilesEntitlement.Mode.READ_WRITE) {
                 writePaths.add(path);
             }
             readPaths.add(path);
@@ -44,8 +45,8 @@ public final class FileAccessTree {
         this.writePaths = writePaths.toArray(new String[0]);
     }
 
-    public static FileAccessTree of(List<FileEntitlement> fileEntitlements) {
-        return new FileAccessTree(fileEntitlements);
+    public static FileAccessTree of(FilesEntitlement filesEntitlement) {
+        return new FileAccessTree(filesEntitlement);
     }
 
     boolean canRead(Path path) {

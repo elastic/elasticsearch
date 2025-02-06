@@ -354,6 +354,15 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/121772
 - class: org.elasticsearch.ingest.geoip.FullClusterRestartIT
   issue: https://github.com/elastic/elasticsearch/issues/121935
+- class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
+  method: testTimestampNotAddedIfExists
+  issue: https://github.com/elastic/elasticsearch/issues/121842
+- class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
+  method: testDestIndexNameSet_withDotPrefix
+  issue: https://github.com/elastic/elasticsearch/issues/121977
+- class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
+  method: testFailIfMetadataBlockSet
+  issue: https://github.com/elastic/elasticsearch/issues/121978
 
 # Examples:
 #

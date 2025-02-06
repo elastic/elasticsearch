@@ -114,9 +114,7 @@ public class HollowIndexEngine extends ReadOnlyEngine {
 
     @Override
     public void prepareForEngineReset() throws IOException {
-        hollowShardsService.assertIngestionBlocked(shardId, true, "hollow index engine requires ingestion blocked");
+        hollowShardsService.ensureHollowShard(shardId, true, "hollow index engine requires the shard to be hollow");
         logger.debug(() -> "preparing to reset hollow index engine for shard " + shardId);
-        // TODO ES-10386
-        throw new UnsupportedOperationException("reset hollow index engine not yet implemented");
     }
 }

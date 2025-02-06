@@ -358,9 +358,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.ClassificationIT
   method: testDependentVariableIsAliasToKeyword
   issue: https://github.com/elastic/elasticsearch/issues/121492
-- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryUnavailableRemotesIT
-  method: testRemoteOnlyCCSAgainstDisconnectedRemoteWithSkipUnavailableTrue
-  issue: https://github.com/elastic/elasticsearch/issues/121578
 - class: org.elasticsearch.xpack.esql.action.CrossClustersCancellationIT
   method: testTasks
   issue: https://github.com/elastic/elasticsearch/issues/121626
@@ -381,9 +378,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/121672
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/121411
-- class: org.elasticsearch.transport.InboundHandlerTests
-  method: testLogsSlowInboundProcessing
-  issue: https://github.com/elastic/elasticsearch/issues/121816
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/cat/health/cat-health-no-timestamp-example}
   issue: https://github.com/elastic/elasticsearch/issues/121867

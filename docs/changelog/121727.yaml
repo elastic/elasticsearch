@@ -1,0 +1,7 @@
+pr: 121727
+summary: Copy metrics and `default_metric` properties when downsampling `aggregate_metric_double`
+area: Downsampling
+type: bug
+issues:
+ - 119696
+ - 96076

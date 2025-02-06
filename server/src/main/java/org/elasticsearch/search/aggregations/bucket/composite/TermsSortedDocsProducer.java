@@ -14,7 +14,6 @@ import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSet;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.DocIdSetBuilder;
 
@@ -29,8 +28,7 @@ class TermsSortedDocsProducer extends SortedDocsProducer {
     }
 
     @Override
-    DocIdSet processLeaf(Query query, CompositeValuesCollectorQueue queue, LeafReaderContext context, boolean fillDocIdSet)
-        throws IOException {
+    DocIdSet processLeaf(CompositeValuesCollectorQueue queue, LeafReaderContext context, boolean fillDocIdSet) throws IOException {
         final Terms terms = context.reader().terms(field);
         if (terms == null) {
             // no value for the field

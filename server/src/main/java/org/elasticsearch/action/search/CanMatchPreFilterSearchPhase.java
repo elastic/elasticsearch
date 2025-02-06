@@ -40,7 +40,6 @@ import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.BiFunction;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.core.Types.forciblyCast;
@@ -348,10 +347,7 @@ final class CanMatchPreFilterSearchPhase {
 
     private CanMatchNodeRequest createCanMatchRequest(Map.Entry<SendingTarget, List<SearchShardIterator>> entry) {
         final SearchShardIterator first = entry.getValue().get(0);
-        final List<CanMatchNodeRequest.Shard> shardLevelRequests = entry.getValue()
-            .stream()
-            .map(this::buildShardLevelRequest)
-            .collect(Collectors.toCollection(ArrayList::new));
+        final List<CanMatchNodeRequest.Shard> shardLevelRequests = entry.getValue().stream().map(this::buildShardLevelRequest).toList();
         assert entry.getValue().stream().allMatch(Objects::nonNull);
         assert entry.getValue()
             .stream()

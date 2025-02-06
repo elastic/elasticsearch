@@ -11,9 +11,11 @@ import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.common.settings.SecureString;
@@ -295,9 +297,26 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         putIndexTemplateRequest.setJsonEntity(
             indexTemplate.replace("$TEMPLATE", templateWithNoTimestamp).replace("$PATTERN", dataStreamFromNonDataStreamIndices + "-*")
         );
-        assertOK(client().performRequest(putIndexTemplateRequest));
         String indexName = dataStreamFromNonDataStreamIndices + "-01";
-        bulkLoadDataMissingTimestamp(indexName);
+        String typeName = "test-type";
+        /*
+         * It is not possible to create a 7.x index template with a type. And you can't create an empty index with a type. But you can
+         * create the index with a type by posting a document to an index with a type. We do that here so that we test that the type is
+         * removed when we reindex into 8.x.
+         */
+        Request createIndexRequest = new Request("POST", indexName + "/" + typeName);
+        createIndexRequest.setJsonEntity("""
+            {
+              "@timestamp": "2099-11-15T13:12:00",
+              "message": "GET /search HTTP/1.1 200 1070000",
+              "user": {
+                "id": "kimchy"
+              }
+            }""");
+        createIndexRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
+        assertOK(client().performRequest(createIndexRequest));
+        assertOK(client().performRequest(putIndexTemplateRequest));
+        bulkLoadDataMissingTimestamp(indexName, typeName);
         /*
          * Next, we will change the index's mapping to include a @timestamp field since we are going to convert it to a data stream. But
          * first we have to flush the translog to disk because adding a @timestamp field will cause errors if it is done before the translog
@@ -516,19 +535,20 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
     /*
      * This bulkloads data, where some documents have no @timestamp field and some do.
      */
-    private static void bulkLoadDataMissingTimestamp(String dataStreamName) throws IOException {
+    private static void bulkLoadDataMissingTimestamp(String dataStreamName, String typeName) throws IOException {
         final String bulk = """
-            {"create": {}}
+            {"create": {"_type": "$TYPE_NAME"}}
             {"metricset": "pod", "k8s": {"pod": {"name": "cat", "network": {"tx": 2001818691, "rx": 802133794}}}}
-            {"create": {}}
+            {"create": {"_type": "$TYPE_NAME"}}
             {"metricset": "pod", "k8s": {"pod": {"name": "hamster", "network": {"tx": 2005177954, "rx": 801479970}}}}
-            {"create": {}}
+            {"create": {"_type": "$TYPE_NAME"}}
             {"metricset": "pod", "k8s": {"pod": {"name": "cow", "network": {"tx": 2006223737, "rx": 802337279}}}}
-            {"create": {}}
+            {"create": {"_type": "$TYPE_NAME"}}
             {"@timestamp": "$now", "metricset": "pod", "k8s": {"pod": {"name": "rat", "network": {"tx": 2012916202, "rx": 803685721}}}}
             """;
         var bulkRequest = new Request("POST", "/" + dataStreamName + "/_bulk");
-        bulkRequest.setJsonEntity(bulk.replace("$now", formatInstant(Instant.now())));
+        bulkRequest.setJsonEntity(bulk.replace("$now", formatInstant(Instant.now())).replace("TYPE_NAME", typeName));
+        bulkRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
         var response = client().performRequest(bulkRequest);
         assertOK(response);
     }

@@ -69,7 +69,7 @@ public class TransportStats implements Writeable, ChunkedToXContent {
         rxSize = in.readVLong();
         txCount = in.readVLong();
         txSize = in.readVLong();
-        if (in.getTransportVersion().before(TransportVersions.TRANSPORT_STATS_HANDLING_TIME_REQUIRED)) {
+        if (in.getTransportVersion().before(TransportVersions.TRANSPORT_STATS_HANDLING_TIME_REQUIRED_90)) {
             in.readBoolean();
         }
         inboundHandlingTimeBucketFrequencies = new long[HandlingTimeTracker.BUCKET_COUNT];
@@ -98,7 +98,7 @@ public class TransportStats implements Writeable, ChunkedToXContent {
         out.writeVLong(txSize);
         assert inboundHandlingTimeBucketFrequencies.length == HandlingTimeTracker.BUCKET_COUNT;
         assert outboundHandlingTimeBucketFrequencies.length == HandlingTimeTracker.BUCKET_COUNT;
-        if (out.getTransportVersion().before(TransportVersions.TRANSPORT_STATS_HANDLING_TIME_REQUIRED)) {
+        if (out.getTransportVersion().before(TransportVersions.TRANSPORT_STATS_HANDLING_TIME_REQUIRED_90)) {
             out.writeBoolean(true);
         }
         for (long handlingTimeBucketFrequency : inboundHandlingTimeBucketFrequencies) {

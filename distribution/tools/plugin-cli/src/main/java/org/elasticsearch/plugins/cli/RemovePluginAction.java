@@ -93,7 +93,7 @@ public class RemovePluginAction {
         // We build a new map where the keys are plugins that extend plugins
         // we want to remove and the values are the plugins we can't remove
         // because of this dependency
-        Map<String, List<String>> pluginDependencyMap = PluginsUtils.getDependencyMapView(env.pluginsFile());
+        Map<String, List<String>> pluginDependencyMap = PluginsUtils.getDependencyMapView(env.pluginsDir());
         for (Map.Entry<String, List<String>> entry : pluginDependencyMap.entrySet()) {
             for (String extendedPlugin : entry.getValue()) {
                 for (InstallablePlugin plugin : plugins) {
@@ -121,9 +121,9 @@ public class RemovePluginAction {
     private void checkCanRemove(InstallablePlugin plugin) throws UserException {
         String pluginId = plugin.getId();
 
-        final Path pluginDir = env.pluginsFile().resolve(pluginId);
-        final Path pluginConfigDir = env.configFile().resolve(pluginId);
-        final Path removing = env.pluginsFile().resolve(".removing-" + pluginId);
+        final Path pluginDir = env.pluginsDir().resolve(pluginId);
+        final Path pluginConfigDir = env.configDir().resolve(pluginId);
+        final Path removing = env.pluginsDir().resolve(".removing-" + pluginId);
 
         /*
          * If the plugin does not exist and the plugin config does not exist, fail to the user that the plugin is not found, unless there's
@@ -147,7 +147,7 @@ public class RemovePluginAction {
             }
         }
 
-        final Path pluginBinDir = env.binFile().resolve(pluginId);
+        final Path pluginBinDir = env.binDir().resolve(pluginId);
         if (Files.exists(pluginBinDir)) {
             if (Files.isDirectory(pluginBinDir) == false) {
                 throw new UserException(ExitCodes.IO_ERROR, "bin dir for " + pluginId + " is not a directory");
@@ -157,9 +157,9 @@ public class RemovePluginAction {
 
     private void removePlugin(InstallablePlugin plugin) throws IOException {
         final String pluginId = plugin.getId();
-        final Path pluginDir = env.pluginsFile().resolve(pluginId);
-        final Path pluginConfigDir = env.configFile().resolve(pluginId);
-        final Path removing = env.pluginsFile().resolve(".removing-" + pluginId);
+        final Path pluginDir = env.pluginsDir().resolve(pluginId);
+        final Path pluginConfigDir = env.configDir().resolve(pluginId);
+        final Path removing = env.pluginsDir().resolve(".removing-" + pluginId);
 
         terminal.println("-> removing [" + pluginId + "]...");
 
@@ -176,7 +176,7 @@ public class RemovePluginAction {
             terminal.println(VERBOSE, "removing [" + pluginDir + "]");
         }
 
-        final Path pluginBinDir = env.binFile().resolve(pluginId);
+        final Path pluginBinDir = env.binDir().resolve(pluginId);
         if (Files.exists(pluginBinDir)) {
             try (Stream<Path> paths = Files.list(pluginBinDir)) {
                 pluginPaths.addAll(paths.toList());

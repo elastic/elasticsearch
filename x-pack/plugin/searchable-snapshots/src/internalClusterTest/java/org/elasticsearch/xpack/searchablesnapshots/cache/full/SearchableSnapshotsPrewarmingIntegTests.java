@@ -145,7 +145,7 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
             docsPerIndex.put(indexName, nbDocs);
         }
 
-        final Path repositoryPath = node().getEnvironment().resolveRepoFile(randomAlphaOfLength(10));
+        final Path repositoryPath = node().getEnvironment().resolveRepoDir(randomAlphaOfLength(10));
         final Settings.Builder repositorySettings = Settings.builder().put("location", repositoryPath);
         if (randomBoolean()) {
             repositorySettings.put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES);

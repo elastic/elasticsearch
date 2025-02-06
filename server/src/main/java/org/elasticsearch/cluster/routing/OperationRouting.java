@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -28,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -91,7 +93,7 @@ public class OperationRouting {
         }
     }
 
-    public GroupShardsIterator<ShardIterator> searchShards(
+    public List<ShardIterator> searchShards(
         ProjectState projectState,
         String[] concreteIndices,
         @Nullable Map<String, Set<String>> routing,
@@ -100,7 +102,7 @@ public class OperationRouting {
         return searchShards(projectState, concreteIndices, routing, preference, null, null);
     }
 
-    public GroupShardsIterator<ShardIterator> searchShards(
+    public List<ShardIterator> searchShards(
         ProjectState projectState,
         String[] concreteIndices,
         @Nullable Map<String, Set<String>> routing,
@@ -124,7 +126,9 @@ public class OperationRouting {
                 set.add(PlainShardIterator.allSearchableShards(iterator));
             }
         }
-        return GroupShardsIterator.sortAndCreate(new ArrayList<>(set));
+        var res = new ArrayList<>(set);
+        CollectionUtil.timSort(res);
+        return res;
     }
 
     public static ShardIterator getShards(RoutingTable routingTable, ShardId shardId) {

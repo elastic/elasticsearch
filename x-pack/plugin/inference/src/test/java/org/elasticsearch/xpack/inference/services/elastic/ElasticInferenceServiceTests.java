@@ -366,6 +366,14 @@ public class ElasticInferenceServiceTests extends ESTestCase {
     private ModelRegistry mockModelRegistry() {
         var client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
+
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            var listener = (ActionListener<Boolean>) invocationOnMock.getArgument(2);
+            listener.onResponse(true);
+
+            return Void.TYPE;
+        }).when(client).execute(any(), any(), any());
         return new ModelRegistry(client);
     }
 

@@ -91,7 +91,9 @@ public class TransportInferenceActionProxy extends HandledTransportAction<Infere
             }
 
             UnifiedCompletionAction.Request unifiedRequest;
-            try (var parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, request.getContent(), request.getContentType())) {
+            try (
+                var parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, request.getContent(), request.getContentType())
+            ) {
                 unifiedRequest = UnifiedCompletionAction.Request.parseRequest(
                     request.getInferenceEntityId(),
                     request.getTaskType(),

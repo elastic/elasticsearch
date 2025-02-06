@@ -91,8 +91,8 @@ public class AggregatorImplementer {
 
         this.init = requireStaticMethod(
             declarationType,
-            requirePrimitiveOrImplements(elements, Types.RELEASABLE),// This should be more restrictive
-                                                                     // org.elasticsearch.compute.aggregation.AggregatorState
+            // This should be more restrictive and require org.elasticsearch.compute.aggregation.AggregatorState
+            requirePrimitiveOrImplements(elements, Types.RELEASABLE),
             requireName("init", "initSingle"),
             requireAnyArgs("<arbitrary init arguments>")
         );
@@ -493,9 +493,10 @@ public class AggregatorImplementer {
                 requireVoidType(),
                 requireName("combineIntermediate"),
                 requireArgs(
-                    Stream.concat(Stream.of(aggState.declaredType()), intermediateState.stream().map(IntermediateStateDesc::combineArgType))
-                        .map(Methods::requireType)
-                        .toArray(TypeMatcher[]::new)
+                    Stream.concat(
+                        Stream.of(aggState.declaredType()), // aggState
+                        intermediateState.stream().map(IntermediateStateDesc::combineArgType) // intermediate state
+                    ).map(Methods::requireType).toArray(TypeMatcher[]::new)
                 )
             );
             if (intermediateState.stream().map(IntermediateStateDesc::elementType).anyMatch(n -> n.equals("BYTES_REF"))) {

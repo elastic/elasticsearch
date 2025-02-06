@@ -84,11 +84,10 @@ public class TransportInferenceActionProxy extends HandledTransportAction<Infere
 
         try {
             if (request.isStreaming() == false) {
-                unifiedErrorFormatListener.onFailure(new ElasticsearchStatusException(
+                throw new ElasticsearchStatusException(
                     "The [chat_completion] task type only supports streaming, please try again with the _stream API",
                     RestStatus.BAD_REQUEST
-                ));
-                return;
+                );
             }
 
             UnifiedCompletionAction.Request unifiedRequest;

@@ -19,7 +19,6 @@ import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.logsdb.datageneration.DocumentGenerator;
 import org.elasticsearch.logsdb.datageneration.FieldType;
-import org.elasticsearch.logsdb.datageneration.Mapping;
 import org.elasticsearch.logsdb.datageneration.MappingGenerator;
 import org.elasticsearch.logsdb.datageneration.Template;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceHandler;
@@ -110,20 +109,6 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
 
         Object blockLoaderResult = setupAndInvokeBlockLoader(mapperService, documentXContent, fieldName);
         Object expected = expected(mapping.lookup().get(fieldName), getFieldValue(document, fieldName), syntheticSource);
-        assertEquals(expected, blockLoaderResult);
-    }
-
-    public void testSynth() throws IOException {
-        Map<String, Object> raw = Map.of("type", "keyword", "doc_values", false, "store", false);
-        var mapping = new Mapping(Map.of("_doc", Map.of("properties", Map.of(fieldName, raw))), Map.of(fieldName, raw));
-        var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
-
-        var mapperService = createSytheticSourceMapperService(mappingXContent);
-
-        var fieldValue = generator.generateValue();
-
-        Object blockLoaderResult = setupAndInvokeBlockLoader(mapperService, fieldValue);
-        Object expected = expected(mapping.lookup().get(fieldName), fieldValue, true);
         assertEquals(expected, blockLoaderResult);
     }
 

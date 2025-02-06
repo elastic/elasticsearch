@@ -22,6 +22,8 @@ import java.util.Map;
  */
 public record FilesEntitlement(List<FileData> filesData) implements Entitlement {
 
+    public static final FilesEntitlement EMPTY = new FilesEntitlement(List.of());
+
     public enum Mode {
         READ,
         READ_WRITE
@@ -44,6 +46,9 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
     @ExternalEntitlement(parameterNames = { "paths" }, esModulesOnly = false)
     @SuppressWarnings("unchecked")
     public static FilesEntitlement build(List<Object> paths) {
+        if (paths == null || paths.isEmpty()) {
+            throw new PolicyValidationException("must specify at least one path");
+        }
         List<FileData> filesData = new ArrayList<>();
         for (Object object : paths) {
             Map<String, String> file = new HashMap<>((Map<String, String>) object);

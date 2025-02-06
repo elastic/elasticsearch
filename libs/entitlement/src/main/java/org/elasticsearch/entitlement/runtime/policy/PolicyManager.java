@@ -73,16 +73,12 @@ public class PolicyManager {
         }
 
         public static ModuleEntitlements from(String componentName, List<Entitlement> entitlements) {
-            FilesEntitlement filesEntitlement = null;
+            FilesEntitlement filesEntitlement = FilesEntitlement.EMPTY;
             for (Entitlement entitlement : entitlements) {
                 if (entitlement instanceof FilesEntitlement) {
                     filesEntitlement = (FilesEntitlement) entitlement;
                 }
             }
-            if (filesEntitlement == null) {
-                filesEntitlement = new FilesEntitlement(List.of());
-            }
-
             return new ModuleEntitlements(
                 componentName,
                 entitlements.stream().collect(groupingBy(Entitlement::getClass)),

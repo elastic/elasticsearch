@@ -342,7 +342,7 @@ public class PolicyManagerTests extends ESTestCase {
                             new Scope(
                                 "test",
                                 List.of(
-                                    new FilesEntitlement(List.of()),
+                                    FilesEntitlement.EMPTY,
                                     new CreateClassLoaderEntitlement(),
                                     new FilesEntitlement(List.of(new FilesEntitlement.FileData("test", FilesEntitlement.Mode.READ)))
                                 )

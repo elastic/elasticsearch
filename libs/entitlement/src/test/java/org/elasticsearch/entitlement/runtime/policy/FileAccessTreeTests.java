@@ -36,7 +36,7 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testEmpty() {
-        var tree = FileAccessTree.of(entitlement());
+        var tree = FileAccessTree.of(FilesEntitlement.EMPTY);
         assertThat(tree.canRead(path("path")), is(false));
         assertThat(tree.canWrite(path("path")), is(false));
     }

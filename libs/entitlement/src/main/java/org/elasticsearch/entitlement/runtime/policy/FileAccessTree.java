@@ -20,7 +20,7 @@ import java.util.Objects;
 import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
 
 public final class FileAccessTree {
-    public static final FileAccessTree EMPTY = new FileAccessTree(new FilesEntitlement(List.of()));
+    public static final FileAccessTree EMPTY = new FileAccessTree(FilesEntitlement.EMPTY);
     private static final String FILE_SEPARATOR = getDefaultFileSystem().getSeparator();
 
     private final String[] readPaths;

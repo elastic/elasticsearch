@@ -9,7 +9,6 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -144,7 +143,7 @@ public class TransportHandshakerTests extends ESTestCase {
         TaskId.EMPTY_TASK_ID.writeTo(lengthCheckingHandshake);
         TaskId.EMPTY_TASK_ID.writeTo(futureHandshake);
         try (BytesStreamOutput internalMessage = new BytesStreamOutput()) {
-            Version.writeVersion(Version.CURRENT, internalMessage);
+            internalMessage.writeVInt(TransportVersion.current().id() + between(0, 100));
             lengthCheckingHandshake.writeBytesReference(internalMessage.bytes());
             internalMessage.write(new byte[1024]);
             futureHandshake.writeBytesReference(internalMessage.bytes());

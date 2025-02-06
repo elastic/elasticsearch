@@ -50,9 +50,11 @@ import org.elasticsearch.xpack.inference.telemetry.InferenceTimer;
 import java.io.IOException;
 import java.util.Random;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Flow;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_API_FEATURE;
 import static org.elasticsearch.xpack.inference.telemetry.InferenceStats.modelAttributes;
@@ -280,7 +282,9 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
                 var instrumentedStream = new PublisherWithMetrics(timer, model);
                 taskProcessor.subscribe(instrumentedStream);
 
-                listener.onResponse(new InferenceAction.Response(inferenceResults, instrumentedStream));
+                var streamErrorHandler = streamErrorHandler(instrumentedStream);
+
+                listener.onResponse(new InferenceAction.Response(inferenceResults, streamErrorHandler));
             } else {
                 recordMetrics(model, timer, null);
                 listener.onResponse(new InferenceAction.Response(inferenceResults));
@@ -291,16 +295,20 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         }));
     }
 
+    protected Flow.Publisher<ChunkedToXContent> streamErrorHandler(Flow.Processor<ChunkedToXContent, ChunkedToXContent> upstream) {
+        return upstream;
+    }
+
     private void recordMetrics(Model model, InferenceTimer timer, @Nullable Throwable t) {
         try {
-            inferenceStats.inferenceDuration().record(timer.elapsedMillis(), responseAttributes(model, t));
+            inferenceStats.inferenceDuration().record(timer.elapsedMillis(), responseAttributes(model, unwrapCause(t)));
         } catch (Exception e) {
             log.atDebug().withThrowable(e).log("Failed to record metrics with a parsed model, dropping metrics");
         }
     }
 
     private void inferOnService(Model model, Request request, InferenceService service, ActionListener<InferenceServiceResults> listener) {
-        if (request.isStreaming() == false || service.canStream(request.getTaskType())) {
+        if (request.isStreaming() == false || service.canStream(model.getTaskType())) {
             doInference(model, request, service, listener);
         } else {
             listener.onFailure(unsupportedStreamingTaskException(request, service));

@@ -12,7 +12,6 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -40,6 +39,7 @@ import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
+import org.elasticsearch.tasks.CancellableTask;
 
 import java.util.List;
 
@@ -422,12 +422,12 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public void setTask(SearchShardTask task) {
+    public void setTask(CancellableTask task) {
         in.setTask(task);
     }
 
     @Override
-    public SearchShardTask getTask() {
+    public CancellableTask getTask() {
         return in.getTask();
     }
 

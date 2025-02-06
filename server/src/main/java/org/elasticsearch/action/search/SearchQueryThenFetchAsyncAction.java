@@ -9,29 +9,76 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopFieldDocs;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.SimpleRefCounted;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 
 import static org.elasticsearch.action.search.SearchPhaseController.getTopDocsSize;
 
 class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPhaseResult> {
+
+    private static final Logger logger = LogManager.getLogger(SearchQueryThenFetchAsyncAction.class);
 
     private final SearchProgressListener progressListener;
 
@@ -89,12 +136,17 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         }
     }
 
+    @Override
     protected void executePhaseOnShard(
         final SearchShardIterator shardIt,
         final Transport.Connection connection,
         final SearchActionListener<SearchPhaseResult> listener
     ) {
-        ShardSearchRequest request = rewriteShardSearchRequest(super.buildShardSearchRequest(shardIt, listener.requestIndex));
+        ShardSearchRequest request = rewriteShardSearchRequest(
+            bottomSortCollector,
+            trackTotalHitsUpTo,
+            super.buildShardSearchRequest(shardIt, listener.requestIndex)
+        );
         getSearchTransport().sendExecuteQuery(connection, request, getTask(), listener);
     }
 
@@ -104,7 +156,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
     }
 
     @Override
-    protected void onShardResult(SearchPhaseResult result, SearchShardIterator shardIt) {
+    protected void onShardResult(SearchPhaseResult result) {
         QuerySearchResult queryResult = result.queryResult();
         if (queryResult.isNull() == false
             // disable sort optims for scroll requests because they keep track of the last bottom doc locally (per shard)
@@ -123,7 +175,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
             }
             bottomSortCollector.consumeTopDocs(topDocs, queryResult.sortValueFormats());
         }
-        super.onShardResult(result, shardIt);
+        super.onShardResult(result);
     }
 
     static SearchPhase nextPhase(
@@ -144,7 +196,178 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         return nextPhase(client, this, results, null);
     }
 
-    private ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest request) {
+    public static class NodeQueryResponse extends TransportResponse {
+
+        private final RefCounted refCounted = LeakTracker.wrap(new SimpleRefCounted());
+
+        private final Object[] results;
+        private final SearchPhaseController.TopDocsStats topDocsStats;
+        private final QueryPhaseResultConsumer.MergeResult mergeResult;
+
+        NodeQueryResponse(StreamInput in) throws IOException {
+            super(in);
+            this.results = in.readArray(i -> i.readBoolean() ? new QuerySearchResult(i) : i.readException(), Object[]::new);
+            this.mergeResult = QueryPhaseResultConsumer.MergeResult.readFrom(in);
+            this.topDocsStats = SearchPhaseController.TopDocsStats.readFrom(in);
+        }
+
+        NodeQueryResponse(
+            QueryPhaseResultConsumer.MergeResult mergeResult,
+            Object[] results,
+            SearchPhaseController.TopDocsStats topDocsStats
+        ) {
+            this.results = results;
+            for (Object result : results) {
+                if (result instanceof RefCounted r) {
+                    r.incRef();
+                }
+            }
+            this.mergeResult = mergeResult;
+            this.topDocsStats = topDocsStats;
+            assert Arrays.stream(results).noneMatch(Objects::isNull) : Arrays.toString(results);
+        }
+
+        // public for tests
+        public Object[] getResults() {
+            return results;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeArray((o, v) -> {
+                if (v instanceof Exception e) {
+                    o.writeBoolean(false);
+                    o.writeException(e);
+                } else {
+                    o.writeBoolean(true);
+                    assert v instanceof QuerySearchResult : v;
+                    ((QuerySearchResult) v).writeTo(o);
+                }
+            }, results);
+            mergeResult.writeTo(out);
+            topDocsStats.writeTo(out);
+        }
+
+        @Override
+        public void incRef() {
+            refCounted.incRef();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            return refCounted.tryIncRef();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return refCounted.hasReferences();
+        }
+
+        @Override
+        public boolean decRef() {
+            if (refCounted.decRef()) {
+                for (int i = 0; i < results.length; i++) {
+                    Object result = results[i];
+                    if (result instanceof RefCounted r) {
+                        r.decRef();
+                    }
+                    results[i] = null;
+                }
+                return true;
+            }
+            return false;
+        }
+    }
+
+    public static class NodeQueryRequest extends TransportRequest implements IndicesRequest {
+        private final List<ShardToQuery> shards;
+        private final SearchRequest searchRequest;
+        private final Map<String, AliasFilter> aliasFilters;
+        private final int totalShards;
+        private final long absoluteStartMillis;
+
+        private NodeQueryRequest(
+            List<ShardToQuery> shards,
+            SearchRequest searchRequest,
+            Map<String, AliasFilter> aliasFilters,
+            int totalShards,
+            long absoluteStartMillis
+        ) {
+            this.shards = shards;
+            this.searchRequest = searchRequest;
+            this.aliasFilters = aliasFilters;
+            this.totalShards = totalShards;
+            this.absoluteStartMillis = absoluteStartMillis;
+        }
+
+        private NodeQueryRequest(StreamInput in) throws IOException {
+            super(in);
+            this.shards = in.readCollectionAsImmutableList(ShardToQuery::readFrom);
+            this.searchRequest = new SearchRequest(in);
+            this.aliasFilters = in.readImmutableMap(AliasFilter::readFrom);
+            this.totalShards = in.readVInt();
+            this.absoluteStartMillis = in.readLong();
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new SearchShardTask(id, type, action, "NodeQueryRequest", parentTaskId, headers);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeCollection(shards);
+            searchRequest.writeTo(out);
+            out.writeMap(aliasFilters, (o, v) -> v.writeTo(o));
+            out.writeVInt(totalShards);
+            out.writeLong(absoluteStartMillis);
+        }
+
+        @Override
+        public String[] indices() {
+            return shards.stream().map(s -> s.originalIndices().indices()).flatMap(Arrays::stream).distinct().toArray(String[]::new);
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return shards.getFirst().originalIndices.indicesOptions();
+        }
+    }
+
+    private record ShardToQuery(
+        float boost,
+        OriginalIndices originalIndices,
+        int shardIndex,
+        ShardId shardId,
+        ShardSearchContextId contextId
+    ) implements Writeable {
+
+        static ShardToQuery readFrom(StreamInput in) throws IOException {
+            return new ShardToQuery(
+                in.readFloat(),
+                OriginalIndices.readOriginalIndices(in),
+                in.readVInt(),
+                new ShardId(in),
+                in.readOptionalWriteable(ShardSearchContextId::new)
+            );
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeFloat(boost);
+            OriginalIndices.writeOriginalIndices(originalIndices, out);
+            out.writeVInt(shardIndex);
+            shardId.writeTo(out);
+            out.writeOptionalWriteable(contextId);
+        }
+    }
+
+    private static ShardSearchRequest rewriteShardSearchRequest(
+        BottomSortValuesCollector bottomSortCollector,
+        int trackTotalHitsUpTo,
+        ShardSearchRequest request
+    ) {
         if (bottomSortCollector == null) {
             return request;
         }
@@ -159,5 +382,514 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
             request.setBottomSortValues(bottomSortCollector.getBottomSortValues());
         }
         return request;
+    }
+
+    private static boolean isPartOfPIT(SearchRequest request, ShardSearchContextId contextId) {
+        final PointInTimeBuilder pointInTimeBuilder = request.pointInTimeBuilder();
+        if (pointInTimeBuilder != null) {
+            return request.pointInTimeBuilder().getSearchContextId(null).contains(contextId);
+        } else {
+            return false;
+        }
+    }
+
+    @Override
+    protected void run() {
+        // TODO: stupid but we kinda need to fill all of these in with the current logic, do something nicer before merging
+        final Map<SearchShardIterator, Integer> shardIndexMap = Maps.newHashMapWithExpectedSize(shardIterators.length);
+        for (int i = 0; i < shardIterators.length; i++) {
+            shardIndexMap.put(shardIterators[i], i);
+        }
+        final boolean supportsBatchedQuery = minTransportVersion.onOrAfter(TransportVersions.BATCHED_QUERY_PHASE_VERSION);
+        final Map<String, NodeQueryRequest> perNodeQueries = new HashMap<>();
+        AbstractSearchAsyncAction.doCheckNoMissingShards(getName(), request, shardsIts, AbstractSearchAsyncAction::makeMissingShardsError);
+        final String localNodeId = searchTransportService.transportService().getLocalNode().getId();
+        final String localClusterAlias = request.getLocalClusterAlias();
+        for (int i = 0; i < shardsIts.size(); i++) {
+            final SearchShardIterator shardRoutings = shardsIts.get(i);
+            assert shardRoutings.skip() == false;
+            assert shardIndexMap.containsKey(shardRoutings);
+            int shardIndex = shardIndexMap.get(shardRoutings);
+            final SearchShardTarget routing = shardRoutings.nextOrNull();
+            if (routing == null) {
+                failOnUnavailable(shardIndex, shardRoutings);
+            } else {
+                String clusterAlias = routing.getClusterAlias();
+                final String nodeId = routing.getNodeId();
+                if (supportsBatchedQuery
+                    && localNodeId.equals(nodeId) == false // local requests don't need batching as there's no network latency
+                    && (clusterAlias == null || Objects.equals(localClusterAlias, clusterAlias))) {
+                    perNodeQueries.computeIfAbsent(
+                        nodeId,
+                        ignored -> new NodeQueryRequest(
+                            new ArrayList<>(),
+                            request,
+                            aliasFilter,
+                            shardsIts.size(),
+                            timeProvider.absoluteStartMillis()
+                        )
+                    ).shards.add(
+                        new ShardToQuery(
+                            concreteIndexBoosts.getOrDefault(routing.getShardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST),
+                            getOriginalIndices(shardIndex),
+                            shardIndex,
+                            routing.getShardId(),
+                            shardRoutings.getSearchContextId()
+                        )
+                    );
+                } else {
+                    performPhaseOnShard(shardIndex, shardRoutings, routing);
+                }
+            }
+        }
+        perNodeQueries.forEach((nodeId, request) -> {
+            if (request.shards.size() == 1) {
+                var shard = request.shards.getFirst();
+                final int sidx = shard.shardIndex;
+                this.performPhaseOnShard(sidx, shardIterators[sidx], new SearchShardTarget(nodeId, shard.shardId, localClusterAlias));
+                return;
+            }
+            final Transport.Connection connection;
+            try {
+                connection = getConnection(localClusterAlias, nodeId);
+            } catch (Exception e) {
+                onNodeQueryFailure(e, request, nodeId);
+                return;
+            }
+            searchTransportService.transportService()
+                .sendChildRequest(connection, NODE_SEARCH_ACTION_NAME, request, task, new TransportResponseHandler<NodeQueryResponse>() {
+                    @Override
+                    public NodeQueryResponse read(StreamInput in) throws IOException {
+                        return new NodeQueryResponse(in);
+                    }
+
+                    @Override
+                    public Executor executor() {
+                        return EsExecutors.DIRECT_EXECUTOR_SERVICE;
+                    }
+
+                    @Override
+                    public void handleResponse(NodeQueryResponse response) {
+                        if (results instanceof QueryPhaseResultConsumer queryPhaseResultConsumer) {
+                            queryPhaseResultConsumer.addPartialResult(response.topDocsStats, response.mergeResult);
+                        }
+                        for (int i = 0; i < response.results.length; i++) {
+                            var s = request.shards.get(i);
+                            int shardIdx = s.shardIndex;
+                            final SearchShardTarget target = new SearchShardTarget(nodeId, s.shardId, localClusterAlias);
+                            switch (response.results[i]) {
+                                case Exception e -> onShardFailure(shardIdx, target, shardIterators[shardIdx], e);
+                                case SearchPhaseResult q -> {
+                                    q.setShardIndex(shardIdx);
+                                    q.setSearchShardTarget(target);
+                                    onShardResult(q);
+                                }
+                                case null, default -> {
+                                    assert false : "impossible [" + response.results[i] + "]";
+                                }
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void handleException(TransportException e) {
+                        onNodeQueryFailure(e, request, nodeId);
+                    }
+                });
+        });
+    }
+
+    private void onNodeQueryFailure(Exception e, NodeQueryRequest request, String nodeId) {
+        for (ShardToQuery shard : request.shards) {
+            int idx = shard.shardIndex;
+            onShardFailure(
+                idx,
+                new SearchShardTarget(nodeId, shard.shardId, request.searchRequest.getLocalClusterAlias()),
+                shardIterators[idx],
+                e
+            );
+        }
+    }
+
+    private void failOnUnavailable(int shardIndex, SearchShardIterator shardIt) {
+        SearchShardTarget unassignedShard = new SearchShardTarget(null, shardIt.shardId(), shardIt.getClusterAlias());
+        onShardFailure(shardIndex, unassignedShard, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
+    }
+
+    protected void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final SearchShardTarget shard) {
+        final Transport.Connection connection;
+        try {
+            connection = getConnection(shard.getClusterAlias(), shard.getNodeId());
+        } catch (Exception e) {
+            onShardFailure(shardIndex, shard, shardIt, e);
+            return;
+        }
+        final String indexUUID = shardIt.shardId().getIndex().getUUID();
+        searchTransportService.sendExecuteQuery(
+            connection,
+            rewriteShardSearchRequest(
+                bottomSortCollector,
+                trackTotalHitsUpTo,
+                buildShardSearchRequest(
+                    shardIt.shardId(),
+                    shardIt.getClusterAlias(),
+                    shardIndex,
+                    shardIt.getSearchContextId(),
+                    shardIt.getOriginalIndices(),
+                    aliasFilter.getOrDefault(indexUUID, AliasFilter.EMPTY),
+                    shardIt.getSearchContextKeepAlive(),
+                    concreteIndexBoosts.getOrDefault(indexUUID, DEFAULT_INDEX_BOOST),
+                    request,
+                    results.getNumShards(),
+                    timeProvider.absoluteStartMillis(),
+                    hasShardResponse.getAcquire()
+                )
+            ),
+            task,
+            new SearchActionListener<>(shard, shardIndex) {
+                @Override
+                public void innerOnResponse(SearchPhaseResult result) {
+                    try {
+                        onShardResult(result);
+                    } catch (Exception exc) {
+                        // TODO: this looks like a nasty bug where it to actually happen
+                        assert false : exc;
+                        onShardFailure(shardIndex, shard, shardIt, exc);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    onShardFailure(shardIndex, shard, shardIt, e);
+                }
+            }
+        );
+    }
+
+    @Override
+    public void sendReleaseSearchContext(ShardSearchContextId contextId, Transport.Connection connection) {
+        assert isPartOfPointInTime(contextId) == false : "Must not release point in time context [" + contextId + "]";
+        if (connection != null) {
+            searchTransportService.sendFreeContext(connection, contextId, ActionListener.noop());
+        }
+    }
+
+    public static final String NODE_SEARCH_ACTION_NAME = "indices:data/read/search[query][n]";
+
+    private static final CircuitBreaker NOOP_CIRCUIT_BREAKER = new NoopCircuitBreaker("request");
+
+    public static void registerNodeSearchAction(SearchTransportService searchTransportService, SearchService searchService) {
+        var transportService = searchTransportService.transportService();
+        var threadPool = transportService.getThreadPool();
+        final Dependencies dependencies = new Dependencies(searchService, threadPool.executor(ThreadPool.Names.SEARCH));
+        final int searchPoolMax = threadPool.info(ThreadPool.Names.SEARCH).getMax();
+        final SearchPhaseController searchPhaseController = new SearchPhaseController(searchService::aggReduceContextBuilder);
+        transportService.registerRequestHandler(
+            NODE_SEARCH_ACTION_NAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            NodeQueryRequest::new,
+            (request, channel, task) -> {
+                final int shardCount = request.shards.size();
+                int workers = Math.min(request.searchRequest.getMaxConcurrentShardRequests(), Math.min(shardCount, searchPoolMax));
+                final var state = new QueryPerNodeState(
+                    new AtomicInteger(workers - 1),
+                    new QueryPhaseResultConsumer(
+                        request.searchRequest,
+                        dependencies.executor,
+                        NOOP_CIRCUIT_BREAKER, // noop cb for now since we do not have a breaker in this situation in un-batched execution
+                        searchPhaseController,
+                        ((CancellableTask) task)::isCancelled,
+                        SearchProgressListener.NOOP,
+                        shardCount,
+                        e -> logger.error("failed to merge on data node", e)
+                    ),
+                    request,
+                    (CancellableTask) task,
+                    channel,
+                    dependencies
+                );
+                for (int i = 0; i < workers; i++) {
+                    dependencies.executor.execute(shardTask(state, i));
+                }
+            }
+        );
+
+    }
+
+    private static void maybeRelease(SearchService searchService, NodeQueryRequest request, SearchPhaseResult result) {
+        var phaseResult = result.queryResult() != null ? result.queryResult() : result.rankFeatureResult();
+        if (phaseResult != null
+            && phaseResult.hasSearchContext()
+            && request.searchRequest.scroll() == null
+            && (isPartOfPIT(request.searchRequest, phaseResult.getContextId()) == false)) {
+            searchService.freeReaderContext(phaseResult.getContextId());
+        }
+    }
+
+    /**
+     * Builds an request for the initial search phase.
+     *
+     * @param shardIndex the index of the shard that is used in the coordinator node to
+     *                   tiebreak results with identical sort values
+     */
+    private static ShardSearchRequest buildShardSearchRequest(
+        ShardId shardId,
+        String clusterAlias,
+        int shardIndex,
+        ShardSearchContextId searchContextId,
+        OriginalIndices originalIndices,
+        AliasFilter aliasFilter,
+        TimeValue searchContextKeepAlive,
+        float indexBoost,
+        SearchRequest searchRequest,
+        int totalShardCount,
+        long absoluteStartMillis,
+        boolean hasResponse
+    ) {
+        ShardSearchRequest shardRequest = new ShardSearchRequest(
+            originalIndices,
+            searchRequest,
+            shardId,
+            shardIndex,
+            totalShardCount,
+            aliasFilter,
+            indexBoost,
+            absoluteStartMillis,
+            clusterAlias,
+            searchContextId,
+            searchContextKeepAlive
+        );
+        // if we already received a search result we can inform the shard that it
+        // can return a null response if the request rewrites to match none rather
+        // than creating an empty response in the search thread pool.
+        // Note that, we have to disable this shortcut for queries that create a context (scroll and search context).
+        shardRequest.canReturnNullResponseIfMatchNoDocs(hasResponse && shardRequest.scroll() == null);
+        return shardRequest;
+    }
+
+    private static AbstractRunnable shardTask(QueryPerNodeState state, int dataNodeLocalIdx) {
+        return new AbstractRunnable() {
+            @Override
+            protected void doRun() {
+                var request = state.searchRequest;
+                var searchRequest = request.searchRequest;
+                var pitBuilder = searchRequest.pointInTimeBuilder();
+                var shardToQuery = request.shards.get(dataNodeLocalIdx);
+                final var shardId = shardToQuery.shardId;
+                state.dependencies.searchService.executeQueryPhase(
+                    rewriteShardSearchRequest(
+                        state.bottomSortCollector,
+                        state.trackTotalHitsUpTo,
+                        buildShardSearchRequest(
+                            shardId,
+                            searchRequest.getLocalClusterAlias(),
+                            shardToQuery.shardIndex,
+                            shardToQuery.contextId,
+                            shardToQuery.originalIndices,
+                            request.aliasFilters.getOrDefault(shardId.getIndex().getUUID(), AliasFilter.EMPTY),
+                            pitBuilder == null ? null : pitBuilder.getKeepAlive(),
+                            shardToQuery.boost,
+                            searchRequest,
+                            request.totalShards,
+                            request.absoluteStartMillis,
+                            state.hasResponse.getAcquire()
+                        )
+                    ),
+                    state.task,
+                    new ActionListener<>() {
+                        @Override
+                        public void onResponse(SearchPhaseResult searchPhaseResult) {
+                            try {
+                                searchPhaseResult.setShardIndex(dataNodeLocalIdx);
+                                searchPhaseResult.setSearchShardTarget(
+                                    new SearchShardTarget(null, shardToQuery.shardId, request.searchRequest.getLocalClusterAlias())
+                                );
+                                // no need for any cache effects when we're already flipped to ture => plain read + set-release
+                                state.hasResponse.compareAndExchangeRelease(false, true);
+                                state.consumeResult(searchPhaseResult.queryResult());
+                                state.queryPhaseResultConsumer.consumeResult(searchPhaseResult, state::onDone);
+                            } catch (Exception e) {
+                                setFailure(state, dataNodeLocalIdx, e);
+                            } finally {
+                                maybeNext();
+                            }
+                        }
+
+                        private void setFailure(QueryPerNodeState state, int dataNodeLocalIdx, Exception e) {
+                            state.failures.put(dataNodeLocalIdx, e);
+                            state.onDone();
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            try {
+                                // TODO: count down fully and just respond with an exception if partial results aren't allowed
+                                setFailure(state, dataNodeLocalIdx, e);
+                                maybeNext();
+                            } catch (Throwable expected) {
+                                expected.addSuppressed(e);
+                                throw new AssertionError(expected);
+                            }
+                        }
+
+                        private void maybeNext() {
+                            final int shardToQuery = state.currentShardIndex.incrementAndGet();
+                            if (shardToQuery < request.shards.size()) {
+                                state.dependencies.executor.execute(shardTask(state, shardToQuery));
+                            }
+                        }
+                    }
+                );
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                // TODO this could be done better now, we probably should only make sure to have a single loop running at
+                // minimum and ignore + requeue rejections in that case
+                state.failures.put(dataNodeLocalIdx, e);
+                state.onDone();
+                // TODO SO risk!
+                maybeNext();
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                // TODO this could be done better now, we probably should only make sure to have a single loop running at
+                onFailure(e);
+            }
+
+            private void maybeNext() {
+                final int shardToQuery = state.currentShardIndex.incrementAndGet();
+                if (shardToQuery < state.searchRequest.shards.size()) {
+                    state.dependencies.executor.execute(shardTask(state, shardToQuery));
+                }
+            }
+        };
+    }
+
+    private record Dependencies(SearchService searchService, Executor executor) {}
+
+    private static final class QueryPerNodeState {
+
+        private static final QueryPhaseResultConsumer.MergeResult EMPTY_PARTIAL_MERGE_RESULT = new QueryPhaseResultConsumer.MergeResult(
+            List.of(),
+            Lucene.EMPTY_TOP_DOCS,
+            null,
+            0L
+        );
+
+        private final AtomicInteger currentShardIndex;
+        private final QueryPhaseResultConsumer queryPhaseResultConsumer;
+        private final NodeQueryRequest searchRequest;
+        private final CancellableTask task;
+        private final ConcurrentHashMap<Integer, Exception> failures = new ConcurrentHashMap<>();
+        private final Dependencies dependencies;
+        private final AtomicBoolean hasResponse = new AtomicBoolean(false);
+        private final int trackTotalHitsUpTo;
+        private final int topDocsSize;
+        private final CountDown countDown;
+        private final TransportChannel channel;
+        private volatile BottomSortValuesCollector bottomSortCollector;
+
+        private QueryPerNodeState(
+            AtomicInteger currentShardIndex,
+            QueryPhaseResultConsumer queryPhaseResultConsumer,
+            NodeQueryRequest searchRequest,
+            CancellableTask task,
+            TransportChannel channel,
+            Dependencies dependencies
+        ) {
+            this.currentShardIndex = currentShardIndex;
+            this.queryPhaseResultConsumer = queryPhaseResultConsumer;
+            this.searchRequest = searchRequest;
+            this.trackTotalHitsUpTo = searchRequest.searchRequest.resolveTrackTotalHitsUpTo();
+            topDocsSize = getTopDocsSize(searchRequest.searchRequest);
+            this.task = task;
+            countDown = new CountDown(queryPhaseResultConsumer.getNumShards());
+            this.channel = channel;
+            this.dependencies = dependencies;
+        }
+
+        void onDone() {
+            if (countDown.countDown() == false) {
+                return;
+            }
+            var channelListener = new ChannelActionListener<>(channel);
+            try (queryPhaseResultConsumer) {
+                var failure = queryPhaseResultConsumer.failure.get();
+                if (failure != null) {
+                    queryPhaseResultConsumer.getSuccessfulResults()
+                        .forEach(searchPhaseResult -> maybeRelease(dependencies.searchService, searchRequest, searchPhaseResult));
+                    channelListener.onFailure(failure);
+                    return;
+                }
+                final Object[] results = new Object[queryPhaseResultConsumer.getNumShards()];
+                for (int i = 0; i < results.length; i++) {
+                    var e = failures.get(i);
+                    var res = queryPhaseResultConsumer.results.get(i);
+                    if (e != null) {
+                        results[i] = e;
+                        assert res == null;
+                    } else {
+                        results[i] = res;
+                        assert results[i] != null;
+                    }
+                }
+                final QueryPhaseResultConsumer.MergeResult mergeResult;
+                try {
+                    mergeResult = Objects.requireNonNullElse(queryPhaseResultConsumer.consumePartialResult(), EMPTY_PARTIAL_MERGE_RESULT);
+                } catch (Exception e) {
+                    channelListener.onFailure(e);
+                    return;
+                }
+                // translate shard indices to those on the coordinator so that it can interpret the merge result without adjustments
+                final Set<Integer> relevantShardIndices = new HashSet<>();
+                for (ScoreDoc scoreDoc : mergeResult.reducedTopDocs().scoreDocs) {
+                    final int localIndex = scoreDoc.shardIndex;
+                    scoreDoc.shardIndex = searchRequest.shards.get(localIndex).shardIndex;
+                    relevantShardIndices.add(localIndex);
+                }
+                for (Object result : results) {
+                    if (result instanceof QuerySearchResult q
+                        && q.getContextId() != null
+                        && relevantShardIndices.contains(q.getShardIndex()) == false
+                        && q.hasSuggestHits() == false
+                        && q.getRankShardResult() == null
+                        && searchRequest.searchRequest.scroll() == null
+                        && (isPartOfPIT(searchRequest.searchRequest, q.getContextId()) == false)) {
+                        if (dependencies.searchService.freeReaderContext(q.getContextId())) {
+                            q.clearContextId();
+                        }
+                    }
+                }
+
+                ActionListener.respondAndRelease(
+                    channelListener,
+                    new NodeQueryResponse(mergeResult, results, queryPhaseResultConsumer.topDocsStats)
+                );
+            }
+        }
+
+        void consumeResult(QuerySearchResult queryResult) {
+            if (queryResult.isNull() == false
+                // disable sort optims for scroll requests because they keep track of the last bottom doc locally (per shard)
+                && searchRequest.searchRequest.scroll() == null
+                // top docs are already consumed if the query was cancelled or in error.
+                && queryResult.hasConsumedTopDocs() == false
+                && queryResult.topDocs() != null
+                && queryResult.topDocs().topDocs.getClass() == TopFieldDocs.class) {
+                TopFieldDocs topDocs = (TopFieldDocs) queryResult.topDocs().topDocs;
+                var bottomSortCollector = this.bottomSortCollector;
+                if (bottomSortCollector == null) {
+                    synchronized (this) {
+                        bottomSortCollector = this.bottomSortCollector;
+                        if (bottomSortCollector == null) {
+                            bottomSortCollector = this.bottomSortCollector = new BottomSortValuesCollector(topDocsSize, topDocs.fields);
+                        }
+                    }
+                }
+                bottomSortCollector.consumeTopDocs(topDocs, queryResult.sortValueFormats());
+            }
+        }
     }
 }

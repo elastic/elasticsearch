@@ -445,7 +445,9 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitChangePointCommand(EsqlBaseParser.ChangePointCommandContext ctx) {
         Source src = source(ctx);
         NamedExpression value = visitQualifiedName(ctx.value);
-        NamedExpression key = ctx.key == null ? new UnresolvedAttribute(src, "@timestamp") : visitQualifiedName(ctx.key);
+        NamedExpression key = ctx.key == null
+            ? new UnresolvedAttribute(src, "@timestamp", "Key column unspecified and default [@timestamp] is missing")
+            : visitQualifiedName(ctx.key);
         Attribute targetType = new ReferenceAttribute(
             src,
             ctx.targetType == null ? "type" : visitQualifiedName(ctx.targetType).name(),

@@ -27,6 +27,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
+import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -74,6 +75,11 @@ public class CrossClustersCancellationIT extends AbstractMultiClustersTestCase {
     @Before
     public void resetPlugin() {
         SimplePauseFieldPlugin.resetPlugin();
+    }
+
+    @After
+    public void releasePlugin() {
+        SimplePauseFieldPlugin.release();
     }
 
     @Override

@@ -27,8 +27,8 @@ import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType;
-import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper.AggregateMetricDoubleFieldType;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper.Metric;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -36,20 +36,20 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Arrays.asList;
-import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.subfieldName;
+import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper.subfieldName;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
+public class AggregateMetricDoubleFieldTypeTests extends FieldTypeTestCase {
 
-    protected AggregateDoubleMetricFieldType createDefaultFieldType(String name, Map<String, String> meta, Metric defaultMetric) {
-        AggregateDoubleMetricFieldType fieldType = new AggregateDoubleMetricFieldType(name, meta, null);
-        for (AggregateDoubleMetricFieldMapper.Metric m : List.of(
-            AggregateDoubleMetricFieldMapper.Metric.min,
-            AggregateDoubleMetricFieldMapper.Metric.max
+    protected AggregateMetricDoubleFieldType createDefaultFieldType(String name, Map<String, String> meta, Metric defaultMetric) {
+        AggregateMetricDoubleFieldType fieldType = new AggregateMetricDoubleFieldType(name, meta, null);
+        for (AggregateMetricDoubleFieldMapper.Metric m : List.of(
+            AggregateMetricDoubleFieldMapper.Metric.min,
+            AggregateMetricDoubleFieldMapper.Metric.max
         )) {
             String subfieldName = subfieldName(fieldType.name(), m);
             NumberFieldMapper.NumberFieldType subfield = new NumberFieldMapper.NumberFieldType(

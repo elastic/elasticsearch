@@ -13,12 +13,12 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 /**
  * Specialization of {@link IndexFieldData} for aggregate_metric.
  */
-public abstract class IndexAggregateDoubleMetricFieldData implements IndexFieldData<LeafAggregateDoubleMetricFieldData> {
+public abstract class IndexAggregateMetricDoubleFieldData implements IndexFieldData<LeafAggregateMetricDoubleFieldData> {
 
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;
 
-    public IndexAggregateDoubleMetricFieldData(String fieldName, ValuesSourceType valuesSourceType) {
+    public IndexAggregateMetricDoubleFieldData(String fieldName, ValuesSourceType valuesSourceType) {
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
     }

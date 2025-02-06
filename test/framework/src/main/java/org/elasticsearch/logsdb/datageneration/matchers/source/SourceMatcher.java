@@ -57,7 +57,11 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
             "scaled_float",
             new FieldSpecificMatcher.ScaledFloatMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings),
             "unsigned_long",
-            new FieldSpecificMatcher.UnsignedLongMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings)
+            new FieldSpecificMatcher.UnsignedLongMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings),
+            "counted_keyword",
+            new FieldSpecificMatcher.CountedKeywordMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings),
+            "keyword",
+            new FieldSpecificMatcher.KeywordMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings)
         );
         this.dynamicFieldMatcher = new DynamicFieldMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings);
     }
@@ -100,17 +104,8 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
             var actualValues = actual.get(name);
             var expectedValues = expectedFieldEntry.getValue();
 
-            // There are cases when field values are stored in ignored source
-            // so we try to match them as is first and then apply field specific matcher.
-            // This is temporary, we should be able to tell when source is exact using mappings.
-            // See #111916.
-            var genericMatchResult = matchWithGenericMatcher(actualValues, expectedValues);
-            if (genericMatchResult.isMatch()) {
-                continue;
-            }
-
-            var matchIncludingFieldSpecificMatchers = matchWithFieldSpecificMatcher(name, actualValues, expectedValues).orElse(
-                genericMatchResult
+            var matchIncludingFieldSpecificMatchers = matchWithFieldSpecificMatcher(name, actualValues, expectedValues).orElseGet(
+                () -> matchWithGenericMatcher(actualValues, expectedValues)
             );
             if (matchIncludingFieldSpecificMatchers.isMatch() == false) {
                 var message = "Source documents don't match for field [" + name + "]: " + matchIncludingFieldSpecificMatchers.getMessage();

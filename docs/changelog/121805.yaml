@@ -1,5 +1,5 @@
 pr: 121805
-summary: Support subset of metrics in agg metric double
-area: "ES|QL, TSDB"
+summary: Support subset of metrics in aggregate metric double
+area: "ES|QL"
 type: enhancement
 issues: []

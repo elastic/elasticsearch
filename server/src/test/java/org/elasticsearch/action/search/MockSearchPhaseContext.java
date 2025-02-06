@@ -150,7 +150,7 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
         SearchActionListener<SearchPhaseResult> listener
     ) {
         onShardResult(new SearchPhaseResult() {
-        }, shardIt);
+        });
     }
 
     @Override

@@ -70,10 +70,13 @@ import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
+import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
+import org.elasticsearch.xpack.esql.plan.logical.Merge;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
@@ -180,7 +183,31 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
     public LogicalPlan analyze(LogicalPlan plan) {
         BitSet partialMetrics = new BitSet(FeatureMetric.values().length);
-        return verify(execute(plan), gatherPreAnalysisMetrics(plan, partialMetrics));
+
+        List<LogicalPlan> analyzedPlans = new ArrayList<>();
+
+        LogicalPlan forkAnalyzed = plan.transformDown(Fork.class, fr -> {
+            int count = 0;
+            for (var subPlan : fr.subPlans()) {
+                LogicalPlan subPlanCopy = subPlan.transformUp(
+                    LogicalPlan.class,
+                    p -> p instanceof LeafPlan ? p : p.replaceChildren(p.children())
+                );
+
+                String forkValue = "fork" + count++;
+                subPlanCopy = new Eval(
+                    fr.source(),
+                    subPlanCopy,
+                    List.of(new Alias(fr.source(), "_fork", new Literal(fr.source(), forkValue, KEYWORD)))
+                );
+
+                LogicalPlan analyzedCopy = execute(subPlanCopy);
+                analyzedPlans.add(analyzedCopy);
+            }
+
+            return new Merge(fr.source(), analyzedPlans);
+        });
+        return verify(execute(forkAnalyzed), gatherPreAnalysisMetrics(plan, partialMetrics));
     }
 
     public LogicalPlan verify(LogicalPlan plan, BitSet partialMetrics) {

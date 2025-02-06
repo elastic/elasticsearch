@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
@@ -581,5 +582,46 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             return new LookupJoin(source, p, right, joinFields);
         };
+    }
+
+    @Override
+    public PlanFactory visitForkCommand(EsqlBaseParser.ForkCommandContext ctx) {
+        List<PlanFactory> subQueries = visitForkSubQueries(ctx.forkSubQueries());
+        if (subQueries.size() < 2) {
+            throw new ParsingException(source(ctx), "Fork requires at least two branches");
+        }
+        return input -> {
+            List<LogicalPlan> subPlans = subQueries.stream().map(planFactory -> planFactory.apply(input)).toList();
+            return new Fork(source(ctx), input, subPlans);
+        };
+    }
+
+    @Override
+    public List<PlanFactory> visitForkSubQueries(EsqlBaseParser.ForkSubQueriesContext ctx) {
+        var subQueriesCtx = ctx.forkSubQuery();
+        ArrayList<PlanFactory> list = new ArrayList<>();
+        for (var subQueryCtx : subQueriesCtx) {
+            list.add(visitForkSubQuery(subQueryCtx));
+        }
+        return List.copyOf(list);
+    }
+
+    @Override
+    public PlanFactory visitForkSubQuery(EsqlBaseParser.ForkSubQueryContext ctx) {
+        var subCtx = ctx.forkSubQueryCommand();
+        if (subCtx instanceof EsqlBaseParser.SingleForkSubQueryCommandContext sglCtx) {
+            return typedParsing(this, sglCtx.forkSubQueryProcessingCommand(), PlanFactory.class);
+        } else if (subCtx instanceof EsqlBaseParser.CompositeForkSubQueryContext compCtx) {
+            return visitCompositeForkSubQuery(compCtx);
+        } else {
+            throw new AssertionError("Unknown context: " + ctx);
+        }
+    }
+
+    @Override
+    public PlanFactory visitCompositeForkSubQuery(EsqlBaseParser.CompositeForkSubQueryContext ctx) {
+        PlanFactory lowerPlan = ParserUtils.typedParsing(this, ctx.forkSubQueryCommand(), PlanFactory.class);
+        PlanFactory makePlan = typedParsing(this, ctx.forkSubQueryProcessingCommand(), PlanFactory.class);
+        return input -> makePlan.apply(lowerPlan.apply(input));
     }
 }

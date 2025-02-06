@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Merge;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -71,6 +72,8 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
@@ -204,17 +207,44 @@ public class EsqlSession {
     ) {
         List<PlanTuple> subplans = new ArrayList<>();
 
-        // Currently the inlinestats are limited and supported as streaming operators, thus present inside the fragment as logical plans
-        // Below they get collected, translated into a separate, coordinator based plan and the results 'broadcasted' as a local relation
-        physicalPlan.forEachUp(FragmentExec.class, f -> {
-            f.fragment().forEachUp(InlineJoin.class, ij -> {
-                // extract the right side of the plan and replace its source
-                LogicalPlan subplan = InlineJoin.replaceStub(ij.left(), ij.right());
-                // mark the new root node as optimized
-                subplan.setOptimized();
-                PhysicalPlan subqueryPlan = logicalPlanToPhysicalPlan(subplan, request);
-                subplans.add(new PlanTuple(subqueryPlan, ij.right()));
-            });
+        // Currently inlinestats and fork are limited and supported as streaming operators, thus present inside the fragment as logical
+        // plans. Below they get collected, translated into a separate, coordinator based plan and the results 'broadcasted'
+        // as a local relation.
+        physicalPlan = physicalPlan.transformUp(PhysicalPlan.class, p -> {
+            if (p instanceof FragmentExec f) {
+                f.fragment().forEachUp(LogicalPlan.class, bp -> {
+                    LogicalPlan subplan = null;
+                    if (bp instanceof InlineJoin ij) {
+                        // extract the right side of the plan and replace its source
+                        subplan = InlineJoin.replaceStub(ij.left(), ij.right());
+                    } else if (bp instanceof Merge mr) {
+                        // subplan = mr.right(); TODO
+                    }
+                    if (subplan != null) {
+                        // mark the new root node as optimized
+                        subplan.setOptimized();
+                        PhysicalPlan subqueryPlan = logicalPlanToPhysicalPlan(subplan, request);
+                        subplans.add(new PlanTuple(subqueryPlan, subplan));
+                    }
+                });
+            }
+            if (p instanceof MergeExec m) {
+                List<PhysicalPlan> newSubPlans = new ArrayList<>();
+                for (var plan : m.subPlans()) {
+                    if (plan instanceof FragmentExec f) {
+                        LogicalPlan subplan = f.fragment();
+                        subplan.setAnalyzed();
+                        subplan = optimizedPlan(subplan);
+                        PhysicalPlan subqueryPlan = logicalPlanToPhysicalPlan(subplan, request);
+                        subplans.add(new PlanTuple(subqueryPlan, subplan));
+                        plan = new FragmentExec(subplan);
+                    }
+                    newSubPlans.add(plan);
+                }
+                return new MergeExec(m.source(), newSubPlans, m.output());
+            }
+
+            return p;
         });
 
         Iterator<PlanTuple> iterator = subplans.iterator();
@@ -245,14 +275,49 @@ public class EsqlSession {
                 LocalRelation resultWrapper = resultToPlan(tuple.logical, result);
 
                 // replace the original logical plan with the backing result
-                final PhysicalPlan newPlan = plan.transformUp(FragmentExec.class, f -> {
-                    LogicalPlan frag = f.fragment();
-                    return f.withFragment(
-                        frag.transformUp(
-                            InlineJoin.class,
-                            ij -> ij.right() == tuple.logical ? InlineJoin.inlineData(ij, resultWrapper) : ij
-                        )
-                    );
+                final PhysicalPlan newPlan = plan.transformUp(PhysicalPlan.class, p -> {
+                    if (p instanceof FragmentExec f) {
+                        LogicalPlan frag = f.fragment();
+
+                        return f.withFragment(frag.transformUp(LogicalPlan.class, bp -> {
+                            if (bp instanceof InlineJoin ij && ij.right() == tuple.logical) {
+                                return InlineJoin.inlineData(ij, resultWrapper);
+                            } else if (bp instanceof Merge mr && mr.subPlans().stream().anyMatch(sp -> sp == tuple.logical)) {
+                                List<LogicalPlan> newSubPlans = new ArrayList<>(mr.subPlans());
+                                for (int i = 0; i < newSubPlans.size(); i++) {
+                                    if (newSubPlans.get(i) == tuple.logical) {
+                                        newSubPlans.set(i, resultWrapper);
+                                    }
+                                }
+                                return new Merge(mr.source(), newSubPlans);
+                            }
+                            return bp;
+                        }));
+                    }
+                    if (p instanceof MergeExec m) {
+                        boolean anyMatch = m.subPlans()
+                            .stream()
+                            .filter(sp -> FragmentExec.class.isAssignableFrom(sp.getClass()))
+                            .map(FragmentExec.class::cast)
+                            .anyMatch(fragmentExec -> fragmentExec.fragment() == tuple.logical);
+                        if (anyMatch) {
+                            List<PhysicalPlan> newSubPlans = new ArrayList<>(m.subPlans());
+                            for (int i = 0; i < newSubPlans.size(); i++) {
+                                var subPlan = newSubPlans.get(i);
+                                if (subPlan instanceof FragmentExec fe && fe.fragment() == tuple.logical) {
+                                    var resultsExec = new LocalSourceExec(
+                                        resultWrapper.source(),
+                                        resultWrapper.output(),
+                                        resultWrapper.supplier()
+                                    );
+                                    newSubPlans.set(i, resultsExec);
+                                }
+                            }
+                            return new MergeExec(m.source(), newSubPlans, m.output());
+                        }
+                    }
+
+                    return p;
                 });
                 if (subPlanIterator.hasNext() == false) {
                     runner.run(newPlan, next.delegateFailureAndWrap((finalListener, finalResult) -> {

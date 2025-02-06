@@ -33,9 +33,11 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingFloat;
+import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -62,8 +64,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.getRequestConfigMap;
@@ -85,6 +89,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.isA;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -1059,6 +1064,59 @@ public class OpenAiServiceTests extends ESTestCase {
                 {"id":"12345","choices":[{"delta":{"content":"hello, world"},"finish_reason":"stop","index":0}],""" + """
                 "model":"gpt-4o-mini","object":"chat.completion.chunk",""" + """
                 "usage":{"completion_tokens":28,"prompt_tokens":16,"total_tokens":44}}""");
+        }
+    }
+
+    public void testUnifiedCompletionError() throws Exception {
+        String responseJson = """
+            {
+                "error": {
+                    "message": "The model `gpt-4awero` does not exist or you do not have access to it.",
+                    "type": "invalid_request_error",
+                    "param": null,
+                    "code": "model_not_found"
+                }
+            }""";
+        webServer.enqueue(new MockResponse().setResponseCode(404).setBody(responseJson));
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
+            var model = OpenAiChatCompletionModelTests.createChatCompletionModel(getUrl(webServer), "org", "secret", "model", "user");
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.unifiedCompletionInfer(
+                model,
+                UnifiedCompletionRequest.of(
+                    List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null))
+                ),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var result = listener.actionGet(TIMEOUT);
+
+            InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoEvents().hasErrorMatching(e -> {
+                e = unwrapCause(e);
+                assertThat(e, isA(UnifiedChatCompletionException.class));
+                try (var builder = XContentFactory.jsonBuilder()) {
+                    ((UnifiedChatCompletionException) e).toXContentChunked(EMPTY_PARAMS).forEachRemaining(xContent -> {
+                        try {
+                            xContent.toXContent(builder, EMPTY_PARAMS);
+                        } catch (IOException ex) {
+                            throw new RuntimeException(ex);
+                        }
+                    });
+                    var json = XContentHelper.convertToJson(BytesReference.bytes(builder), false, builder.contentType());
+
+                    assertThat(json, is("""
+                        {\
+                        "error":{\
+                        "code":"model_not_found",\
+                        "message":"Received an unsuccessful status code for request from inference entity id [id] status \
+                        [404]. Error message: [The model `gpt-4awero` does not exist or you do not have access to it.]",\
+                        "type":"invalid_request_error"\
+                        }}"""));
+                }
+            });
         }
     }
 

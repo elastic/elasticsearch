@@ -685,7 +685,7 @@ public class EsqlCapabilities {
         /**
          * Support simplified syntax for named parameters for field and function names.
          */
-        NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX(Build.current().isSnapshot()),
+        NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX(),
 
         /**
          * Fix pushdown of LIMIT past MV_EXPAND

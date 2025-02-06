@@ -1,4 +1,2 @@
 org.elasticsearch.entitlement.qa.entitled:
-  - write_system_properties:
-      properties:
-        - org.elasticsearch.entitlement.qa.selfTest
+  - create_thread

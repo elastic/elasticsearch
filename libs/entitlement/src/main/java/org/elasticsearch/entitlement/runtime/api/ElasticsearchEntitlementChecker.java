@@ -63,7 +63,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
 import java.util.TimeZone;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
@@ -970,5 +976,244 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     @Override
     public void checkNewInputStream(Class<?> callerClass, FileSystemProvider that, Path path, OpenOption... options) {
         // TODO: policyManger.checkFileSystemRead(path);
+    }
+
+    // Thread properties
+
+    public void check$java_lang_Thread$setContextClassLoader(Class<?> callerClass, Thread thread, ClassLoader cl) {
+        policyManager.checkSetThreadContextClassLoader(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_Thread$(Class<?> callerClass) {
+        policyManager.checkCreateThreadEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_Thread$(Class<?> callerClass, Runnable task) {
+        policyManager.checkCreateThreadEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_Thread$(Class<?> callerClass, ThreadGroup group, Runnable task) {
+        policyManager.checkCreateThreadEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_Thread$(Class<?> callerClass, String name) {
+        policyManager.checkCreateThreadEntitlement(callerClass);
+    }
+
+    // @Override
+    public void check$java_lang_Thread$(Class<?> callerClass, ThreadGroup group, String name) {
+        policyManager.checkCreateThreadEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_Thread$(Class<?> callerClass, Runnable task, String name) {
+        policyManager.checkCreateThreadEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_Thread$(Class<?> callerClass, ThreadGroup group, Runnable task, String name) {
+        policyManager.checkCreateThreadEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_Thread$(Class<?> callerClass, ThreadGroup group, Runnable task, String name, long stackSize) {
+        policyManager.checkCreateThreadEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_Thread$(
+        Class<?> callerClass,
+        ThreadGroup group,
+        Runnable task,
+        String name,
+        long stackSize,
+        boolean inheritInheritableThreadLocals
+    ) {
+        policyManager.checkCreateThreadEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_ThreadBuilders$PlatformThreadBuilder$unstarted(
+        Class<?> callerClass,
+        Thread.Builder builder,
+        Runnable task
+    ) {
+        policyManager.checkCreateThreadEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_ThreadBuilders$PlatformThreadFactory$newThread(
+        Class<?> callerClass,
+        ThreadFactory threadFactory,
+        Runnable task
+    ) {
+        policyManager.checkCreateThreadEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_ThreadGroup$(Class<?> callerClass, String name) {
+        policyManager.checkCreateThreadEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_ThreadGroup$(Class<?> callerClass, ThreadGroup parent, String name) {
+        policyManager.checkCreateThreadEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_util_concurrent_ForkJoinPool$(Class<?> callerClass) {
+        policyManager.checkCreateThreadEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_util_concurrent_ForkJoinPool$(Class<?> callerClass, int parallelism) {
+        policyManager.checkCreateThreadEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_util_concurrent_ForkJoinPool$(
+        Class<?> callerClass,
+        int parallelism,
+        ForkJoinPool.ForkJoinWorkerThreadFactory factory,
+        Thread.UncaughtExceptionHandler handler,
+        boolean asyncMode
+    ) {
+        policyManager.checkCreateThreadEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_util_concurrent_ForkJoinPool$(
+        Class<?> callerClass,
+        int parallelism,
+        ForkJoinPool.ForkJoinWorkerThreadFactory factory,
+        Thread.UncaughtExceptionHandler handler,
+        boolean asyncMode,
+        int corePoolSize,
+        int maximumPoolSize,
+        int minimumRunnable,
+        Predicate<? super ForkJoinPool> saturate,
+        long keepAliveTime,
+        TimeUnit unit
+    ) {
+        policyManager.checkCreateThreadEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_util_concurrent_ForkJoinPool$DefaultForkJoinWorkerThreadFactory$newThread(
+        Class<?> callerClass,
+        ForkJoinPool.ForkJoinWorkerThreadFactory factory,
+        ForkJoinPool pool
+    ) {
+        policyManager.checkCreateThreadEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_util_concurrent_ForkJoinWorkerThread$(
+        Class<?> callerClass,
+        ThreadGroup group,
+        ForkJoinPool pool,
+        boolean preserveThreadLocals
+    ) {
+        policyManager.checkCreateThreadEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_util_concurrent_ForkJoinWorkerThread$(Class<?> callerClass, ForkJoinPool pool) {
+        policyManager.checkCreateThreadEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_Thread$setDaemon(Class<?> callerClass, Thread thread, boolean on) {
+        policyManager.checkSetThreadProperty(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_ThreadGroup$setDaemon(Class<?> callerClass, ThreadGroup threadGroup, boolean daemon) {
+        policyManager.checkSetThreadProperty(callerClass);
+    }
+
+    @Override
+    public void check$java_util_concurrent_ForkJoinPool$setParallelism(Class<?> callerClass, ForkJoinPool forkJoinPool, int size) {
+        policyManager.checkSetThreadProperty(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_Thread$interrupt(Class<?> callerClass, Thread thread) {
+        policyManager.checkInterruptThreadEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_ThreadGroup$interrupt(Class<?> callerClass, ThreadGroup threadGroup) {
+        // Note: not checking for interrupt entitlement. ThreadGroup.interrupt is very
+        // disruptive--so much so that it's hard to test--and nobody needs this anyway.
+        policyManager.checkDisruptiveThreadAction(callerClass);
+    }
+
+    @Override
+    public void check$java_util_concurrent_ForkJoinPool$close(Class<?> callerClass, ForkJoinPool forkJoinPool) {
+        policyManager.checkInterruptThreadEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_util_concurrent_ForkJoinPool$shutdown(Class<?> callerClass, ForkJoinPool forkJoinPool) {
+        policyManager.checkInterruptThreadEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_util_concurrent_ForkJoinPool$shutdownNow(Class<?> callerClass, ForkJoinPool forkJoinPool) {
+        policyManager.checkInterruptThreadEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_util_concurrent_ThreadPerTaskExecutor$close(Class<?> callerClass, Executor executor) {
+        policyManager.checkInterruptThreadEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_util_concurrent_ThreadPerTaskExecutor$shutdown(Class<?> callerClass, Executor executor) {
+        policyManager.checkInterruptThreadEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_util_concurrent_ThreadPerTaskExecutor$shutdownNow(Class<?> callerClass, Executor executor) {
+        policyManager.checkInterruptThreadEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_util_concurrent_ThreadPoolExecutor$shutdown(Class<?> callerClass, ThreadPoolExecutor threadPoolExecutor) {
+        policyManager.checkInterruptThreadEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_util_concurrent_ThreadPoolExecutor$shutdownNow(Class<?> callerClass, ThreadPoolExecutor threadPoolExecutor) {
+        policyManager.checkInterruptThreadEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_Thread$setName(Class<?> callerClass, Thread thread, String name) {
+        policyManager.checkSetThreadProperty(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_Thread$setPriority(Class<?> callerClass, Thread thread, int newPriority) {
+        policyManager.checkSetThreadProperty(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_Thread$setUncaughtExceptionHandler(
+        Class<?> callerClass,
+        Thread thread,
+        Thread.UncaughtExceptionHandler ueh
+    ) {
+        policyManager.checkSetThreadProperty(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_ThreadGroup$setMaxPriority(Class<?> callerClass, ThreadGroup threadGroup, int pri) {
+        policyManager.checkSetThreadProperty(callerClass);
     }
 }

@@ -11,6 +11,7 @@ package org.elasticsearch.entitlement.qa.test;
 
 import org.elasticsearch.core.SuppressForbidden;
 
+import static org.elasticsearch.entitlement.qa.entitled.EntitledActions.newThread;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.ALWAYS_DENIED;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.SERVER_ONLY;
 
@@ -51,7 +52,7 @@ class SystemActions {
         System.setErr(System.err);
     }
 
-    private static final Thread NO_OP_SHUTDOWN_HOOK = new Thread(() -> {}, "Shutdown hook for testing");
+    private static final Thread NO_OP_SHUTDOWN_HOOK = newThread(() -> {}, "Shutdown hook for testing");
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
     static void runtimeAddShutdownHook() {

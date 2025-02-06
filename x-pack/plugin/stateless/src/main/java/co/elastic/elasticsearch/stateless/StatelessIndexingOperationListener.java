@@ -43,13 +43,13 @@ class StatelessIndexingOperationListener implements IndexingOperationListener {
 
     @Override
     public Engine.Delete preDelete(ShardId shardId, Engine.Delete delete) {
-        hollowShardsService.assertIngestionBlocked(shardId, false);
+        hollowShardsService.ensureHollowShard(shardId, false);
         return IndexingOperationListener.super.preDelete(shardId, delete);
     }
 
     @Override
     public Engine.Index preIndex(ShardId shardId, Engine.Index operation) {
-        hollowShardsService.assertIngestionBlocked(shardId, false);
+        hollowShardsService.ensureHollowShard(shardId, false);
         return IndexingOperationListener.super.preIndex(shardId, operation);
     }
 }

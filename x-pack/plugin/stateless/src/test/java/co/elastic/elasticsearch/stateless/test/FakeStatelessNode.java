@@ -207,7 +207,7 @@ public class FakeStatelessNode implements Closeable {
             .build();
         shardId = new ShardId(indexMetadata.getIndex(), 0);
         indexSettings = new IndexSettings(indexMetadata, nodeSettings);
-        Path dataPath = Objects.requireNonNull(environment.dataFiles()[0]);
+        Path dataPath = Objects.requireNonNull(environment.dataDirs()[0]);
         indexingShardPath = new ShardPath(
             false,
             dataPath.resolve(shardId.getIndex().getUUID()).resolve("0"),
@@ -260,7 +260,7 @@ public class FakeStatelessNode implements Closeable {
                         @Override
                         protected BlobStore createBlobStore() throws Exception {
                             final String location = REPOSITORIES_LOCATION_SETTING.get(getMetadata().settings());
-                            final Path locationFile = environment.resolveRepoFile(location);
+                            final Path locationFile = environment.resolveRepoDir(location);
                             return new FsBlobStore(bufferSize, locationFile, isReadOnly()) {
                                 @Override
                                 public BlobContainer blobContainer(BlobPath path) {

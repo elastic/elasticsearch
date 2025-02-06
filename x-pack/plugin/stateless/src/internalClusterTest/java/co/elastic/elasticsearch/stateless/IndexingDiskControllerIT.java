@@ -273,7 +273,7 @@ public class IndexingDiskControllerIT extends AbstractStatelessIntegTestCase {
     private void setUsableSpaceOnNode(@Nullable Long value) throws IOException {
         var nodeEnv = internalCluster().getDataNodeInstance(Environment.class);
         assertThat(nodeEnv, notNullValue());
-        var fileStore = nodesDataPaths.get(nodeEnv.dataFiles()[0].getFileName().toString());
+        var fileStore = nodesDataPaths.get(nodeEnv.dataDirs()[0].getFileName().toString());
         assertThat(fileStore, notNullValue());
         if (value != null) {
             logger.debug("--> setting usable space to {} bytes on data node");

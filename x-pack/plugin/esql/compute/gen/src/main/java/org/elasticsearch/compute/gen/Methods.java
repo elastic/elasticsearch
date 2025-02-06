@@ -22,6 +22,7 @@ import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.DeclaredType;
+import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.ElementFilter;
 import javax.lang.model.util.Elements;
@@ -149,11 +150,13 @@ public class Methods {
     }
 
     private static Stream<TypeName> allInterfacesOf(Elements elements, TypeName type) {
-        return elements.getTypeElement(type.toString())
-            .getInterfaces()
-            .stream()
-            .map(TypeName::get)
-            .flatMap(anInterface -> Stream.concat(Stream.of(anInterface), allInterfacesOf(elements, anInterface)));
+        var typeElement = elements.getTypeElement(type.toString());
+        var superType = Stream.of(typeElement.getSuperclass()).filter(sType -> sType.getKind() != TypeKind.NONE).map(TypeName::get);
+        var interfaces = typeElement.getInterfaces().stream().map(TypeName::get);
+        return Stream.concat(
+            superType.flatMap(sType -> allInterfacesOf(elements, sType)),
+            interfaces.flatMap(anInterface -> Stream.concat(Stream.of(anInterface), allInterfacesOf(elements, anInterface)))
+        );
     }
 
     private static Stream<TypeElement> typeAndSuperType(TypeElement declarationType) {

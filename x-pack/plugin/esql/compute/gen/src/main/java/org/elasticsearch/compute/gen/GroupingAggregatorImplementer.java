@@ -36,8 +36,16 @@ import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.compute.gen.AggregatorImplementer.capitalize;
 import static org.elasticsearch.compute.gen.Methods.findMethod;
 import static org.elasticsearch.compute.gen.Methods.findRequiredMethod;
+import static org.elasticsearch.compute.gen.Methods.requireAnyArgs;
+import static org.elasticsearch.compute.gen.Methods.requireArgs;
+import static org.elasticsearch.compute.gen.Methods.requireName;
+import static org.elasticsearch.compute.gen.Methods.requirePrimitiveOrImplements;
+import static org.elasticsearch.compute.gen.Methods.requireStaticMethod;
+import static org.elasticsearch.compute.gen.Methods.requireType;
+import static org.elasticsearch.compute.gen.Methods.requireVoidType;
 import static org.elasticsearch.compute.gen.Methods.vectorAccessorName;
 import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
+import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BLOCK_ARRAY;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
@@ -72,8 +80,6 @@ public class GroupingAggregatorImplementer {
     private final ExecutableElement init;
     private final ExecutableElement combine;
     private final ExecutableElement combineStates;
-    private final ExecutableElement evaluateFinal;
-    private final ExecutableElement combineIntermediate;
     private final List<Parameter> createParameters;
     private final ClassName implementation;
     private final List<AggregatorImplementer.IntermediateStateDesc> intermediateState;
@@ -92,9 +98,16 @@ public class GroupingAggregatorImplementer {
         this.declarationType = declarationType;
         this.warnExceptions = warnExceptions;
 
-        this.init = findRequiredMethod(declarationType, new String[] { "init", "initGrouping" }, e -> true);
+        this.init = requireStaticMethod(
+            declarationType,
+            // This should be more restrictive and require org.elasticsearch.compute.aggregation.AggregatorState
+            requirePrimitiveOrImplements(elements, Types.RELEASABLE),
+            requireName("init", "initGrouping"),
+            requireAnyArgs("<arbitrary init arguments>")
+        );
         this.aggState = AggregationState.create(elements, init.getReturnType(), warnExceptions.isEmpty() == false, true);
 
+        // TODO optional timestamp
         this.combine = findRequiredMethod(declarationType, new String[] { "combine" }, e -> {
             if (e.getParameters().size() == 0) {
                 return false;
@@ -106,8 +119,6 @@ public class GroupingAggregatorImplementer {
         this.aggParam = AggregationParameter.create(combine.getParameters().get(combine.getParameters().size() - 1).asType());
 
         this.combineStates = findMethod(declarationType, "combineStates");
-        this.combineIntermediate = findMethod(declarationType, "combineIntermediate");
-        this.evaluateFinal = findMethod(declarationType, "evaluateFinal");
         this.createParameters = init.getParameters()
             .stream()
             .map(Parameter::from)
@@ -557,6 +568,7 @@ public class GroupingAggregatorImplementer {
                 });
                 builder.endControlFlow();
             } else {
+                // TODO combineIntermediate with optional block parameter
                 builder.addStatement("$T.combineIntermediate(state, groupId, " + intermediateStateRowAccess() + ")", declarationType);
             }
             builder.endControlFlow();
@@ -572,16 +584,6 @@ public class GroupingAggregatorImplementer {
         return rowAccess;
     }
 
-    private void combineStates(MethodSpec.Builder builder) {
-        if (combineStates == null) {
-            builder.beginControlFlow("if (inState.hasValue(position))");
-            builder.addStatement("state.set(groupId, $T.combine(state.getOrDefault(groupId), inState.get(position)))", declarationType);
-            builder.endControlFlow();
-            return;
-        }
-        builder.addStatement("$T.combineStates(state, groupId, inState, position)", declarationType);
-    }
-
     private MethodSpec addIntermediateRowInput() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("addIntermediateRowInput");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
@@ -593,7 +595,24 @@ public class GroupingAggregatorImplementer {
         builder.endControlFlow();
         builder.addStatement("$T inState = (($T) input).state", aggState.type(), implementation);
         builder.addStatement("state.enableGroupIdTracking(new $T.Empty())", SEEN_GROUP_IDS);
-        combineStates(builder);
+        if (aggState.declaredType().isPrimitive()) {
+            builder.beginControlFlow("if (inState.hasValue(position))");
+            builder.addStatement("state.set(groupId, $T.combine(state.getOrDefault(groupId), inState.get(position)))", declarationType);
+            builder.endControlFlow();
+        } else {
+            requireStaticMethod(
+                declarationType,
+                requireVoidType(),
+                requireName("combineStates"),
+                requireArgs(
+                    requireType(aggState.declaredType()),
+                    requireType(TypeName.INT),
+                    requireType(aggState.declaredType()),
+                    requireType(TypeName.INT)
+                )
+            );
+            builder.addStatement("$T.combineStates(state, groupId, inState, position)", declarationType);
+        }
         return builder.build();
     }
 
@@ -617,9 +636,15 @@ public class GroupingAggregatorImplementer {
             .addParameter(INT_VECTOR, "selected")
             .addParameter(DRIVER_CONTEXT, "driverContext");
 
-        if (evaluateFinal == null) {
+        if (aggState.declaredType().isPrimitive()) {
             builder.addStatement("blocks[offset] = state.toValuesBlock(selected, driverContext)");
         } else {
+            requireStaticMethod(
+                declarationType,
+                requireType(BLOCK),
+                requireName("evaluateFinal"),
+                requireArgs(requireType(aggState.declaredType()), requireType(INT_VECTOR), requireType(DRIVER_CONTEXT))
+            );
             builder.addStatement("blocks[offset] = $T.evaluateFinal(state, selected, driverContext)", declarationType);
         }
         return builder.build();

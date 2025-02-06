@@ -177,11 +177,32 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         getRoleDescriptors(names, listener);
     }
 
+    private Set<String> filterReservedRoles(Set<String> names) {
+        if (names == null || names.isEmpty()) {
+            return names;
+        }
+        Set<String> filtered = new HashSet<>(names.size());
+        for (String name : names) {
+            if (false == reservedRoleNameChecker.isReserved(name)) {
+                filtered.add(name);
+            }
+        }
+        return filtered;
+    }
+
     /**
      * Retrieve a list of roles, if rolesToGet is null or empty, fetch all roles
      */
     public void getRoleDescriptors(Set<String> names, final ActionListener<RoleRetrievalResult> listener) {
         if (enabled == false) {
+            listener.onResponse(RoleRetrievalResult.success(Set.of()));
+            return;
+        }
+
+        final Set<String> rolesToGet = filterReservedRoles(names);
+        if ((names != null && names.size() > 0) && (rolesToGet == null || rolesToGet.isEmpty())) {
+            // if we have no roles to get, it means all requested roles were reserved.
+            // we can short-circuit and return an empty set here.
             listener.onResponse(RoleRetrievalResult.success(Set.of()));
             return;
         }
@@ -192,7 +213,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             listener.onResponse(RoleRetrievalResult.success(Collections.emptySet()));
         } else if (frozenSecurityIndex.isAvailable(SEARCH_SHARDS) == false) {
             listener.onResponse(RoleRetrievalResult.failure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS)));
-        } else if (names == null || names.isEmpty()) {
+        } else if (rolesToGet == null || rolesToGet.isEmpty()) {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 QueryBuilder query = QueryBuilders.boolQuery()
                     .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
@@ -220,11 +241,11 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                     );
                 }
             });
-        } else if (names.size() == 1) {
-            getRoleDescriptor(Objects.requireNonNull(names.iterator().next()), listener);
+        } else if (rolesToGet.size() == 1) {
+            getRoleDescriptor(Objects.requireNonNull(rolesToGet.iterator().next()), listener);
         } else {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
-                final String[] roleIds = names.stream().map(NativeRolesStore::getIdForRole).toArray(String[]::new);
+                final String[] roleIds = rolesToGet.stream().map(NativeRolesStore::getIdForRole).toArray(String[]::new);
                 MultiGetRequest multiGetRequest = client.prepareMultiGet().addIds(SECURITY_MAIN_ALIAS, roleIds).request();
                 executeAsyncWithOrigin(
                     client.threadPool().getThreadContext(),

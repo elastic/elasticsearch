@@ -348,6 +348,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         safeGet(future);
         assertTrue(indexEngine.isLastCommitHollow());
         assertTrue(statelessCommitService.getLatestUploadedBcc(shardId).lastCompoundCommit().hollow());
+        assertFalse(indexEngine.refreshNeeded());
 
         var indexRequest = client().prepareIndex();
         indexRequest.setIndex(indexName);

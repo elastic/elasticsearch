@@ -295,8 +295,12 @@ public class IndexEngine extends InternalEngine {
 
     @Override
     public boolean refreshNeeded() {
+        var lastCommittedSegmentInfos = getLastCommittedSegmentInfos();
+        if (isLastCommitHollow(lastCommittedSegmentInfos)) {
+            return false;
+        }
         boolean committedLocalCheckpointNeedsUpdate = getProcessedLocalCheckpoint() > Long.parseLong(
-            getLastCommittedSegmentInfos().userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
+            lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
         );
         // It is possible that the index writer has uncommitted changes. We could check here, but we will check before actually
         // triggering the flush anyway.

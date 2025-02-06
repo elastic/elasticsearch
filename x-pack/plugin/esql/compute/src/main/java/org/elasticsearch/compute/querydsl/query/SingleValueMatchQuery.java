@@ -48,12 +48,12 @@ public final class SingleValueMatchQuery extends Query {
     private static final int MULTI_VALUE_MATCH_COST = 1000;
     private final IndexFieldData<?> fieldData;
     private final Warnings warnings;
-    private final IllegalArgumentException multiValueException;
+    private final String multiValueExceptionMessage;
 
     public SingleValueMatchQuery(IndexFieldData<?> fieldData, Warnings warnings, String multiValueExceptionMessage) {
         this.fieldData = fieldData;
         this.warnings = warnings;
-        this.multiValueException = new IllegalArgumentException(multiValueExceptionMessage);
+        this.multiValueExceptionMessage = multiValueExceptionMessage;
     }
 
     @Override
@@ -122,7 +122,7 @@ public final class SingleValueMatchQuery extends Query {
                         return false;
                     }
                     if (sortedNumerics.docValueCount() != 1) {
-                        warnings.registerException(multiValueException);
+                        registerMultiValueException();
                         return false;
                     }
                     return true;
@@ -157,7 +157,7 @@ public final class SingleValueMatchQuery extends Query {
                         return false;
                     }
                     if (sortedSetDocValues.docValueCount() != 1) {
-                        warnings.registerException(multiValueException);
+                        registerMultiValueException();
                         return false;
                     }
                     return true;
@@ -186,7 +186,7 @@ public final class SingleValueMatchQuery extends Query {
                         return false;
                     }
                     if (sortedBinaryDocValues.docValueCount() != 1) {
-                        warnings.registerException(multiValueException);
+                        registerMultiValueException();
                         return false;
                     }
                     return true;
@@ -264,6 +264,10 @@ public final class SingleValueMatchQuery extends Query {
         public long cost() {
             return docIdSetIterator.cost();
         }
+    }
+
+    private void registerMultiValueException() {
+        warnings.registerException(IllegalArgumentException.class, multiValueExceptionMessage);
     }
 
     private static class PredicateScorerSupplier extends ScorerSupplier {

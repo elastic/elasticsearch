@@ -86,7 +86,6 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
 
     private final LookupFromIndexService lookupService;
     private final String sessionId;
-    private final Configuration configuration;
     private final CancellableTask parentTask;
     private final int inputChannel;
     private final DataType inputDataType;
@@ -106,7 +105,6 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
 
     public LookupFromIndexOperator(
         String sessionId,
-        Configuration configuration,
         DriverContext driverContext,
         CancellableTask parentTask,
         int maxOutstandingRequests,
@@ -120,7 +118,6 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
     ) {
         super(driverContext, lookupService.getThreadContext(), maxOutstandingRequests);
         this.sessionId = sessionId;
-        this.configuration = configuration;
         this.parentTask = parentTask;
         this.inputChannel = inputChannel;
         this.lookupService = lookupService;
@@ -137,7 +134,6 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         totalTerms += inputBlock.getTotalValueCount();
         LookupFromIndexService.Request request = new LookupFromIndexService.Request(
             sessionId,
-            configuration,
             lookupIndex,
             inputDataType,
             matchField,

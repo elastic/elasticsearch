@@ -71,7 +71,6 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     protected TransportRequest transportRequest(LookupFromIndexService.Request request, ShardId shardId) {
         return new TransportRequest(
             request.sessionId,
-            request.configuration,
             shardId,
             request.inputDataType,
             request.inputPage,
@@ -107,12 +106,10 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     }
 
     public static class Request extends AbstractLookupService.Request {
-        private final Configuration configuration;
         private final String matchField;
 
         Request(
             String sessionId,
-            Configuration configuration,
             String index,
             DataType inputDataType,
             String matchField,
@@ -121,18 +118,15 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             Source source
         ) {
             super(sessionId, index, inputDataType, inputPage, extractFields, source);
-            this.configuration = configuration;
             this.matchField = matchField;
         }
     }
 
     protected static class TransportRequest extends AbstractLookupService.TransportRequest {
-        private final Configuration configuration;
         private final String matchField;
 
         TransportRequest(
             String sessionId,
-            Configuration configuration,
             ShardId shardId,
             DataType inputDataType,
             Page inputPage,
@@ -142,39 +136,33 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             Source source
         ) {
             super(sessionId, shardId, inputDataType, inputPage, toRelease, extractFields, source);
-            this.configuration = configuration;
             this.matchField = matchField;
         }
 
         static TransportRequest readFrom(StreamInput in, BlockFactory blockFactory) throws IOException {
             TaskId parentTaskId = TaskId.readFromStream(in);
             String sessionId = in.readString();
-            Configuration configuration = null;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_CONFIGURATION_IN_REQUEST)) {
-                configuration = new Configuration(
-                    // TODO make EsqlConfiguration Releasable
-                    new BlockStreamInput(
-                        in,
-                        new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
-                    )
-                );
-            }
             ShardId shardId = new ShardId(in);
             DataType inputDataType = DataType.fromTypeName(in.readString());
             Page inputPage;
             try (BlockStreamInput bsi = new BlockStreamInput(in, blockFactory)) {
                 inputPage = new Page(bsi);
             }
-            PlanStreamInput planIn = new PlanStreamInput(in, in.namedWriteableRegistry(), configuration);
+            PlanStreamInput planIn = new PlanStreamInput(in, in.namedWriteableRegistry(), null);
             List<NamedExpression> extractFields = planIn.readNamedWriteableCollectionAsList(NamedExpression.class);
             String matchField = in.readString();
             var source = Source.EMPTY;
             if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENRICH_RUNTIME_WARNINGS)) {
                 source = Source.readFrom(planIn);
             }
+            // Source.readFrom() requires the query from the Configuration passed to PlanStreamInput.
+            // As we don't have the Configuration here, and it may be heavy to serialize, we directly pass the Source text.
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_SOURCE_TEXT)) {
+                String sourceText = in.readString();
+                source = new Source(source.source(), sourceText);
+            }
             TransportRequest result = new TransportRequest(
                 sessionId,
-                configuration,
                 shardId,
                 inputDataType,
                 inputPage,
@@ -191,9 +179,6 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(sessionId);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_CONFIGURATION_IN_REQUEST)) {
-                configuration.writeTo(out);
-            }
             out.writeWriteable(shardId);
             out.writeString(inputDataType.typeName());
             out.writeWriteable(inputPage);
@@ -202,6 +187,9 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             out.writeString(matchField);
             if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENRICH_RUNTIME_WARNINGS)) {
                 source.writeTo(planOut);
+            }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_SOURCE_TEXT)) {
+                out.writeString(source.text());
             }
         }
 

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
@@ -157,10 +158,19 @@ public class SimpleRoleTests extends ESTestCase {
                 null,
                 IndexPrivilege.READ,
                 true,
+                IndexComponentSelector.DATA,
                 "remote-index-a-1",
                 "remote-index-a-2"
             )
-            .addRemoteIndicesGroup(Set.of("remote-*-a"), FieldPermissions.DEFAULT, null, IndexPrivilege.READ, false, "remote-index-a-3")
+            .addRemoteIndicesGroup(
+                Set.of("remote-*-a"),
+                FieldPermissions.DEFAULT,
+                null,
+                IndexPrivilege.READ,
+                false,
+                IndexComponentSelector.DATA,
+                "remote-index-a-3"
+            )
             // This privilege should be ignored (wrong alias)
             .addRemoteIndicesGroup(
                 Set.of("remote-cluster-b"),
@@ -168,6 +178,7 @@ public class SimpleRoleTests extends ESTestCase {
                 null,
                 IndexPrivilege.READ,
                 false,
+                IndexComponentSelector.DATA,
                 "remote-index-b-1",
                 "remote-index-b-2"
             )
@@ -178,6 +189,7 @@ public class SimpleRoleTests extends ESTestCase {
                 null,
                 IndexPrivilege.get(Set.of(randomFrom(IndexPrivilege.names()))),
                 randomBoolean(),
+                IndexComponentSelector.DATA,
                 randomAlphaOfLength(9)
             )
             .addRemoteClusterPermissions(

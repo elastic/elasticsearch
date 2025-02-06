@@ -47,13 +47,13 @@ public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCa
             {
               "description": "Role with data access",
               "cluster": ["all"],
-              "indices": [{"names": ["test*"], "privileges": ["read"]}]
+              "indices": [{"names": ["test*"], "privileges": ["read"], "selectors": ["data"]}]
             }"""), dataAccessRole);
         upsertRole(Strings.format("""
             {
               "description": "Role with failure store access",
               "cluster": ["all"],
-              "indices": [{"names": ["test*::failures"], "privileges": ["read"]}]
+              "indices": [{"names": ["test*"], "privileges": ["read"], "selectors": ["failures"]}]
             }"""), failureStoreAccessRole);
 
         createTemplates();

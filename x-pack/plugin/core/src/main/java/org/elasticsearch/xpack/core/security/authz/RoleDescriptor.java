@@ -51,8 +51,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.createParserNotCompressed;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
@@ -925,6 +923,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         String[] deniedFields = null;
         boolean allowRestrictedIndices = false;
         String[] remoteClusters = null;
+        List<String> selectors = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -1082,6 +1081,8 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                         Fields.TRANSIENT_METADATA
                     );
                 }
+            } else if (Fields.SELECTORS.match(currentFieldName, parser.getDeprecationHandler())) {
+                selectors = Arrays.stream(readStringArray(roleName, parser, true)).toList();
             } else if (allowRemoteClusters && Fields.CLUSTERS.match(currentFieldName, parser.getDeprecationHandler())) {
                 remoteClusters = readStringArray(roleName, parser, false);
             } else {
@@ -1116,6 +1117,9 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             );
         }
         checkIfExceptFieldsIsSubsetOfGrantedFields(roleName, grantedFields, deniedFields);
+        if (selectors == null) {
+            selectors = IndicesPrivileges.DEFAULT_SELECTORS;
+        }
         return new IndicesPrivilegesWithOptionalRemoteClusters(
             IndicesPrivileges.builder()
                 .indices(names)
@@ -1124,6 +1128,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 .deniedFields(deniedFields)
                 .query(query)
                 .allowRestrictedIndices(allowRestrictedIndices)
+                .selectors(selectors)
                 .build(),
             remoteClusters
         );
@@ -1337,6 +1342,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
      */
     public static class IndicesPrivileges implements ToXContentObject, Writeable, Comparable<IndicesPrivileges> {
 
+        private static final List<String> DEFAULT_SELECTORS = List.of(IndexComponentSelector.DATA.getKey());
         private static final IndicesPrivileges[] NONE = new IndicesPrivileges[0];
 
         private String[] indices;
@@ -1348,6 +1354,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         // users. Setting this flag eliminates this special status, and any index name pattern in the permission will cover restricted
         // indices as well.
         private boolean allowRestrictedIndices = false;
+        private List<String> selectors;
 
         private IndicesPrivileges() {}
 
@@ -1358,6 +1365,11 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             this.privileges = in.readStringArray();
             this.query = in.readOptionalBytesReference();
             this.allowRestrictedIndices = in.readBoolean();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ROLE_SELECTORS_FIELD)) {
+                this.selectors = in.readStringCollectionAsList();
+            } else {
+                this.selectors = DEFAULT_SELECTORS;
+            }
         }
 
         @Override
@@ -1368,6 +1380,9 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             out.writeStringArray(privileges);
             out.writeOptionalBytesReference(query);
             out.writeBoolean(allowRestrictedIndices);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ROLE_SELECTORS_FIELD)) {
+                out.writeStringCollection(selectors);
+            }
         }
 
         public static Builder builder() {
@@ -1378,11 +1393,12 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             return this.indices;
         }
 
-        public static Set<String> filterFailureIndices(Set<String> indices) {
-            return indices.stream().filter(index -> {
-                // TODO improve check
-                return index != null && index.endsWith("::" + IndexComponentSelector.FAILURES.getKey());
-            }).collect(Collectors.toSet());
+        public boolean matchesSelector(IndexComponentSelector selector) {
+            return selectors.contains(selector.getKey());
+        }
+
+        public List<String> getSelectors() {
+            return this.selectors;
         }
 
         public String[] getPrivileges() {
@@ -1438,6 +1454,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
         @Override
         public String toString() {
+            // TODO selectors
             StringBuilder sb = new StringBuilder("IndicesPrivileges[");
             sb.append("indices=[").append(Strings.arrayToCommaDelimitedString(indices));
             sb.append("], allowRestrictedIndices=[").append(allowRestrictedIndices);
@@ -1482,6 +1499,8 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             if (Arrays.equals(privileges, that.privileges) == false) return false;
             if (Arrays.equals(grantedFields, that.grantedFields) == false) return false;
             if (Arrays.equals(deniedFields, that.deniedFields) == false) return false;
+            // TODO
+            if (Objects.equals(selectors, that.selectors) == false) return false;
             return Objects.equals(query, that.query);
         }
 
@@ -1493,6 +1512,8 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             result = 31 * result + Arrays.hashCode(grantedFields);
             result = 31 * result + Arrays.hashCode(deniedFields);
             result = 31 * result + (query != null ? query.hashCode() : 0);
+            // TODO NPE?
+            result = 31 * result + (selectors != null ? selectors.hashCode() : 0);
             return result;
         }
 
@@ -1520,6 +1541,10 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             }
             if (query != null) {
                 builder.field("query", query.utf8ToString());
+            }
+            // Hide default selectors
+            if (selectors.equals(List.of("data")) == false) {
+                builder.stringListField("selectors", selectors);
             }
             return builder.field(RoleDescriptor.Fields.ALLOW_RESTRICTED_INDICES.getPreferredName(), allowRestrictedIndices);
         }
@@ -1574,6 +1599,11 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
             public Builder privileges(String... privileges) {
                 indicesPrivileges.privileges = privileges;
+                return this;
+            }
+
+            public Builder selectors(List<String> selectors) {
+                indicesPrivileges.selectors = selectors;
                 return this;
             }
 
@@ -1888,6 +1918,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         ParseField APPLICATIONS = new ParseField("applications");
         ParseField RUN_AS = new ParseField("run_as");
         ParseField NAMES = new ParseField("names");
+        ParseField SELECTORS = new ParseField("selectors");
         ParseField ALLOW_RESTRICTED_INDICES = new ParseField("allow_restricted_indices");
         ParseField RESOURCES = new ParseField("resources");
         ParseField QUERY = new ParseField("query");

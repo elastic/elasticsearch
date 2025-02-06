@@ -305,18 +305,17 @@ public interface Role {
             IndexComponentSelector selector,
             String... indices
         ) {
-            // TODO assert no failures suffixes left
             groups.add(new IndicesPermissionGroupDefinition(privilege, fieldPermissions, query, allowRestrictedIndices, selector, indices));
             return this;
         }
 
-        // TODO allowFailureStoreAccess
         public Builder addRemoteIndicesGroup(
             final Set<String> remoteClusterAliases,
             final FieldPermissions fieldPermissions,
             final Set<BytesReference> query,
             final IndexPrivilege privilege,
             final boolean allowRestrictedIndices,
+            IndexComponentSelector indexComponentSelector,
             final String... indices
         ) {
             remoteIndicesGroups.computeIfAbsent(remoteClusterAliases, k -> new ArrayList<>())
@@ -326,7 +325,7 @@ public interface Role {
                         fieldPermissions,
                         query,
                         allowRestrictedIndices,
-                        IndexComponentSelector.DATA,
+                        indexComponentSelector,
                         indices
                     )
                 );
@@ -472,21 +471,20 @@ public interface Role {
                     indexPrivilege.getQuery() == null ? null : Collections.singleton(indexPrivilege.getQuery()),
                     IndexPrivilege.get(Sets.newHashSet(indexPrivilege.getPrivileges())),
                     indexPrivilege.allowRestrictedIndices(),
-                    IndexComponentSelector.ALL_APPLICABLE,
-                    indexPrivilege.getIndices()
-                );
-            } else {
-                builder.add(
-                    fieldPermissionsCache.getFieldPermissions(
-                        new FieldPermissionsDefinition(indexPrivilege.getGrantedFields(), indexPrivilege.getDeniedFields())
-                    ),
-                    indexPrivilege.getQuery() == null ? null : Collections.singleton(indexPrivilege.getQuery()),
-                    IndexPrivilege.get(Sets.newHashSet(indexPrivilege.getPrivileges())),
-                    indexPrivilege.allowRestrictedIndices(),
-                    IndexComponentSelector.DATA,
+                    IndexComponentSelector.FAILURES,
                     indexPrivilege.getIndices()
                 );
             }
+            builder.add(
+                fieldPermissionsCache.getFieldPermissions(
+                    new FieldPermissionsDefinition(indexPrivilege.getGrantedFields(), indexPrivilege.getDeniedFields())
+                ),
+                indexPrivilege.getQuery() == null ? null : Collections.singleton(indexPrivilege.getQuery()),
+                IndexPrivilege.get(Sets.newHashSet(indexPrivilege.getPrivileges())),
+                indexPrivilege.allowRestrictedIndices(),
+                IndexComponentSelector.DATA,
+                indexPrivilege.getIndices()
+            );
         }
 
         for (RoleDescriptor.RemoteIndicesPrivileges remoteIndicesPrivileges : roleDescriptor.getRemoteIndicesPrivileges()) {
@@ -494,6 +492,20 @@ public interface Role {
             assert Arrays.equals(new String[] { "*" }, clusterAliases)
                 : "reserved role should not define remote indices privileges for specific clusters";
             final RoleDescriptor.IndicesPrivileges indicesPrivileges = remoteIndicesPrivileges.indicesPrivileges();
+            // TODO properly handle this
+            if (Arrays.asList(indicesPrivileges.getIndices()).contains("*")) {
+                builder.addRemoteIndicesGroup(
+                    Set.of(clusterAliases),
+                    fieldPermissionsCache.getFieldPermissions(
+                        new FieldPermissionsDefinition(indicesPrivileges.getGrantedFields(), indicesPrivileges.getDeniedFields())
+                    ),
+                    indicesPrivileges.getQuery() == null ? null : Collections.singleton(indicesPrivileges.getQuery()),
+                    IndexPrivilege.get(Set.of(indicesPrivileges.getPrivileges())),
+                    indicesPrivileges.allowRestrictedIndices(),
+                    IndexComponentSelector.FAILURES,
+                    indicesPrivileges.getIndices()
+                );
+            }
             builder.addRemoteIndicesGroup(
                 Set.of(clusterAliases),
                 fieldPermissionsCache.getFieldPermissions(
@@ -502,6 +514,7 @@ public interface Role {
                 indicesPrivileges.getQuery() == null ? null : Collections.singleton(indicesPrivileges.getQuery()),
                 IndexPrivilege.get(Set.of(indicesPrivileges.getPrivileges())),
                 indicesPrivileges.allowRestrictedIndices(),
+                IndexComponentSelector.DATA,
                 indicesPrivileges.getIndices()
             );
         }

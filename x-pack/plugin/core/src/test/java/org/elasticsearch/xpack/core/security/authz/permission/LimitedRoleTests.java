@@ -102,6 +102,7 @@ public class LimitedRoleTests extends ESTestCase {
                 baseQuery,
                 basePrivilege,
                 baseAllowRestrictedIndices,
+                IndexComponentSelector.DATA,
                 baseIndices
             )
             // This privilege should be ignored (wrong alias)
@@ -111,6 +112,7 @@ public class LimitedRoleTests extends ESTestCase {
                 randomDlsQuery(),
                 randomIndexPrivilege(),
                 randomBoolean(),
+                IndexComponentSelector.DATA,
                 randomAlphaOfLengthBetween(4, 6)
             )
             .addRemoteClusterPermissions(
@@ -147,6 +149,7 @@ public class LimitedRoleTests extends ESTestCase {
                 limitedQuery,
                 limitedPrivilege,
                 limitedAllowRestrictedIndices,
+                IndexComponentSelector.DATA,
                 limitedIndices
             )
             // This privilege should be ignored (wrong alias)
@@ -156,6 +159,7 @@ public class LimitedRoleTests extends ESTestCase {
                 randomDlsQuery(),
                 randomIndexPrivilege(),
                 randomBoolean(),
+                IndexComponentSelector.DATA,
                 randomAlphaOfLength(9)
             )
             .addRemoteClusterPermissions(
@@ -267,6 +271,7 @@ public class LimitedRoleTests extends ESTestCase {
                         randomDlsQuery(),
                         randomIndexPrivilege(),
                         randomBoolean(),
+                        IndexComponentSelector.DATA,
                         randomAlphaOfLength(3)
                     );
                     baseRole.addRemoteClusterPermissions(remoteCluster);
@@ -278,6 +283,7 @@ public class LimitedRoleTests extends ESTestCase {
                         randomDlsQuery(),
                         randomIndexPrivilege(),
                         randomBoolean(),
+                        IndexComponentSelector.DATA,
                         randomAlphaOfLength(4)
                     );
                     limitedByRole1.addRemoteClusterPermissions(remoteCluster);
@@ -289,6 +295,7 @@ public class LimitedRoleTests extends ESTestCase {
                         randomDlsQuery(),
                         randomIndexPrivilege(),
                         randomBoolean(),
+                        IndexComponentSelector.DATA,
                         randomAlphaOfLength(5)
                     );
                     limitedByRole2.addRemoteClusterPermissions(remoteCluster);
@@ -307,6 +314,7 @@ public class LimitedRoleTests extends ESTestCase {
                 randomDlsQuery(),
                 randomIndexPrivilege(),
                 randomBoolean(),
+                IndexComponentSelector.DATA,
                 randomAlphaOfLength(5)
             );
             limitedByRole1.addRemoteIndicesGroup(
@@ -315,6 +323,7 @@ public class LimitedRoleTests extends ESTestCase {
                 randomDlsQuery(),
                 randomIndexPrivilege(),
                 randomBoolean(),
+                IndexComponentSelector.DATA,
                 randomAlphaOfLength(4)
             );
             limitedByRole2.addRemoteIndicesGroup(
@@ -323,6 +332,7 @@ public class LimitedRoleTests extends ESTestCase {
                 randomDlsQuery(),
                 randomIndexPrivilege(),
                 randomBoolean(),
+                IndexComponentSelector.DATA,
                 randomAlphaOfLength(3)
             );
         }

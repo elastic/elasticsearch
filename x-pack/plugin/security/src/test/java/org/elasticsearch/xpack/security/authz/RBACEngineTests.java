@@ -1311,13 +1311,22 @@ public class RBACEngineTests extends ESTestCase {
             )
             .addApplicationPrivilege(ApplicationPrivilegeTests.createPrivilege("app01", "read", "data:read"), Collections.singleton("*"))
             .runAs(new Privilege(Sets.newHashSet("user01", "user02"), "user01", "user02"))
-            .addRemoteIndicesGroup(Set.of("remote-1"), FieldPermissions.DEFAULT, null, IndexPrivilege.READ, false, "remote-index-1")
+            .addRemoteIndicesGroup(
+                Set.of("remote-1"),
+                FieldPermissions.DEFAULT,
+                null,
+                IndexPrivilege.READ,
+                false,
+                IndexComponentSelector.DATA,
+                "remote-index-1"
+            )
             .addRemoteIndicesGroup(
                 Set.of("remote-2", "remote-3"),
                 new FieldPermissions(new FieldPermissionsDefinition(new String[] { "public.*" }, new String[0])),
                 Collections.singleton(query),
                 IndexPrivilege.READ,
                 randomBoolean(),
+                IndexComponentSelector.DATA,
                 "remote-index-2",
                 "remote-index-3"
             )
@@ -2119,6 +2128,7 @@ public class RBACEngineTests extends ESTestCase {
                         p.getQuery(),
                         p.privilege(),
                         p.allowRestrictedIndices(),
+                        IndexComponentSelector.DATA,
                         p.indices()
                     )
                 );

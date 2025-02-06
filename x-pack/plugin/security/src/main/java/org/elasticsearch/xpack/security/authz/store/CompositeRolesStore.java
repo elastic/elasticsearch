@@ -74,7 +74,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges.filterFailureIndices;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isIndexDeleted;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMoveFromRedToNonRed;
 
@@ -484,8 +483,10 @@ public class CompositeRolesStore {
         final List<ConfigurableClusterPrivilege> configurableClusterPrivileges = new ArrayList<>();
         final Set<String> runAs = new HashSet<>();
 
-        final Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesMap = new HashMap<>();
-        final Map<Set<String>, MergeableIndicesPrivilege> restrictedIndicesPrivilegesMap = new HashMap<>();
+        final Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesDataMap = new HashMap<>();
+        final Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesFailuresMap = new HashMap<>();
+        final Map<Set<String>, MergeableIndicesPrivilege> restrictedIndicesPrivilegesDataMap = new HashMap<>();
+        final Map<Set<String>, MergeableIndicesPrivilege> restrictedIndicesPrivilegesFailuresMap = new HashMap<>();
 
         final Map<Set<String>, Set<IndicesPrivileges>> remoteIndicesPrivilegesByCluster = new HashMap<>();
 
@@ -506,8 +507,30 @@ public class CompositeRolesStore {
                 runAs.addAll(Arrays.asList(descriptor.getRunAs()));
             }
 
-            MergeableIndicesPrivilege.collatePrivilegesByIndices(descriptor.getIndicesPrivileges(), true, restrictedIndicesPrivilegesMap);
-            MergeableIndicesPrivilege.collatePrivilegesByIndices(descriptor.getIndicesPrivileges(), false, indicesPrivilegesMap);
+            MergeableIndicesPrivilege.collatePrivilegesByIndices(
+                descriptor.getIndicesPrivileges(),
+                true,
+                IndexComponentSelector.DATA,
+                restrictedIndicesPrivilegesDataMap
+            );
+            MergeableIndicesPrivilege.collatePrivilegesByIndices(
+                descriptor.getIndicesPrivileges(),
+                false,
+                IndexComponentSelector.DATA,
+                indicesPrivilegesDataMap
+            );
+            MergeableIndicesPrivilege.collatePrivilegesByIndices(
+                descriptor.getIndicesPrivileges(),
+                true,
+                IndexComponentSelector.FAILURES,
+                restrictedIndicesPrivilegesFailuresMap
+            );
+            MergeableIndicesPrivilege.collatePrivilegesByIndices(
+                descriptor.getIndicesPrivileges(),
+                false,
+                IndexComponentSelector.FAILURES,
+                indicesPrivilegesFailuresMap
+            );
 
             if (descriptor.hasRemoteIndicesPrivileges()) {
                 groupIndexPrivilegesByCluster(descriptor.getRemoteIndicesPrivileges(), remoteIndicesPrivilegesByCluster);
@@ -540,71 +563,53 @@ public class CompositeRolesStore {
         final Role.Builder builder = Role.builder(restrictedIndices, roleNames.toArray(Strings.EMPTY_ARRAY))
             .cluster(clusterPrivileges, configurableClusterPrivileges)
             .runAs(runAsPrivilege);
-        // TODO need to handle wildcard to grant access to both failure and non-failure indices
-        indicesPrivilegesMap.forEach((key, privilege) -> {
-            // TODO double-check if this is always the case
-            assert privilege.indices.isEmpty() == false : "indices must not be empty";
+        indicesPrivilegesDataMap.forEach((key, privilege) -> {
+            builder.add(
+                fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
+                privilege.query,
+                IndexPrivilege.get(privilege.privileges),
+                false,
+                IndexComponentSelector.DATA,
+                privilege.indices.toArray(Strings.EMPTY_ARRAY)
+            );
 
-            // For a privilege with both failure and non-failure indices, we need to split them into two separate groups
-            if (privilege.failureIndices.isEmpty() == false) {
-                var failureIndices = newHashSet(privilege.failureIndices);
-                builder.add(
-                    fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
-                    privilege.query,
-                    IndexPrivilege.get(privilege.privileges),
-                    false,
-                    IndexComponentSelector.FAILURES,
-                    failureIndices.stream().map(CompositeRolesStore::stripFailuresSuffix).toList().toArray(Strings.EMPTY_ARRAY)
-                );
-                privilege.removeFailureIndices();
-            }
-            // If we still have privileges left, add a group for them
-            if (privilege.indices.isEmpty() == false) {
-                builder.add(
-                    fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
-                    privilege.query,
-                    IndexPrivilege.get(privilege.privileges),
-                    false,
-                    // TODO clean up
-                    privilege.indices.contains("*") ? IndexComponentSelector.ALL_APPLICABLE : IndexComponentSelector.DATA,
-                    privilege.indices.toArray(Strings.EMPTY_ARRAY)
-                );
-            }
         });
-        restrictedIndicesPrivilegesMap.forEach((key, privilege) -> {
-            // TODO double-check if this is always the case
-            assert privilege.indices.isEmpty() == false : "indices must not be empty";
-
+        restrictedIndicesPrivilegesDataMap.forEach((key, privilege) -> {
             // For a privilege with both failure and non-failure indices, we need to split them into two separate groups
-            if (privilege.failureIndices.isEmpty() == false) {
-                var failureIndices = newHashSet(privilege.failureIndices);
-                builder.add(
-                    fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
-                    privilege.query,
-                    IndexPrivilege.get(privilege.privileges),
-                    true,
-                    IndexComponentSelector.FAILURES,
-                    failureIndices.stream().map(CompositeRolesStore::stripFailuresSuffix).toList().toArray(Strings.EMPTY_ARRAY)
-                );
-                privilege.removeFailureIndices();
-            }
-            // If we still have privileges left, add a group for them
-            if (privilege.indices.isEmpty() == false) {
-                builder.add(
-                    fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
-                    privilege.query,
-                    IndexPrivilege.get(privilege.privileges),
-                    true,
-                    // TODO clean up
-                    privilege.indices.contains("*") ? IndexComponentSelector.ALL_APPLICABLE : IndexComponentSelector.DATA,
-                    privilege.indices.toArray(Strings.EMPTY_ARRAY)
-                );
-            }
+            builder.add(
+                fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
+                privilege.query,
+                IndexPrivilege.get(privilege.privileges),
+                true,
+                IndexComponentSelector.DATA,
+                privilege.indices.toArray(Strings.EMPTY_ARRAY)
+            );
+        });
+        indicesPrivilegesFailuresMap.forEach((key, privilege) -> {
+            builder.add(
+                fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
+                privilege.query,
+                IndexPrivilege.get(privilege.privileges),
+                false,
+                IndexComponentSelector.FAILURES,
+                privilege.indices.toArray(Strings.EMPTY_ARRAY)
+            );
+
+        });
+        restrictedIndicesPrivilegesFailuresMap.forEach((key, privilege) -> {
+            // For a privilege with both failure and non-failure indices, we need to split them into two separate groups
+            builder.add(
+                fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
+                privilege.query,
+                IndexPrivilege.get(privilege.privileges),
+                true,
+                IndexComponentSelector.FAILURES,
+                privilege.indices.toArray(Strings.EMPTY_ARRAY)
+            );
         });
 
         remoteIndicesPrivilegesByCluster.forEach((clusterAliasKey, remoteIndicesPrivilegesForCluster) -> {
             remoteIndicesPrivilegesForCluster.forEach((privilege) -> {
-                // TODO handle failure indices
                 builder.addRemoteIndicesGroup(
                     clusterAliasKey,
                     fieldPermissionsCache.getFieldPermissions(
@@ -613,6 +618,7 @@ public class CompositeRolesStore {
                     privilege.getQuery() == null ? null : newHashSet(privilege.getQuery()),
                     IndexPrivilege.get(newHashSet(Objects.requireNonNull(privilege.getPrivileges()))),
                     privilege.allowRestrictedIndices(),
+                    privilege.matchesSelector(IndexComponentSelector.DATA) ? IndexComponentSelector.DATA : IndexComponentSelector.FAILURES,
                     newHashSet(Objects.requireNonNull(privilege.getIndices())).toArray(new String[0])
                 );
             });
@@ -648,17 +654,6 @@ public class CompositeRolesStore {
                 })
             );
         }
-    }
-
-    private static String stripFailuresSuffix(String input) {
-        // TODO clean up
-        String literalSuffix = "::failures";
-        if (input.endsWith(literalSuffix)) {
-            return input.substring(0, input.length() - literalSuffix.length());
-        }
-        // TODO regex handling
-        assert false : "unexpected failure index name: " + input;
-        return input;
     }
 
     public void invalidateAll() {
@@ -730,33 +725,31 @@ public class CompositeRolesStore {
      */
     private static class MergeableIndicesPrivilege {
         private final Set<String> indices;
-        private final Set<String> failureIndices;
         private final Set<String> privileges;
         private FieldPermissionsDefinition fieldPermissionsDefinition;
         private Set<BytesReference> query = null;
+        private final IndexComponentSelector selector;
 
         MergeableIndicesPrivilege(
             String[] indices,
             String[] privileges,
+            IndexComponentSelector selector,
             @Nullable String[] grantedFields,
             @Nullable String[] deniedFields,
             @Nullable BytesReference query
         ) {
             this.indices = newHashSet(Objects.requireNonNull(indices));
-            this.failureIndices = newHashSet(filterFailureIndices(newHashSet(Objects.requireNonNull(indices))));
             this.privileges = newHashSet(Objects.requireNonNull(privileges));
             this.fieldPermissionsDefinition = new FieldPermissionsDefinition(grantedFields, deniedFields);
+            this.selector = selector;
             if (query != null) {
                 this.query = newHashSet(query);
             }
         }
 
-        void removeFailureIndices() {
-            this.indices.removeAll(this.failureIndices);
-        }
-
         void merge(MergeableIndicesPrivilege other) {
             assert indices.equals(other.indices) : "index names must be equivalent in order to merge";
+            assert selector.equals(other.selector) : "selectors must be equivalent in order to merge";
             Set<FieldGrantExcludeGroup> groups = new HashSet<>();
             groups.addAll(this.fieldPermissionsDefinition.getFieldGrantExcludeGroups());
             groups.addAll(other.fieldPermissionsDefinition.getFieldGrantExcludeGroups());
@@ -773,6 +766,7 @@ public class CompositeRolesStore {
         private static void collatePrivilegesByIndices(
             final IndicesPrivileges[] indicesPrivileges,
             final boolean allowsRestrictedIndices,
+            final IndexComponentSelector selector,
             final Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesMap
         ) {
             // if an index privilege is an explicit denial, then we treat it as non-existent since we skipped these in the past when
@@ -786,12 +780,18 @@ public class CompositeRolesStore {
                 if (indicesPrivilege.allowRestrictedIndices() != allowsRestrictedIndices) {
                     continue;
                 }
+                if (false == indicesPrivilege.matchesSelector(selector)) {
+                    continue;
+                }
                 final Set<String> key = newHashSet(indicesPrivilege.getIndices());
                 indicesPrivilegesMap.compute(key, (k, value) -> {
                     if (value == null) {
                         return new MergeableIndicesPrivilege(
                             indicesPrivilege.getIndices(),
                             indicesPrivilege.getPrivileges(),
+                            indicesPrivilege.matchesSelector(IndexComponentSelector.DATA)
+                                ? IndexComponentSelector.DATA
+                                : IndexComponentSelector.FAILURES,
                             indicesPrivilege.getGrantedFields(),
                             indicesPrivilege.getDeniedFields(),
                             indicesPrivilege.getQuery()
@@ -801,6 +801,9 @@ public class CompositeRolesStore {
                             new MergeableIndicesPrivilege(
                                 indicesPrivilege.getIndices(),
                                 indicesPrivilege.getPrivileges(),
+                                indicesPrivilege.matchesSelector(IndexComponentSelector.DATA)
+                                    ? IndexComponentSelector.DATA
+                                    : IndexComponentSelector.FAILURES,
                                 indicesPrivilege.getGrantedFields(),
                                 indicesPrivilege.getDeniedFields(),
                                 indicesPrivilege.getQuery()

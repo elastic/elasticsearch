@@ -40,7 +40,6 @@ import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -273,7 +272,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 });
             this.indexSortConfig = indexSortConfig;
             this.indexMode = indexMode;
-            this.useDocValuesSparseIndex = IndexSettings.DOC_VALUES_SPARSE_INDEX.isEnabled() && useDocValuesSparseIndex;
+            this.useDocValuesSparseIndex = useDocValuesSparseIndex;
         }
 
         public Builder(String name, IndexVersion indexCreatedVersion) {

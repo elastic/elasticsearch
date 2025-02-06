@@ -780,6 +780,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             Settings.builder()
                 .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
                 .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host.name")
+                .put(IndexSettings.USE_DOC_VALUES_SPARSE_INDEX.getKey(), false)
                 .build(),
             mapping(b -> {
                 b.startObject("host.name");
@@ -884,25 +885,21 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testFieldTypeDefault_ConfiguredIndexedWithoutSettingOverride() throws IOException {
-        assumeTrue("Needs feature flag to be enabled", DOC_VALUES_SPARSE_INDEX.isEnabled());
-
-        final MapperService mapperService = createMapperService(
-            Settings.builder()
-                .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
-                .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host.name")
-                .build(),
-            mapping(b -> {
-                b.startObject("host.name");
-                b.field("type", "keyword");
-                b.field("index", true);
-                b.endObject();
-            })
-        );
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
+            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host.name")
+            .build();
+        final MapperService mapperService = createMapperService(settings, mapping(b -> {
+            b.startObject("host.name");
+            b.field("type", "keyword");
+            b.field("index", true);
+            b.endObject();
+        }));
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
         assertTrue(mapper.fieldType().hasDocValues());
-        assertTrue(mapper.fieldType().isIndexed());
-        assertFalse(mapper.fieldType().hasDocValuesSparseIndex());
+        assertFalse(IndexSettings.USE_DOC_VALUES_SPARSE_INDEX.get(settings) && mapper.fieldType().isIndexed());
+        assertEquals(IndexSettings.USE_DOC_VALUES_SPARSE_INDEX.get(settings), mapper.fieldType().hasDocValuesSparseIndex());
     }
 
     public void testFieldTypeDefault_ConfiguredDocValues() throws IOException {

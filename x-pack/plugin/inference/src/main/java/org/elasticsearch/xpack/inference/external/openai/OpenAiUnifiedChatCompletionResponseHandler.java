@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.openai;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -29,6 +30,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.Flow;
 
+import static org.elasticsearch.core.Strings.format;
+
 public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatCompletionResponseHandler {
     public OpenAiUnifiedChatCompletionResponseHandler(String requestType, ResponseParser parseFunction) {
         super(requestType, parseFunction, OpenAiErrorResponse::fromResponse);
@@ -37,7 +40,7 @@ public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatComple
     @Override
     public InferenceServiceResults parseResult(Request request, Flow.Publisher<HttpResult> flow) {
         var serverSentEventProcessor = new ServerSentEventProcessor(new ServerSentEventParser());
-        var openAiProcessor = new OpenAiUnifiedStreamingProcessor();
+        var openAiProcessor = new OpenAiUnifiedStreamingProcessor((m, e) -> buildMidStreamError(request, m, e));
 
         flow.subscribe(serverSentEventProcessor);
         serverSentEventProcessor.subscribe(openAiProcessor);
@@ -61,6 +64,33 @@ public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatComple
                 );
         } else {
             return super.buildError(message, request, result, errorResponse);
+        }
+    }
+
+    private static Exception buildMidStreamError(Request request, String message, Exception e) {
+        var errorResponse = OpenAiErrorResponse.fromString(message);
+        if (errorResponse instanceof OpenAiErrorResponse oer) {
+            return new UnifiedChatCompletionException(
+                RestStatus.INTERNAL_SERVER_ERROR,
+                format(
+                    "%s for request from inference entity id [%s]. Error message: [%s]",
+                    SERVER_ERROR_OBJECT,
+                    request.getInferenceEntityId(),
+                    errorResponse.getErrorMessage()
+                ),
+                oer.type(),
+                oer.code(),
+                oer.param()
+            );
+        } else if (e != null) {
+            return UnifiedChatCompletionException.fromThrowable(e);
+        } else {
+            return new UnifiedChatCompletionException(
+                RestStatus.INTERNAL_SERVER_ERROR,
+                format("%s for request from inference entity id [%s]", SERVER_ERROR_OBJECT, request.getInferenceEntityId()),
+                errorResponse != null ? errorResponse.getClass().getSimpleName() : "unknown",
+                "stream_error"
+            );
         }
     }
 
@@ -94,6 +124,19 @@ public class OpenAiUnifiedChatCompletionResponseHandler extends OpenAiChatComple
             try (
                 XContentParser parser = XContentFactory.xContent(XContentType.JSON)
                     .createParser(XContentParserConfiguration.EMPTY, response.body())
+            ) {
+                return ERROR_PARSER.apply(parser, null).orElse(ErrorResponse.UNDEFINED_ERROR);
+            } catch (Exception e) {
+                // swallow the error
+            }
+
+            return ErrorResponse.UNDEFINED_ERROR;
+        }
+
+        private static ErrorResponse fromString(String response) {
+            try (
+                XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                    .createParser(XContentParserConfiguration.EMPTY, response)
             ) {
                 return ERROR_PARSER.apply(parser, null).orElse(ErrorResponse.UNDEFINED_ERROR);
             } catch (Exception e) {

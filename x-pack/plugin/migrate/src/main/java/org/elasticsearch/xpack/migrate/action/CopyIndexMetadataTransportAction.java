@@ -19,8 +19,8 @@ import org.elasticsearch.cluster.ClusterStateAckListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -86,7 +86,7 @@ public class CopyIndexMetadataTransportAction extends TransportMasterNodeAction<
 
     @Override
     protected ClusterBlockException checkBlock(CopyIndexMetadataAction.Request request, ClusterState state) {
-        return null;
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
     private static ClusterState applyUpdate(ClusterState state, UpdateIndexMetadataTask updateTask) {
@@ -111,6 +111,8 @@ public class CopyIndexMetadataTransportAction extends TransportMasterNodeAction<
                 sourceMetadata.getCustomData(DATA_STREAM_LIFECYCLE_CUSTOM_INDEX_METADATA_KEY)
             )
             .putRolloverInfos(sourceMetadata.getRolloverInfos())
+            // creation data is required for ILM to function
+            .creationDate(sourceMetadata.getCreationDate())
             .build();
 
         var indices = new HashMap<>(state.metadata().indices());

@@ -2132,20 +2132,10 @@ public class IndexNameExpressionResolver {
                 String suffix = expression.substring(lastDoubleColon + SELECTOR_SEPARATOR.length());
                 IndexComponentSelector selector = IndexComponentSelector.getByKey(suffix);
                 if (selector == null) {
-                    // Do some work to surface a helpful error message for likely errors
-                    if (Regex.isSimpleMatchPattern(suffix)) {
-                        throw new InvalidIndexNameException(
-                            expression,
-                            "Invalid usage of :: separator, ["
-                                + suffix
-                                + "] contains a wildcard, but only the match all wildcard [*] is supported in a selector"
-                        );
-                    } else {
-                        throw new InvalidIndexNameException(
-                            expression,
-                            "Invalid usage of :: separator, [" + suffix + "] is not a recognized selector"
-                        );
-                    }
+                    throw new InvalidIndexNameException(
+                        expression,
+                        "invalid usage of :: separator, [" + suffix + "] is not a recognized selector"
+                    );
                 }
                 String expressionBase = expression.substring(0, lastDoubleColon);
                 ensureNoMoreSelectorSeparators(expressionBase, expression);

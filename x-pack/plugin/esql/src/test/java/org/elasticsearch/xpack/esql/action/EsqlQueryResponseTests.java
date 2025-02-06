@@ -723,6 +723,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                 new EsqlQueryResponse.Profile(
                     List.of(
                         new DriverProfile(
+                            "test",
                             1723489812649L,
                             1723489819929L,
                             20021,
@@ -757,6 +758,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
                   "profile" : {
                     "drivers" : [
                       {
+                        "task_description" : "test",
                         "start_millis" : 1723489812649,
                         "stop_millis" : 1723489819929,
                         "took_nanos" : 20021,

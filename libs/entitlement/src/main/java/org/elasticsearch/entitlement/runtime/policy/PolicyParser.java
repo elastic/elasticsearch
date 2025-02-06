@@ -27,6 +27,8 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -147,6 +149,7 @@ public class PolicyParser {
         }
 
         Constructor<?> entitlementConstructor = null;
+        Method entitlementMethod = null;
         ExternalEntitlement entitlementMetadata = null;
         for (var ctor : entitlementClass.getConstructors()) {
             var metadata = ctor.getAnnotation(ExternalEntitlement.class);
@@ -161,8 +164,27 @@ public class PolicyParser {
                 entitlementConstructor = ctor;
                 entitlementMetadata = metadata;
             }
-
         }
+        for (var method : entitlementClass.getMethods()) {
+            var metadata = method.getAnnotation(ExternalEntitlement.class);
+            if (metadata != null) {
+                if (Modifier.isStatic(method.getModifiers()) == false) {
+                    throw new IllegalStateException(
+                        "entitlement class [" + entitlementClass.getName() + "] has non-static method annotated with ExternalEntitlement"
+                    );
+                }
+                if (entitlementMetadata != null) {
+                    throw new IllegalStateException(
+                        "entitlement class ["
+                            + entitlementClass.getName()
+                            + "] has more than one constructor and/or method annotated with ExternalEntitlement"
+                    );
+                }
+                entitlementMethod = method;
+                entitlementMetadata = metadata;
+            }
+        }
+
         if (entitlementMetadata == null) {
             throw newPolicyParserException(scopeName, "unknown entitlement type [" + entitlementType + "]");
         }
@@ -171,7 +193,9 @@ public class PolicyParser {
             throw newPolicyParserException("entitlement type [" + entitlementType + "] is allowed only on modules");
         }
 
-        Class<?>[] parameterTypes = entitlementConstructor.getParameterTypes();
+        Class<?>[] parameterTypes = entitlementConstructor != null
+            ? entitlementConstructor.getParameterTypes()
+            : entitlementMethod.getParameterTypes();
         String[] parametersNames = entitlementMetadata.parameterNames();
 
         if (parameterTypes.length != 0 || parametersNames.length != 0) {
@@ -204,7 +228,11 @@ public class PolicyParser {
         }
 
         try {
-            return (Entitlement) entitlementConstructor.newInstance(parameterValues);
+            if (entitlementConstructor != null) {
+                return (Entitlement) entitlementConstructor.newInstance(parameterValues);
+            } else {
+                return (Entitlement) entitlementMethod.invoke(null, parameterValues);
+            }
         } catch (InvocationTargetException | InstantiationException | IllegalAccessException e) {
             if (e.getCause() instanceof PolicyValidationException piae) {
                 throw newPolicyParserException(startLocation, scopeName, entitlementType, piae);

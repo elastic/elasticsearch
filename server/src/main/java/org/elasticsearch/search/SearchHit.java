@@ -751,7 +751,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         SearchHit.this.source = null;
 
         if (unfilteredSourceRef != null && circuitBreaker != null) {
-            System.out.println(" removing source loaded by inner hit " + unfilteredSourceRef.length());
             circuitBreaker.addWithoutBreaking(-unfilteredSourceRef.length());
         }
         this.unfilteredSourceRef = null;

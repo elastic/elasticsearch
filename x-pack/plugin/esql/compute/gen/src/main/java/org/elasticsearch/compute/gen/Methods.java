@@ -12,17 +12,19 @@ import com.squareup.javapoet.TypeName;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
-import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.ElementFilter;
+import javax.lang.model.util.Elements;
 
 import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.compute.gen.Types.BOOLEAN_BLOCK;
@@ -53,6 +55,115 @@ import static org.elasticsearch.compute.gen.Types.LONG_VECTOR_FIXED_BUILDER;
  * Finds declared methods for the code generator.
  */
 public class Methods {
+
+    static ExecutableElement requireStaticMethod(
+        TypeElement declarationType,
+        TypeMatcher returnTypeMatcher,
+        NameMatcher nameMatcher,
+        ArgumentMatcher argumentMatcher
+    ) {
+        return typeAndSuperType(declarationType).flatMap(type -> ElementFilter.methodsIn(type.getEnclosedElements()).stream())
+            .filter(method -> method.getModifiers().contains(Modifier.STATIC))
+            .filter(method -> nameMatcher.test(method.getSimpleName().toString()))
+            .filter(method -> returnTypeMatcher.test(TypeName.get(method.getReturnType())))
+            .filter(method -> argumentMatcher.test(method.getParameters().stream().map(it -> TypeName.get(it.asType())).toList()))
+            .findFirst()
+            .orElseThrow(() -> {
+                var message = nameMatcher.names.size() == 1 ? "Requires method: " : "Requires one of methods: ";
+                var signatures = nameMatcher.names.stream()
+                    .map(name -> "public static " + returnTypeMatcher + " " + declarationType + "#" + name + "(" + argumentMatcher + ")")
+                    .collect(joining(" or "));
+                return new IllegalArgumentException(message + signatures);
+            });
+    }
+
+    static NameMatcher requireName(String... names) {
+        return new NameMatcher(Set.of(names));
+    }
+
+    static TypeMatcher requireVoidType() {
+        return new TypeMatcher(type -> Objects.equals(TypeName.VOID, type), "void");
+    }
+
+    static TypeMatcher requireAnyType(String description) {
+        return new TypeMatcher(type -> true, description);
+    }
+
+    static TypeMatcher requirePrimitiveOrImplements(Elements elements, TypeName requiredInterface) {
+        return new TypeMatcher(
+            type -> type.isPrimitive() || isImplementing(elements, type, requiredInterface),
+            "[boolean|int|long|float|double|" + requiredInterface + "]"
+        );
+    }
+
+    static TypeMatcher requireType(TypeName requiredType) {
+        return new TypeMatcher(type -> Objects.equals(requiredType, type), requiredType.toString());
+    }
+
+    static ArgumentMatcher requireAnyArgs(String description) {
+        return new ArgumentMatcher(args -> true, description);
+    }
+
+    static ArgumentMatcher requireArgs(TypeMatcher... argTypes) {
+        return new ArgumentMatcher(
+            args -> args.size() == argTypes.length && IntStream.range(0, argTypes.length).allMatch(i -> argTypes[i].test(args.get(i))),
+            Stream.of(argTypes).map(TypeMatcher::toString).collect(joining(", "))
+        );
+    }
+
+    record NameMatcher(Set<String> names) implements Predicate<String> {
+        @Override
+        public boolean test(String name) {
+            return names.contains(name);
+        }
+    }
+
+    record TypeMatcher(Predicate<TypeName> matcher, String description) implements Predicate<TypeName> {
+        @Override
+        public boolean test(TypeName typeName) {
+            return matcher.test(typeName);
+        }
+
+        @Override
+        public String toString() {
+            return description;
+        }
+    }
+
+    record ArgumentMatcher(Predicate<List<TypeName>> matcher, String description) implements Predicate<List<TypeName>> {
+        @Override
+        public boolean test(List<TypeName> typeName) {
+            return matcher.test(typeName);
+        }
+
+        @Override
+        public String toString() {
+            return description;
+        }
+    }
+
+    private static boolean isImplementing(Elements elements, TypeName type, TypeName requiredInterface) {
+        return allInterfacesOf(elements, type).anyMatch(
+            anInterface -> Objects.equals(anInterface.toString(), requiredInterface.toString())
+        );
+    }
+
+    private static Stream<TypeName> allInterfacesOf(Elements elements, TypeName type) {
+        return elements.getTypeElement(type.toString())
+            .getInterfaces()
+            .stream()
+            .map(TypeName::get)
+            .flatMap(anInterface -> Stream.concat(Stream.of(anInterface), allInterfacesOf(elements, anInterface)));
+    }
+
+    private static Stream<TypeElement> typeAndSuperType(TypeElement declarationType) {
+        if (declarationType.getSuperclass() instanceof DeclaredType declaredType
+            && declaredType.asElement() instanceof TypeElement superType) {
+            return Stream.of(declarationType, superType);
+        } else {
+            return Stream.of(declarationType);
+        }
+    }
 
     static ExecutableElement findRequiredMethod(TypeElement declarationType, String[] names, Predicate<ExecutableElement> filter) {
         ExecutableElement result = findMethod(names, filter, declarationType, superClassOf(declarationType));
@@ -98,33 +209,6 @@ public class Methods {
             }
         }
         return null;
-    }
-
-    static void requireMethod(TypeElement element, String name, String returnType, String... parameterTypes) {
-        var method = findMethod(new String[] { name }, e -> true, element, superClassOf(element));
-        if (method == null || isNotSame(method.getReturnType(), returnType) || isNotSame(method.getParameters(), parameterTypes)) {
-            throw new IllegalArgumentException("Requires method " + signature(element, name, returnType, parameterTypes));
-        }
-    }
-
-    private static boolean isNotSame(TypeMirror type, String required) {
-        return Objects.equals(type.toString(), required) == false;
-    }
-
-    private static boolean isNotSame(List<? extends VariableElement> types, String[] required) {
-        if (types.size() != required.length) {
-            return true;
-        }
-        for (int i = 0; i < types.size(); i++) {
-            if (isNotSame(types.get(i).asType(), required[i])) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static String signature(TypeElement element, String name, String returnType, String[] parameterTypes) {
-        return "public static " + returnType + " " + element + "#" + name + Stream.of(parameterTypes).collect(joining(", ", "(", ")"));
     }
 
     /**

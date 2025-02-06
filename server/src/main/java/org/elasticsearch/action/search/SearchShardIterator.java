@@ -128,6 +128,10 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
         return targetNodesIterator.asList();
     }
 
+    void reset() {
+        targetNodesIterator.reset();
+    }
+
     /**
      * Returns <code>true</code> if the search execution should skip this shard since it can not match any documents given the query.
      */

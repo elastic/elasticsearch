@@ -434,6 +434,7 @@ final class CanMatchPreFilterSearchPhase {
         }
         int i = 0;
         for (SearchShardIterator iter : shardsIts) {
+            iter.reset();
             boolean match = possibleMatches.get(i++);
             if (match) {
                 assert iter.skip() == false;

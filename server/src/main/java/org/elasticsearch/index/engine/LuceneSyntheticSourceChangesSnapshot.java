@@ -86,7 +86,7 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
         this.sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
         Set<String> storedFields = sourceLoader.requiredStoredFields();
 
-        this.storedFieldLoader = StoredFieldLoader.createLoaderWithMaybeSequentialReader(storedFields);
+        this.storedFieldLoader = StoredFieldLoader.create(false, storedFields);
         this.lastSeenSeqNo = fromSeqNo - 1;
     }
 
@@ -202,10 +202,11 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
                         continue;
                     }
                     int docID = record.docID();
-                    if (docID >= docBase && docID < docBase + maxDoc) {
-                        int segmentDocID = docID - docBase;
-                        nextDocIds.add(segmentDocID);
+                    if (docID >= docBase + maxDoc) {
+                        break;
                     }
+                    int segmentDocID = docID - docBase;
+                    nextDocIds.add(segmentDocID);
                 }
 
                 int[] nextDocIdArray = nextDocIds.toArray();

@@ -235,35 +235,4 @@ public abstract class StoredFieldLoader {
         }
     }
 
-    public static StoredFieldLoader createLoaderWithMaybeSequentialReader(Set<String> fields) {
-        List<String> fieldsToLoad = fieldsToLoad(false, fields);
-        return new StoredFieldLoader() {
-            @Override
-            public LeafStoredFieldLoader getLoader(LeafReaderContext ctx, int[] docs) throws IOException {
-                return new ReaderStoredFieldLoader(maybeSequentialReaderWithSmallDocIdGaps(ctx, docs), false, fields);
-            }
-
-            @Override
-            public List<String> fieldsToLoad() {
-                return fieldsToLoad;
-            }
-        };
-    }
-
-    private static CheckedBiConsumer<Integer, FieldsVisitor, IOException> maybeSequentialReaderWithSmallDocIdGaps(
-        LeafReaderContext ctx,
-        int[] docs
-    ) throws IOException {
-        LeafReader leafReader = ctx.reader();
-        if (docs != null && docs.length > 10 && hasNearSequentialDocs(docs)) {
-            return sequentialReader(ctx);
-        }
-        StoredFields storedFields = leafReader.storedFields();
-        return storedFields::document;
-    }
-
-    private static boolean hasNearSequentialDocs(int[] docs) {
-        return docs.length > 0 && docs[docs.length - 1] - docs[0] <= (1.2 * docs.length - 1);
-    }
-
 }

@@ -205,12 +205,16 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
             entry("symbol_lookup_name", new CheckAction(VersionSpecificNativeChecks::symbolLookupWithName, false, 22)),
             entry("symbol_lookup_path", new CheckAction(VersionSpecificNativeChecks::symbolLookupWithPath, false, 22)),
 
-            entry("java_lang_Thread$setContextClassLoader", forPlugins(RestEntitlementsCheckAction::java_lang_Thread$setContextClassLoader)),
+            entry(
+                "java_lang_Thread$setContextClassLoader",
+                forPlugins(RestEntitlementsCheckAction::java_lang_Thread$setContextClassLoader)
+            ),
             entry("java_lang_Thread$_1", deniedToPlugins(RestEntitlementsCheckAction::java_lang_Thread$_1)),
             entry("java_lang_Thread$_2", deniedToPlugins(RestEntitlementsCheckAction::java_lang_Thread$_2)),
             entry("java_lang_Thread$_3", deniedToPlugins(RestEntitlementsCheckAction::java_lang_Thread$_3)),
             entry("java_lang_Thread$_4", deniedToPlugins(RestEntitlementsCheckAction::java_lang_Thread$_4)),
-            // entry("java_lang_Thread$_5", deniedToPlugins(RestEntitlementsCheckAction::java_lang_Thread$_5)), // This check is not yet active
+            // entry("java_lang_Thread$_5", deniedToPlugins(RestEntitlementsCheckAction::java_lang_Thread$_5)), // This check is not yet
+            // active
             entry("java_lang_Thread$_6", deniedToPlugins(RestEntitlementsCheckAction::java_lang_Thread$_6)),
             entry("java_lang_Thread$_7", deniedToPlugins(RestEntitlementsCheckAction::java_lang_Thread$_7)),
             entry(
@@ -223,10 +227,22 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
             ),
             entry("java_lang_ThreadGroup$_1", deniedToPlugins(RestEntitlementsCheckAction::java_lang_ThreadGroup$_1)),
             entry("java_lang_ThreadGroup$_2", deniedToPlugins(RestEntitlementsCheckAction::java_lang_ThreadGroup$_2)),
-            entry("java_util_concurrent_ForkJoinPool$_1", deniedToPlugins(RestEntitlementsCheckAction::java_util_concurrent_ForkJoinPool$_1)),
-            entry("java_util_concurrent_ForkJoinPool$_2", deniedToPlugins(RestEntitlementsCheckAction::java_util_concurrent_ForkJoinPool$_2)),
-            entry("java_util_concurrent_ForkJoinPool$_3", deniedToPlugins(RestEntitlementsCheckAction::java_util_concurrent_ForkJoinPool$_3)),
-            entry("java_util_concurrent_ForkJoinPool$_4", deniedToPlugins(RestEntitlementsCheckAction::java_util_concurrent_ForkJoinPool$_4)),
+            entry(
+                "java_util_concurrent_ForkJoinPool$_1",
+                deniedToPlugins(RestEntitlementsCheckAction::java_util_concurrent_ForkJoinPool$_1)
+            ),
+            entry(
+                "java_util_concurrent_ForkJoinPool$_2",
+                deniedToPlugins(RestEntitlementsCheckAction::java_util_concurrent_ForkJoinPool$_2)
+            ),
+            entry(
+                "java_util_concurrent_ForkJoinPool$_3",
+                deniedToPlugins(RestEntitlementsCheckAction::java_util_concurrent_ForkJoinPool$_3)
+            ),
+            entry(
+                "java_util_concurrent_ForkJoinPool$_4",
+                deniedToPlugins(RestEntitlementsCheckAction::java_util_concurrent_ForkJoinPool$_4)
+            ),
             entry(
                 "java_util_concurrent_ForkJoinPool$DefaultForkJoinWorkerThreadFactory$newThread",
                 deniedToPlugins(RestEntitlementsCheckAction::java_util_concurrent_ForkJoinPool$DefaultForkJoinWorkerThreadFactory$newThread)
@@ -285,7 +301,10 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
                 "java_lang_Thread$setUncaughtExceptionHandler",
                 deniedToPlugins(RestEntitlementsCheckAction::java_lang_Thread$setUncaughtExceptionHandler)
             ),
-            entry("java_lang_ThreadGroup$setMaxPriority", deniedToPlugins(RestEntitlementsCheckAction::java_lang_ThreadGroup$setMaxPriority))
+            entry(
+                "java_lang_ThreadGroup$setMaxPriority",
+                deniedToPlugins(RestEntitlementsCheckAction::java_lang_ThreadGroup$setMaxPriority)
+            )
         ),
         getTestEntries(FileCheckActions.class),
         getTestEntries(SpiActions.class),

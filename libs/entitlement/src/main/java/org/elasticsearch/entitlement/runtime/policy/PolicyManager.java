@@ -233,7 +233,11 @@ public class PolicyManager {
         // Look up the check$ method to compose an informative error message.
         // This way, we don't need to painstakingly describe every individual global-state change.
         return StackWalker.getInstance()
-            .walk(frames -> frames.map(StackFrame::getMethodName).dropWhile(not(methodName -> methodName.startsWith(InstrumentationService.CHECK_METHOD_PREFIX))).findFirst())
+            .walk(
+                frames -> frames.map(StackFrame::getMethodName)
+                    .dropWhile(not(methodName -> methodName.startsWith(InstrumentationService.CHECK_METHOD_PREFIX)))
+                    .findFirst()
+            )
             .map(this::operationDescription);
     }
 

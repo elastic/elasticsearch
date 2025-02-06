@@ -108,7 +108,9 @@ public class PolicyParser {
                     return;
                 }
             }
-            throw new AssertionError("External entitlement class must have a constructor or factory method with @ExternalEntitlement annotation: " + type);
+            throw new AssertionError(
+                "External entitlement class must have a constructor or factory method with @ExternalEntitlement annotation: " + type
+            );
         });
         return externalEntitlements;
     }

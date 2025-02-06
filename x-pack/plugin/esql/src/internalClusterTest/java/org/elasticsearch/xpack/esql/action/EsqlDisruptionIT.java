@@ -79,6 +79,7 @@ public class EsqlDisruptionIT extends EsqlActionIT {
     }
 
     private EsqlQueryResponse runQueryWithDisruption(EsqlQueryRequest request) {
+        request.allowPartialResults(false);
         final ServiceDisruptionScheme disruptionScheme = addRandomDisruptionScheme();
         logger.info("--> start disruption scheme [{}]", disruptionScheme);
         disruptionScheme.startDisrupting();
@@ -113,6 +114,7 @@ public class EsqlDisruptionIT extends EsqlActionIT {
             ensureBlocksReleased();
             logger.info("--> failed to execute esql query with disruption; retrying...", e);
             EsqlTestUtils.assertEsqlFailure(e);
+            request.allowPartialResults(false);
             return client().execute(EsqlQueryAction.INSTANCE, request).actionGet(2, TimeUnit.MINUTES);
         }
     }

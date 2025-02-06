@@ -322,8 +322,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final Tracer tracer;
 
-    private final CircuitBreaker circuitBreaker;
-
     public SearchService(
         ClusterService clusterService,
         IndicesService indicesService,
@@ -342,8 +340,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.scriptService = scriptService;
         this.bigArrays = bigArrays;
         this.fetchPhase = fetchPhase;
-        this.circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
-        this.multiBucketConsumerService = new MultiBucketConsumerService(clusterService, settings, circuitBreaker);
+        this.multiBucketConsumerService = new MultiBucketConsumerService(
+            clusterService,
+            settings,
+            circuitBreakerService.getBreaker(CircuitBreaker.REQUEST)
+        );
         this.executorSelector = executorSelector;
         this.tracer = tracer;
 
@@ -388,10 +389,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         enableQueryPhaseParallelCollection = QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.get(settings);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED, this::setEnableQueryPhaseParallelCollection);
-    }
-
-    public CircuitBreaker circuitBreaker() {
-        return circuitBreaker;
     }
 
     private void setEnableSearchWorkerThreads(boolean enableSearchWorkerThreads) {

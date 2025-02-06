@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.esql.enrich;
 
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,7 +30,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.List;

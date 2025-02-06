@@ -144,6 +144,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             if (analyzer != null) {
                 return analyze(request, analyzer, maxTokenCount);
             }
+        } catch (IllegalStateException e) {
+            throw new IllegalArgumentException("Can not build a custom analyzer", e);
         }
 
         // Otherwise we use a built-in analyzer, which should not be closed

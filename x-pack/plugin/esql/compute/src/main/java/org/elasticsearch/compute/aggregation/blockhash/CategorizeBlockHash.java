@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategorizer;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -216,7 +217,7 @@ public class CategorizeBlockHash extends BlockHash {
      *     The BytesRef is accounted for in the breaker, and its accounted value is returned too for future adjustments.
      * </p>
      * <p>
-     *     If the BytesRef is goind to be added to somewhere that will adjust the breaker, the pre-adjusted should be then
+     *     If the BytesRef is going to be added to somewhere that will adjust the breaker, the pre-adjusted should be then
      *     subtracted from the breaker.
      * </p>
      */
@@ -234,7 +235,7 @@ public class CategorizeBlockHash extends BlockHash {
             preAdjustedBytes = null;
             return result;
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new UncheckedIOException(e);
         } finally {
             if (preAdjustedBytes != null) {
                 blockFactory.breaker().addWithoutBreaking(-preAdjustedBytes);

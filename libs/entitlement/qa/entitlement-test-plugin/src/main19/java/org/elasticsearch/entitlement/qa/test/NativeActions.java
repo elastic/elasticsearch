@@ -22,22 +22,17 @@ import java.nio.file.Path;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
+import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
 
-class VersionSpecificNativeChecks {
+class NativeActions {
 
-    static void enableNativeAccess() throws Exception {
-        // Available only from Java20
-    }
-
-    static void addressLayoutWithTargetLayout() {
-        // Available only from Java20
-    }
-
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void linkerDowncallHandle() {
         Linker linker = Linker.nativeLinker();
         linker.downcallHandle(FunctionDescriptor.of(JAVA_LONG, ADDRESS));
     }
 
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void linkerDowncallHandleWithAddress() {
         Linker linker = Linker.nativeLinker();
         linker.downcallHandle(linker.defaultLookup().lookup("strlen").get(), FunctionDescriptor.of(JAVA_LONG, ADDRESS));
@@ -47,12 +42,13 @@ class VersionSpecificNativeChecks {
         return 0;
     }
 
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void linkerUpcallStub() throws NoSuchMethodException {
         Linker linker = Linker.nativeLinker();
 
         MethodHandle mh = null;
         try {
-            mh = MethodHandles.lookup().findStatic(VersionSpecificNativeChecks.class, "callback", MethodType.methodType(int.class));
+            mh = MethodHandles.lookup().findStatic(NativeActions.class, "callback", MethodType.methodType(int.class));
         } catch (IllegalAccessException e) {
             assert false;
         }
@@ -61,6 +57,7 @@ class VersionSpecificNativeChecks {
         linker.upcallStub(mh, callbackDescriptor, MemorySession.openImplicit());
     }
 
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void memorySegmentReinterpret() {
         MemorySession scope = MemorySession.openImplicit();
         MemorySegment someSegment;
@@ -73,14 +70,7 @@ class VersionSpecificNativeChecks {
         }
     }
 
-    static void memorySegmentReinterpretWithCleanup() {
-        // No equivalent to this function before Java20
-    }
-
-    static void memorySegmentReinterpretWithSize() {
-        // No equivalent to this function before Java20
-    }
-
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void symbolLookupWithPath() {
         try {
             SymbolLookup.libraryLookup(Path.of("/foo/bar/libFoo.so"), MemorySession.openImplicit());
@@ -89,6 +79,7 @@ class VersionSpecificNativeChecks {
         }
     }
 
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void symbolLookupWithName() {
         try {
             SymbolLookup.libraryLookup("foo", MemorySession.openImplicit());

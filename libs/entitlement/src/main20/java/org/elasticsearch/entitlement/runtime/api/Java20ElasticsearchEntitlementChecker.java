@@ -59,6 +59,11 @@ public class Java20ElasticsearchEntitlementChecker extends ElasticsearchEntitlem
     }
 
     @Override
+    public void check$java_lang_foreign_MemorySegment$$ofAddress(Class<?> callerClass, long address) {
+        policyManager.checkLoadingNativeLibraries(callerClass);
+    }
+
+    @Override
     public void check$java_lang_foreign_MemorySegment$$ofAddress(Class<?> callerClass, long address, long byteSize) {
         policyManager.checkLoadingNativeLibraries(callerClass);
     }

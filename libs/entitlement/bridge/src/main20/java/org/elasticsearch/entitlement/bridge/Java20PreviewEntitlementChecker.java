@@ -55,6 +55,12 @@ public interface Java20PreviewEntitlementChecker {
 
     /**
      * This function signature changes from Java 19 to Java 20.
+     * It is superseded by {@code MemorySegment.reinterpret} in the final implementation (Java 21+)
+     */
+    void check$java_lang_foreign_MemorySegment$$ofAddress(Class<?> callerClass, long address);
+
+    /**
+     * This function signature changes from Java 19 to Java 20.
      * See docs: https://docs.oracle.com/en/java/javase/20/docs/api/java.base/java/lang/foreign/MemorySegment.html#ofAddress(long,long,java.lang.foreign.SegmentScope)
      *
      * It is superseded by {@code MemorySegment.reinterpret} in the final implementation (Java 21+)

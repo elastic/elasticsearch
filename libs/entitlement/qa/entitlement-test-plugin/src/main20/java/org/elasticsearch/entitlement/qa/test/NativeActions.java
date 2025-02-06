@@ -28,9 +28,12 @@ import java.util.Set;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
+import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
+import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.SERVER_ONLY;
 
-class VersionSpecificNativeChecks {
+class NativeActions {
 
+    @EntitlementTest(expectedAccess = SERVER_ONLY)
     static void enableNativeAccess() throws Exception {
         ModuleLayer parent = ModuleLayer.boot();
 
@@ -47,15 +50,13 @@ class VersionSpecificNativeChecks {
         controller.enableNativeAccess(targetModule.get());
     }
 
-    static void addressLayoutWithTargetLayout() {
-        // No equivalent to this function before Java21
-    }
-
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void linkerDowncallHandle() {
         Linker linker = Linker.nativeLinker();
         linker.downcallHandle(FunctionDescriptor.of(JAVA_LONG, ADDRESS));
     }
 
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void linkerDowncallHandleWithAddress() {
         Linker linker = Linker.nativeLinker();
         linker.downcallHandle(linker.defaultLookup().find("strlen").get(), FunctionDescriptor.of(JAVA_LONG, ADDRESS));
@@ -65,12 +66,13 @@ class VersionSpecificNativeChecks {
         return 0;
     }
 
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void linkerUpcallStub() throws NoSuchMethodException {
         Linker linker = Linker.nativeLinker();
 
         MethodHandle mh = null;
         try {
-            mh = MethodHandles.lookup().findStatic(VersionSpecificNativeChecks.class, "callback", MethodType.methodType(int.class));
+            mh = MethodHandles.lookup().findStatic(NativeActions.class, "callback", MethodType.methodType(int.class));
         } catch (IllegalAccessException e) {
             assert false;
         }
@@ -79,7 +81,8 @@ class VersionSpecificNativeChecks {
         linker.upcallStub(mh, callbackDescriptor, SegmentScope.auto());
     }
 
-    static void memorySegmentReinterpret() {
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void memorySegmentReinterpretAsUnbounded() {
         SegmentScope scope = SegmentScope.global();
         MemorySegment someSegment;
         try {
@@ -91,18 +94,46 @@ class VersionSpecificNativeChecks {
         }
     }
 
-    static void memorySegmentReinterpretWithCleanup() {
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void memorySegmentReinterpret() {
         SegmentScope scope = SegmentScope.global();
         MemorySegment someSegment;
         try {
             someSegment = MemorySegment.allocateNative(100, scope);
-            MemorySegment foreign = someSegment.get(ValueLayout.ADDRESS, 0); // wrap address into segment (size = 0)
-            MemorySegment segment = MemorySegment.ofAddress(foreign.address(), 4, scope, () -> {}); // create new segment (size = 4)
+            MemorySegment foreign = someSegment.get(ValueLayout.ADDRESS, 0);
+            MemorySegment segment = MemorySegment.ofAddress(foreign.address());
         } finally {
             someSegment = null;
         }
     }
 
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void memorySegmentReinterpretWithoutScope() {
+        SegmentScope scope = SegmentScope.global();
+        MemorySegment someSegment;
+        try {
+            someSegment = MemorySegment.allocateNative(100, scope);
+            MemorySegment foreign = someSegment.get(ValueLayout.ADDRESS, 0);
+            MemorySegment segment = MemorySegment.ofAddress(foreign.address(), 4);
+        } finally {
+            someSegment = null;
+        }
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void memorySegmentReinterpretWithCleanup() {
+        SegmentScope scope = SegmentScope.global();
+        MemorySegment someSegment;
+        try {
+            someSegment = MemorySegment.allocateNative(100, scope);
+            MemorySegment foreign = someSegment.get(ValueLayout.ADDRESS, 0);
+            MemorySegment segment = MemorySegment.ofAddress(foreign.address(), 4, scope, () -> {});
+        } finally {
+            someSegment = null;
+        }
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void memorySegmentReinterpretWithSize() {
         SegmentScope scope = SegmentScope.global();
         MemorySegment someSegment;
@@ -115,6 +146,7 @@ class VersionSpecificNativeChecks {
         }
     }
 
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void symbolLookupWithPath() {
         try {
             SymbolLookup.libraryLookup(Path.of("/foo/bar/libFoo.so"), SegmentScope.auto());
@@ -123,6 +155,7 @@ class VersionSpecificNativeChecks {
         }
     }
 
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void symbolLookupWithName() {
         try {
             SymbolLookup.libraryLookup("foo", SegmentScope.auto());

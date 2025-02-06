@@ -13,7 +13,6 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.query.QueryBuilder;

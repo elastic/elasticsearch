@@ -119,6 +119,7 @@ public class IndexEngine extends InternalEngine {
 
     private final AtomicBoolean ongoingFlushMustUpload = new AtomicBoolean(false);
     private final AtomicInteger forceMergesInProgress = new AtomicInteger(0);
+    private final AtomicInteger queuedOrRunningMergesCount = new AtomicInteger();
 
     @SuppressWarnings("this-escape")
     public IndexEngine(
@@ -747,11 +748,27 @@ public class IndexEngine extends InternalEngine {
                 ),
                 () -> forceMergesInProgress.get() == 0 && shouldSkipMerges.test(shardId),
                 this::onAfterMerge,
-                this::mergeException
+                this::mergeException,
+                this::onMergeEnqueued,
+                this::onMergeExecutedOrAborted
             );
         } else {
             return super.createMergeScheduler(shardId, indexSettings);
         }
+    }
+
+    private void onMergeEnqueued(OnGoingMerge merge) {
+        var queuedOrRunningMerges = queuedOrRunningMergesCount.incrementAndGet();
+        assert queuedOrRunningMerges > 0;
+    }
+
+    private void onMergeExecutedOrAborted(OnGoingMerge merge) {
+        var remainingMerges = queuedOrRunningMergesCount.decrementAndGet();
+        assert remainingMerges >= 0;
+    }
+
+    public boolean hasQueuedOrRunningMerges() {
+        return queuedOrRunningMergesCount.get() > 0;
     }
 
     public record EngineMetrics(TranslogRecoveryMetrics translogRecoveryMetrics, MergeMetrics mergeMetrics) {}

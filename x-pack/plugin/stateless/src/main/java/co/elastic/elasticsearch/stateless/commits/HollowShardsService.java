@@ -176,7 +176,7 @@ public class HollowShardsService extends AbstractLifecycleComponent {
                         && Objects.equals(dataStream.getWriteIndex(), index) == false
                         && Objects.equals(dataStream.getWriteFailureIndex(), index) == false;
                     final TimeValue ttl = dsNonWrite ? ingestionDataStreamNonWriteTtl : ingestionTtl;
-                    return engineHasNoIngestion(indexEngine, ttl);
+                    return engineHasNoIngestion(indexEngine, ttl) && indexEngine.hasQueuedOrRunningMerges() == false;
                 }
             }
         }

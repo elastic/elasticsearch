@@ -161,7 +161,8 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         }
         final var memory = ByteSizeValue.readFrom(in);
         final var storage = ByteSizeValue.readFrom(in);
-        if (in.getTransportVersion().before(TransportVersions.REMOVE_DESIRED_NODE_VERSION)) {
+        if (in.getTransportVersion().before(TransportVersions.REMOVE_DESIRED_NODE_VERSION) &&
+            in.getTransportVersion().isPatchFrom(TransportVersions.REMOVE_DESIRED_NODE_VERSION_90) == false) {
             in.readOptionalString();
         }
         return new DesiredNode(settings, processors, processorsRange, memory, storage);
@@ -180,7 +181,8 @@ public final class DesiredNode implements Writeable, ToXContentObject, Comparabl
         }
         memory.writeTo(out);
         storage.writeTo(out);
-        if (out.getTransportVersion().before(TransportVersions.REMOVE_DESIRED_NODE_VERSION)) {
+        if (out.getTransportVersion().before(TransportVersions.REMOVE_DESIRED_NODE_VERSION) &&
+            out.getTransportVersion().isPatchFrom(TransportVersions.REMOVE_DESIRED_NODE_VERSION_90) == false) {
             out.writeOptionalString(null);
         }
     }

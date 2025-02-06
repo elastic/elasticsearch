@@ -109,7 +109,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -1677,7 +1676,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
 
         ActionListener<List<Model>> resultsListener = ActionListener.wrap(updatedModels -> {
             assertEquals(updatedModels.size(), 1);
-            verify(model, times(2)).mlNodeDeploymentId();
+            verify(model).mlNodeDeploymentId();
             verifyNoMoreInteractions(model);
         }, e -> fail("Expected original models to be returned"));
 
@@ -1752,7 +1751,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 var expectedNumberOfAllocations = updatedNumberOfAllocations.get(deploymentId);
                 models.forEach(model -> {
                     verify((ElasticsearchInternalModel) model).updateNumAllocations(expectedNumberOfAllocations);
-                    verify((ElasticsearchInternalModel) model, times(2)).mlNodeDeploymentId();
+                    verify((ElasticsearchInternalModel) model).mlNodeDeploymentId();
                     verifyNoMoreInteractions(model);
                 });
             });

@@ -859,15 +859,10 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             assert model instanceof ElasticsearchInternalModel;
 
             if (model instanceof ElasticsearchInternalModel esModel) {
-                if (modelsByDeploymentIds.containsKey(esModel.mlNodeDeploymentId()) == false) {
-                    modelsByDeploymentIds.put(esModel.mlNodeDeploymentId(), new ArrayList<>() {
-                        {
-                            add(esModel);
-                        }
-                    });
-                } else {
-                    modelsByDeploymentIds.get(esModel.mlNodeDeploymentId()).add(esModel);
-                }
+                modelsByDeploymentIds.merge(esModel.mlNodeDeploymentId(), new ArrayList<>(List.of(esModel)), (a, b) -> {
+                    a.addAll(b);
+                    return a;
+                });
             } else {
                 listener.onFailure(
                     new ElasticsearchStatusException(

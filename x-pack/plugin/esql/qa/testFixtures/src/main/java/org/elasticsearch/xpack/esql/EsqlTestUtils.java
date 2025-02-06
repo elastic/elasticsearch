@@ -389,7 +389,7 @@ public final class EsqlTestUtils {
             false,
             TABLES,
             System.nanoTime(),
-          false
+            false
         );
     }
 

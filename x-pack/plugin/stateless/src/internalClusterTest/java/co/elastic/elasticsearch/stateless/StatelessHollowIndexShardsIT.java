@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
+import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
@@ -27,6 +28,7 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -85,6 +87,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -104,6 +107,7 @@ import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrim
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.is;
@@ -113,6 +117,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -572,6 +577,168 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
             var engine = indexShard.getEngineOrNull();
             assertThat(engine, instanceOf(IndexEngine.class));
         }
+    }
+
+    public void testFlushesOnHollowShards() throws Exception {
+        startMasterOnlyNode();
+        final var indexNodes = startIndexNodes(
+            2,
+            Settings.builder()
+                .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+                .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.ZERO)
+                .build()
+        );
+        ensureStableCluster(3);
+
+        final var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.exclude._name", indexNodes.getLast()).build());
+        final var index = resolveIndex(indexName);
+        ensureGreen(indexName);
+
+        int numDocs = randomIntBetween(10, 100);
+        indexDocs(indexName, numDocs);
+
+        var handoffFuture = new PlainActionFuture<StatelessCompoundCommit>();
+        MockTransportService.getInstance(indexNodes.getFirst()).addSendBehavior((connection, requestId, action, request, options) -> {
+            if (PRIMARY_CONTEXT_HANDOFF_ACTION_NAME.equals(action)) {
+                ActionListener.completeWith(
+                    handoffFuture,
+                    () -> internalCluster().getInstance(StatelessCommitService.class, indexNodes.getFirst())
+                        .getLatestUploadedBcc(new ShardId(index, 0))
+                        .lastCompoundCommit()
+                );
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodes.getFirst()));
+        final var hollowCommit = safeGet(handoffFuture);
+        final var hollowCommitFiles = Set.copyOf(hollowCommit.commitFiles().keySet());
+        ensureGreen(indexName);
+
+        var relocatedShard = findIndexShard(resolveIndex(indexName), 0);
+        var relocatedEngine = getShardEngine(relocatedShard, HollowIndexEngine.class);
+        assertThat(Set.of(relocatedShard.store().directory().listAll()), equalTo(hollowCommitFiles));
+        assertThat(relocatedEngine.getLastCommittedSegmentInfos().files(true), equalTo(hollowCommitFiles));
+
+        final var threads = new Thread[randomIntBetween(2, 5)];
+        final var flushes = new AtomicLong(threads.length * randomLongBetween(2L, 5L));
+        final var latch = new CountDownLatch(threads.length);
+        for (int i = 0; i < threads.length; i++) {
+            threads[i] = new Thread(() -> {
+                try {
+                    while (flushes.decrementAndGet() > 0) {
+                        var response = safeGet(indicesAdmin().prepareFlush(indexName).execute());
+                        assertAllSuccessful(response);
+
+                        var hollowShard = findIndexShard(resolveIndex(indexName), 0);
+                        var hollowEngine = getShardEngine(hollowShard, HollowIndexEngine.class);
+                        assertThat(Set.of(hollowShard.store().directory().listAll()), equalTo(hollowCommitFiles));
+                        assertThat(hollowEngine.getLastCommittedSegmentInfos().files(true), equalTo(hollowCommitFiles));
+
+                        safeSleep(randomLongBetween(100, 500));
+                    }
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                } finally {
+                    latch.countDown();
+                }
+            });
+            threads[i].start();
+        }
+
+        safeAwait(latch);
+
+        for (Thread thread : threads) {
+            thread.join();
+        }
+
+        assertThat(flushes.get(), lessThanOrEqualTo(0L));
+        assertThat(Set.of(relocatedShard.store().directory().listAll()), equalTo(hollowCommitFiles));
+        assertThat(relocatedEngine.getLastCommittedSegmentInfos().files(true), equalTo(hollowCommitFiles));
+    }
+
+    public void testRefreshesOnHollowShards() throws Exception {
+        startMasterOnlyNode();
+        final var indexNodes = startIndexNodes(
+            2,
+            Settings.builder()
+                .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+                .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.ZERO)
+                .build()
+        );
+        final var searchNodes = startSearchNodes(2);
+        ensureStableCluster(5);
+
+        final var indexName = randomIdentifier();
+        createIndex(
+            indexName,
+            indexSettings(1, randomIntBetween(1, 2)).put("index.routing.allocation.exclude._name", indexNodes.getLast()).build()
+        );
+        final var index = resolveIndex(indexName);
+        ensureGreen(indexName);
+
+        int numDocs = randomIntBetween(10, 100);
+        indexDocs(indexName, numDocs);
+
+        var handoffFuture = new PlainActionFuture<StatelessCompoundCommit>();
+        MockTransportService.getInstance(indexNodes.getFirst()).addSendBehavior((connection, requestId, action, request, options) -> {
+            if (PRIMARY_CONTEXT_HANDOFF_ACTION_NAME.equals(action)) {
+                ActionListener.completeWith(
+                    handoffFuture,
+                    () -> internalCluster().getInstance(StatelessCommitService.class, indexNodes.getFirst())
+                        .getLatestUploadedBcc(new ShardId(index, 0))
+                        .lastCompoundCommit()
+                );
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodes.getFirst()));
+        final var hollowCommit = safeGet(handoffFuture);
+        final var hollowCommitFiles = Set.copyOf(hollowCommit.commitFiles().keySet());
+        ensureGreen(indexName);
+
+        var relocatedShard = findIndexShard(resolveIndex(indexName), 0);
+        var relocatedEngine = getShardEngine(relocatedShard, HollowIndexEngine.class);
+        assertThat(Set.of(relocatedShard.store().directory().listAll()), equalTo(hollowCommitFiles));
+        assertThat(relocatedEngine.getLastCommittedSegmentInfos().files(true), equalTo(hollowCommitFiles));
+
+        final var threads = new Thread[randomIntBetween(2, 5)];
+        final var refreshes = new AtomicLong(threads.length * randomLongBetween(2L, 5L));
+        final var latch = new CountDownLatch(threads.length);
+        for (int i = 0; i < threads.length; i++) {
+            threads[i] = new Thread(() -> {
+                try {
+                    while (refreshes.decrementAndGet() > 0) {
+                        var response = safeGet(indicesAdmin().prepareRefresh(indexName).execute());
+                        assertAllSuccessful(response);
+
+                        var hollowShard = findIndexShard(resolveIndex(indexName), 0);
+                        var hollowEngine = getShardEngine(hollowShard, HollowIndexEngine.class);
+                        assertThat(Set.of(hollowShard.store().directory().listAll()), equalTo(hollowCommitFiles));
+                        assertThat(hollowEngine.getLastCommittedSegmentInfos().files(true), equalTo(hollowCommitFiles));
+
+                        safeSleep(randomLongBetween(100, 500));
+                    }
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                } finally {
+                    latch.countDown();
+                }
+            });
+            threads[i].start();
+        }
+
+        safeAwait(latch);
+
+        for (Thread thread : threads) {
+            thread.join();
+        }
+
+        assertThat(refreshes.get(), lessThanOrEqualTo(0L));
+        assertThat(Set.of(relocatedShard.store().directory().listAll()), equalTo(hollowCommitFiles));
+        assertThat(relocatedEngine.getLastCommittedSegmentInfos().files(true), equalTo(hollowCommitFiles));
     }
 
     private CountDownLatch breakRelocation(String nodeA, String nodeB, String recoveryActionToBlock) {

@@ -33,7 +33,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -660,10 +659,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testNamedParamsForIdentifierAndIdentifierPatterns() throws IOException {
-        assumeTrue(
-            "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
-        );
         bulkLoadTestData(10);
         // positive
         var query = requestObjectBuilder().query(
@@ -771,6 +766,33 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             assertThat(error, containsString("ParsingException"));
             assertThat(error, containsString("line 1:23: mismatched input '?cmd' expecting {'dissect', 'drop'"));
         }
+    }
+
+    public void testErrorMessageForMissingParams() throws IOException {
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> runEsql(requestObjectBuilder().query("from idx | where x == ?n1").params("[]"))
+        );
+        assertThat(
+            EntityUtils.toString(re.getResponse().getEntity()).replaceAll("\\\\\n\s+\\\\", ""),
+            containsString("line 1:23: Unknown query parameter [n1]")
+        );
+
+        re = expectThrows(
+            ResponseException.class,
+            () -> runEsql(requestObjectBuilder().query("from idx | where x == ?n1 and y == ?n2").params("[{\"n\" : \"v\"}]"))
+        );
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()).replaceAll("\\\\\n\s+\\\\", ""), containsString("""
+            line 1:23: Unknown query parameter [n1], did you mean [n]?; line 1:36: Unknown query parameter [n2], did you mean [n]?"""));
+
+        re = expectThrows(
+            ResponseException.class,
+            () -> runEsql(requestObjectBuilder().query("from idx | where x == ?n1 and y == ?n2").params("[{\"n1\" : \"v1\"}]"))
+        );
+        assertThat(
+            EntityUtils.toString(re.getResponse().getEntity()).replaceAll("\\\\\n\s+\\\\", ""),
+            containsString("line 1:36: Unknown query parameter [n2], did you mean [n1]")
+        );
     }
 
     public void testErrorMessageForLiteralDateMathOverflow() throws IOException {

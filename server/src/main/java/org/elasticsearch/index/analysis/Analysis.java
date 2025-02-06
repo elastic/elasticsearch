@@ -233,7 +233,7 @@ public class Analysis {
             }
         }
 
-        final Path path = env.configFile().resolve(wordListPath);
+        final Path path = env.configDir().resolve(wordListPath);
 
         try {
             return loadWordList(path, removeComments);
@@ -337,7 +337,7 @@ public class Analysis {
         if (filePath == null) {
             return null;
         }
-        final Path path = env.configFile().resolve(filePath);
+        final Path path = env.configDir().resolve(filePath);
         try {
             return Files.newBufferedReader(path, StandardCharsets.UTF_8);
         } catch (CharacterCodingException ex) {

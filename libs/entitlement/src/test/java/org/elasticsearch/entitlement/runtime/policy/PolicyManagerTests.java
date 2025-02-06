@@ -12,6 +12,9 @@ package org.elasticsearch.entitlement.runtime.policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager.ModuleEntitlements;
 import org.elasticsearch.entitlement.runtime.policy.agent.TestAgent;
 import org.elasticsearch.entitlement.runtime.policy.agent.inner.TestInnerAgent;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoaderEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.ExitVMEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.FileEntitlement;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
@@ -235,7 +238,6 @@ public class PolicyManagerTests extends ESTestCase {
     }
 
     public void testRequestingModuleWithStackWalk() throws IOException, ClassNotFoundException {
-        var agentsClass = new TestAgent();
         var entitlementsClass = makeClassInItsOwnModule();    // A class in the entitlements library itself
         var requestingClass = makeClassInItsOwnModule();      // This guy is always the right answer
         var instrumentedClass = makeClassInItsOwnModule();    // The class that called the check method
@@ -269,7 +271,7 @@ public class PolicyManagerTests extends ESTestCase {
             createEmptyTestServerPolicy(),
             List.of(new CreateClassLoaderEntitlement()),
             Map.of(),
-            c -> "test",
+            c -> c.getPackageName().startsWith(TEST_AGENTS_PACKAGE_NAME) ? null : "test",
             TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE
         );
@@ -302,8 +304,7 @@ public class PolicyManagerTests extends ESTestCase {
             )
         );
         assertEquals(
-            "[server] using module [test] found duplicate flag entitlements "
-                + "[org.elasticsearch.entitlement.runtime.policy.CreateClassLoaderEntitlement]",
+            "[server] using module [test] found duplicate flag entitlements " + "[" + CreateClassLoaderEntitlement.class.getName() + "]",
             iae.getMessage()
         );
 
@@ -319,8 +320,7 @@ public class PolicyManagerTests extends ESTestCase {
             )
         );
         assertEquals(
-            "[agent] using module [unnamed] found duplicate flag entitlements "
-                + "[org.elasticsearch.entitlement.runtime.policy.CreateClassLoaderEntitlement]",
+            "[agent] using module [unnamed] found duplicate flag entitlements " + "[" + CreateClassLoaderEntitlement.class.getName() + "]",
             iae.getMessage()
         );
 
@@ -352,20 +352,28 @@ public class PolicyManagerTests extends ESTestCase {
             )
         );
         assertEquals(
-            "[plugin1] using module [test] found duplicate flag entitlements "
-                + "[org.elasticsearch.entitlement.runtime.policy.CreateClassLoaderEntitlement]",
+            "[plugin1] using module [test] found duplicate flag entitlements " + "[" + CreateClassLoaderEntitlement.class.getName() + "]",
             iae.getMessage()
         );
     }
 
-    private static Class<?> makeClassInItsOwnModule() throws IOException, ClassNotFoundException {
-        final Path home = createTempDir();
-        Path jar = createMockPluginJar(home);
-        var layer = createLayerForJar(jar, "org.example.plugin");
-        return layer.findLoader("org.example.plugin").loadClass("q.B");
+    /**
+     * If the plugin resolver tells us a class is in a plugin, don't conclude that it's in an agent.
+     */
+    public void testPluginResolverOverridesAgents() {
+        var policyManager = new PolicyManager(
+            createEmptyTestServerPolicy(),
+            List.of(new CreateClassLoaderEntitlement()),
+            Map.of(),
+            c -> "test", // Insist that the class is in a plugin
+            TEST_AGENTS_PACKAGE_NAME,
+            NO_ENTITLEMENTS_MODULE
+        );
+        ModuleEntitlements notAgentsEntitlements = policyManager.getEntitlements(TestAgent.class);
+        assertThat(notAgentsEntitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(false));
     }
 
-    private static Class<?> makeClassInItsOwnUnnamedModule() throws IOException, ClassNotFoundException {
+    private static Class<?> makeClassInItsOwnModule() throws IOException, ClassNotFoundException {
         final Path home = createTempDir();
         Path jar = createMockPluginJar(home);
         var layer = createLayerForJar(jar, "org.example.plugin");

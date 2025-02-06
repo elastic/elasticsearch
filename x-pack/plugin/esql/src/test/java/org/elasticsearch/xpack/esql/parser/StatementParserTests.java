@@ -1581,10 +1581,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testParamForIdentifier() {
-        assumeTrue(
-            "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
-        );
         // field names can appear in eval/where/stats/sort/keep/drop/rename/dissect/grok/enrich/mvexpand
         // eval, where
         assertEquals(
@@ -1842,10 +1838,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testParamForIdentifierPattern() {
-        assumeTrue(
-            "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
-        );
         // name patterns can appear in keep and drop
         // all patterns
         LogicalPlan plan = statement(
@@ -1935,10 +1927,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testParamInInvalidPosition() {
-        assumeTrue(
-            "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
-        );
         // param for pattern is not supported in eval/where/stats/sort/rename/dissect/grok/enrich/mvexpand
         // where/stats/sort/dissect/grok are covered in RestEsqlTestCase
         List<String> invalidParamPositions = List.of("eval ?f1 = 1", "stats x = ?f1(*)", "mv_expand ?f1", "rename ?f1 as ?f2");
@@ -1990,10 +1978,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testMissingParam() {
-        assumeTrue(
-            "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
-        );
         // cover all processing commands eval/where/stats/sort/rename/dissect/grok/enrich/mvexpand/keep/drop
         String error = "Unknown query parameter [f1], did you mean [f4]?";
         String errorMvExpandFunctionNameCommandOption = "Query parameter [?f1] is null or undefined, cannot be used as an identifier";
@@ -2466,8 +2450,25 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals(List.of(referenceAttribute("bar", KEYWORD)), dissect.extractedFields());
         UnresolvedRelation ur = as(dissect.child(), UnresolvedRelation.class);
         assertEquals(ur, relation("test"));
+    }
 
+    public void testNamedFunctionArgumentInMapWithNamedParameters() {
         // map entry values provided in named parameter, arrays are not supported by named parameters yet
+        LinkedHashMap<String, Object> expectedMap1 = new LinkedHashMap<>(4);
+        expectedMap1.put("option1", "string");
+        expectedMap1.put("option2", 1);
+        expectedMap1.put("option3", List.of(2.0, 3.0, 4.0));
+        expectedMap1.put("option4", List.of(true, false));
+        LinkedHashMap<String, Object> expectedMap2 = new LinkedHashMap<>(4);
+        expectedMap2.put("option1", List.of("string1", "string2"));
+        expectedMap2.put("option2", List.of(1, 2, 3));
+        expectedMap2.put("option3", 2.0);
+        expectedMap2.put("option4", true);
+        LinkedHashMap<String, Object> expectedMap3 = new LinkedHashMap<>(4);
+        expectedMap3.put("option1", "string");
+        expectedMap3.put("option2", 2.0);
+        expectedMap3.put("option3", List.of(1, 2, 3));
+        expectedMap3.put("option4", List.of(true, false));
         assertEquals(
             new Filter(
                 EMPTY,
@@ -2565,7 +2566,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             )
         );
 
-        plan = statement(
+        LogicalPlan plan = statement(
             """
                 from test
                 | dissect ?fn1(?n1, ?n2, {"option1":?n3,"option2":?n4,"option3":[2.0,3.0,4.0],"option4":[true,false]}) "%{bar}"
@@ -2585,16 +2586,16 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 )
             )
         );
-        grok = as(plan, Grok.class);
+        Grok grok = as(plan, Grok.class);
         assertEquals(function("fn2", List.of(attribute("f3"), mapExpression(expectedMap2))), grok.input());
         assertEquals("%{WORD:foo}", grok.parser().pattern());
         assertEquals(List.of(referenceAttribute("foo", KEYWORD)), grok.extractedFields());
-        dissect = as(grok.child(), Dissect.class);
+        Dissect dissect = as(grok.child(), Dissect.class);
         assertEquals(function("fn1", List.of(attribute("f1"), attribute("f2"), mapExpression(expectedMap1))), dissect.input());
         assertEquals("%{bar}", dissect.parser().pattern());
         assertEquals("", dissect.parser().appendSeparator());
         assertEquals(List.of(referenceAttribute("bar", KEYWORD)), dissect.extractedFields());
-        ur = as(dissect.child(), UnresolvedRelation.class);
+        UnresolvedRelation ur = as(dissect.child(), UnresolvedRelation.class);
         assertEquals(ur, relation("test"));
     }
 

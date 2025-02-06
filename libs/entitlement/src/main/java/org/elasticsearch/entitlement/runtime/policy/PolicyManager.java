@@ -13,6 +13,15 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoaderEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.ExitVMEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.FileEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.InboundNetworkEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetworkEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.SetHttpsConnectionPropertiesEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.WriteSystemPropertiesEntitlement;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -55,7 +64,7 @@ public class PolicyManager {
                 .toList();
             return new ModuleEntitlements(
                 entitlements.stream().collect(groupingBy(Entitlement::getClass)),
-                new FileAccessTree(fileEntitlements)
+                FileAccessTree.of(fileEntitlements)
             );
         }
 
@@ -160,23 +169,7 @@ public class PolicyManager {
     }
 
     public void checkStartProcess(Class<?> callerClass) {
-        neverEntitled(callerClass, "start process");
-    }
-
-    private void neverEntitled(Class<?> callerClass, String operationDescription) {
-        var requestingClass = requestingClass(callerClass);
-        if (isTriviallyAllowed(requestingClass)) {
-            return;
-        }
-
-        throw new NotEntitledException(
-            Strings.format(
-                "Not entitled: caller [%s], module [%s], operation [%s]",
-                callerClass,
-                requestingClass.getModule() == null ? "<none>" : requestingClass.getModule().getName(),
-                operationDescription
-            )
-        );
+        neverEntitled(callerClass, () -> "start process");
     }
 
     /**
@@ -232,31 +225,9 @@ public class PolicyManager {
         checkChangeJVMGlobalState(callerClass);
     }
 
-    /**
-     * Check for operations that can access sensitive network information, e.g. secrets, tokens or SSL sessions
-     */
-    public void checkReadSensitiveNetworkInformation(Class<?> callerClass) {
-        neverEntitled(callerClass, "access sensitive network information");
-    }
-
     @SuppressForbidden(reason = "Explicitly checking File apis")
     public void checkFileRead(Class<?> callerClass, File file) {
-        var requestingClass = requestingClass(callerClass);
-        if (isTriviallyAllowed(requestingClass)) {
-            return;
-        }
-
-        ModuleEntitlements entitlements = getEntitlements(requestingClass);
-        if (entitlements.fileAccess().canRead(file) == false) {
-            throw new NotEntitledException(
-                Strings.format(
-                    "Not entitled: caller [%s], module [%s], entitlement [file], operation [read], path [%s]",
-                    callerClass,
-                    requestingClass.getModule(),
-                    file
-                )
-            );
-        }
+        checkFileRead(callerClass, file.toPath());
     }
 
     public void checkFileRead(Class<?> callerClass, Path path) {
@@ -280,22 +251,7 @@ public class PolicyManager {
 
     @SuppressForbidden(reason = "Explicitly checking File apis")
     public void checkFileWrite(Class<?> callerClass, File file) {
-        var requestingClass = requestingClass(callerClass);
-        if (isTriviallyAllowed(requestingClass)) {
-            return;
-        }
-
-        ModuleEntitlements entitlements = getEntitlements(requestingClass);
-        if (entitlements.fileAccess().canWrite(file) == false) {
-            throw new NotEntitledException(
-                Strings.format(
-                    "Not entitled: caller [%s], module [%s], entitlement [file], operation [write], path [%s]",
-                    callerClass,
-                    requestingClass.getModule(),
-                    file
-                )
-            );
-        }
+        checkFileWrite(callerClass, file.toPath());
     }
 
     public void checkFileWrite(Class<?> callerClass, Path path) {
@@ -442,7 +398,9 @@ public class PolicyManager {
         var pluginName = pluginResolver.apply(requestingClass);
         if (pluginName != null) {
             var pluginEntitlements = pluginsEntitlements.get(pluginName);
-            if (pluginEntitlements != null) {
+            if (pluginEntitlements == null) {
+                return ModuleEntitlements.NONE;
+            } else {
                 final String scopeName;
                 if (requestingModule.isNamed() == false) {
                     scopeName = ALL_UNNAMED;

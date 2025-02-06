@@ -33,15 +33,6 @@ public record EsIndex(
         assert partiallyUnmappedFields != null;
     }
 
-    public static EsIndex withStandardIndexMode(String name) {
-        return new EsIndex(name, Map.of(), Map.of(name, IndexMode.STANDARD), Set.of());
-    }
-
-    public static EsIndex emptyIndex(String name) {
-        return new EsIndex(name, Map.of(), Map.of(), Set.of());
-    }
-
-    /** Intended for tests. Returns an index with no partially unmapped fields. */
     public EsIndex(String name, Map<String, EsField> mapping, Map<String, IndexMode> indexNameWithModes) {
         this(name, mapping, indexNameWithModes, Set.of());
     }

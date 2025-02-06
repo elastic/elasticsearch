@@ -685,38 +685,42 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private LogicalPlan resolveInsist(Insist insist, List<Attribute> childrenOutput, IndexResolution indexResolution) {
-            return insist.withAttributes(
-                insist.insistedAttributes().stream().map(a -> resolveInsistAttribute(a, childrenOutput, indexResolution)).toList()
-            );
+            List<Attribute> list = new ArrayList<>();
+            for (Attribute a : insist.insistedAttributes()) {
+                list.add(resolveInsistAttribute(a, childrenOutput, indexResolution));
+            }
+            return insist.withAttributes(list);
         }
 
         private Attribute resolveInsistAttribute(Attribute attribute, List<Attribute> childrenOutput, IndexResolution indexResolution) {
-            assert attribute instanceof UnresolvedAttribute : "INSIST should be unresolved at this point";
             Attribute resolvedCol = maybeResolveAttribute((UnresolvedAttribute) attribute, childrenOutput);
             // Field isn't mapped anywhere.
             if (resolvedCol instanceof UnresolvedAttribute) {
                 return insistKeyword(attribute);
             }
 
-            assert resolvedCol instanceof FieldAttribute : "Resolved INSIST attribute should resolve to a field attribute";
-            var field = ((FieldAttribute) resolvedCol).field();
-            String name = resolvedCol.name();
             // Field is partially unmapped.
-            if (indexResolution.get().isPartiallyUnmappedField(name)) {
-                return field.getDataType() == KEYWORD
-                    ? insistKeyword(attribute)
-                    : invalidInsistAttribute(attribute, (FieldAttribute) resolvedCol);
+            if (resolvedCol instanceof FieldAttribute fa && indexResolution.get().isPartiallyUnmappedField(fa.name())) {
+                return fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa);
             }
 
-            // Field is mapped everywhere; we can safely ignore the INSIST command.
+            // Either the field is mapped everywhere and we can just use the resolved column, or the INSIST clause isn't on top of a FROM
+            // clause—for example, it might be on top of a ROW clause—so the verifier will catch it and fail.
             return resolvedCol;
         }
 
-        private static FieldAttribute invalidInsistAttribute(Attribute attribute, FieldAttribute fa) {
-            String name = fa.name();
-            var messageFormat = "Cannot use field [%s] due to ambiguities caused by INSIST. "
-                + "Unmapped fields are treated as KEYWORD in unmapped indices, but field is mapped to another type";
-            return new FieldAttribute(attribute.source(), name, new InvalidMappedField(name, Strings.format(messageFormat, name)));
+        private static Attribute invalidInsistAttribute(FieldAttribute fa) {
+            var name = fa.name();
+            EsField field = fa.field() instanceof InvalidMappedField imf
+                ? new InvalidMappedField(name, InvalidMappedField.makeErrorsMessageIncludingInsistKeyword(imf.getTypesToIndices()))
+                : new InvalidMappedField(
+                    name,
+                    Strings.format(
+                        "mapped as [2] incompatible types: [keyword] enforced by INSIST command, and [%s] in index mappings",
+                        fa.dataType().typeName()
+                    )
+                );
+            return new FieldAttribute(fa.source(), name, field);
         }
 
         private static FieldAttribute insistKeyword(Attribute attribute) {

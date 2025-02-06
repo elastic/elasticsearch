@@ -230,13 +230,13 @@ public final class CsvTestUtils {
                 lineNumber++;
             }
         }
-        var pageColumns = new ArrayList<String>(columns.length);
+        var columnNames = new ArrayList<String>(columns.length);
         try {
             var blocks = Arrays.stream(columns)
-                .peek(b -> pageColumns.add(b.name))
+                .peek(b -> columnNames.add(b.name))
                 .map(b -> b.builderWrapper.builder().build())
                 .toArray(Block[]::new);
-            return new Tuple<>(new Page(blocks), pageColumns);
+            return new Tuple<>(new Page(blocks), columnNames);
         } finally {
             Releasables.closeExpectNoException(columns);
         }

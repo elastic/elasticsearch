@@ -19,34 +19,29 @@ import java.util.List;
 import java.util.Objects;
 
 public class Insist extends UnaryPlan implements SurrogateLogicalPlan {
-    private final List<Attribute> insistedAttributes;
+    private final List<? extends Attribute> insistedAttributes;
+    private @Nullable List<Attribute> lazyOutput = null;
 
-    public Insist(Source source, List<Attribute> insistedAttributes, LogicalPlan child) {
+    public Insist(Source source, LogicalPlan child, List<? extends Attribute> insistedAttributes) {
         super(source, child);
         this.insistedAttributes = insistedAttributes;
     }
 
-    private @Nullable List<Attribute> lazyOutput = null;
-
     @Override
     public List<Attribute> output() {
         if (lazyOutput == null) {
-            lazyOutput = computeOutput();
+            lazyOutput = NamedExpressions.mergeOutputAttributes(insistedAttributes, child().output());
         }
         return lazyOutput;
     }
 
-    private List<Attribute> computeOutput() {
-        return NamedExpressions.mergeOutputAttributes(insistedAttributes, child().output());
-    }
-
-    public List<Attribute> insistedAttributes() {
+    public List<? extends Attribute> insistedAttributes() {
         return insistedAttributes;
     }
 
     @Override
     public Insist replaceChild(LogicalPlan newChild) {
-        return new Insist(source(), insistedAttributes, newChild);
+        return new Insist(source(), newChild, insistedAttributes);
     }
 
     @Override
@@ -57,7 +52,12 @@ public class Insist extends UnaryPlan implements SurrogateLogicalPlan {
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Insist::new, insistedAttributes, child());
+        return NodeInfo.create(
+            this,
+            (source, insistedAttributes1, child) -> new Insist(source, child, insistedAttributes1),
+            insistedAttributes,
+            child()
+        );
     }
 
     @Override
@@ -86,6 +86,6 @@ public class Insist extends UnaryPlan implements SurrogateLogicalPlan {
     }
 
     public Insist withAttributes(List<Attribute> attributes) {
-        return new Insist(source(), attributes, child());
+        return new Insist(source(), child(), attributes);
     }
 }

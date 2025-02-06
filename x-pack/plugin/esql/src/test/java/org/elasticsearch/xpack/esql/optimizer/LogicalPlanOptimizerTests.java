@@ -189,7 +189,6 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -2954,17 +2953,6 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                     Order.NullsPosition.FIRST
                 )
             )
-        );
-    }
-
-    public void testInsist_fieldExists_noUnmappedFieldsAnywhere() {
-        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
-
-        LogicalPlan plan = analyze("FROM test | INSIST_🐔 emp_no");
-
-        plan.forEachExpressionDown(
-            FieldAttribute.class,
-            fa -> { assertThat(fa.field(), not(instanceOf(PotentiallyUnmappedKeywordEsField.class))); }
         );
     }
 

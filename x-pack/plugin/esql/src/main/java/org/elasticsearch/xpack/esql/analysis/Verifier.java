@@ -235,8 +235,11 @@ public class Verifier {
     }
 
     private static void checkInsist(LogicalPlan p, Failures failures) {
-        if (p instanceof Insist i && (false == (i.child() instanceof EsRelation || i.child() instanceof Insist))) {
-            failures.add(fail(i, "[insist] can only be used after [from] or [insist] commands, but was [{}]", i.child().sourceText()));
+        if (p instanceof Insist i) {
+            LogicalPlan child = i.child();
+            if ((child instanceof EsRelation || child instanceof Insist) == false) {
+                failures.add(fail(i, "[insist] can only be used after [from] or [insist] commands, but was [{}]", child.sourceText()));
+            }
         }
     }
 

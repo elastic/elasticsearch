@@ -10,7 +10,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-/** Information about a field in an ES index that may not mapped. If it is unmapped, it should be loaded from source directly. */
+/**
+ * This class is used as a marker for fields that may be unmapped, where an unmapped field is a field which exists in the _source but is not
+ * mapped in the index. Note that this field may be mapped for some indices, but is unmapped in at least one of them.
+ * For indices where the field is unmapped, we will try to load them directly from _source.
+ */
 public class PotentiallyUnmappedKeywordEsField extends KeywordEsField {
     public PotentiallyUnmappedKeywordEsField(String name) {
         super(name);

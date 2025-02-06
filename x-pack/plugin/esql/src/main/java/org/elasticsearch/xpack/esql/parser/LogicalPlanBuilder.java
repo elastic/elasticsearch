@@ -290,18 +290,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitInsistCommand(EsqlBaseParser.InsistCommandContext ctx) {
         var source = source(ctx);
         List<NamedExpression> fields = visitQualifiedNamePatterns(ctx.qualifiedNamePatterns(), ne -> {
-            Source neSource = ne.source();
-            if (ne instanceof UnresolvedStar) {
-                throw new ParsingException(neSource, "Cannot specify [*] with INSIST", neSource.text());
-            }
-            if (ne instanceof UnresolvedNamePattern) {
-                throw new ParsingException(neSource, "Cannot use wildcards ([*]) with INSIST", neSource.text());
+            if (ne instanceof UnresolvedStar || ne instanceof UnresolvedNamePattern) {
+                Source neSource = ne.source();
+                throw new ParsingException(neSource, "INSIST doesn't support wildcards, found [{}]", neSource.text());
             }
         });
         return input -> new Insist(
             source,
-            fields.stream().map(ne -> (Attribute) new UnresolvedAttribute(ne.source(), ne.name())).toList(),
-            input
+            input,
+            fields.stream().map(ne -> (Attribute) new UnresolvedAttribute(ne.source(), ne.name())).toList()
         );
     }
 

@@ -2615,7 +2615,9 @@ public class AnalyzerTests extends ESTestCase {
 
         LogicalPlan plan = analyze("FROM test | INSIST_🐔 emp_no");
 
-        assertThat(plan.output().getLast().name(), is("emp_no"));
+        Attribute last = plan.output().getLast();
+        assertThat(last.name(), is("emp_no"));
+        assertThat(last.dataType(), is(DataType.INTEGER));
         assertThat(
             plan.output()
                 .stream()
@@ -2623,6 +2625,16 @@ public class AnalyzerTests extends ESTestCase {
                 .toList(),
             is(empty())
         );
+    }
+
+    public void testInsist_afterRowThrowsException() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> analyze("ROW x = 1 | INSIST_🐔 x", analyzer(TEST_VERIFIER))
+        );
+        assertThat(e.getMessage(), containsString("[insist] can only be used after [from] or [insist] commands, but was [ROW x = 1]"));
     }
 
     public void testResolveInsist_fieldDoesNotExist_createsUnmappedField() {
@@ -2677,12 +2689,12 @@ public class AnalyzerTests extends ESTestCase {
         var attribute = (UnsupportedAttribute) EsqlTestUtils.singleValue(insist.output());
         assertThat(attribute.name(), is("message"));
 
-        String substring = "Cannot use field [message] due to ambiguities caused by INSIST. "
-            + "Unmapped fields are treated as KEYWORD in unmapped indices, but field is mapped to another type";
-        assertThat(attribute.unresolvedMessage(), containsString(substring));
+        String expected = "Cannot use field [message] due to ambiguities being mapped as [2] incompatible types: "
+            + "[keyword] enforced by INSIST command, and [long] in index mappings";
+        assertThat(attribute.unresolvedMessage(), is(expected));
     }
 
-    public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypes_createsAnInvalidMappedField() {
+    public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypesNoKeyword_createsAnInvalidMappedField() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
 
         IndexResolution resolution = IndexResolver.mergedMappings(
@@ -2690,7 +2702,8 @@ public class AnalyzerTests extends ESTestCase {
             new FieldCapabilitiesResponse(
                 List.of(
                     fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
-                    fieldCapabilitiesIndexResponse("bar", messageResponseMap("date"))
+                    fieldCapabilitiesIndexResponse("bar", messageResponseMap("date")),
+                    fieldCapabilitiesIndexResponse("bazz", Map.of())
                 ),
                 List.of()
             )
@@ -2700,9 +2713,34 @@ public class AnalyzerTests extends ESTestCase {
         var insist = as(limit.child(), Insist.class);
         var attr = (UnsupportedAttribute) EsqlTestUtils.singleValue(insist.output());
 
-        String substring = "Cannot use field [message] due to ambiguities caused by INSIST. "
-            + "Unmapped fields are treated as KEYWORD in unmapped indices, but field is mapped to another type";
-        assertThat(attr.unresolvedMessage(), containsString(substring));
+        String expected = "Cannot use field [message] due to ambiguities being mapped as [3] incompatible types: "
+            + "[keyword] enforced by INSIST command, [datetime] in [bar], [long] in [foo]";
+        assertThat(attr.unresolvedMessage(), is(expected));
+    }
+
+    public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypesWithKeyword_createsAnInvalidMappedField() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            "foo, bar",
+            new FieldCapabilitiesResponse(
+                List.of(
+                    fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
+                    fieldCapabilitiesIndexResponse("bar", messageResponseMap("date")),
+                    fieldCapabilitiesIndexResponse("bazz", messageResponseMap("keyword")),
+                    fieldCapabilitiesIndexResponse("qux", Map.of())
+                ),
+                List.of()
+            )
+        );
+        var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
+        var limit = as(plan, Limit.class);
+        var insist = as(limit.child(), Insist.class);
+        var attr = (UnsupportedAttribute) EsqlTestUtils.singleValue(insist.output());
+
+        String expected = "Cannot use field [message] due to ambiguities being mapped as [3] incompatible types: "
+            + "[datetime] in [bar], [keyword] enforced by INSIST command and in [bazz], [long] in [foo]";
+        assertThat(attr.unresolvedMessage(), is(expected));
     }
 
     public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypesWithCast_castsAreNotSupported() {
@@ -2713,7 +2751,8 @@ public class AnalyzerTests extends ESTestCase {
             new FieldCapabilitiesResponse(
                 List.of(
                     fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
-                    fieldCapabilitiesIndexResponse("bar", messageResponseMap("date"))
+                    fieldCapabilitiesIndexResponse("bar", messageResponseMap("date")),
+                    fieldCapabilitiesIndexResponse("bazz", Map.of())
                 ),
                 List.of()
             )
@@ -2729,12 +2768,12 @@ public class AnalyzerTests extends ESTestCase {
         );
     }
 
-    // TODO There's too much boilerplate involed here! We need a better way of creating FieldCapabilitiesResponses from a mapping or index.
+    // TODO There's too much boilerplate involved here! We need a better way of creating FieldCapabilitiesResponses from a mapping or index.
     private static FieldCapabilitiesIndexResponse fieldCapabilitiesIndexResponse(
         String indexName,
         Map<String, IndexFieldCapabilities> fields
     ) {
-        return new FieldCapabilitiesIndexResponse(indexName, null, fields, false, IndexMode.STANDARD);
+        return new FieldCapabilitiesIndexResponse(indexName, indexName, fields, false, IndexMode.STANDARD);
     }
 
     private static Map<String, IndexFieldCapabilities> messageResponseMap(String date) {

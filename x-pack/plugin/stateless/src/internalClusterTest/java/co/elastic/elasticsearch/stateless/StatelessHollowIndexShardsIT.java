@@ -741,7 +741,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         }
 
         // Trigger unhollowing
-        int docs3 = randomIntBetween(numberOfShards * 3, numberOfShards * 5);
+        int docs3 = randomIntBetween(128, 256);
         indexDocs(indexName, docs3);
         for (int i = 0; i < numberOfShards; i++) {
             var indexShard = findIndexShard(index, i);

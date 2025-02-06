@@ -118,6 +118,14 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
         return VersionsHolder.ALL_VERSIONS;
     }
 
+    /**
+     * @return whether this is a known {@link TransportVersion}, i.e. one declared in {@link TransportVersions}. Other versions may exist
+     *         in the wild (they're sent over the wire by numeric ID) but we don't know how to communicate using such versions.
+     */
+    public boolean isKnown() {
+        return VersionsHolder.ALL_VERSIONS_MAP.containsKey(id);
+    }
+
     public static TransportVersion fromString(String str) {
         return TransportVersion.fromId(Integer.parseInt(str));
     }

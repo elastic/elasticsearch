@@ -793,7 +793,7 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
                         ((CancellableTask) task)::isCancelled,
                         SearchProgressListener.NOOP,
                         shardCount,
-                        Integer.MAX_VALUE,
+                        Integer.MAX_VALUE, // TODO: intermediary reduces
                         e -> logger.error("failed to merge on data node", e)
                     ),
                     request,
@@ -875,6 +875,7 @@ public class SearchQueryThenFetchAsyncAction<Result extends SearchPhaseResult> e
                         @Override
                         public void onFailure(Exception e) {
                             try {
+                                // TODO: count down fully and just respond with an exception if partial results aren't allowed
                                 setFailure(state, dataNodeLocalIdx, e);
                                 maybeNext();
                             } catch (Throwable expected) {

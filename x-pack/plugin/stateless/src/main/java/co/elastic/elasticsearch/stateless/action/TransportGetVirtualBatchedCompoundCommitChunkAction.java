@@ -21,6 +21,7 @@ package co.elastic.elasticsearch.stateless.action;
 
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.commits.GetVirtualBatchedCompoundCommitChunksPressure;
+import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 
 import org.apache.logging.log4j.LogManager;
@@ -232,6 +233,10 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
             final Engine engine = shard.getEngineOrNull();
             if (engine == null) {
                 throw new ShardNotFoundException(shard.shardId(), "engine not started");
+            }
+            if (engine instanceof HollowIndexEngine) {
+                // TODO ES-10799 Better handling of IndexEngine -> HollowIndexEngine transition
+                throw new ResourceNotFoundException("Shard is hollow");
             }
             if (engine instanceof IndexEngine == false) {
                 final var exception = new ElasticsearchException("expecting IndexEngine but got " + engine);

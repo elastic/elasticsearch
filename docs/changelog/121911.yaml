@@ -1,0 +1,5 @@
+pr: 121911
+summary: Fix ENRICH validation for use of wildcards
+area: ES|QL
+type: bug
+issues: []

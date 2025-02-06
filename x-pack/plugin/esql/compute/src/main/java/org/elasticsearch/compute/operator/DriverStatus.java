@@ -112,8 +112,8 @@ public class DriverStatus implements Task.Status {
 
     public DriverStatus(StreamInput in) throws IOException {
         this.sessionId = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION) ||
-            in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_90)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION)
+            || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_90)) {
             this.taskDescription = in.readString();
         } else {
             this.taskDescription = "";
@@ -135,8 +135,8 @@ public class DriverStatus implements Task.Status {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(sessionId);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION) ||
-            out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_90)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION)
+            || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_90)) {
             out.writeString(taskDescription);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {

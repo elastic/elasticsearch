@@ -13,7 +13,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.logsdb.datageneration.matchers.GenericEqualsMatcher;
-import org.elasticsearch.logsdb.datageneration.matchers.ListEqualMatcher;
 import org.elasticsearch.logsdb.datageneration.matchers.MatchResult;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -21,7 +20,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 
 import static org.elasticsearch.logsdb.datageneration.matchers.Messages.formatErrorMessage;
 import static org.elasticsearch.logsdb.datageneration.matchers.Messages.prettyPrintCollections;
@@ -138,9 +136,7 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
             var actualValues = actual.get(name);
             var expectedValues = expectedFieldEntry.getValue();
 
-            var matchIncludingFieldSpecificMatchers = matchWithFieldSpecificMatcher(name, actualValues, expectedValues).orElseGet(
-                () -> matchWithGenericMatcher(actualValues, expectedValues)
-            );
+            var matchIncludingFieldSpecificMatchers = matchWithFieldSpecificMatcher(name, actualValues, expectedValues);
             if (matchIncludingFieldSpecificMatchers.isMatch() == false) {
                 var message = "Source documents don't match for field [" + name + "]: " + matchIncludingFieldSpecificMatchers.getMessage();
                 return MatchResult.noMatch(message);
@@ -149,7 +145,7 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
         return MatchResult.match();
     }
 
-    private Optional<MatchResult> matchWithFieldSpecificMatcher(String fieldName, List<Object> actualValues, List<Object> expectedValues) {
+    private MatchResult matchWithFieldSpecificMatcher(String fieldName, List<Object> actualValues, List<Object> expectedValues) {
         var actualFieldMapping = actualNormalizedMapping.get(fieldName);
         if (actualFieldMapping == null) {
             if (expectedNormalizedMapping.get(fieldName) != null
@@ -189,30 +185,13 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
         }
 
         var fieldSpecificMatcher = fieldSpecificMatchers.get(actualFieldType);
-        if (fieldSpecificMatcher == null) {
-            return Optional.empty();
-        }
+        assert fieldSpecificMatcher != null : "Missing matcher for field type [" + actualFieldType + "]";
 
-        MatchResult matched = fieldSpecificMatcher.match(
+        return fieldSpecificMatcher.match(
             actualValues,
             expectedValues,
             actualFieldMapping.mappingParameters(),
             expectedFieldMapping.mappingParameters()
         );
-        return Optional.of(matched);
-    }
-
-    private MatchResult matchWithGenericMatcher(List<Object> actualValues, List<Object> expectedValues) {
-        var genericListMatcher = new ListEqualMatcher(
-            actualMappings,
-            actualSettings,
-            expectedMappings,
-            expectedSettings,
-            SourceTransforms.normalizeValues(actualValues),
-            SourceTransforms.normalizeValues(expectedValues),
-            true
-        );
-
-        return genericListMatcher.match();
     }
 }

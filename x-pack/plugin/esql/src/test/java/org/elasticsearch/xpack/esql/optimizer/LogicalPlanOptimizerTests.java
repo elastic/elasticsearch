@@ -7453,4 +7453,47 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         as(eval.child(), EsRelation.class);
 
     }
+
+    public void testUnboundedSortSimple() {
+        var query = """
+              ROW x = [1,2,3], y = 1
+              | SORT y
+              | MV_EXPAND x
+              | WHERE x > 2
+            """;
+
+        VerificationException e = expectThrows(VerificationException.class, () -> plan(query));
+        assertThat(e.getMessage(), containsString("line 2:5: Unbounded sort not supported yet, please add a limit"));
+    }
+
+    public void testUnboundedSortWithMvExpandAndFilter() {
+        var query = """
+              FROM test
+            | EVAL language_code = 1
+            | LOOKUP JOIN languages_lookup ON language_code
+            | SORT language_name
+            | EVAL foo = concat(language_name, "foo")
+            | MV_EXPAND foo
+            | WHERE foo == "foo"
+            """;
+
+        VerificationException e = expectThrows(VerificationException.class, () -> plan(query));
+        assertThat(e.getMessage(), containsString("line 4:3: Unbounded sort not supported yet, please add a limit"));
+    }
+
+    public void testUnboundedSortWithLookupJoinAndFilter() {
+        var query = """
+              FROM test
+            | EVAL language_code = 1
+            | EVAL foo = concat(language_code::string, "foo")
+            | MV_EXPAND foo
+            | SORT foo
+            | LOOKUP JOIN languages_lookup ON language_code
+            | WHERE language_name == "foo"
+            """;
+
+        VerificationException e = expectThrows(VerificationException.class, () -> plan(query));
+        assertThat(e.getMessage(), containsString("line 5:3: Unbounded sort not supported yet, please add a limit"));
+    }
+
 }

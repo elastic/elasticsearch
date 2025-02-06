@@ -44,3 +44,5 @@ tasks.named("javaRestTest").configure {
 tasks.named('yamlRestTest') {
   usesDefaultDistribution()
 }
+
+

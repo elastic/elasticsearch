@@ -16,10 +16,11 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.lang.model.type.TypeMirror;
+
+import static java.util.stream.Collectors.toUnmodifiableMap;
 
 /**
  * Types used by the code generator.
@@ -136,7 +137,7 @@ public class Types {
         TypeDef.of(BYTES_REF, "BYTES_REF", "BytesRefBlock", "BytesRefVector")
     )
         .flatMap(def -> Stream.of(def.type.toString(), def.type + "[]", def.alias).map(alias -> Map.entry(alias, def)))
-        .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+        .collect(toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
 
     private static TypeDef findRequired(String name, String kind) {
         TypeDef typeDef = TYPES.get(name);
@@ -144,13 +145,6 @@ public class Types {
             throw new IllegalArgumentException("unknown " + kind + " type [" + name + "]");
         }
         return typeDef;
-    }
-
-    static boolean isPrimitive(String name) {
-        return switch (name) {
-            case "boolean", "int", "long", "float", "double" -> true;
-            default -> false;
-        };
     }
 
     static TypeName fromString(String type) {

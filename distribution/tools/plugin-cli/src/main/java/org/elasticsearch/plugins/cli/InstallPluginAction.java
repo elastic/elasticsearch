@@ -249,8 +249,8 @@ public class InstallPluginAction implements Closeable {
                 final List<Path> deleteOnFailure = new ArrayList<>();
                 deleteOnFailures.put(pluginId, deleteOnFailure);
 
-                final Path pluginZip = download(plugin, env.tmpFile());
-                final Path extractedZip = unzip(pluginZip, env.pluginsFile());
+                final Path pluginZip = download(plugin, env.tmpDir());
+                final Path extractedZip = unzip(pluginZip, env.pluginsDir());
                 deleteOnFailure.add(extractedZip);
                 final PluginDescriptor pluginDescriptor = installPlugin(plugin, extractedZip, deleteOnFailure);
                 terminal.println(logPrefix + "Installed " + pluginDescriptor.getName());
@@ -868,14 +868,14 @@ public class InstallPluginAction implements Closeable {
         PluginsUtils.verifyCompatibility(info);
 
         // checking for existing version of the plugin
-        verifyPluginName(env.pluginsFile(), info.getName());
+        verifyPluginName(env.pluginsDir(), info.getName());
 
-        PluginsUtils.checkForFailedPluginRemovals(env.pluginsFile());
+        PluginsUtils.checkForFailedPluginRemovals(env.pluginsDir());
 
         terminal.println(VERBOSE, info.toString());
 
         // check for jar hell before any copying
-        jarHellCheck(info, pluginRoot, env.pluginsFile(), env.modulesFile());
+        jarHellCheck(info, pluginRoot, env.pluginsDir(), env.modulesDir());
 
         if (info.isStable() && hasNamedComponentFile(pluginRoot) == false) {
             generateNameComponentFile(pluginRoot);
@@ -922,9 +922,9 @@ public class InstallPluginAction implements Closeable {
      */
     private PluginDescriptor installPlugin(InstallablePlugin descriptor, Path tmpRoot, List<Path> deleteOnFailure) throws Exception {
         final PluginDescriptor info = loadPluginInfo(tmpRoot);
-        PluginPolicyInfo pluginPolicy = PolicyUtil.getPluginPolicyInfo(tmpRoot, env.tmpFile());
+        PluginPolicyInfo pluginPolicy = PolicyUtil.getPluginPolicyInfo(tmpRoot, env.tmpDir());
         if (pluginPolicy != null) {
-            Set<String> permissions = PluginSecurity.getPermissionDescriptions(pluginPolicy, env.tmpFile());
+            Set<String> permissions = PluginSecurity.getPermissionDescriptions(pluginPolicy, env.tmpDir());
             PluginSecurity.confirmPolicyExceptions(terminal, permissions, batch);
         }
 
@@ -938,14 +938,14 @@ public class InstallPluginAction implements Closeable {
             );
         }
 
-        final Path destination = env.pluginsFile().resolve(info.getName());
+        final Path destination = env.pluginsDir().resolve(info.getName());
         deleteOnFailure.add(destination);
 
         installPluginSupportFiles(
             info,
             tmpRoot,
-            env.binFile().resolve(info.getName()),
-            env.configFile().resolve(info.getName()),
+            env.binDir().resolve(info.getName()),
+            env.configDir().resolve(info.getName()),
             deleteOnFailure
         );
         movePlugin(tmpRoot, destination);

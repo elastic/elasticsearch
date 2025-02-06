@@ -245,8 +245,7 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         return valueAsString(Metrics.std_deviation_sampling.name());
     }
 
-    @Override
-    public String getStdDeviationBoundAsString(Bounds bound) {
+    private String getStdDeviationBoundAsString(Bounds bound) {
         return switch (bound) {
             case UPPER -> valueAsString(Metrics.std_upper.name());
             case LOWER -> valueAsString(Metrics.std_lower.name());

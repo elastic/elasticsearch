@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -221,6 +222,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
         protected MultiSearchResponse shardOperation(Request request, ShardId shardId) throws IOException {
             final IndexService indexService = indicesService.indexService(shardId.getIndex());
             final IndexShard indexShard = indicesService.getShardOrNull(shardId);
+            final CircuitBreaker breaker = indicesService.getCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST);
             try (Engine.Searcher searcher = indexShard.acquireSearcher("enrich_msearch")) {
                 final FieldsVisitor visitor = new FieldsVisitor(true);
                 /*
@@ -259,8 +261,11 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                             }
                             return context.getFieldType(field);
                         });
-                        final SearchHit hit = new SearchHit(scoreDoc.doc, visitor.id());
-                        hit.sourceRef(filterSource(fetchSourceContext, visitor.source()));
+                        final SearchHit hit = new SearchHit(scoreDoc.doc, visitor.id(), breaker);
+                        BytesReference source = visitor.source();
+                        hit.unfilteredSourceRef(source);
+                        breaker.addEstimateBytesAndMaybeBreak(source.length(), "enrich_msearch");
+                        hit.sourceRef(filterSource(fetchSourceContext, source));
                         hits[j] = hit;
                     }
                     items[i] = new MultiSearchResponse.Item(createSearchResponse(topDocs, hits), null);

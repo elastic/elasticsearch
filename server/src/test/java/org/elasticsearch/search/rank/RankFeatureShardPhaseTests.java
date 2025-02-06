@@ -117,7 +117,7 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
     }
 
     private RankBuilder getRankBuilder(final String field) {
-        return new RankBuilder(DEFAULT_RANK_WINDOW_SIZE, false) {
+        return new RankBuilder(DEFAULT_RANK_WINDOW_SIZE) {
             @Override
             protected void doWriteTo(StreamOutput out) throws IOException {
                 // no-op

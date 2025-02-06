@@ -867,7 +867,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
         RankFeaturePhaseRankShardContext rankFeaturePhaseRankShardContext,
         RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext
     ) {
-        return new RankBuilder(rankWindowSize, false) {
+        return new RankBuilder(rankWindowSize) {
             @Override
             protected void doWriteTo(StreamOutput out) throws IOException {
                 // no-op

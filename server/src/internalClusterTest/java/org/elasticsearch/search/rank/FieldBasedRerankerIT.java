@@ -100,7 +100,7 @@ public class FieldBasedRerankerIT extends AbstractRerankerIT {
         }
 
         public FieldBasedRankBuilder(final int rankWindowSize, final String field) {
-            super(rankWindowSize, false);
+            super(rankWindowSize);
             this.field = field;
         }
 
@@ -205,7 +205,7 @@ public class FieldBasedRerankerIT extends AbstractRerankerIT {
 
         @Override
         public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from, Client client) {
-            return new RankFeaturePhaseRankCoordinatorContext(size, from, rankWindowSize(), isLenient()) {
+            return new RankFeaturePhaseRankCoordinatorContext(size, from, rankWindowSize(), false) {
                 @Override
                 protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
                     float[] scores = new float[featureDocs.length];
@@ -346,7 +346,7 @@ public class FieldBasedRerankerIT extends AbstractRerankerIT {
         @Override
         public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from, Client client) {
             if (this.throwingRankBuilderType == ThrowingRankBuilderType.THROWING_RANK_FEATURE_PHASE_COORDINATOR_CONTEXT)
-                return new RankFeaturePhaseRankCoordinatorContext(size, from, rankWindowSize(), isLenient()) {
+                return new RankFeaturePhaseRankCoordinatorContext(size, from, rankWindowSize(), false) {
                     @Override
                     protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
                         throw new UnsupportedOperationException("rfc - simulated failure");

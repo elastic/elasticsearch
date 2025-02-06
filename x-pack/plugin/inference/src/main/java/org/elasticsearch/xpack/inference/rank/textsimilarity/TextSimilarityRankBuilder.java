@@ -36,6 +36,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.FIELD_FIELD;
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.INFERENCE_ID_FIELD;
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.INFERENCE_TEXT_FIELD;
+import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.LENIENT_FIELD;
 import static org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankRetrieverBuilder.MIN_SCORE_FIELD;
 
 /**
@@ -75,6 +76,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
     private final String inferenceText;
     private final String field;
     private final Float minScore;
+    private final boolean lenient;
 
     public TextSimilarityRankBuilder(
         String field,
@@ -84,11 +86,12 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         Float minScore,
         boolean lenient
     ) {
-        super(rankWindowSize, lenient);
+        super(rankWindowSize);
         this.inferenceId = inferenceId;
         this.inferenceText = inferenceText;
         this.field = field;
         this.minScore = minScore;
+        this.lenient = lenient;
     }
 
     public TextSimilarityRankBuilder(StreamInput in) throws IOException {
@@ -98,6 +101,11 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         this.inferenceText = in.readString();
         this.field = in.readString();
         this.minScore = in.readOptionalFloat();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.LENIENT_RERANKERS)) {
+            this.lenient = in.readBoolean();
+        } else {
+            this.lenient = false;
+        }
     }
 
     @Override
@@ -112,21 +120,27 @@ public class TextSimilarityRankBuilder extends RankBuilder {
 
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
-        // rankWindowSize & lenient serialization is handled by the parent class RankBuilder
+        // rankWindowSize serialization is handled by the parent class RankBuilder
         out.writeString(inferenceId);
         out.writeString(inferenceText);
         out.writeString(field);
         out.writeOptionalFloat(minScore);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.LENIENT_RERANKERS)) {
+            out.writeBoolean(lenient);
+        }
     }
 
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
-        // rankWindowSize & lenient serialization is handled by the parent class RankBuilder
+        // rankWindowSize serialization is handled by the parent class RankBuilder
         builder.field(INFERENCE_ID_FIELD.getPreferredName(), inferenceId);
         builder.field(INFERENCE_TEXT_FIELD.getPreferredName(), inferenceText);
         builder.field(FIELD_FIELD.getPreferredName(), field);
         if (minScore != null) {
             builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
+        }
+        if (lenient) {
+            builder.field(LENIENT_FIELD.getPreferredName(), lenient);
         }
     }
 
@@ -187,7 +201,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
             inferenceId,
             inferenceText,
             minScore,
-            isLenient()
+            lenient
         );
     }
 

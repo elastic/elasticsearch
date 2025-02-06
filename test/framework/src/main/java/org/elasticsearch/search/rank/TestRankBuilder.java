@@ -52,7 +52,7 @@ public class TestRankBuilder extends RankBuilder {
     }
 
     public TestRankBuilder(int windowSize) {
-        super(windowSize, false);
+        super(windowSize);
     }
 
     public TestRankBuilder(StreamInput in) throws IOException {

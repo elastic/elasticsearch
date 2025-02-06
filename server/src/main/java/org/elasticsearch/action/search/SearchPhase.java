@@ -8,11 +8,11 @@
  */
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.transport.Transport;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 
@@ -45,14 +45,14 @@ abstract class SearchPhase {
             + "]. Consider using `allow_partial_search_results` setting to bypass this error.";
     }
 
-    protected void doCheckNoMissingShards(String phaseName, SearchRequest request, GroupShardsIterator<SearchShardIterator> shardsIts) {
+    protected void doCheckNoMissingShards(String phaseName, SearchRequest request, List<SearchShardIterator> shardsIts) {
         doCheckNoMissingShards(phaseName, request, shardsIts, this::missingShardsErrorMessage);
     }
 
     protected static void doCheckNoMissingShards(
         String phaseName,
         SearchRequest request,
-        GroupShardsIterator<SearchShardIterator> shardsIts,
+        List<SearchShardIterator> shardsIts,
         Function<StringBuilder, String> makeErrorMessage
     ) {
         assert request.allowPartialSearchResults() != null : "SearchRequest missing setting for allowPartialSearchResults";

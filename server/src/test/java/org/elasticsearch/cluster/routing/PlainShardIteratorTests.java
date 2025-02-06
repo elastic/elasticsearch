@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.action.search.SearchShardIteratorTests;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
@@ -55,7 +56,7 @@ public class PlainShardIteratorTests extends ESTestCase {
             for (String index : indices) {
                 for (String uuid : uuids) {
                     ShardId shardId = new ShardId(index, uuid, i);
-                    shardIterators.add(new PlainShardIterator(shardId, GroupShardsIteratorTests.randomShardRoutings(shardId)));
+                    shardIterators.add(new PlainShardIterator(shardId, SearchShardIteratorTests.randomShardRoutings(shardId)));
                 }
             }
         }
@@ -86,6 +87,6 @@ public class PlainShardIteratorTests extends ESTestCase {
 
     private static PlainShardIterator randomPlainShardIterator() {
         ShardId shardId = new ShardId(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLength(10), randomIntBetween(1, Integer.MAX_VALUE));
-        return new PlainShardIterator(shardId, GroupShardsIteratorTests.randomShardRoutings(shardId));
+        return new PlainShardIterator(shardId, SearchShardIteratorTests.randomShardRoutings(shardId));
     }
 }

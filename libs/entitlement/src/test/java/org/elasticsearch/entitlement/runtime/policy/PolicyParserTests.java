@@ -40,6 +40,35 @@ public class PolicyParserTests extends ESTestCase {
         public ManyConstructorsEntitlement(int i) {}
     }
 
+    public static class ManyMethodsEntitlement implements Entitlement {
+        @ExternalEntitlement
+        public static ManyMethodsEntitlement create(String s) {
+            return new ManyMethodsEntitlement();
+        }
+
+        @ExternalEntitlement
+        public static ManyMethodsEntitlement create(int i) {
+            return new ManyMethodsEntitlement();
+        }
+    }
+
+    public static class ConstructorAndMethodEntitlement implements Entitlement {
+        @ExternalEntitlement
+        public static ConstructorAndMethodEntitlement create(String s) {
+            return new ConstructorAndMethodEntitlement(s);
+        }
+
+        @ExternalEntitlement
+        public ConstructorAndMethodEntitlement(String s) {}
+    }
+
+    public static class NonStaticMethodEntitlement implements Entitlement {
+        @ExternalEntitlement
+        public NonStaticMethodEntitlement create() {
+            return new NonStaticMethodEntitlement();
+        }
+    }
+
     public void testGetEntitlementTypeName() {
         assertEquals("create_class_loader", PolicyParser.getEntitlementTypeName(CreateClassLoaderEntitlement.class));
 
@@ -55,7 +84,7 @@ public class PolicyParserTests extends ESTestCase {
             .parsePolicy();
         Policy expected = new Policy(
             "test-policy.yaml",
-            List.of(new Scope("entitlement-module-name", List.of(new FileEntitlement("test/path/to/file", "read_write"))))
+            List.of(new Scope("entitlement-module-name", List.of(FileEntitlement.create("test/path/to/file", "read_write"))))
         );
         assertEquals(expected, parsedPolicy);
     }
@@ -65,7 +94,7 @@ public class PolicyParserTests extends ESTestCase {
             .parsePolicy();
         Policy expected = new Policy(
             "test-policy.yaml",
-            List.of(new Scope("entitlement-module-name", List.of(new FileEntitlement("test/path/to/file", "read_write"))))
+            List.of(new Scope("entitlement-module-name", List.of(FileEntitlement.create("test/path/to/file", "read_write"))))
         );
         assertEquals(expected, parsedPolicy);
     }
@@ -171,6 +200,62 @@ public class PolicyParserTests extends ESTestCase {
                 "entitlement class "
                     + "[org.elasticsearch.entitlement.runtime.policy.PolicyParserTests$ManyConstructorsEntitlement]"
                     + " has more than one constructor annotated with ExternalEntitlement"
+            )
+        );
+    }
+
+    public void testMultipleMethodsAnnotated() throws IOException {
+        var parser = new PolicyParser(new ByteArrayInputStream("""
+            entitlement-module-name:
+              - many_methods
+            """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", true, Map.of("many_methods", ManyMethodsEntitlement.class));
+
+        var e = expectThrows(IllegalStateException.class, parser::parsePolicy);
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "entitlement class "
+                    + "[org.elasticsearch.entitlement.runtime.policy.PolicyParserTests$ManyMethodsEntitlement]"
+                    + " has more than one constructor and/or method annotated with ExternalEntitlement"
+            )
+        );
+    }
+
+    public void testConstructorAndMethodAnnotated() throws IOException {
+        var parser = new PolicyParser(
+            new ByteArrayInputStream("""
+                entitlement-module-name:
+                  - constructor_and_method
+                """.getBytes(StandardCharsets.UTF_8)),
+            "test-policy.yaml",
+            true,
+            Map.of("constructor_and_method", ConstructorAndMethodEntitlement.class)
+        );
+
+        var e = expectThrows(IllegalStateException.class, parser::parsePolicy);
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "entitlement class "
+                    + "[org.elasticsearch.entitlement.runtime.policy.PolicyParserTests$ConstructorAndMethodEntitlement]"
+                    + " has more than one constructor and/or method annotated with ExternalEntitlement"
+            )
+        );
+    }
+
+    public void testNonStaticMethodAnnotated() throws IOException {
+        var parser = new PolicyParser(new ByteArrayInputStream("""
+            entitlement-module-name:
+              - non_static
+            """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", true, Map.of("non_static", NonStaticMethodEntitlement.class));
+
+        var e = expectThrows(IllegalStateException.class, parser::parsePolicy);
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "entitlement class "
+                    + "[org.elasticsearch.entitlement.runtime.policy.PolicyParserTests$NonStaticMethodEntitlement]"
+                    + " has non-static method annotated with ExternalEntitlement"
             )
         );
     }

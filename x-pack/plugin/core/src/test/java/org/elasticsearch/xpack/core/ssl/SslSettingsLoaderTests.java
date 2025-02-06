@@ -229,7 +229,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.keyConfig();
         assertThat(
             ksKeyInfo,
-            equalTo(new StoreKeyConfig("path", PASSWORD, "type", null, PASSWORD, KEY_MGR_ALGORITHM, environment.configFile()))
+            equalTo(new StoreKeyConfig("path", PASSWORD, "type", null, PASSWORD, KEY_MGR_ALGORITHM, environment.configDir()))
         );
     }
 
@@ -244,7 +244,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.keyConfig();
         assertThat(
             ksKeyInfo,
-            equalTo(new StoreKeyConfig("path", PASSWORD, "type", null, PASSWORD, KEY_MGR_ALGORITHM, environment.configFile()))
+            equalTo(new StoreKeyConfig("path", PASSWORD, "type", null, PASSWORD, KEY_MGR_ALGORITHM, environment.configDir()))
         );
         assertSettingDeprecationsAndWarnings(new Setting<?>[] { configurationSettings.x509KeyPair.legacyKeystorePassword });
     }
@@ -263,7 +263,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.keyConfig();
         assertThat(
             ksKeyInfo,
-            equalTo(new StoreKeyConfig("path", PASSWORD, "type", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configFile()))
+            equalTo(new StoreKeyConfig("path", PASSWORD, "type", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configDir()))
         );
     }
 
@@ -279,7 +279,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.keyConfig();
         assertThat(
             ksKeyInfo,
-            equalTo(new StoreKeyConfig("path", PASSWORD, "type", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configFile()))
+            equalTo(new StoreKeyConfig("path", PASSWORD, "type", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configDir()))
         );
         assertSettingDeprecationsAndWarnings(
             new Setting<?>[] {
@@ -298,7 +298,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.keyConfig();
         assertThat(
             ksKeyInfo,
-            equalTo(new StoreKeyConfig("xpack/tls/path.jks", PASSWORD, "jks", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configFile()))
+            equalTo(new StoreKeyConfig("xpack/tls/path.jks", PASSWORD, "jks", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configDir()))
         );
     }
 
@@ -314,7 +314,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.keyConfig();
         assertThat(
             ksKeyInfo,
-            equalTo(new StoreKeyConfig(path, PASSWORD, "PKCS12", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configFile()))
+            equalTo(new StoreKeyConfig(path, PASSWORD, "PKCS12", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configDir()))
         );
     }
 
@@ -328,7 +328,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.keyConfig();
         assertThat(
             ksKeyInfo,
-            equalTo(new StoreKeyConfig("xpack/tls/path.foo", PASSWORD, "jks", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configFile()))
+            equalTo(new StoreKeyConfig("xpack/tls/path.foo", PASSWORD, "jks", null, KEYPASS, KEY_MGR_ALGORITHM, environment.configDir()))
         );
     }
 
@@ -347,10 +347,7 @@ public class SslSettingsLoaderTests extends ESTestCase {
         SslConfiguration sslConfiguration = getSslConfiguration(settings);
         assertThat(sslConfiguration.keyConfig(), instanceOf(StoreKeyConfig.class));
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.keyConfig();
-        assertThat(
-            ksKeyInfo,
-            equalTo(new StoreKeyConfig(path, PASSWORD, type, null, KEYPASS, KEY_MGR_ALGORITHM, environment.configFile()))
-        );
+        assertThat(ksKeyInfo, equalTo(new StoreKeyConfig(path, PASSWORD, type, null, KEYPASS, KEY_MGR_ALGORITHM, environment.configDir())));
     }
 
     public void testThatEmptySettingsAreEqual() {

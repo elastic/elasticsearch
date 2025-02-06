@@ -13,7 +13,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.BlockLoaderTestCase;
 import org.elasticsearch.logsdb.datageneration.FieldType;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -28,27 +27,30 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
     @SuppressWarnings("unchecked")
     @Override
     protected Object expected(Map<String, Object> fieldMapping, Object value, boolean syntheticSource) {
-        if (value == null) {
-            return null;
-        }
+        var nullValue = (String) fieldMapping.get("null_value");
 
         var ignoreAbove = fieldMapping.get("ignore_above") == null
             ? Integer.MAX_VALUE
             : ((Number) fieldMapping.get("ignore_above")).intValue();
 
-        if (value instanceof String s) {
-            return convert(s, ignoreAbove);
+        if (value == null) {
+            return convert(null, nullValue, ignoreAbove);
         }
 
-        Function<Stream<String>, Stream<BytesRef>> convertValues = s -> s.map(v -> convert(v, ignoreAbove)).filter(Objects::nonNull);
+        if (value instanceof String s) {
+            return convert(s, nullValue, ignoreAbove);
+        }
+
+        Function<Stream<String>, Stream<BytesRef>> convertValues = s -> s.map(v -> convert(v, nullValue, ignoreAbove))
+            .filter(Objects::nonNull);
 
         if ((boolean) fieldMapping.getOrDefault("doc_values", false)) {
             // Sorted and no duplicates
 
-            var values = new HashSet<>((List<String>) value);
-            var resultList = convertValues.compose(s -> values.stream().filter(Objects::nonNull).sorted())
+            var resultList = convertValues.andThen(Stream::distinct)
+                .andThen(Stream::sorted)
                 .andThen(Stream::toList)
-                .apply(values.stream());
+                .apply(((List<String>) value).stream());
             return maybeFoldList(resultList);
         }
 
@@ -69,9 +71,13 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
         return list;
     }
 
-    private BytesRef convert(String value, int ignoreAbove) {
+    private BytesRef convert(String value, String nullValue, int ignoreAbove) {
         if (value == null) {
-            return null;
+            if (nullValue != null) {
+                value = nullValue;
+            } else {
+                return null;
+            }
         }
 
         return value.length() <= ignoreAbove ? new BytesRef(value) : null;

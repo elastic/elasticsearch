@@ -91,8 +91,7 @@ public class AggregatorImplementer {
 
         this.init = requireStaticMethod(
             declarationType,
-            // This should be more restrictive and require org.elasticsearch.compute.aggregation.AggregatorState
-            requirePrimitiveOrImplements(elements, Types.RELEASABLE),
+            requirePrimitiveOrImplements(elements, ClassName.get("org.elasticsearch.compute.aggregation", "AggregatorState")),
             requireName("init", "initSingle"),
             requireAnyArgs("<arbitrary init arguments>")
         );

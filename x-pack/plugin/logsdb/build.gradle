@@ -42,13 +42,3 @@ tasks.named("javaRestTest").configure {
 tasks.named('yamlRestTest') {
   usesDefaultDistribution()
 }
-
-tasks.named("yamlRestTest") {
-  if (buildParams.isSnapshotBuild() == false) {
-    systemProperty 'tests.rest.blacklist', [
-      "60_synthetic_source_recovery/*"
-    ].join(',')
-  }
-}
-
-

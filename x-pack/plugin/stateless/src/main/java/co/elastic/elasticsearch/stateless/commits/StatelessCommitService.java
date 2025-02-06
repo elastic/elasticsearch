@@ -571,7 +571,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             var generation = reference.getGeneration();
 
             ShardCommitState commitState = getSafe(shardsCommitsStates, reference.getShardId());
-            if (commitState.recoveredGeneration == generation) {
+            if (commitState.recoveredGeneration == generation || commitState.hollowGeneration == generation) {
                 logger.debug("{} skipping upload of recovered commit [{}]", shardId, generation);
                 IOUtils.closeWhileHandlingException(reference);
                 return;
@@ -671,6 +671,12 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
             if (commitState.shouldUploadVirtualBcc(virtualBcc)) {
                 commitState.maybeFreezeAndUploadCurrentVirtualBcc(virtualBcc);
+            }
+
+            if (reference.isHollow()) {
+                assert reference.getGeneration() > commitState.hollowGeneration
+                    : "New hollow generation should be higher than the existing one";
+                commitState.hollowGeneration = reference.getGeneration();
             }
         } catch (Exception ex) {
             assert false : ex;
@@ -1005,6 +1011,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         private List<Consumer<UploadedBccInfo>> uploadedBccConsumers = null;
         private volatile long recoveredGeneration = -1;
         private volatile long recoveredPrimaryTerm = -1;
+
+        // Used to prevent duplicated commits when unhollowing shards
+        private volatile long hollowGeneration = -1;
 
         /**
          * The highest generation number that we have received from an uploaded commit notification response from search shards.

@@ -64,20 +64,28 @@ public class IndexShardCacheWarmer {
     }
 
     /**
+     * Schedule the pre-warming of a peer recovering stateless index shard
+     */
+    public void preWarmIndexShardCache(IndexShard indexShard) {
+        preWarmIndexShardCache(indexShard, true);
+    }
+
+    /**
      * Schedule the pre-warming of a stateless index shard
      *
      * @param indexShard The shard to warm
      */
-    public void preWarmIndexShardCache(IndexShard indexShard) {
+    public void preWarmIndexShardCache(IndexShard indexShard, boolean assertRecovery) {
         final IndexShardState currentState = indexShard.state(); // single volatile read
         if (currentState == IndexShardState.CLOSED) {
             throw new IndexShardNotRecoveringException(indexShard.shardId(), currentState);
         }
-        assert currentState == IndexShardState.RECOVERING
+        assert assertRecovery == false || currentState == IndexShardState.RECOVERING
             : "expected a recovering shard " + indexShard.shardId() + " but got " + currentState;
         assert indexShard.routingEntry().isSearchable() == false && indexShard.routingEntry().isPromotableToPrimary()
             : "only stateless ingestion shards are supported";
-        assert indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.PEER : "Only peer recoveries are supported";
+        assert assertRecovery == false || indexShard.recoveryState().getRecoverySource().getType() == RecoverySource.Type.PEER
+            : "Only peer recoveries are supported";
         threadPool.generic().execute(() -> doPreWarmIndexShardCache(indexShard));
     }
 

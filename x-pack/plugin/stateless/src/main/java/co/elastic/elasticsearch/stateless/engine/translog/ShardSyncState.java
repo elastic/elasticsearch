@@ -32,6 +32,8 @@ import java.util.TreeMap;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
+import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.HOLLOW_TRANSLOG_RECOVERY_START_FILE;
+
 class ShardSyncState {
 
     private final ShardId shardId;
@@ -160,7 +162,15 @@ class ShardSyncState {
     public void markCommitUploaded(long translogStartFile) {
         synchronized (translogFiles) {
             if (isClosed == false) {
-                if (translogStartFile > markedTranslogStartFile) {
+                // TODO Find a better way to holow translog recovery in https://elasticco.atlassian.net/browse/ES-10718
+                if (translogStartFile == HOLLOW_TRANSLOG_RECOVERY_START_FILE) {
+                    for (var file : translogFiles.tailMap(markedTranslogStartFile, true).values()) {
+                        file.markUnsafeForDelete(shardId);
+                        file.decRef();
+                    }
+                    translogFiles.clear();
+                    markedTranslogStartFile = -1;
+                } else if (translogStartFile > markedTranslogStartFile) {
                     for (TranslogReplicator.BlobTranslogFile file : translogFiles.subMap(markedTranslogStartFile, translogStartFile)
                         .values()) {
                         file.decRef();

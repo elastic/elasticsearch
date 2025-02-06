@@ -44,6 +44,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
@@ -199,7 +200,6 @@ public class IndexEngine extends InternalEngine {
         }
         this.translogRecoveryMetrics = metrics.translogRecoveryMetrics();
         this.mergeMetrics = metrics.mergeMetrics();
-        assert isLastCommitHollow() == false : "should not use IndexEngine for a hollow commit";
     }
 
     @Override
@@ -348,7 +348,7 @@ public class IndexEngine extends InternalEngine {
 
     @Override
     public IndexResult index(Index index) throws IOException {
-        checkNoNewOperationsAfterHollow();
+        checkNoNewOperationsWhileHollow();
         ParsedDocument parsedDocument = index.parsedDoc();
 
         documentParsingReporter.onParsingCompleted(parsedDocument);
@@ -362,7 +362,7 @@ public class IndexEngine extends InternalEngine {
 
     @Override
     public DeleteResult delete(Delete delete) throws IOException {
-        checkNoNewOperationsAfterHollow();
+        checkNoNewOperationsWhileHollow();
         return super.delete(delete);
     }
 
@@ -391,12 +391,15 @@ public class IndexEngine extends InternalEngine {
         }
     }
 
-    protected void checkNoNewOperationsAfterHollow() {
+    protected void checkNoNewOperationsWhileHollow() {
         // If flushHollow() has been called (which assumes holding the primary permits), we expect no new operations to be ingested.
         // Any new operation attempted to be ingested after hollowing will throw an exception (that signifies a bug since we expect
         // the shard to be unhollowed with a new engine to process ingestion).
         if (hollowMaxSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
             throw new IllegalStateException("cannot ingest new operation when engine is hollow");
+        }
+        if (Assertions.ENABLED && isLastCommitHollow()) {
+            hollowShardsService.ensureHollowShard(shardId, true);
         }
     }
 
@@ -430,7 +433,8 @@ public class IndexEngine extends InternalEngine {
     public void prepareForEngineReset() throws IOException {
         // We do not need to care about primary term and generation listeners of the engine as these are used only in the search tier.
         logger.debug(() -> "preparing to reset index engine for shard " + shardId);
-        hollowShardsService.assertIngestionBlocked(shardId, true, "hollowing the index engine requires ingestion blocked");
+        // The shard is not yet marked as hollow in the HollowShardsService. It will be marked as hollow after the engine is reset.
+        hollowShardsService.ensureHollowShard(shardId, false, "hollowing the index engine requires the shard to be unhollow");
         // The primary relocation will wait for the hollowed commit to upload. Even if the flush fails, the engine will be reset to a hollow
         // engine and either closed (upon a successful relocation) or continue to live and be unhollowed by any lingering or new ingestion.
         flushHollow(ActionListener.noop());

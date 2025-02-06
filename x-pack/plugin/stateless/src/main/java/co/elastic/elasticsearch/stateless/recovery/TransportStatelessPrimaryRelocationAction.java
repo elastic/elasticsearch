@@ -241,11 +241,11 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         final long beforeRelocation = threadPool.relativeTimeInMillis();
 
         final IndexShard indexShard;
-        final Engine engine;
+        final Engine preFlushEngine;
         try {
             final var indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
             indexShard = indexService.getShard(request.shardId().id());
-            engine = ensureIndexOrHollowEngine(indexShard.getEngineOrNull(), indexShard.state(), indexShard.routingEntry());
+            preFlushEngine = ensureIndexOrHollowEngine(indexShard.getEngineOrNull(), indexShard.state(), indexShard.routingEntry());
         } catch (Exception e) {
             listener.onFailure(e);
             return;
@@ -257,12 +257,16 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         // operations are blocked. NB the flush has force=false so may do nothing.
         final var preFlushStep = new SubscribableListener<Engine.FlushResult>();
 
-        logShardStats("flushing before acquiring all primary operation permits", indexShard, engine);
+        logShardStats("flushing before acquiring all primary operation permits", indexShard, preFlushEngine);
 
         final var threadDumpListener = slowShardOperationListener(indexShard, TimeValue.timeValueSeconds(10), "flush and acquire permits");
 
         final long beforeInitialFlush = threadPool.relativeTimeInMillis();
-        ActionListener.run(preFlushStep, l -> engine.flush(false, false, l));
+        if (hollowShardsService.isHollowShard(indexShard.shardId())) {
+            preFlushStep.onResponse(Engine.FlushResult.NO_FLUSH);
+        } else {
+            ActionListener.run(preFlushStep, l -> preFlushEngine.flush(false, false, l));
+        }
         logger.debug("[{}] completed the flush, waiting to upload", request.shardId());
 
         preFlushStep.addListener(listener.delegateResponse((l, e) -> {
@@ -273,6 +277,11 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             final long beforeAcquiringPermits = threadPool.relativeTimeInMillis();
             indexShard.relocated(request.targetNode().getId(), request.targetAllocationId(), (primaryContext, handoffResultListener) -> {
                 threadDumpListener.onResponse(null);
+                final Engine engine = ensureIndexOrHollowEngine(
+                    indexShard.getEngineOrNull(),
+                    indexShard.state(),
+                    indexShard.routingEntry()
+                );
                 logShardStats("obtained primary context", indexShard, engine);
                 logger.debug("[{}] obtained primary context: [{}]", request.shardId(), primaryContext);
                 final var acquirePermitsDuration = getTimeSince(beforeAcquiringPermits);
@@ -283,17 +292,22 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                 final var shardId = indexShard.shardId();
                 if (engine instanceof IndexEngine indexEngine) {
                     if (hollowShardsService.isHollowableIndexShard(indexShard, false)) {
-                        // Resetting the IndexEngine hollows the shard and switches to a HollowIndexEngine
-                        logger.debug(() -> "hollowing index engine for shard " + shardId);
-                        // The blocker will be removed when the source shard is successfully relocated and closed,
+                        // Resetting the IndexEngine hollows the shard and switches to a HollowIndexEngine and blocks ingestion
+                        // The block will be removed when the source shard is successfully relocated and closed,
                         // or will remain in place if the relocation fails until the shard is unhollowed.
-                        hollowShardsService.installIngestionBlocker(indexShard);
-                        indexShard.resetEngine();
+                        logger.debug(() -> "hollowing index engine for shard " + shardId);
+                        try {
+                            indexShard.resetEngine();
+                        } catch (Exception e) {
+                            indexShard.failShard("failed to reset index engine for shard " + shardId, e);
+                            throw e;
+                        }
+                        hollowShardsService.addHollowShard(indexShard);
                     } else {
                         indexEngine.flush(false, true, ActionListener.noop());
                     }
                 } else if (engine instanceof HollowIndexEngine) {
-                    hollowShardsService.assertIngestionBlocked(
+                    hollowShardsService.ensureHollowShard(
                         indexShard.shardId(),
                         true,
                         "hollow shard " + shardId + " should have an ingestion blocker"

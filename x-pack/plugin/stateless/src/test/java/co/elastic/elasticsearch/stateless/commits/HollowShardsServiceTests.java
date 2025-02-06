@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless.commits;
 
+import co.elastic.elasticsearch.stateless.IndexShardCacheWarmer;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 
 import org.elasticsearch.Version;
@@ -36,7 +37,9 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
 import java.util.TreeMap;
@@ -267,7 +270,17 @@ public class HollowShardsServiceTests extends ESTestCase {
                 .put(SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL.getKey(), TimeValue.timeValueMillis(ingestionTtlMillisDsNonWrite))
                 .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(ingestionTtlMillis))
                 .build();
-            return new TestHarness(new HollowShardsService(settings, clusterService, relativeTimeSupplierInMillis), indexShard);
+            return new TestHarness(
+                new HollowShardsService(
+                    settings,
+                    clusterService,
+                    mock(IndicesService.class),
+                    mock(IndexShardCacheWarmer.class),
+                    mock(ThreadPool.class),
+                    relativeTimeSupplierInMillis
+                ),
+                indexShard
+            );
         }
     }
 

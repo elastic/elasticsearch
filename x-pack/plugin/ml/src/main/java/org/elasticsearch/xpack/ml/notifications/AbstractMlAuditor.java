@@ -47,7 +47,8 @@ abstract class AbstractMlAuditor<T extends AbstractAuditMessage> extends Abstrac
             clusterService.getNodeName(),
             messageFactory,
             clusterService,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            clusterService.threadPool().generic()
         );
         clusterService.addListener(event -> {
             if (event.metadataChanged()) {

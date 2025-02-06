@@ -178,7 +178,6 @@ public class TransportVersions {
     public static final TransportVersion TRANSPORT_STATS_HANDLING_TIME_REQUIRED_90 = def(9_000_0_02);
     public static final TransportVersion REMOVE_DESIRED_NODE_VERSION_90 = def(9_000_0_03);
     public static final TransportVersion ESQL_DRIVER_TASK_DESCRIPTION_90 = def(9_000_0_04);
-    public static final TransportVersion ESQL_RETRY_ON_SHARD_LEVEL_FAILURE_90 = def(9_000_0_05);
     public static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED = def(9_001_0_00);
     public static final TransportVersion REMOVE_SNAPSHOT_FAILURES = def(9_002_0_00);
     public static final TransportVersion TRANSPORT_STATS_HANDLING_TIME_REQUIRED = def(9_003_0_00);

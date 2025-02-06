@@ -32,8 +32,7 @@ final class DataNodeComputeResponse extends TransportResponse {
     }
 
     DataNodeComputeResponse(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_RETRY_ON_SHARD_LEVEL_FAILURE) ||
-            in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_RETRY_ON_SHARD_LEVEL_FAILURE_90)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_RETRY_ON_SHARD_LEVEL_FAILURE)) {
             this.profiles = in.readCollectionAsImmutableList(DriverProfile::new);
             this.shardLevelFailures = in.readMap(ShardId::new, StreamInput::readException);
         } else {
@@ -44,8 +43,7 @@ final class DataNodeComputeResponse extends TransportResponse {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_RETRY_ON_SHARD_LEVEL_FAILURE) ||
-            out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_RETRY_ON_SHARD_LEVEL_FAILURE_90)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_RETRY_ON_SHARD_LEVEL_FAILURE)) {
             out.writeCollection(profiles, (o, v) -> v.writeTo(o));
             out.writeMap(shardLevelFailures, (o, v) -> v.writeTo(o), StreamOutput::writeException);
         } else {

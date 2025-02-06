@@ -7,14 +7,6 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.runtime.api;
+package org.elasticsearch.entitlement.bridge;
 
-import org.elasticsearch.entitlement.bridge.Java23EntitlementChecker;
-import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
-
-public class Java23ElasticsearchEntitlementChecker extends Java22ElasticsearchEntitlementChecker implements Java23EntitlementChecker {
-
-    public Java23ElasticsearchEntitlementChecker(PolicyManager policyManager) {
-        super(policyManager);
-    }
-}
+public interface Java19EntitlementChecker extends Java19PreviewEntitlementChecker, EntitlementChecker {}

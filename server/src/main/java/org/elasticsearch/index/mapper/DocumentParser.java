@@ -377,11 +377,9 @@ public final class DocumentParser {
                     }
                     break;
                 case START_OBJECT:
-                    context.setImmediateXContentParent(token);
                     parseObject(context, currentFieldName);
                     break;
                 case START_ARRAY:
-                    context.setImmediateXContentParent(token);
                     parseArray(context, currentFieldName);
                     break;
                 case VALUE_NULL:
@@ -524,6 +522,7 @@ public final class DocumentParser {
 
     private static void parseObject(final DocumentParserContext context, String currentFieldName) throws IOException {
         assert currentFieldName != null;
+        context.setImmediateXContentParent(context.parser().currentToken());
         Mapper objectMapper = context.getMapper(currentFieldName);
         if (objectMapper != null) {
             doParseObject(context, currentFieldName, objectMapper);
@@ -616,6 +615,8 @@ public final class DocumentParser {
     }
 
     private static void parseArray(DocumentParserContext context, String lastFieldName) throws IOException {
+        var prev = context.getImmediateXContentParent();
+        context.setImmediateXContentParent(context.parser().currentToken());
         Mapper mapper = getLeafMapper(context, lastFieldName);
         if (mapper != null) {
             // There is a concrete mapper for this field already. Need to check if the mapper
@@ -629,6 +630,7 @@ public final class DocumentParser {
         } else {
             parseArrayDynamic(context, lastFieldName);
         }
+        context.setImmediateXContentParent(prev);
     }
 
     private static void parseArrayDynamic(DocumentParserContext context, String currentFieldName) throws IOException {
@@ -748,15 +750,11 @@ public final class DocumentParser {
         int elements = 0;
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token == XContentParser.Token.START_OBJECT) {
-                context.setImmediateXContentParent(token);
                 elements = 2;
                 parseObject(context, lastFieldName);
             } else if (token == XContentParser.Token.START_ARRAY) {
-                var prev = context.getImmediateXContentParent();
-                context.setImmediateXContentParent(token);
                 elements = 2;
                 parseArray(context, lastFieldName);
-                context.setImmediateXContentParent(prev);
             } else if (token == XContentParser.Token.VALUE_NULL) {
                 elements++;
                 parseNullValue(context, lastFieldName);
@@ -776,7 +774,6 @@ public final class DocumentParser {
             && context.getRecordedSource() == false) {
             context.getOffSetContext().maybeRecordEmptyArray(mapper.getOffsetFieldName());
         }
-        context.setImmediateXContentParent(token);
         if (elements <= 1 && canRemoveSingleLeafElement) {
             context.removeLastIgnoredField(fullPath);
         }

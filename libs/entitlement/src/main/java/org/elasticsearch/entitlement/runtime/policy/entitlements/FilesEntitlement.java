@@ -12,7 +12,6 @@ package org.elasticsearch.entitlement.runtime.policy.entitlements;
 import org.elasticsearch.entitlement.runtime.policy.ExternalEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.PolicyValidationException;
 
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -29,13 +28,7 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
     }
 
     public record FileData(String path, Mode mode) {
-        public FileData {
-            path = normalizePath(path);
-        }
 
-        private static String normalizePath(String path) {
-            return Paths.get(path).toAbsolutePath().normalize().toString();
-        }
     }
 
     private static Mode parseMode(String mode) {

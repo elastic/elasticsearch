@@ -386,6 +386,18 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests
   method: testCreateAndRestorePartialSearchableSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/121927
+- class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
+  method: test {yaml=analysis-common/40_token_filters/stemmer_override file access}
+  issue: https://github.com/elastic/elasticsearch/issues/121625
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=update/100_synthetic_source/stored text}
+  issue: https://github.com/elastic/elasticsearch/issues/121964
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=update/100_synthetic_source/keyword}
+  issue: https://github.com/elastic/elasticsearch/issues/121965
+- class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderTests
+  method: testDoNotRetryOnRequestLevelFailure
+  issue: https://github.com/elastic/elasticsearch/issues/121966
 
 # Examples:
 #

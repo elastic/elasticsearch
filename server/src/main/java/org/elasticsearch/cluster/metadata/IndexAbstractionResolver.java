@@ -81,8 +81,7 @@ public class IndexAbstractionResolver {
                             indexNameExpressionResolver,
                             includeDataStreams
                         )) {
-                        // Resolve any ::* suffixes on the expression. We need to resolve them all to their final valid selectors
-                        resolveSelectorsAndCombine(authorizedIndex, selectorString, indicesOptions, resolvedIndices, metadata);
+                        resolveSelectorsAndCollect(authorizedIndex, selectorString, indicesOptions, resolvedIndices, metadata);
                     }
                 }
                 if (resolvedIndices.isEmpty()) {
@@ -98,9 +97,8 @@ public class IndexAbstractionResolver {
                     }
                 }
             } else {
-                // Resolve any ::* suffixes on the expression. We need to resolve them all to their final valid selectors
                 Set<String> resolvedIndices = new HashSet<>();
-                resolveSelectorsAndCombine(indexAbstraction, selectorString, indicesOptions, resolvedIndices, metadata);
+                resolveSelectorsAndCollect(indexAbstraction, selectorString, indicesOptions, resolvedIndices, metadata);
                 if (minus) {
                     finalIndices.removeAll(resolvedIndices);
                 } else if (indicesOptions.ignoreUnavailable() == false || isAuthorized.test(indexAbstraction)) {
@@ -114,7 +112,7 @@ public class IndexAbstractionResolver {
         return finalIndices;
     }
 
-    private static void resolveSelectorsAndCombine(
+    private static void resolveSelectorsAndCollect(
         String indexAbstraction,
         String selectorString,
         IndicesOptions indicesOptions,
@@ -132,19 +130,8 @@ public class IndexAbstractionResolver {
                 selectorString = IndexComponentSelector.DATA.getKey();
             }
 
-            if (Regex.isMatchAllPattern(selectorString)) {
-                // Always accept data
-                collect.add(IndexNameExpressionResolver.combineSelectorExpression(indexAbstraction, IndexComponentSelector.DATA.getKey()));
-                // Only put failures on the expression if the abstraction supports it.
-                if (acceptsAllSelectors) {
-                    collect.add(
-                        IndexNameExpressionResolver.combineSelectorExpression(indexAbstraction, IndexComponentSelector.FAILURES.getKey())
-                    );
-                }
-            } else {
-                // A non-wildcard selector is always passed along as-is, it's validity for this kind of abstraction is tested later
-                collect.add(IndexNameExpressionResolver.combineSelectorExpression(indexAbstraction, selectorString));
-            }
+            // A selector is always passed along as-is, it's validity for this kind of abstraction is tested later
+            collect.add(IndexNameExpressionResolver.combineSelectorExpression(indexAbstraction, selectorString));
         } else {
             assert selectorString == null
                 : "A selector string [" + selectorString + "] is present but selectors are disabled in this context";

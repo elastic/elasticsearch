@@ -77,7 +77,7 @@ public enum IndexComponentSelector implements Writeable {
         if (in.getTransportVersion().onOrAfter(TransportVersions.REMOVE_ALL_APPLICABLE_SELECTOR)) {
             return getById(id);
         } else {
-            // Legacy value ::*
+            // Legacy value ::*, converted to ::data
             return id == 2 ? DATA : getById(id);
         }
     }

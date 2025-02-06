@@ -1329,8 +1329,7 @@ public class IndexNameExpressionResolver {
         if (context.options.allowSelectors()) {
             // Ensure that the selectors are present and that they are compatible with the abstractions they are used with
             assert selector != null : "Earlier logic should have parsed selectors or added the default selectors already";
-            // Check if ::failures has been explicitly requested, since requesting ::* for non-data-stream abstractions would just
-            // return their data components.
+            // Check if ::failures has been explicitly requested
             if (IndexComponentSelector.FAILURES.equals(selector) && indexAbstraction.isDataStreamRelated() == false) {
                 // If requested abstraction is not data stream related, then you cannot use ::failures
                 if (ignoreUnavailable) {

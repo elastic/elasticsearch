@@ -346,6 +346,9 @@ tests:
 - class: org.elasticsearch.search.CrossClusterSearchUnavailableClusterIT
   method: testSearchSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/121497
+- class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
+  method: testDestIndexContainsDocs
+  issue: https://github.com/elastic/elasticsearch/issues/121915
 
 # Examples:
 #

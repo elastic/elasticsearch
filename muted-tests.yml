@@ -352,6 +352,8 @@ tests:
 - class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
   method: testDestIndexNameSet_noDotPrefix
   issue: https://github.com/elastic/elasticsearch/issues/121772
+- class: org.elasticsearch.ingest.geoip.FullClusterRestartIT
+  issue: https://github.com/elastic/elasticsearch/issues/121935
 
 # Examples:
 #

@@ -694,12 +694,11 @@ FROM k8s
   | STATS count=COUNT() BY @timestamp=BUCKET(@timestamp, 1 MINUTE)
   | EVAL count=count+CASE(@timestamp>="2024-05-10T00:11:00.000Z", 100, 0)
   | EVAL count=CASE(@timestamp=="2024-05-10T00:04:00.000Z", NULL, count)
-  | EVAL count=CASE(@timestamp=="2024-05-10T00:08:00.000Z", NULL, count)
   | CHANGE_POINT count ON @timestamp AS type, pvalue
 ;
 
-warning:Line 6:3: warnings during evaluation of [CHANGE_POINT count ON @timestamp AS type, pvalue]. Only first 20 failures recorded.
-warning:Line 6:3: java.lang.IllegalArgumentException: values contain nulls; treating them as zeroes
+warning:Line 5:3: warnings during evaluation of [CHANGE_POINT count ON @timestamp AS type, pvalue]. Only first 20 failures recorded.
+warning:Line 5:3: java.lang.IllegalArgumentException: values contain nulls; skipping them
 
 @timestamp:datetime      | count:long | type:keyword | pvalue:double
 2024-05-10T00:00:00.000Z | 4          | null         | null
@@ -710,10 +709,10 @@ warning:Line 6:3: java.lang.IllegalArgumentException: values contain nulls; trea
 2024-05-10T00:05:00.000Z | 8          | null         | null
 2024-05-10T00:06:00.000Z | 10         | null         | null
 2024-05-10T00:07:00.000Z | 5          | null         | null
-2024-05-10T00:08:00.000Z | null       | null         | null
+2024-05-10T00:08:00.000Z | 12         | null         | null
 2024-05-10T00:09:00.000Z | 20         | null         | null
 2024-05-10T00:10:00.000Z | 5          | null         | null
-2024-05-10T00:11:00.000Z | 107        | step_change  | 2.1947350086494926E-22
+2024-05-10T00:11:00.000Z | 107        | step_change  | 3.438939970021414E-22
 2024-05-10T00:12:00.000Z | 108        | null         | null
 2024-05-10T00:13:00.000Z | 109        | null         | null
 2024-05-10T00:14:00.000Z | 109        | null         | null
@@ -953,8 +952,9 @@ ROW time=[7,13,12,17,14,5,16,10,19,18,20,2,3,21,25,4,22,15,6,23,9,11,1,8,24], va
   | CHANGE_POINT values ON time
 ;
 
-warning:Line 3:3: warnings during evaluation of [CHANGE_POINT values ON time]. Only first 20 failures recorded.
-warning:Line 3:3: java.lang.IllegalArgumentException: values contain nulls; treating them as zeroes
+warning: Line 3:3: evaluation of [CHANGE_POINT values ON time] failed, treating result as null. Only first 20 failures recorded.
+warning: Line 3:3: java.lang.IllegalArgumentException: not enough buckets to calculate change_point. Requires at least [22]; found [0]
+warning: Line 3:3: java.lang.IllegalArgumentException: values contain nulls; skipping them
 
 time:integer | values:integer | type:keyword | pvalue:double
 1            | null           | null         | null         

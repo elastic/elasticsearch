@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.ml.aggs.MlAggsHelper;
 import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointDetector;
 import org.elasticsearch.xpack.ml.aggs.changepoint.ChangeType;
 
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.LinkedList;
 import java.util.List;
@@ -113,7 +114,8 @@ public class ChangePointOperator implements Operator {
             valuesCount = INPUT_VALUE_COUNT_LIMIT;
         }
 
-        double[] values = new double[valuesCount];
+        List<Double> values = new ArrayList<>(valuesCount);
+        List<Integer> bucketIndexes = new ArrayList<>(valuesCount);
         int valuesIndex = 0;
         boolean hasNulls = false;
         boolean hasMultivalued = false;
@@ -123,17 +125,22 @@ public class ChangePointOperator implements Operator {
                 Object value = BlockUtils.toJavaObject(inputBlock, i);
                 if (value == null) {
                     hasNulls = true;
-                    values[valuesIndex++] = 0;
+                    valuesIndex++;
                 } else if (value instanceof List<?> list) {
                     hasMultivalued = true;
-                    values[valuesIndex++] = ((Number) list.getFirst()).doubleValue();
+                    values.add(((Number) list.getFirst()).doubleValue());
                 } else {
-                    values[valuesIndex++] = ((Number) value).doubleValue();
+                    values.add(((Number) value).doubleValue());
+                    bucketIndexes.add(valuesIndex++);
                 }
             }
         }
-
-        ChangeType changeType = ChangePointDetector.getChangeType(new MlAggsHelper.DoubleBucketValues(null, values));
+        MlAggsHelper.DoubleBucketValues bucketValues = new MlAggsHelper.DoubleBucketValues(
+            null,
+            values.stream().mapToDouble(Double::doubleValue).toArray(),
+            bucketIndexes.stream().mapToInt(Integer::intValue).toArray()
+        );
+        ChangeType changeType = ChangePointDetector.getChangeType(bucketValues);
         int changePointIndex = changeType.changePoint();
 
         BlockFactory blockFactory = driverContext.blockFactory();
@@ -189,7 +196,7 @@ public class ChangePointOperator implements Operator {
             );
         }
         if (hasNulls) {
-            warnings(true).registerException(new IllegalArgumentException("values contain nulls; treating them as zeroes"));
+            warnings(true).registerException(new IllegalArgumentException("values contain nulls; skipping them"));
         }
         if (hasMultivalued) {
             warnings(true).registerException(new IllegalArgumentException("values is multivalued; keeping only first elements"));

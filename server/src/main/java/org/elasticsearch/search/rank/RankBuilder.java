@@ -152,16 +152,15 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        @SuppressWarnings("unchecked")
         RankBuilder other = (RankBuilder) obj;
-        return Objects.equals(rankWindowSize, other.rankWindowSize()) && doEquals(other);
+        return rankWindowSize == other.rankWindowSize && lenient == other.lenient && doEquals(other);
     }
 
     protected abstract boolean doEquals(RankBuilder other);
 
     @Override
     public final int hashCode() {
-        return Objects.hash(getClass(), rankWindowSize, doHashCode());
+        return Objects.hash(getClass(), rankWindowSize, lenient, doHashCode());
     }
 
     protected abstract int doHashCode();

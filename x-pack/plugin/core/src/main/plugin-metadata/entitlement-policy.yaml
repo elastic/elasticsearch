@@ -1,6 +1,9 @@
 org.apache.httpcomponents.httpclient:
-  - outbound_network # For SamlRealm
-  - create_thread # For IdleConnectionEvictor
+  # For SamlRealm
+  - outbound_network
+  # For IdleConnectionEvictor
+  - create_thread
+  - set_thread_property
 org.apache.httpcomponents.httpcore.nio:
   - outbound_network
 unboundid.ldapsdk:

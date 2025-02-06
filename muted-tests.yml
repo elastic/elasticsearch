@@ -560,3 +560,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.service.ServiceAccountSingleNodeTests
   method: testAuthenticateWithServiceFileToken
   issue: https://github.com/elastic/elasticsearch/issues/120988
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/cat/allocation/cat-allocation-example}
+  issue: https://github.com/elastic/elasticsearch/issues/121976

@@ -11,7 +11,6 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.common.util.Countable;
 import org.elasticsearch.common.util.PlainIterator;
 import org.elasticsearch.core.Nullable;
@@ -115,15 +114,6 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
     }
 
     /**
-     * Return the number of shards remaining in this {@link ShardsIterator}
-     *
-     * @return number of shard remaining
-     */
-    int remaining() {
-        return targetNodesIterator.remaining();
-    }
-
-    /**
      * Returns a non-null value if this request should use a specific search context instead of the latest one.
      */
     ShardSearchContextId getSearchContextId() {
@@ -136,13 +126,6 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
 
     List<String> getTargetNodeIds() {
         return targetNodesIterator.asList();
-    }
-
-    /**
-     * Resets the iterator to its initial state.
-     */
-    void reset() {
-        targetNodesIterator.reset();
     }
 
     /**

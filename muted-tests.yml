@@ -373,9 +373,6 @@ tests:
 - class: org.elasticsearch.search.CrossClusterSearchUnavailableClusterIT
   method: testSearchSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/121497
-- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
-  method: testStopQueryLocal
-  issue: https://github.com/elastic/elasticsearch/issues/121672
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/121411
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
@@ -398,6 +395,11 @@ tests:
 - class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderTests
   method: testDoNotRetryOnRequestLevelFailure
   issue: https://github.com/elastic/elasticsearch/issues/121966
+- class: org.elasticsearch.xpack.searchablesnapshots.hdfs.SecureHdfsSearchableSnapshotsIT
+  issue: https://github.com/elastic/elasticsearch/issues/121967
+- class: org.elasticsearch.xpack.esql.parser.StatementParserTests
+  method: testInvalidJoinPatterns
+  issue: https://github.com/elastic/elasticsearch/issues/121968
 
 # Examples:
 #

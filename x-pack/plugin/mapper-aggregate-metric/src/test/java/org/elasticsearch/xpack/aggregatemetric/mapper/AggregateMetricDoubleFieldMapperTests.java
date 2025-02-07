@@ -24,7 +24,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
-import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper.Metric;
 import org.hamcrest.Matchers;
 import org.junit.AssumptionViolatedException;
 
@@ -38,18 +38,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Names.IGNORE_MALFORMED;
-import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Names.METRICS;
+import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper.Names.IGNORE_MALFORMED;
+import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper.Names.METRICS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
-public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
+public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
 
     public static final String METRICS_FIELD = METRICS;
-    public static final String CONTENT_TYPE = AggregateDoubleMetricFieldMapper.CONTENT_TYPE;
-    public static final String DEFAULT_METRIC = AggregateDoubleMetricFieldMapper.Names.DEFAULT_METRIC;
+    public static final String CONTENT_TYPE = AggregateMetricDoubleFieldMapper.CONTENT_TYPE;
+    public static final String DEFAULT_METRIC = AggregateMetricDoubleFieldMapper.Names.DEFAULT_METRIC;
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
@@ -109,7 +109,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         assertEquals("DoubleField <field.min:-10.1>", doc.rootDoc().getField("field.min").toString());
 
         Mapper fieldMapper = mapper.mappers().getMapper("field");
-        assertThat(fieldMapper, instanceOf(AggregateDoubleMetricFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(AggregateMetricDoubleFieldMapper.class));
     }
 
     /**
@@ -325,8 +325,8 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         );
 
         Mapper fieldMapper = mapper.mappers().getMapper("field");
-        assertThat(fieldMapper, instanceOf(AggregateDoubleMetricFieldMapper.class));
-        assertEquals(Metric.sum, ((AggregateDoubleMetricFieldMapper) fieldMapper).defaultMetric());
+        assertThat(fieldMapper, instanceOf(AggregateMetricDoubleFieldMapper.class));
+        assertEquals(Metric.sum, ((AggregateMetricDoubleFieldMapper) fieldMapper).defaultMetric());
     }
 
     /**
@@ -338,8 +338,8 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         );
 
         Mapper fieldMapper = mapper.mappers().getMapper("field");
-        assertThat(fieldMapper, instanceOf(AggregateDoubleMetricFieldMapper.class));
-        assertEquals(Metric.value_count, ((AggregateDoubleMetricFieldMapper) fieldMapper).defaultMetric);
+        assertThat(fieldMapper, instanceOf(AggregateMetricDoubleFieldMapper.class));
+        assertEquals(Metric.value_count, ((AggregateMetricDoubleFieldMapper) fieldMapper).defaultMetric);
     }
 
     /**
@@ -348,8 +348,8 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     public void testImplicitDefaultMetric() throws Exception {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         Mapper fieldMapper = mapper.mappers().getMapper("field");
-        assertThat(fieldMapper, instanceOf(AggregateDoubleMetricFieldMapper.class));
-        assertEquals(Metric.max, ((AggregateDoubleMetricFieldMapper) fieldMapper).defaultMetric);
+        assertThat(fieldMapper, instanceOf(AggregateMetricDoubleFieldMapper.class));
+        assertEquals(Metric.max, ((AggregateMetricDoubleFieldMapper) fieldMapper).defaultMetric);
     }
 
     /**
@@ -418,7 +418,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         );
 
         Mapper fieldMapper = mapper.mappers().getMapper("field.subfield");
-        assertThat(fieldMapper, instanceOf(AggregateDoubleMetricFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(AggregateMetricDoubleFieldMapper.class));
         ParsedDocument doc = mapper.parse(
             source(
                 b -> b.startObject("field")
@@ -462,7 +462,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     protected void assertExistsQuery(MappedFieldType fieldType, Query query, LuceneDocument fields) {
         assertThat(query, Matchers.instanceOf(FieldExistsQuery.class));
         FieldExistsQuery fieldExistsQuery = (FieldExistsQuery) query;
-        String defaultMetric = ((AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType) fieldType).getDefaultMetric().name();
+        String defaultMetric = ((AggregateMetricDoubleFieldMapper.AggregateMetricDoubleFieldType) fieldType).getDefaultMetric().name();
         assertEquals("field." + defaultMetric, fieldExistsQuery.getField());
         assertNoFieldNamesField(fields);
     }
@@ -488,10 +488,10 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     public void testMetricType() throws IOException {
         // Test default setting
         MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
-        AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType ft =
-            (AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType) mapperService.fieldType("field");
+        AggregateMetricDoubleFieldMapper.AggregateMetricDoubleFieldType ft =
+            (AggregateMetricDoubleFieldMapper.AggregateMetricDoubleFieldType) mapperService.fieldType("field");
         assertNull(ft.getMetricType());
-        assertMetricType("gauge", AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType::getMetricType);
+        assertMetricType("gauge", AggregateMetricDoubleFieldMapper.AggregateMetricDoubleFieldType::getMetricType);
 
         {
             // Test invalid metric type for this field type
@@ -519,7 +519,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        return new AggregateDoubleMetricSyntheticSourceSupport(ignoreMalformed);
+        return new AggregateMetricDoubleSyntheticSourceSupport(ignoreMalformed);
     }
 
     @Override
@@ -564,11 +564,11 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         assertEquals(Strings.toString(expected), syntheticSource);
     }
 
-    protected final class AggregateDoubleMetricSyntheticSourceSupport implements SyntheticSourceSupport {
+    protected final class AggregateMetricDoubleSyntheticSourceSupport implements SyntheticSourceSupport {
         private final boolean malformedExample;
         private final EnumSet<Metric> storedMetrics;
 
-        public AggregateDoubleMetricSyntheticSourceSupport(boolean malformedExample) {
+        public AggregateMetricDoubleSyntheticSourceSupport(boolean malformedExample) {
             this.malformedExample = malformedExample;
             this.storedMetrics = EnumSet.copyOf(randomNonEmptySubsetOf(Arrays.asList(Metric.values())));
         }

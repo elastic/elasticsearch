@@ -69,14 +69,14 @@ final class Spawner implements Closeable {
         if (spawned.compareAndSet(false, true) == false) {
             throw new IllegalStateException("native controllers already spawned");
         }
-        if (Files.exists(environment.modulesFile()) == false) {
-            throw new IllegalStateException("modules directory [" + environment.modulesFile() + "] not found");
+        if (Files.exists(environment.modulesDir()) == false) {
+            throw new IllegalStateException("modules directory [" + environment.modulesDir() + "] not found");
         }
         /*
          * For each module, attempt to spawn the controller daemon. Silently ignore any module that doesn't include a controller for the
          * correct platform.
          */
-        List<Path> paths = PluginsUtils.findPluginDirs(environment.modulesFile());
+        List<Path> paths = PluginsUtils.findPluginDirs(environment.modulesDir());
         for (final Path modules : paths) {
             final PluginDescriptor info = PluginDescriptor.readFromProperties(modules);
             final Path spawnPath = Platforms.nativeControllerPath(modules);
@@ -91,7 +91,7 @@ final class Spawner implements Closeable {
                 );
                 throw new IllegalArgumentException(message);
             }
-            final Process process = spawnNativeController(spawnPath, environment.tmpFile());
+            final Process process = spawnNativeController(spawnPath, environment.tmpDir());
             // The process _shouldn't_ write any output via its stdout or stderr, but if it does then
             // it will block if nothing is reading that output. To avoid this we can pipe the
             // outputs and create pump threads to write any messages there to the ES log.

@@ -16,7 +16,6 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.IndicesOptions;

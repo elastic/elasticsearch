@@ -120,7 +120,7 @@ class KibanaOwnedReservedRoleDescriptors {
                     .indices(".ml-annotations*", ".ml-notifications*")
                     .privileges("read", "write")
                     .build(),
-                // And the reindex indices from v7
+                // And the reindexed indices from v7
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".reindexed-v8-ml-annotations*", ".reindexed-v8-ml-notifications*")
                     .privileges("read", "write")

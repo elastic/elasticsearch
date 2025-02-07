@@ -13,15 +13,24 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.InvalidIndexNameException;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
+import static org.elasticsearch.indices.SystemIndices.SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.either;
@@ -220,11 +229,76 @@ public class IndexAbstractionResolverTests extends ESTestCase {
             "*",
             selector,
             index,
-            IndicesOptions.strictExpandOpen(),
+            IndicesOptions.strictExpandHidden(),
             metadata,
             indexNameExpressionResolver,
             true
         );
+    }
+
+    public void testIsNetNewSystemIndexVisible() {
+        final Settings settings = Settings.builder()
+            .put("index.number_of_replicas", 0)
+            .put("index.number_of_shards", 1)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .build();
+
+        final Settings hiddenSettings = Settings.builder().put(settings).put("index.hidden", true).build();
+
+        final IndexMetadata foo = IndexMetadata.builder(".foo").settings(hiddenSettings).system(true).build();
+        final IndexMetadata barReindexed = IndexMetadata.builder(".bar-reindexed")
+            .settings(hiddenSettings)
+            .system(true)
+            .putAlias(AliasMetadata.builder(".bar").isHidden(true).build())
+            .build();
+        final IndexMetadata other = IndexMetadata.builder("other").settings(settings).build();
+
+        final SystemIndexDescriptor fooDescriptor = SystemIndexDescriptor.builder()
+            .setDescription("foo indices")
+            .setOrigin("foo origin")
+            .setPrimaryIndex(".foo")
+            .setIndexPattern(".foo*")
+            .setSettings(settings)
+            .setMappings(mappings())
+            .setNetNew()
+            .build();
+        final SystemIndexDescriptor barDescriptor = SystemIndexDescriptor.builder()
+            .setDescription("bar indices")
+            .setOrigin("bar origin")
+            .setPrimaryIndex(".bar")
+            .setIndexPattern(".bar*")
+            .setSettings(settings)
+            .setMappings(mappings())
+            .setNetNew()
+            .build();
+        final SystemIndices systemIndices = new SystemIndices(
+            List.of(new SystemIndices.Feature("name", "description", List.of(fooDescriptor, barDescriptor)))
+        );
+
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, "false");
+        indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, systemIndices);
+        indexAbstractionResolver = new IndexAbstractionResolver(indexNameExpressionResolver);
+
+        metadata = Metadata.builder().put(foo, true).put(barReindexed, true).put(other, true).build();
+
+        assertThat(isIndexVisible("other", "*"), is(true));
+        assertThat(isIndexVisible(".foo", "*"), is(false));
+        assertThat(isIndexVisible(".bar", "*"), is(false));
+    }
+
+    private static XContentBuilder mappings() {
+        try (XContentBuilder builder = jsonBuilder()) {
+            return builder.startObject()
+                .startObject(SINGLE_MAPPING_NAME)
+                .startObject("_meta")
+                .field(SystemIndexDescriptor.VERSION_META_KEY, 0)
+                .endObject()
+                .endObject()
+                .endObject();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private List<String> resolveAbstractionsSelectorNotAllowed(List<String> expressions) {

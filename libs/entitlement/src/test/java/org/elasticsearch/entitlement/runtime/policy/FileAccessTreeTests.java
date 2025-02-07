@@ -9,12 +9,15 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
-import org.elasticsearch.entitlement.runtime.policy.entitlements.FileEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
 import static org.hamcrest.Matchers.is;
@@ -33,13 +36,13 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testEmpty() {
-        var tree = FileAccessTree.of(List.of());
+        var tree = FileAccessTree.of(FilesEntitlement.EMPTY);
         assertThat(tree.canRead(path("path")), is(false));
         assertThat(tree.canWrite(path("path")), is(false));
     }
 
     public void testRead() {
-        var tree = FileAccessTree.of(List.of(entitlement("foo", "read")));
+        var tree = FileAccessTree.of(entitlement("foo", "read"));
         assertThat(tree.canRead(path("foo")), is(true));
         assertThat(tree.canRead(path("foo/subdir")), is(true));
         assertThat(tree.canRead(path("food")), is(false));
@@ -51,7 +54,7 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testWrite() {
-        var tree = FileAccessTree.of(List.of(entitlement("foo", "read_write")));
+        var tree = FileAccessTree.of(entitlement("foo", "read_write"));
         assertThat(tree.canWrite(path("foo")), is(true));
         assertThat(tree.canWrite(path("foo/subdir")), is(true));
         assertThat(tree.canWrite(path("food")), is(false));
@@ -63,7 +66,7 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testTwoPaths() {
-        var tree = FileAccessTree.of(List.of(entitlement("foo", "read"), entitlement("bar", "read")));
+        var tree = FileAccessTree.of(entitlement("foo", "read", "bar", "read"));
         assertThat(tree.canRead(path("a")), is(false));
         assertThat(tree.canRead(path("bar")), is(true));
         assertThat(tree.canRead(path("bar/subdir")), is(true));
@@ -74,7 +77,7 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testReadWriteUnderRead() {
-        var tree = FileAccessTree.of(List.of(entitlement("foo", "read"), entitlement("foo/bar", "read_write")));
+        var tree = FileAccessTree.of(entitlement("foo", "read", "foo/bar", "read_write"));
         assertThat(tree.canRead(path("foo")), is(true));
         assertThat(tree.canWrite(path("foo")), is(false));
         assertThat(tree.canRead(path("foo/bar")), is(true));
@@ -82,7 +85,7 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testNormalizePath() {
-        var tree = FileAccessTree.of(List.of(entitlement("foo/../bar", "read")));
+        var tree = FileAccessTree.of(entitlement("foo/../bar", "read"));
         assertThat(tree.canRead(path("foo/../bar")), is(true));
         assertThat(tree.canRead(path("foo")), is(false));
         assertThat(tree.canRead(path("")), is(false));
@@ -90,7 +93,7 @@ public class FileAccessTreeTests extends ESTestCase {
 
     public void testForwardSlashes() {
         String sep = getDefaultFileSystem().getSeparator();
-        var tree = FileAccessTree.of(List.of(entitlement("a/b", "read"), entitlement("m" + sep + "n", "read")));
+        var tree = FileAccessTree.of(entitlement("a/b", "read", "m" + sep + "n", "read"));
 
         // Native separators work
         assertThat(tree.canRead(path("a" + sep + "b")), is(true));
@@ -104,8 +107,14 @@ public class FileAccessTreeTests extends ESTestCase {
         assertThat(tree.canRead(path("m\n")), is(false));
     }
 
-    FileEntitlement entitlement(String path, String mode) {
-        Path p = path(path);
-        return FileEntitlement.create(p.toString(), mode);
+    FilesEntitlement entitlement(String... values) {
+        List<Object> filesData = new ArrayList<>();
+        for (int i = 0; i < values.length; i += 2) {
+            Map<String, String> fileData = new HashMap<>();
+            fileData.put("path", path(values[i]).toString());
+            fileData.put("mode", values[i + 1]);
+            filesData.add(fileData);
+        }
+        return FilesEntitlement.build(filesData);
     }
 }

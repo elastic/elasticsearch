@@ -16,7 +16,7 @@ import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoaderEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ExitVMEntitlement;
-import org.elasticsearch.entitlement.runtime.policy.entitlements.FileEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.InboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetworkEntitlement;
@@ -73,14 +73,16 @@ public class PolicyManager {
         }
 
         public static ModuleEntitlements from(String componentName, List<Entitlement> entitlements) {
-            var fileEntitlements = entitlements.stream()
-                .filter(e -> e.getClass().equals(FileEntitlement.class))
-                .map(e -> (FileEntitlement) e)
-                .toList();
+            FilesEntitlement filesEntitlement = FilesEntitlement.EMPTY;
+            for (Entitlement entitlement : entitlements) {
+                if (entitlement instanceof FilesEntitlement) {
+                    filesEntitlement = (FilesEntitlement) entitlement;
+                }
+            }
             return new ModuleEntitlements(
                 componentName,
                 entitlements.stream().collect(groupingBy(Entitlement::getClass)),
-                FileAccessTree.of(fileEntitlements)
+                FileAccessTree.of(filesEntitlement)
             );
         }
 
@@ -164,23 +166,14 @@ public class PolicyManager {
     }
 
     private static void validateEntitlementsPerModule(String componentName, String moduleName, List<Entitlement> entitlements) {
-        Set<Class<? extends Entitlement>> flagEntitlements = new HashSet<>();
+        Set<Class<? extends Entitlement>> found = new HashSet<>();
         for (var e : entitlements) {
-            if (e instanceof FileEntitlement) {
-                continue;
-            }
-            if (flagEntitlements.contains(e.getClass())) {
+            if (found.contains(e.getClass())) {
                 throw new IllegalArgumentException(
-                    "["
-                        + componentName
-                        + "] using module ["
-                        + moduleName
-                        + "] found duplicate flag entitlements ["
-                        + e.getClass().getName()
-                        + "]"
+                    "[" + componentName + "] using module [" + moduleName + "] found duplicate entitlement [" + e.getClass().getName() + "]"
                 );
             }
-            flagEntitlements.add(e.getClass());
+            found.add(e.getClass());
         }
     }
 

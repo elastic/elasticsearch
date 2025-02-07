@@ -684,6 +684,7 @@ public class HeapAttackIT extends ESRestTestCase {
             return responseAsMap(query(query.toString(), null));
         } finally {
             deleteIndex("sensor_data");
+            deleteIndex("sensor_lookup");
         }
     }
 

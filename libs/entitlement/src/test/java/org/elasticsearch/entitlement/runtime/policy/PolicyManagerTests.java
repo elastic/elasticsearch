@@ -14,7 +14,7 @@ import org.elasticsearch.entitlement.runtime.policy.agent.TestAgent;
 import org.elasticsearch.entitlement.runtime.policy.agent.inner.TestInnerAgent;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoaderEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ExitVMEntitlement;
-import org.elasticsearch.entitlement.runtime.policy.entitlements.FileEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
@@ -293,7 +293,7 @@ public class PolicyManagerTests extends ESTestCase {
         }
     }
 
-    public void testDuplicateFlagEntitlements() {
+    public void testDuplicateEntitlements() {
         IllegalArgumentException iae = expectThrows(
             IllegalArgumentException.class,
             () -> new PolicyManager(
@@ -309,7 +309,7 @@ public class PolicyManagerTests extends ESTestCase {
             )
         );
         assertEquals(
-            "[(server)] using module [test] found duplicate flag entitlements " + "[" + CreateClassLoaderEntitlement.class.getName() + "]",
+            "[(server)] using module [test] found duplicate entitlement " + "[" + CreateClassLoaderEntitlement.class.getName() + "]",
             iae.getMessage()
         );
 
@@ -325,10 +325,7 @@ public class PolicyManagerTests extends ESTestCase {
             )
         );
         assertEquals(
-            "[(APM agent)] using module [unnamed] found duplicate flag entitlements "
-                + "["
-                + CreateClassLoaderEntitlement.class.getName()
-                + "]",
+            "[(APM agent)] using module [unnamed] found duplicate entitlement " + "[" + CreateClassLoaderEntitlement.class.getName() + "]",
             iae.getMessage()
         );
 
@@ -345,10 +342,9 @@ public class PolicyManagerTests extends ESTestCase {
                             new Scope(
                                 "test",
                                 List.of(
-                                    new FileEntitlement("/test/path", FileEntitlement.Mode.READ),
+                                    FilesEntitlement.EMPTY,
                                     new CreateClassLoaderEntitlement(),
-                                    new FileEntitlement("/test/test", FileEntitlement.Mode.READ),
-                                    new CreateClassLoaderEntitlement()
+                                    new FilesEntitlement(List.of(new FilesEntitlement.FileData("test", FilesEntitlement.Mode.READ)))
                                 )
                             )
                         )
@@ -360,7 +356,7 @@ public class PolicyManagerTests extends ESTestCase {
             )
         );
         assertEquals(
-            "[plugin1] using module [test] found duplicate flag entitlements " + "[" + CreateClassLoaderEntitlement.class.getName() + "]",
+            "[plugin1] using module [test] found duplicate entitlement " + "[" + FilesEntitlement.class.getName() + "]",
             iae.getMessage()
         );
     }
@@ -407,7 +403,10 @@ public class PolicyManagerTests extends ESTestCase {
                 .map(
                     name -> new Scope(
                         name,
-                        List.of(new FileEntitlement("/test/path", FileEntitlement.Mode.READ), new CreateClassLoaderEntitlement())
+                        List.of(
+                            new FilesEntitlement(List.of(new FilesEntitlement.FileData("/test/path", FilesEntitlement.Mode.READ))),
+                            new CreateClassLoaderEntitlement()
+                        )
                     )
                 )
                 .toList()

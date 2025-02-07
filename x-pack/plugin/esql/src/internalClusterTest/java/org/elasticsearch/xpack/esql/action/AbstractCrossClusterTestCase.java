@@ -23,6 +23,7 @@ import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -105,6 +106,13 @@ public abstract class AbstractCrossClusterTestCase extends AbstractMultiClusters
         SimplePauseFieldPlugin.resetPlugin();
         FailingPauseFieldPlugin.resetPlugin();
         CrossClusterAsyncQueryIT.CountingPauseFieldPlugin.resetPlugin();
+    }
+
+    @After
+    public void releaseLatches() {
+        SimplePauseFieldPlugin.release();
+        FailingPauseFieldPlugin.release();
+        CrossClusterAsyncQueryIT.CountingPauseFieldPlugin.release();
     }
 
     protected void assertClusterInfoSuccess(EsqlExecutionInfo.Cluster cluster, int numShards) {

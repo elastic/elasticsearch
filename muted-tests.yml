@@ -358,18 +358,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.ClassificationIT
   method: testDependentVariableIsAliasToKeyword
   issue: https://github.com/elastic/elasticsearch/issues/121492
-- class: org.elasticsearch.xpack.esql.action.CrossClustersCancellationIT
-  method: testTasks
-  issue: https://github.com/elastic/elasticsearch/issues/121626
-- class: org.elasticsearch.xpack.esql.action.CrossClustersCancellationIT
-  method: testCloseSkipUnavailable
-  issue: https://github.com/elastic/elasticsearch/issues/121627
-- class: org.elasticsearch.xpack.esql.action.CrossClustersCancellationIT
-  method: testCancel
-  issue: https://github.com/elastic/elasticsearch/issues/121632
-- class: org.elasticsearch.xpack.esql.action.CrossClustersCancellationIT
-  method: testCancelSkipUnavailable
-  issue: https://github.com/elastic/elasticsearch/issues/121631
 - class: org.elasticsearch.search.CrossClusterSearchUnavailableClusterIT
   method: testSearchSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/121497
@@ -384,39 +372,24 @@ tests:
 - class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
   method: test {yaml=analysis-common/40_token_filters/stemmer_override file access}
   issue: https://github.com/elastic/elasticsearch/issues/121625
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=update/100_synthetic_source/stored text}
-  issue: https://github.com/elastic/elasticsearch/issues/121964
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=update/100_synthetic_source/keyword}
-  issue: https://github.com/elastic/elasticsearch/issues/121965
 - class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderTests
   method: testDoNotRetryOnRequestLevelFailure
   issue: https://github.com/elastic/elasticsearch/issues/121966
 - class: org.elasticsearch.xpack.searchablesnapshots.hdfs.SecureHdfsSearchableSnapshotsIT
   issue: https://github.com/elastic/elasticsearch/issues/121967
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=update/100_synthetic_source/stored text}
-  issue: https://github.com/elastic/elasticsearch/issues/121991
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=update/100_synthetic_source/keyword}
-  issue: https://github.com/elastic/elasticsearch/issues/121992
 - class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
   method: testBottomFieldSort
   issue: https://github.com/elastic/elasticsearch/issues/121503
-- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
-  method: test {yaml=/60_synthetic_source_recovery/synthetic recovery for synthetic source mode index}
-  issue: https://github.com/elastic/elasticsearch/issues/122026
-- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
-  method: test {yaml=/60_synthetic_source_recovery/synthetic recovery for time_series index}
-  issue: https://github.com/elastic/elasticsearch/issues/122027
-- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
-  method: test {yaml=/60_synthetic_source_recovery/synthetic recovery for logsdb index}
-  issue: https://github.com/elastic/elasticsearch/issues/122028
 - class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
   issue: https://github.com/elastic/elasticsearch/issues/121537
 - class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
   issue: https://github.com/elastic/elasticsearch/issues/121737
+- class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleDisruptionIT
+  method: testDataStreamLifecycleDownsampleRollingRestart
+  issue: https://github.com/elastic/elasticsearch/issues/122056
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testWatcherWithApiKey {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/122061
 
 # Examples:
 #

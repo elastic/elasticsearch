@@ -15,12 +15,11 @@ import org.elasticsearch.logsdb.datageneration.matchers.MatchResult;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.math.BigInteger;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.logsdb.datageneration.matchers.Messages.formatErrorMessage;
@@ -29,13 +28,13 @@ import static org.elasticsearch.logsdb.datageneration.matchers.Messages.prettyPr
 interface FieldSpecificMatcher {
     MatchResult match(List<Object> actual, List<Object> expected, Map<String, Object> actualMapping, Map<String, Object> expectedMapping);
 
-    class HalfFloatMatcher implements FieldSpecificMatcher {
+    class CountedKeywordMatcher implements FieldSpecificMatcher {
         private final XContentBuilder actualMappings;
         private final Settings.Builder actualSettings;
         private final XContentBuilder expectedMappings;
         private final Settings.Builder expectedSettings;
 
-        HalfFloatMatcher(
+        CountedKeywordMatcher(
             XContentBuilder actualMappings,
             Settings.Builder actualSettings,
             XContentBuilder expectedMappings,
@@ -54,35 +53,83 @@ interface FieldSpecificMatcher {
             Map<String, Object> actualMapping,
             Map<String, Object> expectedMapping
         ) {
-            var actualHalfFloatBytes = normalize(actual);
-            var expectedHalfFloatBytes = normalize(expected);
+            var actualNormalized = normalize(actual);
+            var expectedNormalized = normalize(expected);
 
-            return actualHalfFloatBytes.equals(expectedHalfFloatBytes)
-                ? MatchResult.match()
-                : MatchResult.noMatch(
+            Map<String, Integer> counts = new TreeMap<>();
+            for (String value : actualNormalized) {
+                counts.put(value, counts.getOrDefault(value, 0) + 1);
+            }
+            for (String value : expectedNormalized) {
+                int newCount = counts.getOrDefault(value, 0) - 1;
+                if (newCount == 0) {
+                    counts.remove(value);
+                } else {
+                    counts.put(value, newCount);
+                }
+            }
+
+            if (counts.isEmpty() == false) {
+                var extraValuesMessage = new StringBuilder("extra values: ");
+                for (var entry : counts.entrySet()) {
+                    extraValuesMessage.append('\n').append(entry.getKey()).append(": ").append(entry.getValue());
+                }
+
+                return MatchResult.noMatch(
                     formatErrorMessage(
                         actualMappings,
                         actualSettings,
                         expectedMappings,
                         expectedSettings,
-                        "Values of type [half_float] don't match after normalization, normalized "
-                            + prettyPrintCollections(actualHalfFloatBytes, expectedHalfFloatBytes)
+                        "Values of type [counted_keyword] don't match, "
+                            + extraValuesMessage
+                            + ".\n"
+                            + prettyPrintCollections(actualNormalized, expectedNormalized)
                     )
                 );
-        }
-
-        private static Set<Short> normalize(List<Object> values) {
-            if (values == null) {
-                return Set.of();
             }
 
-            Function<Object, Float> toFloat = (o) -> o instanceof Number n ? n.floatValue() : Float.parseFloat((String) o);
-            return values.stream()
-                .filter(Objects::nonNull)
-                .map(toFloat)
-                // Based on logic in NumberFieldMapper
-                .map(HalfFloatPoint::halfFloatToSortableShort)
-                .collect(Collectors.toSet());
+            return MatchResult.match();
+        }
+
+        private static List<String> normalize(List<Object> values) {
+            return values.stream().filter(Objects::nonNull).map(it -> (String) it).toList();
+        }
+    }
+
+    class HalfFloatMatcher extends GenericMappingAwareMatcher {
+        HalfFloatMatcher(
+            XContentBuilder actualMappings,
+            Settings.Builder actualSettings,
+            XContentBuilder expectedMappings,
+            Settings.Builder expectedSettings
+        ) {
+            super("half_float", actualMappings, actualSettings, expectedMappings, expectedSettings);
+        }
+
+        @Override
+        Object convert(Object value, Object nullValue) {
+            var nullValueShort = nullValue != null ? HalfFloatPoint.halfFloatToSortableShort(((Number) nullValue).floatValue()) : null;
+
+            return switch (value) {
+                case null -> nullValueShort;
+                case Number n -> HalfFloatPoint.halfFloatToSortableShort(n.floatValue());
+                case String s -> {
+                    // Special case for number coercion from strings
+                    if (s.isEmpty()) {
+                        yield nullValueShort;
+                    }
+
+                    try {
+                        var f = Float.parseFloat(s);
+                        yield HalfFloatPoint.halfFloatToSortableShort(f);
+                    } catch (NumberFormatException e) {
+                        // Malformed, leave it be and match as is
+                        yield s;
+                    }
+                }
+                default -> value;
+            };
         }
     }
 
@@ -111,23 +158,23 @@ interface FieldSpecificMatcher {
             Map<String, Object> actualMapping,
             Map<String, Object> expectedMapping
         ) {
-            var scalingFactor = actualMapping.get("scaling_factor");
-            var expectedScalingFactor = expectedMapping.get("scaling_factor");
-            if (Objects.equals(scalingFactor, expectedScalingFactor) == false) {
-                throw new IllegalStateException("Scaling factor for scaled_float field does not match between actual and expected mapping");
-            }
+            var scalingFactor = FieldSpecificMatcher.getMappingParameter("scaling_factor", actualMapping, expectedMapping);
 
             assert scalingFactor instanceof Number;
             double scalingFactorDouble = ((Number) scalingFactor).doubleValue();
+
+            var nullValue = (Number) FieldSpecificMatcher.getNullValue(actualMapping, expectedMapping);
+
             // It is possible that we receive a mix of reduced precision values and original values.
             // F.e. in case of `synthetic_source_keep: "arrays"` in nested objects only arrays are preserved as is
             // and therefore any singleton values have reduced precision.
             // Therefore, we need to match either an exact value or a normalized value.
-            var expectedNormalized = normalizeValues(expected);
-            var actualNormalized = normalizeValues(actual);
-            for (var expectedValue : expectedNormalized) {
-                if (actualNormalized.contains(expectedValue) == false
-                    && actualNormalized.contains(encodeDecodeWithPrecisionLoss(expectedValue, scalingFactorDouble)) == false) {
+            var expectedNumbers = numbers(expected, nullValue);
+            var actualNumbers = numbers(actual, nullValue);
+
+            for (var expectedValue : expectedNumbers) {
+                if (actualNumbers.contains(expectedValue) == false
+                    && actualNumbers.contains(encodeDecodeWithPrecisionLoss(expectedValue, scalingFactorDouble)) == false) {
                     return MatchResult.noMatch(
                         formatErrorMessage(
                             actualMappings,
@@ -135,7 +182,24 @@ interface FieldSpecificMatcher {
                             expectedMappings,
                             expectedSettings,
                             "Values of type [scaled_float] don't match after normalization, normalized "
-                                + prettyPrintCollections(actualNormalized, expectedNormalized)
+                                + prettyPrintCollections(actualNumbers, expectedNumbers)
+                        )
+                    );
+                }
+            }
+
+            var expectedNotNumbers = notNumbers(expected);
+            var actualNotNumbers = notNumbers(actual);
+            for (var expectedValue : expectedNotNumbers) {
+                if (actualNotNumbers.contains(expectedValue) == false) {
+                    return MatchResult.noMatch(
+                        formatErrorMessage(
+                            actualMappings,
+                            actualSettings,
+                            expectedMappings,
+                            expectedSettings,
+                            "Malformed values of [scaled_float] field don't match, values:"
+                                + prettyPrintCollections(actualNotNumbers, expectedNotNumbers)
                         )
                     );
                 }
@@ -144,18 +208,49 @@ interface FieldSpecificMatcher {
             return MatchResult.match();
         }
 
-        private Double encodeDecodeWithPrecisionLoss(double value, double scalingFactor) {
-            // Based on logic in ScaledFloatFieldMapper
-            var encoded = Math.round(value * scalingFactor);
-            return encoded / scalingFactor;
-        }
-
-        private static Set<Double> normalizeValues(List<Object> values) {
+        private Set<Double> numbers(List<Object> values, Number nullValue) {
             if (values == null) {
                 return Set.of();
             }
 
-            return values.stream().filter(Objects::nonNull).map(ScaledFloatMatcher::toDouble).collect(Collectors.toSet());
+            return values.stream()
+                .map(v -> convertNumber(v, nullValue))
+                .filter(Objects::nonNull)
+                .map(ScaledFloatMatcher::toDouble)
+                .collect(Collectors.toSet());
+        }
+
+        private static Object convertNumber(Object value, Number nullValue) {
+            if (value == null) {
+                return nullValue;
+            }
+            // Special case for number coercion from strings
+            if (value instanceof String s && s.isEmpty()) {
+                return nullValue;
+            }
+            if (value instanceof Number n) {
+                return n;
+            }
+
+            return null;
+        }
+
+        private Set<Object> notNumbers(List<Object> values) {
+            if (values == null) {
+                return Set.of();
+            }
+
+            return values.stream()
+                .filter(Objects::nonNull)
+                .filter(v -> v instanceof Number == false)
+                .filter(v -> v instanceof String == false || ((String) v).isEmpty() == false)
+                .collect(Collectors.toSet());
+        }
+
+        private Double encodeDecodeWithPrecisionLoss(double value, double scalingFactor) {
+            // Based on logic in ScaledFloatFieldMapper
+            var encoded = Math.round(value * scalingFactor);
+            return encoded / scalingFactor;
         }
 
         private static double toDouble(Object value) {
@@ -163,144 +258,118 @@ interface FieldSpecificMatcher {
         }
     }
 
-    class UnsignedLongMatcher implements FieldSpecificMatcher {
-        private final XContentBuilder actualMappings;
-        private final Settings.Builder actualSettings;
-        private final XContentBuilder expectedMappings;
-        private final Settings.Builder expectedSettings;
-
+    class UnsignedLongMatcher extends GenericMappingAwareMatcher {
         UnsignedLongMatcher(
             XContentBuilder actualMappings,
             Settings.Builder actualSettings,
             XContentBuilder expectedMappings,
             Settings.Builder expectedSettings
         ) {
-            this.actualMappings = actualMappings;
-            this.actualSettings = actualSettings;
-            this.expectedMappings = expectedMappings;
-            this.expectedSettings = expectedSettings;
+            super("unsigned_long", actualMappings, actualSettings, expectedMappings, expectedSettings);
         }
 
         @Override
-        public MatchResult match(
-            List<Object> actual,
-            List<Object> expected,
-            Map<String, Object> actualMapping,
-            Map<String, Object> expectedMapping
-        ) {
-            var expectedNormalized = normalize(expected);
-            var actualNormalized = normalize(actual);
+        Object convert(Object value, Object nullValue) {
+            var nullValueBigInt = nullValue != null ? BigInteger.valueOf(((Number) nullValue).longValue()) : null;
 
-            return actualNormalized.equals(expectedNormalized)
-                ? MatchResult.match()
-                : MatchResult.noMatch(
-                    formatErrorMessage(
-                        actualMappings,
-                        actualSettings,
-                        expectedMappings,
-                        expectedSettings,
-                        "Values of type [unsigned_long] don't match after normalization, normalized "
-                            + prettyPrintCollections(actualNormalized, expectedNormalized)
-                    )
-                );
-        }
+            return switch (value) {
+                case null -> nullValueBigInt;
+                case String s -> {
+                    // Special case for number coercion from strings
+                    if (s.isEmpty()) {
+                        yield nullValueBigInt;
+                    }
 
-        private static Set<BigInteger> normalize(List<Object> values) {
-            if (values == null) {
-                return Set.of();
-            }
-
-            return values.stream().filter(Objects::nonNull).map(UnsignedLongMatcher::toBigInteger).collect(Collectors.toSet());
-        }
-
-        private static BigInteger toBigInteger(Object value) {
-            if (value instanceof String s) {
-                return new BigInteger(s, 10);
-            }
-            if (value instanceof Long l) {
-                return BigInteger.valueOf(l);
-            }
-
-            return (BigInteger) value;
-        }
-    }
-
-    class CountedKeywordMatcher implements FieldSpecificMatcher {
-        private final XContentBuilder actualMappings;
-        private final Settings.Builder actualSettings;
-        private final XContentBuilder expectedMappings;
-        private final Settings.Builder expectedSettings;
-
-        CountedKeywordMatcher(
-            XContentBuilder actualMappings,
-            Settings.Builder actualSettings,
-            XContentBuilder expectedMappings,
-            Settings.Builder expectedSettings
-        ) {
-            this.actualMappings = actualMappings;
-            this.actualSettings = actualSettings;
-            this.expectedMappings = expectedMappings;
-            this.expectedSettings = expectedSettings;
-        }
-
-        private static List<String> normalize(List<Object> values) {
-            return values.stream().filter(Objects::nonNull).map(it -> (String) it).toList();
-        }
-
-        private static boolean matchCountsEqualExact(List<String> actualNormalized, List<String> expectedNormalized) {
-            HashMap<String, Integer> counts = new HashMap<>();
-            for (String value : actualNormalized) {
-                counts.put(value, counts.getOrDefault(value, 0) + 1);
-            }
-            for (String value : expectedNormalized) {
-                int newCount = counts.getOrDefault(value, 0) - 1;
-                if (newCount == 0) {
-                    counts.remove(value);
-                } else {
-                    counts.put(value, newCount);
+                    yield s;
                 }
-            }
+                case Long l -> BigInteger.valueOf(l);
+                default -> value;
+            };
 
-            return counts.isEmpty();
-        }
-
-        @Override
-        public MatchResult match(
-            List<Object> actual,
-            List<Object> expected,
-            Map<String, Object> actualMapping,
-            Map<String, Object> expectedMapping
-        ) {
-            var actualNormalized = normalize(actual);
-            var expectedNormalized = normalize(expected);
-
-            return matchCountsEqualExact(actualNormalized, expectedNormalized)
-                ? MatchResult.match()
-                : MatchResult.noMatch(
-                    formatErrorMessage(
-                        actualMappings,
-                        actualSettings,
-                        expectedMappings,
-                        expectedSettings,
-                        "Values of type [counted_keyword] don't match after normalization, normalized"
-                            + prettyPrintCollections(actualNormalized, expectedNormalized)
-                    )
-                );
         }
     }
 
-    class KeywordMatcher implements FieldSpecificMatcher {
-        private final XContentBuilder actualMappings;
-        private final Settings.Builder actualSettings;
-        private final XContentBuilder expectedMappings;
-        private final Settings.Builder expectedSettings;
-
+    class KeywordMatcher extends GenericMappingAwareMatcher {
         KeywordMatcher(
             XContentBuilder actualMappings,
             Settings.Builder actualSettings,
             XContentBuilder expectedMappings,
             Settings.Builder expectedSettings
         ) {
+            super("keyword", actualMappings, actualSettings, expectedMappings, expectedSettings);
+        }
+
+        @Override
+        Object convert(Object value, Object nullValue) {
+            if (value == null) {
+                return nullValue;
+            }
+
+            return value;
+        }
+    }
+
+    class NumberMatcher extends GenericMappingAwareMatcher {
+        NumberMatcher(
+            String fieldType,
+            XContentBuilder actualMappings,
+            Settings.Builder actualSettings,
+            XContentBuilder expectedMappings,
+            Settings.Builder expectedSettings
+        ) {
+            super(fieldType, actualMappings, actualSettings, expectedMappings, expectedSettings);
+        }
+
+        @Override
+        Object convert(Object value, Object nullValue) {
+            if (value == null) {
+                return nullValue;
+            }
+            // Special case for number coercion from strings
+            if (value instanceof String s && s.isEmpty()) {
+                return nullValue;
+            }
+
+            return value;
+        }
+    }
+
+    // TODO basic implementation only right now
+    class DateMatcher extends GenericMappingAwareMatcher {
+        DateMatcher(
+            XContentBuilder actualMappings,
+            Settings.Builder actualSettings,
+            XContentBuilder expectedMappings,
+            Settings.Builder expectedSettings
+        ) {
+            super("date", actualMappings, actualSettings, expectedMappings, expectedSettings);
+        }
+
+        @Override
+        Object convert(Object value, Object nullValue) {
+            return value;
+        }
+    }
+
+    /**
+     * Generic matcher that supports common matching logic like null values.
+     */
+    abstract class GenericMappingAwareMatcher implements FieldSpecificMatcher {
+        private final String fieldType;
+
+        private final XContentBuilder actualMappings;
+        private final Settings.Builder actualSettings;
+        private final XContentBuilder expectedMappings;
+        private final Settings.Builder expectedSettings;
+
+        GenericMappingAwareMatcher(
+            String fieldType,
+            XContentBuilder actualMappings,
+            Settings.Builder actualSettings,
+            XContentBuilder expectedMappings,
+            Settings.Builder expectedSettings
+        ) {
+            this.fieldType = fieldType;
             this.actualMappings = actualMappings;
             this.actualSettings = actualSettings;
             this.expectedMappings = expectedMappings;
@@ -308,22 +377,17 @@ interface FieldSpecificMatcher {
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         public MatchResult match(
             List<Object> actual,
             List<Object> expected,
             Map<String, Object> actualMapping,
             Map<String, Object> expectedMapping
         ) {
-            var nullValue = actualMapping.get("null_value");
-            var expectedNullValue = expectedMapping.get("null_value");
-            if (Objects.equals(nullValue, expectedNullValue) == false) {
-                throw new IllegalStateException(
-                    "[null_value] parameter for [keyword] field does not match between actual and expected mapping"
-                );
-            }
+            var nullValue = getNullValue(actualMapping, expectedMapping);
 
-            var expectedNormalized = normalize(expected, (String) nullValue);
-            var actualNormalized = normalize(actual, (String) nullValue);
+            var expectedNormalized = normalize(expected, nullValue);
+            var actualNormalized = normalize(actual, nullValue);
 
             return actualNormalized.equals(expectedNormalized)
                 ? MatchResult.match()
@@ -333,18 +397,35 @@ interface FieldSpecificMatcher {
                         actualSettings,
                         expectedMappings,
                         expectedSettings,
-                        "Values of type [keyword] don't match after normalization, normalized "
+                        "Values of type ["
+                            + fieldType
+                            + "] don't match after normalization, normalized "
                             + prettyPrintCollections(actualNormalized, expectedNormalized)
                     )
                 );
         }
 
-        private static Set<String> normalize(List<Object> values, String nullValue) {
+        private Set<Object> normalize(List<Object> values, Object nullValue) {
             if (values == null) {
                 return Set.of();
             }
 
-            return values.stream().map(v -> v == null ? nullValue : (String) v).filter(Objects::nonNull).collect(Collectors.toSet());
+            return values.stream().map(v -> convert(v, nullValue)).filter(Objects::nonNull).collect(Collectors.toSet());
         }
+
+        abstract Object convert(Object value, Object nullValue);
+    }
+
+    private static Object getNullValue(Map<String, Object> actualMapping, Map<String, Object> expectedMapping) {
+        return getMappingParameter("null_value", actualMapping, expectedMapping);
+    }
+
+    private static Object getMappingParameter(String name, Map<String, Object> actualMapping, Map<String, Object> expectedMapping) {
+        var actualValue = actualMapping.get(name);
+        var expectedValue = expectedMapping.get(name);
+        if (Objects.equals(actualValue, expectedValue) == false) {
+            throw new IllegalStateException("[" + name + "] parameter does not match between actual and expected mapping");
+        }
+        return actualValue;
     }
 }

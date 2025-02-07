@@ -13,7 +13,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
@@ -30,7 +29,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.repositories.RepositoryMissingException;
@@ -45,7 +43,6 @@ import java.util.Set;
 
 import static org.elasticsearch.test.ESTestCase.TEST_REQUEST_TIMEOUT;
 import static org.elasticsearch.test.ESTestCase.safeAwait;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 
 /**
  * Base test cluster that exposes the basis to run tests against any elasticsearch cluster, whose layout
@@ -73,16 +70,6 @@ public abstract class TestCluster {
         this.random = new Random(randomGenerator.nextLong());
     }
 
-    protected void ensureNoInitializingShards() {
-        logger.info("--> waiting for all initializing shards to complete within a reasonable time before wiping the cluster");
-        assertNoTimeout(
-            client().admin()
-                .cluster()
-                .health(new ClusterHealthRequest(TimeValue.timeValueMinutes(1), "_all").waitForNoInitializingShards(true))
-                .actionGet()
-        );
-    }
-
     /**
      * Wipes any data that a test can leave behind: indices, templates (except exclude templates) and repositories
      */
@@ -90,7 +77,6 @@ public abstract class TestCluster {
         if (size() == 0) {
             return;
         }
-        ensureNoInitializingShards();
         safeAwait((ActionListener<Void> done) -> {
             try (RefCountingListener listeners = new RefCountingListener(done)) {
                 wipeAllTemplates(excludeTemplates, listeners);

@@ -15,7 +15,6 @@ import org.elasticsearch.logsdb.datageneration.matchers.MatchResult;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.math.BigInteger;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -82,7 +81,9 @@ interface FieldSpecificMatcher {
                         actualSettings,
                         expectedMappings,
                         expectedSettings,
-                        "Values of type [counted_keyword] don't match, " + extraValuesMessage + ".\n"
+                        "Values of type [counted_keyword] don't match, "
+                            + extraValuesMessage
+                            + ".\n"
                             + prettyPrintCollections(actualNormalized, expectedNormalized)
                     )
                 );

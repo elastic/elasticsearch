@@ -123,7 +123,7 @@ public class TemplateDeprecationChecker implements ResourceDeprecationChecker {
                         return new DeprecationIssue(
                             DeprecationIssue.Level.CRITICAL,
                             SourceFieldMapper.DEPRECATION_WARNING,
-                            "https://github.com/elastic/elasticsearch/pull/117172",
+                            "https://ela.st/migrate-source-mode",
                             SourceFieldMapper.DEPRECATION_DETAILS,
                             false,
                             null

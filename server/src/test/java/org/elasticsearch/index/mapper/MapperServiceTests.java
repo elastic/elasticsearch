@@ -29,7 +29,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -322,30 +321,17 @@ public class MapperServiceTests extends MapperServiceTestCase {
             return createMapperService(settingsBuilder.build(), mapping(b -> {}));
         };
 
-        Consumer<MapperService> assertMapperService = initMapperServiceConsumer(version);
-
-        for (IndexMode indexMode : IndexMode.values()) {
-            MapperService mapperService = initMapperService.apply(indexMode);
-            assertMapperService.accept(mapperService);
-        }
-    }
-
-    private static Consumer<MapperService> initMapperServiceConsumer(IndexVersion version) {
-        BiFunction<String, MapperService, Boolean> shouldSkipField = (field, mapperService) -> {
-            if (NestedPathFieldMapper.NAME.equals(field) && version.before(IndexVersions.V_8_0_0)) {
-                return true;  // Nested field does not exist in the 7x line
-            }
-
-            boolean isTimeSeriesField = field.equals("_tsid") || field.equals("_ts_routing_hash");
-            // should only skip for these fields if index mode is set to time_series
-            return isTimeSeriesField && mapperService.getIndexSettings().getMode().equals(IndexMode.TIME_SERIES) == false;
-        };
-
-        return (mapperService) -> {
+        Consumer<MapperService> assertMapperService = (mapperService) -> {
             assertFalse(mapperService.isMetadataField(randomAlphaOfLengthBetween(10, 15)));
 
             for (String builtIn : IndicesModule.getBuiltInMetadataFields()) {
-                if (shouldSkipField.apply(builtIn, mapperService)) {
+                if (NestedPathFieldMapper.NAME.equals(builtIn) && version.before(IndexVersions.V_8_0_0)) {
+                    continue;  // Nested field does not exist in the 7x line
+                }
+                boolean isTimeSeriesField = builtIn.equals("_tsid") || builtIn.equals("_ts_routing_hash");
+                boolean isTimeSeriesMode = mapperService.getIndexSettings().getMode().equals(IndexMode.TIME_SERIES);
+
+                if (isTimeSeriesField && isTimeSeriesMode == false) {
                     continue;
                 }
                 assertTrue(
@@ -354,6 +340,11 @@ public class MapperServiceTests extends MapperServiceTestCase {
                 );
             }
         };
+
+        for (IndexMode indexMode : IndexMode.values()) {
+            MapperService mapperService = initMapperService.apply(indexMode);
+            assertMapperService.accept(mapperService);
+        }
     }
 
     public void testMappingUpdateChecks() throws IOException {

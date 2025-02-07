@@ -53,16 +53,16 @@ public record VoyageAIEmbeddingsRequestEntity(
             builder.field(INPUT_TYPE_FIELD, inputType);
         }
 
-        if(taskSettings.getTruncation() != null) {
+        if (taskSettings.getTruncation() != null) {
             builder.field(TRUNCATION_FIELD, taskSettings.getTruncation());
         }
 
-        if(serviceSettings.dimensions() != null) {
+        if (serviceSettings.dimensions() != null) {
             builder.field(OUTPUT_DIMENSION, serviceSettings.dimensions());
         }
 
-        if(serviceSettings.getEmbeddingType() != null) {
-            builder.field(OUTPUT_DTYPE_FIELD, serviceSettings.getEmbeddingType());
+        if (serviceSettings.getEmbeddingType() != null) {
+            builder.field(OUTPUT_DTYPE_FIELD, serviceSettings.getEmbeddingType().toRequestString());
         }
 
         builder.endObject();
@@ -71,6 +71,7 @@ public record VoyageAIEmbeddingsRequestEntity(
 
     static String convertToString(InputType inputType) {
         return switch (inputType) {
+            case null -> null;
             case INGEST -> DOCUMENT;
             case SEARCH -> QUERY;
             default -> {

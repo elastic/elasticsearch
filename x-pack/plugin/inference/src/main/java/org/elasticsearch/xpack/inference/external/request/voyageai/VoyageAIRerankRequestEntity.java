@@ -52,7 +52,7 @@ public record VoyageAIRerankRequestEntity(String model, String query, List<Strin
             builder.field(VoyageAIRerankTaskSettings.TOP_K_DOCS_ONLY, taskSettings.getTopKDocumentsOnly());
         }
 
-        if(taskSettings.getTruncation() != null) {
+        if (taskSettings.getTruncation() != null) {
             builder.field(TRUNCATION_FIELD, taskSettings.getTruncation());
         }
 

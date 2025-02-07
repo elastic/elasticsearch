@@ -49,12 +49,8 @@ public class VoyageAIEmbeddingsRequest extends VoyageAIRequest {
         HttpPost httpPost = new HttpPost(account.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new VoyageAIEmbeddingsRequestEntity(
-                input,
-                serviceSettings,
-                taskSettings,
-                model
-            )).getBytes(StandardCharsets.UTF_8)
+            Strings.toString(new VoyageAIEmbeddingsRequestEntity(input, serviceSettings, taskSettings, model))
+                .getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);
 
@@ -83,9 +79,13 @@ public class VoyageAIEmbeddingsRequest extends VoyageAIRequest {
         return null;
     }
 
-    public VoyageAIEmbeddingsTaskSettings getTaskSettings() { return taskSettings; }
+    public VoyageAIEmbeddingsTaskSettings getTaskSettings() {
+        return taskSettings;
+    }
 
-    public VoyageAIEmbeddingsServiceSettings getServiceSettings() { return serviceSettings; }
+    public VoyageAIEmbeddingsServiceSettings getServiceSettings() {
+        return serviceSettings;
+    }
 
     public static URI buildDefaultUri() throws URISyntaxException {
         return new URIBuilder().setScheme("https")

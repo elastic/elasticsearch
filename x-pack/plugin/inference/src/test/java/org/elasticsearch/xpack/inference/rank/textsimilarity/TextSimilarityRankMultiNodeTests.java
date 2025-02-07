@@ -84,12 +84,12 @@ public class TextSimilarityRankMultiNodeTests extends AbstractRerankerIT {
 
         assertNoFailuresAndResponse(
             prepareSearch().setQuery(
-                    boolQuery().should(matchQuery(searchField, "A"))
-                        .should(matchQuery(searchField, "B"))
-                        .should(matchQuery(searchField, "C"))
-                        .should(matchQuery(searchField, "D"))
-                        .should(matchQuery(searchField, "E"))
-                )
+                boolQuery().should(matchQuery(searchField, "A"))
+                    .should(matchQuery(searchField, "B"))
+                    .should(matchQuery(searchField, "C"))
+                    .should(matchQuery(searchField, "D"))
+                    .should(matchQuery(searchField, "E"))
+            )
                 .setRankBuilder(
                     getThrowingRankBuilder(
                         rankWindowSize,

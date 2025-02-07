@@ -26,9 +26,9 @@ import java.util.Map;
 import java.util.Objects;
 
 public class InternalPercentilesBucket extends InternalNumericMetricsAggregation.MultiValue implements PercentilesBucket {
-    private double[] percentiles;
-    private double[] percents;
-    private boolean keyed = true;
+    private final double[] percentiles;
+    private final double[] percents;
+    private final boolean keyed;
 
     private final transient Map<Double, Double> percentileLookups = new HashMap<>();
 

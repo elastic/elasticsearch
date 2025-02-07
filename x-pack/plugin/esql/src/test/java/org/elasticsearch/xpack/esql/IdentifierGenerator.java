@@ -84,8 +84,8 @@ public class IdentifierGenerator {
             pattern = maybeQuote(cluster + ":" + pattern);
         }
 
-        if (pattern.contains("|") && pattern.contains("\"") == false) {
-            pattern = quote(pattern);
+        if (pattern.contains("|") && pattern.endsWith("\"") == false) {
+            pattern = quote(unquoteIndexPattern(pattern));
         }
 
         return pattern;

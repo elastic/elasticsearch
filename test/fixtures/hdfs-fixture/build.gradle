@@ -16,6 +16,7 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 configurations {
   hdfs2
   hdfs3
+  patcher
   consumable("shadowedHdfs2")
 }
 
@@ -85,6 +86,21 @@ dependencies {
     exclude group: "org.apache.geronimo.specs", module: "geronimo-jcache_1.0_spec"
     exclude group: "org.xerial.snappy", module: "snappy-java"
   }
+
+  patcher(project(':plugins:repository-hdfs:hadoop-common-patcher'))
+}
+
+def outputDir = layout.buildDirectory.dir("patched-classes")
+
+def patchTask = tasks.register("patchClasses", JavaExec) {
+  inputs.files(configurations.hdfs2).withPathSensitivity(PathSensitivity.RELATIVE)
+  outputs.dir(outputDir)
+  classpath = configurations.patcher
+  mainClass = 'org.elasticsearch.hdfs.patch.HdfsClassPatcher'
+  def jarToPatch = configurations.hdfs2.getFiles().find { f -> f.getName().endsWith("hadoop-common-2.8.5.jar")}
+  doFirst {
+    args(jarToPatch, outputDir.get().asFile)
+  }
 }
 
 tasks.named("shadowJar").configure {
@@ -104,6 +120,7 @@ def hdfs2Jar = tasks.register("hdfs2jar", ShadowJar) {
   }
   archiveClassifier.set("hdfs2")
   from sourceSets.main.output
+  from patchTask
   configurations.add(project.configurations.hdfs2)
 }
 

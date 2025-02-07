@@ -177,7 +177,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         getRoleDescriptors(names, listener);
     }
 
-    private Set<String> filterReservedRoles(Set<String> names) {
+    private Set<String> filterReservedRoleNames(Set<String> names) {
         if (names == null || names.isEmpty()) {
             return names;
         }
@@ -199,7 +199,7 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             return;
         }
 
-        final Set<String> rolesToGet = filterReservedRoles(names);
+        final Set<String> rolesToGet = filterReservedRoleNames(names);
         if ((names != null && names.size() > 0) && (rolesToGet == null || rolesToGet.isEmpty())) {
             // if we have no roles to get, it means all requested roles were reserved.
             // we can short-circuit and return an empty set here.

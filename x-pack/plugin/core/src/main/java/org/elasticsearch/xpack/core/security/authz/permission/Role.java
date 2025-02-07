@@ -42,7 +42,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 public interface Role {
 
@@ -463,13 +462,18 @@ public interface Role {
         );
 
         for (RoleDescriptor.IndicesPrivileges indexPrivilege : roleDescriptor.getIndicesPrivileges()) {
-            if (Arrays.stream(indexPrivilege.getPrivileges()).map(String::toLowerCase).collect(Collectors.toSet()).contains("all")) {
+            String[] privileges = indexPrivilege.getPrivileges();
+            // TODO properly handle this
+            // flag is true if privileges contain read_failures or all
+            boolean shouldIncludeFailureAccess = Arrays.stream(privileges)
+                .anyMatch(p -> p.equalsIgnoreCase("read_failures") || p.equalsIgnoreCase("all"));
+            if (shouldIncludeFailureAccess) {
                 builder.add(
                     fieldPermissionsCache.getFieldPermissions(
                         new FieldPermissionsDefinition(indexPrivilege.getGrantedFields(), indexPrivilege.getDeniedFields())
                     ),
                     indexPrivilege.getQuery() == null ? null : Collections.singleton(indexPrivilege.getQuery()),
-                    IndexPrivilege.get(Sets.newHashSet(indexPrivilege.getPrivileges())),
+                    IndexPrivilege.get(Sets.newHashSet(privileges)),
                     indexPrivilege.allowRestrictedIndices(),
                     IndexComponentSelector.FAILURES,
                     indexPrivilege.getIndices()
@@ -480,7 +484,7 @@ public interface Role {
                     new FieldPermissionsDefinition(indexPrivilege.getGrantedFields(), indexPrivilege.getDeniedFields())
                 ),
                 indexPrivilege.getQuery() == null ? null : Collections.singleton(indexPrivilege.getQuery()),
-                IndexPrivilege.get(Sets.newHashSet(indexPrivilege.getPrivileges())),
+                IndexPrivilege.get(Sets.newHashSet(privileges)),
                 indexPrivilege.allowRestrictedIndices(),
                 IndexComponentSelector.DATA,
                 indexPrivilege.getIndices()

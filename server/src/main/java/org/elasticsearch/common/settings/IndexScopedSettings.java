@@ -235,8 +235,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             )
         );
 
-        if (IndexSettings.DOC_VALUES_SPARSE_INDEX.isEnabled()) {
-            settings.add(IndexSettings.USE_DOC_VALUES_SPARSE_INDEX);
+        if (IndexSettings.DOC_VALUES_SKIPPER.isEnabled()) {
+            settings.add(IndexSettings.USE_DOC_VALUES_SKIPPER);
         }
         BUILT_IN_INDEX_SETTINGS = Collections.unmodifiableSet(settings);
     };

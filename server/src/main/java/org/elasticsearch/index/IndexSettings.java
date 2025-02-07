@@ -685,10 +685,10 @@ public final class IndexSettings {
         Property.Final
     );
 
-    public static final FeatureFlag DOC_VALUES_SPARSE_INDEX = new FeatureFlag("doc_values_sparse_index");
-    public static final Setting<Boolean> USE_DOC_VALUES_SPARSE_INDEX = Setting.boolSetting(
-        "index.mapping.use_doc_values_sparse_index",
-        IndexSettings.DOC_VALUES_SPARSE_INDEX.isEnabled(),
+    public static final FeatureFlag DOC_VALUES_SKIPPER = new FeatureFlag("doc_values_skipper");
+    public static final Setting<Boolean> USE_DOC_VALUES_SKIPPER = Setting.boolSetting(
+        "index.mapping.use_doc_values_skipper",
+        IndexSettings.DOC_VALUES_SKIPPER.isEnabled(),
         Property.IndexScope,
         Property.Final
     );
@@ -930,7 +930,7 @@ public final class IndexSettings {
     private final SourceFieldMapper.Mode indexMappingSourceMode;
     private final boolean recoverySourceEnabled;
     private final boolean recoverySourceSyntheticEnabled;
-    private final boolean useDocValuesSparseIndex;
+    private final boolean useDocValuesSkipper;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -1112,7 +1112,7 @@ public final class IndexSettings {
         recoverySourceEnabled = RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(nodeSettings);
         recoverySourceSyntheticEnabled = DiscoveryNode.isStateless(nodeSettings) == false
             && scopedSettings.get(RECOVERY_USE_SYNTHETIC_SOURCE_SETTING);
-        useDocValuesSparseIndex = DOC_VALUES_SPARSE_INDEX.isEnabled() && scopedSettings.get(USE_DOC_VALUES_SPARSE_INDEX);
+        useDocValuesSkipper = DOC_VALUES_SKIPPER.isEnabled() && scopedSettings.get(USE_DOC_VALUES_SKIPPER);
         if (recoverySourceSyntheticEnabled) {
             if (DiscoveryNode.isStateless(settings)) {
                 throw new IllegalArgumentException("synthetic recovery source is only allowed in stateful");
@@ -1832,8 +1832,8 @@ public final class IndexSettings {
         return recoverySourceSyntheticEnabled;
     }
 
-    public boolean useDocValuesSparseIndex() {
-        return useDocValuesSparseIndex;
+    public boolean useDocValuesSkipper() {
+        return useDocValuesSkipper;
     }
 
     /**

@@ -53,16 +53,18 @@ abstract class DataNodeRequestSender {
     private final TransportService transportService;
     private final Executor esqlExecutor;
     private final CancellableTask rootTask;
+    private final boolean allowPartialResults;
     private final ReentrantLock sendingLock = new ReentrantLock();
     private final Queue<ShardId> pendingShardIds = ConcurrentCollections.newQueue();
     private final Map<DiscoveryNode, Semaphore> nodePermits = new HashMap<>();
     private final Map<ShardId, ShardFailure> shardFailures = ConcurrentCollections.newConcurrentMap();
     private final AtomicBoolean changed = new AtomicBoolean();
 
-    DataNodeRequestSender(TransportService transportService, Executor esqlExecutor, CancellableTask rootTask) {
+    DataNodeRequestSender(TransportService transportService, Executor esqlExecutor, CancellableTask rootTask, boolean allowPartialResults) {
         this.transportService = transportService;
         this.esqlExecutor = esqlExecutor;
         this.rootTask = rootTask;
+        this.allowPartialResults = allowPartialResults;
     }
 
     final void startComputeOnDataNodes(
@@ -328,7 +330,7 @@ abstract class DataNodeRequestSender {
             filter,
             null,
             null,
-            false,
+            true,
             clusterAlias
         );
         transportService.sendChildRequest(

@@ -150,6 +150,9 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
     protected EsqlQueryResponse run(String esqlCommands, QueryPragmas pragmas, QueryBuilder filter) {
         EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
         request.query(esqlCommands);
+        if (randomBoolean()) {
+            request.allowPartialResults(randomBoolean());
+        }
         if (pragmas != null) {
             request.pragmas(pragmas);
         }

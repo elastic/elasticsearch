@@ -97,7 +97,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         Runnable runOnTaskFailure,
         ActionListener<ComputeResponse> outListener
     ) {
-        DataNodeRequestSender sender = new DataNodeRequestSender(transportService, esqlExecutor, parentTask) {
+        final boolean allowPartialResults = configuration.allowPartialResults();
+        DataNodeRequestSender sender = new DataNodeRequestSender(transportService, esqlExecutor, parentTask, allowPartialResults) {
             @Override
             protected void sendRequest(
                 DiscoveryNode node,

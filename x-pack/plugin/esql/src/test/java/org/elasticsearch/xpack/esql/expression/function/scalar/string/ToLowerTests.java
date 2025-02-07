@@ -70,7 +70,8 @@ public class ToLowerTests extends AbstractConfigurationFunctionTestCase {
             "",
             false,
             Map.of(),
-            System.nanoTime()
+            System.nanoTime(),
+            randomBoolean()
         );
     }
 

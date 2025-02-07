@@ -10,10 +10,12 @@ package org.elasticsearch.xpack.inference.integration;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.InferenceService;
@@ -51,7 +53,9 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -70,6 +74,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
 public class ModelRegistryIT extends ESSingleNodeTestCase {
+    private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
 
     private ModelRegistry modelRegistry;
 
@@ -195,6 +200,56 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertThat(exceptionHolder.get().getMessage(), containsString("Inference endpoint not found [model1]"));
     }
 
+    public void testNonExistentDeleteModel_DoesNotThrowAnException() {
+        var listener = new PlainActionFuture<Boolean>();
+
+        modelRegistry.deleteModel("non-existent-model", listener);
+        assertTrue(listener.actionGet(TIMEOUT));
+    }
+
+    public void testRemoveDefaultConfigs_DoesNotThrowAnException_WhenSearchingForNonExistentInferenceEndpointIds() {
+        var listener = new PlainActionFuture<Boolean>();
+
+        modelRegistry.deleteModels(Set.of("non-existent-model", "abc"), listener);
+        assertTrue(listener.actionGet(TIMEOUT));
+    }
+
+    public void testRemoveDefaultConfigs_RemovesModelsFromPersistentStorage_AndInMemoryCache() {
+        var service = mock(InferenceService.class);
+
+        var defaultConfigs = new ArrayList<Model>();
+        var defaultIds = new ArrayList<InferenceService.DefaultConfigId>();
+        for (var id : new String[] { "model1", "model2", "model3" }) {
+            var modelSettings = ModelRegistryTests.randomMinimalServiceSettings();
+            defaultConfigs.add(createModel(id, modelSettings.taskType(), "name"));
+            defaultIds.add(new InferenceService.DefaultConfigId(id, modelSettings, service));
+        }
+
+        doAnswer(invocation -> {
+            ActionListener<List<Model>> listener = invocation.getArgument(0);
+            listener.onResponse(defaultConfigs);
+            return Void.TYPE;
+        }).when(service).defaultConfigs(any());
+
+        defaultIds.forEach(modelRegistry::addDefaultIds);
+
+        var getModelsListener = new PlainActionFuture<List<UnparsedModel>>();
+        modelRegistry.getAllModels(true, getModelsListener);
+        var unparsedModels = getModelsListener.actionGet(TIMEOUT);
+        assertThat(unparsedModels.size(), is(3));
+
+        var removeModelsListener = new PlainActionFuture<Boolean>();
+
+        modelRegistry.removeDefaultConfigs(Set.of("model1", "model2", "model3"), removeModelsListener);
+        assertTrue(removeModelsListener.actionGet(TIMEOUT));
+
+        var getModelsAfterDeleteListener = new PlainActionFuture<List<UnparsedModel>>();
+        // the models should have been removed from the in memory cache, if not they they will be persisted again by this call
+        modelRegistry.getAllModels(true, getModelsAfterDeleteListener);
+        var unparsedModelsAfterDelete = getModelsAfterDeleteListener.actionGet(TIMEOUT);
+        assertThat(unparsedModelsAfterDelete.size(), is(0));
+    }
+
     public void testGetModelsByTaskType() throws InterruptedException {
         var service = "foo";
         var sparseAndTextEmbeddingModels = new ArrayList<Model>();
@@ -315,8 +370,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         }
 
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            var listener = (ActionListener<List<Model>>) invocation.getArguments()[0];
+            ActionListener<List<Model>> listener = invocation.getArgument(0);
             listener.onResponse(defaultConfigs);
             return Void.TYPE;
         }).when(service).defaultConfigs(any());
@@ -381,8 +435,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         }
 
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            var listener = (ActionListener<List<Model>>) invocation.getArguments()[0];
+            ActionListener<List<Model>> listener = invocation.getArgument(0);
             listener.onResponse(defaultConfigs);
             return Void.TYPE;
         }).when(service).defaultConfigs(any());
@@ -424,8 +477,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         }
 
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            var listener = (ActionListener<List<Model>>) invocation.getArguments()[0];
+            ActionListener<List<Model>> listener = invocation.getArgument(0);
             listener.onResponse(defaultConfigs);
             return Void.TYPE;
         }).when(service).defaultConfigs(any());
@@ -469,8 +521,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         );
 
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            var listener = (ActionListener<List<Model>>) invocation.getArguments()[0];
+            ActionListener<List<Model>> listener = invocation.getArgument(0);
             listener.onResponse(defaultConfigs);
             return Void.TYPE;
         }).when(service).defaultConfigs(any());
@@ -523,8 +574,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         defaultIds.add(new InferenceService.DefaultConfigId("default-chat", MinimalServiceSettings.completion(), service));
 
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            var listener = (ActionListener<List<Model>>) invocation.getArguments()[0];
+            ActionListener<List<Model>> listener = invocation.getArgument(0);
             listener.onResponse(List.of(defaultSparse, defaultChat, defaultText));
             return Void.TYPE;
         }).when(service).defaultConfigs(any());

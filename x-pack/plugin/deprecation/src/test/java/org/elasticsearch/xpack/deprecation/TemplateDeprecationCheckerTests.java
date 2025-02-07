@@ -51,9 +51,9 @@ public class TemplateDeprecationCheckerTests extends ESTestCase {
         Map<String, List<DeprecationIssue>> issuesByComponentTemplate = checker.check(clusterState);
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            SourceFieldMapper.DEPRECATION_WARNING,
+            SourceFieldMapper.DEPRECATION_WARNING_TITLE,
             "https://ela.st/migrate-source-mode",
-            SourceFieldMapper.DEPRECATION_DETAILS,
+            SourceFieldMapper.DEPRECATION_WARNING,
             false,
             null
         );

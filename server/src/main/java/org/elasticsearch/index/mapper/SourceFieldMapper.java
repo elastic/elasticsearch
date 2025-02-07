@@ -58,9 +58,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     public static final String LOSSY_PARAMETERS_ALLOWED_SETTING_NAME = "index.lossy.source-mapping-parameters";
 
-    public static final String DEPRECATION_WARNING = "Configuring source mode in mappings is deprecated.";
+    public static final String DEPRECATION_WARNING_TITLE = "Configuring source mode in mappings is deprecated.";
 
-    public static final String DEPRECATION_DETAILS = "Configuring source mode in mappings is deprecated and will be removed "
+    public static final String DEPRECATION_WARNING = "Configuring source mode in mappings is deprecated and will be removed "
         + "in future versions. Use [index.mapping.source.mode] index setting instead.";
 
     /** The source mode */

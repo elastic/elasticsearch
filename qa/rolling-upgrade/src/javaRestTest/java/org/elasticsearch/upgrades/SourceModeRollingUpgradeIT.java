@@ -46,7 +46,7 @@ public class SourceModeRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
                   }
                 }""";
             var putComponentTemplateRequest = new Request("PUT", "/_component_template/" + templateName);
-            putComponentTemplateRequest.setOptions(expectWarnings(SourceFieldMapper.DEPRECATION_WARNING));
+            putComponentTemplateRequest.setOptions(expectWarnings(SourceFieldMapper.DEPRECATION_WARNING_TITLE));
             putComponentTemplateRequest.setJsonEntity(storedSourceMapping);
             assertOK(client().performRequest(putComponentTemplateRequest));
             assertDeprecationWarningForTemplate(templateName);
@@ -70,7 +70,7 @@ public class SourceModeRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
                   }
                 }""";
             var putComponentTemplateRequest = new Request("PUT", "/_component_template/" + templateName);
-            putComponentTemplateRequest.setOptions(expectWarnings(SourceFieldMapper.DEPRECATION_WARNING));
+            putComponentTemplateRequest.setOptions(expectWarnings(SourceFieldMapper.DEPRECATION_WARNING_TITLE));
             putComponentTemplateRequest.setJsonEntity(storedSourceMapping);
             assertOK(client().performRequest(putComponentTemplateRequest));
             assertDeprecationWarningForTemplate(templateName);
@@ -86,6 +86,7 @@ public class SourceModeRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
         Map<?, ?> issuesByTemplate = (Map<?, ?>) response.get("templates");
         assertThat(issuesByTemplate.containsKey(templateName), equalTo(true));
         var templateIssues = (List<?>) issuesByTemplate.get(templateName);
-        assertThat(((Map<?, ?>) templateIssues.getFirst()).get("message"), equalTo(SourceFieldMapper.DEPRECATION_WARNING));
+        assertThat(((Map<?, ?>) templateIssues.getFirst()).get("message"), equalTo(SourceFieldMapper.DEPRECATION_WARNING_TITLE));
+        assertThat(((Map<?, ?>) templateIssues.getFirst()).get("details"), equalTo(SourceFieldMapper.DEPRECATION_WARNING));
     }
 }

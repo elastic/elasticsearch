@@ -31,7 +31,7 @@ public class FilteredAggregatorFunctionTests extends AggregatorFunctionTestCase 
     protected AggregatorFunctionSupplier aggregatorFunction() {
         return new FilteredAggregatorFunctionSupplier(
             new SumIntAggregatorFunctionSupplier(),
-            new FilteredGroupingAggregatorFunctionTests.AnyGreaterThanFactory(unclosed, inputChannels)
+            new FilteredGroupingAggregatorFunctionTests.AnyGreaterThanFactory(unclosed, List.of(0))
         );
     }
 

@@ -15,7 +15,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -27,6 +29,8 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -305,20 +309,51 @@ public class MapperServiceTests extends MapperServiceTestCase {
 
     public void testIsMetadataField() throws IOException {
         IndexVersion version = IndexVersionUtils.randomCompatibleVersion(random());
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
 
-        MapperService mapperService = createMapperService(settings, mapping(b -> {}));
-        assertFalse(mapperService.isMetadataField(randomAlphaOfLengthBetween(10, 15)));
+        CheckedFunction<IndexMode, MapperService, IOException> initMapperService = (indexMode) -> {
+            Settings.Builder settingsBuilder = Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, version)
+                .put(IndexSettings.MODE.getKey(), indexMode);
 
-        for (String builtIn : IndicesModule.getBuiltInMetadataFields()) {
-            if (NestedPathFieldMapper.NAME.equals(builtIn) && version.before(IndexVersions.V_8_0_0)) {
-                continue;   // Nested field does not exist in the 7x line
+            if (indexMode == IndexMode.TIME_SERIES) {
+                settingsBuilder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo");
             }
-            if (mapperService.getIndexSettings().getMode() == IndexMode.STANDARD && (builtIn.equals("_tsid") || builtIn.equals("_ts_routing_hash"))) {
-                continue;   // both these fields are not available in Standard index mode
-            }
-            assertTrue("Expected " + builtIn + " to be a metadata field for version " + version, mapperService.isMetadataField(builtIn));
+
+            return createMapperService(settingsBuilder.build(), mapping(b -> {}));
+        };
+
+        Consumer<MapperService> assertMapperService = initMapperServiceConsumer(version);
+
+        for (IndexMode indexMode : IndexMode.values()) {
+            MapperService mapperService = initMapperService.apply(indexMode);
+            assertMapperService.accept(mapperService);
         }
+    }
+
+    private static Consumer<MapperService> initMapperServiceConsumer(IndexVersion version) {
+        BiFunction<String, MapperService, Boolean> shouldSkipField = (field, mapperService) -> {
+            if (NestedPathFieldMapper.NAME.equals(field) && version.before(IndexVersions.V_8_0_0)) {
+                return true;  // Nested field does not exist in the 7x line
+            }
+
+            boolean isTimeSeriesField = field.equals("_tsid") || field.equals("_ts_routing_hash");
+            // should only skip for these fields if index mode is set to time_series
+            return isTimeSeriesField && mapperService.getIndexSettings().getMode().equals(IndexMode.TIME_SERIES) == false;
+        };
+
+        return (mapperService) -> {
+            assertFalse(mapperService.isMetadataField(randomAlphaOfLengthBetween(10, 15)));
+
+            for (String builtIn : IndicesModule.getBuiltInMetadataFields()) {
+                if (shouldSkipField.apply(builtIn, mapperService)) {
+                    continue;
+                }
+                assertTrue(
+                    "Expected " + builtIn + " to be a metadata field for version " + version,
+                    mapperService.isMetadataField(builtIn)
+                );
+            }
+        };
     }
 
     public void testMappingUpdateChecks() throws IOException {

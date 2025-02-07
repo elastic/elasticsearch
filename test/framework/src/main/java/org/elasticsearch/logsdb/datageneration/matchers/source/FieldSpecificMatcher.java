@@ -111,25 +111,27 @@ interface FieldSpecificMatcher {
         Object convert(Object value, Object nullValue) {
             var nullValueShort = nullValue != null ? HalfFloatPoint.halfFloatToSortableShort(((Number) nullValue).floatValue()) : null;
 
-            return switch (value) {
-                case null -> nullValueShort;
-                case Number n -> HalfFloatPoint.halfFloatToSortableShort(n.floatValue());
-                case String s -> {
-                    // Special case for number coercion from strings
-                    if (s.isEmpty()) {
-                        yield nullValueShort;
-                    }
-
-                    try {
-                        var f = Float.parseFloat(s);
-                        yield HalfFloatPoint.halfFloatToSortableShort(f);
-                    } catch (NumberFormatException e) {
-                        // Malformed, leave it be and match as is
-                        yield s;
-                    }
+            if (value == null) {
+                return nullValueShort;
+            }
+            if (value instanceof String s) {
+                // Special case for number coercion from strings
+                if (s.isEmpty()) {
+                    return nullValueShort;
                 }
-                default -> value;
-            };
+
+                try {
+                    var f = Float.parseFloat(s);
+                    return HalfFloatPoint.halfFloatToSortableShort(f);
+                } catch (NumberFormatException e) {
+                    // Malformed, leave it be and match as is
+                    return s;
+                }
+            }
+            if (value instanceof Number n) {
+                return HalfFloatPoint.halfFloatToSortableShort(n.floatValue());
+            }
+            return value;
         }
     }
 
@@ -272,20 +274,21 @@ interface FieldSpecificMatcher {
         Object convert(Object value, Object nullValue) {
             var nullValueBigInt = nullValue != null ? BigInteger.valueOf(((Number) nullValue).longValue()) : null;
 
-            return switch (value) {
-                case null -> nullValueBigInt;
-                case String s -> {
-                    // Special case for number coercion from strings
-                    if (s.isEmpty()) {
-                        yield nullValueBigInt;
-                    }
-
-                    yield s;
+            if (value == null) {
+                return nullValueBigInt;
+            }
+            if (value instanceof String s) {
+                // Special case for number coercion from strings
+                if (s.isEmpty()) {
+                    return nullValueBigInt;
                 }
-                case Long l -> BigInteger.valueOf(l);
-                default -> value;
-            };
 
+                return s;
+            }
+            if (value instanceof Long l) {
+                return BigInteger.valueOf(l);
+            }
+            return value;
         }
     }
 

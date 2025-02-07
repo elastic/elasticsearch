@@ -28,9 +28,9 @@ public class FilteredAggregatorFunctionTests extends AggregatorFunctionTestCase 
     private final List<Exception> unclosed = Collections.synchronizedList(new ArrayList<>());
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
+    protected AggregatorFunctionSupplier aggregatorFunction() {
         return new FilteredAggregatorFunctionSupplier(
-            new SumIntAggregatorFunctionSupplier(inputChannels),
+            new SumIntAggregatorFunctionSupplier(),
             new FilteredGroupingAggregatorFunctionTests.AnyGreaterThanFactory(unclosed, inputChannels)
         );
     }

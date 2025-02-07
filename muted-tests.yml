@@ -397,9 +397,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/121966
 - class: org.elasticsearch.xpack.searchablesnapshots.hdfs.SecureHdfsSearchableSnapshotsIT
   issue: https://github.com/elastic/elasticsearch/issues/121967
-- class: org.elasticsearch.xpack.esql.parser.StatementParserTests
-  method: testInvalidJoinPatterns
-  issue: https://github.com/elastic/elasticsearch/issues/121968
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=update/100_synthetic_source/stored text}
   issue: https://github.com/elastic/elasticsearch/issues/121991

@@ -55,6 +55,7 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
 import java.nio.charset.Charset;
+import java.nio.file.LinkOption;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.UserPrincipal;
@@ -977,7 +978,7 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     // nio
 
     @Override
-    public void check$java_nio_file_Files$$getOwner(Class<?> callerClass, Path path) {
+    public void check$java_nio_file_Files$$getOwner(Class<?> callerClass, Path path, LinkOption... options) {
         policyManager.checkFileRead(callerClass, path);
     }
 

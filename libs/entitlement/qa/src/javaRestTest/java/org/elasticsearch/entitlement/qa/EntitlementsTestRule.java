@@ -34,10 +34,17 @@ class EntitlementsTestRule implements TestRule {
     // entitlements that test methods may use, see EntitledActions
     private static final PolicyBuilder ENTITLED_POLICY = (builder, tempDir) -> {
         builder.value(Map.of("write_system_properties", Map.of("properties", List.of("org.elasticsearch.entitlement.qa.selfTest"))));
-        builder.value(Map.of("file", Map.of("path", tempDir.resolve("read_dir"), "mode", "read")));
-        builder.value(Map.of("file", Map.of("path", tempDir.resolve("read_write_dir"), "mode", "read_write")));
-        builder.value(Map.of("file", Map.of("path", tempDir.resolve("read_file"), "mode", "read")));
-        builder.value(Map.of("file", Map.of("path", tempDir.resolve("read_write_file"), "mode", "read_write")));
+        builder.value(
+            Map.of(
+                "files",
+                List.of(
+                    Map.of("path", tempDir.resolve("read_dir"), "mode", "read"),
+                    Map.of("path", tempDir.resolve("read_write_dir"), "mode", "read_write"),
+                    Map.of("path", tempDir.resolve("read_file"), "mode", "read"),
+                    Map.of("path", tempDir.resolve("read_write_file"), "mode", "read_write")
+                )
+            )
+        );
     };
 
     interface PolicyBuilder {

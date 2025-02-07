@@ -560,3 +560,5 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
   method: testSearcherId
   issue: https://github.com/elastic/elasticsearch/issues/118374
+- class: org.elasticsearch.xpack.security.authc.ldap.GroupMappingIT
+  issue: https://github.com/elastic/elasticsearch/issues/121291

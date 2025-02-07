@@ -561,3 +561,6 @@ tests:
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testHasPrivileges
   issue: https://github.com/elastic/elasticsearch/issues/121346
+- class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
+  method: testGetUsersWithProfileUid
+  issue: https://github.com/elastic/elasticsearch/issues/121483

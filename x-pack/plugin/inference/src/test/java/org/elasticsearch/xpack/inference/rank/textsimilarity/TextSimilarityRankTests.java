@@ -30,6 +30,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasRank;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasScore;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
@@ -69,10 +71,9 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
             String inferenceText,
             int rankWindowSize,
             Float minScore,
-            boolean lenient,
             int inferenceResultCount
         ) {
-            super(field, inferenceId, inferenceText, rankWindowSize, minScore, lenient);
+            super(field, inferenceId, inferenceText, rankWindowSize, minScore, false);
             this.inferenceResultCount = inferenceResultCount;
         }
 
@@ -186,9 +187,9 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
         );
     }
 
-    public void testLenientRerankInference() {
+    public void testRerankInferenceAllowedFailure() {
         ElasticsearchAssertions.assertNoFailuresAndResponse(
-            // Execute search with text similarity reranking
+            // Execute search with text similarity reranking that fails, but it is allowed
             client.prepareSearch()
                 .setRankBuilder(
                     new TextSimilarityTestPlugin.ThrowingMockRequestActionBasedRankBuilder(
@@ -244,7 +245,7 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
             client.prepareSearch()
                 .setRankBuilder(
                     // Simulate reranker returning different number of results from input
-                    new InferenceResultCountAcceptingTextSimilarityRankBuilder("text", "my-rerank-model", "my query", 100, 1.5f, false, 4)
+                    new InferenceResultCountAcceptingTextSimilarityRankBuilder("text", "my-rerank-model", "my query", 100, 1.5f, 4)
                 )
                 .setQuery(QueryBuilders.matchAllQuery())
         );
@@ -254,8 +255,8 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
 
     private static Matcher<SearchHit> searchHitWith(int expectedRank, float expectedScore, String expectedText) {
         return allOf(
-            transformedMatch(SearchHit::getRank, equalTo(expectedRank)),
-            transformedMatch(SearchHit::getScore, equalTo(expectedScore)),
+            hasRank(expectedRank),
+            hasScore(expectedScore),
             transformedMatch(hit -> hit.getSourceAsMap().get("text"), equalTo(expectedText))
         );
     }

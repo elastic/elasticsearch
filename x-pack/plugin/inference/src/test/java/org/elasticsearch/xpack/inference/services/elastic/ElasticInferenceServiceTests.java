@@ -444,7 +444,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                     "Inference entity [model_id] does not support task type [chat_completion] "
                         + "for inference, the task type must be one of [sparse_embedding]. "
                         + "The task type for the inference entity is chat_completion, "
-                        + "please use the _inference/chat_completion/model_id/_unified URL."
+                        + "please use the _inference/chat_completion/model_id/_stream URL."
                 )
             );
 

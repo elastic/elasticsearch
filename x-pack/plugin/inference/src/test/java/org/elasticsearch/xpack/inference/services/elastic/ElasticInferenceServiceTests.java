@@ -366,6 +366,14 @@ public class ElasticInferenceServiceTests extends ESTestCase {
     private ModelRegistry mockModelRegistry() {
         var client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
+
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            var listener = (ActionListener<Boolean>) invocationOnMock.getArgument(2);
+            listener.onResponse(true);
+
+            return Void.TYPE;
+        }).when(client).execute(any(), any(), any());
         return new ModelRegistry(client);
     }
 
@@ -962,14 +970,51 @@ public class ElasticInferenceServiceTests extends ESTestCase {
     }
 
     public void testUnifiedCompletionError() throws Exception {
+        testUnifiedStreamError(404, """
+            {
+                "error": "The model `rainbow-sprinkles` does not exist or you do not have access to it."
+            }""", """
+            {\
+            "error":{\
+            "code":"not_found",\
+            "message":"Received an unsuccessful status code for request from inference entity id [id] status \
+            [404]. Error message: [The model `rainbow-sprinkles` does not exist or you do not have access to it.]",\
+            "type":"error"\
+            }}""");
+    }
+
+    public void testUnifiedCompletionErrorMidStream() throws Exception {
+        testUnifiedStreamError(200, """
+            data: { "error": "some error" }
+
+            """, """
+            {\
+            "error":{\
+            "code":"stream_error",\
+            "message":"Received an error response for request from inference entity id [id]. Error message: [some error]",\
+            "type":"error"\
+            }}""");
+    }
+
+    public void testUnifiedCompletionMalformedError() throws Exception {
+        testUnifiedStreamError(200, """
+            data: { i am not json }
+
+            """, """
+            {\
+            "error":{\
+            "code":"bad_request",\
+            "message":"[1:3] Unexpected character ('i' (code 105)): was expecting double-quote to start field name\\n\
+             at [Source: (String)\\"{ i am not json }\\"; line: 1, column: 3]",\
+            "type":"x_content_parse_exception"\
+            }}""");
+    }
+
+    private void testUnifiedStreamError(int responseCode, String responseJson, String expectedJson) throws Exception {
         var eisGatewayUrl = getUrl(webServer);
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = createService(senderFactory, eisGatewayUrl)) {
-            var responseJson = """
-                {
-                    "error": "The model `rainbow-sprinkles` does not exist or you do not have access to it."
-                }""";
-            webServer.enqueue(new MockResponse().setResponseCode(404).setBody(responseJson));
+            webServer.enqueue(new MockResponse().setResponseCode(responseCode).setBody(responseJson));
             var model = new ElasticInferenceServiceCompletionModel(
                 "id",
                 TaskType.COMPLETION,
@@ -1004,14 +1049,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                     });
                     var json = XContentHelper.convertToJson(BytesReference.bytes(builder), false, builder.contentType());
 
-                    assertThat(json, is("""
-                        {\
-                        "error":{\
-                        "code":"not_found",\
-                        "message":"Received an unsuccessful status code for request from inference entity id [id] status \
-                        [404]. Error message: [The model `rainbow-sprinkles` does not exist or you do not have access to it.]",\
-                        "type":"error"\
-                        }}"""));
+                    assertThat(json, is(expectedJson));
                 }
             });
         }

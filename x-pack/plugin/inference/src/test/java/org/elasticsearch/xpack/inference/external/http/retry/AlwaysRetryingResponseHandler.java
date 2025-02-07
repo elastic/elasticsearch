@@ -58,4 +58,8 @@ public class AlwaysRetryingResponseHandler implements ResponseHandler {
         }
     }
 
+    @Override
+    public boolean canHandleStreamingResponses() {
+        return false;
+    }
 }

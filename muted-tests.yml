@@ -358,18 +358,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.ClassificationIT
   method: testDependentVariableIsAliasToKeyword
   issue: https://github.com/elastic/elasticsearch/issues/121492
-- class: org.elasticsearch.xpack.esql.action.CrossClustersCancellationIT
-  method: testTasks
-  issue: https://github.com/elastic/elasticsearch/issues/121626
-- class: org.elasticsearch.xpack.esql.action.CrossClustersCancellationIT
-  method: testCloseSkipUnavailable
-  issue: https://github.com/elastic/elasticsearch/issues/121627
-- class: org.elasticsearch.xpack.esql.action.CrossClustersCancellationIT
-  method: testCancel
-  issue: https://github.com/elastic/elasticsearch/issues/121632
-- class: org.elasticsearch.xpack.esql.action.CrossClustersCancellationIT
-  method: testCancelSkipUnavailable
-  issue: https://github.com/elastic/elasticsearch/issues/121631
 - class: org.elasticsearch.search.CrossClusterSearchUnavailableClusterIT
   method: testSearchSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/121497

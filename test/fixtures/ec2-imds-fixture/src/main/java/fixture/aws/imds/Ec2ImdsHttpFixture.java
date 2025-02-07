@@ -27,6 +27,7 @@ import java.util.Objects;
 public class Ec2ImdsHttpFixture extends ExternalResource {
 
     public static final String ENDPOINT_OVERRIDE_SYSPROP_NAME = "com.amazonaws.sdk.ec2MetadataServiceEndpointOverride";
+    public static final String ENDPOINT_OVERRIDE_SYSPROP_NAME_SDK2 = "aws.ec2MetadataServiceEndpoint";
 
     private final Ec2ImdsServiceBuilder ec2ImdsServiceBuilder;
     private HttpServer server;
@@ -64,10 +65,12 @@ public class Ec2ImdsHttpFixture extends ExternalResource {
 
     @SuppressForbidden(reason = "deliberately adjusting system property for endpoint override for use in internal-cluster tests")
     public static Releasable withEc2MetadataServiceEndpointOverride(String endpointOverride) {
-        final PrivilegedAction<String> resetProperty = System.getProperty(ENDPOINT_OVERRIDE_SYSPROP_NAME) instanceof String originalValue
-            ? () -> System.setProperty(ENDPOINT_OVERRIDE_SYSPROP_NAME, originalValue)
-            : () -> System.clearProperty(ENDPOINT_OVERRIDE_SYSPROP_NAME);
-        doPrivileged(() -> System.setProperty(ENDPOINT_OVERRIDE_SYSPROP_NAME, endpointOverride));
+        final PrivilegedAction<String> resetProperty = System.getProperty(
+            ENDPOINT_OVERRIDE_SYSPROP_NAME_SDK2
+        ) instanceof String originalValue
+            ? () -> System.setProperty(ENDPOINT_OVERRIDE_SYSPROP_NAME_SDK2, originalValue)
+            : () -> System.clearProperty(ENDPOINT_OVERRIDE_SYSPROP_NAME_SDK2);
+        doPrivileged(() -> System.setProperty(ENDPOINT_OVERRIDE_SYSPROP_NAME_SDK2, endpointOverride));
         return () -> doPrivileged(resetProperty);
     }
 

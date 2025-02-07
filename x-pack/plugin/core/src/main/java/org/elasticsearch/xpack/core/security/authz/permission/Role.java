@@ -42,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public interface Role {
 
@@ -462,8 +463,7 @@ public interface Role {
         );
 
         for (RoleDescriptor.IndicesPrivileges indexPrivilege : roleDescriptor.getIndicesPrivileges()) {
-            // TODO properly handle this
-            if (Arrays.asList(indexPrivilege.getIndices()).contains("*")) {
+            if (Arrays.stream(indexPrivilege.getPrivileges()).map(String::toLowerCase).collect(Collectors.toSet()).contains("all")) {
                 builder.add(
                     fieldPermissionsCache.getFieldPermissions(
                         new FieldPermissionsDefinition(indexPrivilege.getGrantedFields(), indexPrivilege.getDeniedFields())
@@ -492,20 +492,6 @@ public interface Role {
             assert Arrays.equals(new String[] { "*" }, clusterAliases)
                 : "reserved role should not define remote indices privileges for specific clusters";
             final RoleDescriptor.IndicesPrivileges indicesPrivileges = remoteIndicesPrivileges.indicesPrivileges();
-            // TODO properly handle this
-            if (Arrays.asList(indicesPrivileges.getIndices()).contains("*")) {
-                builder.addRemoteIndicesGroup(
-                    Set.of(clusterAliases),
-                    fieldPermissionsCache.getFieldPermissions(
-                        new FieldPermissionsDefinition(indicesPrivileges.getGrantedFields(), indicesPrivileges.getDeniedFields())
-                    ),
-                    indicesPrivileges.getQuery() == null ? null : Collections.singleton(indicesPrivileges.getQuery()),
-                    IndexPrivilege.get(Set.of(indicesPrivileges.getPrivileges())),
-                    indicesPrivileges.allowRestrictedIndices(),
-                    IndexComponentSelector.FAILURES,
-                    indicesPrivileges.getIndices()
-                );
-            }
             builder.addRemoteIndicesGroup(
                 Set.of(clusterAliases),
                 fieldPermissionsCache.getFieldPermissions(

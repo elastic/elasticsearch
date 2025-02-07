@@ -10,11 +10,8 @@ package org.elasticsearch.xpack.inference.services.voyageai.rerank;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServiceSettings;
-import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerankModel;
-import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerankServiceSettings;
-import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
+import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServiceSettings;
 
 public class VoyageAIRerankModelTests {
 
@@ -23,7 +20,7 @@ public class VoyageAIRerankModelTests {
             "id",
             "service",
             new VoyageAIRerankServiceSettings(new VoyageAIServiceSettings(ESTestCase.randomAlphaOfLength(10), modelId, null)),
-            new VoyageAIRerankTaskSettings(topN, null),
+            new VoyageAIRerankTaskSettings(topN, null, null),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }
@@ -33,27 +30,33 @@ public class VoyageAIRerankModelTests {
             "id",
             "service",
             new VoyageAIRerankServiceSettings(new VoyageAIServiceSettings(ESTestCase.randomAlphaOfLength(10), modelId, null)),
-            new VoyageAIRerankTaskSettings(topN, null),
+            new VoyageAIRerankTaskSettings(topN, null, null),
             new DefaultSecretSettings(ESTestCase.randomSecureStringOfLength(8))
         );
     }
 
-    public static VoyageAIRerankModel createModel(String modelId, @Nullable Integer topN, Boolean returnDocuments) {
+    public static VoyageAIRerankModel createModel(String modelId, @Nullable Integer topN, Boolean returnDocuments, Boolean truncation) {
         return new VoyageAIRerankModel(
             "id",
             "service",
             new VoyageAIRerankServiceSettings(new VoyageAIServiceSettings(ESTestCase.randomAlphaOfLength(10), modelId, null)),
-            new VoyageAIRerankTaskSettings(topN, returnDocuments),
+            new VoyageAIRerankTaskSettings(topN, returnDocuments, truncation),
             new DefaultSecretSettings(ESTestCase.randomSecureStringOfLength(8))
         );
     }
 
-    public static VoyageAIRerankModel createModel(String url, String modelId, @Nullable Integer topN, Boolean returnDocuments) {
+    public static VoyageAIRerankModel createModel(
+        String url,
+        String modelId,
+        @Nullable Integer topN,
+        Boolean returnDocuments,
+        Boolean truncation
+    ) {
         return new VoyageAIRerankModel(
             "id",
             "service",
             new VoyageAIRerankServiceSettings(new VoyageAIServiceSettings(url, modelId, null)),
-            new VoyageAIRerankTaskSettings(topN, returnDocuments),
+            new VoyageAIRerankTaskSettings(topN, returnDocuments, truncation),
             new DefaultSecretSettings(ESTestCase.randomSecureStringOfLength(8))
         );
     }
@@ -63,13 +66,14 @@ public class VoyageAIRerankModelTests {
         String apiKey,
         String modelId,
         @Nullable Integer topN,
-        Boolean returnDocuments
+        Boolean returnDocuments,
+        Boolean truncation
     ) {
         return new VoyageAIRerankModel(
             "id",
             "service",
             new VoyageAIRerankServiceSettings(new VoyageAIServiceSettings(url, modelId, null)),
-            new VoyageAIRerankTaskSettings(topN, returnDocuments),
+            new VoyageAIRerankTaskSettings(topN, returnDocuments, truncation),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }

@@ -27,8 +27,6 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
-import static org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServiceFields.OUTPUT_DIMENSION;
 import static org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServiceFields.TRUNCATION;
 
 /**
@@ -43,10 +41,7 @@ public class VoyageAIEmbeddingsTaskSettings implements TaskSettings {
     public static final String NAME = "voyageai_embeddings_task_settings";
     public static final VoyageAIEmbeddingsTaskSettings EMPTY_SETTINGS = new VoyageAIEmbeddingsTaskSettings(null, null);
     static final String INPUT_TYPE = "input_type";
-    static final EnumSet<InputType> VALID_REQUEST_VALUES = EnumSet.of(
-        InputType.INGEST,
-        InputType.SEARCH
-    );
+    static final EnumSet<InputType> VALID_REQUEST_VALUES = EnumSet.of(InputType.INGEST, InputType.SEARCH);
 
     public static VoyageAIEmbeddingsTaskSettings fromMap(Map<String, Object> map) {
         if (map == null || map.isEmpty()) {
@@ -63,17 +58,7 @@ public class VoyageAIEmbeddingsTaskSettings implements TaskSettings {
             VALID_REQUEST_VALUES,
             validationException
         );
-        Boolean truncation = extractOptionalBoolean(
-            map,
-            TRUNCATION,
-            validationException
-        );
-        Integer outputDimension = extractOptionalPositiveInteger(
-            map,
-            OUTPUT_DIMENSION,
-            ModelConfigurations.TASK_SETTINGS,
-            validationException
-        );
+        Boolean truncation = extractOptionalBoolean(map, TRUNCATION, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
@@ -132,16 +117,10 @@ public class VoyageAIEmbeddingsTaskSettings implements TaskSettings {
     private final Boolean truncation;
 
     public VoyageAIEmbeddingsTaskSettings(StreamInput in) throws IOException {
-        this(
-            in.readOptionalEnum(InputType.class),
-            in.readOptionalBoolean()
-        );
+        this(in.readOptionalEnum(InputType.class), in.readOptionalBoolean());
     }
 
-    public VoyageAIEmbeddingsTaskSettings(
-        @Nullable InputType inputType,
-        @Nullable Boolean truncation
-    ) {
+    public VoyageAIEmbeddingsTaskSettings(@Nullable InputType inputType, @Nullable Boolean truncation) {
         validateInputType(inputType);
         this.inputType = inputType;
         this.truncation = truncation;
@@ -204,8 +183,7 @@ public class VoyageAIEmbeddingsTaskSettings implements TaskSettings {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         VoyageAIEmbeddingsTaskSettings that = (VoyageAIEmbeddingsTaskSettings) o;
-        return Objects.equals(inputType, that.inputType) &&
-            Objects.equals(truncation, that.truncation);
+        return Objects.equals(inputType, that.inputType) && Objects.equals(truncation, that.truncation);
     }
 
     @Override

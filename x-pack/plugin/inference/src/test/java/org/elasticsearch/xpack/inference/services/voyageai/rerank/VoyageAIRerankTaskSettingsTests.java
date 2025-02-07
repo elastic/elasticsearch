@@ -11,7 +11,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerankTaskSettings;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -24,28 +23,34 @@ public class VoyageAIRerankTaskSettingsTests extends AbstractWireSerializingTest
     public static VoyageAIRerankTaskSettings createRandom() {
         var returnDocuments = randomBoolean() ? randomBoolean() : null;
         var topNDocsOnly = randomBoolean() ? randomIntBetween(1, 10) : null;
+        var truncation = randomBoolean() ? randomBoolean() : null;
 
-        return new VoyageAIRerankTaskSettings(topNDocsOnly, returnDocuments);
+        return new VoyageAIRerankTaskSettings(topNDocsOnly, returnDocuments, truncation);
     }
 
     public void testFromMap_WithValidValues_ReturnsSettings() {
-        Map<String, Object> taskMap = Map.of(VoyageAIRerankTaskSettings.RETURN_DOCUMENTS, true, VoyageAIRerankTaskSettings.TOP_N_DOCS_ONLY, 5);
+        Map<String, Object> taskMap = Map.of(
+            VoyageAIRerankTaskSettings.RETURN_DOCUMENTS,
+            true,
+            VoyageAIRerankTaskSettings.TOP_K_DOCS_ONLY,
+            5
+        );
         var settings = VoyageAIRerankTaskSettings.fromMap(new HashMap<>(taskMap));
         assertTrue(settings.getReturnDocuments());
-        assertEquals(5, settings.getTopNDocumentsOnly().intValue());
+        assertEquals(5, settings.getTopKDocumentsOnly().intValue());
     }
 
     public void testFromMap_WithNullValues_ReturnsSettingsWithNulls() {
         var settings = VoyageAIRerankTaskSettings.fromMap(Map.of());
         assertNull(settings.getReturnDocuments());
-        assertNull(settings.getTopNDocumentsOnly());
+        assertNull(settings.getTopKDocumentsOnly());
     }
 
     public void testFromMap_WithInvalidReturnDocuments_ThrowsValidationException() {
         Map<String, Object> taskMap = Map.of(
             VoyageAIRerankTaskSettings.RETURN_DOCUMENTS,
             "invalid",
-            VoyageAIRerankTaskSettings.TOP_N_DOCS_ONLY,
+            VoyageAIRerankTaskSettings.TOP_K_DOCS_ONLY,
             5
         );
         var thrownException = expectThrows(ValidationException.class, () -> VoyageAIRerankTaskSettings.fromMap(new HashMap<>(taskMap)));
@@ -56,46 +61,49 @@ public class VoyageAIRerankTaskSettingsTests extends AbstractWireSerializingTest
         Map<String, Object> taskMap = Map.of(
             VoyageAIRerankTaskSettings.RETURN_DOCUMENTS,
             true,
-            VoyageAIRerankTaskSettings.TOP_N_DOCS_ONLY,
+            VoyageAIRerankTaskSettings.TOP_K_DOCS_ONLY,
             "invalid"
         );
         var thrownException = expectThrows(ValidationException.class, () -> VoyageAIRerankTaskSettings.fromMap(new HashMap<>(taskMap)));
-        assertThat(thrownException.getMessage(), containsString("field [top_n] is not of the expected type"));
+        assertThat(thrownException.getMessage(), containsString("Validation Failed: 1: field [top_k] is not of the expected type. The value [invalid] cannot be converted to a [Integer];"));
     }
 
     public void testUpdatedTaskSettings_WithEmptyMap_ReturnsSameSettings() {
-        var initialSettings = new VoyageAIRerankTaskSettings(5, true);
+        var initialSettings = new VoyageAIRerankTaskSettings(5, true, true);
         VoyageAIRerankTaskSettings updatedSettings = (VoyageAIRerankTaskSettings) initialSettings.updatedTaskSettings(Map.of());
         assertEquals(initialSettings, updatedSettings);
     }
 
     public void testUpdatedTaskSettings_WithNewReturnDocuments_ReturnsUpdatedSettings() {
-        var initialSettings = new VoyageAIRerankTaskSettings(5, true);
+        var initialSettings = new VoyageAIRerankTaskSettings(5, true, true);
         Map<String, Object> newSettings = Map.of(VoyageAIRerankTaskSettings.RETURN_DOCUMENTS, false);
         VoyageAIRerankTaskSettings updatedSettings = (VoyageAIRerankTaskSettings) initialSettings.updatedTaskSettings(newSettings);
         assertFalse(updatedSettings.getReturnDocuments());
-        assertEquals(initialSettings.getTopNDocumentsOnly(), updatedSettings.getTopNDocumentsOnly());
+        assertTrue(updatedSettings.getTruncation());
+        assertEquals(initialSettings.getTopKDocumentsOnly(), updatedSettings.getTopKDocumentsOnly());
     }
 
     public void testUpdatedTaskSettings_WithNewTopNDocsOnly_ReturnsUpdatedSettings() {
-        var initialSettings = new VoyageAIRerankTaskSettings(5, true);
-        Map<String, Object> newSettings = Map.of(VoyageAIRerankTaskSettings.TOP_N_DOCS_ONLY, 7);
+        var initialSettings = new VoyageAIRerankTaskSettings(5, true, true);
+        Map<String, Object> newSettings = Map.of(VoyageAIRerankTaskSettings.TOP_K_DOCS_ONLY, 7);
         VoyageAIRerankTaskSettings updatedSettings = (VoyageAIRerankTaskSettings) initialSettings.updatedTaskSettings(newSettings);
-        assertEquals(7, updatedSettings.getTopNDocumentsOnly().intValue());
+        assertTrue(updatedSettings.getTruncation());
+        assertEquals(7, updatedSettings.getTopKDocumentsOnly().intValue());
         assertEquals(initialSettings.getReturnDocuments(), updatedSettings.getReturnDocuments());
     }
 
     public void testUpdatedTaskSettings_WithMultipleNewValues_ReturnsUpdatedSettings() {
-        var initialSettings = new VoyageAIRerankTaskSettings(5, true);
+        var initialSettings = new VoyageAIRerankTaskSettings(5, true, true);
         Map<String, Object> newSettings = Map.of(
             VoyageAIRerankTaskSettings.RETURN_DOCUMENTS,
             false,
-            VoyageAIRerankTaskSettings.TOP_N_DOCS_ONLY,
+            VoyageAIRerankTaskSettings.TOP_K_DOCS_ONLY,
             7
         );
         VoyageAIRerankTaskSettings updatedSettings = (VoyageAIRerankTaskSettings) initialSettings.updatedTaskSettings(newSettings);
+        assertTrue(updatedSettings.getTruncation());
         assertFalse(updatedSettings.getReturnDocuments());
-        assertEquals(7, updatedSettings.getTopNDocumentsOnly().intValue());
+        assertEquals(7, updatedSettings.getTopKDocumentsOnly().intValue());
     }
 
     @Override
@@ -121,7 +129,7 @@ public class VoyageAIRerankTaskSettingsTests extends AbstractWireSerializingTest
         var map = new HashMap<String, Object>();
 
         if (topNDocumentsOnly != null) {
-            map.put(VoyageAIRerankTaskSettings.TOP_N_DOCS_ONLY, topNDocumentsOnly.toString());
+            map.put(VoyageAIRerankTaskSettings.TOP_K_DOCS_ONLY, topNDocumentsOnly.toString());
         }
 
         if (returnDocuments != null) {

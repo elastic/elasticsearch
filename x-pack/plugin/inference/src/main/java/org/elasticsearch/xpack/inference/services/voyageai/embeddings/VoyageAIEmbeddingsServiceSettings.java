@@ -132,10 +132,10 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
 
     public VoyageAIEmbeddingsServiceSettings(StreamInput in) throws IOException {
         this.commonSettings = new VoyageAIServiceSettings(in);
-        this.embeddingType = Objects.requireNonNullElse(in.readOptionalEnum(VoyageAIEmbeddingType.class), VoyageAIEmbeddingType.FLOAT);
         this.similarity = in.readOptionalEnum(SimilarityMeasure.class);
         this.dimensions = in.readOptionalVInt();
         this.maxInputTokens = in.readOptionalVInt();
+        this.embeddingType = Objects.requireNonNullElse(in.readOptionalEnum(VoyageAIEmbeddingType.class), VoyageAIEmbeddingType.FLOAT);
     }
 
     public VoyageAIServiceSettings getCommonSettings() {
@@ -164,7 +164,6 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
     public VoyageAIEmbeddingType getEmbeddingType() {
         return embeddingType;
     }
-
 
     @Override
     public DenseVectorFieldMapper.ElementType elementType() {

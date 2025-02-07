@@ -38,16 +38,16 @@ public enum VoyageAIEmbeddingType {
     /**
      * Use this when you want to get back binary embeddings. Valid only for v3 models.
      */
-    BIT(DenseVectorFieldMapper.ElementType.BIT, RequestConstants.BIT),
+    BIT(DenseVectorFieldMapper.ElementType.BIT, RequestConstants.BINARY),
     /**
      * This is a synonym for BIT
      */
-    BINARY(DenseVectorFieldMapper.ElementType.BIT, RequestConstants.BIT);
+    BINARY(DenseVectorFieldMapper.ElementType.BIT, RequestConstants.BINARY);
 
     private static final class RequestConstants {
         private static final String FLOAT = "float";
         private static final String INT8 = "int8";
-        private static final String BIT = "binary";
+        private static final String BINARY = "binary";
     }
 
     private static final Map<DenseVectorFieldMapper.ElementType, VoyageAIEmbeddingType> ELEMENT_TYPE_TO_VOYAGE_EMBEDDING = Map.of(

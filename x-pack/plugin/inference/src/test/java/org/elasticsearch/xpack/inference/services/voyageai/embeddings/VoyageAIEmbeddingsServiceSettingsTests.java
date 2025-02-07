@@ -22,10 +22,9 @@ import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServiceSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServiceSettingsTests;
-import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsServiceSettings;
-import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
@@ -46,7 +45,7 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractWireSerializ
 
         var commonSettings = VoyageAIServiceSettingsTests.createRandom();
 
-        return new VoyageAIEmbeddingsServiceSettings(commonSettings, similarityMeasure, dims, maxInputTokens);
+        return new VoyageAIEmbeddingsServiceSettings(commonSettings, VoyageAIEmbeddingType.FLOAT, similarityMeasure, dims, maxInputTokens);
     }
 
     public void testFromMap() {
@@ -78,6 +77,7 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractWireSerializ
             is(
                 new VoyageAIEmbeddingsServiceSettings(
                     new VoyageAIServiceSettings(ServiceUtils.createUri(url), model, null),
+                    VoyageAIEmbeddingType.FLOAT,
                     SimilarityMeasure.DOT_PRODUCT,
                     dims,
                     maxInputTokens
@@ -115,6 +115,7 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractWireSerializ
             is(
                 new VoyageAIEmbeddingsServiceSettings(
                     new VoyageAIServiceSettings(ServiceUtils.createUri(url), model, null),
+                    VoyageAIEmbeddingType.FLOAT,
                     SimilarityMeasure.DOT_PRODUCT,
                     dims,
                     maxInputTokens
@@ -142,9 +143,11 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractWireSerializ
         );
     }
 
+    @SuppressWarnings("checkstyle:LineLength")
     public void testToXContent_WritesAllValues() throws IOException {
         var serviceSettings = new VoyageAIEmbeddingsServiceSettings(
             new VoyageAIServiceSettings("url", "model", new RateLimitSettings(3)),
+            VoyageAIEmbeddingType.FLOAT,
             SimilarityMeasure.COSINE,
             5,
             10
@@ -155,7 +158,7 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractWireSerializ
         String xContentResult = Strings.toString(builder);
         assertThat(xContentResult, is("""
             {"url":"url","model_id":"model",""" + """
-            "rate_limit":{"requests_per_minute":3},"similarity":"cosine","dimensions":5,"max_input_tokens":10}"""));
+            "rate_limit":{"requests_per_minute":3},"similarity":"cosine","dimensions":5,"max_input_tokens":10,"embedding_type":"float"}"""));
     }
 
     @Override

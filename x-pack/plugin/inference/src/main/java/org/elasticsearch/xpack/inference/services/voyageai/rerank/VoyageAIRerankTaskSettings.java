@@ -55,11 +55,7 @@ public class VoyageAIRerankTaskSettings implements TaskSettings {
             validationException
         );
 
-        Boolean truncation = extractOptionalBoolean(
-            map,
-            TRUNCATION,
-            validationException
-        );
+        Boolean truncation = extractOptionalBoolean(map, TRUNCATION, validationException);
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
@@ -156,9 +152,9 @@ public class VoyageAIRerankTaskSettings implements TaskSettings {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         VoyageAIRerankTaskSettings that = (VoyageAIRerankTaskSettings) o;
-        return Objects.equals(topKDocumentsOnly, that.topKDocumentsOnly) &&
-            Objects.equals(returnDocuments, that.returnDocuments) &&
-            Objects.equals(truncation, that.truncation);
+        return Objects.equals(topKDocumentsOnly, that.topKDocumentsOnly)
+            && Objects.equals(returnDocuments, that.returnDocuments)
+            && Objects.equals(truncation, that.truncation);
     }
 
     @Override

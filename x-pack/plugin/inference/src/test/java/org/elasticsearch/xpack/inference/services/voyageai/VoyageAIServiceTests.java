@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIService;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsServiceSettingsTests;
@@ -110,7 +109,7 @@ public class VoyageAIServiceTests extends ESTestCase {
                 var embeddingsModel = (VoyageAIEmbeddingsModel) model;
                 MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
                 MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
-                MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null, null)));
+                MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null)));
                 MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
             }, e -> fail("Model parsing should have succeeded " + e.getMessage()));
 
@@ -136,7 +135,7 @@ public class VoyageAIServiceTests extends ESTestCase {
                 var embeddingsModel = (VoyageAIEmbeddingsModel) model;
                 MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
                 MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
-                MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.INGEST)));
+                MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null)));
                 MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
                 assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
                 MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
@@ -165,7 +164,7 @@ public class VoyageAIServiceTests extends ESTestCase {
                 var embeddingsModel = (VoyageAIEmbeddingsModel) model;
                 MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
                 MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
-                MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.INGEST)));
+                MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null)));
                 MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
                 assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
                 MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
@@ -358,7 +357,7 @@ public class VoyageAIServiceTests extends ESTestCase {
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
-            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null)));
+            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
     }
@@ -384,7 +383,7 @@ public class VoyageAIServiceTests extends ESTestCase {
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
-            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null)));
+            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
@@ -410,7 +409,7 @@ public class VoyageAIServiceTests extends ESTestCase {
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
-            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null)));
+            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
@@ -460,7 +459,7 @@ public class VoyageAIServiceTests extends ESTestCase {
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             assertNull(embeddingsModel.getServiceSettings().getCommonSettings().uri());
-            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.INGEST)));
+            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null)));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
@@ -487,7 +486,7 @@ public class VoyageAIServiceTests extends ESTestCase {
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
-            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.SEARCH)));
+            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.SEARCH, null)));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
     }
@@ -541,7 +540,7 @@ public class VoyageAIServiceTests extends ESTestCase {
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
-            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null)));
+            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
     }
@@ -597,7 +596,7 @@ public class VoyageAIServiceTests extends ESTestCase {
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
-            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.SEARCH)));
+            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.SEARCH, null)));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
     }
@@ -616,7 +615,7 @@ public class VoyageAIServiceTests extends ESTestCase {
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
-            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null)));
+            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             assertNull(embeddingsModel.getSecretSettings());
         }
     }
@@ -636,7 +635,7 @@ public class VoyageAIServiceTests extends ESTestCase {
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
-            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null)));
+            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             assertNull(embeddingsModel.getSecretSettings());
         }
@@ -656,7 +655,7 @@ public class VoyageAIServiceTests extends ESTestCase {
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
-            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null)));
+            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             assertNull(embeddingsModel.getSecretSettings());
         }
@@ -695,7 +694,7 @@ public class VoyageAIServiceTests extends ESTestCase {
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             assertNull(embeddingsModel.getServiceSettings().getCommonSettings().uri());
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
-            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null)));
+            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             assertNull(embeddingsModel.getSecretSettings());
         }
     }
@@ -737,7 +736,7 @@ public class VoyageAIServiceTests extends ESTestCase {
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
-            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.SEARCH)));
+            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.SEARCH, null)));
             assertNull(embeddingsModel.getSecretSettings());
         }
     }
@@ -758,7 +757,7 @@ public class VoyageAIServiceTests extends ESTestCase {
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
-            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.INGEST)));
+            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null)));
             assertNull(embeddingsModel.getSecretSettings());
         }
     }
@@ -996,8 +995,9 @@ public class VoyageAIServiceTests extends ESTestCase {
 
             Model updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
 
-            SimilarityMeasure expectedSimilarityMeasure = similarityMeasure == null ?
-                VoyageAIService.defaultSimilarity() : similarityMeasure;
+            SimilarityMeasure expectedSimilarityMeasure = similarityMeasure == null
+                ? VoyageAIService.defaultSimilarity()
+                : similarityMeasure;
             assertEquals(expectedSimilarityMeasure, updatedModel.getServiceSettings().similarity());
             assertEquals(embeddingSize, updatedModel.getServiceSettings().dimensions().intValue());
         }
@@ -1055,7 +1055,7 @@ public class VoyageAIServiceTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(401).setBody(responseJson));
 
-            var model = VoyageAIRerankModelTests.createModel(getUrl(webServer), "model", 1024, false);
+            var model = VoyageAIRerankModelTests.createModel(getUrl(webServer), "model", 1024, false, false);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
@@ -1136,7 +1136,16 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "model", "voyage-clip-v2", "task", "retrieval.passage")));
+            MatcherAssert.assertThat(
+                requestMap,
+                is(Map.of(
+                    "input", List.of("abc"),
+                    "model", "voyage-clip-v2",
+                    "input_type", "document",
+                    "output_dtype", "float",
+                    "output_dimension", 1024
+                ))
+            );
         }
     }
 
@@ -1201,7 +1210,13 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "model", "voyage-clip-v2", "task", "retrieval.query")));
+            MatcherAssert.assertThat(requestMap, is(Map.of(
+                "input", List.of("abc"),
+                "model", "voyage-clip-v2",
+                "input_type", "query",
+                "output_dtype", "float",
+                "output_dimension", 1024
+            )));
         }
     }
 
@@ -1250,7 +1265,12 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "model", "voyage-clip-v2", "task", "separation")));
+            MatcherAssert.assertThat(requestMap, is(Map.of(
+                "input", List.of("abc"),
+                "model", "voyage-clip-v2",
+                "output_dtype", "float",
+                "output_dimension", 1024
+            )));
         }
     }
 
@@ -1306,7 +1326,12 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "model", "voyage-clip-v2")));
+            MatcherAssert.assertThat(requestMap, is(Map.of(
+                "input", List.of("abc"),
+                "model", "voyage-clip-v2",
+                "output_dtype", "float",
+                "output_dimension", 1024
+            )));
         }
     }
 
@@ -1314,7 +1339,8 @@ public class VoyageAIServiceTests extends ESTestCase {
         String responseJson = """
             {
                 "model": "model",
-                "results": [
+                "object": "list",
+                "data": [
                     {
                         "index": 2,
                         "relevance_score": 0.98005307
@@ -1337,7 +1363,7 @@ public class VoyageAIServiceTests extends ESTestCase {
 
         try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool))) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-            var model = VoyageAIRerankModelTests.createModel(getUrl(webServer), "secret", "model", null, false);
+            var model = VoyageAIRerankModelTests.createModel(getUrl(webServer), "secret", "model", null, false, false);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
@@ -1385,6 +1411,8 @@ public class VoyageAIServiceTests extends ESTestCase {
                         "model",
                         "model",
                         "return_documents",
+                        false,
+                        "truncation",
                         false
                     )
                 )
@@ -1396,8 +1424,9 @@ public class VoyageAIServiceTests extends ESTestCase {
     public void testInfer_Rerank_Get_Response_NoReturnDocuments_TopN() throws IOException {
         String responseJson = """
             {
+                "object": "list",
                 "model": "model",
-                "results": [
+                "data": [
                     {
                         "index": 2,
                         "relevance_score": 0.98005307
@@ -1420,7 +1449,7 @@ public class VoyageAIServiceTests extends ESTestCase {
 
         try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool))) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-            var model = VoyageAIRerankModelTests.createModel(getUrl(webServer), "secret", "model", 3, false);
+            var model = VoyageAIRerankModelTests.createModel(getUrl(webServer), "secret", "model", 3, false, false);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
@@ -1469,8 +1498,10 @@ public class VoyageAIServiceTests extends ESTestCase {
                         "model",
                         "return_documents",
                         false,
-                        "top_n",
-                        3
+                        "top_k",
+                        3,
+                        "truncation",
+                        false
                     )
                 )
             );
@@ -1482,28 +1513,23 @@ public class VoyageAIServiceTests extends ESTestCase {
     public void testInfer_Rerank_Get_Response_ReturnDocumentsNull_NoTopN() throws IOException {
         String responseJson = """
             {
+                "object": "list",
                 "model": "model",
-                "results": [
+                "data": [
                     {
                         "index": 2,
                         "relevance_score": 0.98005307,
-                        "document": {
-                            "text": "candidate3"
-                        }
+                        "document": "candidate3"
                     },
                     {
                         "index": 1,
                         "relevance_score": 0.27904198,
-                        "document": {
-                            "text": "candidate2"
-                        }
+                        "document": "candidate2"
                     },
                     {
                         "index": 0,
                         "relevance_score": 0.10194652,
-                        "document": {
-                            "text": "candidate1"
-                        }
+                        "document": "candidate1"
                     }
                 ],
                 "usage": {
@@ -1515,7 +1541,7 @@ public class VoyageAIServiceTests extends ESTestCase {
 
         try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool))) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-            var model = VoyageAIRerankModelTests.createModel(getUrl(webServer), "secret", "model", null, null);
+            var model = VoyageAIRerankModelTests.createModel(getUrl(webServer), "secret", "model", null, null, null);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
@@ -1553,7 +1579,11 @@ public class VoyageAIServiceTests extends ESTestCase {
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             MatcherAssert.assertThat(
                 requestMap,
-                is(Map.of("query", "query", "documents", List.of("candidate1", "candidate2", "candidate3"), "model", "model"))
+                is(Map.of(
+                    "query", "query",
+                    "documents", List.of("candidate1", "candidate2", "candidate3"),
+                    "model", "model"
+                ))
             );
 
         }
@@ -1563,28 +1593,23 @@ public class VoyageAIServiceTests extends ESTestCase {
     public void testInfer_Rerank_Get_Response_ReturnDocuments_TopN() throws IOException {
         String responseJson = """
             {
+                "object": "list",
                 "model": "model",
-                "results": [
+                "data": [
                     {
                         "index": 2,
                         "relevance_score": 0.98005307,
-                        "document": {
-                            "text": "candidate3"
-                        }
+                        "document": "candidate3"
                     },
                     {
                         "index": 1,
                         "relevance_score": 0.27904198,
-                        "document": {
-                            "text": "candidate2"
-                        }
+                        "document": "candidate2"
                     },
                     {
                         "index": 0,
                         "relevance_score": 0.10194652,
-                        "document": {
-                            "text": "candidate1"
-                        }
+                        "document": "candidate1"
                     }
                 ],
                 "usage": {
@@ -1596,7 +1621,7 @@ public class VoyageAIServiceTests extends ESTestCase {
 
         try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool))) {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-            var model = VoyageAIRerankModelTests.createModel(getUrl(webServer), "secret", "model", 3, true);
+            var model = VoyageAIRerankModelTests.createModel(getUrl(webServer), "secret", "model", 3, true, true);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
                 model,
@@ -1644,8 +1669,10 @@ public class VoyageAIServiceTests extends ESTestCase {
                         "model",
                         "return_documents",
                         true,
-                        "top_n",
-                        3
+                        "top_k",
+                        3,
+                        "truncation",
+                        true
                     )
                 )
             );
@@ -1684,7 +1711,7 @@ public class VoyageAIServiceTests extends ESTestCase {
             var model = VoyageAIEmbeddingsModelTests.createModel(
                 getUrl(webServer),
                 "secret",
-                new VoyageAIEmbeddingsTaskSettings((InputType) null, null, null),
+                new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null),
                 1024,
                 1024,
                 "voyage-clip-v2",
@@ -1714,7 +1741,13 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "model", "voyage-clip-v2")));
+            MatcherAssert.assertThat(requestMap, is(Map.of(
+                "input", List.of("abc"),
+                "model", "voyage-clip-v2",
+                "input_type", "document",
+                "output_dtype", "float",
+                "output_dimension", 1024
+            )));
         }
     }
 
@@ -1722,7 +1755,7 @@ public class VoyageAIServiceTests extends ESTestCase {
         var model = VoyageAIEmbeddingsModelTests.createModel(
             getUrl(webServer),
             "secret",
-            new VoyageAIEmbeddingsTaskSettings((InputType) null),
+            new VoyageAIEmbeddingsTaskSettings((InputType) null, null),
             createRandomChunkingSettings(),
             1024,
             1024,
@@ -1736,7 +1769,7 @@ public class VoyageAIServiceTests extends ESTestCase {
         var model = VoyageAIEmbeddingsModelTests.createModel(
             getUrl(webServer),
             "secret",
-            new VoyageAIEmbeddingsTaskSettings((InputType) null),
+            new VoyageAIEmbeddingsTaskSettings((InputType) null, null),
             null,
             1024,
             1024,
@@ -1820,7 +1853,12 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("foo", "bar"), "model", "voyage-clip-v2")));
+            MatcherAssert.assertThat(requestMap, is(Map.of(
+                "input", List.of("foo", "bar"),
+                "model", "voyage-clip-v2",
+                "output_dtype", "float",
+                "output_dimension", 1024
+            )));
         }
     }
 
@@ -1844,24 +1882,6 @@ public class VoyageAIServiceTests extends ESTestCase {
                                     "required": true,
                                     "sensitive": true,
                                     "updatable": true,
-                                    "type": "str",
-                                    "supported_task_types": ["text_embedding", "rerank"]
-                                },
-                                "dimensions": {
-                                    "description": "The number of dimensions the resulting embeddings should have. For more information refer to https://api.voyage.ai/redoc#tag/embeddings/operation/create_embedding_v1_embeddings_post.",
-                                    "label": "Dimensions",
-                                    "required": false,
-                                    "sensitive": false,
-                                    "updatable": false,
-                                    "type": "int",
-                                    "supported_task_types": ["text_embedding"]
-                                },
-                                "model_id": {
-                                    "description": "The name of the model to use for the inference task.",
-                                    "label": "Model ID",
-                                    "required": true,
-                                    "sensitive": false,
-                                    "updatable": false,
                                     "type": "str",
                                     "supported_task_types": ["text_embedding", "rerank"]
                                 },

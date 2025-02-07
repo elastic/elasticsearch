@@ -174,10 +174,10 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
             String inferenceId,
             String inferenceText,
             Float minScore,
-            boolean lenient,
+            boolean failuresAllowed,
             String throwingType
         ) {
-            super(field, inferenceId, inferenceText, rankWindowSize, minScore, lenient);
+            super(field, inferenceId, inferenceText, rankWindowSize, minScore, failuresAllowed);
             this.throwingRankBuilderType = AbstractRerankerIT.ThrowingRankBuilderType.valueOf(throwingType);
         }
 

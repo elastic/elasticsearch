@@ -496,7 +496,7 @@ public abstract class AbstractRerankerIT extends ESIntegTestCase {
         assertNoOpenContext(indexName);
     }
 
-    private void assertNoOpenContext(final String indexName) throws Exception {
+    protected void assertNoOpenContext(final String indexName) throws Exception {
         assertBusy(
             () -> assertThat(indicesAdmin().prepareStats(indexName).get().getTotal().getSearch().getOpenContexts(), equalTo(0L)),
             1,

@@ -9,23 +9,31 @@
 
 package org.elasticsearch.test;
 
+import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.VersionId;
 import org.elasticsearch.core.Nullable;
 
+import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
+import java.util.NavigableSet;
 import java.util.Random;
+import java.util.TreeSet;
+import java.util.function.IntFunction;
 
 /** Utilities for selecting versions in tests */
 public class VersionUtils {
 
-    private static final List<Version> ALL_VERSIONS = Version.getDeclaredVersions(Version.class);
+    private static final NavigableSet<Version> ALL_VERSIONS = Collections.unmodifiableNavigableSet(
+        new TreeSet<>(Version.getDeclaredVersions(Version.class))
+    );
 
     /**
      * Returns an immutable, sorted list containing all versions, both released and unreleased.
      */
-    public static List<Version> allVersions() {
+    public static NavigableSet<Version> allVersions() {
         return ALL_VERSIONS;
     }
 
@@ -33,13 +41,11 @@ public class VersionUtils {
      * Get the version before {@code version}.
      */
     public static Version getPreviousVersion(Version version) {
-        for (int i = ALL_VERSIONS.size() - 1; i >= 0; i--) {
-            Version v = ALL_VERSIONS.get(i);
-            if (v.before(version)) {
-                return v;
-            }
+        var versions = ALL_VERSIONS.headSet(version, false);
+        if (versions.isEmpty()) {
+            throw new IllegalArgumentException("couldn't find any versions before [" + version + "]");
         }
-        throw new IllegalArgumentException("couldn't find any versions before [" + version + "]");
+        return versions.getLast();
     }
 
     /**
@@ -56,8 +62,7 @@ public class VersionUtils {
      * where the minor version is less than the currents minor version.
      */
     public static Version getPreviousMinorVersion() {
-        for (int i = ALL_VERSIONS.size() - 1; i >= 0; i--) {
-            Version v = ALL_VERSIONS.get(i);
+        for (Version v : ALL_VERSIONS.descendingSet()) {
             if (v.minor < Version.CURRENT.minor || v.major < Version.CURRENT.major) {
                 return v;
             }
@@ -67,12 +72,12 @@ public class VersionUtils {
 
     /** Returns the oldest {@link Version} */
     public static Version getFirstVersion() {
-        return ALL_VERSIONS.get(0);
+        return ALL_VERSIONS.getFirst();
     }
 
     /** Returns a random {@link Version} from all available versions. */
     public static Version randomVersion(Random random) {
-        return ALL_VERSIONS.get(random.nextInt(ALL_VERSIONS.size()));
+        return randomFrom(random, ALL_VERSIONS, Version::fromId);
     }
 
     /** Returns a random {@link Version} from all available versions, that is compatible with the given version. */
@@ -83,38 +88,42 @@ public class VersionUtils {
 
     /** Returns a random {@link Version} between <code>minVersion</code> and <code>maxVersion</code> (inclusive). */
     public static Version randomVersionBetween(Random random, @Nullable Version minVersion, @Nullable Version maxVersion) {
-        int minVersionIndex = 0;
-        if (minVersion != null) {
-            minVersionIndex = ALL_VERSIONS.indexOf(minVersion);
-        }
-        int maxVersionIndex = ALL_VERSIONS.size() - 1;
-        if (maxVersion != null) {
-            maxVersionIndex = ALL_VERSIONS.indexOf(maxVersion);
-        }
-        if (minVersionIndex == -1) {
-            throw new IllegalArgumentException("minVersion [" + minVersion + "] does not exist.");
-        } else if (maxVersionIndex == -1) {
-            throw new IllegalArgumentException("maxVersion [" + maxVersion + "] does not exist.");
-        } else if (minVersionIndex > maxVersionIndex) {
+        if (minVersion != null && maxVersion != null && maxVersion.before(minVersion)) {
             throw new IllegalArgumentException("maxVersion [" + maxVersion + "] cannot be less than minVersion [" + minVersion + "]");
-        } else {
-            // minVersionIndex is inclusive so need to add 1 to this index
-            int range = maxVersionIndex + 1 - minVersionIndex;
-            return ALL_VERSIONS.get(minVersionIndex + random.nextInt(range));
         }
-    }
 
-    /** returns the first future compatible version */
-    public static Version compatibleFutureVersion(Version version) {
-        final Optional<Version> opt = ALL_VERSIONS.stream().filter(version::before).filter(v -> v.isCompatible(version)).findAny();
-        assert opt.isPresent() : "no future compatible version for " + version;
-        return opt.get();
+        NavigableSet<Version> versions = ALL_VERSIONS;
+        if (minVersion != null) {
+            if (versions.contains(minVersion) == false) {
+                throw new IllegalArgumentException("minVersion [" + minVersion + "] does not exist.");
+            }
+            versions = versions.tailSet(minVersion, true);
+        }
+        if (maxVersion != null) {
+            if (versions.contains(maxVersion) == false) {
+                throw new IllegalArgumentException("maxVersion [" + maxVersion + "] does not exist.");
+            }
+            versions = versions.headSet(maxVersion, true);
+        }
+
+        return randomFrom(random, versions, Version::fromId);
     }
 
     /** Returns the maximum {@link Version} that is compatible with the given version. */
     public static Version maxCompatibleVersion(Version version) {
-        final List<Version> compatible = ALL_VERSIONS.stream().filter(version::isCompatible).filter(version::onOrBefore).toList();
-        assert compatible.size() > 0;
-        return compatible.get(compatible.size() - 1);
+        return ALL_VERSIONS.tailSet(version, true).descendingSet().stream().filter(version::isCompatible).findFirst().orElseThrow();
+    }
+
+    public static <T extends VersionId<T>> T randomFrom(Random random, NavigableSet<T> set, IntFunction<T> ctor) {
+        // get the first and last id, pick a random id in the middle, then find that id in the set in O(nlogn) time
+        // this assumes the id numbers are reasonably evenly distributed in the set
+        assert set.isEmpty() == false;
+        int lowest = set.getFirst().id();
+        int highest = set.getLast().id();
+
+        T randomId = ctor.apply(RandomNumbers.randomIntBetween(random, lowest, highest));
+        // try to find the id below, then the id above. We're just looking for *some* item in the set that is close to randomId
+        T found = set.floor(randomId);
+        return found != null ? found : set.ceiling(randomId);
     }
 }

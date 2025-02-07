@@ -24,7 +24,6 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.IntFunction;
-import java.util.stream.Collectors;
 
 @SuppressWarnings("deprecation")
 public class IndexVersions {
@@ -108,43 +107,45 @@ public class IndexVersions {
     public static final IndexVersion UPGRADE_LUCENE_9_9_1 = def(8_500_008, Version.LUCENE_9_9_1);
     public static final IndexVersion ES_VERSION_8_12_1 = def(8_500_009, Version.LUCENE_9_9_1);
     public static final IndexVersion UPGRADE_8_12_1_LUCENE_9_9_2 = def(8_500_010, Version.LUCENE_9_9_2);
-    public static final IndexVersion NEW_INDEXVERSION_FORMAT = def(8_501_00_0, Version.LUCENE_9_9_1);
-    public static final IndexVersion UPGRADE_LUCENE_9_9_2 = def(8_502_00_0, Version.LUCENE_9_9_2);
-    public static final IndexVersion TIME_SERIES_ID_HASHING = def(8_502_00_1, Version.LUCENE_9_9_2);
-    public static final IndexVersion UPGRADE_TO_LUCENE_9_10 = def(8_503_00_0, Version.LUCENE_9_10_0);
-    public static final IndexVersion TIME_SERIES_ROUTING_HASH_IN_ID = def(8_504_00_0, Version.LUCENE_9_10_0);
-    public static final IndexVersion DEFAULT_DENSE_VECTOR_TO_INT8_HNSW = def(8_505_00_0, Version.LUCENE_9_10_0);
-    public static final IndexVersion DOC_VALUES_FOR_IGNORED_META_FIELD = def(8_505_00_1, Version.LUCENE_9_10_0);
-    public static final IndexVersion SOURCE_MAPPER_LOSSY_PARAMS_CHECK = def(8_506_00_0, Version.LUCENE_9_10_0);
-    public static final IndexVersion SEMANTIC_TEXT_FIELD_TYPE = def(8_507_00_0, Version.LUCENE_9_10_0);
-    public static final IndexVersion UPGRADE_TO_LUCENE_9_11 = def(8_508_00_0, Version.LUCENE_9_11_0);
-    public static final IndexVersion UNIQUE_TOKEN_FILTER_POS_FIX = def(8_509_00_0, Version.LUCENE_9_11_0);
-    public static final IndexVersion ADD_SECURITY_MIGRATION = def(8_510_00_0, Version.LUCENE_9_11_0);
-    public static final IndexVersion UPGRADE_TO_LUCENE_9_11_1 = def(8_511_00_0, Version.LUCENE_9_11_1);
-    public static final IndexVersion INDEX_SORTING_ON_NESTED = def(8_512_00_0, Version.LUCENE_9_11_1);
-    public static final IndexVersion LENIENT_UPDATEABLE_SYNONYMS = def(8_513_00_0, Version.LUCENE_9_11_1);
-    public static final IndexVersion ENABLE_IGNORE_MALFORMED_LOGSDB = def(8_514_00_0, Version.LUCENE_9_11_1);
-    public static final IndexVersion MERGE_ON_RECOVERY_VERSION = def(8_515_00_0, Version.LUCENE_9_11_1);
-    public static final IndexVersion UPGRADE_TO_LUCENE_9_12 = def(8_516_00_0, Version.LUCENE_9_12_0);
-    public static final IndexVersion ENABLE_IGNORE_ABOVE_LOGSDB = def(8_517_00_0, Version.LUCENE_9_12_0);
-    public static final IndexVersion ADD_ROLE_MAPPING_CLEANUP_MIGRATION = def(8_518_00_0, Version.LUCENE_9_12_0);
-    public static final IndexVersion LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT_BACKPORT = def(8_519_00_0, Version.LUCENE_9_12_0);
-    public static final IndexVersion TIME_BASED_K_ORDERED_DOC_ID_BACKPORT = def(8_520_00_0, Version.LUCENE_9_12_0);
-    public static final IndexVersion V8_DEPRECATE_SOURCE_MODE_MAPPER = def(8_521_00_0, Version.LUCENE_9_12_0);
-    public static final IndexVersion USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BACKPORT = def(8_522_00_0, Version.LUCENE_9_12_0);
-    public static final IndexVersion UPGRADE_TO_LUCENE_9_12_1 = def(8_523_00_0, parseUnchecked("9.12.1"));
-    public static final IndexVersion INFERENCE_METADATA_FIELDS_BACKPORT = def(8_524_00_0, parseUnchecked("9.12.1"));
-    public static final IndexVersion LOGSB_OPTIONAL_SORTING_ON_HOST_NAME_BACKPORT = def(8_525_00_0, parseUnchecked("9.12.1"));
-    public static final IndexVersion UPGRADE_TO_LUCENE_10_0_0 = def(9_000_00_0, Version.LUCENE_10_0_0);
-    public static final IndexVersion LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT = def(9_001_00_0, Version.LUCENE_10_0_0);
-    public static final IndexVersion TIME_BASED_K_ORDERED_DOC_ID = def(9_002_00_0, Version.LUCENE_10_0_0);
-    public static final IndexVersion DEPRECATE_SOURCE_MODE_MAPPER = def(9_003_00_0, Version.LUCENE_10_0_0);
-    public static final IndexVersion USE_SYNTHETIC_SOURCE_FOR_RECOVERY = def(9_004_00_0, Version.LUCENE_10_0_0);
-    public static final IndexVersion INFERENCE_METADATA_FIELDS = def(9_005_00_0, Version.LUCENE_10_0_0);
-    public static final IndexVersion LOGSB_OPTIONAL_SORTING_ON_HOST_NAME = def(9_006_00_0, Version.LUCENE_10_0_0);
-    public static final IndexVersion SOURCE_MAPPER_MODE_ATTRIBUTE_NOOP = def(9_007_00_0, Version.LUCENE_10_0_0);
-    public static final IndexVersion HOSTNAME_DOC_VALUES_SPARSE_INDEX = def(9_008_00_0, Version.LUCENE_10_0_0);
-    public static final IndexVersion UPGRADE_TO_LUCENE_10_1_0 = def(9_009_00_0, Version.LUCENE_10_1_0);
+    public static final IndexVersion NEW_INDEXVERSION_FORMAT = def(8_501_0_00, Version.LUCENE_9_9_1);
+    public static final IndexVersion UPGRADE_LUCENE_9_9_2 = def(8_502_0_00, Version.LUCENE_9_9_2);
+    public static final IndexVersion TIME_SERIES_ID_HASHING = def(8_502_0_01, Version.LUCENE_9_9_2);
+    public static final IndexVersion UPGRADE_TO_LUCENE_9_10 = def(8_503_0_00, Version.LUCENE_9_10_0);
+    public static final IndexVersion TIME_SERIES_ROUTING_HASH_IN_ID = def(8_504_0_00, Version.LUCENE_9_10_0);
+    public static final IndexVersion DEFAULT_DENSE_VECTOR_TO_INT8_HNSW = def(8_505_0_00, Version.LUCENE_9_10_0);
+    public static final IndexVersion DOC_VALUES_FOR_IGNORED_META_FIELD = def(8_505_0_01, Version.LUCENE_9_10_0);
+    public static final IndexVersion SOURCE_MAPPER_LOSSY_PARAMS_CHECK = def(8_506_0_00, Version.LUCENE_9_10_0);
+    public static final IndexVersion SEMANTIC_TEXT_FIELD_TYPE = def(8_507_0_00, Version.LUCENE_9_10_0);
+    public static final IndexVersion UPGRADE_TO_LUCENE_9_11 = def(8_508_0_00, Version.LUCENE_9_11_0);
+    public static final IndexVersion UNIQUE_TOKEN_FILTER_POS_FIX = def(8_509_0_00, Version.LUCENE_9_11_0);
+    public static final IndexVersion ADD_SECURITY_MIGRATION = def(8_510_0_00, Version.LUCENE_9_11_0);
+    public static final IndexVersion UPGRADE_TO_LUCENE_9_11_1 = def(8_511_0_00, Version.LUCENE_9_11_1);
+    public static final IndexVersion INDEX_SORTING_ON_NESTED = def(8_512_0_00, Version.LUCENE_9_11_1);
+    public static final IndexVersion LENIENT_UPDATEABLE_SYNONYMS = def(8_513_0_00, Version.LUCENE_9_11_1);
+    public static final IndexVersion ENABLE_IGNORE_MALFORMED_LOGSDB = def(8_514_0_00, Version.LUCENE_9_11_1);
+    public static final IndexVersion MERGE_ON_RECOVERY_VERSION = def(8_515_0_00, Version.LUCENE_9_11_1);
+    public static final IndexVersion UPGRADE_TO_LUCENE_9_12 = def(8_516_0_00, Version.LUCENE_9_12_0);
+    public static final IndexVersion ENABLE_IGNORE_ABOVE_LOGSDB = def(8_517_0_00, Version.LUCENE_9_12_0);
+    public static final IndexVersion ADD_ROLE_MAPPING_CLEANUP_MIGRATION = def(8_518_0_00, Version.LUCENE_9_12_0);
+    public static final IndexVersion LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT_BACKPORT = def(8_519_0_00, Version.LUCENE_9_12_0);
+    public static final IndexVersion TIME_BASED_K_ORDERED_DOC_ID_BACKPORT = def(8_520_0_00, Version.LUCENE_9_12_0);
+    public static final IndexVersion V8_DEPRECATE_SOURCE_MODE_MAPPER = def(8_521_0_00, Version.LUCENE_9_12_0);
+    public static final IndexVersion USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BACKPORT = def(8_522_0_00, Version.LUCENE_9_12_0);
+    public static final IndexVersion UPGRADE_TO_LUCENE_9_12_1 = def(8_523_0_00, parseUnchecked("9.12.1"));
+    public static final IndexVersion INFERENCE_METADATA_FIELDS_BACKPORT = def(8_524_0_00, parseUnchecked("9.12.1"));
+    public static final IndexVersion LOGSB_OPTIONAL_SORTING_ON_HOST_NAME_BACKPORT = def(8_525_0_00, parseUnchecked("9.12.1"));
+    public static final IndexVersion USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT_BACKPORT = def(8_526_0_00, parseUnchecked("9.12.1"));
+    public static final IndexVersion UPGRADE_TO_LUCENE_10_0_0 = def(9_000_0_00, Version.LUCENE_10_0_0);
+    public static final IndexVersion LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT = def(9_001_0_00, Version.LUCENE_10_0_0);
+    public static final IndexVersion TIME_BASED_K_ORDERED_DOC_ID = def(9_002_0_00, Version.LUCENE_10_0_0);
+    public static final IndexVersion DEPRECATE_SOURCE_MODE_MAPPER = def(9_003_0_00, Version.LUCENE_10_0_0);
+    public static final IndexVersion USE_SYNTHETIC_SOURCE_FOR_RECOVERY = def(9_004_0_00, Version.LUCENE_10_0_0);
+    public static final IndexVersion INFERENCE_METADATA_FIELDS = def(9_005_0_00, Version.LUCENE_10_0_0);
+    public static final IndexVersion LOGSB_OPTIONAL_SORTING_ON_HOST_NAME = def(9_006_0_00, Version.LUCENE_10_0_0);
+    public static final IndexVersion SOURCE_MAPPER_MODE_ATTRIBUTE_NOOP = def(9_007_0_00, Version.LUCENE_10_0_0);
+    public static final IndexVersion HOSTNAME_DOC_VALUES_SPARSE_INDEX = def(9_008_0_00, Version.LUCENE_10_0_0);
+    public static final IndexVersion UPGRADE_TO_LUCENE_10_1_0 = def(9_009_0_00, Version.LUCENE_10_1_0);
+    public static final IndexVersion USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT = def(9_010_00_0, Version.LUCENE_10_1_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _
@@ -160,17 +161,17 @@ public class IndexVersions {
      * To add a new index version, add a new constant at the bottom of the list, above this comment. Don't add other lines,
      * comments, etc. The version id has the following layout:
      *
-     * M_NNN_SS_P
+     * M_NNN_S_PP
      *
      * M - The major version of Elasticsearch
      * NNN - The server version part
-     * SS - The serverless version part. It should always be 00 here, it is used by serverless only.
-     * P - The patch version part
+     * S - The subsidiary version part. It should always be 0 here, it is only used in subsidiary repositories.
+     * PP - The patch version part
      *
      * To determine the id of the next IndexVersion constant, do the following:
      * - Use the same major version, unless bumping majors
      * - Bump the server version part by 1, unless creating a patch version
-     * - Leave the serverless part as 00
+     * - Leave the subsidiary part as 0
      * - Bump the patch part if creating a patch version
      *
      * If a patch version is created, it should be placed sorted among the other existing constants.
@@ -248,10 +249,6 @@ public class IndexVersions {
         }
 
         return Collections.unmodifiableNavigableMap(builder);
-    }
-
-    static Collection<IndexVersion> getAllWriteVersions() {
-        return VERSION_IDS.values().stream().filter(v -> v.onOrAfter(IndexVersions.MINIMUM_COMPATIBLE)).collect(Collectors.toSet());
     }
 
     static Collection<IndexVersion> getAllVersions() {

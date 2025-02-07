@@ -1770,7 +1770,7 @@ public class RBACEngineTests extends ESTestCase {
                                 IndicesPrivileges.builder().indices("*").privileges("all").allowRestrictedIndices(false).build(),
                                 IndicesPrivileges.builder()
                                     .indices("*")
-                                    .privileges("monitor", "read", "read_cross_cluster", "view_index_metadata")
+                                    .privileges("monitor", "read", "read_cross_cluster", "read_failures", "view_index_metadata")
                                     .allowRestrictedIndices(true)
                                     .build() },
                             null,

@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -262,11 +263,16 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                             return context.getFieldType(field);
                         });
                         final SearchHit hit = new SearchHit(scoreDoc.doc, visitor.id(), breaker);
-                        BytesReference source = visitor.source();
-                        hit.unfilteredSourceRef(source);
-                        breaker.addEstimateBytesAndMaybeBreak(source.length(), "enrich_msearch");
-                        hit.sourceRef(filterSource(fetchSourceContext, source));
-                        hits[j] = hit;
+                        try {
+                            BytesReference source = visitor.source();
+                            hit.unfilteredSourceRef(source);
+                            breaker.addEstimateBytesAndMaybeBreak(source.length(), "enrich_msearch");
+                            hit.sourceRef(filterSource(fetchSourceContext, source));
+                            hits[j] = hit;
+                        } catch (CircuitBreakingException e) {
+                            hit.decRef();
+                            throw e;
+                        }
                     }
                     items[i] = new MultiSearchResponse.Item(createSearchResponse(topDocs, hits), null);
                 }

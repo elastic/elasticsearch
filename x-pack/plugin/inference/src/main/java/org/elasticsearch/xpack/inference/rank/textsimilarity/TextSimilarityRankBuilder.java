@@ -48,7 +48,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
     private final String inferenceText;
     private final String field;
     private final Float minScore;
-    private final boolean lenient;
+    private final boolean failuresAllowed;
 
     public TextSimilarityRankBuilder(
         String field,
@@ -56,14 +56,14 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         String inferenceText,
         int rankWindowSize,
         Float minScore,
-        boolean lenient
+        boolean failuresAllowed
     ) {
         super(rankWindowSize);
         this.inferenceId = inferenceId;
         this.inferenceText = inferenceText;
         this.field = field;
         this.minScore = minScore;
-        this.lenient = lenient;
+        this.failuresAllowed = failuresAllowed;
     }
 
     public TextSimilarityRankBuilder(StreamInput in) throws IOException {
@@ -73,10 +73,10 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         this.inferenceText = in.readString();
         this.field = in.readString();
         this.minScore = in.readOptionalFloat();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.LENIENT_RERANKERS)) {
-            this.lenient = in.readBoolean();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.RERANKER_FAILURES_ALLOWED)) {
+            this.failuresAllowed = in.readBoolean();
         } else {
-            this.lenient = false;
+            this.failuresAllowed = false;
         }
     }
 
@@ -97,8 +97,8 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         out.writeString(inferenceText);
         out.writeString(field);
         out.writeOptionalFloat(minScore);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.LENIENT_RERANKERS)) {
-            out.writeBoolean(lenient);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.RERANKER_FAILURES_ALLOWED)) {
+            out.writeBoolean(failuresAllowed);
         }
     }
 
@@ -164,7 +164,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
             inferenceId,
             inferenceText,
             minScore,
-            lenient
+            failuresAllowed
         );
     }
 
@@ -184,8 +184,8 @@ public class TextSimilarityRankBuilder extends RankBuilder {
         return minScore;
     }
 
-    public boolean isLenient() {
-        return lenient;
+    public boolean failuresAllowed() {
+        return failuresAllowed;
     }
 
     @Override
@@ -195,11 +195,11 @@ public class TextSimilarityRankBuilder extends RankBuilder {
             && Objects.equals(inferenceText, that.inferenceText)
             && Objects.equals(field, that.field)
             && Objects.equals(minScore, that.minScore)
-            && lenient == that.lenient;
+            && failuresAllowed == that.failuresAllowed;
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(inferenceId, inferenceText, field, minScore, lenient);
+        return Objects.hash(inferenceId, inferenceText, field, minScore, failuresAllowed);
     }
 }

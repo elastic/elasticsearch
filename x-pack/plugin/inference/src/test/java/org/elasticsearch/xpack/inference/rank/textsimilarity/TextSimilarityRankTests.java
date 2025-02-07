@@ -86,7 +86,7 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
                 inferenceId,
                 inferenceText,
                 minScore,
-                isLenient()
+                failuresAllowed()
             ) {
                 @Override
                 protected InferenceAction.Request generateRequest(List<String> docFeatures) {
@@ -203,15 +203,15 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
                 )
                 .setQuery(QueryBuilders.matchAllQuery()),
             response -> {
-                // these will all have a score of 2 (default 1 + normalization)
+                // these will all have a score of 1, the score from matchAllQuery
                 assertThat(
                     response.getHits().getHits(),
                     arrayContaining(
-                        searchHitWith(1, 2.0f, "0"),
-                        searchHitWith(2, 2.0f, "1"),
-                        searchHitWith(3, 2.0f, "2"),
-                        searchHitWith(4, 2.0f, "3"),
-                        searchHitWith(5, 2.0f, "4")
+                        searchHitWith(1, 1.0f, "0"),
+                        searchHitWith(2, 1.0f, "1"),
+                        searchHitWith(3, 1.0f, "2"),
+                        searchHitWith(4, 1.0f, "3"),
+                        searchHitWith(5, 1.0f, "4")
                     )
                 );
             }

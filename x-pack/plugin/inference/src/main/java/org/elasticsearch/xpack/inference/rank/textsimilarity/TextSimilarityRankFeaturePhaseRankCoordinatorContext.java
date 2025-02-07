@@ -44,9 +44,9 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         String inferenceId,
         String inferenceText,
         Float minScore,
-        boolean lenient
+        boolean failuresAllowed
     ) {
-        super(size, from, rankWindowSize, lenient);
+        super(size, from, rankWindowSize, failuresAllowed);
         this.client = client;
         this.inferenceId = inferenceId;
         this.inferenceText = inferenceText;
@@ -127,10 +127,17 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
 
     /**
      * Sorts documents by score descending and discards those with a score less than minScore.
-     * @param originalDocs documents to process
+     *
+     * @param originalDocs   documents to process
+     * @param rerankedScores {@code true} if the document scores have been reranked
      */
     @Override
-    protected RankFeatureDoc[] preprocess(RankFeatureDoc[] originalDocs) {
+    protected RankFeatureDoc[] preprocess(RankFeatureDoc[] originalDocs, boolean rerankedScores) {
+        if (rerankedScores == false) {
+            // just do a sort, don't normalize or apply minScore to scores that haven't been modified
+            Arrays.sort(originalDocs);
+            return originalDocs;
+        }
         List<RankFeatureDoc> docs = new ArrayList<>(originalDocs.length);
         for (RankFeatureDoc doc : originalDocs) {
             if (minScore == null || doc.score >= minScore) {

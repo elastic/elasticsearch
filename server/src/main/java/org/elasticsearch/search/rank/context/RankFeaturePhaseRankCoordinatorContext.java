@@ -29,17 +29,17 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
     protected final int size;
     protected final int from;
     protected final int rankWindowSize;
-    protected final boolean lenient;
+    protected final boolean failuresAllowed;
 
-    public RankFeaturePhaseRankCoordinatorContext(int size, int from, int rankWindowSize, boolean lenient) {
+    public RankFeaturePhaseRankCoordinatorContext(int size, int from, int rankWindowSize, boolean failuresAllowed) {
         this.size = size < 0 ? DEFAULT_SIZE : size;
         this.from = from < 0 ? DEFAULT_FROM : from;
         this.rankWindowSize = rankWindowSize;
-        this.lenient = lenient;
+        this.failuresAllowed = failuresAllowed;
     }
 
-    public boolean isLenient() {
-        return lenient;
+    public boolean failuresAllowed() {
+        return failuresAllowed;
     }
 
     /**
@@ -50,9 +50,11 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
 
     /**
      * Preprocesses the provided documents: sorts them by score descending.
-     * @param originalDocs documents to process
+     *
+     * @param originalDocs   documents to process
+     * @param rerankedScores {@code true} if the document scores have been reranked
      */
-    protected RankFeatureDoc[] preprocess(RankFeatureDoc[] originalDocs) {
+    protected RankFeatureDoc[] preprocess(RankFeatureDoc[] originalDocs, boolean rerankedScores) {
         RankFeatureDoc[] sorted = originalDocs.clone();
         Arrays.sort(sorted, Comparator.comparing((RankFeatureDoc doc) -> doc.score).reversed());
         return sorted;
@@ -82,10 +84,12 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
     /**
      * Ranks the provided {@link RankFeatureDoc} array and paginates the results based on the `from` and `size` parameters. Filters out
      * documents that have a relevance score less than min_score.
+     *
      * @param rankFeatureDocs documents to process
+     * @param rerankedScores {@code true} if the document scores have been reranked
      */
-    public RankFeatureDoc[] rankAndPaginate(RankFeatureDoc[] rankFeatureDocs) {
-        RankFeatureDoc[] sortedDocs = preprocess(rankFeatureDocs);
+    public RankFeatureDoc[] rankAndPaginate(RankFeatureDoc[] rankFeatureDocs, boolean rerankedScores) {
+        RankFeatureDoc[] sortedDocs = preprocess(rankFeatureDocs, rerankedScores);
         RankFeatureDoc[] topResults = new RankFeatureDoc[Math.max(0, Math.min(size, sortedDocs.length - from))];
         for (int rank = 0; rank < topResults.length; ++rank) {
             topResults[rank] = sortedDocs[from + rank];

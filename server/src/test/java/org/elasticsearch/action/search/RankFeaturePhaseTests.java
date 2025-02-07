@@ -790,7 +790,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
             }
 
             @Override
-            public RankFeatureDoc[] rankAndPaginate(RankFeatureDoc[] rankFeatureDocs) {
+            public RankFeatureDoc[] rankAndPaginate(RankFeatureDoc[] rankFeatureDocs, boolean rerankedScores) {
                 Arrays.sort(rankFeatureDocs, Comparator.comparing((RankFeatureDoc doc) -> doc.score).reversed());
                 RankFeatureDoc[] topResults = new RankFeatureDoc[Math.max(0, Math.min(size, rankFeatureDocs.length - from))];
                 // perform pagination

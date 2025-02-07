@@ -120,7 +120,7 @@ public class TextSimilarityRankRetrieverBuilderTests extends AbstractXContentTes
             );
             assertThat(parsed.rankWindowSize(), equalTo(DEFAULT_RANK_WINDOW_SIZE));
             assertThat(parsed.inferenceId(), equalTo(DEFAULT_RERANK_ID));
-            assertThat(parsed.isLenient(), equalTo(false));
+            assertThat(parsed.failuresAllowed(), equalTo(false));
 
         }
     }
@@ -152,7 +152,7 @@ public class TextSimilarityRankRetrieverBuilderTests extends AbstractXContentTes
             TextSimilarityRankRetrieverBuilder parsed = (TextSimilarityRankRetrieverBuilder) source.retriever();
             assertThat(parsed.minScore(), equalTo(20f));
             assertThat(parsed.retrieverName(), equalTo("foo_reranker"));
-            assertThat(parsed.isLenient(), equalTo(true));
+            assertThat(parsed.failuresAllowed(), equalTo(true));
             try (XContentParser parseSerialized = createParser(JsonXContent.jsonXContent, Strings.toString(source))) {
                 SearchSourceBuilder deserializedSource = new SearchSourceBuilder().parseXContent(
                     parseSerialized,

@@ -180,7 +180,7 @@ public class TransportVersions {
     public static final TransportVersion REMOVE_DESIRED_NODE_VERSION = def(9_004_0_00);
     public static final TransportVersion ESQL_DRIVER_TASK_DESCRIPTION = def(9_005_0_00);
     public static final TransportVersion ESQL_RETRY_ON_SHARD_LEVEL_FAILURE = def(9_006_0_00);
-    public static final TransportVersion LENIENT_RERANKERS = def(9_007_0_00);
+    public static final TransportVersion RERANKER_FAILURES_ALLOWED = def(9_007_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

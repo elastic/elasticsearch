@@ -187,7 +187,7 @@ public class RankFeaturePhase extends SearchPhase {
             new ActionListener<>() {
                 @Override
                 public void onResponse(RankFeatureDoc[] docsWithUpdatedScores) {
-                    RankFeatureDoc[] topResults = rankFeaturePhaseRankCoordinatorContext.rankAndPaginate(docsWithUpdatedScores);
+                    RankFeatureDoc[] topResults = rankFeaturePhaseRankCoordinatorContext.rankAndPaginate(docsWithUpdatedScores, true);
                     SearchPhaseController.ReducedQueryPhase reducedRankFeaturePhase = newReducedQueryPhaseResults(
                         reducedQueryPhase,
                         topResults
@@ -197,7 +197,7 @@ public class RankFeaturePhase extends SearchPhase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    if (rankFeaturePhaseRankCoordinatorContext.isLenient()) {
+                    if (rankFeaturePhaseRankCoordinatorContext.failuresAllowed()) {
                         // TODO: handle the exception somewhere
                         // don't want to log the entire stack trace, it's not helpful here
                         logger.warn("Exception computing updated ranks: {}. Continuing with existing ranks.", e.toString());
@@ -206,9 +206,12 @@ public class RankFeaturePhase extends SearchPhase {
                             .map(sd -> new RankFeatureDoc(sd.doc, sd.score, sd.shardIndex))
                             .toArray(RankFeatureDoc[]::new);
 
-                        // AbstractThreadedActionListener forks onFailure to the same executor as onResponse,
-                        // so we can just call this direct
-                        onResponse(existingScores);
+                        RankFeatureDoc[] topResults = rankFeaturePhaseRankCoordinatorContext.rankAndPaginate(existingScores, false);
+                        SearchPhaseController.ReducedQueryPhase reducedRankFeaturePhase = newReducedQueryPhaseResults(
+                            reducedQueryPhase,
+                            topResults
+                        );
+                        moveToNextPhase(rankPhaseResults, reducedRankFeaturePhase);
                     } else {
                         context.onPhaseFailure(NAME, "Computing updated ranks for results failed", e);
                     }

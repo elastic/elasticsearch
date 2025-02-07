@@ -109,6 +109,7 @@ import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
@@ -536,33 +537,31 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         }
     }
 
-    @AwaitsFix(bugUrl = "https://elasticco.atlassian.net/browse/ES-10573")
-    public void testRelocateHollowableShardsWithFailure() throws Exception {
+    public void testRelocateHollowableShardWithConnectionFailure() throws Exception {
         startMasterOnlyNode();
         var indexNodeSettings = Settings.builder().put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1)).build();
         var indexNodeA = startIndexNode(indexNodeSettings);
         var indexNodeB = startIndexNode(indexNodeSettings);
 
         var indexName = randomIdentifier();
-        int numberOfShards = randomIntBetween(1, 5);
-        createIndex(indexName, indexSettings(numberOfShards, 0).put("index.routing.allocation.exclude._name", indexNodeB).build());
+        createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.exclude._name", indexNodeB).build());
         ensureGreen(indexName);
         var index = resolveIndex(indexName);
 
-        indexDocs(indexName, between(20, 100));
+        var numDocs = between(20, 100);
+        indexDocs(indexName, numDocs);
         var hollowShardsService = internalCluster().getInstance(HollowShardsService.class, indexNodeA);
-        for (int i = 0; i < numberOfShards; i++) {
-            var indexShard = findIndexShard(index, i);
-            assertThat(indexShard.getEngineOrNull(), instanceOf(IndexEngine.class));
-            assertBusy(() -> assertThat(hollowShardsService.isHollowableIndexShard(indexShard), equalTo(true)));
-        }
+        final var indexShard = findIndexShard(index, 0);
+        assertThat(indexShard.getEngineOrNull(), instanceOf(IndexEngine.class));
+        assertBusy(() -> assertThat(hollowShardsService.isHollowableIndexShard(indexShard), equalTo(true)));
 
+        final boolean failStartElseHandoff = randomBoolean();
         var relocationFailedLatch = breakRelocation(
             indexNodeA,
             indexNodeB,
-            randomBoolean() ? START_RELOCATION_ACTION_NAME : PRIMARY_CONTEXT_HANDOFF_ACTION_NAME
+            failStartElseHandoff ? START_RELOCATION_ACTION_NAME : PRIMARY_CONTEXT_HANDOFF_ACTION_NAME
         );
-        logger.info("--> relocating {} hollowable shards from {} to {}", numberOfShards, indexNodeA, indexNodeB);
+        logger.info("--> relocating hollowable shard from {} to {}", indexNodeA, indexNodeB);
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
         safeAwait(relocationFailedLatch);
 
@@ -570,13 +569,90 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         assertNodeHasNoCurrentRecoveries(indexNodeB);
         assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeB)));
 
-        // If relocation fails, we produce a flush hollow commit and swap the shard's engine to HollowIndexEngine
-        // TODO ES-10573 should fix this test
-        for (int i = 0; i < numberOfShards; i++) {
-            var indexShard = findIndexShard(index, i);
-            var engine = indexShard.getEngineOrNull();
+        final var engine = indexShard.getEngineOrNull();
+        if (failStartElseHandoff) {
+            // If a primary relocation fails before the hollow flush, e.g., due to node disconnection during the start message exchange, the
+            // engine on the source node will be left to IndexEngine.
             assertThat(engine, instanceOf(IndexEngine.class));
+            assertFalse(((IndexEngine) engine).isLastCommitHollow());
+            hollowShardsService.ensureHollowShard(indexShard.shardId(), false);
+        } else {
+            // If a primary relocation fails after the hollow flush, e.g., due to node disconnection during the handoff exchange, the
+            // engine on the source node will have been reset to HollowIndexEngine and stay like that.
+            assertThat(engine, instanceOf(HollowIndexEngine.class));
+            hollowShardsService.ensureHollowShard(indexShard.shardId(), true);
         }
+
+        indexDocsAndRefresh(indexName, numDocs);
+        assertThat(findIndexShard(resolveIndex(indexName), 0).docStats().getCount(), equalTo((long) numDocs * 2));
+    }
+
+    public void testRelocateHollowableShardWithLingeringIngestionUponConnectionFailure() throws Exception {
+        startMasterOnlyNode();
+        var indexNodeSettings = Settings.builder().put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1)).build();
+        var indexNodeA = startIndexNode(indexNodeSettings);
+        var statelessCommitServiceA = internalCluster().getInstance(StatelessCommitService.class, indexNodeA);
+
+        var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+        var index = resolveIndex(indexName);
+
+        var numDocs = between(20, 100);
+        indexDocs(indexName, numDocs);
+        flush(indexName);
+        var hollowShardsService = internalCluster().getInstance(HollowShardsService.class, indexNodeA);
+        final var indexShard = findIndexShard(index, 0);
+        assertThat(indexShard.getEngineOrNull(), instanceOf(IndexEngine.class));
+        assertBusy(() -> assertThat(hollowShardsService.isHollowableIndexShard(indexShard), equalTo(true)));
+
+        // We would like to make the relocation flush stuck due to object store failures so we enable failures only for the new generation.
+        // Later, while the flush keeps repeating the upload, we issue the ingestion that will linger until the relocation failure.
+        long newGen = statelessCommitServiceA.getMaxGenerationToUploadForFlush(indexShard.shardId()) + 1;
+        var repository = ObjectStoreTestUtils.getObjectStoreMockRepository(getObjectStoreService(indexNodeA));
+        repository.setRandomControlIOExceptionRate(1.0);
+        repository.setRandomDataFileIOExceptionRate(1.0);
+        repository.setRandomIOExceptionPattern(".*stateless_commit_" + newGen + ".*");
+
+        var indexNodeB = startIndexNode(indexNodeSettings);
+        ensureStableCluster(3);
+        logger.info("--> relocating hollowable shard from {} to {}", indexNodeA, indexNodeB);
+
+        // Relocation is stuck waiting for the flushed commit to upload (which keeps retrying due to object store failures)
+        client().execute(
+            TransportClusterRerouteAction.TYPE,
+            new ClusterRerouteRequest(TimeValue.timeValueSeconds(10), TimeValue.timeValueSeconds(10)).add(
+                new MoveAllocationCommand(indexName, indexShard.shardId().id(), indexNodeA, indexNodeB)
+            )
+        );
+
+        // Wait until the hollow flushed commit appears for upload
+        assertBusy(() -> assertThat(statelessCommitServiceA.getMaxGenerationToUploadForFlush(indexShard.shardId()), equalTo(newGen)));
+
+        // Index more docs, which will complete after the relocation failure and after unhollowing the shard
+        var bulkRequest = client(indexNodeA).prepareBulk();
+        for (int i = 0; i < numDocs; i++) {
+            bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
+        }
+        var bulkFuture = bulkRequest.execute();
+
+        // Stop target node to disrupt relocation
+        internalCluster().stopNode(indexNodeB);
+
+        ensureGreen(indexName);
+        repository.setRandomControlIOExceptionRate(0.0);
+        repository.setRandomDataFileIOExceptionRate(0.0);
+        assertNoFailures(bulkFuture.get());
+
+        // The lingering ingestion was blocked on primary permits until the relocation failure, after which it was blocked on the ingestion
+        // blocker which initiated unhollowing and reset the engine to IndexEngine, after which ingestion was processed.
+        // So, verify that all ingested docs are searchable.
+        logger.info("--> starting a search node");
+        startSearchNode();
+        setReplicaCount(1, indexName);
+        ensureGreen(indexName);
+        indexDocsAndRefresh(indexName, numDocs);
+        assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHits(true), numDocs * 3);
     }
 
     public void testFlushesOnHollowShards() throws Exception {

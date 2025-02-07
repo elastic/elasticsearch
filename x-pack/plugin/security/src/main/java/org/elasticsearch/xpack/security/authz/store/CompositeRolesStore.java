@@ -483,10 +483,8 @@ public class CompositeRolesStore {
         final List<ConfigurableClusterPrivilege> configurableClusterPrivileges = new ArrayList<>();
         final Set<String> runAs = new HashSet<>();
 
-        final Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesDataMap = new HashMap<>();
-        final Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesFailuresMap = new HashMap<>();
-        final Map<Set<String>, MergeableIndicesPrivilege> restrictedIndicesPrivilegesDataMap = new HashMap<>();
-        final Map<Set<String>, MergeableIndicesPrivilege> restrictedIndicesPrivilegesFailuresMap = new HashMap<>();
+        final Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesMap = new HashMap<>();
+        final Map<Set<String>, MergeableIndicesPrivilege> restrictedIndicesPrivilegesMap = new HashMap<>();
 
         final Map<Set<String>, Set<IndicesPrivileges>> remoteIndicesPrivilegesByCluster = new HashMap<>();
 
@@ -507,30 +505,8 @@ public class CompositeRolesStore {
                 runAs.addAll(Arrays.asList(descriptor.getRunAs()));
             }
 
-            MergeableIndicesPrivilege.collatePrivilegesByIndices(
-                descriptor.getIndicesPrivileges(),
-                true,
-                IndexComponentSelector.DATA,
-                restrictedIndicesPrivilegesDataMap
-            );
-            MergeableIndicesPrivilege.collatePrivilegesByIndices(
-                descriptor.getIndicesPrivileges(),
-                false,
-                IndexComponentSelector.DATA,
-                indicesPrivilegesDataMap
-            );
-            MergeableIndicesPrivilege.collatePrivilegesByIndices(
-                descriptor.getIndicesPrivileges(),
-                true,
-                IndexComponentSelector.FAILURES,
-                restrictedIndicesPrivilegesFailuresMap
-            );
-            MergeableIndicesPrivilege.collatePrivilegesByIndices(
-                descriptor.getIndicesPrivileges(),
-                false,
-                IndexComponentSelector.FAILURES,
-                indicesPrivilegesFailuresMap
-            );
+            MergeableIndicesPrivilege.collatePrivilegesByIndices(descriptor.getIndicesPrivileges(), true, restrictedIndicesPrivilegesMap);
+            MergeableIndicesPrivilege.collatePrivilegesByIndices(descriptor.getIndicesPrivileges(), false, indicesPrivilegesMap);
 
             if (descriptor.hasRemoteIndicesPrivileges()) {
                 groupIndexPrivilegesByCluster(descriptor.getRemoteIndicesPrivileges(), remoteIndicesPrivilegesByCluster);
@@ -563,47 +539,57 @@ public class CompositeRolesStore {
         final Role.Builder builder = Role.builder(restrictedIndices, roleNames.toArray(Strings.EMPTY_ARRAY))
             .cluster(clusterPrivileges, configurableClusterPrivileges)
             .runAs(runAsPrivilege);
-        indicesPrivilegesDataMap.forEach((key, privilege) -> {
+
+        indicesPrivilegesMap.forEach((key, privilege) -> {
+            if (privilege.privileges.contains("read_failures")) {
+                builder.add(
+                    fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
+                    privilege.query,
+                    IndexPrivilege.get(Set.of("read_failures")),
+                    false,
+                    IndexComponentSelector.FAILURES,
+                    privilege.indices.toArray(Strings.EMPTY_ARRAY)
+                );
+            }
+            Set<String> privilegesWithoutReadFailures = filterOutReadFailures(privilege.privileges);
+            if (privilegesWithoutReadFailures.isEmpty()) {
+                return;
+            }
             builder.add(
                 fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
                 privilege.query,
-                IndexPrivilege.get(privilege.privileges),
+                IndexPrivilege.get(privilegesWithoutReadFailures),
                 false,
-                IndexComponentSelector.DATA,
+                (privilege.privileges.contains("all") || privilege.privileges.contains("ALL"))
+                    ? IndexComponentSelector.ALL_APPLICABLE
+                    : IndexComponentSelector.DATA,
                 privilege.indices.toArray(Strings.EMPTY_ARRAY)
             );
 
         });
-        restrictedIndicesPrivilegesDataMap.forEach((key, privilege) -> {
-            // For a privilege with both failure and non-failure indices, we need to split them into two separate groups
+        restrictedIndicesPrivilegesMap.forEach((key, privilege) -> {
+            if (privilege.privileges.contains("read_failures")) {
+                builder.add(
+                    fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
+                    privilege.query,
+                    IndexPrivilege.get(Set.of("read_failures")),
+                    true,
+                    IndexComponentSelector.FAILURES,
+                    privilege.indices.toArray(Strings.EMPTY_ARRAY)
+                );
+            }
+            Set<String> privilegesWithoutReadFailures = filterOutReadFailures(privilege.privileges);
+            if (privilegesWithoutReadFailures.isEmpty()) {
+                return;
+            }
             builder.add(
                 fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
                 privilege.query,
                 IndexPrivilege.get(privilege.privileges),
                 true,
-                IndexComponentSelector.DATA,
-                privilege.indices.toArray(Strings.EMPTY_ARRAY)
-            );
-        });
-        indicesPrivilegesFailuresMap.forEach((key, privilege) -> {
-            builder.add(
-                fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
-                privilege.query,
-                IndexPrivilege.get(privilege.privileges),
-                false,
-                IndexComponentSelector.FAILURES,
-                privilege.indices.toArray(Strings.EMPTY_ARRAY)
-            );
-
-        });
-        restrictedIndicesPrivilegesFailuresMap.forEach((key, privilege) -> {
-            // For a privilege with both failure and non-failure indices, we need to split them into two separate groups
-            builder.add(
-                fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
-                privilege.query,
-                IndexPrivilege.get(privilege.privileges),
-                true,
-                IndexComponentSelector.FAILURES,
+                (privilege.privileges.contains("all") || privilege.privileges.contains("ALL"))
+                    ? IndexComponentSelector.ALL_APPLICABLE
+                    : IndexComponentSelector.DATA,
                 privilege.indices.toArray(Strings.EMPTY_ARRAY)
             );
         });
@@ -654,6 +640,10 @@ public class CompositeRolesStore {
                 })
             );
         }
+    }
+
+    private static Set<String> filterOutReadFailures(Set<String> privileges) {
+        return privileges.stream().filter(p -> p.equals("read_failures") == false).collect(Collectors.toSet());
     }
 
     public void invalidateAll() {
@@ -766,7 +756,6 @@ public class CompositeRolesStore {
         private static void collatePrivilegesByIndices(
             final IndicesPrivileges[] indicesPrivileges,
             final boolean allowsRestrictedIndices,
-            final IndexComponentSelector selector,
             final Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesMap
         ) {
             // if an index privilege is an explicit denial, then we treat it as non-existent since we skipped these in the past when
@@ -778,9 +767,6 @@ public class CompositeRolesStore {
             }
             for (final IndicesPrivileges indicesPrivilege : indicesPrivileges) {
                 if (indicesPrivilege.allowRestrictedIndices() != allowsRestrictedIndices) {
-                    continue;
-                }
-                if (false == indicesPrivilege.matchesSelector(selector)) {
                     continue;
                 }
                 final Set<String> key = newHashSet(indicesPrivilege.getIndices());

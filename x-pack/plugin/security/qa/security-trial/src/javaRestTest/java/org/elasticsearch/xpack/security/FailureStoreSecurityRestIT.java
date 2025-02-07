@@ -33,28 +33,37 @@ public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCa
 
     private static final String DATA_ACCESS_USER = "data_access_user";
     private static final String FAILURE_STORE_ACCESS_USER = "failure_store_access_user";
+    private static final String BOTH_ACCESS_USER = "both_access_user";
     private static final SecureString PASSWORD = new SecureString("elastic-password");
 
     @SuppressWarnings("unchecked")
     public void testFailureStoreAccess() throws IOException {
         String dataAccessRole = "data_access";
         String failureStoreAccessRole = "failure_store_access";
+        String bothAccessRole = "both_access";
 
         createUser(DATA_ACCESS_USER, PASSWORD, List.of(dataAccessRole));
         createUser(FAILURE_STORE_ACCESS_USER, PASSWORD, List.of(failureStoreAccessRole));
+        createUser(BOTH_ACCESS_USER, PASSWORD, List.of(bothAccessRole));
 
         upsertRole(Strings.format("""
             {
               "description": "Role with data access",
               "cluster": ["all"],
-              "indices": [{"names": ["test*"], "privileges": ["read"], "selectors": ["data"]}]
+              "indices": [{"names": ["test*"], "privileges": ["read"]}]
             }"""), dataAccessRole);
         upsertRole(Strings.format("""
             {
               "description": "Role with failure store access",
               "cluster": ["all"],
-              "indices": [{"names": ["test*"], "privileges": ["read"], "selectors": ["failures"]}]
+              "indices": [{"names": ["test*"], "privileges": ["read_failures"]}]
             }"""), failureStoreAccessRole);
+        upsertRole(Strings.format("""
+            {
+              "description": "Role with failure store access",
+              "cluster": ["all"],
+              "indices": [{"names": ["test*"], "privileges": ["read", "read_failures"]}]
+            }"""), bothAccessRole);
 
         createTemplates();
         List<String> docIds = populateDataStreamWithBulkRequest();
@@ -148,6 +157,23 @@ public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCa
 
         expectThrows404(() -> adminClient().performRequest(new Request("GET", "/test12::failures/_search")));
         expectThrows404(() -> adminClient().performRequest(new Request("GET", "/test2::failures/_search")));
+
+        assertContainsDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test1::failures/_search")), failedDocId);
+        assertContainsDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test*::failures/_search")), failedDocId);
+        assertContainsDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/*1::failures/_search")), failedDocId);
+        assertContainsDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/*::failures/_search")), failedDocId);
+        assertContainsDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/.fs*/_search")), failedDocId);
+
+        expectThrows404(() -> performRequest(BOTH_ACCESS_USER, new Request("GET", "/test12::failures/_search")));
+        expectThrows404(() -> performRequest(BOTH_ACCESS_USER, new Request("GET", "/test2::failures/_search")));
+
+        assertContainsDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test1/_search")), successDocId);
+        assertContainsDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/test*/_search")), successDocId);
+        assertContainsDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/*1/_search")), successDocId);
+        assertContainsDocIds(performRequest(BOTH_ACCESS_USER, new Request("GET", "/*/_search")), successDocId);
+
+        expectThrows404(() -> performRequest(BOTH_ACCESS_USER, new Request("GET", "/test12/_search")));
+        expectThrows404(() -> performRequest(BOTH_ACCESS_USER, new Request("GET", "/test2/_search")));
     }
 
     private static void expectThrows404(ThrowingRunnable get) {

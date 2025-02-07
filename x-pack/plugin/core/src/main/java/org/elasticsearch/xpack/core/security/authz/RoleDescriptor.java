@@ -923,7 +923,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         String[] deniedFields = null;
         boolean allowRestrictedIndices = false;
         String[] remoteClusters = null;
-        List<String> selectors = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -1081,8 +1080,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                         Fields.TRANSIENT_METADATA
                     );
                 }
-            } else if (Fields.SELECTORS.match(currentFieldName, parser.getDeprecationHandler())) {
-                selectors = Arrays.stream(readStringArray(roleName, parser, true)).toList();
             } else if (allowRemoteClusters && Fields.CLUSTERS.match(currentFieldName, parser.getDeprecationHandler())) {
                 remoteClusters = readStringArray(roleName, parser, false);
             } else {
@@ -1117,9 +1114,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             );
         }
         checkIfExceptFieldsIsSubsetOfGrantedFields(roleName, grantedFields, deniedFields);
-        if (selectors == null) {
-            selectors = IndicesPrivileges.DEFAULT_SELECTORS;
-        }
         return new IndicesPrivilegesWithOptionalRemoteClusters(
             IndicesPrivileges.builder()
                 .indices(names)
@@ -1128,7 +1122,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 .deniedFields(deniedFields)
                 .query(query)
                 .allowRestrictedIndices(allowRestrictedIndices)
-                .selectors(selectors)
                 .build(),
             remoteClusters
         );
@@ -1354,7 +1347,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         // users. Setting this flag eliminates this special status, and any index name pattern in the permission will cover restricted
         // indices as well.
         private boolean allowRestrictedIndices = false;
-        private List<String> selectors;
 
         private IndicesPrivileges() {}
 
@@ -1365,11 +1357,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             this.privileges = in.readStringArray();
             this.query = in.readOptionalBytesReference();
             this.allowRestrictedIndices = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ROLE_SELECTORS_FIELD)) {
-                this.selectors = in.readStringCollectionAsList();
-            } else {
-                this.selectors = DEFAULT_SELECTORS;
-            }
         }
 
         @Override
@@ -1380,9 +1367,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             out.writeStringArray(privileges);
             out.writeOptionalBytesReference(query);
             out.writeBoolean(allowRestrictedIndices);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ROLE_SELECTORS_FIELD)) {
-                out.writeStringCollection(selectors);
-            }
         }
 
         public static Builder builder() {
@@ -1391,14 +1375,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
         public String[] getIndices() {
             return this.indices;
-        }
-
-        public boolean matchesSelector(IndexComponentSelector selector) {
-            return selectors.contains(selector.getKey());
-        }
-
-        public List<String> getSelectors() {
-            return this.selectors;
         }
 
         public String[] getPrivileges() {
@@ -1499,8 +1475,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             if (Arrays.equals(privileges, that.privileges) == false) return false;
             if (Arrays.equals(grantedFields, that.grantedFields) == false) return false;
             if (Arrays.equals(deniedFields, that.deniedFields) == false) return false;
-            // TODO
-            if (Objects.equals(selectors, that.selectors) == false) return false;
             return Objects.equals(query, that.query);
         }
 
@@ -1512,8 +1486,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             result = 31 * result + Arrays.hashCode(grantedFields);
             result = 31 * result + Arrays.hashCode(deniedFields);
             result = 31 * result + (query != null ? query.hashCode() : 0);
-            // TODO NPE?
-            result = 31 * result + (selectors != null ? selectors.hashCode() : 0);
             return result;
         }
 
@@ -1541,10 +1513,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             }
             if (query != null) {
                 builder.field("query", query.utf8ToString());
-            }
-            // Hide default selectors
-            if (selectors.equals(List.of("data")) == false) {
-                builder.stringListField("selectors", selectors);
             }
             return builder.field(RoleDescriptor.Fields.ALLOW_RESTRICTED_INDICES.getPreferredName(), allowRestrictedIndices);
         }
@@ -1602,11 +1570,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 return this;
             }
 
-            public Builder selectors(List<String> selectors) {
-                indicesPrivileges.selectors = selectors;
-                return this;
-            }
-
             public Builder privileges(Collection<String> privileges) {
                 return privileges(privileges.toArray(new String[privileges.size()]));
             }
@@ -1645,10 +1608,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 }
                 if (indicesPrivileges.privileges == null || indicesPrivileges.privileges.length == 0) {
                     throw new IllegalArgumentException("indices privileges must define at least one privilege");
-                }
-                // TODO
-                if (indicesPrivileges.selectors == null || indicesPrivileges.selectors.isEmpty()) {
-                    indicesPrivileges.selectors = DEFAULT_SELECTORS;
                 }
                 return indicesPrivileges;
             }

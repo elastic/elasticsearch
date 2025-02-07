@@ -264,12 +264,6 @@ public class SecuritySystemIndices {
                             builder.startObject("allow_restricted_indices");
                             builder.field("type", "boolean");
                             builder.endObject();
-
-                            if (mappingVersion.onOrAfter(SecurityMainIndexMappingVersion.ADD_ROLE_SELECTORS)) {
-                                builder.startObject("selectors");
-                                builder.field("type", "keyword");
-                                builder.endObject();
-                            }
                         }
                         builder.endObject();
                     }
@@ -315,12 +309,6 @@ public class SecuritySystemIndices {
                             builder.startObject("clusters");
                             builder.field("type", "keyword");
                             builder.endObject();
-
-                            if (mappingVersion.onOrAfter(SecurityMainIndexMappingVersion.ADD_ROLE_SELECTORS)) {
-                                builder.startObject("selectors");
-                                builder.field("type", "keyword");
-                                builder.endObject();
-                            }
                         }
                         builder.endObject();
                     }
@@ -1094,8 +1082,6 @@ public class SecuritySystemIndices {
          * Mapping for global manage role privilege
          */
         ADD_MANAGE_ROLES_PRIVILEGE(3),
-
-        ADD_ROLE_SELECTORS(4),
 
         ;
 

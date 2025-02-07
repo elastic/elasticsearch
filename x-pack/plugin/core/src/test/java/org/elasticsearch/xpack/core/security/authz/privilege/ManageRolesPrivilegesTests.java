@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.test.AbstractNamedWriteableTestCase;
 import org.elasticsearch.xcontent.ToXContent;
@@ -277,7 +276,7 @@ public class ManageRolesPrivilegesTests extends AbstractNamedWriteableTestCase<C
         {
             final PutRoleRequest putRoleRequest = new PutRoleRequest();
             putRoleRequest.name(randomAlphaOfLength(3));
-            putRoleRequest.addIndex(indexPatterns, privileges, null, null, null, false, List.of(IndexComponentSelector.DATA.getKey()));
+            putRoleRequest.addIndex(indexPatterns, privileges, null, null, null, false);
             assertThat(permissionCheck(permission, "cluster:admin/xpack/security/role/put", putRoleRequest), is(expected));
         }
         {

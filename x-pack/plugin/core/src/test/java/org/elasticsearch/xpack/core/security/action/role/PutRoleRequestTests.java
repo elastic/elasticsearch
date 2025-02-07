@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.security.action.role;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
@@ -77,8 +76,7 @@ public class PutRoleRequestTests extends ESTestCase {
             null,
             null,
             null,
-            randomBoolean(),
-            List.of(IndexComponentSelector.DATA.getKey())
+            randomBoolean()
         );
 
         // Fail
@@ -182,8 +180,7 @@ public class PutRoleRequestTests extends ESTestCase {
             null,
             null,
             null,
-            randomBoolean(),
-            List.of(IndexComponentSelector.DATA.getKey())
+            randomBoolean()
         );
         assertSuccessfulValidation(request);
     }

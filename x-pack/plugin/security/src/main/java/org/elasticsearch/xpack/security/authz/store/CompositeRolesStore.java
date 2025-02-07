@@ -604,7 +604,8 @@ public class CompositeRolesStore {
                     privilege.getQuery() == null ? null : newHashSet(privilege.getQuery()),
                     IndexPrivilege.get(newHashSet(Objects.requireNonNull(privilege.getPrivileges()))),
                     privilege.allowRestrictedIndices(),
-                    privilege.matchesSelector(IndexComponentSelector.DATA) ? IndexComponentSelector.DATA : IndexComponentSelector.FAILURES,
+                    // TODO handle read_failures (i.e., prevent it for remote indices)
+                    IndexComponentSelector.DATA,
                     newHashSet(Objects.requireNonNull(privilege.getIndices())).toArray(new String[0])
                 );
             });
@@ -718,12 +719,10 @@ public class CompositeRolesStore {
         private final Set<String> privileges;
         private FieldPermissionsDefinition fieldPermissionsDefinition;
         private Set<BytesReference> query = null;
-        private final IndexComponentSelector selector;
 
         MergeableIndicesPrivilege(
             String[] indices,
             String[] privileges,
-            IndexComponentSelector selector,
             @Nullable String[] grantedFields,
             @Nullable String[] deniedFields,
             @Nullable BytesReference query
@@ -731,7 +730,6 @@ public class CompositeRolesStore {
             this.indices = newHashSet(Objects.requireNonNull(indices));
             this.privileges = newHashSet(Objects.requireNonNull(privileges));
             this.fieldPermissionsDefinition = new FieldPermissionsDefinition(grantedFields, deniedFields);
-            this.selector = selector;
             if (query != null) {
                 this.query = newHashSet(query);
             }
@@ -739,7 +737,6 @@ public class CompositeRolesStore {
 
         void merge(MergeableIndicesPrivilege other) {
             assert indices.equals(other.indices) : "index names must be equivalent in order to merge";
-            assert selector.equals(other.selector) : "selectors must be equivalent in order to merge";
             Set<FieldGrantExcludeGroup> groups = new HashSet<>();
             groups.addAll(this.fieldPermissionsDefinition.getFieldGrantExcludeGroups());
             groups.addAll(other.fieldPermissionsDefinition.getFieldGrantExcludeGroups());
@@ -775,9 +772,6 @@ public class CompositeRolesStore {
                         return new MergeableIndicesPrivilege(
                             indicesPrivilege.getIndices(),
                             indicesPrivilege.getPrivileges(),
-                            indicesPrivilege.matchesSelector(IndexComponentSelector.DATA)
-                                ? IndexComponentSelector.DATA
-                                : IndexComponentSelector.FAILURES,
                             indicesPrivilege.getGrantedFields(),
                             indicesPrivilege.getDeniedFields(),
                             indicesPrivilege.getQuery()
@@ -787,9 +781,6 @@ public class CompositeRolesStore {
                             new MergeableIndicesPrivilege(
                                 indicesPrivilege.getIndices(),
                                 indicesPrivilege.getPrivileges(),
-                                indicesPrivilege.matchesSelector(IndexComponentSelector.DATA)
-                                    ? IndexComponentSelector.DATA
-                                    : IndexComponentSelector.FAILURES,
                                 indicesPrivilege.getGrantedFields(),
                                 indicesPrivilege.getDeniedFields(),
                                 indicesPrivilege.getQuery()

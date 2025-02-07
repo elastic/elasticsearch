@@ -41,6 +41,7 @@ import java.nio.channels.CompletionHandler;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.nio.channels.spi.SelectorProvider;
 import java.nio.charset.Charset;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
@@ -205,6 +206,8 @@ public interface EntitlementChecker {
     void check$jdk_vm_ci_services_Services$$load(Class<?> callerClass, Class<?> service);
 
     void check$jdk_vm_ci_services_Services$$loadSingle(Class<?> callerClass, Class<?> service, boolean required);
+
+    void check$java_nio_charset_spi_CharsetProvider$(Class<?> callerClass);
 
     /// /////////////////
     //
@@ -402,6 +405,16 @@ public interface EntitlementChecker {
     void check$sun_nio_ch_DatagramChannelImpl$send(Class<?> callerClass, DatagramChannel that, ByteBuffer src, SocketAddress target);
 
     void check$sun_nio_ch_DatagramChannelImpl$receive(Class<?> callerClass, DatagramChannel that, ByteBuffer dst);
+
+    // providers (SPI)
+
+    // protected constructors
+    void check$java_nio_channels_spi_SelectorProvider$(Class<?> callerClass);
+
+    void check$java_nio_channels_spi_AsynchronousChannelProvider$(Class<?> callerClass);
+
+    // provider methods (dynamic)
+    void checkSelectorProviderInheritedChannel(Class<?> callerClass, SelectorProvider that);
 
     /// /////////////////
     //

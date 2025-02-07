@@ -29,6 +29,16 @@ public final class TopBooleanAggregatorFunctionSupplier implements AggregatorFun
   }
 
   @Override
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return TopBooleanAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return TopBooleanGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
   public TopBooleanAggregatorFunction aggregator(DriverContext driverContext) {
     return TopBooleanAggregatorFunction.create(driverContext, channels, limit, ascending);
   }

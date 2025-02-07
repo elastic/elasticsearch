@@ -25,6 +25,16 @@ public final class CountDistinctDoubleAggregatorFunctionSupplier implements Aggr
   }
 
   @Override
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return CountDistinctDoubleAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return CountDistinctDoubleGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
   public CountDistinctDoubleAggregatorFunction aggregator(DriverContext driverContext) {
     return CountDistinctDoubleAggregatorFunction.create(driverContext, channels, precision);
   }

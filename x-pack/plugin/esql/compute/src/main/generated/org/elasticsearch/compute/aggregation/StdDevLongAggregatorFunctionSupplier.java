@@ -22,6 +22,16 @@ public final class StdDevLongAggregatorFunctionSupplier implements AggregatorFun
   }
 
   @Override
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return StdDevLongAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return StdDevLongGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
   public StdDevLongAggregatorFunction aggregator(DriverContext driverContext) {
     return StdDevLongAggregatorFunction.create(driverContext, channels);
   }

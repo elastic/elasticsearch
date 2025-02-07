@@ -25,6 +25,16 @@ public final class PercentileLongAggregatorFunctionSupplier implements Aggregato
   }
 
   @Override
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return PercentileLongAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return PercentileLongGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
   public PercentileLongAggregatorFunction aggregator(DriverContext driverContext) {
     return PercentileLongAggregatorFunction.create(driverContext, channels, percentile);
   }

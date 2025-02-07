@@ -10,10 +10,16 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.operator.DriverContext;
 
+import java.util.List;
+
 /**
  * Builds aggregation implementations, closing over any state required to do so.
  */
 public interface AggregatorFunctionSupplier extends Describable {
+    List<IntermediateStateDesc> nonGroupingIntermediateStateDesc();
+
+    List<IntermediateStateDesc> groupingIntermediateStateDesc();
+
     AggregatorFunction aggregator(DriverContext driverContext);
 
     GroupingAggregatorFunction groupingAggregator(DriverContext driverContext);

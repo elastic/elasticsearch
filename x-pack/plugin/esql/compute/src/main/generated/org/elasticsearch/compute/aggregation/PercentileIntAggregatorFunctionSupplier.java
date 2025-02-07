@@ -25,6 +25,16 @@ public final class PercentileIntAggregatorFunctionSupplier implements Aggregator
   }
 
   @Override
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return PercentileIntAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return PercentileIntGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
   public PercentileIntAggregatorFunction aggregator(DriverContext driverContext) {
     return PercentileIntAggregatorFunction.create(driverContext, channels, percentile);
   }

@@ -25,6 +25,16 @@ public final class PercentileDoubleAggregatorFunctionSupplier implements Aggrega
   }
 
   @Override
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return PercentileDoubleAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return PercentileDoubleGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
   public PercentileDoubleAggregatorFunction aggregator(DriverContext driverContext) {
     return PercentileDoubleAggregatorFunction.create(driverContext, channels, percentile);
   }

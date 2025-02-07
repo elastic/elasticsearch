@@ -19,6 +19,7 @@ import org.elasticsearch.compute.aggregation.FromPartialAggregatorFunction;
 import org.elasticsearch.compute.aggregation.FromPartialGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -118,6 +119,16 @@ public class FromPartial extends AggregateFunction implements ToAggregator {
         }
         final int inputChannel = inputChannels.get(0);
         return new AggregatorFunctionSupplier() {
+            @Override
+            public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+                return FromPartialAggregatorFunction.intermediateStateDesc();
+            }
+
+            @Override
+            public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+                return FromPartialGroupingAggregatorFunction.intermediateStateDesc();
+            }
+
             @Override
             public AggregatorFunction aggregator(DriverContext driverContext) {
                 assert false : "aggregatorFactory() is override";

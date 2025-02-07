@@ -22,6 +22,16 @@ public final class ValuesBytesRefAggregatorFunctionSupplier implements Aggregato
   }
 
   @Override
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return ValuesBytesRefAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return ValuesBytesRefGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
   public ValuesBytesRefAggregatorFunction aggregator(DriverContext driverContext) {
     return ValuesBytesRefAggregatorFunction.create(driverContext, channels);
   }

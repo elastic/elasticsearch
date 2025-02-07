@@ -22,6 +22,16 @@ public final class MinDoubleAggregatorFunctionSupplier implements AggregatorFunc
   }
 
   @Override
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return MinDoubleAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return MinDoubleGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
   public MinDoubleAggregatorFunction aggregator(DriverContext driverContext) {
     return MinDoubleAggregatorFunction.create(driverContext, channels);
   }

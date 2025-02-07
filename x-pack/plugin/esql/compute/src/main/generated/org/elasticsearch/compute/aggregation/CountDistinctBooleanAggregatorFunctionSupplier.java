@@ -22,6 +22,16 @@ public final class CountDistinctBooleanAggregatorFunctionSupplier implements Agg
   }
 
   @Override
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return CountDistinctBooleanAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return CountDistinctBooleanGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
   public CountDistinctBooleanAggregatorFunction aggregator(DriverContext driverContext) {
     return CountDistinctBooleanAggregatorFunction.create(driverContext, channels);
   }

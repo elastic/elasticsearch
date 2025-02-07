@@ -22,6 +22,16 @@ public final class MinLongAggregatorFunctionSupplier implements AggregatorFuncti
   }
 
   @Override
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return MinLongAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return MinLongGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
   public MinLongAggregatorFunction aggregator(DriverContext driverContext) {
     return MinLongAggregatorFunction.create(driverContext, channels);
   }

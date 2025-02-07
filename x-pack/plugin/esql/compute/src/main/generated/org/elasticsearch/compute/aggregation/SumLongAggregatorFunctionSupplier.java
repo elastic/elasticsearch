@@ -22,6 +22,16 @@ public final class SumLongAggregatorFunctionSupplier implements AggregatorFuncti
   }
 
   @Override
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return SumLongAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return SumLongGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
   public SumLongAggregatorFunction aggregator(DriverContext driverContext) {
     return SumLongAggregatorFunction.create(driverContext, channels);
   }

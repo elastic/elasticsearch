@@ -25,6 +25,16 @@ public final class CountDistinctFloatAggregatorFunctionSupplier implements Aggre
   }
 
   @Override
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return CountDistinctFloatAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return CountDistinctFloatGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
   public CountDistinctFloatAggregatorFunction aggregator(DriverContext driverContext) {
     return CountDistinctFloatAggregatorFunction.create(driverContext, channels, precision);
   }

@@ -25,6 +25,16 @@ public final class PercentileFloatAggregatorFunctionSupplier implements Aggregat
   }
 
   @Override
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return PercentileFloatAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return PercentileFloatGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
   public PercentileFloatAggregatorFunction aggregator(DriverContext driverContext) {
     return PercentileFloatAggregatorFunction.create(driverContext, channels, percentile);
   }

@@ -22,6 +22,16 @@ public final class ValuesFloatAggregatorFunctionSupplier implements AggregatorFu
   }
 
   @Override
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return ValuesFloatAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return ValuesFloatGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
   public ValuesFloatAggregatorFunction aggregator(DriverContext driverContext) {
     return ValuesFloatAggregatorFunction.create(driverContext, channels);
   }

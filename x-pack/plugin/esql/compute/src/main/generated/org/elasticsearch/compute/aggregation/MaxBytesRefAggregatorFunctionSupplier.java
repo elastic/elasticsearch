@@ -22,6 +22,16 @@ public final class MaxBytesRefAggregatorFunctionSupplier implements AggregatorFu
   }
 
   @Override
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return MaxBytesRefAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return MaxBytesRefGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
   public MaxBytesRefAggregatorFunction aggregator(DriverContext driverContext) {
     return MaxBytesRefAggregatorFunction.create(driverContext, channels);
   }

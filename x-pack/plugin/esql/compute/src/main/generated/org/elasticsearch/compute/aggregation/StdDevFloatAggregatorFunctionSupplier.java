@@ -22,6 +22,16 @@ public final class StdDevFloatAggregatorFunctionSupplier implements AggregatorFu
   }
 
   @Override
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return StdDevFloatAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return StdDevFloatGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
   public StdDevFloatAggregatorFunction aggregator(DriverContext driverContext) {
     return StdDevFloatAggregatorFunction.create(driverContext, channels);
   }

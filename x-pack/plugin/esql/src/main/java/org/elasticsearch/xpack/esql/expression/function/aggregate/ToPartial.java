@@ -15,9 +15,11 @@ import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.aggregation.FromPartialAggregatorFunction;
 import org.elasticsearch.compute.aggregation.FromPartialGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.aggregation.ToPartialAggregatorFunction;
 import org.elasticsearch.compute.aggregation.ToPartialGroupingAggregatorFunction;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -130,6 +132,16 @@ public class ToPartial extends AggregateFunction implements ToAggregator {
     public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
         final ToAggregator toAggregator = (ToAggregator) function;
         return new AggregatorFunctionSupplier() {
+            @Override
+            public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+                return ToPartialAggregatorFunction.intermediateStateDesc();
+            }
+
+            @Override
+            public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+                return ToPartialGroupingAggregatorFunction.intermediateStateDesc();
+            }
+
             @Override
             public AggregatorFunction aggregator(DriverContext driverContext) {
                 assert false : "aggregatorFactory() is override";

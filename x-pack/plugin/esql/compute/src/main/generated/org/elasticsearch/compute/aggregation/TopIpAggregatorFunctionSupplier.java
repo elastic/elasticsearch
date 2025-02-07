@@ -28,6 +28,16 @@ public final class TopIpAggregatorFunctionSupplier implements AggregatorFunction
   }
 
   @Override
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return TopIpAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return TopIpGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
   public TopIpAggregatorFunction aggregator(DriverContext driverContext) {
     return TopIpAggregatorFunction.create(driverContext, channels, limit, ascending);
   }

@@ -11,6 +11,8 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.core.Releasables;
 
+import java.util.List;
+
 /**
  * A {@link AggregatorFunctionSupplier} that wraps another, filtering which positions
  * are supplied to the aggregator.
@@ -18,6 +20,16 @@ import org.elasticsearch.core.Releasables;
 public record FilteredAggregatorFunctionSupplier(AggregatorFunctionSupplier next, EvalOperator.ExpressionEvaluator.Factory filter)
     implements
         AggregatorFunctionSupplier {
+
+    @Override
+    public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+        return next.nonGroupingIntermediateStateDesc();
+    }
+
+    @Override
+    public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+        return next.groupingIntermediateStateDesc();
+    }
 
     @Override
     public AggregatorFunction aggregator(DriverContext driverContext) {

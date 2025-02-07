@@ -29,6 +29,16 @@ public final class TopBytesRefAggregatorFunctionSupplier implements AggregatorFu
   }
 
   @Override
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return TopBytesRefAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return TopBytesRefGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
   public TopBytesRefAggregatorFunction aggregator(DriverContext driverContext) {
     return TopBytesRefAggregatorFunction.create(driverContext, channels, limit, ascending);
   }

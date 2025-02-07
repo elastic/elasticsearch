@@ -22,6 +22,16 @@ public final class ValuesDoubleAggregatorFunctionSupplier implements AggregatorF
   }
 
   @Override
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return ValuesDoubleAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return ValuesDoubleGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
   public ValuesDoubleAggregatorFunction aggregator(DriverContext driverContext) {
     return ValuesDoubleAggregatorFunction.create(driverContext, channels);
   }

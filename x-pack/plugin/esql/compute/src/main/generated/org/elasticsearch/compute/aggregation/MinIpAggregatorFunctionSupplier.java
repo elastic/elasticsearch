@@ -22,6 +22,16 @@ public final class MinIpAggregatorFunctionSupplier implements AggregatorFunction
   }
 
   @Override
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return MinIpAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return MinIpGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
   public MinIpAggregatorFunction aggregator(DriverContext driverContext) {
     return MinIpAggregatorFunction.create(driverContext, channels);
   }

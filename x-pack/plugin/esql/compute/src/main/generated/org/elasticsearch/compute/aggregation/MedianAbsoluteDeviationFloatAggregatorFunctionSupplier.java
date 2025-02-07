@@ -22,6 +22,16 @@ public final class MedianAbsoluteDeviationFloatAggregatorFunctionSupplier implem
   }
 
   @Override
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return MedianAbsoluteDeviationFloatAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return MedianAbsoluteDeviationFloatGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
   public MedianAbsoluteDeviationFloatAggregatorFunction aggregator(DriverContext driverContext) {
     return MedianAbsoluteDeviationFloatAggregatorFunction.create(driverContext, channels);
   }

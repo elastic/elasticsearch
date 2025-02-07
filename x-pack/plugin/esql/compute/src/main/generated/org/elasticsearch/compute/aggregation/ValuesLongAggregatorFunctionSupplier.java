@@ -22,6 +22,16 @@ public final class ValuesLongAggregatorFunctionSupplier implements AggregatorFun
   }
 
   @Override
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return ValuesLongAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return ValuesLongGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
   public ValuesLongAggregatorFunction aggregator(DriverContext driverContext) {
     return ValuesLongAggregatorFunction.create(driverContext, channels);
   }

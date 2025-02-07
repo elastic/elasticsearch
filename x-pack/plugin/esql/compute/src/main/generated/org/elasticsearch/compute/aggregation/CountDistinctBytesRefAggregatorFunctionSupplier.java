@@ -25,6 +25,16 @@ public final class CountDistinctBytesRefAggregatorFunctionSupplier implements Ag
   }
 
   @Override
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return CountDistinctBytesRefAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return CountDistinctBytesRefGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
   public CountDistinctBytesRefAggregatorFunction aggregator(DriverContext driverContext) {
     return CountDistinctBytesRefAggregatorFunction.create(driverContext, channels, precision);
   }

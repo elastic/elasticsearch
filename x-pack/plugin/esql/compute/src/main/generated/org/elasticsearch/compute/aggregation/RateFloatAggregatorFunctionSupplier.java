@@ -25,6 +25,16 @@ public final class RateFloatAggregatorFunctionSupplier implements AggregatorFunc
   }
 
   @Override
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    throw new UnsupportedOperationException("non-grouping aggregator is not supported");
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return RateFloatGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
   public AggregatorFunction aggregator(DriverContext driverContext) {
     throw new UnsupportedOperationException("non-grouping aggregator is not supported");
   }

@@ -22,6 +22,16 @@ public final class ValuesBooleanAggregatorFunctionSupplier implements Aggregator
   }
 
   @Override
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return ValuesBooleanAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return ValuesBooleanGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
   public ValuesBooleanAggregatorFunction aggregator(DriverContext driverContext) {
     return ValuesBooleanAggregatorFunction.create(driverContext, channels);
   }

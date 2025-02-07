@@ -9,6 +9,7 @@ import java.lang.Override;
 import java.lang.String;
 import java.util.List;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
@@ -20,6 +21,16 @@ public final class SpatialCentroidGeoPointSourceValuesAggregatorFunctionSupplier
 
   public SpatialCentroidGeoPointSourceValuesAggregatorFunctionSupplier(List<Integer> channels) {
     this.channels = channels;
+  }
+
+  @Override
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return SpatialCentroidGeoPointSourceValuesAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return SpatialCentroidGeoPointSourceValuesGroupingAggregatorFunction.intermediateStateDesc();
   }
 
   @Override

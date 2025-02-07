@@ -22,6 +22,16 @@ public class CountAggregatorFunction implements AggregatorFunction {
     public static AggregatorFunctionSupplier supplier(List<Integer> channels) {
         return new AggregatorFunctionSupplier() {
             @Override
+            public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+                return CountAggregatorFunction.intermediateStateDesc();
+            }
+
+            @Override
+            public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+                return CountGroupingAggregatorFunction.intermediateStateDesc();
+            }
+
+            @Override
             public AggregatorFunction aggregator(DriverContext driverContext) {
                 return CountAggregatorFunction.create(channels);
             }

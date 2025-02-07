@@ -22,6 +22,16 @@ public final class MaxFloatAggregatorFunctionSupplier implements AggregatorFunct
   }
 
   @Override
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return MaxFloatAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return MaxFloatGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
   public MaxFloatAggregatorFunction aggregator(DriverContext driverContext) {
     return MaxFloatAggregatorFunction.create(driverContext, channels);
   }

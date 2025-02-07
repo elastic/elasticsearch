@@ -25,6 +25,16 @@ public final class CountDistinctLongAggregatorFunctionSupplier implements Aggreg
   }
 
   @Override
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return CountDistinctLongAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return CountDistinctLongGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
   public CountDistinctLongAggregatorFunction aggregator(DriverContext driverContext) {
     return CountDistinctLongAggregatorFunction.create(driverContext, channels, precision);
   }

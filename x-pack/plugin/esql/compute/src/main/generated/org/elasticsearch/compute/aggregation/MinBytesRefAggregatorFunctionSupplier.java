@@ -22,6 +22,16 @@ public final class MinBytesRefAggregatorFunctionSupplier implements AggregatorFu
   }
 
   @Override
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return MinBytesRefAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return MinBytesRefGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
   public MinBytesRefAggregatorFunction aggregator(DriverContext driverContext) {
     return MinBytesRefAggregatorFunction.create(driverContext, channels);
   }

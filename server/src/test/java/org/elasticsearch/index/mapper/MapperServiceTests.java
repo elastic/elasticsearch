@@ -332,12 +332,16 @@ public class MapperServiceTests extends MapperServiceTestCase {
                 boolean isTimeSeriesMode = mapperService.getIndexSettings().getMode().equals(IndexMode.TIME_SERIES);
 
                 if (isTimeSeriesField && isTimeSeriesMode == false) {
-                    continue;
+                    assertFalse(
+                        "Expected " + builtIn + " to be a metadata field for version " + version,
+                        mapperService.isMetadataField(builtIn)
+                    );
+                } else {
+                    assertTrue(
+                        "Expected " + builtIn + " to be a metadata field for version " + version,
+                        mapperService.isMetadataField(builtIn)
+                    );
                 }
-                assertTrue(
-                    "Expected " + builtIn + " to be a metadata field for version " + version,
-                    mapperService.isMetadataField(builtIn)
-                );
             }
         };
 

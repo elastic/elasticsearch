@@ -400,6 +400,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.parser.StatementParserTests
   method: testInvalidJoinPatterns
   issue: https://github.com/elastic/elasticsearch/issues/121968
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=update/100_synthetic_source/stored text}
+  issue: https://github.com/elastic/elasticsearch/issues/121991
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=update/100_synthetic_source/keyword}
+  issue: https://github.com/elastic/elasticsearch/issues/121992
 
 # Examples:
 #

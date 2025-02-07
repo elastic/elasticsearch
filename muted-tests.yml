@@ -415,6 +415,8 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/122028
 - class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
   issue: https://github.com/elastic/elasticsearch/issues/121537
+- class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
+  issue: https://github.com/elastic/elasticsearch/issues/121737
 
 # Examples:
 #

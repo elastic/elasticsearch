@@ -46,7 +46,7 @@ public class SourceModeRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
                   }
                 }""";
             var putComponentTemplateRequest = new Request("PUT", "/_component_template/" + templateName);
-            putComponentTemplateRequest.setOptions(expectWarnings(SourceFieldMapper.DEPRECATION_WARNING_TITLE));
+            putComponentTemplateRequest.setOptions(expectWarnings(SourceFieldMapper.DEPRECATION_WARNING));
             putComponentTemplateRequest.setJsonEntity(storedSourceMapping);
             assertOK(client().performRequest(putComponentTemplateRequest));
             assertDeprecationWarningForTemplate(templateName);
@@ -70,7 +70,7 @@ public class SourceModeRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
                   }
                 }""";
             var putComponentTemplateRequest = new Request("PUT", "/_component_template/" + templateName);
-            putComponentTemplateRequest.setOptions(expectWarnings(SourceFieldMapper.DEPRECATION_WARNING_TITLE));
+            putComponentTemplateRequest.setOptions(expectWarnings(SourceFieldMapper.DEPRECATION_WARNING));
             putComponentTemplateRequest.setJsonEntity(storedSourceMapping);
             assertOK(client().performRequest(putComponentTemplateRequest));
             assertDeprecationWarningForTemplate(templateName);

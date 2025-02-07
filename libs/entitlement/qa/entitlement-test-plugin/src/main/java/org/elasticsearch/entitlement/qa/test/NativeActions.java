@@ -30,9 +30,12 @@ import java.util.Set;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
+import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
+import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.SERVER_ONLY;
 
-class VersionSpecificNativeChecks {
+class NativeActions {
 
+    @EntitlementTest(expectedAccess = SERVER_ONLY)
     static void enableNativeAccess() throws Exception {
         ModuleLayer parent = ModuleLayer.boot();
 
@@ -49,16 +52,19 @@ class VersionSpecificNativeChecks {
         controller.enableNativeAccess(targetModule.get());
     }
 
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void addressLayoutWithTargetLayout() {
         AddressLayout addressLayout = ADDRESS.withoutTargetLayout();
         addressLayout.withTargetLayout(MemoryLayout.sequenceLayout(Long.MAX_VALUE, ValueLayout.JAVA_BYTE));
     }
 
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void linkerDowncallHandle() {
         Linker linker = Linker.nativeLinker();
         linker.downcallHandle(FunctionDescriptor.of(JAVA_LONG, ADDRESS));
     }
 
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void linkerDowncallHandleWithAddress() {
         Linker linker = Linker.nativeLinker();
         linker.downcallHandle(linker.defaultLookup().find("strlen").get(), FunctionDescriptor.of(JAVA_LONG, ADDRESS));
@@ -68,12 +74,13 @@ class VersionSpecificNativeChecks {
         return 0;
     }
 
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void linkerUpcallStub() throws NoSuchMethodException {
         Linker linker = Linker.nativeLinker();
 
         MethodHandle mh = null;
         try {
-            mh = MethodHandles.lookup().findStatic(VersionSpecificNativeChecks.class, "callback", MethodType.methodType(int.class));
+            mh = MethodHandles.lookup().findStatic(NativeActions.class, "callback", MethodType.methodType(int.class));
         } catch (IllegalAccessException e) {
             assert false;
         }
@@ -82,24 +89,28 @@ class VersionSpecificNativeChecks {
         linker.upcallStub(mh, callbackDescriptor, Arena.ofAuto());
     }
 
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void memorySegmentReinterpret() {
         Arena arena = Arena.ofAuto();
         MemorySegment segment = arena.allocate(100);
         segment.reinterpret(50);
     }
 
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void memorySegmentReinterpretWithCleanup() {
         Arena arena = Arena.ofAuto();
         MemorySegment segment = arena.allocate(100);
         segment.reinterpret(Arena.ofAuto(), s -> {});
     }
 
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void memorySegmentReinterpretWithSizeAndCleanup() {
         Arena arena = Arena.ofAuto();
         MemorySegment segment = arena.allocate(100);
         segment.reinterpret(50, Arena.ofAuto(), s -> {});
     }
 
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void symbolLookupWithPath() {
         try {
             SymbolLookup.libraryLookup(Path.of("/foo/bar/libFoo.so"), Arena.ofAuto());
@@ -108,6 +119,7 @@ class VersionSpecificNativeChecks {
         }
     }
 
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void symbolLookupWithName() {
         try {
             SymbolLookup.libraryLookup("foo", Arena.ofAuto());

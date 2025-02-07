@@ -908,7 +908,7 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
         ModuleLayer.Controller that,
         Module target
     ) {
-        policyManager.checkLoadingNativeLibraries(callerClass);
+        policyManager.checkChangeJVMGlobalState(callerClass);
     }
 
     /// /////////////////

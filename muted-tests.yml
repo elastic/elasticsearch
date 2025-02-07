@@ -401,9 +401,6 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=update/100_synthetic_source/keyword}
   issue: https://github.com/elastic/elasticsearch/issues/121992
-- class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
-  method: testBottomFieldSort
-  issue: https://github.com/elastic/elasticsearch/issues/121503
 - class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
   method: test {yaml=/60_synthetic_source_recovery/synthetic recovery for synthetic source mode index}
   issue: https://github.com/elastic/elasticsearch/issues/122026

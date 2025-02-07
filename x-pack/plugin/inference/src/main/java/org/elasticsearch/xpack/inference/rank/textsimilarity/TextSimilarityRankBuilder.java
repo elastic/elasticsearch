@@ -27,7 +27,6 @@ import org.elasticsearch.search.rank.rerank.RerankingRankFeaturePhaseRankShardCo
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.util.List;
 import java.util.Objects;
 
@@ -104,7 +103,7 @@ public class TextSimilarityRankBuilder extends RankBuilder {
 
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
-        throw new UnsupportedEncodingException("This should not be XContent serialized");
+        throw new UnsupportedOperationException("This should not be XContent serialized");
     }
 
     @Override

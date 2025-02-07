@@ -12,6 +12,7 @@ package org.elasticsearch.search.fetch;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
@@ -98,7 +99,7 @@ abstract class FetchPhaseDocsIterator {
                     return partialSearchHits;
                 }
             }
-        } catch (SearchTimeoutException e) {
+        } catch (SearchTimeoutException | CircuitBreakingException e) {
             throw e;
         } catch (Exception e) {
             purgeSearchHits(searchHits);

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.security.action.role;
 
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
@@ -14,6 +15,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -75,7 +77,28 @@ public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, 
         @Nullable BytesReference query,
         boolean allowRestrictedIndices
     ) {
-        request.addIndex(indices, privileges, grantedFields, deniedFields, query, allowRestrictedIndices);
+        request.addIndex(
+            indices,
+            privileges,
+            grantedFields,
+            deniedFields,
+            query,
+            allowRestrictedIndices,
+            List.of(IndexComponentSelector.DATA.getKey())
+        );
+        return this;
+    }
+
+    public PutRoleRequestBuilder addIndices(
+        String[] indices,
+        String[] privileges,
+        String[] grantedFields,
+        String[] deniedFields,
+        @Nullable BytesReference query,
+        boolean allowRestrictedIndices,
+        List<String> selectors
+    ) {
+        request.addIndex(indices, privileges, grantedFields, deniedFields, query, allowRestrictedIndices, selectors);
         return this;
     }
 

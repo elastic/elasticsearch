@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
@@ -239,12 +240,14 @@ public final class LimitedRole implements Role {
         Set<String> checkForIndexPatterns,
         boolean allowRestrictedIndices,
         Set<String> checkForPrivileges,
+        @Nullable IndexComponentSelector selector,
         @Nullable ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder
     ) {
         boolean baseRoleCheck = baseRole.checkIndicesPrivileges(
             checkForIndexPatterns,
             allowRestrictedIndices,
             checkForPrivileges,
+            selector,
             resourcePrivilegesMapBuilder
         );
         if (false == baseRoleCheck && null == resourcePrivilegesMapBuilder) {
@@ -255,6 +258,7 @@ public final class LimitedRole implements Role {
             checkForIndexPatterns,
             allowRestrictedIndices,
             checkForPrivileges,
+            selector,
             resourcePrivilegesMapBuilder
         );
         return baseRoleCheck && limitedByRoleCheck;

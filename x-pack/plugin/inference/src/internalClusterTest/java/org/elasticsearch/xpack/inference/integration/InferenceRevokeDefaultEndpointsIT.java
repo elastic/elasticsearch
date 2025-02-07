@@ -204,11 +204,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                     service.defaultConfigIds(),
                     is(
                         List.of(
-                            new InferenceService.DefaultConfigId(
-                                ".elser-v2-elastic",
-                                MinimalServiceSettings.sparseEmbedding(),
-                                service
-                            ),
+                            new InferenceService.DefaultConfigId(".elser-v2-elastic", MinimalServiceSettings.sparseEmbedding(), service),
                             new InferenceService.DefaultConfigId(
                                 ".rainbow-sprinkles-elastic",
                                 MinimalServiceSettings.chatCompletion(),
@@ -254,11 +250,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                     service.defaultConfigIds(),
                     is(
                         List.of(
-                            new InferenceService.DefaultConfigId(
-                                ".elser-v2-elastic",
-                                MinimalServiceSettings.sparseEmbedding(),
-                                service
-                            )
+                            new InferenceService.DefaultConfigId(".elser-v2-elastic", MinimalServiceSettings.sparseEmbedding(), service)
                         )
                     )
                 );

@@ -334,6 +334,23 @@ interface FieldSpecificMatcher {
         }
     }
 
+    // TODO basic implementation only right now
+    class DateMatcher extends GenericMappingAwareMatcher {
+        DateMatcher(
+            XContentBuilder actualMappings,
+            Settings.Builder actualSettings,
+            XContentBuilder expectedMappings,
+            Settings.Builder expectedSettings
+        ) {
+            super("date", actualMappings, actualSettings, expectedMappings, expectedSettings);
+        }
+
+        @Override
+        Object convert(Object value, Object nullValue) {
+            return value;
+        }
+    }
+
     /**
      * Generic matcher that supports common matching logic like null values.
      */

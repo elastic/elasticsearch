@@ -53,6 +53,7 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
         this.fieldSpecificMatchers = new HashMap<>() {
             {
                 put("keyword", new FieldSpecificMatcher.KeywordMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("date", new FieldSpecificMatcher.DateMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
                 put(
                     "long",
                     new FieldSpecificMatcher.NumberMatcher("long", actualMappings, actualSettings, expectedMappings, expectedSettings)

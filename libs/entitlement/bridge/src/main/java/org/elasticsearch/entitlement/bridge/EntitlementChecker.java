@@ -43,6 +43,7 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
 import java.nio.charset.Charset;
+import java.nio.file.LinkOption;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.UserPrincipal;
@@ -452,6 +453,8 @@ public interface EntitlementChecker {
     void check$java_util_Scanner$(Class<?> callerClass, File source, Charset charset);
 
     // nio
+    void check$java_nio_file_Files$$getOwner(Class<?> callerClass, Path path, LinkOption... options);
+
     void check$java_nio_file_Files$$probeContentType(Class<?> callerClass, Path path);
 
     void check$java_nio_file_Files$$setOwner(Class<?> callerClass, Path path, UserPrincipal principal);

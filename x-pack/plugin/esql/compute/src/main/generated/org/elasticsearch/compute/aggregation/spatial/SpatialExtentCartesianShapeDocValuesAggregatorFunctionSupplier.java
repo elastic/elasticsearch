@@ -17,10 +17,7 @@ import org.elasticsearch.compute.operator.DriverContext;
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class SpatialExtentCartesianShapeDocValuesAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final List<Integer> channels;
-
-  public SpatialExtentCartesianShapeDocValuesAggregatorFunctionSupplier(List<Integer> channels) {
-    this.channels = channels;
+  public SpatialExtentCartesianShapeDocValuesAggregatorFunctionSupplier() {
   }
 
   @Override
@@ -35,13 +32,13 @@ public final class SpatialExtentCartesianShapeDocValuesAggregatorFunctionSupplie
 
   @Override
   public SpatialExtentCartesianShapeDocValuesAggregatorFunction aggregator(
-      DriverContext driverContext) {
+      DriverContext driverContext, List<Integer> channels) {
     return SpatialExtentCartesianShapeDocValuesAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
   public SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunction groupingAggregator(
-      DriverContext driverContext) {
+      DriverContext driverContext, List<Integer> channels) {
     return SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunction.create(channels, driverContext);
   }
 

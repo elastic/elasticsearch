@@ -15,10 +15,7 @@ import org.elasticsearch.compute.operator.DriverContext;
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class SumIntAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final List<Integer> channels;
-
-  public SumIntAggregatorFunctionSupplier(List<Integer> channels) {
-    this.channels = channels;
+  public SumIntAggregatorFunctionSupplier() {
   }
 
   @Override
@@ -32,12 +29,13 @@ public final class SumIntAggregatorFunctionSupplier implements AggregatorFunctio
   }
 
   @Override
-  public SumIntAggregatorFunction aggregator(DriverContext driverContext) {
+  public SumIntAggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
     return SumIntAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
-  public SumIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
+  public SumIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+      List<Integer> channels) {
     return SumIntGroupingAggregatorFunction.create(channels, driverContext);
   }
 

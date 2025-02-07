@@ -157,17 +157,17 @@ public class Percentile extends NumericAggregate implements SurrogateExpression 
 
     @Override
     protected AggregatorFunctionSupplier longSupplier(List<Integer> inputChannels) {
-        return new PercentileLongAggregatorFunctionSupplier(inputChannels, percentileValue());
+        return new PercentileLongAggregatorFunctionSupplier(percentileValue());
     }
 
     @Override
     protected AggregatorFunctionSupplier intSupplier(List<Integer> inputChannels) {
-        return new PercentileIntAggregatorFunctionSupplier(inputChannels, percentileValue());
+        return new PercentileIntAggregatorFunctionSupplier(percentileValue());
     }
 
     @Override
     protected AggregatorFunctionSupplier doubleSupplier(List<Integer> inputChannels) {
-        return new PercentileDoubleAggregatorFunctionSupplier(inputChannels, percentileValue());
+        return new PercentileDoubleAggregatorFunctionSupplier(percentileValue());
     }
 
     private int percentileValue() {

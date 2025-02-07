@@ -15,10 +15,7 @@ import org.elasticsearch.compute.operator.DriverContext;
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class ValuesDoubleAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final List<Integer> channels;
-
-  public ValuesDoubleAggregatorFunctionSupplier(List<Integer> channels) {
-    this.channels = channels;
+  public ValuesDoubleAggregatorFunctionSupplier() {
   }
 
   @Override
@@ -32,12 +29,14 @@ public final class ValuesDoubleAggregatorFunctionSupplier implements AggregatorF
   }
 
   @Override
-  public ValuesDoubleAggregatorFunction aggregator(DriverContext driverContext) {
+  public ValuesDoubleAggregatorFunction aggregator(DriverContext driverContext,
+      List<Integer> channels) {
     return ValuesDoubleAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
-  public ValuesDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
+  public ValuesDoubleGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+      List<Integer> channels) {
     return ValuesDoubleGroupingAggregatorFunction.create(channels, driverContext);
   }
 

@@ -100,17 +100,17 @@ public class MedianAbsoluteDeviation extends NumericAggregate implements Surroga
 
     @Override
     protected AggregatorFunctionSupplier longSupplier(List<Integer> inputChannels) {
-        return new MedianAbsoluteDeviationLongAggregatorFunctionSupplier(inputChannels);
+        return new MedianAbsoluteDeviationLongAggregatorFunctionSupplier();
     }
 
     @Override
     protected AggregatorFunctionSupplier intSupplier(List<Integer> inputChannels) {
-        return new MedianAbsoluteDeviationIntAggregatorFunctionSupplier(inputChannels);
+        return new MedianAbsoluteDeviationIntAggregatorFunctionSupplier();
     }
 
     @Override
     protected AggregatorFunctionSupplier doubleSupplier(List<Integer> inputChannels) {
-        return new MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier(inputChannels);
+        return new MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier();
     }
 
     @Override

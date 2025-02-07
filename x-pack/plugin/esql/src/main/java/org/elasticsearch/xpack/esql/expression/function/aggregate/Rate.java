@@ -175,9 +175,9 @@ public class Rate extends AggregateFunction implements OptionalArgument, ToAggre
         final long unitInMillis = unitInMillis();
         final DataType type = field().dataType();
         return switch (type) {
-            case COUNTER_LONG -> new RateLongAggregatorFunctionSupplier(inputChannels, unitInMillis);
-            case COUNTER_INTEGER -> new RateIntAggregatorFunctionSupplier(inputChannels, unitInMillis);
-            case COUNTER_DOUBLE -> new RateDoubleAggregatorFunctionSupplier(inputChannels, unitInMillis);
+            case COUNTER_LONG -> new RateLongAggregatorFunctionSupplier(unitInMillis);
+            case COUNTER_INTEGER -> new RateIntAggregatorFunctionSupplier(unitInMillis);
+            case COUNTER_DOUBLE -> new RateDoubleAggregatorFunctionSupplier(unitInMillis);
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }

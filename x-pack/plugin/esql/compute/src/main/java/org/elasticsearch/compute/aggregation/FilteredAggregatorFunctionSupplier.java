@@ -32,8 +32,8 @@ public record FilteredAggregatorFunctionSupplier(AggregatorFunctionSupplier next
     }
 
     @Override
-    public AggregatorFunction aggregator(DriverContext driverContext) {
-        AggregatorFunction next = this.next.aggregator(driverContext);
+    public AggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
+        AggregatorFunction next = this.next.aggregator(driverContext, channels);
         EvalOperator.ExpressionEvaluator filter = null;
         try {
             filter = this.filter.get(driverContext);
@@ -47,8 +47,8 @@ public record FilteredAggregatorFunctionSupplier(AggregatorFunctionSupplier next
     }
 
     @Override
-    public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
-        GroupingAggregatorFunction next = this.next.groupingAggregator(driverContext);
+    public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
+        GroupingAggregatorFunction next = this.next.groupingAggregator(driverContext, channels);
         EvalOperator.ExpressionEvaluator filter = null;
         try {
             filter = this.filter.get(driverContext);

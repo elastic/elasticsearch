@@ -32,12 +32,12 @@ public class CountAggregatorFunction implements AggregatorFunction {
             }
 
             @Override
-            public AggregatorFunction aggregator(DriverContext driverContext) {
+            public AggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
                 return CountAggregatorFunction.create(channels);
             }
 
             @Override
-            public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
+            public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
                 return CountGroupingAggregatorFunction.create(driverContext, channels);
             }
 

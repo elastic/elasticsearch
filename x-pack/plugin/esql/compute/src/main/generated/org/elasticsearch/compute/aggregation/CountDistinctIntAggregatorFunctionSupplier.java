@@ -15,12 +15,9 @@ import org.elasticsearch.compute.operator.DriverContext;
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class CountDistinctIntAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final List<Integer> channels;
-
   private final int precision;
 
-  public CountDistinctIntAggregatorFunctionSupplier(List<Integer> channels, int precision) {
-    this.channels = channels;
+  public CountDistinctIntAggregatorFunctionSupplier(int precision) {
     this.precision = precision;
   }
 
@@ -35,13 +32,14 @@ public final class CountDistinctIntAggregatorFunctionSupplier implements Aggrega
   }
 
   @Override
-  public CountDistinctIntAggregatorFunction aggregator(DriverContext driverContext) {
+  public CountDistinctIntAggregatorFunction aggregator(DriverContext driverContext,
+      List<Integer> channels) {
     return CountDistinctIntAggregatorFunction.create(driverContext, channels, precision);
   }
 
   @Override
-  public CountDistinctIntGroupingAggregatorFunction groupingAggregator(
-      DriverContext driverContext) {
+  public CountDistinctIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+      List<Integer> channels) {
     return CountDistinctIntGroupingAggregatorFunction.create(channels, driverContext, precision);
   }
 

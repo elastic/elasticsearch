@@ -68,7 +68,6 @@ public class AggregatorFunctionSupplierImplementer {
             createParameters.addAll(groupingAggregatorImplementer.createParameters());
         }
         this.createParameters = new ArrayList<>(createParameters);
-        this.createParameters.add(0, new Parameter(LIST_INTEGER, "channels"));
 
         this.implementation = ClassName.get(
             elements.getPackageOf(declarationType).toString(),
@@ -132,10 +131,7 @@ public class AggregatorFunctionSupplierImplementer {
             return builder.build();
         }
 
-        builder.addStatement(
-            "return $T.intermediateStateDesc()",
-            aggregatorImplementer.implementation()
-        );
+        builder.addStatement("return $T.intermediateStateDesc()", aggregatorImplementer.implementation());
 
         return builder.build();
     }
@@ -145,10 +141,7 @@ public class AggregatorFunctionSupplierImplementer {
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
         builder.returns(LIST_AGG_FUNC_DESC);
 
-        builder.addStatement(
-            "return $T.intermediateStateDesc()",
-            groupingAggregatorImplementer.implementation()
-        );
+        builder.addStatement("return $T.intermediateStateDesc()", groupingAggregatorImplementer.implementation());
 
         return builder.build();
     }
@@ -157,6 +150,7 @@ public class AggregatorFunctionSupplierImplementer {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("aggregator");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
+        builder.addParameter(LIST_INTEGER, "channels");
 
         if (aggregatorImplementer == null) {
             builder.returns(Types.AGGREGATOR_FUNCTION);
@@ -183,7 +177,6 @@ public class AggregatorFunctionSupplierImplementer {
             ).collect(Collectors.joining(", "))
         );
 
-
         return builder.build();
     }
 
@@ -191,6 +184,7 @@ public class AggregatorFunctionSupplierImplementer {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("groupingAggregator");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
+        builder.addParameter(LIST_INTEGER, "channels");
         builder.returns(groupingAggregatorImplementer.implementation());
 
         if (hasWarnings) {

@@ -207,7 +207,7 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
     public void testUpdateableSynonymsRejectedAtIndexTime() throws FileNotFoundException, IOException {
         String synonymsFileName = "synonyms.txt";
         setupResourceFile(synonymsFileName, "foo, baz");
-        Path configDir = node().getEnvironment().configFile();
+        Path configDir = node().getEnvironment().configDir();
         if (Files.exists(configDir) == false) {
             Files.createDirectory(configDir);
         }
@@ -319,7 +319,7 @@ public class ReloadAnalyzerTests extends ESSingleNodeTestCase {
     }
 
     private Path setupResourceFile(String fileName, String... content) throws IOException {
-        Path configDir = node().getEnvironment().configFile();
+        Path configDir = node().getEnvironment().configDir();
         if (Files.exists(configDir) == false) {
             Files.createDirectory(configDir);
         }

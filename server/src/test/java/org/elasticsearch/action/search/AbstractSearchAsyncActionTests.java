@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -83,9 +82,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             null,
             request,
             listener,
-            new GroupShardsIterator<>(
-                Collections.singletonList(new SearchShardIterator(null, new ShardId("index", "_na", 0), Collections.emptyList(), null))
-            ),
+            Collections.singletonList(new SearchShardIterator(null, new ShardId("index", "_na", 0), Collections.emptyList(), null)),
             timeProvider,
             ClusterState.EMPTY_STATE,
             null,

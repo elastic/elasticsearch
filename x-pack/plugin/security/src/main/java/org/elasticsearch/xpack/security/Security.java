@@ -725,9 +725,9 @@ public class Security extends Plugin
      * ES has already checked the file is actually in the config directory
      */
     public static Path resolveSecuredConfigFile(Environment env, String file) {
-        Path config = env.configFile().resolve(file);
+        Path config = env.configDir().resolve(file);
         if (doPrivileged((PrivilegedAction<Boolean>) () -> Files.exists(config)) == false) {
-            Path legacyConfig = env.configFile().resolve("x-pack").resolve(file);
+            Path legacyConfig = env.configDir().resolve("x-pack").resolve(file);
             if (doPrivileged((PrivilegedAction<Boolean>) () -> Files.exists(legacyConfig))) {
                 DeprecationLogger.getLogger(XPackPlugin.class)
                     .warn(

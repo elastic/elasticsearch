@@ -398,8 +398,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testInlineStatsWithGroups() {
         var query = "inlinestats b = min(a) by c, d.e";
         if (Build.current().isSnapshot() == false) {
-            var e = expectThrows(ParsingException.class, () -> processingCommand(query));
-            assertThat(e.getMessage(), containsString("line 1:13: mismatched input 'inlinestats' expecting {"));
+            expectThrows(
+                ParsingException.class,
+                containsString("line 1:13: mismatched input 'inlinestats' expecting {"),
+                () -> processingCommand(query)
+            );
             return;
         }
         assertEquals(
@@ -424,8 +427,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testInlineStatsWithoutGroups() {
         var query = "inlinestats min(a), c = 1";
         if (Build.current().isSnapshot() == false) {
-            var e = expectThrows(ParsingException.class, () -> processingCommand(query));
-            assertThat(e.getMessage(), containsString("line 1:13: mismatched input 'inlinestats' expecting {"));
+            expectThrows(
+                ParsingException.class,
+                containsString("line 1:13: mismatched input 'inlinestats' expecting {"),
+                () -> processingCommand(query)
+            );
             return;
         }
         assertEquals(
@@ -858,16 +864,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
             Tuple.tuple("a/*hi*/", "a"),
             Tuple.tuple("explain [ frm a ]", "frm")
         )) {
-            ParsingException pe = expectThrows(ParsingException.class, () -> statement(queryWithUnexpectedCmd.v1()));
-            assertThat(
-                pe.getMessage(),
+            expectThrows(
+                ParsingException.class,
                 allOf(
                     containsString("mismatched input '" + queryWithUnexpectedCmd.v2() + "'"),
                     containsString("'explain'"),
                     containsString("'from'"),
                     containsString("'row'")
-                )
+                ),
+                () -> statement(queryWithUnexpectedCmd.v1())
             );
+
         }
     }
 
@@ -882,15 +889,15 @@ public class StatementParserTests extends AbstractStatementParserTests {
             Tuple.tuple("from a | a/*hi*/", "a"),
             Tuple.tuple("explain [ from a | evl b = c ]", "evl")
         )) {
-            ParsingException pe = expectThrows(ParsingException.class, () -> statement(queryWithUnexpectedCmd.v1()));
-            assertThat(
-                pe.getMessage(),
+            expectThrows(
+                ParsingException.class,
                 allOf(
                     containsString("mismatched input '" + queryWithUnexpectedCmd.v2() + "'"),
                     containsString("'eval'"),
                     containsString("'stats'"),
                     containsString("'where'")
-                )
+                ),
+                () -> statement(queryWithUnexpectedCmd.v1())
             );
         }
     }
@@ -981,10 +988,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertEquals("%{WORD:foo}", grok.parser().pattern());
         assertEquals(List.of(referenceAttribute("foo", KEYWORD)), grok.extractedFields());
 
-        ParsingException pe = expectThrows(ParsingException.class, () -> statement("row a = \"foo bar\" | grok a \"%{_invalid_:x}\""));
-        assertThat(
-            pe.getMessage(),
-            containsString("Invalid pattern [%{_invalid_:x}] for grok: Unable to find pattern [_invalid_] in Grok's pattern dictionary")
+        expectThrows(
+            ParsingException.class,
+            containsString("Invalid pattern [%{_invalid_:x}] for grok: Unable to find pattern [_invalid_] in Grok's pattern dictionary"),
+            () -> statement("row a = \"foo bar\" | grok a \"%{_invalid_:x}\"")
         );
 
         cmd = processingCommand("grok a \"%{WORD:foo} %{WORD:foo}\"");
@@ -1110,8 +1117,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testUsageOfProject() {
         String query = "from test | project foo, bar";
-        ParsingException e = expectThrows(ParsingException.class, "Expected syntax error for " + query, () -> statement(query));
-        assertThat(e.getMessage(), containsString("mismatched input 'project' expecting"));
+        expectThrows(ParsingException.class, containsString("mismatched input 'project' expecting"), () -> statement(query));
     }
 
     public void testInputParams() {
@@ -1581,10 +1587,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testParamForIdentifier() {
-        assumeTrue(
-            "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
-        );
         // field names can appear in eval/where/stats/sort/keep/drop/rename/dissect/grok/enrich/mvexpand
         // eval, where
         assertEquals(
@@ -1842,10 +1844,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testParamForIdentifierPattern() {
-        assumeTrue(
-            "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
-        );
         // name patterns can appear in keep and drop
         // all patterns
         LogicalPlan plan = statement(
@@ -1935,10 +1933,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testParamInInvalidPosition() {
-        assumeTrue(
-            "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
-        );
         // param for pattern is not supported in eval/where/stats/sort/rename/dissect/grok/enrich/mvexpand
         // where/stats/sort/dissect/grok are covered in RestEsqlTestCase
         List<String> invalidParamPositions = List.of("eval ?f1 = 1", "stats x = ?f1(*)", "mv_expand ?f1", "rename ?f1 as ?f2");
@@ -1990,10 +1984,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testMissingParam() {
-        assumeTrue(
-            "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
-        );
         // cover all processing commands eval/where/stats/sort/rename/dissect/grok/enrich/mvexpand/keep/drop
         String error = "Unknown query parameter [f1], did you mean [f4]?";
         String errorMvExpandFunctionNameCommandOption = "Query parameter [?f1] is null or undefined, cannot be used as an identifier";
@@ -2046,8 +2036,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     private void assertStringAsIndexPattern(String string, String statement) {
         if (Build.current().isSnapshot() == false && statement.contains("METRIC")) {
-            var e = expectThrows(ParsingException.class, () -> statement(statement));
-            assertThat(e.getMessage(), containsString("mismatched input 'METRICS' expecting {"));
+            expectThrows(ParsingException.class, containsString("mismatched input 'METRICS' expecting {"), () -> statement(statement));
             return;
         }
         LogicalPlan from = statement(statement);
@@ -2058,8 +2047,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     private void assertStringAsLookupIndexPattern(String string, String statement) {
         if (Build.current().isSnapshot() == false) {
-            var e = expectThrows(ParsingException.class, () -> statement(statement));
-            assertThat(e.getMessage(), containsString("line 1:14: LOOKUP_🐔 is in preview and only available in SNAPSHOT build"));
+            expectThrows(
+                ParsingException.class,
+                containsString("line 1:14: LOOKUP_🐔 is in preview and only available in SNAPSHOT build"),
+                () -> statement(statement)
+            );
             return;
         }
         var plan = statement(statement);
@@ -2126,8 +2118,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testLookup() {
         String query = "ROW a = 1 | LOOKUP_🐔 t ON j";
         if (Build.current().isSnapshot() == false) {
-            var e = expectThrows(ParsingException.class, () -> statement(query));
-            assertThat(e.getMessage(), containsString("line 1:13: mismatched input 'LOOKUP_🐔' expecting {"));
+            expectThrows(
+                ParsingException.class,
+                containsString("line 1:13: mismatched input 'LOOKUP_🐔' expecting {"),
+                () -> statement(query)
+            );
             return;
         }
         var plan = statement(query);
@@ -2281,6 +2276,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("from test | stats count(Å)", "line 1:25: token recognition error at: 'Å'");
         expectError("from test | eval A = coalesce(Å, null)", "line 1:31: token recognition error at: 'Å'");
         expectError("from test | eval A = coalesce(\"Å\", Å)", "line 1:36: token recognition error at: 'Å'");
+    }
+
+    public void testInvalidRemoteClusterPattern() {
+        expectError("from \"rem:ote\":index", "cluster string [rem:ote] must not contain ':'");
     }
 
     private LogicalPlan unresolvedRelation(String index) {
@@ -2470,10 +2469,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testNamedFunctionArgumentInMapWithNamedParameters() {
         // map entry values provided in named parameter, arrays are not supported by named parameters yet
-        assumeTrue(
-            "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
-        );
         LinkedHashMap<String, Object> expectedMap1 = new LinkedHashMap<>(4);
         expectedMap1.put("option1", "string");
         expectedMap1.put("option2", 1);
@@ -2881,10 +2876,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testNamedFunctionArgumentWithUnsupportedNamedParameterTypes() {
-        assumeTrue(
-            "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
-        );
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "29"),
             Map.entry("where {}", "26"),

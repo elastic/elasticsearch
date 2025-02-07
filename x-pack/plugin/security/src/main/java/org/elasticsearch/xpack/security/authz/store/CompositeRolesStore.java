@@ -505,6 +505,7 @@ public class CompositeRolesStore {
                 runAs.addAll(Arrays.asList(descriptor.getRunAs()));
             }
 
+            // TODO we need to prevent read_failures with DLS or FLS; we need to avoid merging such groups
             MergeableIndicesPrivilege.collatePrivilegesByIndices(descriptor.getIndicesPrivileges(), true, restrictedIndicesPrivilegesMap);
             MergeableIndicesPrivilege.collatePrivilegesByIndices(descriptor.getIndicesPrivileges(), false, indicesPrivilegesMap);
 

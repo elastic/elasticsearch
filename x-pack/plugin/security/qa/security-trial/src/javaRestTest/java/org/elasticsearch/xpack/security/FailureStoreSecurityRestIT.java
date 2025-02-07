@@ -46,7 +46,7 @@ public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCa
 
         createUser(DATA_ACCESS_USER, PASSWORD, List.of(dataAccessRole));
         createUser(FAILURE_STORE_ACCESS_USER, PASSWORD, List.of(failureStoreAccessRole));
-        createUser(BOTH_ACCESS_USER, PASSWORD, List.of(bothAccessRole));
+        createUser(BOTH_ACCESS_USER, PASSWORD, randomBoolean() ? List.of(bothAccessRole) : List.of(dataAccessRole, failureStoreAccessRole));
         createUser(WRITE_ACCESS_USER, PASSWORD, List.of(writeAccessRole));
 
         upsertRole(Strings.format("""

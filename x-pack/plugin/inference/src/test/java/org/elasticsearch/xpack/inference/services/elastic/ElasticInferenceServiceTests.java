@@ -962,11 +962,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 is(
                     List.of(
                         new InferenceService.DefaultConfigId(".elser-v2-elastic", MinimalServiceSettings.sparseEmbedding(), service),
-                        new InferenceService.DefaultConfigId(
-                            ".rainbow-sprinkles-elastic",
-                            MinimalServiceSettings.chatCompletion(),
-                            service
-                        )
+                        new InferenceService.DefaultConfigId(".rainbow-sprinkles-elastic", MinimalServiceSettings.chatCompletion(), service)
                     )
                 )
             );

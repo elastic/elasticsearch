@@ -363,9 +363,6 @@ tests:
 - class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
   method: testFailIfMetadataBlockSet
   issue: https://github.com/elastic/elasticsearch/issues/121978
-- class: org.elasticsearch.xpack.esql.parser.StatementParserTests
-  method: testValidFromPattern
-  issue: https://github.com/elastic/elasticsearch/issues/121990
 
 # Examples:
 #

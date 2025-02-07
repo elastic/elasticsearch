@@ -199,9 +199,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
   method: testSnapshotRestore {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/111799
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search/380_sort_segments_on_timestamp/Test that index segments are NOT sorted on timestamp field when @timestamp field is dynamically added}
-  issue: https://github.com/elastic/elasticsearch/issues/116221
 - class: org.elasticsearch.ingest.common.IngestCommonClientYamlTestSuiteIT
   method: test {yaml=ingest/310_reroute_processor/Test remove then add reroute processor with and without lazy rollover}
   issue: https://github.com/elastic/elasticsearch/issues/116158

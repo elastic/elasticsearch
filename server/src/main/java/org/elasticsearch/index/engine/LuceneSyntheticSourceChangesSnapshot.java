@@ -85,7 +85,6 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
         this.maxMemorySizeInBytes = maxMemorySizeInBytes > 0 ? maxMemorySizeInBytes : 1;
         this.sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
         Set<String> storedFields = sourceLoader.requiredStoredFields();
-
         this.storedFieldLoader = StoredFieldLoader.create(false, storedFields);
         this.lastSeenSeqNo = fromSeqNo - 1;
     }
@@ -194,7 +193,8 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
                     maxDoc = leafReaderContext.reader().maxDoc();
                 } while (docRecord.docID() >= docBase + maxDoc);
 
-                // TODO: instead of building an array, let's just check whether doc ids are (semi) dense
+                // TODO: instead of building an array, consider just checking whether doc ids are dense.
+                // Note, field loaders then would lose the ability to optionally eagerly loading values.
                 IntArrayList nextDocIds = new IntArrayList();
                 for (int j = i; j < documentRecords.size(); j++) {
                     var record = documentRecords.get(j);

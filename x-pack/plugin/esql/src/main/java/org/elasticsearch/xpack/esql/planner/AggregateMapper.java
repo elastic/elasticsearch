@@ -19,25 +19,9 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.FromPartial;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.MedianAbsoluteDeviation;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Percentile;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDev;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 
 import java.util.HashMap;
 import java.util.List;
@@ -45,40 +29,10 @@ import java.util.stream.Stream;
 
 /**
  * Static class used to convert aggregate expressions to the named expressions that represent their intermediate state.
- * <p>
- *     At class load time, the mapper is populated with all supported aggregate functions and their intermediate state.
- * </p>
- * <p>
- *     Reflection is used to call the {@code intermediateStateDesc()}` static method of the aggregate functions,
- *     but the function classes are found based on the exising information within this class.
- * </p>
- * <p>
- *     This class must be updated when aggregations are created or updated, by adding the new aggs or types to the corresponding methods.
- * </p>
  */
 final class AggregateMapper {
 
-    /** List of all mappable ESQL agg functions (excludes surrogates like AVG = SUM/COUNT). */
-    private static final List<? extends Class<? extends Function>> AGG_FUNCTIONS = List.of(
-        Count.class,
-        CountDistinct.class,
-        Max.class,
-        MedianAbsoluteDeviation.class,
-        Min.class,
-        Percentile.class,
-        SpatialCentroid.class,
-        SpatialExtent.class,
-        StdDev.class,
-        Sum.class,
-        Values.class,
-        Top.class,
-        Rate.class,
-
-        // internal function
-        FromPartial.class,
-        ToPartial.class
-    );
-
+    // TODO: Do we need this cache?
     /** Cache of aggregates to intermediate expressions. */
     private final HashMap<Expression, List<NamedExpression>> cache = new HashMap<>();
 

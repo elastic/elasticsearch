@@ -286,7 +286,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         executePhaseOnShard(shardIt, connection, shardListener);
     }
 
-    private void failOnUnavailable(int shardIndex, SearchShardIterator shardIt) {
+    protected void failOnUnavailable(int shardIndex, SearchShardIterator shardIt) {
         SearchShardTarget unassignedShard = new SearchShardTarget(null, shardIt.shardId(), shardIt.getClusterAlias());
         onShardFailure(shardIndex, unassignedShard, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
     }

@@ -194,20 +194,79 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             createAndRolloverDataStream(dataStreamName, numRollovers);
             createDataStreamFromNonDataStreamIndices(dataStreamFromNonDataStreamIndices);
         } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
+            Map<String, Map<String, Object>> oldIndicesMetadata = getIndicesMetadata(dataStreamName);
             upgradeDataStream(dataStreamName, numRollovers, numRollovers + 1, 0);
             upgradeDataStream(dataStreamFromNonDataStreamIndices, 0, 1, 0);
+            Map<String, Map<String, Object>> upgradedIndicesMetadata = getIndicesMetadata(dataStreamName);
+            compareIndexMetadata(oldIndicesMetadata, upgradedIndicesMetadata);
         }
     }
 
-    private static void createAndRolloverDataStream(String dataStreamName, int numRollovers) throws IOException {
+    private void compareIndexMetadata(
+        Map<String, Map<String, Object>> oldIndicesMetadata,
+        Map<String, Map<String, Object>> upgradedIndicesMetadata
+    ) {
+        for (Map.Entry<String, Map<String, Object>> upgradedIndexEntry : upgradedIndicesMetadata.entrySet()) {
+            String upgradedIndexName = upgradedIndexEntry.getKey();
+            if (upgradedIndexName.startsWith(".migrated-")) {
+                String oldIndexName = "." + upgradedIndexName.substring(".migrated-".length());
+                Map<String, Object> oldIndexMetadata = oldIndicesMetadata.get(oldIndexName);
+                Map<String, Object> upgradedIndexMetadata = upgradedIndexEntry.getValue();
+                compareSettings(oldIndexMetadata, upgradedIndexMetadata);
+                assertThat("Mappings did not match", upgradedIndexMetadata.get("mappings"), equalTo(oldIndexMetadata.get("mappings")));
+                // TODO: Uncomment the following two checks once we are correctly copying this state over:
+                // assertThat("ILM states did not match", upgradedIndexMetadata.get("ilm"), equalTo(oldIndexMetadata.get("ilm")));
+                // assertThat(
+                // "Rollover info did not match",
+                // upgradedIndexMetadata.get("rollover_info"),
+                // equalTo(oldIndexMetadata.get("rollover_info"))
+                // );
+                assertThat(upgradedIndexMetadata.get("system"), equalTo(oldIndexMetadata.get("system")));
+            }
+        }
+    }
+
+    private void compareSettings(Map<String, Object> oldIndexMetadata, Map<String, Object> upgradedIndexMetadata) {
+        Map<String, Object> oldIndexSettings = getIndexSettingsFromIndexMetadata(oldIndexMetadata);
+        Map<String, Object> upgradedIndexSettings = getIndexSettingsFromIndexMetadata(upgradedIndexMetadata);
+        final Set<String> SETTINGS_TO_CHECK = Set.of(
+            "lifecycle",
+            "mode",
+            "routing",
+            "hidden",
+            "number_of_shards",
+            // "creation_date", TODO: Uncomment this once we are correctly copying over this setting
+            "number_of_replicas"
+        );
+        for (String setting : SETTINGS_TO_CHECK) {
+            assertThat(
+                "Unexpected value for setting " + setting,
+                upgradedIndexSettings.get(setting),
+                equalTo(oldIndexSettings.get(setting))
+            );
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> getIndexSettingsFromIndexMetadata(Map<String, Object> indexMetadata) {
+        return (Map<String, Object>) ((Map<String, Object>) indexMetadata.get("settings")).get("index");
+    }
+
+    private void createAndRolloverDataStream(String dataStreamName, int numRollovers) throws IOException {
+        boolean useIlm = randomBoolean();
+        if (useIlm) {
+            createIlmPolicy();
+        }
         // We want to create a data stream and roll it over several times so that we have several indices to upgrade
-        final String template = """
+        String template = """
             {
                 "settings":{
                     "index": {
+                        $ILM_SETTING
                         "mode": "time_series"
                     }
                 },
+                $DSL_TEMPLATE
                 "mappings":{
                     "dynamic_templates": [
                         {
@@ -253,6 +312,19 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                 }
             }
             """;
+        if (useIlm) {
+            template = template.replace("$ILM_SETTING", """
+                "lifecycle.name": "test-lifecycle-policy",
+                """);
+            template = template.replace("$DSL_TEMPLATE", "");
+        } else {
+            template = template.replace("$ILM_SETTING", "");
+            template = template.replace("$DSL_TEMPLATE", """
+                    "lifecycle": {
+                      "data_retention": "7d"
+                    },
+                """);
+        }
         final String indexTemplate = """
             {
                 "index_patterns": ["$PATTERN"],
@@ -271,6 +343,52 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             }
             bulkLoadData(dataStreamName);
         }
+    }
+
+    private static void createIlmPolicy() throws IOException {
+        String ilmPolicy = """
+            {
+              "policy": {
+                "phases": {
+                  "hot": {
+                    "actions": {
+                      "rollover": {
+                        "max_primary_shard_size": "50kb"
+                      }
+                    }
+                  },
+                  "warm": {
+                    "min_age": "30d",
+                    "actions": {
+                      "shrink": {
+                        "number_of_shards": 1
+                      },
+                      "forcemerge": {
+                        "max_num_segments": 1
+                      }
+                    }
+                  }
+                }
+              }
+            }""";
+        Request putIlmPolicyRequest = new Request("PUT", "_ilm/policy/test-lifecycle-policy");
+        putIlmPolicyRequest.setJsonEntity(ilmPolicy);
+        assertOK(client().performRequest(putIlmPolicyRequest));
+    }
+
+    /*
+     * This returns a Map of index metadata for each index in the data stream, as retrieved from the cluster state.
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Map<String, Object>> getIndicesMetadata(String dataStreamName) throws IOException {
+        Request getClusterStateRequest = new Request("GET", "/_cluster/state/metadata/" + dataStreamName);
+        Response clusterStateResponse = client().performRequest(getClusterStateRequest);
+        Map<String, Object> clusterState = XContentHelper.convertToMap(
+            JsonXContent.jsonXContent,
+            clusterStateResponse.getEntity().getContent(),
+            false
+        );
+        return ((Map<String, Map<String, Map<String, Object>>>) clusterState.get("metadata")).get("indices");
     }
 
     private void createDataStreamFromNonDataStreamIndices(String dataStreamFromNonDataStreamIndices) throws IOException {

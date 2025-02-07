@@ -175,8 +175,8 @@ public final class EnrichLookupOperator extends AsyncOperator<Page> {
     }
 
     @Override
-    protected Operator.Status status(long receivedPages, long completedPages, long totalTimeInMillis) {
-        return new EnrichLookupOperator.Status(receivedPages, completedPages, totalTimeInMillis, totalTerms);
+    protected Operator.Status status(long receivedPages, long completedPages, long processNanos) {
+        return new EnrichLookupOperator.Status(receivedPages, completedPages, processNanos, totalTerms);
     }
 
     public static class Status extends AsyncOperator.Status {
@@ -188,8 +188,8 @@ public final class EnrichLookupOperator extends AsyncOperator<Page> {
 
         final long totalTerms;
 
-        Status(long receivedPages, long completedPages, long totalTimeInMillis, long totalTerms) {
-            super(receivedPages, completedPages, totalTimeInMillis);
+        Status(long receivedPages, long completedPages, long processNanos, long totalTerms) {
+            super(receivedPages, completedPages, processNanos);
             this.totalTerms = totalTerms;
         }
 

@@ -564,3 +564,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/121291
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/121411
+- class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
+  method: testHasPrivileges
+  issue: https://github.com/elastic/elasticsearch/issues/121346

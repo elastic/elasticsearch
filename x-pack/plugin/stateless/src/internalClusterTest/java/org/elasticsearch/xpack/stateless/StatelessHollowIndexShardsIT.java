@@ -1151,8 +1151,18 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
                             Arrays.stream(bulkResponse.getItems()).filter(r -> r.isFailed() == false).map(e -> e.getId()).toList()
                         )
                     );
-                    if (randomBoolean()) {
-                        flush(indexName);
+                    switch (randomInt(2)) {
+                        case 0:
+                            flush(indexName);
+                            break;
+                        case 1:
+                            refresh(indexName);
+                            break;
+                        case 2:
+                            // do nothing
+                            break;
+                        default:
+                            throw new AssertionError();
                     }
                 }
             }));

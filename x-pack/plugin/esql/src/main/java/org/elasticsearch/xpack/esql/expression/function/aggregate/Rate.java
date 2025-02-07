@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -49,7 +50,7 @@ public class Rate extends AggregateFunction implements OptionalArgument, ToAggre
     @FunctionInfo(
         returnType = { "double" },
         description = "compute the rate of a counter field. Available in METRICS command only",
-        isAggregation = true
+        type = FunctionType.AGGREGATE
     )
     public Rate(
         Source source,

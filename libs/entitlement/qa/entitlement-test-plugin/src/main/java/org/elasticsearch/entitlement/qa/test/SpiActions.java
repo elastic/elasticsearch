@@ -9,6 +9,10 @@
 
 package org.elasticsearch.entitlement.qa.test;
 
+import java.io.IOException;
+import java.nio.channels.Channel;
+import java.nio.channels.spi.SelectorProvider;
+
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.ALWAYS_DENIED;
 
 class SpiActions {
@@ -70,6 +74,33 @@ class SpiActions {
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
     static void createLocaleServiceProvider() {
         new DummyImplementations.DummyLocaleServiceProvider();
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void getInheritedChannel() throws IOException {
+        Channel channel = null;
+        try {
+            channel = SelectorProvider.provider().inheritedChannel();
+        } finally {
+            if (channel != null) {
+                channel.close();
+            }
+        }
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void createSelectorProvider() {
+        new DummyImplementations.DummySelectorProvider();
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void createAsynchronousChannelProvider() {
+        new DummyImplementations.DummyAsynchronousChannelProvider();
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void createCharsetProvider() {
+        new DummyImplementations.DummyCharsetProvider();
     }
 
     private SpiActions() {}

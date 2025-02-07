@@ -43,8 +43,8 @@ class WindowsServiceDaemon extends EnvironmentAwareCommand {
     @Override
     public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
         // the Windows service daemon doesn't support secure settings implementations other than the keystore
-        try (var loadedSecrets = KeyStoreWrapper.bootstrap(env.configFile(), () -> new SecureString(new char[0]))) {
-            var args = new ServerArgs(false, true, null, loadedSecrets, env.settings(), env.configFile(), env.logsFile());
+        try (var loadedSecrets = KeyStoreWrapper.bootstrap(env.configDir(), () -> new SecureString(new char[0]))) {
+            var args = new ServerArgs(false, true, null, loadedSecrets, env.settings(), env.configDir(), env.logsDir());
             var tempDir = ServerProcessUtils.setupTempDir(processInfo);
             var jvmOptions = JvmOptionsParser.determineJvmOptions(args, processInfo, tempDir, new MachineDependentHeap());
             var serverProcessBuilder = new ServerProcessBuilder().withTerminal(terminal)

@@ -134,12 +134,6 @@ tests:
 - class: org.elasticsearch.datastreams.DataStreamsClientYamlTestSuiteIT
   method: test {p0=data_stream/120_data_streams_stats/Multiple data stream}
   issue: https://github.com/elastic/elasticsearch/issues/118217
-  # TODO: re-enable after backporting https://github.com/elastic/elasticsearch/pull/119110
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=update/100_synthetic_source/keyword}
-  # TODO: re-enable after backporting https://github.com/elastic/elasticsearch/pull/119110
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=update/100_synthetic_source/stored text}
 - class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
   method: testSearcherId
   issue: https://github.com/elastic/elasticsearch/issues/118374
@@ -209,9 +203,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/120668
 - class: org.elasticsearch.xpack.security.authc.ldap.ADLdapUserSearchSessionFactoryTests
   issue: https://github.com/elastic/elasticsearch/issues/119882
-- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncEnrichStopIT
-  method: testEnrichAfterStop
-  issue: https://github.com/elastic/elasticsearch/issues/120757
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/3rd_party_deployment/Test start deployment fails while model download in progress}
   issue: https://github.com/elastic/elasticsearch/issues/120810
@@ -367,9 +358,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.ClassificationIT
   method: testDependentVariableIsAliasToKeyword
   issue: https://github.com/elastic/elasticsearch/issues/121492
-- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryUnavailableRemotesIT
-  method: testRemoteOnlyCCSAgainstDisconnectedRemoteWithSkipUnavailableTrue
-  issue: https://github.com/elastic/elasticsearch/issues/121578
 - class: org.elasticsearch.xpack.esql.action.CrossClustersCancellationIT
   method: testTasks
   issue: https://github.com/elastic/elasticsearch/issues/121626
@@ -382,22 +370,59 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClustersCancellationIT
   method: testCancelSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/121631
-- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
-  method: test {p0=mixed_cluster/110_enrich/Enrich stats query smoke test for mixed cluster}
-  issue: https://github.com/elastic/elasticsearch/issues/121642
 - class: org.elasticsearch.search.CrossClusterSearchUnavailableClusterIT
   method: testSearchSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/121497
-- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
-  method: testStopQueryLocal
-  issue: https://github.com/elastic/elasticsearch/issues/121672
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
-  method: testLookupExplosionBigStringManyMatches
-  issue: https://github.com/elastic/elasticsearch/issues/121465
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/121411
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/cat/health/cat-health-no-timestamp-example}
+  issue: https://github.com/elastic/elasticsearch/issues/121867
+- class: org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests
+  method: testCreateAndRestorePartialSearchableSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/121927
+- class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
+  method: test {yaml=analysis-common/40_token_filters/stemmer_override file access}
+  issue: https://github.com/elastic/elasticsearch/issues/121625
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=update/100_synthetic_source/stored text}
+  issue: https://github.com/elastic/elasticsearch/issues/121964
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=update/100_synthetic_source/keyword}
+  issue: https://github.com/elastic/elasticsearch/issues/121965
+- class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderTests
+  method: testDoNotRetryOnRequestLevelFailure
+  issue: https://github.com/elastic/elasticsearch/issues/121966
+- class: org.elasticsearch.xpack.searchablesnapshots.hdfs.SecureHdfsSearchableSnapshotsIT
+  issue: https://github.com/elastic/elasticsearch/issues/121967
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=update/100_synthetic_source/stored text}
+  issue: https://github.com/elastic/elasticsearch/issues/121991
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=update/100_synthetic_source/keyword}
+  issue: https://github.com/elastic/elasticsearch/issues/121992
+- class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
+  method: testBottomFieldSort
+  issue: https://github.com/elastic/elasticsearch/issues/121503
+- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
+  method: test {yaml=/60_synthetic_source_recovery/synthetic recovery for synthetic source mode index}
+  issue: https://github.com/elastic/elasticsearch/issues/122026
+- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
+  method: test {yaml=/60_synthetic_source_recovery/synthetic recovery for time_series index}
+  issue: https://github.com/elastic/elasticsearch/issues/122027
+- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
+  method: test {yaml=/60_synthetic_source_recovery/synthetic recovery for logsdb index}
+  issue: https://github.com/elastic/elasticsearch/issues/122028
+- class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
+  issue: https://github.com/elastic/elasticsearch/issues/121537
 - class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
   issue: https://github.com/elastic/elasticsearch/issues/121737
+- class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleDisruptionIT
+  method: testDataStreamLifecycleDownsampleRollingRestart
+  issue: https://github.com/elastic/elasticsearch/issues/122056
+- class: org.elasticsearch.xpack.restart.FullClusterRestartIT
+  method: testWatcherWithApiKey {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/122061
 
 # Examples:
 #

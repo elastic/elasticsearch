@@ -7421,6 +7421,42 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * TopN[[Order[emp_no{f}#23,ASC,LAST]],1000[INTEGER]]
+     * \_Filter[emp_no{f}#23 > 1[INTEGER]]
+     *   \_MvExpand[languages{f}#26,languages{r}#36]
+     *     \_EsqlProject[[language_name{f}#35, foo{r}#5 AS bar, languages{f}#26, emp_no{f}#23]]
+     *       \_Join[LEFT,[language_code{r}#8],[language_code{r}#8],[language_code{f}#34]]
+     *         |_Project[[_meta_field{f}#29, emp_no{f}#23, first_name{f}#24, gender{f}#25, hire_date{f}#30, job{f}#31, job.raw{f}#32, l
+     * anguages{f}#26, last_name{f}#27, long_noidx{f}#33, salary{f}#28, foo{r}#5, languages{f}#26 AS language_code]]
+     *         | \_Eval[[TOSTRING(languages{f}#26) AS foo]]
+     *         |   \_EsRelation[test][_meta_field{f}#29, emp_no{f}#23, first_name{f}#24, ..]
+     *         \_EsRelation[languages_lookup][LOOKUP][language_code{f}#34, language_name{f}#35]
+     */
+    public void testRedundantSortOnMvExpandJoinKeepDropRename() {
+        var plan = optimizedPlan("""
+              FROM test
+            | SORT languages
+            | EVAL foo = to_string(languages), language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            | KEEP language_name, language_code, foo, languages, emp_no
+            | DROP language_code
+            | RENAME foo AS bar
+            | MV_EXPAND languages
+            | WHERE emp_no > 1
+            | SORT emp_no
+            """);
+
+        var topN = as(plan, TopN.class);
+        var filter = as(topN.child(), Filter.class);
+        var mvExpand = as(filter.child(), MvExpand.class);
+        var project = as(mvExpand.child(), Project.class);
+        var join = as(project.child(), Join.class);
+        var project2 = as(join.left(), Project.class);
+        var eval = as(project2.child(), Eval.class);
+        as(eval.child(), EsRelation.class);
+    }
+
+    /**
      * TopN[[Order[emp_no{f}#15,ASC,LAST]],1000[INTEGER]]
      * \_Filter[emp_no{f}#15 > 1[INTEGER]]
      *   \_MvExpand[foo{r}#10,foo{r}#29]
@@ -7461,6 +7497,18 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
               | SORT y
               | MV_EXPAND x
               | WHERE x > 2
+            """;
+
+        VerificationException e = expectThrows(VerificationException.class, () -> plan(query));
+        assertThat(e.getMessage(), containsString("line 2:5: Unbounded sort not supported yet [SORT y] please add a limit"));
+    }
+
+    public void testUnboundedSortJoin() {
+        var query = """
+              ROW x = [1,2,3], y = 2, language_code = 1
+              | SORT y
+              | LOOKUP JOIN languages_lookup ON language_code
+              | WHERE language_name == "foo"
             """;
 
         VerificationException e = expectThrows(VerificationException.class, () -> plan(query));

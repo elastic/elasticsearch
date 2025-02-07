@@ -23,7 +23,7 @@ Deletes an existing {transform}.
 [[delete-transform-prereqs]]
 == {api-prereq-title}
 
-* Requires the `manage_transform` cluster privilege. This privilege is included
+* Requires the `manage_transform` cluster privilege. This privilege is included 
 in the `transform_admin` built-in role.
 * Before you can delete the {transform}, you must stop it.
 

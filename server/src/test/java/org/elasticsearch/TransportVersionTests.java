@@ -31,8 +31,11 @@ public class TransportVersionTests extends ESTestCase {
      * This test is specific for V9, to ensure that transport versions are backported correctly.
      */
     public void testMaximumAllowedTransportVersion() {
-        assertThat(TransportVersions.LATEST_DEFINED.onOrBefore(TransportVersions.ELASTICSEARCH_9_0) ||
-            TransportVersions.LATEST_DEFINED.isPatchFrom(TransportVersions.ELASTICSEARCH_9_0), is(true));
+        assertThat(
+            TransportVersions.LATEST_DEFINED.onOrBefore(TransportVersions.ELASTICSEARCH_9_0)
+                || TransportVersions.LATEST_DEFINED.isPatchFrom(TransportVersions.ELASTICSEARCH_9_0),
+            is(true)
+        );
     }
 
     public void testVersionComparison() {

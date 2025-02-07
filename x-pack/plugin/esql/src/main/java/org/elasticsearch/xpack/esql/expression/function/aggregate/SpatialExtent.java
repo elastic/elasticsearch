@@ -102,7 +102,7 @@ public final class SpatialExtent extends SpatialAggregateFunction implements ToA
     }
 
     @Override
-    public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
+    public AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
         return switch (type) {
             case DataType.GEO_POINT -> switch (fieldExtractPreference) {

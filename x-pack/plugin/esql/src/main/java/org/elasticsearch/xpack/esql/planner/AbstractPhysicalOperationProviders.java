@@ -308,10 +308,11 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                     } else {
                         throw new EsqlIllegalArgumentException("illegal aggregation mode");
                     }
+
+                    AggregatorFunctionSupplier aggSupplier = supplier(aggregateFunction);
+
                     List<Integer> inputChannels = sourceAttr.stream().map(attr -> layout.get(attr.id()).channel()).toList();
                     assert inputChannels.stream().allMatch(i -> i >= 0) : inputChannels;
-
-                    AggregatorFunctionSupplier aggSupplier = supplier(aggregateFunction, inputChannels);
 
                     // apply the filter only in the initial phase - as the rest of the data is already filtered
                     if (aggregateFunction.hasFilter() && mode.isInputPartial() == false) {
@@ -328,9 +329,9 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         }
     }
 
-    private static AggregatorFunctionSupplier supplier(AggregateFunction aggregateFunction, List<Integer> inputChannels) {
+    private static AggregatorFunctionSupplier supplier(AggregateFunction aggregateFunction) {
         if (aggregateFunction instanceof ToAggregator delegate) {
-            return delegate.supplier(inputChannels);
+            return delegate.supplier();
         }
         throw new EsqlIllegalArgumentException("aggregate functions must extend ToAggregator");
     }

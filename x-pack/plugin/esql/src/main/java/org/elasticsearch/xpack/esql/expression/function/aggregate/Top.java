@@ -188,7 +188,7 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
     }
 
     @Override
-    public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
+    public AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
         if (type == DataType.LONG || type == DataType.DATETIME) {
             return new TopLongAggregatorFunctionSupplier(limitValue(), orderValue());

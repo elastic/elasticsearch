@@ -53,7 +53,7 @@ public class TemplateDeprecationCheckerTests extends ESTestCase {
             DeprecationIssue.Level.CRITICAL,
             SourceFieldMapper.DEPRECATION_WARNING,
             "https://github.com/elastic/elasticsearch/pull/117172",
-            null,
+            SourceFieldMapper.DEPRECATION_DETAILS,
             false,
             null
         );

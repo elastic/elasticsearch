@@ -76,6 +76,7 @@ import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.injection.guice.AbstractModule;
+import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksNodeService;
 import org.elasticsearch.plugins.ClusterPlugin;
@@ -226,11 +227,19 @@ public class ClusterModule extends AbstractModule {
         registerProjectCustom(entries, IngestMetadata.TYPE, IngestMetadata::new, IngestMetadata::readDiffFrom);
         registerProjectCustom(entries, ScriptMetadata.TYPE, ScriptMetadata::new, ScriptMetadata::readDiffFrom);
         registerProjectCustom(entries, IndexGraveyard.TYPE, IndexGraveyard::new, IndexGraveyard::readDiffFrom);
+        // Project scoped persistent tasks
         registerProjectCustom(
             entries,
             PersistentTasksCustomMetadata.TYPE,
             PersistentTasksCustomMetadata::new,
             PersistentTasksCustomMetadata::readDiffFrom
+        );
+        // Cluster scoped persistent tasks
+        registerMetadataCustom(
+            entries,
+            ClusterPersistentTasksCustomMetadata.TYPE,
+            ClusterPersistentTasksCustomMetadata::new,
+            ClusterPersistentTasksCustomMetadata::readDiffFrom
         );
         registerProjectCustom(
             entries,
@@ -283,11 +292,20 @@ public class ClusterModule extends AbstractModule {
         entries.add(
             new NamedXContentRegistry.Entry(Metadata.ProjectCustom.class, new ParseField(IndexGraveyard.TYPE), IndexGraveyard::fromXContent)
         );
+        // Project scoped persistent tasks
         entries.add(
             new NamedXContentRegistry.Entry(
                 Metadata.ProjectCustom.class,
                 new ParseField(PersistentTasksCustomMetadata.TYPE),
                 PersistentTasksCustomMetadata::fromXContent
+            )
+        );
+        // Cluster scoped persistent tasks
+        entries.add(
+            new NamedXContentRegistry.Entry(
+                Metadata.ClusterCustom.class,
+                new ParseField(ClusterPersistentTasksCustomMetadata.TYPE),
+                ClusterPersistentTasksCustomMetadata::fromXContent
             )
         );
         entries.add(

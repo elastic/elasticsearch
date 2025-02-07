@@ -209,7 +209,7 @@ public class ElasticInferenceService extends SenderService {
 
         configuration = new Configuration(authRef.get().taskTypesAndModels.getAuthorizedTaskTypes());
 
-        defaultConfigIds().forEach(modelRegistry::addDefaultIds);
+        defaultConfigIds().forEach(modelRegistry::putDefaultIdIfAbsent);
         handleRevokedDefaultConfigs(authorizedDefaultModelIds);
     }
 

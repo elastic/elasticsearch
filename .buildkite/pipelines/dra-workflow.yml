@@ -20,4 +20,5 @@ steps:
       env:
         DRA_WORKFLOW: staging
         USE_PROD_DOCKER_CREDENTIALS: "true"
+        VERSION_QUALIFIER: "${VERSION_QUALIFIER}"
     if: build.env('DRA_WORKFLOW') == 'staging'

@@ -77,8 +77,11 @@ public class ReproduceInfoPrinter extends RunListener {
         }
         b.append(failure.getDescription().getClassName());
 
-        final String methodName = failure.getDescription().getMethodName();
+        String methodName = failure.getDescription().getMethodName();
         if (methodName != null) {
+            // Method names only have spaces if used with -Dtests.iters where the seed is appended.
+            // Here we strip out anything from the first space, leaving the real method name intact.
+            methodName = methodName.split(" ")[0];
             // fallback to system property filter when tests contain "."
             if (methodName.contains(".") || isBwcTest) {
                 b.append("\" -Dtests.method=\"");

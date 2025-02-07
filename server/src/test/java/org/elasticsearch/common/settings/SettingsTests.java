@@ -61,6 +61,7 @@ public class SettingsTests extends ESTestCase {
             .replacePropertyPlaceholders()
             .build();
         assertThat(settings.get("setting1"), equalTo(value));
+        fail("foo");
     }
 
     public void testReplacePropertiesPlaceholderSystemVariablesHaveNoEffect() {

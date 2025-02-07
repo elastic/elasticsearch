@@ -188,7 +188,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
 
     public void testSecurityIndicesAreNotRemovedFromUnrestrictedRole() {
         Role role = Role.builder(RESTRICTED_INDICES, randomAlphaOfLength(8))
-            .add(FieldPermissions.DEFAULT, null, IndexPrivilege.ALL, true, false, "*")
+            .add(FieldPermissions.DEFAULT, null, IndexPrivilege.ALL, true, "*")
             .cluster(Set.of("all"), Set.of())
             .build();
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();

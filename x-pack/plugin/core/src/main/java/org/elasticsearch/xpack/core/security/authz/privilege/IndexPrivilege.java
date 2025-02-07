@@ -324,6 +324,12 @@ public final class IndexPrivilege extends Privilege {
      * @see Privilege#sortByAccessLevel
      */
     public static Collection<String> findPrivilegesThatGrant(String action) {
-        return VALUES.entrySet().stream().filter(e -> e.getValue().predicate.test(action)).map(e -> e.getKey()).toList();
+        return VALUES.entrySet()
+            .stream()
+            .filter(e -> e.getValue().predicate.test(action))
+            .map(Map.Entry::getKey)
+            // read_failures is special and should not show up here
+            .filter(p -> false == p.equals("read_failures"))
+            .toList();
     }
 }

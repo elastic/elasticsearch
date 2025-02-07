@@ -291,17 +291,6 @@ public interface Role {
             Set<BytesReference> query,
             IndexPrivilege privilege,
             boolean allowRestrictedIndices,
-            boolean foo,
-            String... indices
-        ) {
-            return add(fieldPermissions, query, privilege, allowRestrictedIndices, IndexComponentSelector.DATA, indices);
-        }
-
-        public Builder add(
-            FieldPermissions fieldPermissions,
-            Set<BytesReference> query,
-            IndexPrivilege privilege,
-            boolean allowRestrictedIndices,
             IndexComponentSelector selector,
             String... indices
         ) {

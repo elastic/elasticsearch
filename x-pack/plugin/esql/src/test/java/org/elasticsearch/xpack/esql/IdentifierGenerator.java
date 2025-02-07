@@ -79,13 +79,13 @@ public class IdentifierGenerator {
         }
 
         var pattern = maybeQuote(index.toString());
+        if (pattern.contains("|")) {
+            pattern = quote(unquoteIndexPattern(pattern));
+        }
+
         if (canAdd(Features.CROSS_CLUSTER, features)) {
             var cluster = maybeQuote(randomIdentifier());
             pattern = maybeQuote(cluster + ":" + pattern);
-        }
-
-        if (pattern.contains("|") && pattern.endsWith("\"") == false) {
-            pattern = quote(unquoteIndexPattern(pattern));
         }
 
         return pattern;

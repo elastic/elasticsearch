@@ -404,6 +404,9 @@ tests:
 - class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
   method: testBottomFieldSort
   issue: https://github.com/elastic/elasticsearch/issues/121503
+- class: org.elasticsearch.xpack.logsdb.LogsdbTestSuiteIT
+  method: test {yaml=/60_synthetic_source_recovery/synthetic recovery for synthetic source mode index}
+  issue: https://github.com/elastic/elasticsearch/issues/122026
 
 # Examples:
 #

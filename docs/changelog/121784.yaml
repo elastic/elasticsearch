@@ -1,5 +1,5 @@
 pr: 121784
-summary: Add a lenient option to text similarity reranking
+summary: Optionally allow text similarity reranking to fail
 area: Search
 type: enhancement
-issues: []
+issues: [116796]

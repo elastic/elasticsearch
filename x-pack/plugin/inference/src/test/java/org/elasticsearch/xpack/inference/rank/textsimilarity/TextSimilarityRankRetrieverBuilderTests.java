@@ -140,7 +140,7 @@ public class TextSimilarityRankRetrieverBuilderTests extends AbstractXContentTes
                   "inference_text": "my-inference-text",
                   "rank_window_size": 100,
                   "min_score": 20.0,
-                  "lenient": true,
+                  "allow_rerank_failures": true,
                   "_name": "foo_reranker"
                 }
               }

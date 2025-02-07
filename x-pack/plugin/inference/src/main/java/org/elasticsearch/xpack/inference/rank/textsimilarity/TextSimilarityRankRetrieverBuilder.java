@@ -44,7 +44,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     public static final ParseField INFERENCE_ID_FIELD = new ParseField("inference_id");
     public static final ParseField INFERENCE_TEXT_FIELD = new ParseField("inference_text");
     public static final ParseField FIELD_FIELD = new ParseField("field");
-    public static final ParseField FAILURES_ALLOWED_FIELD = new ParseField("failures_allowed");
+    public static final ParseField FAILURES_ALLOWED_FIELD = new ParseField("allow_rerank_failures");
 
     public static final ConstructingObjectParser<TextSimilarityRankRetrieverBuilder, RetrieverParserContext> PARSER =
         new ConstructingObjectParser<>(TextSimilarityRankBuilder.NAME, args -> {

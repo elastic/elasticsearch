@@ -1687,10 +1687,8 @@ public class IndexNameExpressionResolver {
             Set<ResolvedExpression> resources = new HashSet<>();
             if (context.isPreserveAliases() && indexAbstraction.getType() == Type.ALIAS) {
                 resources.add(new ResolvedExpression(indexAbstraction.getName(), selector));
-                // TODO-MARY expandToApplicableSelectors(indexAbstraction, selector, resources);
             } else if (context.isPreserveDataStreams() && indexAbstraction.getType() == Type.DATA_STREAM) {
                 resources.add(new ResolvedExpression(indexAbstraction.getName(), selector));
-                // TODO-MARY expandToApplicableSelectors(indexAbstraction, selector, resources);
             } else {
                 if (shouldIncludeRegularIndices(context.getOptions(), selector)) {
                     for (int i = 0, n = indexAbstraction.getIndices().size(); i < n; i++) {
@@ -1715,24 +1713,6 @@ public class IndexNameExpressionResolver {
                 }
             }
             return resources;
-        }
-
-        /**
-         * Adds the abstraction and selector to the results when preserving data streams and aliases at wildcard resolution. If a selector
-         * is provided, the result is only added if the selector is applicable to the abstraction provided.
-         * @param indexAbstraction abstraction to add
-         * @param selector The selector to add
-         * @param resources Result collector which is updated with all applicable resolved expressions for a given abstraction and selector
-         *                  pair.
-         */
-        private static void expandToApplicableSelectors(
-            IndexAbstraction indexAbstraction,
-            IndexComponentSelector selector,
-            Set<ResolvedExpression> resources
-        ) {
-            if (selector == null || indexAbstraction.isDataStreamRelated() || selector.shouldIncludeFailures() == false) {
-                resources.add(new ResolvedExpression(indexAbstraction.getName(), selector));
-            }
         }
 
         private static List<ResolvedExpression> resolveEmptyOrTrivialWildcard(Context context, IndexComponentSelector selector) {

@@ -73,7 +73,7 @@ public class MedianTests extends AbstractAggregationTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(suppliers, true);
     }
 
     @Override

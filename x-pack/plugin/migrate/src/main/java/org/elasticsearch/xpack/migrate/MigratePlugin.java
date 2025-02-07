@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.migrate.task.ReindexDataStreamTask;
 import org.elasticsearch.xpack.migrate.task.ReindexDataStreamTaskParams;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -64,6 +65,18 @@ import static org.elasticsearch.xpack.migrate.action.ReindexDataStreamIndexTrans
 import static org.elasticsearch.xpack.migrate.task.ReindexDataStreamPersistentTaskExecutor.MAX_CONCURRENT_INDICES_REINDEXED_PER_DATA_STREAM_SETTING;
 
 public class MigratePlugin extends Plugin implements ActionPlugin, PersistentTaskPlugin {
+    @Override
+    public Collection<?> createComponents(PluginServices services) {
+        var registry = new MigrateTemplateRegistry(
+            services.environment().settings(),
+            services.clusterService(),
+            services.threadPool(),
+            services.client(),
+            services.xContentRegistry()
+        );
+        registry.initialize();
+        return List.of(registry);
+    }
 
     @Override
     public List<RestHandler> getRestHandlers(

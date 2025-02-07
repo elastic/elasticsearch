@@ -12,16 +12,16 @@ package org.elasticsearch.internal;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexVersion;
 
-import java.util.List;
+import java.util.Collection;
 
 /**
  * Allows plugging in current version elements.
  */
 public interface VersionExtension {
     /**
-     * Returns list of {@link TransportVersion} defined by extension
+     * Returns additional {@link TransportVersion} defined by extension
      */
-    List<TransportVersion> getTransportVersions();
+    Collection<TransportVersion> getTransportVersions();
 
     /**
      * Returns the {@link IndexVersion} that Elasticsearch should use.

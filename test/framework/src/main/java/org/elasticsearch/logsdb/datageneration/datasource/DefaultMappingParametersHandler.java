@@ -33,6 +33,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             case KEYWORD -> keywordMapping(request, map);
             case LONG, INTEGER, SHORT, BYTE, DOUBLE, FLOAT, HALF_FLOAT, UNSIGNED_LONG -> plain(map);
             case SCALED_FLOAT -> scaledFloatMapping(map);
+            case COUNTED_KEYWORD -> plain(Map.of("index", ESTestCase.randomBoolean()));
         });
     }
 
@@ -62,6 +63,9 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
 
             if (ESTestCase.randomDouble() <= 0.2) {
                 injected.put("ignore_above", ESTestCase.randomIntBetween(1, 100));
+            }
+            if (ESTestCase.randomDouble() <= 0.2) {
+                injected.put("null_value", ESTestCase.randomAlphaOfLengthBetween(0, 10));
             }
 
             return injected;

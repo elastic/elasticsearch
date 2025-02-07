@@ -86,6 +86,7 @@ steps:
             ES_RUNTIME_JAVA:
               - openjdk21
               - openjdk23
+              - openjdk24
             GRADLE_TASK:
               - checkPart1
               - checkPart2

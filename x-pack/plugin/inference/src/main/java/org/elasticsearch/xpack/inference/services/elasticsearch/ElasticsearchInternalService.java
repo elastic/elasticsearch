@@ -15,6 +15,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -33,13 +34,13 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
-import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
@@ -110,8 +111,11 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     private static final Logger logger = LogManager.getLogger(ElasticsearchInternalService.class);
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(ElasticsearchInternalService.class);
 
+    private final Settings settings;
+
     public ElasticsearchInternalService(InferenceServiceExtension.InferenceServiceFactoryContext context) {
         super(context);
+        this.settings = context.settings();
     }
 
     // for testing
@@ -120,6 +124,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         Consumer<ActionListener<PreferredModelVariant>> platformArch
     ) {
         super(context, platformArch);
+        this.settings = context.settings();
     }
 
     @Override
@@ -562,6 +567,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             model.getServiceSettings().getNumThreads(),
             model.getServiceSettings().modelId(),
             model.getServiceSettings().getAdaptiveAllocationsSettings(),
+            model.getServiceSettings().getDeploymentId(),
             embeddingSize,
             model.getServiceSettings().similarity(),
             model.getServiceSettings().elementType()
@@ -837,8 +843,13 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
     @Override
     public void updateModelsWithDynamicFields(List<Model> models, ActionListener<List<Model>> listener) {
-
         if (models.isEmpty()) {
+            listener.onResponse(models);
+            return;
+        }
+
+        // if ML is disabled, do not update Deployment Stats (there won't be changes)
+        if (XPackSettings.MACHINE_LEARNING_ENABLED.get(settings) == false) {
             listener.onResponse(models);
             return;
         }
@@ -903,12 +914,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             DEFAULT_ELSER_ID,
             TaskType.SPARSE_EMBEDDING,
             NAME,
-            new ElserInternalServiceSettings(
-                null,
-                1,
-                useLinuxOptimizedModel ? ELSER_V2_MODEL_LINUX_X86 : ELSER_V2_MODEL,
-                new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 32)
-            ),
+            ElserInternalServiceSettings.defaultEndpointSettings(useLinuxOptimizedModel),
             ElserMlNodeTaskSettings.DEFAULT,
             ChunkingSettingsBuilder.DEFAULT_SETTINGS
         );
@@ -916,19 +922,14 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             DEFAULT_E5_ID,
             TaskType.TEXT_EMBEDDING,
             NAME,
-            new MultilingualE5SmallInternalServiceSettings(
-                null,
-                1,
-                useLinuxOptimizedModel ? MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86 : MULTILINGUAL_E5_SMALL_MODEL_ID,
-                new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 32)
-            ),
+            MultilingualE5SmallInternalServiceSettings.defaultEndpointSettings(useLinuxOptimizedModel),
             ChunkingSettingsBuilder.DEFAULT_SETTINGS
         );
         var defaultRerank = new ElasticRerankerModel(
             DEFAULT_RERANK_ID,
             TaskType.RERANK,
             NAME,
-            new ElasticRerankerServiceSettings(null, 1, RERANKER_ID, new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 32)),
+            ElasticRerankerServiceSettings.defaultEndpointSettings(),
             RerankTaskSettings.DEFAULT_SETTINGS
         );
         return List.of(defaultElser, defaultE5, defaultRerank);

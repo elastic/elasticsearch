@@ -11,6 +11,7 @@ package org.elasticsearch.example;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse.Indices;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -85,10 +86,13 @@ public class CustomAuthorizationEngine implements AuthorizationEngine {
     }
 
     @Override
-    public void authorizeIndexAction(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                                     AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
-                                     Map<String, IndexAbstraction> aliasOrIndexLookup,
-                                     ActionListener<IndexAuthorizationResult> listener) {
+    public void authorizeIndexAction(
+        RequestInfo requestInfo,
+        AuthorizationInfo authorizationInfo,
+        AsyncSupplier<ResolvedIndices> indicesAsyncSupplier,
+        Metadata metadata,
+        ActionListener<IndexAuthorizationResult> listener
+    ) {
         if (isSuperuser(requestInfo.getAuthentication().getEffectiveSubject().getUser())) {
             indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
                 Map<String, IndexAccessControl> indexAccessControlMap = new HashMap<>();

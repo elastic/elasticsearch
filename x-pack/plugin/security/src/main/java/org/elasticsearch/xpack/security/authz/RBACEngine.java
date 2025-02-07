@@ -920,7 +920,7 @@ public class RBACEngine implements AuthorizationEngine {
                 // We check the parent data stream first if there is one. For testing requested indices, this is most likely
                 // more efficient than checking the index name first because we recommend grant privileges over data stream
                 // instead of backing indices.
-                if (indexAbstraction.isConcreteFailureIndexOfDataStream()
+                if (indexAbstraction.isFailureIndexOfDataStream()
                     && predicate.test(indexAbstraction.getParentDataStream(), IndexComponentSelector.FAILURES.getKey())) {
                     return true;
                 }

@@ -467,14 +467,14 @@ public final class IndicesPermission {
             final DataStream ds = indexAbstraction == null ? null : indexAbstraction.getParentDataStream();
             if (ds != null) {
                 if (group.checkIndex(ds.getName())) {
-                    // TODO is this right?
-                    final IndexComponentSelector selectorToCheck = indexAbstraction.isConcreteFailureIndexOfDataStream()
+                    final IndexComponentSelector selectorToCheck = indexAbstraction.isFailureIndexOfDataStream()
                         ? IndexComponentSelector.FAILURES
                         : selector;
-                    return group.checkSelector(selectorToCheck);
+                    if (group.checkSelector(selectorToCheck)) {
+                        return true;
+                    }
                 }
             }
-            // TODO assertions around selector here?
             return group.checkIndex(name) && group.checkSelector(selector);
         }
 

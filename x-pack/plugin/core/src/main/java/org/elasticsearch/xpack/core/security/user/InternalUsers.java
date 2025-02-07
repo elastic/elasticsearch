@@ -161,8 +161,7 @@ public class InternalUsers {
                         IndicesStatsAction.NAME + "*",
                         TransportUpdateSettingsAction.TYPE.name(),
                         DownsampleAction.NAME,
-                        TransportAddIndexBlockAction.TYPE.name(),
-                        "read_failures"
+                        TransportAddIndexBlockAction.TYPE.name()
                     )
                     .allowRestrictedIndices(false)
                     .build(),
@@ -181,8 +180,7 @@ public class InternalUsers {
                         IndicesStatsAction.NAME + "*",
                         TransportUpdateSettingsAction.TYPE.name(),
                         DownsampleAction.NAME,
-                        TransportAddIndexBlockAction.TYPE.name(),
-                        "read_failures"
+                        TransportAddIndexBlockAction.TYPE.name()
                     )
                     .allowRestrictedIndices(true)
                     .build() },
@@ -221,8 +219,7 @@ public class InternalUsers {
                         TransportBulkAction.NAME,
                         TransportIndexAction.NAME,
                         TransportSearchScrollAction.TYPE.name(),
-                        ModifyDataStreamsAction.NAME,
-                        "read_failures"
+                        ModifyDataStreamsAction.NAME
                     )
                     .allowRestrictedIndices(false)
                     .build() },
@@ -246,6 +243,7 @@ public class InternalUsers {
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("*")
+                    // TODO it's a bug this works...
                     .privileges(LazyRolloverAction.NAME, "read_failures")
                     .allowRestrictedIndices(true)
                     .build() },

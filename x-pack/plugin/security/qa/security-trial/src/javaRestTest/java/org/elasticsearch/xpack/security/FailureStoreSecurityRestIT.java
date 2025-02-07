@@ -32,6 +32,7 @@ import static org.hamcrest.Matchers.hasItem;
 public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCase {
 
     private static final String DATA_ACCESS_USER = "data_access_user";
+    private static final String STAR_READ_ONLY_USER = "star_read_only_user";
     private static final String FAILURE_STORE_ACCESS_USER = "failure_store_access_user";
     private static final String BOTH_ACCESS_USER = "both_access_user";
     private static final String WRITE_ACCESS_USER = "write_access_user";
@@ -40,11 +41,13 @@ public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCa
     @SuppressWarnings("unchecked")
     public void testFailureStoreAccess() throws IOException {
         String dataAccessRole = "data_access";
+        String starReadOnlyRole = "star_read_only_access";
         String failureStoreAccessRole = "failure_store_access";
         String bothAccessRole = "both_access";
         String writeAccessRole = "write_access";
 
         createUser(DATA_ACCESS_USER, PASSWORD, List.of(dataAccessRole));
+        createUser(STAR_READ_ONLY_USER, PASSWORD, List.of(starReadOnlyRole));
         createUser(FAILURE_STORE_ACCESS_USER, PASSWORD, List.of(failureStoreAccessRole));
         createUser(BOTH_ACCESS_USER, PASSWORD, randomBoolean() ? List.of(bothAccessRole) : List.of(dataAccessRole, failureStoreAccessRole));
         createUser(WRITE_ACCESS_USER, PASSWORD, List.of(writeAccessRole));
@@ -55,6 +58,12 @@ public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCa
               "cluster": ["all"],
               "indices": [{"names": ["test*"], "privileges": ["read"]}]
             }"""), dataAccessRole);
+        upsertRole(Strings.format("""
+            {
+              "description": "Role with data access",
+              "cluster": ["all"],
+              "indices": [{"names": ["*"], "privileges": ["read"]}]
+            }"""), starReadOnlyRole);
         upsertRole(Strings.format("""
             {
               "description": "Role with failure store access",
@@ -95,6 +104,9 @@ public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCa
 
         String dataIndexName = dataIndexNames.get(0);
         String failureIndexName = failureIndexNames.get(0);
+
+        // `*` with read access user _can_ read concrete failure index with only read
+        assertContainsDocIds(performRequest(STAR_READ_ONLY_USER, new Request("GET", "/" + failureIndexName + "/_search")), failedDocId);
 
         // user with access to failures index
         assertContainsDocIds(performRequest(FAILURE_STORE_ACCESS_USER, new Request("GET", "/test1::failures/_search")), failedDocId);

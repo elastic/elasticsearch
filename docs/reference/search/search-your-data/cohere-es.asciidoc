@@ -267,7 +267,7 @@ for hit in response["hits"]["hits"]:
 [[cohere-es-rerank-results]]
 ===== Rerank search results
 
-To combine the results more effectively, use 
+To combine the results more effectively, use
 https://docs.cohere.com/docs/rerank-2[Cohere's Rerank v3] model through the
 {infer} API to provide a more precise semantic reranking of the results.
 
@@ -297,7 +297,7 @@ Rerank the results using the new {infer} endpoint.
 [source,py]
 --------------------------------------------------
 # Pass the query and the search results to the service
-response = client.inference.inference(
+response = client.inference.rerank(
     inference_id="cohere_rerank",
     body={
         "query": query,
@@ -322,7 +322,7 @@ for document in ranked_documents[0:10]:
 --------------------------------------------------
 
 The response is a list of documents in descending order of relevance. Each
-document has a corresponding index that reflects the order of the documents when 
+document has a corresponding index that reflects the order of the documents when
 they were sent to the {infer} endpoint.
 
 
@@ -335,7 +335,7 @@ With the ranked results, you can build a RAG system on the top of what you previ
 
 Pass in the retrieved documents and the query to receive a grounded response using Cohere's newest generative model https://docs.cohere.com/docs/command-r-plus[Command R+].
 
-Then pass in the query and the documents to the Chat API, and print out the response. 
+Then pass in the query and the documents to the Chat API, and print out the response.
 
 [source,py]
 --------------------------------------------------

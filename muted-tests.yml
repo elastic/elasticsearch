@@ -358,9 +358,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.ClassificationIT
   method: testDependentVariableIsAliasToKeyword
   issue: https://github.com/elastic/elasticsearch/issues/121492
-- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryUnavailableRemotesIT
-  method: testRemoteOnlyCCSAgainstDisconnectedRemoteWithSkipUnavailableTrue
-  issue: https://github.com/elastic/elasticsearch/issues/121578
 - class: org.elasticsearch.xpack.esql.action.CrossClustersCancellationIT
   method: testTasks
   issue: https://github.com/elastic/elasticsearch/issues/121626
@@ -376,16 +373,37 @@ tests:
 - class: org.elasticsearch.search.CrossClusterSearchUnavailableClusterIT
   method: testSearchSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/121497
-- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
-  method: testStopQueryLocal
-  issue: https://github.com/elastic/elasticsearch/issues/121672
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/121411
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/cat/health/cat-health-no-timestamp-example}
   issue: https://github.com/elastic/elasticsearch/issues/121867
-- class: org.elasticsearch.xpack.searchablesnapshots.minio.MinioSearchableSnapshotsIT
-  issue: https://github.com/elastic/elasticsearch/issues/121882
+- class: org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests
+  method: testCreateAndRestorePartialSearchableSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/121927
+- class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
+  method: test {yaml=analysis-common/40_token_filters/stemmer_override file access}
+  issue: https://github.com/elastic/elasticsearch/issues/121625
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=update/100_synthetic_source/stored text}
+  issue: https://github.com/elastic/elasticsearch/issues/121964
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=update/100_synthetic_source/keyword}
+  issue: https://github.com/elastic/elasticsearch/issues/121965
+- class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderTests
+  method: testDoNotRetryOnRequestLevelFailure
+  issue: https://github.com/elastic/elasticsearch/issues/121966
+- class: org.elasticsearch.xpack.searchablesnapshots.hdfs.SecureHdfsSearchableSnapshotsIT
+  issue: https://github.com/elastic/elasticsearch/issues/121967
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=update/100_synthetic_source/stored text}
+  issue: https://github.com/elastic/elasticsearch/issues/121991
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=update/100_synthetic_source/keyword}
+  issue: https://github.com/elastic/elasticsearch/issues/121992
+- class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
+  method: testBottomFieldSort
+  issue: https://github.com/elastic/elasticsearch/issues/121503
 
 # Examples:
 #

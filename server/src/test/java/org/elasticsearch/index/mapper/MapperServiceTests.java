@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
@@ -312,6 +313,9 @@ public class MapperServiceTests extends MapperServiceTestCase {
         for (String builtIn : IndicesModule.getBuiltInMetadataFields()) {
             if (NestedPathFieldMapper.NAME.equals(builtIn) && version.before(IndexVersions.V_8_0_0)) {
                 continue;   // Nested field does not exist in the 7x line
+            }
+            if (mapperService.getIndexSettings().getMode() == IndexMode.STANDARD && (builtIn.equals("_tsid") || builtIn.equals("_ts_routing_hash"))) {
+                continue;   // both these fields are not available in Standard index mode
             }
             assertTrue("Expected " + builtIn + " to be a metadata field for version " + version, mapperService.isMetadataField(builtIn));
         }

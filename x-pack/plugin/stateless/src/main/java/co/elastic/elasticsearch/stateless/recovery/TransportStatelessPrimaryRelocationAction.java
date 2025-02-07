@@ -401,10 +401,6 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                     public void onFailure(Exception e) {
                         try {
                             handoffCompleteListener.onFailure(e);
-                            // TODO ES-10573
-                            // In case the source IndexEngine was switched to a HollowIndexEngine, check if there was any lingering
-                            // ingestion in order to initiate unhollowing which will remove the ingestion blocker and switch back
-                            // to an IndexEngine.
                         } finally {
                             handoffResultListener.onFailure(e);
                         }

@@ -10,7 +10,6 @@
 package org.elasticsearch.xpack.inference.external.response.voyageai;
 
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -26,34 +25,27 @@ import org.elasticsearch.xpack.inference.external.request.voyageai.VoyageAIEmbed
 import org.elasticsearch.xpack.inference.external.response.XContentUtils;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingType;
 
-import static org.elasticsearch.xpack.inference.external.response.XContentUtils.consumeUntilObjectEnd;
-import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
-import static org.elasticsearch.xpack.inference.external.response.XContentUtils.positionParserAtTokenAfterField;
-
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.parseList;
+import static org.elasticsearch.xpack.inference.external.response.XContentUtils.consumeUntilObjectEnd;
+import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
+import static org.elasticsearch.xpack.inference.external.response.XContentUtils.positionParserAtTokenAfterField;
 import static org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingType.toLowerCase;
 
 public class VoyageAIEmbeddingsResponseEntity {
     private static final String FAILED_TO_FIND_FIELD_TEMPLATE = "Failed to find required field [%s] in VoyageAI embeddings response";
-    private static final Map<String, CheckedFunction<XContentParser, InferenceServiceResults, IOException>> EMBEDDING_PARSERS = Map.of(
-        toLowerCase(VoyageAIEmbeddingType.FLOAT),
-        VoyageAIEmbeddingsResponseEntity::parseFloatEmbeddingsArray,
-        toLowerCase(VoyageAIEmbeddingType.INT8),
-        VoyageAIEmbeddingsResponseEntity::parseByteEmbeddingsArray,
-        toLowerCase(VoyageAIEmbeddingType.BINARY),
-        VoyageAIEmbeddingsResponseEntity::parseBitEmbeddingsArray
-    );
 
     private static final String VALID_EMBEDDING_TYPES_STRING = supportedEmbeddingTypes();
 
     private static String supportedEmbeddingTypes() {
-        var validTypes = EMBEDDING_PARSERS.keySet().toArray(String[]::new);
+        String[] validTypes = new String[] {
+            toLowerCase(VoyageAIEmbeddingType.FLOAT),
+            toLowerCase(VoyageAIEmbeddingType.INT8),
+            toLowerCase(VoyageAIEmbeddingType.BIT) };
         Arrays.sort(validTypes);
         return String.join(", ", validTypes);
     }
@@ -105,7 +97,7 @@ public class VoyageAIEmbeddingsResponseEntity {
      */
     public static InferenceServiceResults fromResponse(Request request, HttpResult response) throws IOException {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
-        VoyageAIEmbeddingType embeddingType = ((VoyageAIEmbeddingsRequest)request).getServiceSettings().getEmbeddingType();
+        VoyageAIEmbeddingType embeddingType = ((VoyageAIEmbeddingsRequest) request).getServiceSettings().getEmbeddingType();
 
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {
             moveToFirstToken(jsonParser);
@@ -115,22 +107,31 @@ public class VoyageAIEmbeddingsResponseEntity {
 
             positionParserAtTokenAfterField(jsonParser, "data", FAILED_TO_FIND_FIELD_TEMPLATE);
 
-            if(embeddingType == null || embeddingType == VoyageAIEmbeddingType.FLOAT) {
+            if (embeddingType == null || embeddingType == VoyageAIEmbeddingType.FLOAT) {
                 List<InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding> embeddingList = parseList(
                     jsonParser,
                     VoyageAIEmbeddingsResponseEntity::parseEmbeddingObjectFloat
                 );
 
                 return new InferenceTextEmbeddingFloatResults(embeddingList);
-            } else if(embeddingType == VoyageAIEmbeddingType.INT8) {
+            } else if (embeddingType == VoyageAIEmbeddingType.INT8) {
                 List<InferenceByteEmbedding> embeddingList = parseList(
                     jsonParser,
                     VoyageAIEmbeddingsResponseEntity::parseEmbeddingObjectByte
                 );
 
                 return new InferenceTextEmbeddingByteResults(embeddingList);
+            } else if (embeddingType == VoyageAIEmbeddingType.BIT || embeddingType == VoyageAIEmbeddingType.BINARY) {
+                List<InferenceByteEmbedding> embeddingList = parseList(
+                    jsonParser,
+                    VoyageAIEmbeddingsResponseEntity::parseEmbeddingObjectBit
+                );
+
+                return new InferenceTextEmbeddingBitResults(embeddingList);
             } else {
-                throw new IllegalArgumentException("Illegal output_dtype value: " + embeddingType);
+                throw new IllegalArgumentException(
+                    "Illegal embedding_type value: " + embeddingType + ". Supported types are: " + VALID_EMBEDDING_TYPES_STRING
+                );
             }
         }
     }
@@ -148,8 +149,7 @@ public class VoyageAIEmbeddingsResponseEntity {
         return InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding.of(embeddingValuesList);
     }
 
-    private static InferenceByteEmbedding parseEmbeddingObjectByte(XContentParser parser)
-        throws IOException {
+    private static InferenceByteEmbedding parseEmbeddingObjectByte(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
 
         positionParserAtTokenAfterField(parser, "embedding", FAILED_TO_FIND_FIELD_TEMPLATE);
@@ -161,21 +161,14 @@ public class VoyageAIEmbeddingsResponseEntity {
         return InferenceByteEmbedding.of(embeddingValuesList);
     }
 
-    private static InferenceServiceResults parseBitEmbeddingsArray(XContentParser parser) throws IOException {
-        var embeddingList = parseList(parser, VoyageAIEmbeddingsResponseEntity::parseByteArrayEntry);
+    private static InferenceByteEmbedding parseEmbeddingObjectBit(XContentParser parser) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
 
-        return new InferenceTextEmbeddingBitResults(embeddingList);
-    }
+        positionParserAtTokenAfterField(parser, "embedding", FAILED_TO_FIND_FIELD_TEMPLATE);
 
-    private static InferenceServiceResults parseByteEmbeddingsArray(XContentParser parser) throws IOException {
-        var embeddingList = parseList(parser, VoyageAIEmbeddingsResponseEntity::parseByteArrayEntry);
-
-        return new InferenceTextEmbeddingByteResults(embeddingList);
-    }
-
-    private static InferenceByteEmbedding parseByteArrayEntry(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
-        List<Byte> embeddingValuesList = parseList(parser, VoyageAIEmbeddingsResponseEntity::parseEmbeddingInt8Entry);
+        List<Byte> embeddingValuesList = parseList(parser, VoyageAIEmbeddingsResponseEntity::parseEmbeddingBitEntry);
+        // parse and discard the rest of the object
+        consumeUntilObjectEnd(parser);
 
         return InferenceByteEmbedding.of(embeddingValuesList);
     }
@@ -189,23 +182,19 @@ public class VoyageAIEmbeddingsResponseEntity {
         return (byte) parsedByte;
     }
 
+    private static Byte parseEmbeddingBitEntry(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+        var parsedBit = parser.shortValue();
+        checkByteBounds(parsedBit);
+
+        return (byte) parsedBit;
+    }
+
     private static void checkByteBounds(short value) {
         if (value < Byte.MIN_VALUE || value > Byte.MAX_VALUE) {
             throw new IllegalArgumentException("Value [" + value + "] is out of range for a byte");
         }
-    }
-
-    private static InferenceServiceResults parseFloatEmbeddingsArray(XContentParser parser) throws IOException {
-        var embeddingList = parseList(parser, VoyageAIEmbeddingsResponseEntity::parseFloatArrayEntry);
-
-        return new InferenceTextEmbeddingFloatResults(embeddingList);
-    }
-
-    private static InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding parseFloatArrayEntry(XContentParser parser)
-        throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
-        List<Float> embeddingValuesList = parseList(parser, XContentUtils::parseFloat);
-        return InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding.of(embeddingValuesList);
     }
 
     private VoyageAIEmbeddingsResponseEntity() {}

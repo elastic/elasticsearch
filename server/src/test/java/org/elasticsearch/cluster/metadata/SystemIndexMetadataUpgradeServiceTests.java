@@ -110,7 +110,28 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
             .setSystem(false)
             .build();
 
-        assertSystemUpgradeAppliesHiddenSettingForDataStream(dataStream, dsIndexMetadata);
+        assertTrue(dataStream.containsIndex(dsIndexMetadata.getIndex().getName()));
+        assertTrue("Metadata should require update but does not", service.requiresUpdate(dsIndexMetadata));
+
+        Metadata.Builder clusterMetadata = new Metadata.Builder();
+        clusterMetadata.put(dataStream);
+        clusterMetadata.put(dsIndexMetadata, true);
+
+        ClusterState clusterState = ClusterState.builder(new ClusterName("system-index-metadata-upgrade-service-tests"))
+            .metadata(clusterMetadata.build())
+            .customs(Map.of())
+            .build();
+
+        // Execute a metadata upgrade task on the initial cluster state
+        ClusterState newState = service.executeMetadataUpdateTask(clusterState);
+
+        DataStream updatedDataStream = newState.metadata().dataStreams().get(dataStream.getName());
+        assertThat(updatedDataStream.isSystem(), equalTo(true));
+        assertThat(updatedDataStream.isHidden(), equalTo(true));
+
+        IndexMetadata updatedIndexMetadata = newState.metadata().index(dsIndexMetadata.getIndex().getName());
+        assertThat(updatedIndexMetadata.isSystem(), equalTo(true));
+        assertThat(updatedIndexMetadata.isHidden(), equalTo(true));
     }
 
     /**
@@ -263,31 +284,6 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
         IndexMetadata result = newState.metadata().index(SYSTEM_INDEX_NAME);
         assertThat(result.isSystem(), equalTo(true));
         assertThat(result.isHidden(), equalTo(true));
-    }
-
-    private void assertSystemUpgradeAppliesHiddenSettingForDataStream(DataStream shouldBeSystemDataStream, IndexMetadata dsIndexMetadata) {
-        assertTrue(shouldBeSystemDataStream.containsIndex(dsIndexMetadata.getIndex().getName()));
-        assertTrue("Metadata should require update but does not", service.requiresUpdate(dsIndexMetadata));
-
-        Metadata.Builder clusterMetadata = new Metadata.Builder();
-        clusterMetadata.put(shouldBeSystemDataStream);
-        clusterMetadata.put(dsIndexMetadata, true);
-
-        ClusterState clusterState = ClusterState.builder(new ClusterName("system-index-metadata-upgrade-service-tests"))
-            .metadata(clusterMetadata.build())
-            .customs(Map.of())
-            .build();
-
-        // Execute a metadata upgrade task on the initial cluster state
-        ClusterState newState = service.executeMetadataUpdateTask(clusterState);
-
-        DataStream updatedDataStream = newState.metadata().dataStreams().get(shouldBeSystemDataStream.getName());
-        assertThat(updatedDataStream.isSystem(), equalTo(true));
-        assertThat(updatedDataStream.isHidden(), equalTo(true));
-
-        IndexMetadata updatedIndexMetadata = newState.metadata().index(dsIndexMetadata.getIndex().getName());
-        assertThat(updatedIndexMetadata.isSystem(), equalTo(true));
-        assertThat(updatedIndexMetadata.isHidden(), equalTo(true));
     }
 
     private void assertSystemUpgradeHidesAlias(IndexMetadata visibleAliasMetadata) throws Exception {

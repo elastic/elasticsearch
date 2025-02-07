@@ -105,4 +105,38 @@ public class SourceMatcherTests extends ESTestCase {
         var sut = new SourceMatcher(mapping, Settings.builder(), mapping, Settings.builder(), actual, expected, false);
         assertFalse(sut.match().isMatch());
     }
+
+    public void testCountedKeywordMatch() throws IOException {
+        List<Map<String, Object>> actual = List.of(Map.of("field", List.of("a", "b", "a", "c", "b", "a")));
+        List<Map<String, Object>> expected = List.of(Map.of("field", List.of("a", "b", "a", "c", "b", "a")));
+
+        var mapping = XContentBuilder.builder(XContentType.JSON.xContent());
+        mapping.startObject();
+        mapping.startObject("_doc");
+        {
+            mapping.startObject("field").field("type", "counted_keyword").endObject();
+        }
+        mapping.endObject();
+        mapping.endObject();
+
+        var sut = new SourceMatcher(mapping, Settings.builder(), mapping, Settings.builder(), actual, expected, false);
+        assertTrue(sut.match().isMatch());
+    }
+
+    public void testCountedKeywordMismatch() throws IOException {
+        List<Map<String, Object>> actual = List.of(Map.of("field", List.of("a", "b", "a", "c", "b", "a")));
+        List<Map<String, Object>> expected = List.of(Map.of("field", List.of("a", "b", "c", "a")));
+
+        var mapping = XContentBuilder.builder(XContentType.JSON.xContent());
+        mapping.startObject();
+        mapping.startObject("_doc");
+        {
+            mapping.startObject("field").field("type", "counted_keyword").endObject();
+        }
+        mapping.endObject();
+        mapping.endObject();
+
+        var sut = new SourceMatcher(mapping, Settings.builder(), mapping, Settings.builder(), actual, expected, false);
+        assertFalse(sut.match().isMatch());
+    }
 }

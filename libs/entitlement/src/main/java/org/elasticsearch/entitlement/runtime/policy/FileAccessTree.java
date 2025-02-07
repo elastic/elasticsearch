@@ -9,7 +9,7 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
-import org.elasticsearch.entitlement.runtime.policy.entitlements.FileEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -17,21 +17,25 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
+
 public final class FileAccessTree {
-    public static final FileAccessTree EMPTY = new FileAccessTree(List.of());
+    public static final FileAccessTree EMPTY = new FileAccessTree(FilesEntitlement.EMPTY);
+    private static final String FILE_SEPARATOR = getDefaultFileSystem().getSeparator();
 
     private final String[] readPaths;
     private final String[] writePaths;
 
-    private FileAccessTree(List<FileEntitlement> fileEntitlements) {
+    private FileAccessTree(FilesEntitlement filesEntitlement) {
         List<String> readPaths = new ArrayList<>();
         List<String> writePaths = new ArrayList<>();
-        for (FileEntitlement fileEntitlement : fileEntitlements) {
-            var mode = fileEntitlement.mode();
-            if (mode == FileEntitlement.Mode.READ_WRITE) {
-                writePaths.add(fileEntitlement.path());
+        for (FilesEntitlement.FileData fileData : filesEntitlement.filesData()) {
+            var path = normalizePath(Path.of(fileData.path()));
+            var mode = fileData.mode();
+            if (mode == FilesEntitlement.Mode.READ_WRITE) {
+                writePaths.add(path);
             }
-            readPaths.add(fileEntitlement.path());
+            readPaths.add(path);
         }
 
         readPaths.sort(String::compareTo);
@@ -41,19 +45,25 @@ public final class FileAccessTree {
         this.writePaths = writePaths.toArray(new String[0]);
     }
 
-    public static FileAccessTree of(List<FileEntitlement> fileEntitlements) {
-        return new FileAccessTree(fileEntitlements);
+    public static FileAccessTree of(FilesEntitlement filesEntitlement) {
+        return new FileAccessTree(filesEntitlement);
     }
 
     boolean canRead(Path path) {
-        return checkPath(normalize(path), readPaths);
+        return checkPath(normalizePath(path), readPaths);
     }
 
     boolean canWrite(Path path) {
-        return checkPath(normalize(path), writePaths);
+        return checkPath(normalizePath(path), writePaths);
     }
 
-    private static String normalize(Path path) {
+    /**
+     * @return the "canonical" form of the given {@code path}, to be used for entitlement checks.
+     */
+    static String normalizePath(Path path) {
+        // Note that toAbsolutePath produces paths separated by the default file separator,
+        // so on Windows, if the given path uses forward slashes, this consistently
+        // converts it to backslashes.
         return path.toAbsolutePath().normalize().toString();
     }
 
@@ -64,7 +74,7 @@ public final class FileAccessTree {
         int ndx = Arrays.binarySearch(paths, path);
         if (ndx < -1) {
             String maybeParent = paths[-ndx - 2];
-            return path.startsWith(maybeParent);
+            return path.startsWith(maybeParent) && path.startsWith(FILE_SEPARATOR, maybeParent.length());
         }
         return ndx >= 0;
     }

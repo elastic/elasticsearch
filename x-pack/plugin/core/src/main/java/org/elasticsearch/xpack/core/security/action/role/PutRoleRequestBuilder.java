@@ -14,7 +14,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -75,19 +74,6 @@ public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, 
         String[] deniedFields,
         @Nullable BytesReference query,
         boolean allowRestrictedIndices
-    ) {
-        request.addIndex(indices, privileges, grantedFields, deniedFields, query, allowRestrictedIndices);
-        return this;
-    }
-
-    public PutRoleRequestBuilder addIndices(
-        String[] indices,
-        String[] privileges,
-        String[] grantedFields,
-        String[] deniedFields,
-        @Nullable BytesReference query,
-        boolean allowRestrictedIndices,
-        List<String> selectors
     ) {
         request.addIndex(indices, privileges, grantedFields, deniedFields, query, allowRestrictedIndices);
         return this;

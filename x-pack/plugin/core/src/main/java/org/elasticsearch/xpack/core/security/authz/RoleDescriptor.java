@@ -12,7 +12,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -1335,7 +1334,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
      */
     public static class IndicesPrivileges implements ToXContentObject, Writeable, Comparable<IndicesPrivileges> {
 
-        private static final List<String> DEFAULT_SELECTORS = List.of(IndexComponentSelector.DATA.getKey());
         private static final IndicesPrivileges[] NONE = new IndicesPrivileges[0];
 
         private String[] indices;
@@ -1430,7 +1428,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
 
         @Override
         public String toString() {
-            // TODO selectors
             StringBuilder sb = new StringBuilder("IndicesPrivileges[");
             sb.append("indices=[").append(Strings.arrayToCommaDelimitedString(indices));
             sb.append("], allowRestrictedIndices=[").append(allowRestrictedIndices);
@@ -1881,7 +1878,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         ParseField APPLICATIONS = new ParseField("applications");
         ParseField RUN_AS = new ParseField("run_as");
         ParseField NAMES = new ParseField("names");
-        ParseField SELECTORS = new ParseField("selectors");
         ParseField ALLOW_RESTRICTED_INDICES = new ParseField("allow_restricted_indices");
         ParseField RESOURCES = new ParseField("resources");
         ParseField QUERY = new ParseField("query");

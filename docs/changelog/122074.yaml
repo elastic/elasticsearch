@@ -1,0 +1,6 @@
+pr: 122074
+summary: Delete Alias Write Index
+area: Transform
+type: bug
+issues:
+ - 121913

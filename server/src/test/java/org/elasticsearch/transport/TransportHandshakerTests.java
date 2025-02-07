@@ -8,7 +8,11 @@
  */
 package org.elasticsearch.transport;
 
+import org.apache.logging.log4j.Level;
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -17,13 +21,17 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -90,6 +98,42 @@ public class TransportHandshakerTests extends ESTestCase {
         assertEquals(TransportVersion.current(), versionFuture.actionGet());
     }
 
+    @TestLogging(reason = "testing WARN logging", value = "org.elasticsearch.transport.TransportHandshaker:WARN")
+    public void testIncompatibleHandshakeRequest() throws IOException {
+        TransportHandshaker.HandshakeRequest handshakeRequest = new TransportHandshaker.HandshakeRequest(
+            getRandomIncompatibleTransportVersion(),
+            randomIdentifier()
+        );
+        BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
+        bytesStreamOutput.setTransportVersion(HANDSHAKE_REQUEST_VERSION);
+        handshakeRequest.writeTo(bytesStreamOutput);
+        StreamInput input = bytesStreamOutput.bytes().streamInput();
+        input.setTransportVersion(HANDSHAKE_REQUEST_VERSION);
+        final TestTransportChannel channel = new TestTransportChannel(ActionListener.running(() -> fail("should not complete")));
+
+        MockLog.assertThatLogger(
+            () -> assertThat(
+                expectThrows(IllegalStateException.class, () -> handshaker.handleHandshake(channel, randomNonNegativeLong(), input))
+                    .getMessage(),
+                allOf(
+                    containsString("Rejecting unreadable transport handshake"),
+                    containsString(
+                        "[" + handshakeRequest.transportVersion.toReleaseVersion() + "/" + handshakeRequest.transportVersion + "]"
+                    ),
+                    containsString("[" + Build.current().version() + "/" + TransportVersion.current() + "]"),
+                    containsString("which has an incompatible wire format")
+                )
+            ),
+            TransportHandshaker.class,
+            new MockLog.SeenEventExpectation(
+                "warning",
+                TransportHandshaker.class.getCanonicalName(),
+                Level.WARN,
+                "Rejecting unreadable transport handshake * incompatible wire format."
+            )
+        );
+    }
+
     public void testHandshakeResponseFromOlderNode() throws Exception {
         final PlainActionFuture<TransportVersion> versionFuture = new PlainActionFuture<>();
         final long reqId = randomNonNegativeLong();
@@ -103,6 +147,54 @@ public class TransportHandshakerTests extends ESTestCase {
 
         assertTrue(versionFuture.isDone());
         assertEquals(remoteVersion, versionFuture.result());
+    }
+
+    @TestLogging(reason = "testing WARN logging", value = "org.elasticsearch.transport.TransportHandshaker:WARN")
+    public void testHandshakeResponseFromOlderNodeWithPatchedProtocol() {
+        final PlainActionFuture<TransportVersion> versionFuture = new PlainActionFuture<>();
+        final long reqId = randomNonNegativeLong();
+        handshaker.sendHandshake(reqId, node, channel, SAFE_AWAIT_TIMEOUT, versionFuture);
+        TransportResponseHandler<TransportHandshaker.HandshakeResponse> handler = handshaker.removeHandlerForHandshake(reqId);
+
+        assertFalse(versionFuture.isDone());
+
+        final var handshakeResponse = new TransportHandshaker.HandshakeResponse(
+            getRandomIncompatibleTransportVersion(),
+            randomIdentifier()
+        );
+
+        MockLog.assertThatLogger(
+            () -> handler.handleResponse(handshakeResponse),
+            TransportHandshaker.class,
+            new MockLog.SeenEventExpectation(
+                "warning",
+                TransportHandshaker.class.getCanonicalName(),
+                Level.WARN,
+                "Rejecting unreadable transport handshake * incompatible wire format."
+            )
+        );
+
+        assertTrue(versionFuture.isDone());
+        assertThat(
+            expectThrows(ExecutionException.class, IllegalStateException.class, versionFuture::result).getMessage(),
+            allOf(
+                containsString("Rejecting unreadable transport handshake"),
+                containsString("[" + handshakeResponse.getReleaseVersion() + "/" + handshakeResponse.getTransportVersion() + "]"),
+                containsString("[" + Build.current().version() + "/" + TransportVersion.current() + "]"),
+                containsString("which has an incompatible wire format")
+            )
+        );
+    }
+
+    private static TransportVersion getRandomIncompatibleTransportVersion() {
+        return randomBoolean()
+            // either older than MINIMUM_COMPATIBLE
+            ? new TransportVersion(between(1, TransportVersions.MINIMUM_COMPATIBLE.id() - 1))
+            // or between MINIMUM_COMPATIBLE and current but not known
+            : randomValueOtherThanMany(
+                TransportVersion::isKnown,
+                () -> new TransportVersion(between(TransportVersions.MINIMUM_COMPATIBLE.id(), TransportVersion.current().id()))
+            );
     }
 
     public void testHandshakeResponseFromNewerNode() throws Exception {

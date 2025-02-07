@@ -2,4 +2,4 @@ pr: 121784
 summary: Optionally allow text similarity reranking to fail
 area: Search
 type: enhancement
-issues: [116796]
+issues: []

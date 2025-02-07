@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.action.search.RestSearchAction;
@@ -207,6 +208,11 @@ public class AggregationsTests extends ESTestCase {
         XContentType xContentType = randomFrom(XContentType.values());
         final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
         Aggregations aggregations = createTestInstance();
+        if (xContentType.equals(XContentType.YAML) && isLargeAgg(aggregations)) {
+            // restrict YAML xContent response to < 3MB because of limit in snakeyaml input
+            aggregations = randomValueOtherThanMany(AggregationsTests::isLargeAgg, this::createTestInstance);
+        }
+
         BytesReference originalBytes = toShuffledXContent(aggregations, xContentType, params, randomBoolean());
         BytesReference mutated;
         if (addRandomFields) {
@@ -250,6 +256,14 @@ public class AggregationsTests extends ESTestCase {
             BytesReference parsedBytes = XContentHelper.toXContent(parsedAggregations, xContentType, randomBoolean());
             ElasticsearchAssertions.assertToXContentEquivalent(originalBytes, parsedBytes, xContentType);
         }
+    }
+
+    /**
+     * returns true if the aggregation object string is larger than 3 MB since this might create issues with YAML
+     * xContent parsing
+     */
+    private static boolean isLargeAgg(Aggregations agg) {
+        return Strings.toString(agg).length() > 3 * 1024 * 1024;
     }
 
     public void testParsingExceptionOnUnknownAggregation() throws IOException {

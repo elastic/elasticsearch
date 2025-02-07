@@ -16,7 +16,6 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -53,6 +52,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -285,19 +285,22 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         private final Map<String, AliasFilter> aliasFilters;
         private final int totalShards;
         private final long absoluteStartMillis;
+        private final String localClusterAlias;
 
         private NodeQueryRequest(
             List<ShardToQuery> shards,
             SearchRequest searchRequest,
             Map<String, AliasFilter> aliasFilters,
             int totalShards,
-            long absoluteStartMillis
+            long absoluteStartMillis,
+            String localClusterAlias
         ) {
             this.shards = shards;
             this.searchRequest = searchRequest;
             this.aliasFilters = aliasFilters;
             this.totalShards = totalShards;
             this.absoluteStartMillis = absoluteStartMillis;
+            this.localClusterAlias = localClusterAlias;
         }
 
         private NodeQueryRequest(StreamInput in) throws IOException {
@@ -307,6 +310,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
             this.aliasFilters = in.readImmutableMap(AliasFilter::readFrom);
             this.totalShards = in.readVInt();
             this.absoluteStartMillis = in.readLong();
+            this.localClusterAlias = in.readOptionalString();
         }
 
         @Override
@@ -322,6 +326,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
             out.writeMap(aliasFilters, (o, v) -> v.writeTo(o));
             out.writeVInt(totalShards);
             out.writeLong(absoluteStartMillis);
+            out.writeOptionalString(localClusterAlias);
         }
 
         @Override
@@ -395,16 +400,18 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
 
     @Override
     protected void run() {
+        for (final SearchShardIterator iterator : toSkipShardsIts) {
+            assert iterator.skip();
+            skipShard(iterator);
+        }
         // TODO: stupid but we kinda need to fill all of these in with the current logic, do something nicer before merging
         final Map<SearchShardIterator, Integer> shardIndexMap = Maps.newHashMapWithExpectedSize(shardIterators.length);
         for (int i = 0; i < shardIterators.length; i++) {
             shardIndexMap.put(shardIterators[i], i);
         }
-        final boolean supportsBatchedQuery = minTransportVersion.onOrAfter(TransportVersions.BATCHED_QUERY_PHASE_VERSION);
-        final Map<String, NodeQueryRequest> perNodeQueries = new HashMap<>();
+        final Map<CanMatchPreFilterSearchPhase.SendingTarget, NodeQueryRequest> perNodeQueries = new HashMap<>();
         AbstractSearchAsyncAction.doCheckNoMissingShards(getName(), request, shardsIts, AbstractSearchAsyncAction::makeMissingShardsError);
         final String localNodeId = searchTransportService.transportService().getLocalNode().getId();
-        final String localClusterAlias = request.getLocalClusterAlias();
         for (int i = 0; i < shardsIts.size(); i++) {
             final SearchShardIterator shardRoutings = shardsIts.get(i);
             assert shardRoutings.skip() == false;
@@ -414,19 +421,19 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
             if (routing == null) {
                 failOnUnavailable(shardIndex, shardRoutings);
             } else {
-                String clusterAlias = routing.getClusterAlias();
                 final String nodeId = routing.getNodeId();
-                if (supportsBatchedQuery
-                    && localNodeId.equals(nodeId) == false // local requests don't need batching as there's no network latency
-                    && (clusterAlias == null || Objects.equals(localClusterAlias, clusterAlias))) {
+                // local requests don't need batching as there's no network latency
+                final var target = new CanMatchPreFilterSearchPhase.SendingTarget(routing.getClusterAlias(), routing.getNodeId());
+                if (localNodeId.equals(nodeId) == false) {
                     perNodeQueries.computeIfAbsent(
-                        nodeId,
+                        target,
                         ignored -> new NodeQueryRequest(
                             new ArrayList<>(),
                             request,
                             aliasFilter,
                             shardsIts.size(),
-                            timeProvider.absoluteStartMillis()
+                            timeProvider.absoluteStartMillis(),
+                            routing.getClusterAlias()
                         )
                     ).shards.add(
                         new ShardToQuery(
@@ -438,22 +445,29 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
                         )
                     );
                 } else {
-                    performPhaseOnShard(shardIndex, shardRoutings, routing);
+                    performPhaseOnShard(shardIndex, shardRoutings, target);
                 }
             }
         }
-        perNodeQueries.forEach((nodeId, request) -> {
+        perNodeQueries.forEach((routing, request) -> {
             if (request.shards.size() == 1) {
                 var shard = request.shards.getFirst();
                 final int sidx = shard.shardIndex;
-                this.performPhaseOnShard(sidx, shardIterators[sidx], new SearchShardTarget(nodeId, shard.shardId, localClusterAlias));
+                this.performPhaseOnShard(sidx, shardIterators[sidx], routing);
                 return;
             }
             final Transport.Connection connection;
             try {
-                connection = getConnection(localClusterAlias, nodeId);
+                connection = getConnection(routing.clusterAlias(), routing.nodeId());
             } catch (Exception e) {
-                onNodeQueryFailure(e, request, nodeId);
+                onNodeQueryFailure(e, request, routing);
+                return;
+            }
+            if (connection.getTransportVersion().before(TransportVersions.BATCHED_QUERY_PHASE_VERSION)) {
+                for (ShardToQuery shard : request.shards) {
+                    final int sidx = shard.shardIndex;
+                    this.performPhaseOnShard(sidx, shardIterators[sidx], routing);
+                }
                 return;
             }
             searchTransportService.transportService()
@@ -476,7 +490,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
                         for (int i = 0; i < response.results.length; i++) {
                             var s = request.shards.get(i);
                             int shardIdx = s.shardIndex;
-                            final SearchShardTarget target = new SearchShardTarget(nodeId, s.shardId, localClusterAlias);
+                            final SearchShardTarget target = new SearchShardTarget(routing.nodeId(), s.shardId, routing.clusterAlias());
                             switch (response.results[i]) {
                                 case Exception e -> onShardFailure(shardIdx, target, shardIterators[shardIdx], e);
                                 case SearchPhaseResult q -> {
@@ -493,30 +507,30 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
 
                     @Override
                     public void handleException(TransportException e) {
-                        onNodeQueryFailure(e, request, nodeId);
+                        onNodeQueryFailure(e, request, routing);
                     }
                 });
         });
     }
 
-    private void onNodeQueryFailure(Exception e, NodeQueryRequest request, String nodeId) {
+    private void onNodeQueryFailure(Exception e, NodeQueryRequest request, CanMatchPreFilterSearchPhase.SendingTarget target) {
         for (ShardToQuery shard : request.shards) {
             int idx = shard.shardIndex;
-            onShardFailure(
-                idx,
-                new SearchShardTarget(nodeId, shard.shardId, request.searchRequest.getLocalClusterAlias()),
-                shardIterators[idx],
-                e
-            );
+            onShardFailure(idx, new SearchShardTarget(target.nodeId(), shard.shardId, target.clusterAlias()), shardIterators[idx], e);
         }
     }
 
-    protected void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final SearchShardTarget shard) {
+    protected void performPhaseOnShard(
+        final int shardIndex,
+        final SearchShardIterator shardIt,
+        final CanMatchPreFilterSearchPhase.SendingTarget target
+    ) {
+        final var searchShardTarget = new SearchShardTarget(target.nodeId(), shardIt.shardId(), target.clusterAlias());
         final Transport.Connection connection;
         try {
-            connection = getConnection(shard.getClusterAlias(), shard.getNodeId());
+            connection = getConnection(target.clusterAlias(), target.nodeId());
         } catch (Exception e) {
-            onShardFailure(shardIndex, shard, shardIt, e);
+            onShardFailure(shardIndex, searchShardTarget, shardIt, e);
             return;
         }
         final String indexUUID = shardIt.shardId().getIndex().getUUID();
@@ -541,7 +555,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
                 )
             ),
             task,
-            new SearchActionListener<>(shard, shardIndex) {
+            new SearchActionListener<>(searchShardTarget, shardIndex) {
                 @Override
                 public void innerOnResponse(SearchPhaseResult result) {
                     try {
@@ -549,13 +563,12 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
                     } catch (Exception exc) {
                         // TODO: this looks like a nasty bug where it to actually happen
                         assert false : exc;
-                        onShardFailure(shardIndex, shard, shardIt, exc);
                     }
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    onShardFailure(shardIndex, shard, shardIt, e);
+                    onShardFailure(shardIndex, searchShardTarget, shardIt, e);
                 }
             }
         );
@@ -608,7 +621,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
                 }
             }
         );
-
+        TransportActionProxy.registerProxyAction(transportService, NODE_SEARCH_ACTION_NAME, true, NodeQueryResponse::new);
     }
 
     private static void maybeRelease(SearchService searchService, NodeQueryRequest request, SearchPhaseResult result) {
@@ -677,7 +690,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
                         state.trackTotalHitsUpTo,
                         buildShardSearchRequest(
                             shardId,
-                            searchRequest.getLocalClusterAlias(),
+                            request.localClusterAlias,
                             shardToQuery.shardIndex,
                             shardToQuery.contextId,
                             shardToQuery.originalIndices,
@@ -697,7 +710,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
                             try {
                                 searchPhaseResult.setShardIndex(dataNodeLocalIdx);
                                 searchPhaseResult.setSearchShardTarget(
-                                    new SearchShardTarget(null, shardToQuery.shardId, request.searchRequest.getLocalClusterAlias())
+                                    new SearchShardTarget(null, shardToQuery.shardId, request.localClusterAlias)
                                 );
                                 // no need for any cache effects when we're already flipped to ture => plain read + set-release
                                 state.hasResponse.compareAndExchangeRelease(false, true);

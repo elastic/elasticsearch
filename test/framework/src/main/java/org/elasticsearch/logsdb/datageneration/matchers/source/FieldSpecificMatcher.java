@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.logsdb.datageneration.matchers.Messages.formatErrorMessage;
@@ -46,12 +47,17 @@ interface FieldSpecificMatcher {
             this.expectedSettings = expectedSettings;
         }
 
-        private static List<String> normalize(List<Object> values) {
-            return values.stream().filter(Objects::nonNull).map(it -> (String) it).toList();
-        }
+        @Override
+        public MatchResult match(
+            List<Object> actual,
+            List<Object> expected,
+            Map<String, Object> actualMapping,
+            Map<String, Object> expectedMapping
+        ) {
+            var actualNormalized = normalize(actual);
+            var expectedNormalized = normalize(expected);
 
-        private static boolean matchCountsEqualExact(List<String> actualNormalized, List<String> expectedNormalized) {
-            HashMap<String, Integer> counts = new HashMap<>();
+            Map<String, Integer> counts = new TreeMap<>();
             for (String value : actualNormalized) {
                 counts.put(value, counts.getOrDefault(value, 0) + 1);
             }
@@ -64,31 +70,29 @@ interface FieldSpecificMatcher {
                 }
             }
 
-            return counts.isEmpty();
-        }
+            if (counts.isEmpty() == false) {
+                var extraValuesMessage = new StringBuilder("extra values: ");
+                for (var entry : counts.entrySet()) {
+                    extraValuesMessage.append('\n').append(entry.getKey()).append(": ").append(entry.getValue());
+                }
 
-        @Override
-        public MatchResult match(
-            List<Object> actual,
-            List<Object> expected,
-            Map<String, Object> actualMapping,
-            Map<String, Object> expectedMapping
-        ) {
-            var actualNormalized = normalize(actual);
-            var expectedNormalized = normalize(expected);
-
-            return matchCountsEqualExact(actualNormalized, expectedNormalized)
-                ? MatchResult.match()
-                : MatchResult.noMatch(
+                return MatchResult.noMatch(
                     formatErrorMessage(
                         actualMappings,
                         actualSettings,
                         expectedMappings,
                         expectedSettings,
-                        "Values of type [counted_keyword] don't match after normalization, normalized"
+                        "Values of type [counted_keyword] don't match, " + extraValuesMessage + ".\n"
                             + prettyPrintCollections(actualNormalized, expectedNormalized)
                     )
                 );
+            }
+
+            return MatchResult.match();
+        }
+
+        private static List<String> normalize(List<Object> values) {
+            return values.stream().filter(Objects::nonNull).map(it -> (String) it).toList();
         }
     }
 

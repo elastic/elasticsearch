@@ -13,7 +13,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import org.junit.Before;
 
 import static org.elasticsearch.xpack.inference.rest.BaseInferenceActionTests.createResponse;
@@ -21,7 +21,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class RestInferenceActionTests extends RestActionTestCase {
+public class RestInferenceActionProxyTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
@@ -31,9 +31,9 @@ public class RestInferenceActionTests extends RestActionTestCase {
     public void testStreamIsFalse() {
         SetOnce<Boolean> executeCalled = new SetOnce<>();
         verifyingClient.setExecuteVerifier(((actionType, actionRequest) -> {
-            assertThat(actionRequest, instanceOf(InferenceAction.Request.class));
+            assertThat(actionRequest, instanceOf(InferenceActionProxy.Request.class));
 
-            var request = (InferenceAction.Request) actionRequest;
+            var request = (InferenceActionProxy.Request) actionRequest;
             assertThat(request.isStreaming(), is(false));
 
             executeCalled.set(true);

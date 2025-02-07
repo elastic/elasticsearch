@@ -112,7 +112,7 @@ public class DriverStatus implements Task.Status {
 
     public DriverStatus(StreamInput in) throws IOException {
         this.sessionId = in.readString();
-        this.taskDescription = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION) ? in.readString() : "";
+        this.taskDescription = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_90) ? in.readString() : "";
         this.started = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readLong() : 0;
         this.lastUpdated = in.readLong();
         this.cpuNanos = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0;
@@ -130,7 +130,7 @@ public class DriverStatus implements Task.Status {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(sessionId);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_90)) {
             out.writeString(taskDescription);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {

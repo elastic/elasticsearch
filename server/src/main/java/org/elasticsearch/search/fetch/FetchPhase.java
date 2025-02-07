@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
@@ -314,6 +315,9 @@ public final class FetchPhase {
                     BytesReference sourceRef = source.internalSourceRef();
                     circuitBreaker.addEstimateBytesAndMaybeBreak(sourceRef.length(), "fetch phase source loader");
                     hit.unfilteredSourceRef(sourceRef);
+                } catch (CircuitBreakingException e) {
+                    hit.decRef();
+                    throw e;
                 } finally {
                     if (timer != null) {
                         timer.stop();

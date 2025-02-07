@@ -46,6 +46,7 @@ import java.nio.channels.CompletionHandler;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.nio.channels.spi.SelectorProvider;
 import java.nio.charset.Charset;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
@@ -278,6 +279,11 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void check$jdk_vm_ci_services_Services$$loadSingle(Class<?> callerClass, Class<?> service, boolean required) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_nio_charset_spi_CharsetProvider$(Class<?> callerClass) {
         policyManager.checkChangeJVMGlobalState(callerClass);
     }
 
@@ -791,6 +797,21 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     @Override
     public void check$sun_nio_ch_DatagramChannelImpl$receive(Class<?> callerClass, DatagramChannel that, ByteBuffer dst) {
         policyManager.checkInboundNetworkAccess(callerClass);
+    }
+
+    @Override
+    public void check$java_nio_channels_spi_SelectorProvider$(Class<?> callerClass) {
+        policyManager.checkChangeNetworkHandling(callerClass);
+    }
+
+    @Override
+    public void check$java_nio_channels_spi_AsynchronousChannelProvider$(Class<?> callerClass) {
+        policyManager.checkChangeNetworkHandling(callerClass);
+    }
+
+    @Override
+    public void checkSelectorProviderInheritedChannel(Class<?> callerClass, SelectorProvider that) {
+        policyManager.checkChangeNetworkHandling(callerClass);
     }
 
     @Override

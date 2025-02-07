@@ -34,6 +34,7 @@ public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCa
     private static final String DATA_ACCESS_USER = "data_access_user";
     private static final String FAILURE_STORE_ACCESS_USER = "failure_store_access_user";
     private static final String BOTH_ACCESS_USER = "both_access_user";
+    private static final String WRITE_ACCESS_USER = "write_access_user";
     private static final SecureString PASSWORD = new SecureString("elastic-password");
 
     @SuppressWarnings("unchecked")
@@ -41,10 +42,12 @@ public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCa
         String dataAccessRole = "data_access";
         String failureStoreAccessRole = "failure_store_access";
         String bothAccessRole = "both_access";
+        String writeAccessRole = "write_access";
 
         createUser(DATA_ACCESS_USER, PASSWORD, List.of(dataAccessRole));
         createUser(FAILURE_STORE_ACCESS_USER, PASSWORD, List.of(failureStoreAccessRole));
         createUser(BOTH_ACCESS_USER, PASSWORD, List.of(bothAccessRole));
+        createUser(WRITE_ACCESS_USER, PASSWORD, List.of(writeAccessRole));
 
         upsertRole(Strings.format("""
             {
@@ -60,10 +63,16 @@ public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCa
             }"""), failureStoreAccessRole);
         upsertRole(Strings.format("""
             {
-              "description": "Role with failure store access",
+              "description": "Role with both data and failure store access",
               "cluster": ["all"],
               "indices": [{"names": ["test*"], "privileges": ["read", "read_failures"]}]
             }"""), bothAccessRole);
+        upsertRole(Strings.format("""
+            {
+              "description": "Role with regular write access without failure store access",
+              "cluster": ["all"],
+              "indices": [{"names": ["test*"], "privileges": ["write", "auto_configure"]}]
+            }"""), writeAccessRole);
 
         createTemplates();
         List<String> docIds = populateDataStreamWithBulkRequest();
@@ -263,7 +272,7 @@ public class FailureStoreSecurityRestIT extends SecurityOnTrialLicenseRestTestCa
             { "create" : { "_index" : "test1", "_id" : "2" } }
             { "@timestamp": 2, "age" : "this should be an int", "name" : "jack", "email" : "jack@example.com" }
             """);
-        Response response = adminClient().performRequest(bulkRequest);
+        Response response = performRequest(WRITE_ACCESS_USER, bulkRequest);
         assertOK(response);
         // we need this dance because the ID for the failed document is random, **not** 2
         Map<String, Object> stringObjectMap = responseAsMap(response);

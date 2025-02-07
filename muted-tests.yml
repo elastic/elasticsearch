@@ -522,12 +522,6 @@ tests:
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testUpdateProfileData
   issue: https://github.com/elastic/elasticsearch/issues/121108
-- class: org.elasticsearch.xpack.esql.action.CrossClustersCancellationIT
-  method: testCloseSkipUnavailable
-  issue: https://github.com/elastic/elasticsearch/issues/121627
-- class: org.elasticsearch.xpack.esql.action.CrossClustersCancellationIT
-  method: testCancelSkipUnavailable
-  issue: https://github.com/elastic/elasticsearch/issues/121631
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/rest-api/common-options/line_102}
   issue: https://github.com/elastic/elasticsearch/issues/121748

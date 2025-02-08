@@ -531,3 +531,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.ClassificationIT
   method: testSingleNumericFeatureAndMixedTrainingAndNonTrainingRows
   issue: https://github.com/elastic/elasticsearch/issues/121479
+- class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
+  method: testSuggestProfilesWithName
+  issue: https://github.com/elastic/elasticsearch/issues/121022

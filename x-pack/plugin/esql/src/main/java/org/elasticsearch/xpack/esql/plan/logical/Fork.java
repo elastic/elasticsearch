@@ -7,12 +7,9 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
@@ -23,7 +20,6 @@ import java.util.Objects;
  * {@code FORK [WHERE content:"fox" ] [WHERE content:"dog"] }
  */
 public class Fork extends UnaryPlan {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Fork", Fork::new);
 
     private final List<LogicalPlan> subPlans;
 
@@ -32,19 +28,14 @@ public class Fork extends UnaryPlan {
         this.subPlans = subPlans;
     }
 
-    public Fork(StreamInput in) throws IOException {
-        super(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class));
-        this.subPlans = null;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        source().writeTo(out);
+        throw new UnsupportedOperationException("not serialized");
     }
 
     @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        throw new UnsupportedOperationException("not serialized");
     }
 
     public List<LogicalPlan> subPlans() {

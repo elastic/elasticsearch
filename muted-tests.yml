@@ -361,6 +361,9 @@ tests:
 - class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
   method: testFailIfReadBlockSet
   issue: https://github.com/elastic/elasticsearch/issues/122123
+- class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
+  method: testTimestamp0AddedIfMissing
+  issue: https://github.com/elastic/elasticsearch/issues/121745
 
 # Examples:
 #

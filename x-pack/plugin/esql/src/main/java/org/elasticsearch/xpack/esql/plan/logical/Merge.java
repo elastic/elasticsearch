@@ -19,8 +19,13 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * A Merge is a {@code LeafPlan}, which holds several logical subplans.
+ */
 public class Merge extends LeafPlan {
+
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Merge", Merge::new);
+
     private final List<LogicalPlan> subPlans;
 
     public Merge(Source source, List<LogicalPlan> subPlans) {

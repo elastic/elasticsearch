@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -19,10 +18,14 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * A Fork is a {@code Plan} with one child, but holds several logical subplans, e.g.
+ * {@code FORK [WHERE content:"fox" ] [WHERE content:"dog"] }
+ */
 public class Fork extends UnaryPlan {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Fork", Fork::new);
+
     private final List<LogicalPlan> subPlans;
-    private List<Attribute> lazyOutput;
 
     public Fork(Source source, LogicalPlan child, List<LogicalPlan> subPlans) {
         super(source, child);

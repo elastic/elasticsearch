@@ -16,6 +16,10 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.function.Supplier;
 
+/**
+ * A merge operator is effectively a "fan-in" operator - accepts input
+ * from several sources and provides it in a single output.
+ */
 public class MergeOperator extends SourceOperator {
 
     private final BlockFactory blockFactory;
@@ -76,7 +80,7 @@ public class MergeOperator extends SourceOperator {
 
     @Override
     public void close() {
-        // The blocks are closable by the other exchange? so we have to copy them
+        // release blocks from any subplan not fully consumed.
         if (subPlanBlocks != null) {
             while (subPlanBlocks.hasNext()) {
                 Releasables.close(subPlanBlocks.next());

@@ -408,6 +408,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   method: testExtractFields
   issue: https://github.com/elastic/elasticsearch/issues/122125
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  method: testIndexPatterns
+  issue: https://github.com/elastic/elasticsearch/issues/122128
 
 # Examples:
 #

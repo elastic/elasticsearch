@@ -130,11 +130,7 @@ public class TransportEsqlAsyncStopAction extends HandledTransportAction<AsyncSt
 
     private EsqlQueryTask getEsqlQueryTask(AsyncExecutionId asyncId) {
         try {
-            EsqlQueryTask asyncTask = AsyncTaskIndexService.getTask(taskManager, asyncId, EsqlQueryTask.class);
-            if (asyncTask == null || false == security.currentUserHasAccessToTask(asyncTask)) {
-                return null;
-            }
-            return asyncTask;
+            return AsyncTaskIndexService.getTaskAndCheckAuthentication(taskManager, security, asyncId, EsqlQueryTask.class);
         } catch (IOException e) {
             return null;
         }

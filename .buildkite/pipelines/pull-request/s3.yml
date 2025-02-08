@@ -1,0 +1,15 @@
+steps:
+  - label: third-party / s3
+    command: |
+      export amazon_s3_bucket=elasticsearch-ci.us-west-2
+      export amazon_s3_base_path=$BUILDKITE_BRANCH
+
+      .ci/scripts/run-gradle.sh s3ThirdPartyTest
+    env:
+      USE_3RD_PARTY_S3_CREDENTIALS: "true"
+    timeout_in_minutes: 30
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      machineType: n2-standard-8
+      buildDirectory: /dev/shm/bk

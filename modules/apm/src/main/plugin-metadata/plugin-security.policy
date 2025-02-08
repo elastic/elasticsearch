@@ -19,7 +19,7 @@ grant {
 grant codeBase "${codebase.elastic-apm-agent}" {
     permission java.lang.RuntimePermission "accessDeclaredMembers";
     permission java.lang.RuntimePermission "setContextClassLoader";
-    permission java.lang.RuntimePermission "setFactory";
+    //permission java.lang.RuntimePermission "setFactory";
     permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
     permission java.net.SocketPermission "*", "connect,resolve";
     // profiling function in APM agent

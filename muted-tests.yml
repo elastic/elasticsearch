@@ -571,3 +571,5 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/121935
 - class: org.elasticsearch.xpack.inference.qa.mixed.CohereServiceMixedIT
   issue: https://github.com/elastic/elasticsearch/issues/122110
+- class: org.elasticsearch.xpack.application.HuggingFaceServiceUpgradeIT
+  issue: https://github.com/elastic/elasticsearch/issues/122111

@@ -38,6 +38,9 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsTy
 
 public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject implements ServiceSettings {
     public static final String NAME = "voyageai_embeddings_service_settings";
+    public static final VoyageAIEmbeddingsServiceSettings EMPTY_SETTINGS = new VoyageAIEmbeddingsServiceSettings(
+            null, null, null, null, null
+    );
 
     static final String EMBEDDING_TYPE = "embedding_type";
 
@@ -118,7 +121,7 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
 
     public VoyageAIEmbeddingsServiceSettings(
         VoyageAIServiceSettings commonSettings,
-        VoyageAIEmbeddingType embeddingType,
+        @Nullable VoyageAIEmbeddingType embeddingType,
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer dimensions,
         @Nullable Integer maxInputTokens
@@ -127,7 +130,7 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
         this.similarity = similarity;
         this.dimensions = dimensions;
         this.maxInputTokens = maxInputTokens;
-        this.embeddingType = Objects.requireNonNull(embeddingType);
+        this.embeddingType = embeddingType;
     }
 
     public VoyageAIEmbeddingsServiceSettings(StreamInput in) throws IOException {

@@ -134,7 +134,6 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             | SORT id, _fork
             """;
         try (var resp = run(query)) {
-            System.out.println("response=" + resp);
             assertColumnNames(resp.columns(), List.of("id", "_fork", "content"));
             assertColumnTypes(resp.columns(), List.of("integer", "keyword", "text"));
             Iterable<Iterable<Object>> expectedValues = List.of(
@@ -155,7 +154,6 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             | KEEP _fork, id, content
             """;
         try (var resp = run(query)) {
-            System.out.println("response=" + resp);
             assertColumnNames(resp.columns(), List.of("_fork", "id", "content"));
             assertColumnTypes(resp.columns(), List.of("keyword", "integer", "text"));
             Iterable<Iterable<Object>> expectedValues = List.of(
@@ -178,7 +176,6 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             | KEEP _fork, id, content
             """;
         try (var resp = run(query)) {
-            System.out.println("response=" + resp);
             assertColumnNames(resp.columns(), List.of("_fork", "id", "content"));
             assertColumnTypes(resp.columns(), List.of("keyword", "integer", "text"));
             Iterable<Iterable<Object>> expectedValues = List.of(
@@ -202,7 +199,6 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             | KEEP _fork, id, content
             """;
         try (var resp = run(query)) {
-            System.out.println("response=" + resp);
             assertColumnNames(resp.columns(), List.of("_fork", "id", "content"));
             assertColumnTypes(resp.columns(), List.of("keyword", "integer", "text"));
             Iterable<Iterable<Object>> expectedValues = List.of(
@@ -227,7 +223,6 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             | KEEP _fork, id, content
             """;
         try (var resp = run(query)) {
-            System.out.println("response=" + resp);
             assertColumnNames(resp.columns(), List.of("_fork", "id", "content"));
             assertColumnTypes(resp.columns(), List.of("keyword", "integer", "text"));
             Iterable<Iterable<Object>> expectedValues = List.of(
@@ -270,7 +265,6 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             | SORT id
             """;
         try (var resp = run(query)) {
-            System.out.println("response=" + resp);
             assertColumnNames(resp.columns(), List.of("id", "content", "_fork", "_score"));
             assertColumnTypes(resp.columns(), List.of("integer", "text", "keyword", "double"));
             assertThat(getValuesList(resp.values()).size(), equalTo(4)); // just assert that the expected number of results

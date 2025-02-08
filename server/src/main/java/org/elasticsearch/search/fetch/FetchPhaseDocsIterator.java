@@ -99,7 +99,10 @@ abstract class FetchPhaseDocsIterator {
                     return partialSearchHits;
                 }
             }
-        } catch (SearchTimeoutException | CircuitBreakingException e) {
+        } catch (SearchTimeoutException e) {
+            throw e;
+        } catch (CircuitBreakingException e) {
+            purgeSearchHits(searchHits);
             throw e;
         } catch (Exception e) {
             purgeSearchHits(searchHits);

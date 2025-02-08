@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopFieldDocs;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
@@ -76,7 +77,7 @@ import java.util.function.BiFunction;
 
 import static org.elasticsearch.action.search.SearchPhaseController.getTopDocsSize;
 
-class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPhaseResult> {
+public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPhaseResult> {
 
     private static final Logger logger = LogManager.getLogger(SearchQueryThenFetchAsyncAction.class);
 
@@ -445,7 +446,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
                         )
                     );
                 } else {
-                    performPhaseOnShard(shardIndex, shardRoutings, target);
+                    performPhaseOnShard(shardIndex, shardRoutings, routing);
                 }
             }
         }
@@ -453,7 +454,11 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
             if (request.shards.size() == 1) {
                 var shard = request.shards.getFirst();
                 final int sidx = shard.shardIndex;
-                this.performPhaseOnShard(sidx, shardIterators[sidx], routing);
+                this.performPhaseOnShard(
+                    sidx,
+                    shardIterators[sidx],
+                    new SearchShardTarget(routing.nodeId(), shard.shardId, routing.clusterAlias())
+                );
                 return;
             }
             final Transport.Connection connection;
@@ -466,7 +471,11 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
             if (connection.getTransportVersion().before(TransportVersions.BATCHED_QUERY_PHASE_VERSION)) {
                 for (ShardToQuery shard : request.shards) {
                     final int sidx = shard.shardIndex;
-                    this.performPhaseOnShard(sidx, shardIterators[sidx], routing);
+                    this.performPhaseOnShard(
+                        sidx,
+                        shardIterators[sidx],
+                        new SearchShardTarget(routing.nodeId(), shard.shardId, routing.clusterAlias())
+                    );
                 }
                 return;
             }
@@ -507,7 +516,11 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
 
                     @Override
                     public void handleException(TransportException e) {
-                        onNodeQueryFailure(e, request, routing);
+                        Exception cause = (Exception) ExceptionsHelper.unwrapCause(e);
+                        if (results instanceof QueryPhaseResultConsumer queryPhaseResultConsumer) {
+                            queryPhaseResultConsumer.failure.compareAndSet(null, cause);
+                        }
+                        onPhaseFailure(getName(), "", cause);
                     }
                 });
         });
@@ -520,17 +533,12 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         }
     }
 
-    protected void performPhaseOnShard(
-        final int shardIndex,
-        final SearchShardIterator shardIt,
-        final CanMatchPreFilterSearchPhase.SendingTarget target
-    ) {
-        final var searchShardTarget = new SearchShardTarget(target.nodeId(), shardIt.shardId(), target.clusterAlias());
+    protected void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final SearchShardTarget shard) {
         final Transport.Connection connection;
         try {
-            connection = getConnection(target.clusterAlias(), target.nodeId());
+            connection = getConnection(shard.getClusterAlias(), shard.getNodeId());
         } catch (Exception e) {
-            onShardFailure(shardIndex, searchShardTarget, shardIt, e);
+            onShardFailure(shardIndex, shard, shardIt, e);
             return;
         }
         final String indexUUID = shardIt.shardId().getIndex().getUUID();
@@ -555,7 +563,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
                 )
             ),
             task,
-            new SearchActionListener<>(searchShardTarget, shardIndex) {
+            new SearchActionListener<>(shard, shardIndex) {
                 @Override
                 public void innerOnResponse(SearchPhaseResult result) {
                     try {
@@ -568,18 +576,10 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
 
                 @Override
                 public void onFailure(Exception e) {
-                    onShardFailure(shardIndex, searchShardTarget, shardIt, e);
+                    onShardFailure(shardIndex, shard, shardIt, e);
                 }
             }
         );
-    }
-
-    @Override
-    public void sendReleaseSearchContext(ShardSearchContextId contextId, Transport.Connection connection) {
-        assert isPartOfPointInTime(contextId) == false : "Must not release point in time context [" + contextId + "]";
-        if (connection != null) {
-            searchTransportService.sendFreeContext(connection, contextId, ActionListener.noop());
-        }
     }
 
     public static final String NODE_SEARCH_ACTION_NAME = "indices:data/read/search[query][n]";

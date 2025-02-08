@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.TransportIndexAction;
+import org.elasticsearch.action.search.SearchQueryThenFetchAsyncAction;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.WriteRequest;
@@ -393,6 +394,7 @@ public class TasksIT extends ESIntegTestCase {
                     taskInfo.description(),
                     Regex.simpleMatch("id[*], size[1], lastEmittedDoc[null]", taskInfo.description())
                 );
+                case SearchQueryThenFetchAsyncAction.NODE_SEARCH_ACTION_NAME -> assertThat(taskInfo.description(), notNullValue());
                 default -> fail("Unexpected action [" + taskInfo.action() + "] with description [" + taskInfo.description() + "]");
             }
             // assert that all task descriptions have non-zero length

@@ -534,3 +534,6 @@ tests:
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testSuggestProfilesWithName
   issue: https://github.com/elastic/elasticsearch/issues/121022
+- class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
+  method: testGetUsersWithProfileUidWhenProfileIndexDoesNotExists
+  issue: https://github.com/elastic/elasticsearch/issues/121179

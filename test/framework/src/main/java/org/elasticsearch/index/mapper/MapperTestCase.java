@@ -1707,7 +1707,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed()).example(1);
         DocumentMapper mapperAll = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
-            b.field("synthetic_source_keep", randomFrom("arrays", "all"));  // Both options keep array source.
+            b.field("synthetic_source_keep", randomFrom("all"));  // Only option all keeps array source.
             example.mapping().accept(b);
             b.endObject();
         })).documentMapper();

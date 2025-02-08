@@ -154,6 +154,7 @@ public final class DocumentParser {
 
             executeIndexTimeScripts(context);
 
+            context.processArrayOffsets(context);
             for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
                 metadataMapper.postParse(context);
             }
@@ -459,7 +460,9 @@ public final class DocumentParser {
                 if (context.canAddIgnoredField()
                     && (fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK
                         || sourceKeepMode == Mapper.SourceKeepMode.ALL
-                        || (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS && context.inArrayScope())
+                        || (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS
+                            && context.inArrayScope()
+                            && mapper.supportStoringArrayOffsets(context) == false)
                         || (context.isWithinCopyTo() == false && context.isCopyToDestinationField(mapper.fullPath())))) {
                     context = context.addIgnoredFieldFromContext(
                         IgnoredSourceFieldMapper.NameValue.fromContext(context, fieldMapper.fullPath(), null)
@@ -519,6 +522,7 @@ public final class DocumentParser {
 
     private static void parseObject(final DocumentParserContext context, String currentFieldName) throws IOException {
         assert currentFieldName != null;
+        context.setImmediateXContentParent(context.parser().currentToken());
         Mapper objectMapper = context.getMapper(currentFieldName);
         if (objectMapper != null) {
             doParseObject(context, currentFieldName, objectMapper);
@@ -611,6 +615,8 @@ public final class DocumentParser {
     }
 
     private static void parseArray(DocumentParserContext context, String lastFieldName) throws IOException {
+        var prev = context.getImmediateXContentParent();
+        context.setImmediateXContentParent(context.parser().currentToken());
         Mapper mapper = getLeafMapper(context, lastFieldName);
         if (mapper != null) {
             // There is a concrete mapper for this field already. Need to check if the mapper
@@ -624,6 +630,7 @@ public final class DocumentParser {
         } else {
             parseArrayDynamic(context, lastFieldName);
         }
+        context.setImmediateXContentParent(prev);
     }
 
     private static void parseArrayDynamic(DocumentParserContext context, String currentFieldName) throws IOException {
@@ -688,11 +695,12 @@ public final class DocumentParser {
         final String lastFieldName,
         String arrayFieldName
     ) throws IOException {
+        boolean supportStoringArrayOffsets = mapper != null && mapper.supportStoringArrayOffsets(context);
         String fullPath = context.path().pathAsText(arrayFieldName);
 
         // Check if we need to record the array source. This only applies to synthetic source.
         boolean canRemoveSingleLeafElement = false;
-        if (context.canAddIgnoredField()) {
+        if (context.canAddIgnoredField() && (parsesArrayValue(mapper) == false && supportStoringArrayOffsets == false)) {
             Mapper.SourceKeepMode mode = Mapper.SourceKeepMode.NONE;
             boolean objectWithFallbackSyntheticSource = false;
             if (mapper instanceof ObjectMapper objectMapper) {
@@ -729,13 +737,16 @@ public final class DocumentParser {
             }
         }
 
-        // In synthetic source, if any array element requires storing its source as-is, it takes precedence over
-        // elements from regular source loading that are then skipped from the synthesized array source.
-        // To prevent this, we track that parsing sub-context is within array scope.
-        context = context.maybeCloneForArray(mapper);
+        if (parsesArrayValue(mapper) == false && supportStoringArrayOffsets == false) {
+            // In synthetic source, if any array element requires storing its source as-is, it takes precedence over
+            // elements from regular source loading that are then skipped from the synthesized array source.
+            // To prevent this, we track that parsing sub-context is within array scope.
+            context = context.maybeCloneForArray(mapper);
+        }
 
         XContentParser parser = context.parser();
         XContentParser.Token token;
+        XContentParser.Token previousToken = parser.currentToken();
         int elements = 0;
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token == XContentParser.Token.START_OBJECT) {
@@ -754,6 +765,14 @@ public final class DocumentParser {
                 elements++;
                 parseValue(context, lastFieldName);
             }
+            previousToken = token;
+        }
+        if (mapper != null
+            && mapper.supportStoringArrayOffsets(context)
+            && previousToken == XContentParser.Token.START_ARRAY
+            && context.isImmediateParentAnArray()
+            && context.getRecordedSource() == false) {
+            context.getOffSetContext().maybeRecordEmptyArray(mapper.getOffsetFieldName());
         }
         if (elements <= 1 && canRemoveSingleLeafElement) {
             context.removeLastIgnoredField(fullPath);

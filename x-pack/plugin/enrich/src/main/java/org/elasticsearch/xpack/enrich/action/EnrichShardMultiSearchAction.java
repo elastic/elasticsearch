@@ -271,6 +271,11 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                             hits[j] = hit;
                         } catch (CircuitBreakingException e) {
                             hit.decRef();
+                            for (SearchHit searchHit : hits) {
+                                if (searchHit != null) {
+                                    searchHit.decRef();
+                                }
+                            }
                             throw e;
                         }
                     }

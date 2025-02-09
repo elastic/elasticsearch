@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 
 class FieldCapabilitiesNodeResponse extends ActionResponse implements Writeable {
     private final List<FieldCapabilitiesIndexResponse> indexResponses;
@@ -34,6 +35,14 @@ class FieldCapabilitiesNodeResponse extends ActionResponse implements Writeable 
         this.indexResponses = Objects.requireNonNull(indexResponses);
         this.failures = Objects.requireNonNull(failures);
         this.unmatchedShardIds = Objects.requireNonNull(unmatchedShardIds);
+    }
+
+    FieldCapabilitiesNodeResponse(StreamInput in, Consumer<FieldCapabilitiesIndexResponse> consumer) throws IOException {
+        super(in);
+        FieldCapabilitiesIndexResponse.readList(in, consumer);
+        this.indexResponses = List.of();
+        this.failures = in.readMap(ShardId::new, StreamInput::readException);
+        this.unmatchedShardIds = in.readCollectionAsSet(ShardId::new);
     }
 
     FieldCapabilitiesNodeResponse(StreamInput in) throws IOException {

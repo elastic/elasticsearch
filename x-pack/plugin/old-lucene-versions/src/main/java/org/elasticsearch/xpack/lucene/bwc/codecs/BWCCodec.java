@@ -17,6 +17,7 @@ import org.apache.lucene.codecs.NormsProducer;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.SegmentInfoFormat;
 import org.apache.lucene.codecs.TermVectorsFormat;
+import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
@@ -26,6 +27,11 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.util.Version;
+import org.elasticsearch.xpack.lucene.bwc.codecs.lucene80.BWCLucene80Codec;
+import org.elasticsearch.xpack.lucene.bwc.codecs.lucene84.BWCLucene84Codec;
+import org.elasticsearch.xpack.lucene.bwc.codecs.lucene86.BWCLucene86Codec;
+import org.elasticsearch.xpack.lucene.bwc.codecs.lucene87.BWCLucene87Codec;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,54 +43,78 @@ import java.util.List;
  */
 public abstract class BWCCodec extends Codec {
 
+    private final FieldInfosFormat fieldInfosFormat;
+    private final SegmentInfoFormat segmentInfosFormat;
+
     protected BWCCodec(String name) {
         super(name);
-    }
 
-    @Override
-    public NormsFormat normsFormat() {
-        throw new UnsupportedOperationException();
-    }
+        this.fieldInfosFormat = new FieldInfosFormat() {
+            final FieldInfosFormat wrappedFormat = originalFieldInfosFormat();
 
-    @Override
-    public TermVectorsFormat termVectorsFormat() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public KnnVectorsFormat knnVectorsFormat() {
-        throw new UnsupportedOperationException();
-    }
-
-    protected static SegmentInfoFormat wrap(SegmentInfoFormat wrapped) {
-        return new SegmentInfoFormat() {
-            @Override
-            public SegmentInfo read(Directory directory, String segmentName, byte[] segmentID, IOContext context) throws IOException {
-                return wrap(wrapped.read(directory, segmentName, segmentID, context));
-            }
-
-            @Override
-            public void write(Directory dir, SegmentInfo info, IOContext ioContext) throws IOException {
-                wrapped.write(dir, info, ioContext);
-            }
-        };
-    }
-
-    protected static FieldInfosFormat wrap(FieldInfosFormat wrapped) {
-        return new FieldInfosFormat() {
             @Override
             public FieldInfos read(Directory directory, SegmentInfo segmentInfo, String segmentSuffix, IOContext iocontext)
                 throws IOException {
-                return filterFields(wrapped.read(directory, segmentInfo, segmentSuffix, iocontext));
+                return filterFields(wrappedFormat.read(directory, segmentInfo, segmentSuffix, iocontext));
             }
 
             @Override
             public void write(Directory directory, SegmentInfo segmentInfo, String segmentSuffix, FieldInfos infos, IOContext context)
                 throws IOException {
-                wrapped.write(directory, segmentInfo, segmentSuffix, infos, context);
+                wrappedFormat.write(directory, segmentInfo, segmentSuffix, infos, context);
+            }
+        };
+
+        this.segmentInfosFormat = new SegmentInfoFormat() {
+            final SegmentInfoFormat wrappedFormat = originalSegmentInfoFormat();
+
+            @Override
+            public SegmentInfo read(Directory directory, String segmentName, byte[] segmentID, IOContext context) throws IOException {
+                return wrap(wrappedFormat.read(directory, segmentName, segmentID, context));
+            }
+
+            @Override
+            public void write(Directory dir, SegmentInfo info, IOContext ioContext) throws IOException {
+                wrappedFormat.write(dir, info, ioContext);
             }
         };
     }
+
+    protected final PostingsFormat postingsFormat = new PerFieldPostingsFormat() {
+        @Override
+        public PostingsFormat getPostingsFormatForField(String field) {
+            throw new UnsupportedOperationException("Old codecs can't be used for writing");
+        }
+    };
+
+    @Override
+    public final FieldInfosFormat fieldInfosFormat() {
+        return fieldInfosFormat;
+    }
+
+    @Override
+    public SegmentInfoFormat segmentInfoFormat() {
+        return segmentInfosFormat;
+    }
+
+    @Override
+    public final NormsFormat normsFormat() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public final TermVectorsFormat termVectorsFormat() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public final KnnVectorsFormat knnVectorsFormat() {
+        throw new UnsupportedOperationException();
+    }
+
+    protected abstract SegmentInfoFormat originalSegmentInfoFormat();
+
+    protected abstract FieldInfosFormat originalFieldInfosFormat();
 
     // mark all fields as no term vectors, no norms, no payloads, and no vectors.
     private static FieldInfos filterFields(FieldInfos fieldInfos) {
@@ -118,13 +148,14 @@ public abstract class BWCCodec extends Codec {
     }
 
     public static SegmentInfo wrap(SegmentInfo segmentInfo) {
-        final Codec codec = segmentInfo.getCodec();
+        Codec codec = getBackwardCompatibleCodec(segmentInfo.getCodec());
+
         final SegmentInfo segmentInfo1 = new SegmentInfo(
             segmentInfo.dir,
             // Use Version.LATEST instead of original version, otherwise SegmentCommitInfo will bark when processing (N-1 limitation)
             // TODO: perhaps store the original version information in attributes so that we can retrieve it later when needed?
-            org.apache.lucene.util.Version.LATEST,
-            org.apache.lucene.util.Version.LATEST,
+            Version.LATEST,
+            Version.LATEST,
             segmentInfo.name,
             segmentInfo.maxDoc(),
             segmentInfo.getUseCompoundFile(),
@@ -137,6 +168,20 @@ public abstract class BWCCodec extends Codec {
         );
         segmentInfo1.setFiles(segmentInfo.files());
         return segmentInfo1;
+    }
+
+    // Special handling for Lucene8xCodecs (which are currently bundled with Lucene)
+    // Use BWCLucene8xCodec instead as that one extends BWCCodec (similar to all other older codecs)
+    private static Codec getBackwardCompatibleCodec(Codec codec) {
+        if (codec == null) return null;
+
+        return switch (codec.getClass().getSimpleName()) {
+            case "Lucene80Codec" -> new BWCLucene80Codec();
+            case "Lucene84Codec" -> new BWCLucene84Codec();
+            case "Lucene86Codec" -> new BWCLucene86Codec();
+            case "Lucene87Codec" -> new BWCLucene87Codec();
+            default -> codec;
+        };
     }
 
     /**

@@ -44,10 +44,10 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             assertColumnNames(resp.columns(), List.of("id", "_fork", "content"));
             assertColumnTypes(resp.columns(), List.of("integer", "keyword", "text"));
             Iterable<Iterable<Object>> expectedValues = List.of(
-                List.of(3, "fork1", "This dog is really brown"),
-                List.of(4, "fork1", "The dog is brown but this document is very very long"),
-                List.of(6, "fork0", "The quick brown fox jumps over the lazy dog"),
-                List.of(6, "fork1", "The quick brown fox jumps over the lazy dog")
+                List.of(3, "fork2", "This dog is really brown"),
+                List.of(4, "fork2", "The dog is brown but this document is very very long"),
+                List.of(6, "fork1", "The quick brown fox jumps over the lazy dog"),
+                List.of(6, "fork2", "The quick brown fox jumps over the lazy dog")
             );
             assertValues(resp.values(), expectedValues);
         }
@@ -67,11 +67,11 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             assertColumnNames(resp.columns(), List.of("id", "_fork", "content"));
             assertColumnTypes(resp.columns(), List.of("integer", "keyword", "text"));
             Iterable<Iterable<Object>> expectedValues = List.of(
-                List.of(2, "fork1", "This is a brown dog"),
-                List.of(3, "fork1", "This dog is really brown"),
-                List.of(4, "fork1", "The dog is brown but this document is very very long"),
-                List.of(6, "fork0", "The quick brown fox jumps over the lazy dog"),
-                List.of(6, "fork1", "The quick brown fox jumps over the lazy dog")
+                List.of(2, "fork2", "This is a brown dog"),
+                List.of(3, "fork2", "This dog is really brown"),
+                List.of(4, "fork2", "The dog is brown but this document is very very long"),
+                List.of(6, "fork1", "The quick brown fox jumps over the lazy dog"),
+                List.of(6, "fork2", "The quick brown fox jumps over the lazy dog")
             );
             assertValues(resp.values(), expectedValues);
         }
@@ -91,11 +91,11 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             assertColumnNames(resp.columns(), List.of("id", "_fork", "content"));
             assertColumnTypes(resp.columns(), List.of("integer", "keyword", "text"));
             Iterable<Iterable<Object>> expectedValues = List.of(
-                List.of(1, "fork0", "This is a brown fox"),
-                List.of(2, "fork1", "This is a brown dog"),
-                List.of(3, "fork1", "This dog is really brown"),
-                List.of(4, "fork1", "The dog is brown but this document is very very long"),
-                List.of(6, "fork1", "The quick brown fox jumps over the lazy dog")
+                List.of(1, "fork1", "This is a brown fox"),
+                List.of(2, "fork2", "This is a brown dog"),
+                List.of(3, "fork2", "This dog is really brown"),
+                List.of(4, "fork2", "The dog is brown but this document is very very long"),
+                List.of(6, "fork2", "The quick brown fox jumps over the lazy dog")
             );
             assertValues(resp.values(), expectedValues);
         }
@@ -115,9 +115,9 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             assertColumnNames(resp.columns(), List.of("_fork", "id", "content"));
             assertColumnTypes(resp.columns(), List.of("keyword", "integer", "text"));
             Iterable<Iterable<Object>> expectedValues = List.of(
-                List.of("fork0", 6, "The quick brown fox jumps over the lazy dog"),
-                List.of("fork1", 4, "The dog is brown but this document is very very long"),
-                List.of("fork1", 6, "The quick brown fox jumps over the lazy dog")
+                List.of("fork1", 6, "The quick brown fox jumps over the lazy dog"),
+                List.of("fork2", 4, "The dog is brown but this document is very very long"),
+                List.of("fork2", 6, "The quick brown fox jumps over the lazy dog")
             );
             assertValues(resp.values(), expectedValues);
         }
@@ -137,8 +137,8 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             assertColumnNames(resp.columns(), List.of("id", "_fork", "content"));
             assertColumnTypes(resp.columns(), List.of("integer", "keyword", "text"));
             Iterable<Iterable<Object>> expectedValues = List.of(
-                List.of(1, "fork0", "This is a brown fox"),
-                List.of(2, "fork1", "This is a brown dog")
+                List.of(1, "fork1", "This is a brown fox"),
+                List.of(2, "fork2", "This is a brown dog")
             );
             assertValues(resp.values(), expectedValues);
         }
@@ -157,10 +157,10 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             assertColumnNames(resp.columns(), List.of("_fork", "id", "content"));
             assertColumnTypes(resp.columns(), List.of("keyword", "integer", "text"));
             Iterable<Iterable<Object>> expectedValues = List.of(
-                List.of("fork0", 1, "This is a brown fox"),
-                List.of("fork1", 3, "This dog is really brown"),
-                List.of("fork1", 4, "The dog is brown but this document is very very long"),
-                List.of("fork1", 6, "The quick brown fox jumps over the lazy dog")
+                List.of("fork1", 1, "This is a brown fox"),
+                List.of("fork2", 3, "This dog is really brown"),
+                List.of("fork2", 4, "The dog is brown but this document is very very long"),
+                List.of("fork2", 6, "The quick brown fox jumps over the lazy dog")
             );
             assertValues(resp.values(), expectedValues);
         }
@@ -179,12 +179,12 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             assertColumnNames(resp.columns(), List.of("_fork", "id", "content"));
             assertColumnTypes(resp.columns(), List.of("keyword", "integer", "text"));
             Iterable<Iterable<Object>> expectedValues = List.of(
-                List.of("fork0", 1, "This is a brown fox"),
-                List.of("fork0", 6, "The quick brown fox jumps over the lazy dog"),
-                List.of("fork1", 2, "This is a brown dog"),
-                List.of("fork1", 3, "This dog is really brown"),
-                List.of("fork1", 4, "The dog is brown but this document is very very long"),
-                List.of("fork1", 6, "The quick brown fox jumps over the lazy dog")
+                List.of("fork1", 1, "This is a brown fox"),
+                List.of("fork1", 6, "The quick brown fox jumps over the lazy dog"),
+                List.of("fork2", 2, "This is a brown dog"),
+                List.of("fork2", 3, "This dog is really brown"),
+                List.of("fork2", 4, "The dog is brown but this document is very very long"),
+                List.of("fork2", 6, "The quick brown fox jumps over the lazy dog")
             );
             assertValues(resp.values(), expectedValues);
         }
@@ -202,12 +202,12 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             assertColumnNames(resp.columns(), List.of("_fork", "id", "content"));
             assertColumnTypes(resp.columns(), List.of("keyword", "integer", "text"));
             Iterable<Iterable<Object>> expectedValues = List.of(
-                List.of("fork0", 1, "This is a brown fox"),
-                List.of("fork0", 6, "The quick brown fox jumps over the lazy dog"),
-                List.of("fork1", 2, "This is a brown dog"),
-                List.of("fork1", 3, "This dog is really brown"),
-                List.of("fork1", 4, "The dog is brown but this document is very very long"),
-                List.of("fork1", 6, "The quick brown fox jumps over the lazy dog")
+                List.of("fork1", 1, "This is a brown fox"),
+                List.of("fork1", 6, "The quick brown fox jumps over the lazy dog"),
+                List.of("fork2", 2, "This is a brown dog"),
+                List.of("fork2", 3, "This dog is really brown"),
+                List.of("fork2", 4, "The dog is brown but this document is very very long"),
+                List.of("fork2", 6, "The quick brown fox jumps over the lazy dog")
             );
             assertValues(resp.values(), expectedValues);
         }
@@ -226,11 +226,11 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             assertColumnNames(resp.columns(), List.of("_fork", "id", "content"));
             assertColumnTypes(resp.columns(), List.of("keyword", "integer", "text"));
             Iterable<Iterable<Object>> expectedValues = List.of(
-                List.of("fork0", 1, "This is a brown fox"),
-                List.of("fork0", 6, "The quick brown fox jumps over the lazy dog"),
                 List.of("fork1", 1, "This is a brown fox"),
-                List.of("fork1", 2, "This is a brown dog"),
-                List.of("fork1", 3, "This dog is really brown")
+                List.of("fork1", 6, "The quick brown fox jumps over the lazy dog"),
+                List.of("fork2", 1, "This is a brown fox"),
+                List.of("fork2", 2, "This is a brown dog"),
+                List.of("fork2", 3, "This dog is really brown")
             );
             assertValues(resp.values(), expectedValues);
         }
@@ -286,11 +286,11 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             assertColumnNames(resp.columns(), List.of("_fork", "id", "content"));
             assertColumnTypes(resp.columns(), List.of("keyword", "integer", "text"));
             Iterable<Iterable<Object>> expectedValues = List.of(
-                List.of("fork0", 6, "The quick brown fox jumps over the lazy dog"),
-                List.of("fork1", 3, "This dog is really brown"),
-                List.of("fork1", 4, "The dog is brown but this document is very very long"),
                 List.of("fork1", 6, "The quick brown fox jumps over the lazy dog"),
-                List.of("fork2", 5, "There is also a white cat")
+                List.of("fork2", 3, "This dog is really brown"),
+                List.of("fork2", 4, "The dog is brown but this document is very very long"),
+                List.of("fork2", 6, "The quick brown fox jumps over the lazy dog"),
+                List.of("fork3", 5, "There is also a white cat")
             );
             assertValues(resp.values(), expectedValues);
         }
@@ -312,11 +312,11 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             assertColumnNames(resp.columns(), List.of("_fork", "id", "content"));
             assertColumnTypes(resp.columns(), List.of("keyword", "integer", "text"));
             Iterable<Iterable<Object>> expectedValues = List.of(
-                List.of("fork0", 6, "The quick brown fox jumps over the lazy dog"),
-                List.of("fork1", 2, "This is a brown dog"),
-                List.of("fork2", 5, "There is also a white cat"),
-                List.of("fork3", 1, "This is a brown fox"),
-                List.of("fork4", 3, "This dog is really brown")
+                List.of("fork1", 6, "The quick brown fox jumps over the lazy dog"),
+                List.of("fork2", 2, "This is a brown dog"),
+                List.of("fork3", 5, "There is also a white cat"),
+                List.of("fork4", 1, "This is a brown fox"),
+                List.of("fork5", 3, "This dog is really brown")
             );
             assertValues(resp.values(), expectedValues);
         }
@@ -338,27 +338,27 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             assertColumnNames(resp.columns(), List.of("_fork", "id", "content"));
             assertColumnTypes(resp.columns(), List.of("keyword", "integer", "text"));
             Iterable<Iterable<Object>> fork0 = List.of(
-                List.of("fork0", 6, "The quick brown fox jumps over the lazy dog"),
-                List.of("fork0", 5, "There is also a white cat")
+                List.of("fork1", 6, "The quick brown fox jumps over the lazy dog"),
+                List.of("fork1", 5, "There is also a white cat")
             );
             Iterable<Iterable<Object>> fork1 = List.of(
-                List.of("fork1", 2, "This is a brown dog"),
-                List.of("fork1", 3, "This dog is really brown"),
-                List.of("fork1", 4, "The dog is brown but this document is very very long")
+                List.of("fork2", 2, "This is a brown dog"),
+                List.of("fork2", 3, "This dog is really brown"),
+                List.of("fork2", 4, "The dog is brown but this document is very very long")
             );
             Iterable<Iterable<Object>> fork2 = List.of(
-                List.of("fork2", 2, "This is a brown dog"),
-                List.of("fork2", 1, "This is a brown fox")
+                List.of("fork3", 2, "This is a brown dog"),
+                List.of("fork3", 1, "This is a brown fox")
             );
             Iterable<Iterable<Object>> fork3 = List.of(
-                List.of("fork3", 3, "This dog is really brown"),
-                List.of("fork3", 4, "The dog is brown but this document is very very long"),
-                List.of("fork3", 5, "There is also a white cat")
+                List.of("fork4", 3, "This dog is really brown"),
+                List.of("fork4", 4, "The dog is brown but this document is very very long"),
+                List.of("fork4", 5, "There is also a white cat")
             );
-            assertValues(valuesFilter(resp.values(), row -> row.next().equals("fork0")), fork0);
-            assertValues(valuesFilter(resp.values(), row -> row.next().equals("fork1")), fork1);
-            assertValues(valuesFilter(resp.values(), row -> row.next().equals("fork2")), fork2);
-            assertValues(valuesFilter(resp.values(), row -> row.next().equals("fork3")), fork3);
+            assertValues(valuesFilter(resp.values(), row -> row.next().equals("fork1")), fork0);
+            assertValues(valuesFilter(resp.values(), row -> row.next().equals("fork2")), fork1);
+            assertValues(valuesFilter(resp.values(), row -> row.next().equals("fork3")), fork2);
+            assertValues(valuesFilter(resp.values(), row -> row.next().equals("fork4")), fork3);
             assertThat(getValuesList(resp.values()).size(), equalTo(10));
         }
     }

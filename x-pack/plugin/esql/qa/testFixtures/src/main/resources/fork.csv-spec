@@ -13,8 +13,8 @@ from employees
 ;
 
 emp_no:integer | _fork:keyword
-10001          | fork0
-10002          | fork1
+10001          | fork1
+10002          | fork2
 ;
 
 forkWithWhereSortAndLimit
@@ -28,11 +28,11 @@ from employees
 ;
 
 emp_no:integer | first_name:keyword | _fork:keyword
-10002          | Bezalel            | fork1
-10009          | Sumant             | fork0
-10014          | Berni              | fork1
-10048          | Florian            | fork0
-10058          | Berhard            | fork1
-10060          | Breannda           | fork1
-10094          | Arumugam           | fork1
+10002          | Bezalel            | fork2
+10009          | Sumant             | fork1
+10014          | Berni              | fork2
+10048          | Florian            | fork1
+10058          | Berhard            | fork2
+10060          | Breannda           | fork2
+10094          | Arumugam           | fork2
 ;

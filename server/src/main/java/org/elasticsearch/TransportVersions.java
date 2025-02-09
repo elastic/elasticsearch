@@ -180,7 +180,7 @@ public class TransportVersions {
 
     public static final TransportVersion REMOVE_DESIRED_NODE_VERSION = def(9_004_0_00);
 
-    public static final TransportVersion VOYAGE_AI_INTEGRATION_ADDED = def(9_002_0_00);
+    public static final TransportVersion VOYAGE_AI_INTEGRATION_ADDED = def(9_005_0_00);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

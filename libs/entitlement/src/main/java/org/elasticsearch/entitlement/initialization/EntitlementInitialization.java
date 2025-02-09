@@ -31,6 +31,7 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetwork
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.channels.spi.SelectorProvider;
 import java.nio.file.FileSystems;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
@@ -79,6 +80,13 @@ public class EntitlementInitialization {
                 "checkNewInputStream",
                 Path.class,
                 OpenOption[].class
+            ),
+            INSTRUMENTATION_SERVICE.lookupImplementationMethod(
+                SelectorProvider.class,
+                "inheritedChannel",
+                SelectorProvider.provider().getClass(),
+                EntitlementChecker.class,
+                "checkSelectorProviderInheritedChannel"
             )
         ).forEach(instrumentation -> checkMethods.put(instrumentation.targetMethod(), instrumentation.checkMethod()));
 

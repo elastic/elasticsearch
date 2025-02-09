@@ -645,6 +645,38 @@ public class CopyToMapperTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), Matchers.containsString("[copy_to] may not be used to copy from a multi-field: [field.bar]"));
     }
 
+    public void testCopyToNonExistentFieldDynamicFalse() {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", "false");
+            b.startObject("properties");
+            {
+                b.startObject("test_field");
+                {
+                    b.field("type", "text");
+                    b.field("copy_to", "missing_field");
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), Matchers.containsString("Cannot copy to field [missing_field] since it is a non existent field"));
+    }
+
+    public void testCopyToNonExistentFieldDynamicTrue() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", "true");
+            b.startObject("properties");
+            {
+                b.startObject("test_field");
+                {
+                    b.field("type", "text");
+                    b.field("copy_to", "missing_field");
+                }
+                b.endObject();
+            }
+            b.endObject();}));
+    }
+
     public void testCopyToDateRangeFailure() throws Exception {
         DocumentMapper docMapper = createDocumentMapper(topMapping(b -> {
             b.startObject("properties");

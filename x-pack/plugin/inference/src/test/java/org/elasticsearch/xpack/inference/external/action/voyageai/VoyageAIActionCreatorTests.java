@@ -19,18 +19,15 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.inference.external.action.cohere.CohereActionCreator;
+import org.elasticsearch.xpack.inference.external.action.voyageai.VoyageAIActionCreator;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
-import org.elasticsearch.xpack.inference.services.cohere.completion.CohereCompletionModelTests;
-import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
-import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModelTests;
-import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettings;
-import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettingsTests;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingType;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsTaskSettingsTests;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
 import org.junit.Before;
@@ -45,7 +42,6 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests.createSender;
-import static org.elasticsearch.xpack.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.hamcrest.Matchers.is;
@@ -73,7 +69,7 @@ public class VoyageAIActionCreatorTests extends ESTestCase {
         webServer.close();
     }
 
-    public void testCreate_CohereEmbeddingsModel() throws IOException {
+    public void testCreate_VoyageAIEmbeddingsModel() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
@@ -81,42 +77,34 @@ public class VoyageAIActionCreatorTests extends ESTestCase {
 
             String responseJson = """
                 {
-                    "id": "de37399c-5df6-47cb-bc57-e3c5680c977b",
-                    "texts": [
-                        "hello"
-                    ],
-                    "embeddings": {
-                        "float": [
-                            [
+                    "object": "list",
+                    "data": [{
+                            "object": "embedding",
+                            "embedding": [
                                 0.123,
                                 -0.123
-                            ]
-                        ]
-                    },
-                    "meta": {
-                        "api_version": {
-                            "version": "1"
-                        },
-                        "billed_units": {
-                            "input_tokens": 1
-                        }
-                    },
-                    "response_type": "embeddings_by_type"
+                            ],
+                            "index": 0
+                    }],
+                    "model": "voyage-3-large",
+                    "usage": {
+                        "total_tokens": 123
+                    }
                 }
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = CohereEmbeddingsModelTests.createModel(
+            var model = VoyageAIEmbeddingsModelTests.createModel(
                 getUrl(webServer),
                 "secret",
-                new CohereEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.START),
+                new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, true),
                 1024,
                 1024,
                 "model",
-                CohereEmbeddingType.FLOAT
+                VoyageAIEmbeddingType.FLOAT
             );
-            var actionCreator = new CohereActionCreator(sender, createWithEmptySettings(threadPool));
-            var overriddenTaskSettings = CohereEmbeddingsTaskSettingsTests.getTaskSettingsMap(InputType.SEARCH, CohereTruncation.END);
+            var actionCreator = new VoyageAIActionCreator(sender, createWithEmptySettings(threadPool));
+            var overriddenTaskSettings = VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(InputType.SEARCH);
             var action = actionCreator.create(model, overriddenTaskSettings, InputType.UNSPECIFIED);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -138,139 +126,15 @@ public class VoyageAIActionCreatorTests extends ESTestCase {
                 requestMap,
                 is(
                     Map.of(
-                        "texts",
-                        List.of("abc"),
-                        "model",
-                        "model",
-                        "input_type",
-                        "search_query",
-                        "embedding_types",
-                        List.of("float"),
-                        "truncate",
-                        "end"
+                        "output_dtype","float",
+                        "truncation", true,
+                        "input_type", "query",
+                        "output_dimension",1024,
+                        "input", List.of("abc"),
+                        "model", "model"
                     )
                 )
             );
-        }
-    }
-
-    public void testCreate_CohereCompletionModel_WithModelSpecified() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var sender = createSender(senderFactory)) {
-            sender.start();
-
-            String responseJson = """
-                {
-                     "response_id": "some id",
-                     "text": "result",
-                     "generation_id": "some id",
-                     "chat_history": [
-                         {
-                             "role": "USER",
-                             "message": "input"
-                         },
-                         {
-                             "role": "CHATBOT",
-                             "message": "result"
-                         }
-                     ],
-                     "finish_reason": "COMPLETE",
-                     "meta": {
-                         "api_version": {
-                             "version": "1"
-                         },
-                         "billed_units": {
-                             "input_tokens": 4,
-                             "output_tokens": 191
-                         },
-                         "tokens": {
-                             "input_tokens": 70,
-                             "output_tokens": 191
-                         }
-                     }
-                 }
-                """;
-
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-            var model = CohereCompletionModelTests.createModel(getUrl(webServer), "secret", "model");
-            var actionCreator = new CohereActionCreator(sender, createWithEmptySettings(threadPool));
-            var action = actionCreator.create(model, Map.of());
-
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new ChatCompletionInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
-
-            var result = listener.actionGet(TIMEOUT);
-
-            assertThat(result.asMap(), is(buildExpectationCompletion(List.of("result"))));
-            assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().get(0).getUri().getQuery());
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), is(XContentType.JSON.mediaType()));
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), is("Bearer secret"));
-
-            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap, is(Map.of("message", "abc", "model", "model")));
-        }
-    }
-
-    public void testCreate_CohereCompletionModel_WithoutModelSpecified() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var sender = createSender(senderFactory)) {
-            sender.start();
-
-            String responseJson = """
-                {
-                     "response_id": "some id",
-                     "text": "result",
-                     "generation_id": "some id",
-                     "chat_history": [
-                         {
-                             "role": "USER",
-                             "message": "input"
-                         },
-                         {
-                             "role": "CHATBOT",
-                             "message": "result"
-                         }
-                     ],
-                     "finish_reason": "COMPLETE",
-                     "meta": {
-                         "api_version": {
-                             "version": "1"
-                         },
-                         "billed_units": {
-                             "input_tokens": 4,
-                             "output_tokens": 191
-                         },
-                         "tokens": {
-                             "input_tokens": 70,
-                             "output_tokens": 191
-                         }
-                     }
-                 }
-                """;
-
-            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
-
-            var model = CohereCompletionModelTests.createModel(getUrl(webServer), "secret", null);
-            var actionCreator = new CohereActionCreator(sender, createWithEmptySettings(threadPool));
-            var action = actionCreator.create(model, Map.of());
-
-            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new ChatCompletionInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
-
-            var result = listener.actionGet(TIMEOUT);
-
-            assertThat(result.asMap(), is(buildExpectationCompletion(List.of("result"))));
-            assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().get(0).getUri().getQuery());
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), is(XContentType.JSON.mediaType()));
-            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), is("Bearer secret"));
-
-            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap, is(Map.of("message", "abc")));
         }
     }
 }

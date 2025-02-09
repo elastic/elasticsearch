@@ -155,6 +155,31 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
         @Nullable Integer tokenLimit,
         @Nullable Integer dimensions,
         String model,
+        VoyageAIEmbeddingType embeddingType
+    ) {
+        return new VoyageAIEmbeddingsModel(
+            "id",
+            "service",
+            new VoyageAIEmbeddingsServiceSettings(
+                new VoyageAIServiceSettings(url, model, null),
+                embeddingType,
+                SimilarityMeasure.DOT_PRODUCT,
+                dimensions,
+                tokenLimit
+            ),
+            taskSettings,
+            null,
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+        );
+    }
+
+    public static VoyageAIEmbeddingsModel createModel(
+        String url,
+        String apiKey,
+        VoyageAIEmbeddingsTaskSettings taskSettings,
+        @Nullable Integer tokenLimit,
+        @Nullable Integer dimensions,
+        String model,
         @Nullable SimilarityMeasure similarityMeasure
     ) {
         return new VoyageAIEmbeddingsModel(

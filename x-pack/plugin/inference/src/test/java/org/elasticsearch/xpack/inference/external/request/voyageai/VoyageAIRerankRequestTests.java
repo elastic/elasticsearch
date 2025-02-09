@@ -102,8 +102,8 @@ public class VoyageAIRerankRequestTests extends ESTestCase {
         assertThat(truncatedRequest, sameInstance(request));
     }
 
-    private static VoyageAIRerankRequest createRequest(String query, String input, @Nullable String modelId, @Nullable Integer topN) {
-        var rerankModel = VoyageAIRerankModelTests.createModel(API_KEY, modelId, topN);
+    private static VoyageAIRerankRequest createRequest(String query, String input, @Nullable String modelId, @Nullable Integer topK) {
+        var rerankModel = VoyageAIRerankModelTests.createModel(API_KEY, modelId, topK);
         return new VoyageAIRerankRequest(query, List.of(input), rerankModel);
 
     }

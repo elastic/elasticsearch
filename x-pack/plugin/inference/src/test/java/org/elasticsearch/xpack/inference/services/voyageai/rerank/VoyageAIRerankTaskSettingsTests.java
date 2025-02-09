@@ -11,6 +11,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServiceFields;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -28,22 +29,39 @@ public class VoyageAIRerankTaskSettingsTests extends AbstractWireSerializingTest
         return new VoyageAIRerankTaskSettings(topNDocsOnly, returnDocuments, truncation);
     }
 
+    public void testFromMap_WithInvalidTruncation_ThrowsValidationException() {
+        Map<String, Object> taskMap = Map.of(
+            VoyageAIRerankTaskSettings.RETURN_DOCUMENTS,
+            true,
+            VoyageAIRerankTaskSettings.TOP_K_DOCS_ONLY,
+            5,
+            VoyageAIServiceFields.TRUNCATION,
+            "invalid"
+        );
+        var thrownException = expectThrows(ValidationException.class, () -> VoyageAIRerankTaskSettings.fromMap(new HashMap<>(taskMap)));
+        assertThat(thrownException.getMessage(), containsString("field [truncation] is not of the expected type"));
+    }
+
     public void testFromMap_WithValidValues_ReturnsSettings() {
         Map<String, Object> taskMap = Map.of(
             VoyageAIRerankTaskSettings.RETURN_DOCUMENTS,
             true,
             VoyageAIRerankTaskSettings.TOP_K_DOCS_ONLY,
-            5
+            5,
+            VoyageAIServiceFields.TRUNCATION,
+            true
         );
         var settings = VoyageAIRerankTaskSettings.fromMap(new HashMap<>(taskMap));
         assertTrue(settings.getReturnDocuments());
         assertEquals(5, settings.getTopKDocumentsOnly().intValue());
+        assertTrue(settings.getTruncation());
     }
 
     public void testFromMap_WithNullValues_ReturnsSettingsWithNulls() {
         var settings = VoyageAIRerankTaskSettings.fromMap(Map.of());
         assertNull(settings.getReturnDocuments());
         assertNull(settings.getTopKDocumentsOnly());
+        assertNull(settings.getTruncation());
     }
 
     public void testFromMap_WithInvalidReturnDocuments_ThrowsValidationException() {

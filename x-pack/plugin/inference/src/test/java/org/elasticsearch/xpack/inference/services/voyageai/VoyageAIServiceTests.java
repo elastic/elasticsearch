@@ -1830,18 +1830,18 @@ public class VoyageAIServiceTests extends ESTestCase {
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, hasSize(2));
             {
-                assertThat(results.get(0), CoreMatchers.instanceOf(ChunkedInferenceEmbeddingFloat.class));
-                var floatResult = (ChunkedInferenceEmbeddingFloat) results.get(0);
+                assertThat(results.getFirst(), CoreMatchers.instanceOf(ChunkedInferenceEmbeddingFloat.class));
+                var floatResult = (ChunkedInferenceEmbeddingFloat) results.getFirst();
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertEquals("foo", floatResult.chunks().get(0).matchedText());
-                assertArrayEquals(new float[] { 0.123f, -0.123f }, floatResult.chunks().get(0).embedding(), 0.0f);
+                assertEquals("foo", floatResult.chunks().getFirst().matchedText());
+                assertArrayEquals(new float[] { 0.123f, -0.123f }, floatResult.chunks().getFirst().embedding(), 0.0f);
             }
             {
                 assertThat(results.get(1), CoreMatchers.instanceOf(ChunkedInferenceEmbeddingFloat.class));
                 var floatResult = (ChunkedInferenceEmbeddingFloat) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertEquals("bar", floatResult.chunks().get(0).matchedText());
-                assertArrayEquals(new float[] { 0.223f, -0.223f }, floatResult.chunks().get(0).embedding(), 0.0f);
+                assertEquals("bar", floatResult.chunks().getFirst().matchedText());
+                assertArrayEquals(new float[] { 0.223f, -0.223f }, floatResult.chunks().getFirst().embedding(), 0.0f);
             }
 
             MatcherAssert.assertThat(webServer.requests(), hasSize(1));

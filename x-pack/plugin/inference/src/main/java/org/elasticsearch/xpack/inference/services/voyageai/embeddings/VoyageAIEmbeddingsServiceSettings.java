@@ -42,7 +42,7 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
             null, null, null, null, null
     );
 
-    static final String EMBEDDING_TYPE = "embedding_type";
+    public static final String EMBEDDING_TYPE = "embedding_type";
 
     public static VoyageAIEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();

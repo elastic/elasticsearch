@@ -14,33 +14,42 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServiceSettings;
 
 public class VoyageAIRerankModelTests {
-
-    public static VoyageAIRerankModel createModel(String apiKey, String modelId, @Nullable Integer topN) {
+    public static VoyageAIRerankModel createModel(String apiKey, String modelId, @Nullable Integer topK, @Nullable Boolean truncation) {
         return new VoyageAIRerankModel(
             "id",
             "service",
             new VoyageAIRerankServiceSettings(new VoyageAIServiceSettings(ESTestCase.randomAlphaOfLength(10), modelId, null)),
-            new VoyageAIRerankTaskSettings(topN, null, null),
+            new VoyageAIRerankTaskSettings(topK, null, truncation),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }
 
-    public static VoyageAIRerankModel createModel(String modelId, @Nullable Integer topN) {
+    public static VoyageAIRerankModel createModel(String apiKey, String modelId, @Nullable Integer topK) {
         return new VoyageAIRerankModel(
             "id",
             "service",
             new VoyageAIRerankServiceSettings(new VoyageAIServiceSettings(ESTestCase.randomAlphaOfLength(10), modelId, null)),
-            new VoyageAIRerankTaskSettings(topN, null, null),
+            new VoyageAIRerankTaskSettings(topK, null, null),
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+        );
+    }
+
+    public static VoyageAIRerankModel createModel(String modelId, @Nullable Integer topK) {
+        return new VoyageAIRerankModel(
+            "id",
+            "service",
+            new VoyageAIRerankServiceSettings(new VoyageAIServiceSettings(ESTestCase.randomAlphaOfLength(10), modelId, null)),
+            new VoyageAIRerankTaskSettings(topK, null, null),
             new DefaultSecretSettings(ESTestCase.randomSecureStringOfLength(8))
         );
     }
 
-    public static VoyageAIRerankModel createModel(String modelId, @Nullable Integer topN, Boolean returnDocuments, Boolean truncation) {
+    public static VoyageAIRerankModel createModel(String modelId, @Nullable Integer topK, Boolean returnDocuments, Boolean truncation) {
         return new VoyageAIRerankModel(
             "id",
             "service",
             new VoyageAIRerankServiceSettings(new VoyageAIServiceSettings(ESTestCase.randomAlphaOfLength(10), modelId, null)),
-            new VoyageAIRerankTaskSettings(topN, returnDocuments, truncation),
+            new VoyageAIRerankTaskSettings(topK, returnDocuments, truncation),
             new DefaultSecretSettings(ESTestCase.randomSecureStringOfLength(8))
         );
     }
@@ -48,7 +57,7 @@ public class VoyageAIRerankModelTests {
     public static VoyageAIRerankModel createModel(
         String url,
         String modelId,
-        @Nullable Integer topN,
+        @Nullable Integer topK,
         Boolean returnDocuments,
         Boolean truncation
     ) {
@@ -56,7 +65,7 @@ public class VoyageAIRerankModelTests {
             "id",
             "service",
             new VoyageAIRerankServiceSettings(new VoyageAIServiceSettings(url, modelId, null)),
-            new VoyageAIRerankTaskSettings(topN, returnDocuments, truncation),
+            new VoyageAIRerankTaskSettings(topK, returnDocuments, truncation),
             new DefaultSecretSettings(ESTestCase.randomSecureStringOfLength(8))
         );
     }
@@ -65,7 +74,7 @@ public class VoyageAIRerankModelTests {
         String url,
         String apiKey,
         String modelId,
-        @Nullable Integer topN,
+        @Nullable Integer topK,
         Boolean returnDocuments,
         Boolean truncation
     ) {
@@ -73,7 +82,7 @@ public class VoyageAIRerankModelTests {
             "id",
             "service",
             new VoyageAIRerankServiceSettings(new VoyageAIServiceSettings(url, modelId, null)),
-            new VoyageAIRerankTaskSettings(topN, returnDocuments, truncation),
+            new VoyageAIRerankTaskSettings(topK, returnDocuments, truncation),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }

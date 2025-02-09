@@ -27,7 +27,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.InternalEngine;
-import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -59,37 +58,41 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        final GetRequest getRequest = request.getRequest();
-        final ShardId shardId = request.shardId();
-        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        IndexShard indexShard = indexService.getShard(shardId.id());
-        assert indexShard.routingEntry().isPromotableToPrimary() : "not an indexing shard" + indexShard.routingEntry();
-        assert getRequest.realtime();
+        IndexShard indexShard = getIndexShard(indicesService, request);
         ActionListener.completeWith(listener, () -> {
-            var result = indexShard.getService()
-                .getFromTranslog(
-                    getRequest.id(),
-                    getRequest.storedFields(),
-                    getRequest.realtime(),
-                    getRequest.version(),
-                    getRequest.versionType(),
-                    getRequest.fetchSourceContext(),
-                    getRequest.isForceSyntheticSource()
-                );
+            var result = getResult(indexShard, request.getRequest());
             long segmentGeneration = -1;
             if (result == null) {
                 Engine engine = indexShard.getEngineOrNull();
                 if (engine == null) {
                     throw new AlreadyClosedException("engine closed");
                 }
-                if (engine instanceof InternalEngine internalEngine) {
-                    segmentGeneration = internalEngine.getLastUnsafeSegmentGenerationForGets();
-                } else if (engine instanceof ReadOnlyEngine readOnlyEngine) {
-                    segmentGeneration = readOnlyEngine.getLastUnsafeSegmentGenerationForGets();
-                }
+                segmentGeneration = ((InternalEngine) engine).getLastUnsafeSegmentGenerationForGets();
             }
             return new Response(result, indexShard.getOperationPrimaryTerm(), segmentGeneration);
         });
+    }
+
+    public static IndexShard getIndexShard(IndicesService indicesService, Request request) {
+        final ShardId shardId = request.shardId();
+        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        IndexShard indexShard = indexService.getShard(shardId.id());
+        assert indexShard.routingEntry().isPromotableToPrimary() : "not an indexing shard" + indexShard.routingEntry();
+        assert request.getRequest().realtime();
+        return indexShard;
+    }
+
+    public static GetResult getResult(IndexShard indexShard, GetRequest getRequest) throws IOException {
+        return indexShard.getService()
+            .getFromTranslog(
+                getRequest.id(),
+                getRequest.storedFields(),
+                getRequest.realtime(),
+                getRequest.version(),
+                getRequest.versionType(),
+                getRequest.fetchSourceContext(),
+                getRequest.isForceSyntheticSource()
+            );
     }
 
     public static class Request extends ActionRequest implements IndicesRequest {

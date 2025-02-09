@@ -26,16 +26,15 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.http.sender.CohereEmbeddingsRequestManager;
+import org.elasticsearch.xpack.inference.external.http.sender.VoyageAIEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.external.request.cohere.CohereUtils;
+import org.elasticsearch.xpack.inference.external.request.voyageai.VoyageAIUtils;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
-import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
-import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModelTests;
-import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingType;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsTaskSettings;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
 import org.junit.Before;
@@ -51,6 +50,7 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
+import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationBinary;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationByte;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
 import static org.hamcrest.Matchers.containsString;
@@ -90,27 +90,19 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
 
             String responseJson = """
                 {
-                    "id": "de37399c-5df6-47cb-bc57-e3c5680c977b",
-                    "texts": [
-                        "hello"
-                    ],
-                    "embeddings": {
-                        "float": [
-                            [
+                    "object": "list",
+                    "data": [{
+                            "object": "embedding",
+                            "embedding": [
                                 0.123,
                                 -0.123
-                            ]
-                        ]
-                    },
-                    "meta": {
-                        "api_version": {
-                            "version": "1"
-                        },
-                        "billed_units": {
-                            "input_tokens": 1
-                        }
-                    },
-                    "response_type": "embeddings_by_type"
+                            ],
+                            "index": 0
+                    }],
+                    "model": "voyage-3-large",
+                    "usage": {
+                        "total_tokens": 123
+                    }
                 }
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
@@ -118,9 +110,9 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
             var action = createAction(
                 getUrl(webServer),
                 "secret",
-                new CohereEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.START),
+                new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, true),
                 "model",
-                CohereEmbeddingType.FLOAT,
+                VoyageAIEmbeddingType.FLOAT,
                 sender
             );
 
@@ -138,25 +130,21 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
             );
             MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
             MatcherAssert.assertThat(
-                webServer.requests().get(0).getHeader(CohereUtils.REQUEST_SOURCE_HEADER),
-                equalTo(CohereUtils.ELASTIC_REQUEST_SOURCE)
+                webServer.requests().get(0).getHeader(VoyageAIUtils.REQUEST_SOURCE_HEADER),
+                equalTo(VoyageAIUtils.ELASTIC_REQUEST_SOURCE)
             );
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             MatcherAssert.assertThat(
                 requestMap,
-                is(
+                equalTo(
                     Map.of(
-                        "texts",
-                        List.of("abc"),
-                        "model",
-                        "model",
-                        "input_type",
-                        "search_document",
-                        "embedding_types",
-                        List.of("float"),
-                        "truncate",
-                        "start"
+                        "input", List.of("abc"),
+                        "model", "model",
+                        "input_type", "document",
+                        "output_dtype", "float",
+                        "truncation", true,
+                        "output_dimension", 1024
                     )
                 )
             );
@@ -171,27 +159,19 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
 
             String responseJson = """
                 {
-                    "id": "de37399c-5df6-47cb-bc57-e3c5680c977b",
-                    "texts": [
-                        "hello"
-                    ],
-                    "embeddings": {
-                        "int8": [
-                            [
+                    "object": "list",
+                    "data": [{
+                            "object": "embedding",
+                            "embedding": [
                                 0,
                                 -1
-                            ]
-                        ]
-                    },
-                    "meta": {
-                        "api_version": {
-                            "version": "1"
-                        },
-                        "billed_units": {
-                            "input_tokens": 1
-                        }
-                    },
-                    "response_type": "embeddings_by_type"
+                            ],
+                            "index": 0
+                    }],
+                    "model": "voyage-3-large",
+                    "usage": {
+                        "total_tokens": 123
+                    }
                 }
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
@@ -199,9 +179,9 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
             var action = createAction(
                 getUrl(webServer),
                 "secret",
-                new CohereEmbeddingsTaskSettings(InputType.INGEST, CohereTruncation.START),
+                new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, true),
                 "model",
-                CohereEmbeddingType.INT8,
+                VoyageAIEmbeddingType.INT8,
                 sender
             );
 
@@ -219,8 +199,8 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
             );
             MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
             MatcherAssert.assertThat(
-                webServer.requests().get(0).getHeader(CohereUtils.REQUEST_SOURCE_HEADER),
-                equalTo(CohereUtils.ELASTIC_REQUEST_SOURCE)
+                webServer.requests().get(0).getHeader(VoyageAIUtils.REQUEST_SOURCE_HEADER),
+                equalTo(VoyageAIUtils.ELASTIC_REQUEST_SOURCE)
             );
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
@@ -228,16 +208,81 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
                 requestMap,
                 is(
                     Map.of(
-                        "texts",
-                        List.of("abc"),
-                        "model",
-                        "model",
-                        "input_type",
-                        "search_document",
-                        "embedding_types",
-                        List.of("int8"),
-                        "truncate",
-                        "start"
+                        "input", List.of("abc"),
+                        "model", "model",
+                        "input_type", "document",
+                        "output_dtype", "int8",
+                        "truncation", true,
+                        "output_dimension", 1024
+                    )
+                )
+            );
+        }
+    }
+
+    public void testExecute_ReturnsSuccessfulResponse_ForBinaryResponseType() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = HttpRequestSenderTests.createSender(senderFactory)) {
+            sender.start();
+
+            String responseJson = """
+                {
+                    "object": "list",
+                    "data": [{
+                            "object": "embedding",
+                            "embedding": [
+                                0,
+                                -1
+                            ],
+                            "index": 0
+                    }],
+                    "model": "voyage-3-large",
+                    "usage": {
+                        "total_tokens": 123
+                    }
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var action = createAction(
+                getUrl(webServer),
+                "secret",
+                new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, true),
+                "model",
+                VoyageAIEmbeddingType.BINARY,
+                sender
+            );
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertEquals(buildExpectationBinary(List.of(new byte[] { 0, -1 })), result.asMap());
+            MatcherAssert.assertThat(webServer.requests(), hasSize(1));
+            assertNull(webServer.requests().get(0).getUri().getQuery());
+            MatcherAssert.assertThat(
+                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
+                equalTo(XContentType.JSON.mediaType())
+            );
+            MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            MatcherAssert.assertThat(
+                webServer.requests().get(0).getHeader(VoyageAIUtils.REQUEST_SOURCE_HEADER),
+                equalTo(VoyageAIUtils.ELASTIC_REQUEST_SOURCE)
+            );
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            MatcherAssert.assertThat(
+                requestMap,
+                is(
+                    Map.of(
+                        "input", List.of("abc"),
+                        "model", "model",
+                        "input_type", "document",
+                        "output_dtype", "binary",
+                        "truncation", true,
+                        "output_dimension", 1024
                     )
                 )
             );
@@ -248,7 +293,7 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
         try (var sender = mock(Sender.class)) {
             var thrownException = expectThrows(
                 IllegalArgumentException.class,
-                () -> createAction("^^", "secret", CohereEmbeddingsTaskSettings.EMPTY_SETTINGS, null, null, sender)
+                () -> createAction("^^", "secret", VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS, null, null, sender)
             );
             MatcherAssert.assertThat(thrownException.getMessage(), containsString("unable to parse url [^^]"));
         }
@@ -258,7 +303,7 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
         var sender = mock(Sender.class);
         doThrow(new ElasticsearchException("failed")).when(sender).send(any(), any(), any(), any());
 
-        var action = createAction(getUrl(webServer), "secret", CohereEmbeddingsTaskSettings.EMPTY_SETTINGS, null, null, sender);
+        var action = createAction(getUrl(webServer), "secret", VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS, "model", null, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
@@ -279,7 +324,7 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
             return Void.TYPE;
         }).when(sender).send(any(), any(), any(), any());
 
-        var action = createAction(getUrl(webServer), "secret", CohereEmbeddingsTaskSettings.EMPTY_SETTINGS, null, null, sender);
+        var action = createAction(getUrl(webServer), "secret", VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS, "model", null, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
@@ -288,7 +333,7 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
 
         MatcherAssert.assertThat(
             thrownException.getMessage(),
-            is(format("Failed to send Cohere embeddings request to [%s]", getUrl(webServer)))
+            is(format("Failed to send VoyageAI embeddings request to [%s]", getUrl(webServer)))
         );
     }
 
@@ -303,21 +348,21 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
             return Void.TYPE;
         }).when(sender).send(any(), any(), any(), any());
 
-        var action = createAction(null, "secret", CohereEmbeddingsTaskSettings.EMPTY_SETTINGS, null, null, sender);
+        var action = createAction(null, "secret", VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS, "model", null, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-        MatcherAssert.assertThat(thrownException.getMessage(), is("Failed to send Cohere embeddings request"));
+        MatcherAssert.assertThat(thrownException.getMessage(), is("Failed to send VoyageAI embeddings request"));
     }
 
     public void testExecute_ThrowsException() {
         var sender = mock(Sender.class);
         doThrow(new IllegalArgumentException("failed")).when(sender).send(any(), any(), any(), any());
 
-        var action = createAction(getUrl(webServer), "secret", CohereEmbeddingsTaskSettings.EMPTY_SETTINGS, null, null, sender);
+        var action = createAction(getUrl(webServer), "secret", VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS, "model", null, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
@@ -326,7 +371,7 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
 
         MatcherAssert.assertThat(
             thrownException.getMessage(),
-            is(format("Failed to send Cohere embeddings request to [%s]", getUrl(webServer)))
+            is(format("Failed to send VoyageAI embeddings request to [%s]", getUrl(webServer)))
         );
     }
 
@@ -334,30 +379,30 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
         var sender = mock(Sender.class);
         doThrow(new IllegalArgumentException("failed")).when(sender).send(any(), any(), any(), any());
 
-        var action = createAction(null, "secret", CohereEmbeddingsTaskSettings.EMPTY_SETTINGS, null, null, sender);
+        var action = createAction(null, "secret", VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS, "model", null, sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-        MatcherAssert.assertThat(thrownException.getMessage(), is("Failed to send Cohere embeddings request"));
+        MatcherAssert.assertThat(thrownException.getMessage(), is("Failed to send VoyageAI embeddings request"));
     }
 
     private ExecutableAction createAction(
         String url,
         String apiKey,
-        CohereEmbeddingsTaskSettings taskSettings,
+        VoyageAIEmbeddingsTaskSettings taskSettings,
         @Nullable String modelName,
-        @Nullable CohereEmbeddingType embeddingType,
+        @Nullable VoyageAIEmbeddingType embeddingType,
         Sender sender
     ) {
-        var model = CohereEmbeddingsModelTests.createModel(url, apiKey, taskSettings, 1024, 1024, modelName, embeddingType);
+        var model = VoyageAIEmbeddingsModelTests.createModel(url, apiKey, taskSettings, 1024, 1024, modelName, embeddingType);
         var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(
             model.getServiceSettings().getCommonSettings().uri(),
-            "Cohere embeddings"
+            "VoyageAI embeddings"
         );
-        var requestCreator = CohereEmbeddingsRequestManager.of(model, threadPool);
+        var requestCreator = VoyageAIEmbeddingsRequestManager.of(model, threadPool);
         return new SenderExecutableAction(sender, requestCreator, failedToSendRequestErrorMessage);
     }
 

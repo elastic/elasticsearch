@@ -428,6 +428,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   method: testProjectRenameEvalProject
   issue: https://github.com/elastic/elasticsearch/issues/122150
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  method: testWhereNegatedCondition
+  issue: https://github.com/elastic/elasticsearch/issues/122147
 
 # Examples:
 #

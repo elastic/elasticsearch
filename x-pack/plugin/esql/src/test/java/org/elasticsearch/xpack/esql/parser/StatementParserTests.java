@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
@@ -2981,5 +2982,57 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 "invalid index pattern [" + unquoteIndexPattern(fromPatterns) + "], remote clusters are not supported in LOOKUP JOIN"
             );
         }
+    }
+
+    public void testValidFork() {
+        assumeTrue("FORK requires corresponding capability", EsqlCapabilities.Cap.FORK.isEnabled());
+
+        var plan = statement("""
+            FROM foo*
+            | FORK [WHERE a:"baz" | LIMIT 11]
+                   [WHERE b:"bar" | SORT b ]
+                   [WHERE c:"bat"]
+            """);
+        var fork = as(plan, Fork.class);
+        var subPlans = fork.subPlans();
+
+        // first subplan
+        var limit = as(subPlans.get(0), Limit.class);
+        assertThat(limit.limit(), instanceOf(Literal.class));
+        assertThat(((Literal) limit.limit()).value(), equalTo(11));
+        var filter = as(limit.child(), Filter.class);
+        var match = (MatchOperator) filter.condition();
+        var matchField = (UnresolvedAttribute) match.field();
+        assertThat(matchField.name(), equalTo("a"));
+        assertThat(match.query().fold(FoldContext.small()), equalTo("baz"));
+
+        // second subplan
+        var orderBy = as(subPlans.get(1), OrderBy.class);
+        assertThat(orderBy.order().size(), equalTo(1));
+        Order order = orderBy.order().get(0);
+        assertThat(order.child(), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) order.child()).name(), equalTo("b"));
+        filter = as(orderBy.child(), Filter.class);
+        match = (MatchOperator) filter.condition();
+        matchField = (UnresolvedAttribute) match.field();
+        assertThat(matchField.name(), equalTo("b"));
+        assertThat(match.query().fold(FoldContext.small()), equalTo("bar"));
+
+        // third subplan
+        filter = as(subPlans.get(2), Filter.class);
+        match = (MatchOperator) filter.condition();
+        matchField = (UnresolvedAttribute) match.field();
+        assertThat(matchField.name(), equalTo("c"));
+        assertThat(match.query().fold(FoldContext.small()), equalTo("bat"));
+    }
+
+    public void testInvalidFork() {
+        assumeTrue("FORK requires corresponding capability", EsqlCapabilities.Cap.FORK.isEnabled());
+
+        expectError("FROM foo* | FORK [WHERE a:\"baz\"]", "line 1:13: Fork requires at least two branches");
+        expectError("FROM foo* | FORK [LIMIT 10]", "line 1:13: Fork requires at least two branches");
+        expectError("FROM foo* | FORK [SORT a]", "line 1:13: Fork requires at least two branches");
+        expectError("FROM foo* | FORK [WHERE x>1 | LIMIT 5]", "line 1:13: Fork requires at least two branches");
+        expectError("FROM foo* | WHERE x>1 | FORK [WHERE a:\"baz\"]", "Fork requires at least two branches");
     }
 }

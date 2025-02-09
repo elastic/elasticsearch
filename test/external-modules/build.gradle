@@ -6,9 +6,9 @@ subprojects {
   apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
   esplugin {
-    name it.name
-    licenseFile rootProject.file('licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
-    noticeFile rootProject.file('NOTICE.txt')
+    name = it.name
+    licenseFile = rootProject.file('licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
+    noticeFile = rootProject.file('NOTICE.txt')
   }
 
   tasks.named('yamlRestTest').configure {

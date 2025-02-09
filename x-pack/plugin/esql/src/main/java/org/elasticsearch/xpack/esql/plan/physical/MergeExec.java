@@ -80,7 +80,7 @@ public class MergeExec extends LeafExec {
 
     @Override
     public int hashCode() {
-        return Objects.hash(source().hashCode(), physSubPlans);
+        return Objects.hash(physSubPlans);
     }
 
     @Override
@@ -88,6 +88,6 @@ public class MergeExec extends LeafExec {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         MergeExec other = (MergeExec) o;
-        return Objects.equals(this.source(), other.source()) && Objects.equals(this.physSubPlans, other.physSubPlans);
+        return Objects.equals(this.physSubPlans, other.physSubPlans);
     }
 }

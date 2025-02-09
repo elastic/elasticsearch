@@ -45,7 +45,7 @@ public class Merge extends LeafPlan {
 
     @Override
     public int hashCode() {
-        return Objects.hash(source().hashCode(), subPlans);
+        return Objects.hash(subPlans);
     }
 
     @Override
@@ -57,8 +57,7 @@ public class Merge extends LeafPlan {
             return false;
         }
         Merge other = (Merge) o;
-
-        return Objects.equals(source(), other.source()) && Objects.equals(subPlans, other.subPlans);
+        return Objects.equals(subPlans, other.subPlans);
     }
 
     @Override

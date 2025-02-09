@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.application.connector.secrets.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
@@ -17,19 +17,13 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.connector.secrets.ConnectorSecretsIndexService;
 
-public class TransportPostConnectorSecretAction extends HandledTransportAction<PostConnectorSecretRequest, PostConnectorSecretResponse> {
+public class TransportPostConnectorSecretAction extends TransportAction<PostConnectorSecretRequest, PostConnectorSecretResponse> {
 
     private final ConnectorSecretsIndexService connectorSecretsIndexService;
 
     @Inject
     public TransportPostConnectorSecretAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(
-            PostConnectorSecretAction.NAME,
-            transportService,
-            actionFilters,
-            PostConnectorSecretRequest::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(PostConnectorSecretAction.NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.connectorSecretsIndexService = new ConnectorSecretsIndexService(client);
     }
 

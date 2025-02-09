@@ -2985,7 +2985,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testInvalidInsistAsterisk() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
-        expectError("FROM text | EVAL x = 4 | INSIST_🐔 *", "Cannot specify [*] with INSIST");
-        expectError("FROM text | EVAL x = 4 | INSIST_🐔 foo*", "Cannot use wildcards ([*]) with INSIST");
+        expectError("FROM text | EVAL x = 4 | INSIST_🐔 *", "INSIST doesn't support wildcards, found [*]");
+        expectError("FROM text | EVAL x = 4 | INSIST_🐔 foo*", "INSIST doesn't support wildcards, found [foo*]");
     }
 }

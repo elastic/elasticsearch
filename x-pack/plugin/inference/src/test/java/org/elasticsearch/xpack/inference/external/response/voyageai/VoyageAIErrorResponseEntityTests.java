@@ -12,7 +12,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
-import org.elasticsearch.xpack.inference.external.response.voyageai.VoyageAIErrorResponseEntity;
 import org.hamcrest.MatcherAssert;
 
 import java.nio.charset.StandardCharsets;

@@ -13,8 +13,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.voyageai.VoyageAIAccount;
-import org.elasticsearch.xpack.inference.external.request.voyageai.VoyageAIRequest;
-import org.elasticsearch.xpack.inference.external.request.voyageai.VoyageAIUtils;
 
 import java.net.URI;
 

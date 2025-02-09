@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.external.request.voyageai;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.external.request.voyageai.VoyageAIUtils;
 
 import static org.hamcrest.Matchers.is;
 

@@ -185,7 +185,6 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractWireSerializ
     }
 
     public static Map<String, Object> getServiceSettingsMap(@Nullable String url, String model) {
-        var map = new HashMap<>(VoyageAIServiceSettingsTests.getServiceSettingsMap(url, model));
-        return map;
+        return new HashMap<>(VoyageAIServiceSettingsTests.getServiceSettingsMap(url, model));
     }
 }

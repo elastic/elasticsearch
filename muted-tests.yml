@@ -422,6 +422,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   method: testEvalWhere
   issue: https://github.com/elastic/elasticsearch/issues/122141
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  method: testFromStatsProjectGroupWithAlias
+  issue: https://github.com/elastic/elasticsearch/issues/122144
 
 # Examples:
 #

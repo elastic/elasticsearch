@@ -27,18 +27,16 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
 
 /**
  * This search phase merges the query results from the previous phase together and calculates the topN hits for this search.
  * Then it reaches out to all relevant shards to fetch the topN hits.
  */
-final class FetchSearchPhase extends SearchPhase {
 
+class FetchSearchPhase extends SearchPhase {
     static final String NAME = "fetch";
 
     private final AtomicArray<SearchPhaseResult> searchPhaseShardResults;
-    private final BiFunction<SearchResponseSections, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
     private final AbstractSearchAsyncAction<?> context;
     private final Logger logger;
     private final SearchProgressListener progressListener;
@@ -53,26 +51,6 @@ final class FetchSearchPhase extends SearchPhase {
         AbstractSearchAsyncAction<?> context,
         @Nullable SearchPhaseController.ReducedQueryPhase reducedQueryPhase
     ) {
-        this(
-            resultConsumer,
-            aggregatedDfs,
-            context,
-            reducedQueryPhase,
-            (response, queryPhaseResults) -> new ExpandSearchPhase(
-                context,
-                response.hits,
-                () -> new FetchLookupFieldsPhase(context, response, queryPhaseResults)
-            )
-        );
-    }
-
-    FetchSearchPhase(
-        SearchPhaseResults<SearchPhaseResult> resultConsumer,
-        AggregatedDfs aggregatedDfs,
-        AbstractSearchAsyncAction<?> context,
-        @Nullable SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
-        BiFunction<SearchResponseSections, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory
-    ) {
         super(NAME);
         if (context.getNumShards() != resultConsumer.getNumShards()) {
             throw new IllegalStateException(
@@ -84,12 +62,16 @@ final class FetchSearchPhase extends SearchPhase {
         }
         this.searchPhaseShardResults = resultConsumer.getAtomicArray();
         this.aggregatedDfs = aggregatedDfs;
-        this.nextPhaseFactory = nextPhaseFactory;
         this.context = context;
         this.logger = context.getLogger();
         this.progressListener = context.getTask().getProgressListener();
         this.reducedQueryPhase = reducedQueryPhase;
         this.resultConsumer = reducedQueryPhase == null ? resultConsumer : null;
+    }
+
+    // protected for tests
+    protected SearchPhase nextPhase(SearchResponseSections searchResponseSections, AtomicArray<SearchPhaseResult> queryPhaseResults) {
+        return new ExpandSearchPhase(context, searchResponseSections, queryPhaseResults);
     }
 
     @Override
@@ -115,7 +97,7 @@ final class FetchSearchPhase extends SearchPhase {
         final int numShards = context.getNumShards();
         // Usually when there is a single shard, we force the search type QUERY_THEN_FETCH. But when there's kNN, we might
         // still use DFS_QUERY_THEN_FETCH, which does not perform the "query and fetch" optimization during the query phase.
-        final boolean queryAndFetchOptimization = searchPhaseShardResults.length() == 1
+        final boolean queryAndFetchOptimization = numShards == 1
             && context.getRequest().hasKnnSearch() == false
             && reducedQueryPhase.queryPhaseRankCoordinatorContext() == null
             && (context.getRequest().source() == null || context.getRequest().source().rankBuilder() == null);
@@ -130,7 +112,7 @@ final class FetchSearchPhase extends SearchPhase {
                 // we have to release contexts here to free up resources
                 searchPhaseShardResults.asList()
                     .forEach(searchPhaseShardResult -> releaseIrrelevantSearchContext(searchPhaseShardResult, context));
-                moveToNextPhase(new AtomicArray<>(numShards), reducedQueryPhase);
+                moveToNextPhase(new AtomicArray<>(0), reducedQueryPhase);
             } else {
                 innerRunFetch(scoreDocs, numShards, reducedQueryPhase);
             }
@@ -281,7 +263,7 @@ final class FetchSearchPhase extends SearchPhase {
         context.executeNextPhase(NAME, () -> {
             var resp = SearchPhaseController.merge(context.getRequest().scroll() != null, reducedQueryPhase, fetchResultsArr);
             context.addReleasable(resp);
-            return nextPhaseFactory.apply(resp, searchPhaseShardResults);
+            return nextPhase(resp, searchPhaseShardResults);
         });
     }
 

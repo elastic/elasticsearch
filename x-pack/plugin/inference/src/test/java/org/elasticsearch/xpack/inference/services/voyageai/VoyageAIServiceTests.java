@@ -888,7 +888,7 @@ public class VoyageAIServiceTests extends ESTestCase {
                 10,
                 1,
                 "voyage-clip-v2",
-                null
+                (SimilarityMeasure) null
             );
             PlainActionFuture<Model> listener = new PlainActionFuture<>();
             service.checkModelConfig(model, listener);
@@ -1022,7 +1022,7 @@ public class VoyageAIServiceTests extends ESTestCase {
                 1024,
                 1024,
                 "model",
-                null
+                (SimilarityMeasure) null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
@@ -1109,7 +1109,7 @@ public class VoyageAIServiceTests extends ESTestCase {
                 1024,
                 1024,
                 "voyage-clip-v2",
-                null
+                (SimilarityMeasure) null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
@@ -1183,7 +1183,7 @@ public class VoyageAIServiceTests extends ESTestCase {
                 1024,
                 1024,
                 "voyage-clip-v2",
-                null
+                (SimilarityMeasure) null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
@@ -1238,7 +1238,7 @@ public class VoyageAIServiceTests extends ESTestCase {
                 1024,
                 1024,
                 "voyage-clip-v2",
-                null
+                (SimilarityMeasure) null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
@@ -1308,7 +1308,7 @@ public class VoyageAIServiceTests extends ESTestCase {
                 1024,
                 1024,
                 "voyage-clip-v2",
-                null
+                (SimilarityMeasure) null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(model, null, List.of("abc"), false, new HashMap<>(), null, InferenceAction.Request.DEFAULT_TIMEOUT, listener);
@@ -1715,7 +1715,7 @@ public class VoyageAIServiceTests extends ESTestCase {
                 1024,
                 1024,
                 "voyage-clip-v2",
-                null
+                (SimilarityMeasure) null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(

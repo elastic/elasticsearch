@@ -16,7 +16,7 @@ import java.util.Map;
 /**
  * A script used by {@link org.elasticsearch.ingest.ConditionalProcessor}.
  */
-public abstract class IngestConditionalScript extends WriteScript {
+public abstract class IngestConditionalScript extends SourceMapFieldScript {
 
     public static final String[] PARAMETERS = { "ctxdsf" /*todo change param name*/ };
 

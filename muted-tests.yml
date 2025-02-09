@@ -413,6 +413,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/122128
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/121411
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  method: testGroupingMultiValueByOrdinals
+  issue: https://github.com/elastic/elasticsearch/issues/122131
 
 # Examples:
 #

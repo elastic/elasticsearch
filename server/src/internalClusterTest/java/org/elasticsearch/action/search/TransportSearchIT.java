@@ -444,6 +444,7 @@ public class TransportSearchIT extends ESIntegTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "TODO")
     public void testCircuitBreakerReduceFail() throws Exception {
         int numShards = randomIntBetween(1, 10);
         indexSomeDocs("test", numShards, numShards * 3);

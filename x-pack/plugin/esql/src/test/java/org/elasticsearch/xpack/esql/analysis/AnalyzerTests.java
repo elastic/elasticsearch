@@ -286,10 +286,7 @@ public class AnalyzerTests extends ESTestCase {
         var limit = as(plan, Limit.class);
         var eval = as(limit.child(), Eval.class);
         assertEquals(1, eval.fields().size());
-        assertThat(
-            eval.fields().get(0),
-            equalToIgnoringIds(new Alias(EMPTY, "e", new ReferenceAttribute(EMPTY, "emp_no", DataType.INTEGER)))
-        );
+        assertThat(eval.fields().get(0), equalToIgnoringIds(new Alias(EMPTY, "e", new ReferenceAttribute(EMPTY, "emp_no", INTEGER))));
 
         assertEquals(2, eval.output().size());
         Attribute empNo = eval.output().get(0);

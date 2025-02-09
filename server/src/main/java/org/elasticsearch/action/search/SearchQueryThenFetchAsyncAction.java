@@ -629,7 +629,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         if (phaseResult != null
             && phaseResult.hasSearchContext()
             && request.searchRequest.scroll() == null
-            && (isPartOfPIT(request.searchRequest, phaseResult.getContextId()) == false)) {
+            && isPartOfPIT(request.searchRequest, phaseResult.getContextId()) == false) {
             searchService.freeReaderContext(phaseResult.getContextId());
         }
     }
@@ -715,7 +715,6 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                                 // no need for any cache effects when we're already flipped to ture => plain read + set-release
                                 state.hasResponse.compareAndExchangeRelease(false, true);
                                 state.consumeResult(searchPhaseResult.queryResult());
-                                state.queryPhaseResultConsumer.consumeResult(searchPhaseResult, state::onDone);
                             } catch (Exception e) {
                                 setFailure(state, dataNodeLocalIdx, e);
                             } finally {
@@ -898,6 +897,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 }
                 bottomSortCollector.consumeTopDocs(topDocs, queryResult.sortValueFormats());
             }
+            queryPhaseResultConsumer.consumeResult(queryResult, this::onDone);
         }
     }
 }

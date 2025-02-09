@@ -12,7 +12,6 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.response.voyageai.VoyageAIRerankResponseEntity;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
@@ -27,6 +26,28 @@ import static org.mockito.Mockito.mock;
 public class VoyageAIRerankResponseEntityTests extends ESTestCase {
 
     public void testResponseLiteral() throws IOException {
+        String responseLiteral = """
+            {
+                "model": "model",
+                "data": [
+                    {
+                        "index": 2,
+                        "relevance_score": 0.98005307
+                    },
+                    {
+                        "index": 3,
+                        "relevance_score": 0.27904198
+                    },
+                    {
+                        "index": 0,
+                        "relevance_score": 0.10194652
+                    }
+                ],
+                "usage": {
+                    "total_tokens": 15
+                }
+            }
+            """;
         InferenceServiceResults parsedResults = VoyageAIRerankResponseEntity.fromResponse(
             new HttpResult(mock(HttpResponse.class), responseLiteral.getBytes(StandardCharsets.UTF_8))
         );
@@ -82,33 +103,34 @@ public class VoyageAIRerankResponseEntityTests extends ESTestCase {
         list.add(new RankedDocsResults.RankedDoc(3, 0.27904198F, null));
         list.add(new RankedDocsResults.RankedDoc(0, 0.10194652F, null));
         return list;
-
-    };
-
-    private final String responseLiteral = """
-        {
-            "model": "model",
-            "data": [
-                {
-                    "index": 2,
-                    "relevance_score": 0.98005307
-                },
-                {
-                    "index": 3,
-                    "relevance_score": 0.27904198
-                },
-                {
-                    "index": 0,
-                    "relevance_score": 0.10194652
-                }
-            ],
-            "usage": {
-                "total_tokens": 15
-            }
-        }
-        """;
+    }
 
     public void testResponseLiteralWithDocuments() throws IOException {
+        String responseLiteralWithDocuments = """
+            {
+                "model": "model",
+                "data": [
+                    {
+                        "document": "Washington, D.C..",
+                        "index": 2,
+                        "relevance_score": 0.98005307
+                    },
+                    {
+                        "document": "Capital punishment has existed in the United States since beforethe United States was a country. ",
+                        "index": 3,
+                        "relevance_score": 0.27904198
+                    },
+                    {
+                        "document": "Carson City is the capital city of the American state of Nevada.",
+                        "index": 0,
+                        "relevance_score": 0.10194652
+                    }
+                ],
+                "usage": {
+                    "total_tokens": 15
+                }
+            }
+            """;
         InferenceServiceResults parsedResults = VoyageAIRerankResponseEntity.fromResponse(
             new HttpResult(mock(HttpResponse.class), responseLiteralWithDocuments.getBytes(StandardCharsets.UTF_8))
         );
@@ -116,32 +138,6 @@ public class VoyageAIRerankResponseEntityTests extends ESTestCase {
         MatcherAssert.assertThat(parsedResults, instanceOf(RankedDocsResults.class));
         MatcherAssert.assertThat(((RankedDocsResults) parsedResults).getRankedDocs(), is(responseLiteralDocsWithText));
     }
-
-    private final String responseLiteralWithDocuments = """
-        {
-            "model": "model",
-            "data": [
-                {
-                    "document": "Washington, D.C..",
-                    "index": 2,
-                    "relevance_score": 0.98005307
-                },
-                {
-                    "document": "Capital punishment has existed in the United States since beforethe United States was a country. ",
-                    "index": 3,
-                    "relevance_score": 0.27904198
-                },
-                {
-                    "document": "Carson City is the capital city of the American state of Nevada.",
-                    "index": 0,
-                    "relevance_score": 0.10194652
-                }
-            ],
-            "usage": {
-                "total_tokens": 15
-            }
-        }
-        """;
 
     private final List<RankedDocsResults.RankedDoc> responseLiteralDocsWithText = List.of(
         new RankedDocsResults.RankedDoc(2, 0.98005307F, "Washington, D.C.."),

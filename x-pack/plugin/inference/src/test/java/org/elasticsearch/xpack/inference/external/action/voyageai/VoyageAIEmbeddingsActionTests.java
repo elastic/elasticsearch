@@ -123,18 +123,18 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
 
             MatcherAssert.assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.123F, -0.123F }))));
             MatcherAssert.assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().get(0).getUri().getQuery());
+            assertNull(webServer.requests().getFirst().getUri().getQuery());
             MatcherAssert.assertThat(
-                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
+                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaType())
             );
-            MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            MatcherAssert.assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
             MatcherAssert.assertThat(
-                webServer.requests().get(0).getHeader(VoyageAIUtils.REQUEST_SOURCE_HEADER),
+                webServer.requests().getFirst().getHeader(VoyageAIUtils.REQUEST_SOURCE_HEADER),
                 equalTo(VoyageAIUtils.ELASTIC_REQUEST_SOURCE)
             );
 
-            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
             MatcherAssert.assertThat(
                 requestMap,
                 equalTo(
@@ -192,18 +192,18 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
 
             assertEquals(buildExpectationByte(List.of(new byte[] { 0, -1 })), result.asMap());
             MatcherAssert.assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().get(0).getUri().getQuery());
+            assertNull(webServer.requests().getFirst().getUri().getQuery());
             MatcherAssert.assertThat(
-                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
+                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaType())
             );
-            MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            MatcherAssert.assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
             MatcherAssert.assertThat(
-                webServer.requests().get(0).getHeader(VoyageAIUtils.REQUEST_SOURCE_HEADER),
+                webServer.requests().getFirst().getHeader(VoyageAIUtils.REQUEST_SOURCE_HEADER),
                 equalTo(VoyageAIUtils.ELASTIC_REQUEST_SOURCE)
             );
 
-            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
             MatcherAssert.assertThat(
                 requestMap,
                 is(
@@ -261,18 +261,18 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
 
             assertEquals(buildExpectationBinary(List.of(new byte[] { 0, -1 })), result.asMap());
             MatcherAssert.assertThat(webServer.requests(), hasSize(1));
-            assertNull(webServer.requests().get(0).getUri().getQuery());
+            assertNull(webServer.requests().getFirst().getUri().getQuery());
             MatcherAssert.assertThat(
-                webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE),
+                webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE),
                 equalTo(XContentType.JSON.mediaType())
             );
-            MatcherAssert.assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            MatcherAssert.assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
             MatcherAssert.assertThat(
-                webServer.requests().get(0).getHeader(VoyageAIUtils.REQUEST_SOURCE_HEADER),
+                webServer.requests().getFirst().getHeader(VoyageAIUtils.REQUEST_SOURCE_HEADER),
                 equalTo(VoyageAIUtils.ELASTIC_REQUEST_SOURCE)
             );
 
-            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
             MatcherAssert.assertThat(
                 requestMap,
                 is(

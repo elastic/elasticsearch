@@ -1112,6 +1112,11 @@ public class EsqlCapabilities {
         FORK_UNION_TYPES,
 
         /**
+         * Views.
+         */
+        VIEW_V1(Build.current().isSnapshot()),
+
+        /**
          * Support for the {@code leading_zeros} named parameter.
          */
         TO_IP_LEADING_ZEROS,

@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetryManager;
 import org.elasticsearch.xpack.esql.telemetry.QueryMetric;
+import org.elasticsearch.xpack.esql.view.ViewService;
 
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -54,6 +55,7 @@ public class PlanExecutor {
 
     public PlanExecutor(
         IndexResolver indexResolver,
+        EsqlFunctionRegistry functionRegistry,
         MeterRegistry meterRegistry,
         XPackLicenseState licenseState,
         EsqlQueryLog queryLog,
@@ -61,7 +63,7 @@ public class PlanExecutor {
     ) {
         this.indexResolver = indexResolver;
         this.preAnalyzer = new PreAnalyzer();
-        this.functionRegistry = new EsqlFunctionRegistry();
+        this.functionRegistry = functionRegistry;
         this.mapper = new Mapper();
         this.metrics = new Metrics(functionRegistry);
         this.verifier = new Verifier(metrics, licenseState, extraCheckers);
@@ -75,6 +77,7 @@ public class PlanExecutor {
         Configuration cfg,
         FoldContext foldContext,
         EnrichPolicyResolver enrichPolicyResolver,
+        ViewService viewService,
         EsqlExecutionInfo executionInfo,
         IndicesExpressionGrouper indicesExpressionGrouper,
         EsqlSession.PlanRunner planRunner,
@@ -87,6 +90,7 @@ public class PlanExecutor {
             cfg,
             indexResolver,
             enrichPolicyResolver,
+            viewService,
             preAnalyzer,
             new LogicalPlanPreOptimizer(new LogicalPreOptimizerContext(foldContext)),
             functionRegistry,

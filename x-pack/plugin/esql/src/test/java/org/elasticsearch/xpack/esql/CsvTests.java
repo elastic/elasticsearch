@@ -584,6 +584,7 @@ public class CsvTests extends ESTestCase {
             null,
             null,
             null,
+            null,
             new LogicalPlanPreOptimizer(new LogicalPreOptimizerContext(foldCtx)),
             functionRegistry,
             new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration, foldCtx)),

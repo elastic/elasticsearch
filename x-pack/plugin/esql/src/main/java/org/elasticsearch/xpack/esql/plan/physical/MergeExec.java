@@ -7,13 +7,10 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 
 import java.io.IOException;
@@ -22,12 +19,6 @@ import java.util.Objects;
 
 public class MergeExec extends LeafExec {
 
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        PhysicalPlan.class,
-        "MergeExec",
-        MergeExec::new
-    );
-
     private final List<? extends PhysicalPlan> physSubPlans;
     private final List<Attribute> output;
 
@@ -35,13 +26,6 @@ public class MergeExec extends LeafExec {
         super(source);
         this.physSubPlans = physSubPlans;
         this.output = output;
-    }
-
-    public MergeExec(StreamInput in) throws IOException {
-        super(Source.readFrom((PlanStreamInput) in));
-        this.physSubPlans = null; // in.readCollectionAsList(PhysicalPlan::new);
-        // this.right = in.readNamedWriteable(PhysicalPlan.class);
-        this.output = in.readNamedWriteableCollectionAsList(Attribute.class);
     }
 
     public List<LocalSupplier> suppliers() {
@@ -54,14 +38,12 @@ public class MergeExec extends LeafExec {
 
     @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        throw new UnsupportedOperationException("not serialized");
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Source.EMPTY.writeTo(out);
-        out.writeCollection(physSubPlans);
-        out.writeNamedWriteableCollection(output);
+        throw new UnsupportedOperationException("not serialized");
     }
 
     @Override

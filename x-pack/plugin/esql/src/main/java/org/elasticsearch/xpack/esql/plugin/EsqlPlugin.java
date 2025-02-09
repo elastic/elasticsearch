@@ -72,6 +72,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
 import org.elasticsearch.xpack.esql.plan.PlanWritables;
@@ -80,6 +81,13 @@ import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.querylog.EsqlQueryLog;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.view.DeleteViewAction;
+import org.elasticsearch.xpack.esql.view.PutViewAction;
+import org.elasticsearch.xpack.esql.view.RestDeleteViewAction;
+import org.elasticsearch.xpack.esql.view.RestPutViewAction;
+import org.elasticsearch.xpack.esql.view.TransportDeleteViewAction;
+import org.elasticsearch.xpack.esql.view.TransportPutViewAction;
+import org.elasticsearch.xpack.esql.view.ViewService;
 
 import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
@@ -216,6 +224,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         );
         BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
         var blockFactoryProvider = blockFactoryProvider(circuitBreaker, bigArrays, maxPrimitiveArrayBlockSize);
+        EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
+        ViewService viewService = new ViewService(services.clusterService(), functionRegistry);
         setupSharedSecrets();
         List<BiConsumer<LogicalPlan, Failures>> extraCheckers = extraCheckerProviders.stream()
             .flatMap(p -> p.checkers(services.projectResolver(), services.clusterService()).stream())
@@ -224,6 +234,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         return List.of(
             new PlanExecutor(
                 new IndexResolver(services.client()),
+                functionRegistry,
                 services.telemetryProvider().getMeterRegistry(),
                 getLicenseState(),
                 new EsqlQueryLog(services.clusterService().getClusterSettings(), services.slowLogFieldProvider()),
@@ -235,7 +246,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 ThreadPool.Names.SEARCH,
                 blockFactoryProvider.blockFactory()
             ),
-            blockFactoryProvider
+            blockFactoryProvider,
+            functionRegistry,
+            viewService
         );
     }
 
@@ -297,7 +310,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new ActionHandler(EsqlSearchShardsAction.TYPE, EsqlSearchShardsAction.class),
             new ActionHandler(EsqlAsyncStopAction.INSTANCE, TransportEsqlAsyncStopAction.class),
             new ActionHandler(EsqlListQueriesAction.INSTANCE, TransportEsqlListQueriesAction.class),
-            new ActionHandler(EsqlGetQueryAction.INSTANCE, TransportEsqlGetQueryAction.class)
+            new ActionHandler(EsqlGetQueryAction.INSTANCE, TransportEsqlGetQueryAction.class),
+            new ActionHandler(PutViewAction.INSTANCE, TransportPutViewAction.class),
+            new ActionHandler(DeleteViewAction.INSTANCE, TransportDeleteViewAction.class)
         );
     }
 
@@ -319,7 +334,9 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             new RestEsqlGetAsyncResultAction(),
             new RestEsqlStopAsyncAction(),
             new RestEsqlDeleteAsyncResultAction(),
-            new RestEsqlListQueriesAction()
+            new RestEsqlListQueriesAction(),
+            new RestPutViewAction(),
+            new RestDeleteViewAction()
         );
     }
 

@@ -416,6 +416,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   method: testGroupingMultiValueByOrdinals
   issue: https://github.com/elastic/elasticsearch/issues/122131
+- class: org.elasticsearch.xpack.esql.action.EsqlNodeFailureIT
+  method: testFailureLoadingFields
+  issue: https://github.com/elastic/elasticsearch/issues/122132
 
 # Examples:
 #

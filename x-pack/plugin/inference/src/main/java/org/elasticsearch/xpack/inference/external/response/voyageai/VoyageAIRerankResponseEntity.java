@@ -35,7 +35,6 @@ public class VoyageAIRerankResponseEntity {
 
     /**
      * Parses the VoyageAI ranked response.
-     *
      * For a request like:
      *     "model": "rerank-2",
      *     "query": "What is the capital of the United States?",

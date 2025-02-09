@@ -1,0 +1,58 @@
+---
+setup:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ views ]
+      reason: "Views not yet supported"
+      test_runner_features: [capabilities]
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              content:
+                type: keyword
+              color:
+                type: keyword
+              animal:
+                type: keyword
+              id:
+                type: integer
+  - do:
+      bulk:
+        index: "test"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "content": "This is a brown fox", "color": "brown", "animal": "fox", "id": 1 }
+          - { "index": { } }
+          - { "content": "This is a brown dog", "color": "brown", "animal": "dog", "id": 2 }
+          - { "index": { } }
+          - { "content": "This dog is really white", "color": "white", "animal": "dog", "id": 3 }
+          - { "index": { } }
+          - { "content": "The dog is brown but this document is very very long", "color": "brown", "animal": "dog", "id": 4 }
+          - { "index": { } }
+          - { "content": "There is also a white cat", "color": "white", "animal": "cat", "id": 5 }
+          - { "index": { } }
+          - { "content": "The quick brown fox jumps over the lazy dog", "color": "brown", "animal": "dog", "id": 6 }
+
+---
+basic:
+  - do:
+      esql.put_view:
+        name: dogs
+        body:
+          query: 'FROM test | WHERE animal == "dog"'
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM dogs | WHERE color == "white" | KEEP id | SORT id'
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "integer" }
+  - length: { values: 1 }
+  - match: { values.0.0: 3 }

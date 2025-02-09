@@ -425,6 +425,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   method: testFromStatsProjectGroupWithAlias
   issue: https://github.com/elastic/elasticsearch/issues/122144
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  method: testProjectRenameEvalProject
+  issue: https://github.com/elastic/elasticsearch/issues/122150
 
 # Examples:
 #

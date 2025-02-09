@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -262,20 +263,40 @@ public class ViewService {
         ViewMetadata views = getMetadata();
 
         List<String> seen = new ArrayList<>();
+        plan = plan.transformUp(Fork.class, fork -> {
+            List<LogicalPlan> subplans = new ArrayList<>(fork.children());
+            boolean changed = false;
+            for (int i = 0; i < subplans.size(); i++) {
+                List<String> innerSeen = new ArrayList<>();
+                LogicalPlan subplan = resolveViewsSubPlan(subplans.get(i), views, innerSeen, parser);
+                seen.addAll(innerSeen);
+                if (subplan.equals(subplans.get(i)) == false) {
+                    changed = true;
+                    subplans.set(i, subplan);
+                }
+            }
+            if (changed) {
+                return new Fork(fork.source(), subplans, fork.output());
+            }
+            return fork;
+        });
+        return resolveViewsSubPlan(plan, views, seen, parser);
+    }
+
+    private LogicalPlan resolveViewsSubPlan(LogicalPlan plan, ViewMetadata views, List<String> seen, Function<String, LogicalPlan> parser) {
         while (true) {
             LogicalPlan prev = plan;
-            plan = plan.transformUp(UnresolvedRelation.class, ur -> {
+            plan = prev.transformUp(UnresolvedRelation.class, ur -> {
                 List<String> indexes = new ArrayList<>();
                 List<LogicalPlan> subqueries = new ArrayList<>();
                 for (String name : ur.indexPattern().indexPattern().split(",")) {
                     name = name.trim();
                     View view = views.getView(name);
                     if (view != null) {
-                        boolean alreadySeen = seen.contains(name);
-                        seen.add(name);
-                        if (alreadySeen) {
+                        if (seen.contains(name)) {
                             throw viewError("circular view reference ", seen);
                         }
+                        seen.add(name);
                         if (seen.size() > this.maxViewDepth) {
                             throw viewError("The maximum allowed view depth of " + this.maxViewDepth + " has been exceeded: ", seen);
                         }

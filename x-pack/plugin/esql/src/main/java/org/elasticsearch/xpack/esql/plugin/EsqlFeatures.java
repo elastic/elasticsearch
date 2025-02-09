@@ -34,9 +34,15 @@ public class EsqlFeatures implements FeatureSpecification {
      */
     public static final NodeFeature METRICS_SYNTAX = new NodeFeature("esql.metrics_syntax");
 
+    /**
+     * Cluster support for view management (create, get, update, list)
+     * This marks that the cluster state has support for the ViewMetadata CustomProject
+     */
+    public static final NodeFeature ESQL_VIEWS = new NodeFeature("esql.views");
+
     private Set<NodeFeature> snapshotBuildFeatures() {
         assert Build.current().isSnapshot() : Build.current();
-        return Set.of(METRICS_SYNTAX);
+        return Set.of(METRICS_SYNTAX, ESQL_VIEWS);
     }
 
     @Override

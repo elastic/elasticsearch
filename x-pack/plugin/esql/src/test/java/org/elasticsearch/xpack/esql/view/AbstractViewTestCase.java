@@ -1,0 +1,72 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+package org.elasticsearch.xpack.esql.view;
+
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.elasticsearch.xpack.esql.view.ViewService.ViewServiceConfig.DEFAULT;
+
+public abstract class AbstractViewTestCase extends ESSingleNodeTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return List.of(LocalStateView.class);
+    }
+
+    protected ViewService viewService() {
+        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        FeatureService featureService = getInstanceFromNode(FeatureService.class);
+        ProjectResolver projectResolver = getInstanceFromNode(ProjectResolver.class);
+        return new ClusterViewService(new EsqlFunctionRegistry(), clusterService, featureService, projectResolver, DEFAULT);
+    }
+
+    protected AtomicReference<Exception> saveView(String name, View policy, ViewService viewService) throws InterruptedException {
+        IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
+        TestResponseCapture responseCapture = new TestResponseCapture();
+        viewService.put(name, policy, responseCapture);
+        responseCapture.latch.await();
+        return responseCapture.error;
+    }
+
+    protected void deleteView(String name, ViewService viewService) throws Exception {
+        TestResponseCapture responseCapture = new TestResponseCapture();
+        viewService.delete(name, responseCapture);
+        responseCapture.latch.await();
+        if (responseCapture.error.get() != null) {
+            throw responseCapture.error.get();
+        }
+    }
+
+    protected static class TestResponseCapture implements ActionListener<Void> {
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> error = new AtomicReference<>();
+
+        @Override
+        public void onResponse(Void unused) {
+            latch.countDown();
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            error.set(e);
+            latch.countDown();
+        }
+    }
+}

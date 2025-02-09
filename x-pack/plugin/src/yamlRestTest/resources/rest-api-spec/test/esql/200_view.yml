@@ -1,0 +1,91 @@
+---
+setup:
+  - requires:
+      cluster_features: [ "esql.views" ]
+      reason: "Views not yet supported in cluster state"
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              content:
+                type: keyword
+              color:
+                type: keyword
+              animal:
+                type: keyword
+              id:
+                type: integer
+  - do:
+      bulk:
+        index: "test"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "content": "This is a brown fox", "color": "brown", "animal": "fox", "id": 1 }
+          - { "index": { } }
+          - { "content": "This is a brown dog", "color": "brown", "animal": "dog", "id": 2 }
+          - { "index": { } }
+          - { "content": "This dog is really white", "color": "white", "animal": "dog", "id": 3 }
+          - { "index": { } }
+          - { "content": "The dog is brown but this document is very very long", "color": "brown", "animal": "dog", "id": 4 }
+          - { "index": { } }
+          - { "content": "There is also a white cat", "color": "white", "animal": "cat", "id": 5 }
+          - { "index": { } }
+          - { "content": "The quick brown fox jumps over the lazy dog", "color": "brown", "animal": "dog", "id": 6 }
+
+---
+crud:
+  - do:
+      esql.put_view:
+        name: dogs
+        body:
+          query: 'FROM test | WHERE animal == "dog"'
+
+  - do:
+      esql.get_view:
+        name: dogs
+
+  - match: { query: 'FROM test | WHERE animal == "dog"' }
+
+  - do:
+      esql.list_views: { }
+
+  - match: { views: { dogs: { query: 'FROM test | WHERE animal == "dog"'} } }
+
+  - do:
+      esql.delete_view:
+        name: dogs
+
+  - do:
+      esql.list_views: { }
+
+  - match: { views: { } }
+
+---
+basic:
+  - requires:
+      capabilities:
+        - method: PUT
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ views_v1 ]
+      reason: "Views not yet supported"
+      test_runner_features: [ capabilities, allowed_warnings_regex, warnings_regex ]
+  - do:
+      esql.put_view:
+        name: dogs
+        body:
+          query: 'FROM test | WHERE animal == "dog"'
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM dogs | WHERE color == "white" | KEEP id | SORT id'
+  - match: { columns.0.name: "id" }
+  - match: { columns.0.type: "integer" }
+  - length: { values: 1 }
+  - match: { values.0.0: 3 }

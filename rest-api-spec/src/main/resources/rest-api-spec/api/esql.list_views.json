@@ -1,0 +1,28 @@
+{
+  "esql.list_views": {
+    "documentation": {
+      "url": null,
+      "description": "List all defined non-materialized ES|QL views"
+    },
+    "stability": "experimental",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_query/views",
+          "methods": [
+            "GET"
+          ]
+        }
+      ]
+    }
+  }
+}

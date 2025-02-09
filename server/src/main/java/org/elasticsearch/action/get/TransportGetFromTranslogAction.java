@@ -58,9 +58,23 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        IndexShard indexShard = getIndexShard(indicesService, request);
+        final GetRequest getRequest = request.getRequest();
+        final ShardId shardId = request.shardId();
+        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        IndexShard indexShard = indexService.getShard(shardId.id());
+        assert indexShard.routingEntry().isPromotableToPrimary() : "not an indexing shard" + indexShard.routingEntry();
+        assert getRequest.realtime();
         ActionListener.completeWith(listener, () -> {
-            var result = getResult(indexShard, request.getRequest());
+            var result = indexShard.getService()
+                .getFromTranslog(
+                    getRequest.id(),
+                    getRequest.storedFields(),
+                    getRequest.realtime(),
+                    getRequest.version(),
+                    getRequest.versionType(),
+                    getRequest.fetchSourceContext(),
+                    getRequest.isForceSyntheticSource()
+                );
             long segmentGeneration = -1;
             if (result == null) {
                 Engine engine = indexShard.getEngineOrNull();
@@ -71,28 +85,6 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
             }
             return new Response(result, indexShard.getOperationPrimaryTerm(), segmentGeneration);
         });
-    }
-
-    public static IndexShard getIndexShard(IndicesService indicesService, Request request) {
-        final ShardId shardId = request.shardId();
-        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        IndexShard indexShard = indexService.getShard(shardId.id());
-        assert indexShard.routingEntry().isPromotableToPrimary() : "not an indexing shard" + indexShard.routingEntry();
-        assert request.getRequest().realtime();
-        return indexShard;
-    }
-
-    public static GetResult getResult(IndexShard indexShard, GetRequest getRequest) throws IOException {
-        return indexShard.getService()
-            .getFromTranslog(
-                getRequest.id(),
-                getRequest.storedFields(),
-                getRequest.realtime(),
-                getRequest.version(),
-                getRequest.versionType(),
-                getRequest.fetchSourceContext(),
-                getRequest.isForceSyntheticSource()
-            );
     }
 
     public static class Request extends ActionRequest implements IndicesRequest {

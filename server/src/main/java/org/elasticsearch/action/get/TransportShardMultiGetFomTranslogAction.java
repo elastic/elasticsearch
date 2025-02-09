@@ -21,7 +21,6 @@ import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.InternalEngine;
@@ -58,66 +57,55 @@ public class TransportShardMultiGetFomTranslogAction extends HandledTransportAct
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         var multiGetShardRequest = request.getMultiGetShardRequest();
-        IndexShard indexShard = getIndexShard(indicesService, request);
+        var shardId = request.getShardId();
+        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        IndexShard indexShard = indexService.getShard(shardId.id());
+        assert indexShard.routingEntry().isPromotableToPrimary() : "not an indexing shard" + indexShard.routingEntry();
+        assert multiGetShardRequest.realtime();
         ActionListener.completeWith(listener, () -> {
-            Tuple<MultiGetShardResponse, Boolean> multiGetShardResponse = getResponse(multiGetShardRequest, indexShard);
+            var multiGetShardResponse = new MultiGetShardResponse();
+            var someItemsNotFoundInTranslog = false;
+            for (int i = 0; i < multiGetShardRequest.locations.size(); i++) {
+                var item = multiGetShardRequest.items.get(i);
+                try {
+                    var result = indexShard.getService()
+                        .getFromTranslog(
+                            item.id(),
+                            item.storedFields(),
+                            multiGetShardRequest.realtime(),
+                            item.version(),
+                            item.versionType(),
+                            item.fetchSourceContext(),
+                            multiGetShardRequest.isForceSyntheticSource()
+                        );
+                    GetResponse getResponse = null;
+                    if (result == null) {
+                        someItemsNotFoundInTranslog = true;
+                    } else {
+                        getResponse = new GetResponse(result);
+                    }
+                    multiGetShardResponse.add(multiGetShardRequest.locations.get(i), getResponse);
+                } catch (RuntimeException | IOException e) {
+                    if (TransportActions.isShardNotAvailableException(e)) {
+                        throw e;
+                    }
+                    logger.debug("failed to execute multi_get_from_translog for {}[id={}]: {}", shardId, item.id(), e);
+                    multiGetShardResponse.add(
+                        multiGetShardRequest.locations.get(i),
+                        new MultiGetResponse.Failure(multiGetShardRequest.index(), item.id(), e)
+                    );
+                }
+            }
             long segmentGeneration = -1;
-            if (multiGetShardResponse.v2()) {
+            if (someItemsNotFoundInTranslog) {
                 Engine engine = indexShard.getEngineOrNull();
                 if (engine == null) {
                     throw new AlreadyClosedException("engine closed");
                 }
                 segmentGeneration = ((InternalEngine) engine).getLastUnsafeSegmentGenerationForGets();
             }
-            return new Response(multiGetShardResponse.v1(), indexShard.getOperationPrimaryTerm(), segmentGeneration);
+            return new Response(multiGetShardResponse, indexShard.getOperationPrimaryTerm(), segmentGeneration);
         });
-    }
-
-    public static IndexShard getIndexShard(IndicesService indicesService, Request request) {
-        var shardId = request.getShardId();
-        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        IndexShard indexShard = indexService.getShard(shardId.id());
-        assert indexShard.routingEntry().isPromotableToPrimary() : "not an indexing shard" + indexShard.routingEntry();
-        assert request.getMultiGetShardRequest().realtime();
-        return indexShard;
-    }
-
-    public static Tuple<MultiGetShardResponse, Boolean> getResponse(MultiGetShardRequest multiGetShardRequest, IndexShard indexShard)
-        throws IOException {
-        var multiGetShardResponse = new MultiGetShardResponse();
-        var someItemsNotFoundInTranslog = false;
-        for (int i = 0; i < multiGetShardRequest.locations.size(); i++) {
-            var item = multiGetShardRequest.items.get(i);
-            try {
-                var result = indexShard.getService()
-                    .getFromTranslog(
-                        item.id(),
-                        item.storedFields(),
-                        multiGetShardRequest.realtime(),
-                        item.version(),
-                        item.versionType(),
-                        item.fetchSourceContext(),
-                        multiGetShardRequest.isForceSyntheticSource()
-                    );
-                GetResponse getResponse = null;
-                if (result == null) {
-                    someItemsNotFoundInTranslog = true;
-                } else {
-                    getResponse = new GetResponse(result);
-                }
-                multiGetShardResponse.add(multiGetShardRequest.locations.get(i), getResponse);
-            } catch (RuntimeException | IOException e) {
-                if (TransportActions.isShardNotAvailableException(e)) {
-                    throw e;
-                }
-                logger.debug("failed to execute multi_get_from_translog for {}[id={}]: {}", multiGetShardRequest.shardId(), item.id(), e);
-                multiGetShardResponse.add(
-                    multiGetShardRequest.locations.get(i),
-                    new MultiGetResponse.Failure(multiGetShardRequest.index(), item.id(), e)
-                );
-            }
-        }
-        return Tuple.tuple(multiGetShardResponse, someItemsNotFoundInTranslog);
     }
 
     public static class Request extends ActionRequest {

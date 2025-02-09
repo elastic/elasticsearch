@@ -15,6 +15,7 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopFieldDocs;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
@@ -424,10 +425,9 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             } else {
                 final String nodeId = routing.getNodeId();
                 // local requests don't need batching as there's no network latency
-                final var target = new CanMatchPreFilterSearchPhase.SendingTarget(routing.getClusterAlias(), routing.getNodeId());
                 if (localNodeId.equals(nodeId) == false) {
                     perNodeQueries.computeIfAbsent(
-                        target,
+                        new CanMatchPreFilterSearchPhase.SendingTarget(routing.getClusterAlias(), routing.getNodeId()),
                         ignored -> new NodeQueryRequest(
                             new ArrayList<>(),
                             request,
@@ -468,7 +468,9 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 onNodeQueryFailure(e, request, routing);
                 return;
             }
-            if (connection.getTransportVersion().before(TransportVersions.BATCHED_QUERY_PHASE_VERSION)) {
+            // must check both node and transport versions to correctly deal with BwC on proxy connections
+            if (connection.getTransportVersion().before(TransportVersions.BATCHED_QUERY_PHASE_VERSION)
+                || connection.getNode().getVersionInformation().nodeVersion().before(Version.V_9_1_0)) {
                 for (ShardToQuery shard : request.shards) {
                     final int sidx = shard.shardIndex;
                     this.performPhaseOnShard(

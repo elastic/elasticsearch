@@ -79,6 +79,48 @@ public class VoyageAIRerankRequestEntityTests extends ESTestCase {
             """));
     }
 
+    public void testXContent_SingleRequest_WritesModelAndTopKIfDefined_TruncationTrue() throws IOException {
+        var entity = new VoyageAIRerankRequestEntity("query", List.of("abc"), new VoyageAIRerankTaskSettings(8, false, true), "model");
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
+            {
+                "model": "model",
+                "query": "query",
+                "documents": [
+                    "abc"
+                ],
+                "return_documents": false,
+                "top_k": 8,
+                "truncation": true
+            }
+            """));
+    }
+
+    public void testXContent_SingleRequest_WritesModelAndTopKIfDefined_TruncationFalse() throws IOException {
+        var entity = new VoyageAIRerankRequestEntity("query", List.of("abc"), new VoyageAIRerankTaskSettings(8, false, false), "model");
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
+            {
+                "model": "model",
+                "query": "query",
+                "documents": [
+                    "abc"
+                ],
+                "return_documents": false,
+                "top_k": 8,
+                "truncation": false
+            }
+            """));
+    }
+
     public void testXContent_SingleRequest_DoesNotWriteTopKIfNull() throws IOException {
         var entity = new VoyageAIRerankRequestEntity("query", List.of("abc"), null, "model");
 

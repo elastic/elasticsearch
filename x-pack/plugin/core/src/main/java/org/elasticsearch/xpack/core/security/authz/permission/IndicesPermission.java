@@ -89,7 +89,6 @@ public final class IndicesPermission {
         public IndicesPermission build() {
             return new IndicesPermission(restrictedIndices, groups.toArray(Group.EMPTY_ARRAY));
         }
-
     }
 
     private IndicesPermission(RestrictedIndices restrictedIndices, Group[] groups) {
@@ -143,16 +142,27 @@ public final class IndicesPermission {
 
     private IsResourceAuthorizedPredicate buildIndexMatcherPredicateForAction(String action) {
         final Set<String> ordinaryIndices = new HashSet<>();
+        final Set<String> ordinaryIndicesWithFailureStoreAccess = new HashSet<>();
         final Set<String> restrictedIndices = new HashSet<>();
+        final Set<String> restrictedIndicesWithFailureStoreAccess = new HashSet<>();
+
         final Set<String> grantMappingUpdatesOnIndices = new HashSet<>();
         final Set<String> grantMappingUpdatesOnRestrictedIndices = new HashSet<>();
         final boolean isMappingUpdateAction = isMappingUpdateAction(action);
         for (final Group group : groups) {
             if (group.actionMatcher.test(action)) {
                 if (group.allowRestrictedIndices) {
-                    restrictedIndices.addAll(Arrays.asList(group.indices()));
+                    if (group.allowFailureStoreAccess) {
+                        restrictedIndicesWithFailureStoreAccess.addAll(Arrays.asList(group.indices()));
+                    } else {
+                        restrictedIndices.addAll(Arrays.asList(group.indices()));
+                    }
                 } else {
-                    ordinaryIndices.addAll(Arrays.asList(group.indices()));
+                    if (group.allowFailureStoreAccess) {
+                        ordinaryIndicesWithFailureStoreAccess.addAll(Arrays.asList(group.indices()));
+                    } else {
+                        ordinaryIndices.addAll(Arrays.asList(group.indices()));
+                    }
                 }
             } else if (isMappingUpdateAction && containsPrivilegeThatGrantsMappingUpdatesForBwc(group)) {
                 // special BWC case for certain privileges: allow put mapping on indices and aliases (but not on data streams), even if
@@ -164,7 +174,10 @@ public final class IndicesPermission {
                 }
             }
         }
-        final StringMatcher nameMatcher = indexMatcher(ordinaryIndices, restrictedIndices);
+        final StringMatcher nameMatcher = indexMatcher(ordinaryIndices, restrictedIndices).and(
+            "<not-failure-store>",
+            name -> name.endsWith("::failures") == false
+        ).or(indexMatcher(ordinaryIndicesWithFailureStoreAccess, restrictedIndicesWithFailureStoreAccess));
         final StringMatcher bwcSpecialCaseMatcher = indexMatcher(grantMappingUpdatesOnIndices, grantMappingUpdatesOnRestrictedIndices);
         return new IsResourceAuthorizedPredicate(nameMatcher, bwcSpecialCaseMatcher);
     }
@@ -173,14 +186,19 @@ public final class IndicesPermission {
      * This encapsulates the authorization test for resources.
      * There is an additional test for resources that are missing or that are not a datastream or a backing index.
      */
-    public static class IsResourceAuthorizedPredicate implements BiPredicate<String, IndexAbstraction> {
+    public static class IsResourceAuthorizedPredicate {
 
         private final BiPredicate<String, IndexAbstraction> biPredicate;
 
         // public for tests
         public IsResourceAuthorizedPredicate(StringMatcher resourceNameMatcher, StringMatcher additionalNonDatastreamNameMatcher) {
             this((String name, @Nullable IndexAbstraction indexAbstraction) -> {
-                assert indexAbstraction == null || name.equals(indexAbstraction.getName());
+                // TODO this is hacky
+                assert indexAbstraction == null
+                    || (name.equals(indexAbstraction.getName())
+                        || name.equals(
+                            IndexNameExpressionResolver.combineSelector(indexAbstraction.getName(), IndexComponentSelector.FAILURES)
+                        ));
                 return resourceNameMatcher.test(name)
                     || (isPartOfDatastream(indexAbstraction) == false && additionalNonDatastreamNameMatcher.test(name));
             });
@@ -191,13 +209,12 @@ public final class IndicesPermission {
         }
 
         /**
-        * Given another {@link IsResourceAuthorizedPredicate} instance in {@param other},
-        * return a new {@link IsResourceAuthorizedPredicate} instance that is equivalent to the conjunction of
-        * authorization tests of that other instance and this one.
-        */
-        @Override
-        public final IsResourceAuthorizedPredicate and(BiPredicate<? super String, ? super IndexAbstraction> other) {
-            return new IsResourceAuthorizedPredicate(this.biPredicate.and(other));
+         * Given another {@link IsResourceAuthorizedPredicate} instance in {@param other},
+         * return a new {@link IsResourceAuthorizedPredicate} instance that is equivalent to the conjunction of
+         * authorization tests of that other instance and this one.
+         */
+        public final IsResourceAuthorizedPredicate and(IsResourceAuthorizedPredicate other) {
+            return new IsResourceAuthorizedPredicate(this.biPredicate.and(other.biPredicate));
         }
 
         /**
@@ -215,9 +232,22 @@ public final class IndicesPermission {
          * if it doesn't.
          * Returns {@code true} if access to the given resource is authorized or {@code false} otherwise.
          */
-        @Override
         public boolean test(String name, @Nullable IndexAbstraction indexAbstraction) {
             return biPredicate.test(name, indexAbstraction);
+        }
+
+        /**
+         * Similar to {@link #test(IndexAbstraction)} but for the failures component of a data stream. Adds ::failures to name of the
+         * index abstraction to test if ::failures are allowed
+         */
+        public final boolean testDataStreamForFailureAccess(IndexAbstraction indexAbstraction) {
+            // TODO clean up
+            assert indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM;
+            return biPredicate.test(
+                IndexNameExpressionResolver.combineSelector(indexAbstraction.getName(), IndexComponentSelector.FAILURES),
+                // this cannot be `null`, since otherwise this is not treated as a data stream
+                indexAbstraction
+            );
         }
 
         private static boolean isPartOfDatastream(IndexAbstraction indexAbstraction) {
@@ -371,17 +401,20 @@ public final class IndicesPermission {
 
         private IndexResource(String name, @Nullable IndexAbstraction abstraction, @Nullable IndexComponentSelector selector) {
             assert name != null : "Resource name cannot be null";
-            assert abstraction == null || abstraction.getName().equals(name)
-                : "Index abstraction has unexpected name [" + abstraction.getName() + "] vs [" + name + "]";
-            assert abstraction == null
-                || selector == null
-                || IndexComponentSelector.FAILURES.equals(selector) == false
-                || abstraction.isDataStreamRelated()
-                : "Invalid index component selector ["
-                    + selector.getKey()
-                    + "] applied to abstraction of type ["
-                    + abstraction.getType()
-                    + "]";
+            // assert abstraction == null || abstraction.getName().equals(name)
+            // : "Index abstraction has unexpected name [" + abstraction.getName() + "] vs [" + name + "]";
+            // assert abstraction == null
+            // || selector == null
+            // || IndexComponentSelector.FAILURES.equals(selector) == false
+            // || abstraction.isDataStreamRelated()
+            // : "Invalid index component selector ["
+            // + selector.getKey()
+            // + "] applied to abstraction of type ["
+            // + abstraction.getType()
+            // + "]";
+            var tuple = IndexNameExpressionResolver.splitSelectorExpression(name);
+            assert tuple.v2() == null || tuple.v2().equals(IndexComponentSelector.FAILURES.getKey())
+                : "Unexpected selector [" + tuple.v2() + "] in index name [" + name + "]";
             this.name = name;
             this.indexAbstraction = abstraction;
             this.selector = selector;
@@ -411,7 +444,11 @@ public final class IndicesPermission {
         public boolean checkIndex(Group group) {
             final DataStream ds = indexAbstraction == null ? null : indexAbstraction.getParentDataStream();
             if (ds != null) {
-                if (group.checkIndex(ds.getName())) {
+                boolean isFailureStoreIndex = ds.isFailureStoreIndex(indexAbstraction.getName());
+                if (isFailureStoreIndex
+                    && group.checkIndex(IndexNameExpressionResolver.combineSelector(ds.getName(), IndexComponentSelector.FAILURES))) {
+                    return true;
+                } else if (isFailureStoreIndex == false && group.checkIndex(ds.getName())) {
                     return true;
                 }
             }
@@ -500,13 +537,18 @@ public final class IndicesPermission {
         int totalResourceCount = 0;
         Map<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
         for (String indexOrAlias : requestedIndicesOrAliases) {
-            // Remove any selectors from abstraction name. Discard them for this check as we do not have access control for them (yet)
             Tuple<String, String> expressionAndSelector = IndexNameExpressionResolver.splitSelectorExpression(indexOrAlias);
-            indexOrAlias = expressionAndSelector.v1();
             IndexComponentSelector selector = expressionAndSelector.v2() == null
                 ? null
                 : IndexComponentSelector.getByKey(expressionAndSelector.v2());
-            final IndexResource resource = new IndexResource(indexOrAlias, lookup.get(indexOrAlias), selector);
+            // If the request has name::data, upstream code will remove ::data from the name
+            // If the request has name::* upstream code will convert to name::failures and name (without ::data)
+            assert selector != IndexComponentSelector.DATA : "Data selector is not allowed in this context";
+            assert selector != IndexComponentSelector.ALL_APPLICABLE : "All selector is not allowed in this context";
+            assert selector == null || selector == IndexComponentSelector.FAILURES
+                : "Only the failures selector " + "or none is not allowed in this context";
+            // look up the IndexAbstraction by the name without the selector, but leave the (::failures) selector for authorization
+            final IndexResource resource = new IndexResource(indexOrAlias, lookup.get(expressionAndSelector.v1()), selector);
             resources.put(resource.name, resource);
             totalResourceCount += resource.size(lookup);
         }
@@ -790,6 +832,9 @@ public final class IndicesPermission {
 
     public static class Group {
         public static final Group[] EMPTY_ARRAY = new Group[0];
+        // TODO this is just a hack to avoid implementing a new field in this POC; this would be set via allow_failure_store_access on
+        // the role descriptor
+        public static final String FAILURE_STORE_ACCESS_MARKER = ".failure_store_access_marker";
 
         private final IndexPrivilege privilege;
         private final Predicate<String> actionMatcher;
@@ -803,6 +848,7 @@ public final class IndicesPermission {
         // users. Setting this flag true eliminates the special status for the purpose of this permission - restricted indices still have
         // to be covered by the "indices"
         private final boolean allowRestrictedIndices;
+        public final boolean allowFailureStoreAccess;
 
         public Group(
             IndexPrivilege privilege,
@@ -816,13 +862,19 @@ public final class IndicesPermission {
             this.privilege = privilege;
             this.actionMatcher = privilege.predicate();
             this.indices = indices;
+            boolean allowFailureStoreAccess = allowFailureStoreAccess(indices);
+            this.allowFailureStoreAccess = allowFailureStoreAccess;
             this.allowRestrictedIndices = allowRestrictedIndices;
             ConcurrentHashMap<String[], Automaton> indexNameAutomatonMemo = new ConcurrentHashMap<>(1);
             if (allowRestrictedIndices) {
-                this.indexNameMatcher = StringMatcher.of(indices);
+                this.indexNameMatcher = getIndexNameMatcher(allowFailureStoreAccess, indices);
+                // TODO handle this, too
                 this.indexNameAutomaton = () -> indexNameAutomatonMemo.computeIfAbsent(indices, k -> Automatons.patterns(indices));
             } else {
-                this.indexNameMatcher = StringMatcher.of(indices).and(name -> restrictedIndices.isRestricted(name) == false);
+                this.indexNameMatcher = getIndexNameMatcher(allowFailureStoreAccess, indices).and(
+                    name -> restrictedIndices.isRestricted(name) == false
+                );
+                // TODO handle this, too
                 this.indexNameAutomaton = () -> indexNameAutomatonMemo.computeIfAbsent(
                     indices,
                     k -> Automatons.minusAndMinimize(Automatons.patterns(indices), restrictedIndices.getAutomaton())
@@ -830,6 +882,17 @@ public final class IndicesPermission {
             }
             this.fieldPermissions = Objects.requireNonNull(fieldPermissions);
             this.query = query;
+        }
+
+        private static StringMatcher getIndexNameMatcher(boolean allowFailureStoreAccess, String[] indices) {
+            if (false == allowFailureStoreAccess) {
+                return StringMatcher.of(indices).and(name -> name.endsWith("::failures") == false);
+            }
+            return StringMatcher.of(indices);
+        }
+
+        private static boolean allowFailureStoreAccess(String... indices) {
+            return Arrays.stream(indices).anyMatch(index -> index.equals("*") || index.equals(FAILURE_STORE_ACCESS_MARKER));
         }
 
         public IndexPrivilege privilege() {

@@ -76,6 +76,10 @@ public interface IndexAbstraction {
         return getWriteIndex();
     }
 
+    default boolean isFailureIndexOfDataStream() {
+        return false;
+    }
+
     /**
      * @return the data stream to which this index belongs or <code>null</code> if this is not a concrete index or
      * if it is a concrete index that does not belong to a data stream.
@@ -191,6 +195,11 @@ public interface IndexAbstraction {
         @Override
         public boolean isSystem() {
             return isSystem;
+        }
+
+        @Override
+        public boolean isFailureIndexOfDataStream() {
+            return dataStream != null && dataStream.isFailureStoreIndex(getName());
         }
 
         @Override

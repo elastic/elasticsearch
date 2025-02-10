@@ -413,6 +413,9 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestMonitoringWithSecurityIT
   method: testHTTPExporterWithSSL
   issue: https://github.com/elastic/elasticsearch/issues/122220
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
+  method: testStopQueryLocal
+  issue: https://github.com/elastic/elasticsearch/issues/121672
 
 # Examples:
 #

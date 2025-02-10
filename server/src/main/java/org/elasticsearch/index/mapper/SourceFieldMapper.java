@@ -176,7 +176,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 true,
                 () -> null,
                 (n, c, o) -> Mode.valueOf(o.toString().toUpperCase(Locale.ROOT)),
-                m -> toType(m).enabled.explicit() ? null : toType(m).mode,
+                // Avoid initializing _source.mode if it doesn't need to be serialized:
+                m -> toType(m).enabled.explicit() ? null : toType(m).serializeMode ? toType(m).mode : null,
                 (b, n, v) -> b.field(n, v.toString().toLowerCase(Locale.ROOT)),
                 v -> v.toString().toLowerCase(Locale.ROOT)
             ).setMergeValidator((previous, current, conflicts) -> (previous == current) || current != Mode.STORED)

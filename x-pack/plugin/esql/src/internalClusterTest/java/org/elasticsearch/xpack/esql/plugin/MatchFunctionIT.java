@@ -13,7 +13,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.Before;
 
 import java.util.List;
@@ -105,7 +104,6 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWhereMatchWithScoring() {
-        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
         var query = """
             FROM test
             METADATA _score
@@ -122,7 +120,7 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWhereMatchWithScoringDifferentSort() {
-        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
+
         var query = """
             FROM test
             METADATA _score
@@ -139,7 +137,6 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWhereMatchWithScoringSortScore() {
-        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
         var query = """
             FROM test
             METADATA _score
@@ -156,7 +153,6 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWhereMatchWithScoringNoSort() {
-        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
         var query = """
             FROM test
             METADATA _score

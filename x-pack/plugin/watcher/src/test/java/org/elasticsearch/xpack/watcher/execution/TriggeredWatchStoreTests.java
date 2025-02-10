@@ -240,21 +240,8 @@ public class TriggeredWatchStoreTests extends ESTestCase {
                 hit.sourceRef(source);
                 ActionListener.respondAndRelease(
                     listener,
-                    new SearchResponse(
-                        SearchHits.unpooled(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f),
-                        null,
-                        null,
-                        false,
-                        null,
-                        null,
-                        1,
-                        "_scrollId1",
-                        1,
-                        1,
-                        0,
-                        1,
-                        null,
-                        null
+                    SearchResponseUtils.success(
+                        SearchHits.unpooled(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f)
                     )
                 );
             } else if (request.scrollId().equals("_scrollId1")) {

@@ -69,7 +69,7 @@ public class LuceneMaxIntOperatorTests extends LuceneMaxOperatorTestCase {
 
             @Override
             public AggregatorFunction newAggregatorFunction(DriverContext context) {
-                return new MaxIntAggregatorFunctionSupplier(List.of(0, 1)).aggregator(context);
+                return new MaxIntAggregatorFunctionSupplier().aggregator(context, List.of(0, 1));
             }
 
             @Override

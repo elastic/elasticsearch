@@ -41,7 +41,7 @@ import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -57,9 +57,9 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         CountDistinct::new
     );
 
-    private static final Map<DataType, BiFunction<List<Integer>, Integer, AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
+    private static final Map<DataType, Function<Integer, AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
         // Booleans ignore the precision because there are only two possible values anyway
-        Map.entry(DataType.BOOLEAN, (inputChannels, precision) -> new CountDistinctBooleanAggregatorFunctionSupplier(inputChannels)),
+        Map.entry(DataType.BOOLEAN, (precision) -> new CountDistinctBooleanAggregatorFunctionSupplier()),
         Map.entry(DataType.LONG, CountDistinctLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.DATETIME, CountDistinctLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.DATE_NANOS, CountDistinctLongAggregatorFunctionSupplier::new),
@@ -210,7 +210,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
     }
 
     @Override
-    public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
+    public AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
         int precision = this.precision == null
             ? DEFAULT_PRECISION
@@ -219,7 +219,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
             // If the type checking did its job, this should never happen
             throw EsqlIllegalArgumentException.illegalDataType(type);
         }
-        return SUPPLIERS.get(type).apply(inputChannels, precision);
+        return SUPPLIERS.get(type).apply(precision);
     }
 
     @Override

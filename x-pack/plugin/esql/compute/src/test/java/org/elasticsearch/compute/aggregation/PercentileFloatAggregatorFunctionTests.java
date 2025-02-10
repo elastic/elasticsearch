@@ -32,8 +32,8 @@ public class PercentileFloatAggregatorFunctionTests extends AggregatorFunctionTe
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new PercentileFloatAggregatorFunctionSupplier(inputChannels, percentile);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new PercentileFloatAggregatorFunctionSupplier(percentile);
     }
 
     @Override

@@ -31,8 +31,8 @@ public class SumFloatGroupingAggregatorFunctionTests extends GroupingAggregatorF
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new SumFloatAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new SumFloatAggregatorFunctionSupplier();
     }
 
     @Override

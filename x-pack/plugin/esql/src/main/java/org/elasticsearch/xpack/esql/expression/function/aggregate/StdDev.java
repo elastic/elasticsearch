@@ -97,16 +97,16 @@ public class StdDev extends AggregateFunction implements ToAggregator {
     }
 
     @Override
-    public final AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
+    public final AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
         if (type == DataType.LONG) {
-            return new StdDevLongAggregatorFunctionSupplier(inputChannels);
+            return new StdDevLongAggregatorFunctionSupplier();
         }
         if (type == DataType.INTEGER) {
-            return new StdDevIntAggregatorFunctionSupplier(inputChannels);
+            return new StdDevIntAggregatorFunctionSupplier();
         }
         if (type == DataType.DOUBLE) {
-            return new StdDevDoubleAggregatorFunctionSupplier(inputChannels);
+            return new StdDevDoubleAggregatorFunctionSupplier();
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);
     }

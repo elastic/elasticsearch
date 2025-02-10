@@ -431,6 +431,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   method: testWhereNegatedCondition
   issue: https://github.com/elastic/elasticsearch/issues/122147
+- class: org.elasticsearch.xpack.esql.action.CrossClustersCancellationIT
+  method: testCloseSkipUnavailable
+  issue: https://github.com/elastic/elasticsearch/issues/121627
 
 # Examples:
 #

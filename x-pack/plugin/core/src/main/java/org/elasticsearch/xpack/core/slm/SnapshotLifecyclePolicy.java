@@ -130,8 +130,9 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         this.repository = in.readString();
         this.configuration = in.readGenericMap();
         this.retentionPolicy = in.readOptionalWriteable(SnapshotRetentionConfiguration::new);
-        this.unhealthyIfNoSnapshotWithin = in.getTransportVersion()
-            .onOrAfter(TransportVersions.SLM_UNHEALTHY_IF_NO_SNAPSHOT_WITHIN) ? in.readOptionalTimeValue() : null;
+        this.unhealthyIfNoSnapshotWithin = in.getTransportVersion().onOrAfter(TransportVersions.SLM_UNHEALTHY_IF_NO_SNAPSHOT_WITHIN)
+            ? in.readOptionalTimeValue()
+            : null;
         this.isCronSchedule = isCronSchedule(schedule);
     }
 

@@ -42,7 +42,6 @@ public class CopyIndexMetadataTransportAction extends TransportMasterNodeAction<
     private static final Logger logger = LogManager.getLogger(CopyIndexMetadataTransportAction.class);
     private final ClusterStateTaskExecutor<UpdateIndexMetadataTask> executor;
     private final MasterServiceTaskQueue<UpdateIndexMetadataTask> taskQueue;
-    private static final String DATA_STREAM_LIFECYCLE_CUSTOM_INDEX_METADATA_KEY = "data_stream_lifecycle";
 
     @Inject
     public CopyIndexMetadataTransportAction(
@@ -95,7 +94,6 @@ public class CopyIndexMetadataTransportAction extends TransportMasterNodeAction<
         if (sourceMetadata == null) {
             throw new IndexNotFoundException(updateTask.sourceIndex);
         }
-
         IndexMetadata destMetadata = state.metadata().index(updateTask.destIndex);
         if (destMetadata == null) {
             throw new IndexNotFoundException(updateTask.destIndex);
@@ -105,10 +103,6 @@ public class CopyIndexMetadataTransportAction extends TransportMasterNodeAction<
             .putCustom(
                 LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY,
                 sourceMetadata.getCustomData(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY)
-            )
-            .putCustom(
-                DATA_STREAM_LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
-                sourceMetadata.getCustomData(DATA_STREAM_LIFECYCLE_CUSTOM_INDEX_METADATA_KEY)
             )
             .putRolloverInfos(sourceMetadata.getRolloverInfos())
             // creation data is required for ILM to function

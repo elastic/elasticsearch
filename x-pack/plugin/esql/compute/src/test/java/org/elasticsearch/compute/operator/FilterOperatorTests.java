@@ -66,7 +66,7 @@ public class FilterOperatorTests extends OperatorTestCase {
             public String toString() {
                 return "SameLastDigit[lhs=0, rhs=1]";
             }
-        });
+        }, false);
     }
 
     @Override
@@ -113,7 +113,7 @@ public class FilterOperatorTests extends OperatorTestCase {
             new SequenceBooleanBlockSourceOperator(context.blockFactory(), List.of(true, false, true, false))
         );
         List<Page> results = drive(
-            new FilterOperator.FilterOperatorFactory(dvrCtx -> new EvalOperatorTests.LoadFromPage(0)).get(context),
+            new FilterOperator.FilterOperatorFactory(dvrCtx -> new EvalOperatorTests.LoadFromPage(0), false).get(context),
             input.iterator(),
             context
         );

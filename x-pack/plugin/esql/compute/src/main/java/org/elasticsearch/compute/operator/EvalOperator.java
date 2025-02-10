@@ -9,6 +9,7 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -60,6 +61,12 @@ public class EvalOperator extends AbstractPageMappingOperator {
      * Evaluates an expression {@code a + b} or {@code log(c)} one {@link Page} at a time.
      */
     public interface ExpressionEvaluator extends Releasable {
+
+        /**
+         * Scoring value when an expression does not match (return false) or does not contribute to the score
+         */
+        double NO_MATCH_SCORE = 0.0;
+
         /** A Factory for creating ExpressionEvaluators. */
         interface Factory {
             ExpressionEvaluator get(DriverContext context);
@@ -81,6 +88,14 @@ public class EvalOperator extends AbstractPageMappingOperator {
          * @return the returned Block has its own reference and the caller is responsible for releasing it.
          */
         Block eval(Page page);
+
+        /**
+         * Retrieves the score for the expression.
+         * Only expressions that can be scored, or that can combine scores, should override this method.
+         */
+        default DoubleBlock score(Page page, BlockFactory blockFactory) {
+            return blockFactory.newConstantDoubleBlockWith(NO_MATCH_SCORE, page.getPositionCount());
+        }
     }
 
     public static final ExpressionEvaluator.Factory CONSTANT_NULL_FACTORY = new ExpressionEvaluator.Factory() {

@@ -23,6 +23,16 @@ public abstract class AbstractExpressionSerializationTests<T extends Expression>
         return randomValueOtherThan(expression, AbstractExpressionSerializationTests::randomChild);
     }
 
+    public static Expression mutateNullableExpression(Expression expression) {
+        if (expression == null) {
+            return randomChild();
+        } else if (randomBoolean()) {
+            return null;
+        } else {
+            return randomValueOtherThan(expression, AbstractExpressionSerializationTests::randomChild);
+        }
+    }
+
     @Override
     protected final NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(ExpressionWritables.getNamedWriteables());

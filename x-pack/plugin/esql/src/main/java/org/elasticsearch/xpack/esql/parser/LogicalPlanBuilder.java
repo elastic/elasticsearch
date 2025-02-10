@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -284,6 +285,22 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             IndexMode.STANDARD,
             null,
             "FROM"
+        );
+    }
+
+    @Override
+    public PlanFactory visitInsistCommand(EsqlBaseParser.InsistCommandContext ctx) {
+        var source = source(ctx);
+        List<NamedExpression> fields = visitQualifiedNamePatterns(ctx.qualifiedNamePatterns(), ne -> {
+            if (ne instanceof UnresolvedStar || ne instanceof UnresolvedNamePattern) {
+                Source neSource = ne.source();
+                throw new ParsingException(neSource, "INSIST doesn't support wildcards, found [{}]", neSource.text());
+            }
+        });
+        return input -> new Insist(
+            source,
+            input,
+            fields.stream().map(ne -> (Attribute) new UnresolvedAttribute(ne.source(), ne.name())).toList()
         );
     }
 

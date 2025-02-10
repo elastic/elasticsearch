@@ -417,7 +417,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     ),
                     List.of(
                         new Diagnosis(
-                            SlmHealthIndicatorService.checkTroubleshootingGuide(
+                            SlmHealthIndicatorService.contactSupport(
                                 "Several automated snapshot policies are unhealthy:\n"
                                     + "- [test-policy-exceeds-time] has not had a snapshot for "
                                     + threshold.toHumanReadableString(2)

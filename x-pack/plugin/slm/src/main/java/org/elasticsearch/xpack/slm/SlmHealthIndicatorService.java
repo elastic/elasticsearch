@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.slm;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.Diagnosis;
@@ -67,8 +68,7 @@ public final class SlmHealthIndicatorService implements HealthIndicatorService {
 
     public static final String DIAGNOSIS_CHECK_RECENTLY_FAILED_SNAPSHOTS_ID = "check_recent_snapshot_failures";
     public static final String DIAGNOSIS_CHECK_RECENTLY_FAILED_SNAPSHOTS_HELP_URL = "https://ela.st/fix-recent-snapshot-failures";
-    public static final String DIAGNOSIS_CHECK_TROUBLESHOOTING_GUIDE = "check_troubleshooting";
-    public static final String DIAGNOSIS_CHECK_TROUBLESHOOTING_GUIDE_HELP_URL = "https://ela.st/troubleshooting";
+    public static final String DIAGNOSIS_CONTACT_SUPPORT_ID = "contact_support";
 
     // Visible for testing
     static Diagnosis.Definition checkRecentlyFailedSnapshots(String causeText, String actionText) {
@@ -82,13 +82,13 @@ public final class SlmHealthIndicatorService implements HealthIndicatorService {
     }
 
     // Visible for testing
-    static Diagnosis.Definition checkTroubleshootingGuide(String causeText, String actionText) {
+    static Diagnosis.Definition contactSupport(String causeText, String actionText) {
         return new Diagnosis.Definition(
             NAME,
-            DIAGNOSIS_CHECK_TROUBLESHOOTING_GUIDE,
+            DIAGNOSIS_CONTACT_SUPPORT_ID,
             causeText,
             actionText,
-            DIAGNOSIS_CHECK_TROUBLESHOOTING_GUIDE_HELP_URL
+            ReferenceDocs.CONTACT_SUPPORT.toString()
         );
     }
 
@@ -363,7 +363,7 @@ public final class SlmHealthIndicatorService implements HealthIndicatorService {
             verbose
                 ? List.of(
                     new Diagnosis(
-                        checkTroubleshootingGuide(cause, action),
+                        contactSupport(cause, action),
                         List.of(
                             new Diagnosis.Resource(
                                 Diagnosis.Resource.Type.SLM_POLICY,

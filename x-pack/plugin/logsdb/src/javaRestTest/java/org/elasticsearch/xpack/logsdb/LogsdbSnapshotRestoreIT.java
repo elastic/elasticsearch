@@ -15,6 +15,7 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -45,7 +46,7 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
 
     private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .setting("path.repo", () -> repoDirectory.getRoot().getPath())
+        .setting("path.repo", () -> getRepoPath())
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .build();
@@ -162,17 +163,15 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
         deleteDataStream("logs-my-test");
     }
 
+    @SuppressForbidden(reason = "TemporaryFolder only has io.File methods, not nio.File")
     static void snapshotAndRestore(String sourceMode, String arrayType, boolean sourceOnly) throws IOException {
         String dataStreamName = "logs-my-test";
         String repositoryName = "my-repository";
         if (sourceOnly) {
-            var repositorySettings = Settings.builder()
-                .put("delegate_type", "fs")
-                .put("location", repoDirectory.getRoot().getPath())
-                .build();
+            var repositorySettings = Settings.builder().put("delegate_type", "fs").put("location", getRepoPath()).build();
             registerRepository(repositoryName, "source", true, repositorySettings);
         } else {
-            var repositorySettings = Settings.builder().put("location", repoDirectory.getRoot().getPath()).build();
+            var repositorySettings = Settings.builder().put("location", getRepoPath()).build();
             registerRepository(repositoryName, FsRepository.TYPE, true, repositorySettings);
         }
 
@@ -214,13 +213,10 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
         String dataStreamName = "logs-my-test";
         String repositoryName = "my-repository";
         if (sourceOnly) {
-            var repositorySettings = Settings.builder()
-                .put("delegate_type", "fs")
-                .put("location", repoDirectory.getRoot().getPath())
-                .build();
+            var repositorySettings = Settings.builder().put("delegate_type", "fs").put("location", getRepoPath()).build();
             registerRepository(repositoryName, "source", true, repositorySettings);
         } else {
-            var repositorySettings = Settings.builder().put("location", repoDirectory.getRoot().getPath()).build();
+            var repositorySettings = Settings.builder().put("location", getRepoPath()).build();
             registerRepository(repositoryName, FsRepository.TYPE, true, repositorySettings);
         }
 
@@ -336,6 +332,11 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
             docCount,
             Long.parseLong(resp.evaluate("count").toString())
         );
+    }
+
+    @SuppressForbidden(reason = "TemporaryFolder only has io.File methods, not nio.File")
+    private static String getRepoPath() {
+        return repoDirectory.getRoot().getPath();
     }
 
 }

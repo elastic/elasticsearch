@@ -937,7 +937,7 @@ public class OpenAiServiceTests extends ESTestCase {
                     "Inference entity [model_id] does not support task type [chat_completion] "
                         + "for inference, the task type must be one of [text_embedding, completion]. "
                         + "The task type for the inference entity is chat_completion, "
-                        + "please use the _inference/chat_completion/model_id/_unified URL."
+                        + "please use the _inference/chat_completion/model_id/_stream URL."
                 )
             );
 
@@ -1078,7 +1078,17 @@ public class OpenAiServiceTests extends ESTestCase {
                 }
             }""";
         webServer.enqueue(new MockResponse().setResponseCode(404).setBody(responseJson));
+        testStreamError("""
+            {\
+            "error":{\
+            "code":"model_not_found",\
+            "message":"Received an unsuccessful status code for request from inference entity id [id] status \
+            [404]. Error message: [The model `gpt-4awero` does not exist or you do not have access to it.]",\
+            "type":"invalid_request_error"\
+            }}""");
+    }
 
+    private void testStreamError(String expectedResponse) throws Exception {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
             var model = OpenAiChatCompletionModelTests.createChatCompletionModel(getUrl(webServer), "org", "secret", "model", "user");
@@ -1107,17 +1117,42 @@ public class OpenAiServiceTests extends ESTestCase {
                     });
                     var json = XContentHelper.convertToJson(BytesReference.bytes(builder), false, builder.contentType());
 
-                    assertThat(json, is("""
-                        {\
-                        "error":{\
-                        "code":"model_not_found",\
-                        "message":"Received an unsuccessful status code for request from inference entity id [id] status \
-                        [404]. Error message: [The model `gpt-4awero` does not exist or you do not have access to it.]",\
-                        "type":"invalid_request_error"\
-                        }}"""));
+                    assertThat(json, is(expectedResponse));
                 }
             });
         }
+    }
+
+    public void testMidStreamUnifiedCompletionError() throws Exception {
+        String responseJson = """
+            event: error
+            data: { "error": { "message": "Timed out waiting for more data", "type": "timeout" } }
+
+            """;
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+        testStreamError("""
+            {\
+            "error":{\
+            "message":"Received an error response for request from inference entity id [id]. Error message: \
+            [Timed out waiting for more data]",\
+            "type":"timeout"\
+            }}""");
+    }
+
+    public void testUnifiedCompletionMalformedError() throws Exception {
+        String responseJson = """
+            data: { invalid json }
+
+            """;
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+        testStreamError("""
+            {\
+            "error":{\
+            "code":"bad_request",\
+            "message":"[1:3] Unexpected character ('i' (code 105)): was expecting double-quote to start field name\\n\
+             at [Source: (String)\\"{ invalid json }\\"; line: 1, column: 3]",\
+            "type":"x_content_parse_exception"\
+            }}""");
     }
 
     public void testInfer_StreamRequest() throws Exception {

@@ -10,13 +10,15 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.esql.plan.logical.SortAware;
+import org.elasticsearch.xpack.esql.plan.logical.SortAgnostic;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.util.ArrayDeque;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.IdentityHashMap;
+import java.util.Set;
 
 /**
  * SORT cannot be executed without a LIMIT, as ES|QL doesn't support unbounded sort (yet).
@@ -42,16 +44,11 @@ public class PruneRedundantOrderBy extends OptimizerRules.OptimizerRule<LogicalP
     @Override
     protected LogicalPlan rule(LogicalPlan plan) {
         if (plan instanceof OrderBy || plan instanceof TopN || plan instanceof Aggregate) {
-            IdentityHashMap<OrderBy, Void> redundant = findRedundantSort(((UnaryPlan) plan).child());
+            Set<OrderBy> redundant = findRedundantSort(((UnaryPlan) plan).child());
             if (redundant.isEmpty()) {
                 return plan;
             }
-            return plan.transformDown(p -> {
-                if (redundant.containsKey(p)) {
-                    return ((OrderBy) p).child();
-                }
-                return p;
-            });
+            return plan.transformDown(p -> redundant.contains(p) ? ((UnaryPlan) p).child() : p);
         } else {
             return plan;
         }
@@ -59,9 +56,10 @@ public class PruneRedundantOrderBy extends OptimizerRules.OptimizerRule<LogicalP
 
     /**
      * breadth-first recursion to find redundant SORTs in the children tree.
+     * Returns an identity set (we need to compare and prune the exact instances)
      */
-    private IdentityHashMap<OrderBy, Void> findRedundantSort(LogicalPlan plan) {
-        IdentityHashMap<OrderBy, Void> result = new IdentityHashMap<>();
+    private Set<OrderBy> findRedundantSort(LogicalPlan plan) {
+        Set<OrderBy> result = Collections.newSetFromMap(new IdentityHashMap<>());
 
         Deque<LogicalPlan> toCheck = new ArrayDeque<>();
         toCheck.push(plan);
@@ -72,9 +70,9 @@ public class PruneRedundantOrderBy extends OptimizerRules.OptimizerRule<LogicalP
             }
             LogicalPlan p = toCheck.pop();
             if (p instanceof OrderBy ob) {
-                result.put(ob, null);
+                result.add(ob);
                 toCheck.push(ob.child());
-            } else if (p instanceof SortAware sa && sa.dependsOnInputOrder() == false) {
+            } else if (p instanceof SortAgnostic) {
                 for (LogicalPlan child : p.children()) {
                     toCheck.push(child);
                 }

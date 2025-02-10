@@ -17,7 +17,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
  * <hr>
  * <p>
  *
- * Example 1: if a MY_COMMAND that implements this interface is used between two sorts, and if dependsOnInputOrder() = false,
+ * Example 1: if a MY_COMMAND that implements this interface is used between two sorts,
  * then we can assume that
  * <p>
  * <code>
@@ -48,7 +48,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
  * </code>
  * <p>
  *
- * and if MY_COMMAND implements this interface and if dependsOnInputOrder() = false, then
+ * and if MY_COMMAND implements this interface, then
  *
  * <p>
  * <code>
@@ -64,7 +64,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
  * <hr>
  * <p>
  *
- * In all the other cases, eg. if the command does not implement this interface, or if dependsOnInputOrder() = true
+ * In all the other cases, eg. if the command does not implement this interface
  * then we assume that the previous SORT is still relevant and cannot be pruned.
  *
  * <hr>
@@ -87,18 +87,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
  * <p>
  *
  * For n-ary plans that implement this interface,
- * we assume that the above applies to all the children, ie.
- * <ul>
- *     <li>if dependsOnInputOrder() = false, sorts can be pruned on all the children</li>
- *     <li>if dependsOnInputOrder() = true, sorts cannot be pruned on any of the children</li>
- * </ul>
+ * we assume that the above applies to all the children
+ *
  */
-public interface SortAware {
-
-    /**
-     * Returns true if the logic of this command could depend on the order of the input.
-     */
-    default boolean dependsOnInputOrder() {
-        return false;
-    }
-}
+public interface SortAgnostic {}

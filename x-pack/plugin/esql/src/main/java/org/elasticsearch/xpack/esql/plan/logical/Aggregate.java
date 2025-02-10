@@ -40,7 +40,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 import static org.elasticsearch.xpack.esql.plan.logical.Filter.checkFilterConditionDataType;
 
-public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAware, TelemetryAware, SortAware {
+public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAware, TelemetryAware, SortAgnostic {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "Aggregate",
@@ -458,11 +458,5 @@ public class Aggregate extends UnaryPlan implements PostAnalysisVerificationAwar
         failures.add(
             fail(e, "grouping {} [{}] cannot be used as an aggregate once declared in the STATS BY clause", element, e.sourceText())
         );
-    }
-
-    @Override
-    public boolean dependsOnInputOrder() {
-        // TODO review this if we introduce expressions that depend on input order (eg. window functions)
-        return SortAware.super.dependsOnInputOrder();
     }
 }

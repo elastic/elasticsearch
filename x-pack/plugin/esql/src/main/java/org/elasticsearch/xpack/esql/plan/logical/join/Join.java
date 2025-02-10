@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.esql.plan.logical.SortAware;
+import org.elasticsearch.xpack.esql.plan.logical.SortAgnostic;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,7 +33,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
 
-public class Join extends BinaryPlan implements PostAnalysisVerificationAware, SortAware {
+public class Join extends BinaryPlan implements PostAnalysisVerificationAware, SortAgnostic {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Join", Join::new);
 
     private final JoinConfig config;

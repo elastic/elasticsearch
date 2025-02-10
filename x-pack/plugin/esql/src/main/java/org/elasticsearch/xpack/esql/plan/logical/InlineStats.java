@@ -37,7 +37,7 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
  *     underlying aggregate.
  * </p>
  */
-public class InlineStats extends UnaryPlan implements NamedWriteable, SurrogateLogicalPlan, TelemetryAware, SortAware {
+public class InlineStats extends UnaryPlan implements NamedWriteable, SurrogateLogicalPlan, TelemetryAware, SortAgnostic {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "InlineStats",
@@ -142,11 +142,5 @@ public class InlineStats extends UnaryPlan implements NamedWriteable, SurrogateL
 
         InlineStats other = (InlineStats) obj;
         return Objects.equals(aggregate, other.aggregate);
-    }
-
-    @Override
-    public boolean dependsOnInputOrder() {
-        // TODO review this if we introduce expressions that depend on input order (eg. window functions)
-        return SortAware.super.dependsOnInputOrder();
     }
 }

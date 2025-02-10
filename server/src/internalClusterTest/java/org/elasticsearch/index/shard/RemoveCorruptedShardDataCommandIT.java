@@ -560,7 +560,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
             command.findAndProcessShardPath(
                 options,
                 environmentByNodeName.get(nodeName),
-                environmentByNodeName.get(nodeName).dataFiles(),
+                environmentByNodeName.get(nodeName).dataDirs(),
                 state,
                 shardPath -> assertThat(shardPath.resolveIndex(), equalTo(indexPath))
             );

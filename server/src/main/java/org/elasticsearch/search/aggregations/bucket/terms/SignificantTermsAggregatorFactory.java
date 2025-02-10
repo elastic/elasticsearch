@@ -37,6 +37,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFacto
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xcontent.ParseField;
 
 import java.io.IOException;
@@ -127,8 +128,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
      * <p>
      * Some searches that will never match can still fall through and we endup running query that will produce no results.
      * However even in that case we sometimes do expensive things like loading global ordinals. This method should prevent this.
-     * Note that if {@link org.elasticsearch.search.SearchService#executeQueryPhase(
-     * ShardSearchRequest, org.elasticsearch.tasks.CancellableTask, ActionListener)}
+     * Note that if {@link org.elasticsearch.search.SearchService#executeQueryPhase(ShardSearchRequest, CancellableTask, ActionListener)}
      * always do a can match then we don't need this code here.
      */
     static boolean matchNoDocs(AggregationContext context, Aggregator parent) {

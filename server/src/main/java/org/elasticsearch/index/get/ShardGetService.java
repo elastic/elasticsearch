@@ -93,7 +93,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         FetchSourceContext fetchSourceContext,
         boolean forceSyntheticSource
     ) throws IOException {
-        return get(
+        return doGet(
             id,
             gFields,
             realtime,
@@ -107,7 +107,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         );
     }
 
-    public GetResult get(
+    public GetResult mget(
         String id,
         String[] gFields,
         boolean realtime,
@@ -117,7 +117,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         boolean forceSyntheticSource,
         MultiEngineGet mget
     ) throws IOException {
-        return get(
+        return doGet(
             id,
             gFields,
             realtime,
@@ -131,7 +131,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         );
     }
 
-    private GetResult get(
+    private GetResult doGet(
         String id,
         String[] gFields,
         boolean realtime,
@@ -144,21 +144,40 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         Function<Engine.Get, Engine.GetResult> engineGetOperator
     ) throws IOException {
         currentMetric.inc();
+        final long now = System.nanoTime();
         try {
-            long now = System.nanoTime();
-            GetResult getResult = innerGet(
-                id,
-                gFields,
-                realtime,
-                version,
-                versionType,
-                ifSeqNo,
-                ifPrimaryTerm,
-                fetchSourceContext,
-                forceSyntheticSource,
-                engineGetOperator
-            );
+            var engineGet = new Engine.Get(realtime, realtime, id).version(version)
+                .versionType(versionType)
+                .setIfSeqNo(ifSeqNo)
+                .setIfPrimaryTerm(ifPrimaryTerm);
 
+            final GetResult getResult;
+            try (Engine.GetResult get = engineGetOperator.apply(engineGet)) {
+                if (get == null) {
+                    getResult = null;
+                } else if (get.exists() == false) {
+                    getResult = new GetResult(
+                        shardId.getIndexName(),
+                        id,
+                        UNASSIGNED_SEQ_NO,
+                        UNASSIGNED_PRIMARY_TERM,
+                        -1,
+                        false,
+                        null,
+                        null,
+                        null
+                    );
+                } else {
+                    // break between having loaded it from translog (so we only have _source), and having a document to load
+                    getResult = innerGetFetch(
+                        id,
+                        gFields,
+                        normalizeFetchSourceContent(fetchSourceContext, gFields),
+                        get,
+                        forceSyntheticSource
+                    );
+                }
+            }
             if (getResult != null && getResult.isExists()) {
                 existsMetric.inc(System.nanoTime() - now);
             } else {
@@ -179,7 +198,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         FetchSourceContext fetchSourceContext,
         boolean forceSyntheticSource
     ) throws IOException {
-        return get(
+        return doGet(
             id,
             gFields,
             realtime,
@@ -193,12 +212,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         );
     }
 
-    public GetResult getForUpdate(String id, long ifSeqNo, long ifPrimaryTerm) throws IOException {
-        return getForUpdate(id, ifSeqNo, ifPrimaryTerm, new String[] { RoutingFieldMapper.NAME });
-    }
-
     public GetResult getForUpdate(String id, long ifSeqNo, long ifPrimaryTerm, String[] gFields) throws IOException {
-        return get(
+        return doGet(
             id,
             gFields,
             true,
@@ -257,35 +272,6 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             }
         }
         return FetchSourceContext.DO_NOT_FETCH_SOURCE;
-    }
-
-    private GetResult innerGet(
-        String id,
-        String[] gFields,
-        boolean realtime,
-        long version,
-        VersionType versionType,
-        long ifSeqNo,
-        long ifPrimaryTerm,
-        FetchSourceContext fetchSourceContext,
-        boolean forceSyntheticSource,
-        Function<Engine.Get, Engine.GetResult> engineGetOperator
-    ) throws IOException {
-        fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, gFields);
-        var engineGet = new Engine.Get(realtime, realtime, id).version(version)
-            .versionType(versionType)
-            .setIfSeqNo(ifSeqNo)
-            .setIfPrimaryTerm(ifPrimaryTerm);
-        try (Engine.GetResult get = engineGetOperator.apply(engineGet)) {
-            if (get == null) {
-                return null;
-            }
-            if (get.exists() == false) {
-                return new GetResult(shardId.getIndexName(), id, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, -1, false, null, null, null);
-            }
-            // break between having loaded it from translog (so we only have _source), and having a document to load
-            return innerGetFetch(id, gFields, fetchSourceContext, get, forceSyntheticSource);
-        }
     }
 
     private GetResult innerGetFetch(

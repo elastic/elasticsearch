@@ -42,26 +42,6 @@ public final class GroupShardsIterator<ShardIt extends Comparable<ShardIt> & Cou
     }
 
     /**
-     * Returns the total number of shards within all groups
-     * @return total number of shards
-     */
-    public int totalSize() {
-        return iterators.stream().mapToInt(Countable::size).sum();
-    }
-
-    /**
-     * Returns the total number of shards plus the number of empty groups
-     * @return number of shards and empty groups
-     */
-    public int totalSizeWith1ForEmpty() {
-        int size = 0;
-        for (ShardIt shard : iterators) {
-            size += Math.max(1, shard.size());
-        }
-        return size;
-    }
-
-    /**
      * Return the number of groups
      * @return number of groups
      */

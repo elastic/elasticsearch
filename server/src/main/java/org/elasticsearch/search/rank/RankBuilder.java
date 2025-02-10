@@ -41,7 +41,7 @@ import java.util.function.Predicate;
  */
 public abstract class RankBuilder implements VersionedNamedWriteable, ToXContentObject {
 
-    public static final ParseField RANK_WINDOW_SIZE_FIELD = new ParseField("rank_window_size");
+    public static final ParseField RANK_WINDOW_SIZE_FIELD = new ParseField("rank_window_size", "window_size");
 
     public static final int DEFAULT_RANK_WINDOW_SIZE = SearchService.DEFAULT_SIZE;
 

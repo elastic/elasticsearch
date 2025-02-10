@@ -31,7 +31,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasRank;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * this base class acts as a wrapper for testing different rerankers, and their behavior when exceptions are thrown
@@ -191,7 +193,7 @@ public abstract class AbstractRerankerIT extends ESIntegTestCase {
                 .setFrom(10),
             response -> {
                 assertHitCount(response, 5L);
-                assertEquals(0, response.getHits().getHits().length);
+                assertThat(response.getHits().getHits(), emptyArray());
             }
         );
         assertNoOpenContext(indexName);
@@ -227,7 +229,7 @@ public abstract class AbstractRerankerIT extends ESIntegTestCase {
                 .setSize(2),
             response -> {
                 assertHitCount(response, 4L);
-                assertEquals(2, response.getHits().getHits().length);
+                assertThat(response.getHits().getHits(), arrayWithSize(2));
                 int rank = 1;
                 for (SearchHit searchHit : response.getHits().getHits()) {
                     assertThat(searchHit, hasId(String.valueOf(5 - (rank - 1))));
@@ -398,13 +400,13 @@ public abstract class AbstractRerankerIT extends ESIntegTestCase {
                 .setAllowPartialSearchResults(true)
                 .setSize(10),
             response -> {
-                assertTrue(response.getFailedShards() > 0);
+                assertThat(response.getFailedShards(), greaterThan(0));
                 assertTrue(
                     Arrays.stream(response.getShardFailures())
                         .allMatch(failure -> failure.getCause().getMessage().contains("rfs - simulated failure"))
                 );
                 assertHitCount(response, 5);
-                assertThat(response.getHits().getHits(), arrayWithSize(5));
+                assertThat(response.getHits().getHits(), emptyArray());
             }
         );
         assertNoOpenContext(indexName);

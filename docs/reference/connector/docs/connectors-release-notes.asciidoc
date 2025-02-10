@@ -10,10 +10,33 @@ Prior to version *8.16.0*, the connector release notes were published as part of
 ====
 
 [discrete]
+[[es-connectors-release-notes-8-17-1]]
+=== 8.17.1
+
+No notable changes in this release.
+
+[discrete]
 [[es-connectors-release-notes-8-17-0]]
 === 8.17.0
 
 No notable changes in this release.
+
+[discrete]
+[[es-connectors-release-notes-8-16-3]]
+=== 8.16.3
+
+No notable changes in this release.
+
+[discrete]
+[[es-connectors-release-notes-8-16-2]]
+=== 8.16.2
+
+[discrete]
+[[es-connectors-release-notes-8-16-2-bug-fixes]]
+==== Bug fixes
+
+* Fixed a bug where full syncs may delete documents they just ingested if the document ID when fetched from the 3rd party was numeric.
+See https://github.com/elastic/connectors/pull/3031[*PR 3031*].
 
 [discrete]
 [[es-connectors-release-notes-8-16-1]]

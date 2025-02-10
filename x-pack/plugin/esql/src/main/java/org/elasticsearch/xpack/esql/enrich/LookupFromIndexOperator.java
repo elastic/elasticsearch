@@ -113,7 +113,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         List<NamedExpression> loadFields,
         Source source
     ) {
-        super(driverContext, maxOutstandingRequests);
+        super(driverContext, lookupService.getThreadContext(), maxOutstandingRequests);
         this.sessionId = sessionId;
         this.parentTask = parentTask;
         this.inputChannel = inputChannel;

@@ -46,7 +46,9 @@ import java.nio.channels.CompletionHandler;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.nio.channels.spi.SelectorProvider;
 import java.nio.charset.Charset;
+import java.nio.file.LinkOption;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.UserPrincipal;
@@ -278,6 +280,11 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void check$jdk_vm_ci_services_Services$$loadSingle(Class<?> callerClass, Class<?> service, boolean required) {
+        policyManager.checkChangeJVMGlobalState(callerClass);
+    }
+
+    @Override
+    public void check$java_nio_charset_spi_CharsetProvider$(Class<?> callerClass) {
         policyManager.checkChangeJVMGlobalState(callerClass);
     }
 
@@ -794,6 +801,21 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
+    public void check$java_nio_channels_spi_SelectorProvider$(Class<?> callerClass) {
+        policyManager.checkChangeNetworkHandling(callerClass);
+    }
+
+    @Override
+    public void check$java_nio_channels_spi_AsynchronousChannelProvider$(Class<?> callerClass) {
+        policyManager.checkChangeNetworkHandling(callerClass);
+    }
+
+    @Override
+    public void checkSelectorProviderInheritedChannel(Class<?> callerClass, SelectorProvider that) {
+        policyManager.checkChangeNetworkHandling(callerClass);
+    }
+
+    @Override
     public void check$java_lang_Runtime$load(Class<?> callerClass, Runtime that, String filename) {
         // TODO: check filesystem entitlement READ
         policyManager.checkLoadingNativeLibraries(callerClass);
@@ -867,6 +889,11 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     // nio
+
+    @Override
+    public void check$java_nio_file_Files$$getOwner(Class<?> callerClass, Path path, LinkOption... options) {
+        policyManager.checkFileRead(callerClass, path);
+    }
 
     @Override
     public void check$java_nio_file_Files$$probeContentType(Class<?> callerClass, Path path) {

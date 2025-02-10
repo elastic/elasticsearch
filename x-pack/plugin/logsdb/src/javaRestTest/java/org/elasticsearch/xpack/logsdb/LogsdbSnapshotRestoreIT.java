@@ -163,7 +163,6 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
         deleteDataStream("logs-my-test");
     }
 
-    @SuppressForbidden(reason = "TemporaryFolder only has io.File methods, not nio.File")
     static void snapshotAndRestore(String sourceMode, String arrayType, boolean sourceOnly) throws IOException {
         String dataStreamName = "logs-my-test";
         String repositoryName = "my-repository";

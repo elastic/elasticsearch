@@ -35,7 +35,6 @@ $if(long)$
 import org.elasticsearch.compute.data.LongBlock;
 $endif$
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.core.Releasable;
 $if(BytesRef)$
 import org.elasticsearch.core.Releasables;
 
@@ -155,7 +154,7 @@ $endif$
         return state.toBlock(driverContext.blockFactory(), selected);
     }
 
-    public static class SingleState implements Releasable {
+    public static class SingleState implements AggregatorState {
 $if(BytesRef)$
         private final BytesRefHash values;
 
@@ -171,7 +170,8 @@ $else$
 $endif$
         }
 
-        void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
+        @Override
+        public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
             blocks[offset] = toBlock(driverContext.blockFactory());
         }
 
@@ -228,7 +228,7 @@ $endif$
      * an {@code O(n^2)} operation for collection to support a {@code O(1)}
      * collector operation. But at least it's fairly simple.
      */
-    public static class GroupingState implements Releasable {
+    public static class GroupingState implements GroupingAggregatorState {
 $if(long||double)$
         private final LongLongHash values;
 
@@ -263,7 +263,8 @@ $elseif(int||float)$
 $endif$
         }
 
-        void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
+        @Override
+        public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             blocks[offset] = toBlock(driverContext.blockFactory(), selected);
         }
 
@@ -324,7 +325,8 @@ $endif$
             }
         }
 
-        void enableGroupIdTracking(SeenGroupIds seen) {
+        @Override
+        public void enableGroupIdTracking(SeenGroupIds seen) {
             // we figure out seen values from nulls on the values block
         }
 

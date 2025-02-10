@@ -146,7 +146,8 @@ public final class QuantileStates {
             }
         }
 
-        void enableGroupIdTracking(SeenGroupIds seenGroupIds) {
+        @Override
+        public void enableGroupIdTracking(SeenGroupIds seenGroupIds) {
             // We always enable.
         }
 

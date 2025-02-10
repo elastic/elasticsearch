@@ -25,7 +25,7 @@ import java.util.function.Function;
 /**
  * An extension to thread pool executor, which tracks statistics for the task execution time.
  */
-public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThreadPoolExecutor {
+public class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThreadPoolExecutor {
 
     private final Function<Runnable, WrappedRunnable> runnableWrapper;
     private final ExponentiallyWeightedMovingAverage executionEWMA;
@@ -115,15 +115,23 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
                     + failedOrRejected;
             if (taskExecutionNanos != -1) {
                 // taskExecutionNanos may be -1 if the task threw an exception
-                executionEWMA.addValue(taskExecutionNanos);
-                totalExecutionTime.add(taskExecutionNanos);
+                trackExecutionTime(r, taskExecutionNanos);
             }
         } finally {
-            // if trackOngoingTasks is false -> ongoingTasks must be empty
-            assert trackOngoingTasks || ongoingTasks.isEmpty();
-            if (trackOngoingTasks) {
-                ongoingTasks.remove(r);
-            }
+            removeTrackedTask(r);
+        }
+    }
+
+    protected void trackExecutionTime(Runnable r, long taskTime) {
+        executionEWMA.addValue(taskTime);
+        totalExecutionTime.add(taskTime);
+    }
+
+    protected void removeTrackedTask(Runnable r) {
+        // if trackOngoingTasks is false -> ongoingTasks must be empty
+        assert trackOngoingTasks || ongoingTasks.isEmpty();
+        if (trackOngoingTasks) {
+            ongoingTasks.remove(r);
         }
     }
 

@@ -40,6 +40,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
 
     abstract static class TestTargetBaseClass {
         abstract void instanceMethod(int x, String y);
+
         abstract void instanceMethod2(int x, String y);
     }
 

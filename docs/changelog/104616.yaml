@@ -1,0 +1,5 @@
+pr: 104616
+summary: rewrite match query to range query to optimize the performance of number and date field type
+area: Search
+type: enhancement
+issues: []

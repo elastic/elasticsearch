@@ -410,6 +410,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.analysis.VerifierTests
   method: testChangePoint
   issue: https://github.com/elastic/elasticsearch/issues/122179
+- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
+  method: testChangePoint_keySortable
+  issue: https://github.com/elastic/elasticsearch/issues/122180
 
 # Examples:
 #

@@ -20,12 +20,14 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
 import org.elasticsearch.transport.Transport;
 
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -186,7 +188,7 @@ public class RankFeaturePhase extends SearchPhase {
             new ActionListener<>() {
                 @Override
                 public void onResponse(RankFeatureDoc[] docsWithUpdatedScores) {
-                    RankFeatureDoc[] topResults = rankFeaturePhaseRankCoordinatorContext.rankAndPaginate(docsWithUpdatedScores);
+                    RankDoc[] topResults = rankFeaturePhaseRankCoordinatorContext.rankAndPaginate(docsWithUpdatedScores, true);
                     SearchPhaseController.ReducedQueryPhase reducedRankFeaturePhase = newReducedQueryPhaseResults(
                         reducedQueryPhase,
                         topResults
@@ -196,12 +198,36 @@ public class RankFeaturePhase extends SearchPhase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    context.onPhaseFailure(NAME, "Computing updated ranks for results failed", e);
+                    if (rankFeaturePhaseRankCoordinatorContext.failuresAllowed()) {
+                        // TODO: handle the exception somewhere
+                        // don't want to log the entire stack trace, it's not helpful here
+                        logger.warn("Exception computing updated ranks, continuing with existing ranks: {}", e.toString());
+                        // use the existing score docs as-is
+                        // downstream things expect every doc to have a score, so we need to infer a score here
+                        // if the doc doesn't otherwise have one. We can use the rank to infer a possible score instead (1/rank).
+                        ScoreDoc[] inputDocs = reducedQueryPhase.sortedTopDocs().scoreDocs();
+                        RankFeatureDoc[] rankDocs = new RankFeatureDoc[inputDocs.length];
+                        for (int i = 0; i < inputDocs.length; i++) {
+                            ScoreDoc doc = inputDocs[i];
+                            rankDocs[i] = new RankFeatureDoc(doc.doc, Float.isNaN(doc.score) ? 1f / (i + 1) : doc.score, doc.shardIndex);
+                        }
+                        RankDoc[] topResults = rankFeaturePhaseRankCoordinatorContext.rankAndPaginate(rankDocs, false);
+                        SearchPhaseController.ReducedQueryPhase reducedRankFeaturePhase = newReducedQueryPhaseResults(
+                            reducedQueryPhase,
+                            topResults
+                        );
+                        moveToNextPhase(rankPhaseResults, reducedRankFeaturePhase);
+                    } else {
+                        context.onPhaseFailure(NAME, "Computing updated ranks for results failed", e);
+                    }
                 }
             }
         );
         rankFeaturePhaseRankCoordinatorContext.computeRankScoresForGlobalResults(
-            rankPhaseResults.getAtomicArray().asList().stream().map(SearchPhaseResult::rankFeatureResult).toList(),
+            rankPhaseResults.getSuccessfulResults()
+                .flatMap(r -> Arrays.stream(r.rankFeatureResult().shardResult().rankFeatureDocs))
+                .filter(rfd -> rfd.featureData != null)
+                .toArray(RankFeatureDoc[]::new),
             rankResultListener
         );
     }
@@ -210,7 +236,6 @@ public class RankFeaturePhase extends SearchPhase {
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
         ScoreDoc[] scoreDocs
     ) {
-
         return new SearchPhaseController.ReducedQueryPhase(
             reducedQueryPhase.totalHits(),
             reducedQueryPhase.fetchHits(),

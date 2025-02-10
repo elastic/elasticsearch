@@ -302,7 +302,7 @@ public final class IndexSortConfig {
         }
     }
 
-    public boolean hasSortOnFiled(final String fieldName) {
+    public boolean hasSortOnField(final String fieldName) {
         for (FieldSortSpec sortSpec : sortSpecs) {
             if (sortSpec.field.equals(fieldName)) {
                 return true;

@@ -46,8 +46,8 @@ public class MedianAbsoluteDeviationIntGroupingAggregatorFunctionTests extends G
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new MedianAbsoluteDeviationIntAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new MedianAbsoluteDeviationIntAggregatorFunctionSupplier();
     }
 
     @Override

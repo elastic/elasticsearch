@@ -40,9 +40,16 @@ public class InstrumentationServiceImplTests extends ESTestCase {
 
     abstract static class TestTargetBaseClass {
         abstract void instanceMethod(int x, String y);
+
+        abstract void instanceMethod2(int x, String y);
     }
 
-    static class TestTargetImplementationClass extends TestTargetBaseClass {
+    abstract static class TestTargetIntermediateClass extends TestTargetBaseClass {
+        @Override
+        public void instanceMethod2(int x, String y) {}
+    }
+
+    static class TestTargetImplementationClass extends TestTargetIntermediateClass {
         @Override
         public void instanceMethod(int x, String y) {}
     }
@@ -343,6 +350,44 @@ public class InstrumentationServiceImplTests extends ESTestCase {
                 new MethodKey(
                     "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetImplementationClass",
                     "instanceMethod",
+                    List.of("I", "java/lang/String")
+                )
+            )
+        );
+        assertThat(
+            info.checkMethod(),
+            equalTo(
+                new CheckMethod(
+                    "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestCheckerMixed",
+                    "checkInstanceMethodManual",
+                    List.of(
+                        "Ljava/lang/Class;",
+                        "Lorg/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetBaseClass;",
+                        "I",
+                        "Ljava/lang/String;"
+                    )
+                )
+            )
+        );
+    }
+
+    public void testLookupImplementationMethodWithInheritance() throws ClassNotFoundException, NoSuchMethodException {
+        var info = instrumentationService.lookupImplementationMethod(
+            TestTargetBaseClass.class,
+            "instanceMethod2",
+            TestTargetImplementationClass.class,
+            TestCheckerMixed.class,
+            "checkInstanceMethodManual",
+            int.class,
+            String.class
+        );
+
+        assertThat(
+            info.targetMethod(),
+            equalTo(
+                new MethodKey(
+                    "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetIntermediateClass",
+                    "instanceMethod2",
                     List.of("I", "java/lang/String")
                 )
             )

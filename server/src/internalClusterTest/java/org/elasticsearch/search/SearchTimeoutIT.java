@@ -181,10 +181,10 @@ public class SearchTimeoutIT extends ESIntegTestCase {
     }
 
     /**
-     * Query builder that produces a Lucene Query which throws a {@link org.elasticsearch.search.internal.ContextIndexSearcher.TimeExceededException}
-     * while scoring documents. This helps make this test not time dependent, otherwise it would be unpredictable when exactly the timeout
-     * happens: before even starting to score documents, or while scoring them? This is rather important if we want to test that we are
-     * able to return partial results on timeout.
+     * Query builder that produces a Lucene Query which throws a
+     * {@link org.elasticsearch.search.internal.ContextIndexSearcher.TimeExceededException} before or while scoring documents.
+     * This helps make this test not time dependent, otherwise it would be unpredictable when exactly the timeout happens, which is
+     * rather important if we want to test that we are able to return partial results on timeout.
      */
     public static final class BulkScorerTimeoutQuery extends AbstractQueryBuilder<BulkScorerTimeoutQuery> {
 

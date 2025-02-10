@@ -9,6 +9,8 @@ package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BitArray;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
@@ -20,7 +22,7 @@ import org.elasticsearch.core.Releasables;
 @Aggregator(
     value = {
         @IntermediateState(name = "value", type = "LONG"),
-        @IntermediateState(name = "by", type = "LONG"),
+        @IntermediateState(name = "timestamp", type = "LONG"),
         @IntermediateState(name = "seen", type = "BOOLEAN") },
     includeTimestamps = true
 )
@@ -37,8 +39,10 @@ public class FirstValueLongAggregator {
         state.add(value, timestamp);
     }
 
-    public static void combineIntermediate(FirstValueLongSingleState current, long value, long by, boolean seen) {
-        current.combine(value, by, seen);
+    public static void combineIntermediate(FirstValueLongSingleState current, long value, long timestamp, boolean seen) {
+        if (seen) {
+            current.add(value, timestamp);
+        }
     }
 
     public static Block evaluateFinal(FirstValueLongSingleState state, DriverContext driverContext) {
@@ -55,9 +59,9 @@ public class FirstValueLongAggregator {
         state.add(groupId, value, timestamp);
     }
 
-    public static void combineIntermediate(FirstValueLongGroupingState current, int groupId, long value, long by, boolean seen) {
+    public static void combineIntermediate(FirstValueLongGroupingState current, int groupId, long value, long timestamp, boolean seen) {
         if (seen) {
-            current.add(groupId, value, by);
+            current.add(groupId, value, timestamp);
         }
     }
 
@@ -67,7 +71,7 @@ public class FirstValueLongAggregator {
         FirstValueLongGroupingState otherState,
         int otherGroupId
     ) {
-        if (otherState.timestampState.hasValue(otherGroupId)) {
+        if (otherState.hasValue(otherGroupId)) {
             state.add(groupId, otherState.valueState.get(otherGroupId), otherState.timestampState.get(otherGroupId));
         }
     }
@@ -79,19 +83,11 @@ public class FirstValueLongAggregator {
     public static class FirstValueLongSingleState implements AggregatorState {
 
         private long value = 0;
-        private long timestamp = Long.MIN_VALUE;
+        private long timestamp = Long.MAX_VALUE;
         private boolean seen = false;
 
         public void add(long value, long timestamp) {
             if (seen == false || timestamp < this.timestamp) {
-                this.seen = true;
-                this.value = value;
-                this.timestamp = timestamp;
-            }
-        }
-
-        public void combine(long value, long timestamp, boolean seen) {
-            if (this.seen == false || (seen && timestamp < this.timestamp)) {
                 this.seen = true;
                 this.value = value;
                 this.timestamp = timestamp;
@@ -117,38 +113,90 @@ public class FirstValueLongAggregator {
 
     public static class FirstValueLongGroupingState implements GroupingAggregatorState {
 
-        private final LongArrayState valueState;
-        private final LongArrayState timestampState;
+        private final BigArrays bigArrays;
+        private final CircuitBreaker breaker;
+
+        private LongArray valueState;
+        private LongArray timestampState;
+        private BitArray seen;
 
         public FirstValueLongGroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
-            this.valueState = new LongArrayState(bigArrays, Long.MIN_VALUE);
-            this.timestampState = new LongArrayState(bigArrays, Long.MIN_VALUE);
+            this.bigArrays = bigArrays;
+            this.breaker = breaker;
+            valueState = bigArrays.newLongArray(1, false);
+            timestampState = bigArrays.newLongArray(1, false);
+            seen = null;
         }
 
         public void add(int groupId, long value, long timestamp) {
-            if (timestampState.hasValue(groupId) == false || timestamp < timestampState.getOrDefault(groupId)) {
+            long currentValue = groupId < valueState.size() ? valueState.get(groupId) : Long.MAX_VALUE;
+            long currentTimestamp = groupId < timestampState.size() ? timestampState.get(groupId) : Long.MAX_VALUE;
+            if (hasValue(groupId) == false || timestamp < getTimestamp(groupId)) {
+                ensureCapacity(groupId);
                 valueState.set(groupId, value);
                 timestampState.set(groupId, timestamp);
+                if (seen != null) {
+                    seen.set(groupId);
+                }
             }
         }
 
         void enableGroupIdTracking(SeenGroupIds seen) {
-            valueState.enableGroupIdTracking(seen);
-            timestampState.enableGroupIdTracking(seen);
+            if (this.seen == null) {
+                this.seen = seen.seenGroupIds(bigArrays);
+            }
+        }
+
+        public boolean hasValue(int groupId) {
+            return groupId < valueState.size() && valueState.get(groupId) != Long.MAX_VALUE;
+        }
+
+        public long getTimestamp(int groupId) {
+            return groupId < timestampState.size() ? timestampState.get(groupId) : Long.MAX_VALUE;
+        }
+
+        private void ensureCapacity(int groupId) {
+            if (groupId >= timestampState.size()) {
+                long prevSize1 = valueState.size();
+                valueState = bigArrays.grow(valueState, groupId + 1);
+                valueState.fill(prevSize1, valueState.size(), Long.MAX_VALUE);
+                long prevSize2 = timestampState.size();
+                timestampState = bigArrays.grow(timestampState, groupId + 1);
+                timestampState.fill(prevSize2, timestampState.size(), Long.MAX_VALUE);
+            }
         }
 
         @Override
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
-            valueState.toIntermediate(blocks, offset, selected, driverContext);
-            timestampState.toIntermediate(blocks, offset + 1, selected, driverContext);
+            assert blocks.length >= offset + 3;
+            try (
+                var valuesBuilder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount());
+                var timestampBuilder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount());
+                var hasValueBuilder = driverContext.blockFactory().newBooleanVectorFixedBuilder(selected.getPositionCount())
+            ) {
+                for (int i = 0; i < selected.getPositionCount(); i++) {
+                    int group = selected.getInt(i);
+                    if (hasValue(group)) {
+                        valuesBuilder.appendLong(valueState.get(group));
+                        timestampBuilder.appendLong(timestampState.get(group));
+                    } else {
+                        valuesBuilder.appendNull();
+                        timestampBuilder.appendNull();
+                    }
+                    hasValueBuilder.appendBoolean(i, hasValue(group));
+                }
+                blocks[offset] = valuesBuilder.build();
+                blocks[offset + 1] = timestampBuilder.build();
+                blocks[offset + 2] = hasValueBuilder.build().asBlock();
+            }
         }
 
         public Block toFinal(DriverContext driverContext, IntVector selected) {
-            if (timestampState.trackingGroupIds()) {
+            if (seen != null) {
                 try (var builder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount())) {
                     for (int i = 0; i < selected.getPositionCount(); i++) {
                         int group = selected.getInt(i);
-                        if (timestampState.hasValue(group)) {
+                        if (seen.get(group)) {
                             builder.appendLong(valueState.get(group));
                         } else {
                             builder.appendNull();
@@ -169,7 +217,7 @@ public class FirstValueLongAggregator {
 
         @Override
         public void close() {
-            Releasables.close(valueState, timestampState);
+            Releasables.close(valueState, timestampState, seen);
         }
     }
 }

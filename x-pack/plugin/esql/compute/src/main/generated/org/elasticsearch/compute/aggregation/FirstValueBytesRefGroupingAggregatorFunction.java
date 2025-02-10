@@ -30,7 +30,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 public final class FirstValueBytesRefGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("value", ElementType.BYTES_REF),
-      new IntermediateStateDesc("by", ElementType.LONG),
+      new IntermediateStateDesc("timestamp", ElementType.LONG),
       new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
 
   private final FirstValueBytesRefAggregator.FirstValueLongGroupingState state;
@@ -187,21 +187,21 @@ public final class FirstValueBytesRefGroupingAggregatorFunction implements Group
       return;
     }
     BytesRefVector value = ((BytesRefBlock) valueUncast).asVector();
-    Block byUncast = page.getBlock(channels.get(1));
-    if (byUncast.areAllValuesNull()) {
+    Block timestampUncast = page.getBlock(channels.get(1));
+    if (timestampUncast.areAllValuesNull()) {
       return;
     }
-    LongVector by = ((LongBlock) byUncast).asVector();
+    LongVector timestamp = ((LongBlock) timestampUncast).asVector();
     Block seenUncast = page.getBlock(channels.get(2));
     if (seenUncast.areAllValuesNull()) {
       return;
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
-    assert value.getPositionCount() == by.getPositionCount() && value.getPositionCount() == seen.getPositionCount();
+    assert value.getPositionCount() == timestamp.getPositionCount() && value.getPositionCount() == seen.getPositionCount();
     BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
-      FirstValueBytesRefAggregator.combineIntermediate(state, groupId, value.getBytesRef(groupPosition + positionOffset, scratch), by.getLong(groupPosition + positionOffset), seen.getBoolean(groupPosition + positionOffset));
+      FirstValueBytesRefAggregator.combineIntermediate(state, groupId, value.getBytesRef(groupPosition + positionOffset, scratch), timestamp.getLong(groupPosition + positionOffset), seen.getBoolean(groupPosition + positionOffset));
     }
   }
 

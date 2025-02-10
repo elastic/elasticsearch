@@ -25,7 +25,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 public final class FirstValueLongAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("value", ElementType.LONG),
-      new IntermediateStateDesc("by", ElementType.LONG),
+      new IntermediateStateDesc("timestamp", ElementType.LONG),
       new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
 
   private final DriverContext driverContext;
@@ -146,19 +146,19 @@ public final class FirstValueLongAggregatorFunction implements AggregatorFunctio
     }
     LongVector value = ((LongBlock) valueUncast).asVector();
     assert value.getPositionCount() == 1;
-    Block byUncast = page.getBlock(channels.get(1));
-    if (byUncast.areAllValuesNull()) {
+    Block timestampUncast = page.getBlock(channels.get(1));
+    if (timestampUncast.areAllValuesNull()) {
       return;
     }
-    LongVector by = ((LongBlock) byUncast).asVector();
-    assert by.getPositionCount() == 1;
+    LongVector timestamp = ((LongBlock) timestampUncast).asVector();
+    assert timestamp.getPositionCount() == 1;
     Block seenUncast = page.getBlock(channels.get(2));
     if (seenUncast.areAllValuesNull()) {
       return;
     }
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert seen.getPositionCount() == 1;
-    FirstValueLongAggregator.combineIntermediate(state, value.getLong(0), by.getLong(0), seen.getBoolean(0));
+    FirstValueLongAggregator.combineIntermediate(state, value.getLong(0), timestamp.getLong(0), seen.getBoolean(0));
   }
 
   @Override

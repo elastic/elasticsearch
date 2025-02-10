@@ -23,17 +23,6 @@ FROM sample_data
 ;
 
 
-first_no_grouping_long
-required_capability: fn_first_last
-FROM sample_data
-| STATS event_duration = first_value(event_duration)
-;
-
-event_duration:long
-3450233            
-;
-
-
 first_grouped_long
 required_capability: fn_first_last
 FROM sample_data

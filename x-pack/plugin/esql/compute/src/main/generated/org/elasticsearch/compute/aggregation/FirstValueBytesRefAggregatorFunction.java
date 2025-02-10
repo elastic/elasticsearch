@@ -28,7 +28,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 public final class FirstValueBytesRefAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("value", ElementType.BYTES_REF),
-      new IntermediateStateDesc("by", ElementType.LONG),
+      new IntermediateStateDesc("timestamp", ElementType.LONG),
       new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
 
   private final DriverContext driverContext;
@@ -153,12 +153,12 @@ public final class FirstValueBytesRefAggregatorFunction implements AggregatorFun
     }
     BytesRefVector value = ((BytesRefBlock) valueUncast).asVector();
     assert value.getPositionCount() == 1;
-    Block byUncast = page.getBlock(channels.get(1));
-    if (byUncast.areAllValuesNull()) {
+    Block timestampUncast = page.getBlock(channels.get(1));
+    if (timestampUncast.areAllValuesNull()) {
       return;
     }
-    LongVector by = ((LongBlock) byUncast).asVector();
-    assert by.getPositionCount() == 1;
+    LongVector timestamp = ((LongBlock) timestampUncast).asVector();
+    assert timestamp.getPositionCount() == 1;
     Block seenUncast = page.getBlock(channels.get(2));
     if (seenUncast.areAllValuesNull()) {
       return;
@@ -166,7 +166,7 @@ public final class FirstValueBytesRefAggregatorFunction implements AggregatorFun
     BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
     assert seen.getPositionCount() == 1;
     BytesRef scratch = new BytesRef();
-    FirstValueBytesRefAggregator.combineIntermediate(state, value.getBytesRef(0, scratch), by.getLong(0), seen.getBoolean(0));
+    FirstValueBytesRefAggregator.combineIntermediate(state, value.getBytesRef(0, scratch), timestamp.getLong(0), seen.getBoolean(0));
   }
 
   @Override

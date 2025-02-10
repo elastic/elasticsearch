@@ -22,6 +22,12 @@ No notable changes in this release.
 No notable changes in this release.
 
 [discrete]
+[[es-connectors-release-notes-8-16-3]]
+=== 8.16.3
+
+No notable changes in this release.
+
+[discrete]
 [[es-connectors-release-notes-8-16-2]]
 === 8.16.2
 

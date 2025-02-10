@@ -35,7 +35,18 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
     public static final Set<String> ALLOWED_ERRORS = Set.of(
         "Reference \\[.*\\] is ambiguous",
         "Cannot use field \\[.*\\] due to ambiguities",
-        "cannot sort on .*"
+        "cannot sort on .*",
+        "argument of \\[count_distinct\\(.*\\)\\] must",
+        "Cannot use field \\[.*\\] with unsupported type \\[.*_range\\]",
+        // warnings
+        "Field '.*' shadowed by field at line .*",
+        "evaluation of \\[.*\\] failed, treating result as null", // TODO investigate?
+        // Awaiting fixes
+        "estimated row size \\[0\\] wasn't set", // https://github.com/elastic/elasticsearch/issues/121739
+        "unknown physical plan node \\[OrderExec\\]", // https://github.com/elastic/elasticsearch/issues/120817
+        "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741
+        //
+        "The incoming YAML document exceeds the limit:" // still to investigate, but it seems to be specific to the test framework
     );
 
     public static final Set<Pattern> ALLOWED_ERROR_PATTERNS = ALLOWED_ERRORS.stream()
@@ -64,6 +75,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
 
     public void test() {
         List<String> indices = availableIndices();
+        List<LookupIdx> lookupIndices = lookupIndices();
         List<CsvTestsDataLoader.EnrichConfig> policies = availableEnrichPolicies();
         for (int i = 0; i < ITERATIONS; i++) {
             String command = EsqlQueryGenerator.sourceCommand(indices);
@@ -76,7 +88,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
                 if (result.outputSchema().isEmpty()) {
                     break;
                 }
-                command = EsqlQueryGenerator.pipeCommand(result.outputSchema(), policies);
+                command = EsqlQueryGenerator.pipeCommand(result.outputSchema(), policies, lookupIndices);
                 result = execute(result.query() + command, result.depth() + 1);
                 if (result.exception() != null) {
                     checkException(result);
@@ -102,6 +114,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
             return new EsqlQueryGenerator.QueryExecuted(command, depth, outputSchema, null);
         } catch (Exception e) {
             return new EsqlQueryGenerator.QueryExecuted(command, depth, null, e);
+        } catch (AssertionError ae) {
+            // this is for ensureNoWarnings()
+            return new EsqlQueryGenerator.QueryExecuted(command, depth, null, new RuntimeException(ae.getMessage()));
         }
 
     }
@@ -116,7 +131,23 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
     }
 
     private List<String> availableIndices() {
-        return new ArrayList<>(CSV_DATASET_MAP.keySet());
+        return new ArrayList<>(
+            CSV_DATASET_MAP.entrySet()
+                .stream()
+                .filter(x -> x.getValue().requiresInferenceEndpoint() == false)
+                .map(Map.Entry::getKey)
+                .toList()
+        );
+    }
+
+    record LookupIdx(String idxName, String key, String keyType) {}
+
+    private List<LookupIdx> lookupIndices() {
+        List<LookupIdx> result = new ArrayList<>();
+        // we don't have key info from the dataset loader, let's hardcode it for now
+        result.add(new LookupIdx("languages_lookup", "language_code", "integer"));
+        result.add(new LookupIdx("message_types_lookup", "message", "keyword"));
+        return result;
     }
 
     List<CsvTestsDataLoader.EnrichConfig> availableEnrichPolicies() {

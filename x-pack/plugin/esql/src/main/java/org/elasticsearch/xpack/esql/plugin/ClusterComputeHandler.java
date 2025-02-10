@@ -206,6 +206,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     parentTask,
                     new ComputeContext(
                         localSessionId,
+                        "remote_reduce",
                         clusterAlias,
                         List.of(),
                         configuration,

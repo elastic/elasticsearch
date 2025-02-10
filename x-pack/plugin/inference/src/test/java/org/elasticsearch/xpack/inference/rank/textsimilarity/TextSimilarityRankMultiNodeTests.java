@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.rerank.AbstractRerankerIT;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
@@ -16,9 +17,12 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasRank;
 
 public class TextSimilarityRankMultiNodeTests extends AbstractRerankerIT {
 
@@ -84,11 +88,11 @@ public class TextSimilarityRankMultiNodeTests extends AbstractRerankerIT {
 
         assertNoFailuresAndResponse(
             prepareSearch().setQuery(
-                boolQuery().should(matchQuery(searchField, "A"))
-                    .should(matchQuery(searchField, "B"))
-                    .should(matchQuery(searchField, "C"))
-                    .should(matchQuery(searchField, "D"))
-                    .should(matchQuery(searchField, "E"))
+                boolQuery().should(constantScoreQuery(matchQuery(searchField, "A")).boost(10))
+                    .should(constantScoreQuery(matchQuery(searchField, "B")).boost(20))
+                    .should(constantScoreQuery(matchQuery(searchField, "C")).boost(30))
+                    .should(constantScoreQuery(matchQuery(searchField, "D")).boost(40))
+                    .should(constantScoreQuery(matchQuery(searchField, "E")).boost(50))
             )
                 .setRankBuilder(
                     getThrowingRankBuilder(
@@ -103,8 +107,16 @@ public class TextSimilarityRankMultiNodeTests extends AbstractRerankerIT {
                 .setAllowPartialSearchResults(true)
                 .setSize(10),
             response -> {
-                // just check it returns 5 documents, the order will be random due to not getting reranked
                 assertHitCount(response, 5L);
+                int rank = 1;
+                for (SearchHit searchHit : response.getHits().getHits()) {
+                    int id = 5 - (rank - 1);
+                    assertThat(searchHit, hasId(String.valueOf(id)));
+                    assertThat(searchHit, hasRank(rank));
+                    assertNotNull(searchHit.getFields().get(searchField));
+                    assertEquals(id * 10, searchHit.getScore(), 0f);
+                    rank++;
+                }
             }
         );
         assertNoOpenContext(indexName);

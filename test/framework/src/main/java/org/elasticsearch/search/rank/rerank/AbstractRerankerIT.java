@@ -30,6 +30,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasRank;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -403,7 +404,7 @@ public abstract class AbstractRerankerIT extends ESIntegTestCase {
                         .allMatch(failure -> failure.getCause().getMessage().contains("rfs - simulated failure"))
                 );
                 assertHitCount(response, 5);
-                assertTrue(response.getHits().getHits().length == 0);
+                assertThat(response.getHits().getHits(), arrayWithSize(5));
             }
         );
         assertNoOpenContext(indexName);

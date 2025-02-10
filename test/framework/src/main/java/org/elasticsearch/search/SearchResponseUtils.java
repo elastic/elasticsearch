@@ -892,7 +892,8 @@ public enum SearchResponseUtils {
             get(SearchHit.Fields.INNER_HITS, values, null),
             get(SearchHit.DOCUMENT_FIELDS, values, Collections.emptyMap()),
             get(SearchHit.METADATA_FIELDS, values, Collections.emptyMap()),
-            RefCounted.ALWAYS_REFERENCED // TODO: do we ever want pooling here?
+            RefCounted.ALWAYS_REFERENCED, // TODO: do we ever want pooling here?
+            null
         );
     }
 

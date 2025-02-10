@@ -21,6 +21,8 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
@@ -240,7 +242,7 @@ public class SemanticTextHighlighterTests extends MapperServiceTestCase {
                 Mockito.when(fetchContext.getSearchExecutionContext()).thenReturn(execContext);
 
                 FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext(
-                    new SearchHit(docID),
+                    new SearchHit(docID, new NoopCircuitBreaker(CircuitBreaker.REQUEST)),
                     getOnlyLeafReader(reader).getContext(),
                     docID,
                     Map.of(),

@@ -12,6 +12,8 @@ package org.elasticsearch.action.search;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -113,7 +115,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                     }
                 };
 
-                SearchHit hit = new SearchHit(1, "ID");
+                SearchHit hit = new SearchHit(1, "ID", new NoopCircuitBreaker(CircuitBreaker.REQUEST));
                 hit.setDocumentField("someField", new DocumentField("someField", Collections.singletonList(collapseValue)));
                 SearchHits hits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F);
                 try {
@@ -156,8 +158,9 @@ public class ExpandSearchPhaseTests extends ESTestCase {
     public void testFailOneItemFailsEntirePhase() throws IOException {
         AtomicBoolean executedMultiSearch = new AtomicBoolean(false);
 
+        NoopCircuitBreaker breaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST);
         SearchHits collapsedHits = new SearchHits(
-            new SearchHit[] { new SearchHit(2, "ID"), new SearchHit(3, "ID") },
+            new SearchHit[] { new SearchHit(2, "ID", breaker), new SearchHit(3, "ID", breaker) },
             new TotalHits(1, TotalHits.Relation.EQUAL_TO),
             1.0F
         );
@@ -201,9 +204,9 @@ public class ExpandSearchPhaseTests extends ESTestCase {
             }
         };
 
-        SearchHit hit1 = new SearchHit(1, "ID");
+        SearchHit hit1 = new SearchHit(1, "ID", breaker);
         hit1.setDocumentField("someField", new DocumentField("someField", Collections.singletonList(collapseValue)));
-        SearchHit hit2 = new SearchHit(2, "ID2");
+        SearchHit hit2 = new SearchHit(2, "ID2", breaker);
         hit2.setDocumentField("someField", new DocumentField("someField", Collections.singletonList(collapseValue)));
         SearchHits hits = new SearchHits(new SearchHit[] { hit1, hit2 }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F);
         try {
@@ -237,9 +240,10 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 }
             };
 
-            SearchHit hit1 = new SearchHit(1, "ID");
+            CircuitBreaker breaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST);
+            SearchHit hit1 = new SearchHit(1, "ID", breaker);
             hit1.setDocumentField("someField", new DocumentField("someField", Collections.singletonList(null)));
-            SearchHit hit2 = new SearchHit(2, "ID2");
+            SearchHit hit2 = new SearchHit(2, "ID2", breaker);
             hit2.setDocumentField("someField", new DocumentField("someField", Collections.singletonList(null)));
             SearchHits hits = new SearchHits(new SearchHit[] { hit1, hit2 }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F);
             try {
@@ -329,7 +333,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 .preference("foobar")
                 .routing("baz");
 
-            SearchHit hit = new SearchHit(1, "ID");
+            SearchHit hit = new SearchHit(1, "ID", new NoopCircuitBreaker(CircuitBreaker.REQUEST));
             hit.setDocumentField("someField", new DocumentField("someField", Collections.singletonList("foo")));
             SearchHits hits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F);
             try {
@@ -378,7 +382,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 )
                 .routing("baz");
 
-            SearchHit hit = new SearchHit(1, "ID");
+            SearchHit hit = new SearchHit(1, "ID", new NoopCircuitBreaker(CircuitBreaker.REQUEST));
             hit.setDocumentField("someField", new DocumentField("someField", Collections.singletonList("foo")));
             SearchHits hits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0F);
             try {

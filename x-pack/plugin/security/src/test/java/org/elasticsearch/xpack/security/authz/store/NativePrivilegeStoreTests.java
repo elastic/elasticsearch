@@ -33,6 +33,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -921,7 +923,11 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         final SearchHit[] hits = new SearchHit[sourcePrivileges.size()];
         for (int i = 0; i < hits.length; i++) {
             final ApplicationPrivilegeDescriptor p = sourcePrivileges.get(i);
-            hits[i] = new SearchHit(i, "application-privilege_" + p.getApplication() + ":" + p.getName());
+            hits[i] = new SearchHit(
+                i,
+                "application-privilege_" + p.getApplication() + ":" + p.getName(),
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST)
+            );
             hits[i].sourceRef(new BytesArray(Strings.toString(p)));
         }
         return hits;

@@ -25,6 +25,7 @@ import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.MaxScoreCollector;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.BigArrays;
@@ -196,7 +197,7 @@ class TopHitsAggregator extends MetricsAggregator {
         for (int i = 0; i < topDocs.scoreDocs.length; i++) {
             docIdsToLoad[i] = topDocs.scoreDocs[i].doc;
         }
-        FetchSearchResult fetchResult = runFetchPhase(subSearchContext, docIdsToLoad);
+        FetchSearchResult fetchResult = runFetchPhase(subSearchContext, docIdsToLoad, context.breaker());
         if (fetchProfiles != null) {
             fetchProfiles.add(fetchResult.profileResult());
         }
@@ -220,7 +221,7 @@ class TopHitsAggregator extends MetricsAggregator {
         );
     }
 
-    private static FetchSearchResult runFetchPhase(SubSearchContext subSearchContext, int[] docIdsToLoad) {
+    private static FetchSearchResult runFetchPhase(SubSearchContext subSearchContext, int[] docIdsToLoad, CircuitBreaker breaker) {
         // Fork the search execution context for each slice, because the fetch phase does not support concurrent execution yet.
         SearchExecutionContext searchExecutionContext = new SearchExecutionContext(subSearchContext.getSearchExecutionContext());
         SubSearchContext fetchSubSearchContext = new SubSearchContext(subSearchContext) {
@@ -229,7 +230,7 @@ class TopHitsAggregator extends MetricsAggregator {
                 return searchExecutionContext;
             }
         };
-        fetchSubSearchContext.fetchPhase().execute(fetchSubSearchContext, docIdsToLoad, null);
+        fetchSubSearchContext.fetchPhase().execute(fetchSubSearchContext, docIdsToLoad, null, breaker);
         return fetchSubSearchContext.fetchResult();
     }
 

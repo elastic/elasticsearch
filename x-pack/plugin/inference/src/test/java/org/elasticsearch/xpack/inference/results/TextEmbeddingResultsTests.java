@@ -146,4 +146,10 @@ public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<I
         );
     }
 
+    public static Map<String, Object> buildExpectationBinary(List<byte[]> embeddings) {
+        return Map.of(
+            "text_embedding_bits",
+            embeddings.stream().map(InferenceByteEmbedding::new).toList()
+        );
+    }
 }

@@ -102,9 +102,10 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             .build();
         var expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            "Old index with a compatibility version < 9.0",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
-            "This index has version: " + OLD_VERSION.toReleaseVersion(),
+            "One or more Transforms write to this index with a compatibility version < 9.0",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-9.0.html"
+                + "#breaking_90_transform_destination_index",
+            "Transforms [test-transform] write to this index with version [" + OLD_VERSION.toReleaseVersion() + "].",
             false,
             Map.of("reindex_required", true, "transform_ids", List.of("test-transform"))
         );
@@ -124,9 +125,10 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             .build();
         var expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            "Old index with a compatibility version < 9.0",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
-            "This index has version: " + OLD_VERSION.toReleaseVersion(),
+            "One or more Transforms write to this index with a compatibility version < 9.0",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-9.0.html"
+                + "#breaking_90_transform_destination_index",
+            "Transforms [test-transform1, test-transform2] write to this index with version [" + OLD_VERSION.toReleaseVersion() + "].",
             false,
             Map.of("reindex_required", true, "transform_ids", List.of("test-transform1", "test-transform2"))
         );
@@ -150,9 +152,10 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             List.of(
                 new DeprecationIssue(
                     DeprecationIssue.Level.CRITICAL,
-                    "Old index with a compatibility version < 9.0",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
-                    "This index has version: " + OLD_VERSION.toReleaseVersion(),
+                    "One or more Transforms write to this index with a compatibility version < 9.0",
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-9.0.html"
+                        + "#breaking_90_transform_destination_index",
+                    "Transforms [test-transform1] write to this index with version [" + OLD_VERSION.toReleaseVersion() + "].",
                     false,
                     Map.of("reindex_required", true, "transform_ids", List.of("test-transform1"))
                 )
@@ -161,9 +164,10 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             List.of(
                 new DeprecationIssue(
                     DeprecationIssue.Level.CRITICAL,
-                    "Old index with a compatibility version < 9.0",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
-                    "This index has version: " + OLD_VERSION.toReleaseVersion(),
+                    "One or more Transforms write to this index with a compatibility version < 9.0",
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-9.0.html"
+                        + "#breaking_90_transform_destination_index",
+                    "Transforms [test-transform2] write to this index with version [" + OLD_VERSION.toReleaseVersion() + "].",
                     false,
                     Map.of("reindex_required", true, "transform_ids", List.of("test-transform2"))
                 )
@@ -256,13 +260,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
     }
 
     public void testOldIndicesIgnoredWarningCheck() {
-        Settings.Builder settings = settings(OLD_VERSION).put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), true);
-        IndexMetadata indexMetadata = IndexMetadata.builder("test")
-            .settings(settings)
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .state(indexMetdataState)
-            .build();
+        IndexMetadata indexMetadata = readonlyIndexMetadata("test", OLD_VERSION);
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(Metadata.builder().put(indexMetadata, true))
             .blocks(clusterBlocksForIndices(indexMetadata))
@@ -282,6 +280,107 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         );
         assertTrue(issuesByIndex.containsKey("test"));
         assertEquals(List.of(expected), issuesByIndex.get("test"));
+    }
+
+    private IndexMetadata readonlyIndexMetadata(String indexName, IndexVersion indexVersion) {
+        Settings.Builder settings = settings(indexVersion).put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), true);
+        return IndexMetadata.builder(indexName).settings(settings).numberOfShards(1).numberOfReplicas(0).state(indexMetdataState).build();
+    }
+
+    public void testOldTransformIndicesIgnoredCheck() {
+        var checker = new IndexDeprecationChecker(indexNameExpressionResolver);
+        var indexMetadata = readonlyIndexMetadata("test", OLD_VERSION);
+        var clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .blocks(clusterBlocksForIndices(indexMetadata))
+            .build();
+        var expected = new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            "One or more Transforms write to this old index with a compatibility version < 9.0",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-9.0.html"
+                + "#breaking_90_transform_destination_index",
+            "Transforms [test-transform] write to this index with version ["
+                + OLD_VERSION.toReleaseVersion()
+                + "] and cannot be supported as read-only in 9.0",
+            false,
+            Map.of("reindex_required", true, "transform_ids", List.of("test-transform"))
+        );
+        var issuesByIndex = checker.check(
+            clusterState,
+            new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS),
+            createContextWithTransformConfigs(Map.of("test", List.of("test-transform")))
+        );
+        assertEquals(singletonList(expected), issuesByIndex.get("test"));
+    }
+
+    public void testOldIndicesIgnoredCheckWithMultipleTransforms() {
+        var indexMetadata = readonlyIndexMetadata("test", OLD_VERSION);
+        var clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .blocks(clusterBlocksForIndices(indexMetadata))
+            .build();
+        var expected = new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            "One or more Transforms write to this old index with a compatibility version < 9.0",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-9.0.html"
+                + "#breaking_90_transform_destination_index",
+            "Transforms [test-transform1, test-transform2] write to this index with version ["
+                + OLD_VERSION.toReleaseVersion()
+                + "] and cannot be supported as read-only in 9.0",
+            false,
+            Map.of("reindex_required", true, "transform_ids", List.of("test-transform1", "test-transform2"))
+        );
+        var issuesByIndex = checker.check(
+            clusterState,
+            new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS),
+            createContextWithTransformConfigs(Map.of("test", List.of("test-transform1", "test-transform2")))
+        );
+        assertEquals(singletonList(expected), issuesByIndex.get("test"));
+    }
+
+    public void testMultipleOldIndicesIgnoredCheckWithTransforms() {
+        var indexMetadata1 = readonlyIndexMetadata("test1", OLD_VERSION);
+        var indexMetadata2 = readonlyIndexMetadata("test2", OLD_VERSION);
+        var clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put(indexMetadata1, true).put(indexMetadata2, true))
+            .blocks(clusterBlocksForIndices(indexMetadata1, indexMetadata2))
+            .build();
+        var expected = Map.of(
+            "test1",
+            List.of(
+                new DeprecationIssue(
+                    DeprecationIssue.Level.WARNING,
+                    "One or more Transforms write to this old index with a compatibility version < 9.0",
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-9.0.html"
+                        + "#breaking_90_transform_destination_index",
+                    "Transforms [test-transform1] write to this index with version ["
+                        + OLD_VERSION.toReleaseVersion()
+                        + "] and cannot be supported as read-only in 9.0",
+                    false,
+                    Map.of("reindex_required", true, "transform_ids", List.of("test-transform1"))
+                )
+            ),
+            "test2",
+            List.of(
+                new DeprecationIssue(
+                    DeprecationIssue.Level.WARNING,
+                    "One or more Transforms write to this old index with a compatibility version < 9.0",
+                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-9.0.html"
+                        + "#breaking_90_transform_destination_index",
+                    "Transforms [test-transform2] write to this index with version ["
+                        + OLD_VERSION.toReleaseVersion()
+                        + "] and cannot be supported as read-only in 9.0",
+                    false,
+                    Map.of("reindex_required", true, "transform_ids", List.of("test-transform2"))
+                )
+            )
+        );
+        var issuesByIndex = checker.check(
+            clusterState,
+            new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS),
+            createContextWithTransformConfigs(Map.of("test1", List.of("test-transform1"), "test2", List.of("test-transform2")))
+        );
+        assertEquals(expected, issuesByIndex);
     }
 
     public void testTranslogRetentionSettings() {

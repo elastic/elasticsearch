@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
@@ -33,7 +34,6 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.TermsGroupSource;
 
 import java.math.BigInteger;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -297,17 +297,10 @@ public class SchemaUtilTests extends ESTestCase {
     }
 
     private static FieldCapabilities createFieldCapabilities(String name, String type) {
-        return new FieldCapabilities(
-            name,
-            type,
-            false,
-            true,
-            true,
-            Strings.EMPTY_ARRAY,
-            Strings.EMPTY_ARRAY,
-            Strings.EMPTY_ARRAY,
-            Collections.emptyMap()
-        );
+        return new FieldCapabilitiesBuilder(name, type).indices(Strings.EMPTY_ARRAY)
+            .nonSearchableIndices(Strings.EMPTY_ARRAY)
+            .nonAggregatableIndices(Strings.EMPTY_ARRAY)
+            .build();
     }
 
     private <T> void assertAsync(Consumer<ActionListener<T>> function, Consumer<T> furtherTests) throws InterruptedException {

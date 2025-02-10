@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.telemetry;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
@@ -194,8 +195,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
     }
 
     private Map<String, Map<String, FieldCapabilities>> fields(String[] indices) {
-        FieldCapabilities fooField = new FieldCapabilities("foo", "integer", false, true, true, indices, null, null, Map.of());
-        FieldCapabilities barField = new FieldCapabilities("bar", "long", false, true, true, indices, null, null, Map.of());
+        FieldCapabilities fooField = new FieldCapabilitiesBuilder("foo", "integer").indices(indices).build();
+        FieldCapabilities barField = new FieldCapabilitiesBuilder("bar", "long").indices(indices).build();
         Map<String, Map<String, FieldCapabilities>> fields = new HashMap<>();
         fields.put(fooField.getName(), Map.of(fooField.getName(), fooField));
         fields.put(barField.getName(), Map.of(barField.getName(), barField));

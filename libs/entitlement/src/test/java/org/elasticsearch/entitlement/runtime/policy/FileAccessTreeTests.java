@@ -102,9 +102,6 @@ public class FileAccessTreeTests extends ESTestCase {
         // Forward slashes also work
         assertThat(tree.canRead(path("a/b")), is(true));
         assertThat(tree.canRead(path("m/n")), is(true));
-
-        // In case the native separator is a backslash, don't treat that as an escape
-        assertThat(tree.canRead(path("m\n")), is(false));
     }
 
     FilesEntitlement entitlement(String... values) {

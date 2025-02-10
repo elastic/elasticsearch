@@ -405,7 +405,7 @@ public final class DateFieldMapper extends FieldMapper {
             DateFieldType ft = new DateFieldType(
                 fullFieldName,
                 hasDocValuesSkipper == false && index.getValue() && indexCreatedVersion.isLegacyIndexVersion() == false,
-                index.getValue(),
+                hasDocValuesSkipper == false && index.getValue(),
                 store.getValue(),
                 docValues.getValue(),
                 hasDocValuesSkipper,

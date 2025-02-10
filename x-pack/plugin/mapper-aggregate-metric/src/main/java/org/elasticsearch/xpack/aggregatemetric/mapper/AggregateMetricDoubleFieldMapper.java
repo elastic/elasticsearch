@@ -540,9 +540,6 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                 NumericDocValues sumValues = getNumericDocValues(sumFieldType, context.reader());
                 NumericDocValues valueCountValues = getNumericDocValues(countFieldType, context.reader());
 
-                if (minValues == null || maxValues == null || sumValues == null || valueCountValues == null) {
-                    throw new UnsupportedOperationException("Must have all subfields to use aggregate double metric in ESQL");
-                }
                 return new BlockDocValuesReader() {
 
                     private int docID = -1;
@@ -576,13 +573,13 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                             if (doc < lastDoc) {
                                 throw new IllegalStateException("docs within same block must be in order");
                             }
-                            if (values.advanceExact(doc)) {
+                            if (values == null || values.advanceExact(doc) == false) {
+                                builder.appendNull();
+                            } else {
                                 double value = NumericUtils.sortableLongToDouble(values.longValue());
                                 lastDoc = doc;
                                 this.docID = doc;
                                 builder.appendDouble(value);
-                            } else {
-                                builder.appendNull();
                             }
                         }
                     }
@@ -595,13 +592,13 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                             if (doc < lastDoc) {
                                 throw new IllegalStateException("docs within same block must be in order");
                             }
-                            if (values.advanceExact(doc)) {
+                            if (values == null || values.advanceExact(doc) == false) {
+                                builder.appendNull();
+                            } else {
                                 int value = Math.toIntExact(values.longValue());
                                 lastDoc = doc;
                                 this.docID = doc;
                                 builder.appendInt(value);
-                            } else {
-                                builder.appendNull();
                             }
                         }
                     }
@@ -610,10 +607,10 @@ public class AggregateMetricDoubleFieldMapper extends FieldMapper {
                     public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
                         var blockBuilder = (AggregateMetricDoubleBuilder) builder;
                         this.docID = docId;
-                        read(docId, blockBuilder);
+                        readSingleRow(docId, blockBuilder);
                     }
 
-                    private void read(int docId, AggregateMetricDoubleBuilder builder) throws IOException {
+                    private void readSingleRow(int docId, AggregateMetricDoubleBuilder builder) throws IOException {
                         if (minValues.advanceExact(docId)) {
                             builder.min().appendDouble(NumericUtils.sortableLongToDouble(minValues.longValue()));
                         } else {

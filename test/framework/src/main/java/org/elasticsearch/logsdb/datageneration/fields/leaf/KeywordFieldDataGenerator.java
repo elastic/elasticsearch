@@ -13,6 +13,7 @@ import org.elasticsearch.logsdb.datageneration.FieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSource;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceRequest;
 
+import java.util.Map;
 import java.util.function.Supplier;
 
 public class KeywordFieldDataGenerator implements FieldDataGenerator {
@@ -27,7 +28,7 @@ public class KeywordFieldDataGenerator implements FieldDataGenerator {
     }
 
     @Override
-    public Object generateValue() {
+    public Object generateValue(Map<String, Object> fieldMapping) {
         return valueGenerator.get();
     }
 }

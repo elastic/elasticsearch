@@ -7,7 +7,9 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -21,7 +23,7 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 final class DriverScheduler {
     private final AtomicReference<Runnable> delayedTask = new AtomicReference<>();
-    private final AtomicReference<Runnable> scheduledTask = new AtomicReference<>();
+    private final AtomicReference<AbstractRunnable> scheduledTask = new AtomicReference<>();
     private final AtomicBoolean completing = new AtomicBoolean();
 
     void addOrRunDelayedTask(Runnable task) {
@@ -35,22 +37,32 @@ final class DriverScheduler {
         }
     }
 
-    void scheduleOrRunTask(Executor executor, Runnable task) {
-        final Runnable existing = scheduledTask.getAndSet(task);
+    void scheduleOrRunTask(Executor executor, AbstractRunnable task) {
+        final AbstractRunnable existing = scheduledTask.getAndSet(task);
         assert existing == null : existing;
         final Executor executorToUse = completing.get() ? EsExecutors.DIRECT_EXECUTOR_SERVICE : executor;
-        executorToUse.execute(() -> {
-            final Runnable next = scheduledTask.getAndSet(null);
-            if (next != null) {
-                assert next == task;
-                next.run();
+        executorToUse.execute(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                assert e instanceof EsRejectedExecutionException : new AssertionError(e);
+                if (scheduledTask.getAndUpdate(t -> t == task ? null : t) == task) {
+                    task.onFailure(e);
+                }
+            }
+
+            @Override
+            protected void doRun() {
+                AbstractRunnable toRun = scheduledTask.getAndSet(null);
+                if (toRun == task) {
+                    task.run();
+                }
             }
         });
     }
 
     void runPendingTasks() {
         completing.set(true);
-        for (var taskHolder : List.of(delayedTask, scheduledTask)) {
+        for (var taskHolder : List.of(scheduledTask, delayedTask)) {
             final Runnable task = taskHolder.getAndSet(null);
             if (task != null) {
                 task.run();

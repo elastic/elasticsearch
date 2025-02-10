@@ -69,7 +69,7 @@ public class TransportKibanaEnrollmentActionTests extends ESTestCase {
         final Path tempDir = createTempDir();
         final Path httpCaPath = tempDir.resolve("httpCa.p12");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/action/enrollment/httpCa.p12"), httpCaPath);
-        when(env.configFile()).thenReturn(tempDir);
+        when(env.configDir()).thenReturn(tempDir);
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("keystore.secure_password", "password");
         final Settings settings = Settings.builder().put("keystore.path", httpCaPath).setSecureSettings(secureSettings).build();

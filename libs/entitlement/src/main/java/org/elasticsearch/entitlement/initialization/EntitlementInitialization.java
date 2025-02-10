@@ -31,6 +31,7 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetwork
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.channels.spi.SelectorProvider;
 import java.nio.file.FileSystems;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
@@ -79,6 +80,13 @@ public class EntitlementInitialization {
                 "checkNewInputStream",
                 Path.class,
                 OpenOption[].class
+            ),
+            INSTRUMENTATION_SERVICE.lookupImplementationMethod(
+                SelectorProvider.class,
+                "inheritedChannel",
+                SelectorProvider.provider().getClass(),
+                EntitlementChecker.class,
+                "checkSelectorProviderInheritedChannel"
             )
         ).forEach(instrumentation -> checkMethods.put(instrumentation.targetMethod(), instrumentation.checkMethod()));
 
@@ -143,17 +151,16 @@ public class EntitlementInitialization {
         int javaVersion = Runtime.version().feature();
 
         final String classNamePrefix;
-        if (javaVersion == 21) {
-            classNamePrefix = "Java21";
-        } else if (javaVersion == 22) {
-            classNamePrefix = "Java22";
-        } else if (javaVersion >= 23) {
+        if (javaVersion < 19) {
+            // For older Java versions, the basic EntitlementChecker interface and implementation contains all the supported checks
+            classNamePrefix = "";
+        } else if (javaVersion < 23) {
+            classNamePrefix = "Java" + javaVersion;
+        } else {
             // All Java version from 23 onwards will be able to use che checks in the Java23EntitlementChecker interface and implementation
             classNamePrefix = "Java23";
-        } else {
-            // For any other Java version, the basic EntitlementChecker interface and implementation contains all the supported checks
-            classNamePrefix = "";
         }
+
         final String className = packageName + "." + classNamePrefix + baseClassName;
         Class<?> clazz;
         try {

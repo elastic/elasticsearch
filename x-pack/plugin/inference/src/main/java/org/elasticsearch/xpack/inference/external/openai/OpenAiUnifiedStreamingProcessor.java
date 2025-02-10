@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatCompletionResults;
 import org.elasticsearch.xpack.inference.common.DelegatingProcessor;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
+import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventField;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -28,6 +29,7 @@ import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.LinkedBlockingDeque;
+import java.util.function.BiFunction;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
@@ -57,7 +59,13 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<Deque<S
     public static final String PROMPT_TOKENS_FIELD = "prompt_tokens";
     public static final String TOTAL_TOKENS_FIELD = "total_tokens";
 
+    private final BiFunction<String, Exception, Exception> errorParser;
     private final Deque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk> buffer = new LinkedBlockingDeque<>();
+    private volatile boolean previousEventWasError = false;
+
+    public OpenAiUnifiedStreamingProcessor(BiFunction<String, Exception, Exception> errorParser) {
+        this.errorParser = errorParser;
+    }
 
     @Override
     protected void upstreamRequest(long n) {
@@ -71,7 +79,25 @@ public class OpenAiUnifiedStreamingProcessor extends DelegatingProcessor<Deque<S
     @Override
     protected void next(Deque<ServerSentEvent> item) throws Exception {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
-        var results = parseEvent(item, OpenAiUnifiedStreamingProcessor::parse, parserConfig, logger);
+
+        var results = new ArrayDeque<StreamingUnifiedChatCompletionResults.ChatCompletionChunk>(item.size());
+        for (var event : item) {
+            if (ServerSentEventField.EVENT == event.name() && "error".equals(event.value())) {
+                previousEventWasError = true;
+            } else if (ServerSentEventField.DATA == event.name() && event.hasValue()) {
+                if (previousEventWasError) {
+                    throw errorParser.apply(event.value(), null);
+                }
+
+                try {
+                    var delta = parse(parserConfig, event);
+                    delta.forEachRemaining(results::offer);
+                } catch (Exception e) {
+                    logger.warn("Failed to parse event from inference provider: {}", event);
+                    throw errorParser.apply(event.value(), e);
+                }
+            }
+        }
 
         if (results.isEmpty()) {
             upstream().request(1);

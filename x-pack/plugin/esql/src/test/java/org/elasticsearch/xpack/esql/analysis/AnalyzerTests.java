@@ -2599,7 +2599,7 @@ public class AnalyzerTests extends ESTestCase {
             | WHERE x > 1
             | FORK [ WHERE b > 2 ]
                    [ WHERE C > 3 ]
-                   [ WHERE d > 4 | SORT x  | LIMIT 7 ]
+                   [ WHERE d > 4 | SORT x | LIMIT 7 ]
             """);
 
         Limit limit = as(plan, Limit.class);

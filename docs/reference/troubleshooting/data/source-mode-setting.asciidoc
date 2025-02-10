@@ -47,6 +47,3 @@ generated using component templates. To avoid these problems, identify all affec
 component templates, as shown in the <<migration-api-deprecation,deprecation info API>>,
 and update them to use setting `index.mapping.source.mode` instead of
 `mappings.source.mode`, according to the examples above.
-
-
-

@@ -406,8 +406,15 @@ tests:
   method: testWithOnlyTrainingRowsAndTrainingPercentIsFifty_DependentVariableIsBoolean
   issue: https://github.com/elastic/elasticsearch/issues/121680
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
-  method: testExtractFields
-  issue: https://github.com/elastic/elasticsearch/issues/122125
+  issue: https://github.com/elastic/elasticsearch/issues/122153
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  issue: https://github.com/elastic/elasticsearch/issues/121411
+- class: org.elasticsearch.xpack.esql.action.EsqlNodeFailureIT
+  method: testFailureLoadingFields
+  issue: https://github.com/elastic/elasticsearch/issues/122132
+- class: org.elasticsearch.xpack.esql.action.CrossClustersCancellationIT
+  method: testCloseSkipUnavailable
+  issue: https://github.com/elastic/elasticsearch/issues/121627
 
 # Examples:
 #

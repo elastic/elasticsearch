@@ -353,8 +353,6 @@ tests:
 - class: org.elasticsearch.search.CrossClusterSearchUnavailableClusterIT
   method: testSearchSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/121497
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  issue: https://github.com/elastic/elasticsearch/issues/121411
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/cat/health/cat-health-no-timestamp-example}
   issue: https://github.com/elastic/elasticsearch/issues/121867
@@ -388,8 +386,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/121680
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   issue: https://github.com/elastic/elasticsearch/issues/122153
-- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
-  issue: https://github.com/elastic/elasticsearch/issues/121411
 - class: org.elasticsearch.xpack.esql.action.EsqlNodeFailureIT
   method: testFailureLoadingFields
   issue: https://github.com/elastic/elasticsearch/issues/122132

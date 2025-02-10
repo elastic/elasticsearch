@@ -161,7 +161,7 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
         Path dataPath = ((FSDirectory) unwrap).getDirectory().getParent();
         // TODO should we have a snapshot tmp directory per shard that is maintained by the system?
         Path snapPath = dataPath.resolve(SNAPSHOT_DIR_NAME);
-        final List<Closeable> toClose = new ArrayList<>(3);
+        final List<Closeable> toClose = new ArrayList<>(4);
         try {
             SourceOnlySnapshot.LinkedFilesDirectory overlayDir = new SourceOnlySnapshot.LinkedFilesDirectory(new NIOFSDirectory(snapPath));
             toClose.add(overlayDir);
@@ -170,7 +170,8 @@ public final class SourceOnlySnapshotRepository extends FilterRepository {
                 protected void closeInternal() {
                     // do nothing;
                 }
-            }, Store.OnClose.EMPTY, mapperService.getIndexSettings().getIndexSortConfig().hasIndexSort(), false);
+            }, Store.OnClose.EMPTY, mapperService.getIndexSettings().getIndexSortConfig().hasIndexSort());
+            toClose.add(tempStore);
             Supplier<Query> querySupplier = mapperService.hasNested()
                 ? () -> Queries.newNestedFilter(mapperService.getIndexSettings().getIndexVersionCreated())
                 : null;

@@ -44,6 +44,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ShardSnapshotTaskRunnerTests extends ESTestCase {
 
+    private static List<Store> dummyStores;
     private ThreadPool threadPool;
     private Executor executor;
 
@@ -52,12 +53,16 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
         super.setUp();
         threadPool = new TestThreadPool("test");
         executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+        dummyStores = new ArrayList<>();
     }
 
     @Override
     public void tearDown() throws Exception {
         super.tearDown();
         TestThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
+        // Don't trigger leak detection
+        dummyStores.forEach(Store::close);
+        dummyStores.clear();
     }
 
     private static class MockedRepo {
@@ -124,15 +129,8 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
             IndexMetadata.builder(indexId.getName()).settings(indexSettings(IndexVersion.current(), 1, 0)).build(),
             Settings.EMPTY
         );
-        final var dummyStore = new Store(
-            shardId,
-            indexSettings,
-            new ByteBuffersDirectory(),
-            new DummyShardLock(shardId),
-            Store.OnClose.EMPTY,
-            false,
-            false
-        );
+        final var dummyStore = new Store(shardId, indexSettings, new ByteBuffersDirectory(), new DummyShardLock(shardId));
+        dummyStores.add(dummyStore);
         return new SnapshotShardContext(
             dummyStore,
             null,

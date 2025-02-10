@@ -40,7 +40,10 @@ public class DocumentGenerator {
     public Map<String, Object> generate(Template template, Mapping mapping) {
         var documentMap = new TreeMap<String, Object>();
         for (var predefinedField : specification.predefinedFields()) {
-            documentMap.put(predefinedField.name(), predefinedField.generator(specification.dataSource()).generateValue());
+            documentMap.put(
+                predefinedField.name(),
+                predefinedField.generator(specification.dataSource()).generateValue(predefinedField.mapping())
+            );
         }
 
         generateFields(documentMap, template.template(), new Context("", mapping.lookup()));
@@ -53,16 +56,18 @@ public class DocumentGenerator {
             Template.Entry templateEntry = entry.getValue();
 
             if (templateEntry instanceof Template.Leaf leaf) {
+                var fieldMapping = context.mappingLookup().get(context.pathTo(fieldName));
+
                 // Unsigned long does not play well when dynamically mapped because
                 // it gets mapped as just long and large values fail to index.
                 // Just skip it.
-                if (leaf.type() == FieldType.UNSIGNED_LONG && context.mappingLookup().get(context.pathTo(fieldName)) == null) {
+                if (leaf.type() == FieldType.UNSIGNED_LONG && fieldMapping == null) {
                     continue;
                 }
 
                 var generator = leaf.type().generator(fieldName, specification.dataSource());
 
-                document.put(fieldName, generator.generateValue());
+                document.put(fieldName, generator.generateValue(fieldMapping));
             } else if (templateEntry instanceof Template.Object object) {
                 Optional<Integer> arrayLength = objectArrayGenerator.lengthGenerator().get();
 

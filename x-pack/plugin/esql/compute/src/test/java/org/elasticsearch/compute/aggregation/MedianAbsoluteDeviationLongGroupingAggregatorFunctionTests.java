@@ -46,8 +46,8 @@ public class MedianAbsoluteDeviationLongGroupingAggregatorFunctionTests extends 
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new MedianAbsoluteDeviationLongAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new MedianAbsoluteDeviationLongAggregatorFunctionSupplier();
     }
 
     @Override

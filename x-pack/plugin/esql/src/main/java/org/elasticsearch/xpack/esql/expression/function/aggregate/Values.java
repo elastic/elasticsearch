@@ -31,7 +31,7 @@ import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
@@ -39,7 +39,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 public class Values extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Values", Values::new);
 
-    private static final Map<DataType, Function<List<Integer>, AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
+    private static final Map<DataType, Supplier<AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
         Map.entry(DataType.INTEGER, ValuesIntAggregatorFunctionSupplier::new),
         Map.entry(DataType.LONG, ValuesLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.DATETIME, ValuesLongAggregatorFunctionSupplier::new),
@@ -125,12 +125,12 @@ public class Values extends AggregateFunction implements ToAggregator {
     }
 
     @Override
-    public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
+    public AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
         if (SUPPLIERS.containsKey(type) == false) {
             // If the type checking did its job, this should never happen
             throw EsqlIllegalArgumentException.illegalDataType(type);
         }
-        return SUPPLIERS.get(type).apply(inputChannels);
+        return SUPPLIERS.get(type).get();
     }
 }

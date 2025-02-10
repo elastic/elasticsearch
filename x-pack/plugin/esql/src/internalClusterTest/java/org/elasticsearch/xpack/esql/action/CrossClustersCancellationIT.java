@@ -21,6 +21,7 @@ import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.transport.TransportService;
@@ -41,6 +42,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class CrossClustersCancellationIT extends AbstractMultiClustersTestCase {
     private static final String REMOTE_CLUSTER = "cluster-a";
@@ -115,6 +117,7 @@ public class CrossClustersCancellationIT extends AbstractMultiClustersTestCase {
             mapping.startObject("const");
             {
                 mapping.field("type", "long");
+                mapping.startObject("script").field("source", "").field("lang", "pause").endObject();
             }
             mapping.endObject();
         }
@@ -123,7 +126,7 @@ public class CrossClustersCancellationIT extends AbstractMultiClustersTestCase {
         client(LOCAL_CLUSTER).admin().indices().prepareCreate("test").setMapping(mapping).get();
         BulkRequestBuilder bulk = client(LOCAL_CLUSTER).prepareBulk("test").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < numDocs; i++) {
-            bulk.add(new IndexRequest().source("const", i));
+            bulk.add(new IndexRequest().source("foo", i));
         }
         bulk.get();
     }
@@ -282,7 +285,7 @@ public class CrossClustersCancellationIT extends AbstractMultiClustersTestCase {
         }
 
         Exception error = expectThrows(Exception.class, requestFuture::actionGet);
-        assertThat(error.getMessage(), containsString("remote failed"));
+        assertThat(error, instanceOf(TaskCancelledException.class));
     }
 
     // Check that closing remote node with skip_unavailable=true produces partial
@@ -311,7 +314,7 @@ public class CrossClustersCancellationIT extends AbstractMultiClustersTestCase {
             List<List<Object>> values = getValuesList(resp);
             assertThat(values.get(0).size(), equalTo(1));
             // We can't be sure of the exact value here as we don't know if any data from remote came in, but all local data should be there
-            assertThat((long) values.get(0).get(0), greaterThanOrEqualTo(45L));
+            assertThat((long) values.get(0).get(0), greaterThanOrEqualTo(10L));
 
             EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(REMOTE_CLUSTER);
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);

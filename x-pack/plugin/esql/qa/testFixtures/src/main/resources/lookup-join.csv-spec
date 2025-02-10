@@ -1346,3 +1346,50 @@ language_code:integer | language_name:keyword       | country:text
 1                     | English                     | United States of America
 1                     | English                     | null
 ;
+
+
+sortBeforeAndAfterJoin
+required_capability: join_lookup_v12
+required_capability: remove_redundant_sort
+
+FROM employees
+| sort first_name
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE emp_no >= 10091 AND emp_no < 10094
+| SORT emp_no
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10091          | 3                     | Spanish
+10092          | 1                     | English
+10093          | 3                     | Spanish
+;
+
+
+
+sortBeforeAndAfterMultipleJoinAndMvExpand
+required_capability: join_lookup_v12
+required_capability: remove_redundant_sort
+
+FROM employees
+| sort first_name
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE emp_no >= 10091 AND emp_no < 10094
+| SORT language_name
+| MV_EXPAND first_name
+| SORT first_name
+| MV_EXPAND last_name
+| SORT last_name
+| LOOKUP JOIN languages_lookup ON language_code
+| SORT emp_no
+| KEEP emp_no, language_code, language_name
+;
+
+emp_no:integer | language_code:integer | language_name:keyword
+10091          | 3                     | Spanish
+10092          | 1                     | English
+10093          | 3                     | Spanish
+;

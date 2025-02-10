@@ -55,6 +55,7 @@ options {
  * all other commands.
  */
 import Enrich,
+       ChangePoint, // TODO figure out why Enrich has to be first.
        Explain,
        Expression,
        From,

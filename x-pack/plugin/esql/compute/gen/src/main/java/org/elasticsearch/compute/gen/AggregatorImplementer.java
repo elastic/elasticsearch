@@ -17,6 +17,7 @@ import com.squareup.javapoet.TypeSpec;
 
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
+import org.elasticsearch.compute.gen.Methods.TypeMatcher;
 
 import java.util.Arrays;
 import java.util.List;
@@ -33,8 +34,14 @@ import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 
 import static java.util.stream.Collectors.joining;
-import static org.elasticsearch.compute.gen.Methods.findMethod;
-import static org.elasticsearch.compute.gen.Methods.findRequiredMethod;
+import static org.elasticsearch.compute.gen.Methods.requireAnyArgs;
+import static org.elasticsearch.compute.gen.Methods.requireAnyType;
+import static org.elasticsearch.compute.gen.Methods.requireArgs;
+import static org.elasticsearch.compute.gen.Methods.requireName;
+import static org.elasticsearch.compute.gen.Methods.requirePrimitiveOrImplements;
+import static org.elasticsearch.compute.gen.Methods.requireStaticMethod;
+import static org.elasticsearch.compute.gen.Methods.requireType;
+import static org.elasticsearch.compute.gen.Methods.requireVoidType;
 import static org.elasticsearch.compute.gen.Methods.vectorAccessorName;
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_FUNCTION;
 import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
@@ -66,8 +73,6 @@ public class AggregatorImplementer {
     private final List<TypeMirror> warnExceptions;
     private final ExecutableElement init;
     private final ExecutableElement combine;
-    private final ExecutableElement combineIntermediate;
-    private final ExecutableElement evaluateFinal;
     private final ClassName implementation;
     private final List<IntermediateStateDesc> intermediateState;
     private final List<Parameter> createParameters;
@@ -84,21 +89,24 @@ public class AggregatorImplementer {
         this.declarationType = declarationType;
         this.warnExceptions = warnExceptions;
 
-        this.init = findRequiredMethod(declarationType, new String[] { "init", "initSingle" }, e -> true);
+        this.init = requireStaticMethod(
+            declarationType,
+            // This should be more restrictive and require org.elasticsearch.compute.aggregation.AggregatorState
+            requirePrimitiveOrImplements(elements, Types.RELEASABLE),
+            requireName("init", "initSingle"),
+            requireAnyArgs("<arbitrary init arguments>")
+        );
         this.aggState = AggregationState.create(elements, init.getReturnType(), warnExceptions.isEmpty() == false, false);
 
-        this.combine = findRequiredMethod(declarationType, new String[] { "combine" }, e -> {
-            if (e.getParameters().size() == 0) {
-                return false;
-            }
-            TypeName firstParamType = TypeName.get(e.getParameters().get(0).asType());
-            return Objects.equals(firstParamType.toString(), aggState.declaredType().toString());
-        });
+        this.combine = requireStaticMethod(
+            declarationType,
+            aggState.declaredType().isPrimitive() ? requireType(aggState.declaredType()) : requireVoidType(),
+            requireName("combine"),
+            requireArgs(requireType(aggState.declaredType()), requireAnyType("<aggregation input column type>"))
+        );
         // TODO support multiple parameters
         this.aggParam = AggregationParameter.create(combine.getParameters().get(1).asType());
 
-        this.combineIntermediate = findMethod(declarationType, "combineIntermediate");
-        this.evaluateFinal = findMethod(declarationType, "evaluateFinal");
         this.createParameters = init.getParameters()
             .stream()
             .map(Parameter::from)
@@ -447,12 +455,7 @@ public class AggregatorImplementer {
             interState.assignToVariable(builder, i);
             builder.addStatement("assert $L.getPositionCount() == 1", interState.name());
         }
-        if (combineIntermediate != null) {
-            if (intermediateState.stream().map(IntermediateStateDesc::elementType).anyMatch(n -> n.equals("BYTES_REF"))) {
-                builder.addStatement("$T scratch = new $T()", BYTES_REF, BYTES_REF);
-            }
-            builder.addStatement("$T.combineIntermediate(state, " + intermediateStateRowAccess() + ")", declarationType);
-        } else if (aggState.declaredType().isPrimitive()) {
+        if (aggState.declaredType().isPrimitive()) {
             if (warnExceptions.isEmpty()) {
                 assert intermediateState.size() == 2;
                 assert intermediateState.get(1).name().equals("seen");
@@ -485,7 +488,21 @@ public class AggregatorImplementer {
             });
             builder.endControlFlow();
         } else {
-            throw new IllegalArgumentException("Don't know how to combine intermediate input. Define combineIntermediate");
+            requireStaticMethod(
+                declarationType,
+                requireVoidType(),
+                requireName("combineIntermediate"),
+                requireArgs(
+                    Stream.concat(
+                        Stream.of(aggState.declaredType()), // aggState
+                        intermediateState.stream().map(IntermediateStateDesc::combineArgType) // intermediate state
+                    ).map(Methods::requireType).toArray(TypeMatcher[]::new)
+                )
+            );
+            if (intermediateState.stream().map(IntermediateStateDesc::elementType).anyMatch(n -> n.equals("BYTES_REF"))) {
+                builder.addStatement("$T scratch = new $T()", BYTES_REF, BYTES_REF);
+            }
+            builder.addStatement("$T.combineIntermediate(state, " + intermediateStateRowAccess() + ")", declarationType);
         }
         return builder.build();
     }
@@ -524,7 +541,7 @@ public class AggregatorImplementer {
             builder.addStatement("return");
             builder.endControlFlow();
         }
-        if (evaluateFinal == null) {
+        if (aggState.declaredType().isPrimitive()) {
             builder.addStatement(switch (aggState.declaredType().toString()) {
                 case "boolean" -> "blocks[offset] = driverContext.blockFactory().newConstantBooleanBlockWith(state.booleanValue(), 1)";
                 case "int" -> "blocks[offset] = driverContext.blockFactory().newConstantIntBlockWith(state.intValue(), 1)";
@@ -534,6 +551,12 @@ public class AggregatorImplementer {
                 default -> throw new IllegalArgumentException("Unexpected primitive type: [" + aggState.declaredType() + "]");
             });
         } else {
+            requireStaticMethod(
+                declarationType,
+                requireType(BLOCK),
+                requireName("evaluateFinal"),
+                requireArgs(requireType(aggState.declaredType()), requireType(DRIVER_CONTEXT))
+            );
             builder.addStatement("blocks[offset] = $T.evaluateFinal(state, driverContext)", declarationType);
         }
         return builder.build();
@@ -592,6 +615,11 @@ public class AggregatorImplementer {
             } else {
                 builder.addStatement("$T $L = (($T) $L).asVector()", vectorType(elementType), name, blockType, name + "Uncast");
             }
+        }
+
+        public TypeName combineArgType() {
+            var type = Types.fromString(elementType);
+            return block ? blockType(type) : type;
         }
     }
 

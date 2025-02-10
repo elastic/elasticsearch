@@ -81,6 +81,11 @@ class FileCheckActions {
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
+    static void filesGetOwner() throws IOException {
+        Files.getOwner(readFile());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void filesProbeContentType() throws IOException {
         Files.probeContentType(readFile());
     }

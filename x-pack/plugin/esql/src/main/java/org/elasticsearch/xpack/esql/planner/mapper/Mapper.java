@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
-import org.elasticsearch.xpack.esql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
@@ -105,7 +104,7 @@ public class Mapper {
                     return enrichExec.child();
                 }
                 if (f instanceof UnaryExec unaryExec) {
-                    if (f instanceof LimitExec || f instanceof ExchangeExec || f instanceof OrderExec || f instanceof TopNExec) {
+                    if (f instanceof LimitExec || f instanceof ExchangeExec || f instanceof TopNExec) {
                         return f;
                     } else {
                         return unaryExec.child();
@@ -159,11 +158,6 @@ public class Mapper {
         if (unary instanceof Limit limit) {
             mappedChild = addExchangeForFragment(limit, mappedChild);
             return new LimitExec(limit.source(), mappedChild, limit.limit());
-        }
-
-        if (unary instanceof OrderBy o) {
-            mappedChild = addExchangeForFragment(o, mappedChild);
-            return new OrderExec(o.source(), mappedChild, o.order());
         }
 
         if (unary instanceof TopN topN) {

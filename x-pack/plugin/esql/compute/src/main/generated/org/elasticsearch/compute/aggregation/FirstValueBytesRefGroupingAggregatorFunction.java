@@ -65,6 +65,11 @@ public final class FirstValueBytesRefGroupingAggregatorFunction implements Group
       Page page) {
     BytesRefBlock valuesBlock = page.getBlock(channels.get(0));
     BytesRefVector valuesVector = valuesBlock.asVector();
+    LongBlock timestampsBlock = page.getBlock(channels.get(1));
+    LongVector timestampsVector = timestampsBlock.asVector();
+    if (timestampsVector == null)  {
+      throw new IllegalStateException("expected @timestamp vector; but got a block");
+    }
     if (valuesVector == null) {
       if (valuesBlock.mayHaveNulls()) {
         state.enableGroupIdTracking(seenGroupIds);
@@ -72,12 +77,12 @@ public final class FirstValueBytesRefGroupingAggregatorFunction implements Group
       return new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, IntBlock groupIds) {
-          addRawInput(positionOffset, groupIds, valuesBlock);
+          addRawInput(positionOffset, groupIds, valuesBlock, timestampsVector);
         }
 
         @Override
         public void add(int positionOffset, IntVector groupIds) {
-          addRawInput(positionOffset, groupIds, valuesBlock);
+          addRawInput(positionOffset, groupIds, valuesBlock, timestampsVector);
         }
 
         @Override
@@ -88,12 +93,12 @@ public final class FirstValueBytesRefGroupingAggregatorFunction implements Group
     return new GroupingAggregatorFunction.AddInput() {
       @Override
       public void add(int positionOffset, IntBlock groupIds) {
-        addRawInput(positionOffset, groupIds, valuesVector);
+        addRawInput(positionOffset, groupIds, valuesVector, timestampsVector);
       }
 
       @Override
       public void add(int positionOffset, IntVector groupIds) {
-        addRawInput(positionOffset, groupIds, valuesVector);
+        addRawInput(positionOffset, groupIds, valuesVector, timestampsVector);
       }
 
       @Override
@@ -102,7 +107,8 @@ public final class FirstValueBytesRefGroupingAggregatorFunction implements Group
     };
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, BytesRefBlock values) {
+  private void addRawInput(int positionOffset, IntVector groups, BytesRefBlock values,
+      LongVector timestamps) {
     BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
@@ -112,20 +118,23 @@ public final class FirstValueBytesRefGroupingAggregatorFunction implements Group
       int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
       int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
       for (int v = valuesStart; v < valuesEnd; v++) {
-        FirstValueBytesRefAggregator.combine(state, groupId, values.getBytesRef(v, scratch));
+        FirstValueBytesRefAggregator.combine(state, groupId, timestamps.getLong(v), values.getBytesRef(v, scratch));
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, BytesRefVector values) {
+  private void addRawInput(int positionOffset, IntVector groups, BytesRefVector values,
+      LongVector timestamps) {
     BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
-      FirstValueBytesRefAggregator.combine(state, groupId, values.getBytesRef(groupPosition + positionOffset, scratch));
+      var valuePosition = groupPosition + positionOffset;
+      FirstValueBytesRefAggregator.combine(state, groupId, timestamps.getLong(valuePosition), values.getBytesRef(valuePosition, scratch));
     }
   }
 
-  private void addRawInput(int positionOffset, IntBlock groups, BytesRefBlock values) {
+  private void addRawInput(int positionOffset, IntBlock groups, BytesRefBlock values,
+      LongVector timestamps) {
     BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
@@ -141,13 +150,14 @@ public final class FirstValueBytesRefGroupingAggregatorFunction implements Group
         int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
         int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
         for (int v = valuesStart; v < valuesEnd; v++) {
-          FirstValueBytesRefAggregator.combine(state, groupId, values.getBytesRef(v, scratch));
+          FirstValueBytesRefAggregator.combine(state, groupId, timestamps.getLong(v), values.getBytesRef(v, scratch));
         }
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntBlock groups, BytesRefVector values) {
+  private void addRawInput(int positionOffset, IntBlock groups, BytesRefVector values,
+      LongVector timestamps) {
     BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
@@ -157,7 +167,8 @@ public final class FirstValueBytesRefGroupingAggregatorFunction implements Group
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        FirstValueBytesRefAggregator.combine(state, groupId, values.getBytesRef(groupPosition + positionOffset, scratch));
+        var valuePosition = groupPosition + positionOffset;
+        FirstValueBytesRefAggregator.combine(state, groupId, timestamps.getLong(valuePosition), values.getBytesRef(valuePosition, scratch));
       }
     }
   }

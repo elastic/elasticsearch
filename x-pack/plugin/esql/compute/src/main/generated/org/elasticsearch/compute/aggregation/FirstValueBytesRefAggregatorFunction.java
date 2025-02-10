@@ -68,41 +68,51 @@ public final class FirstValueBytesRefAggregatorFunction implements AggregatorFun
       // No masking
       BytesRefBlock block = page.getBlock(channels.get(0));
       BytesRefVector vector = block.asVector();
+      LongBlock timestampsBlock = page.getBlock(channels.get(1));
+      LongVector timestampsVector = timestampsBlock.asVector();
+      if (timestampsVector == null)  {
+        throw new IllegalStateException("expected @timestamp vector; but got a block");
+      }
       if (vector != null) {
-        addRawVector(vector);
+        addRawVector(vector, timestampsVector);
       } else {
-        addRawBlock(block);
+        addRawBlock(block, timestampsVector);
       }
       return;
     }
     // Some positions masked away, others kept
     BytesRefBlock block = page.getBlock(channels.get(0));
     BytesRefVector vector = block.asVector();
+    LongBlock timestampsBlock = page.getBlock(channels.get(1));
+    LongVector timestampsVector = timestampsBlock.asVector();
+    if (timestampsVector == null)  {
+      throw new IllegalStateException("expected @timestamp vector; but got a block");
+    }
     if (vector != null) {
-      addRawVector(vector, mask);
+      addRawVector(vector, timestampsVector, mask);
     } else {
-      addRawBlock(block, mask);
+      addRawBlock(block, timestampsVector, mask);
     }
   }
 
-  private void addRawVector(BytesRefVector vector) {
+  private void addRawVector(BytesRefVector vector, LongVector timestamps) {
     BytesRef scratch = new BytesRef();
     for (int i = 0; i < vector.getPositionCount(); i++) {
-      FirstValueBytesRefAggregator.combine(state, vector.getBytesRef(i, scratch));
+      FirstValueBytesRefAggregator.combine(state, timestamps.getLong(i), vector.getBytesRef(i, scratch));
     }
   }
 
-  private void addRawVector(BytesRefVector vector, BooleanVector mask) {
+  private void addRawVector(BytesRefVector vector, LongVector timestamps, BooleanVector mask) {
     BytesRef scratch = new BytesRef();
     for (int i = 0; i < vector.getPositionCount(); i++) {
       if (mask.getBoolean(i) == false) {
         continue;
       }
-      FirstValueBytesRefAggregator.combine(state, vector.getBytesRef(i, scratch));
+      FirstValueBytesRefAggregator.combine(state, timestamps.getLong(i), vector.getBytesRef(i, scratch));
     }
   }
 
-  private void addRawBlock(BytesRefBlock block) {
+  private void addRawBlock(BytesRefBlock block, LongVector timestamps) {
     BytesRef scratch = new BytesRef();
     for (int p = 0; p < block.getPositionCount(); p++) {
       if (block.isNull(p)) {
@@ -111,12 +121,12 @@ public final class FirstValueBytesRefAggregatorFunction implements AggregatorFun
       int start = block.getFirstValueIndex(p);
       int end = start + block.getValueCount(p);
       for (int i = start; i < end; i++) {
-        FirstValueBytesRefAggregator.combine(state, block.getBytesRef(i, scratch));
+        FirstValueBytesRefAggregator.combine(state, timestamps.getLong(i), block.getBytesRef(i, scratch));
       }
     }
   }
 
-  private void addRawBlock(BytesRefBlock block, BooleanVector mask) {
+  private void addRawBlock(BytesRefBlock block, LongVector timestamps, BooleanVector mask) {
     BytesRef scratch = new BytesRef();
     for (int p = 0; p < block.getPositionCount(); p++) {
       if (mask.getBoolean(p) == false) {
@@ -128,7 +138,7 @@ public final class FirstValueBytesRefAggregatorFunction implements AggregatorFun
       int start = block.getFirstValueIndex(p);
       int end = start + block.getValueCount(p);
       for (int i = start; i < end; i++) {
-        FirstValueBytesRefAggregator.combine(state, block.getBytesRef(i, scratch));
+        FirstValueBytesRefAggregator.combine(state, timestamps.getLong(i), block.getBytesRef(i, scratch));
       }
     }
   }

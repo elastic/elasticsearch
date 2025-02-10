@@ -15,11 +15,15 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -41,9 +45,9 @@ public class FirstValue extends AggregateFunction implements OptionalArgument, T
         Map.entry(DataType.VERSION, FirstValueBytesRefAggregatorFunctionSupplier::new)
     );
 
-    // TODO @FunctionInfo
-    public FirstValue(Source source, Expression field, Expression by) {
-        this(source, field, Literal.TRUE, by != null ? List.of(by) : List.of());
+    @FunctionInfo(returnType = "keyword", description = "TBD", type = FunctionType.AGGREGATE, examples = {})
+    public FirstValue(Source source, @Param(name = "field", type = "keyword", description = "TBD") Expression field, Expression timestamp) {
+        this(source, field, Literal.TRUE, timestamp != null ? List.of(timestamp) : List.of(new UnresolvedAttribute(source, "@timestamp")));
     }
 
     private FirstValue(StreamInput in) throws IOException {

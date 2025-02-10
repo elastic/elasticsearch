@@ -19,12 +19,14 @@ import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
-@Aggregator({
-    @IntermediateState(name = "value", type = "BYTES_REF"),
-    @IntermediateState(name = "by", type = "LONG"),
-    @IntermediateState(name = "seen", type = "BOOLEAN")
-})
-@GroupingAggregator
+@Aggregator(
+    value = {
+        @IntermediateState(name = "value", type = "BYTES_REF"),
+        @IntermediateState(name = "by", type = "LONG"),
+        @IntermediateState(name = "seen", type = "BOOLEAN") },
+    includeTimestamps = true
+)
+@GroupingAggregator(includeTimestamps = true)
 public class FirstValueBytesRefAggregator {
 
     // single
@@ -35,6 +37,10 @@ public class FirstValueBytesRefAggregator {
 
     public static void combine(FirstValueLongSingleState state, BytesRef value) {
         state.add(value, /*TODO get timestamp value*/ 0L);
+    }
+
+    public static void combine(FirstValueLongSingleState state, long timestamp, BytesRef value) {
+        state.add(value, timestamp);
     }
 
     public static void combineIntermediate(FirstValueLongSingleState current, BytesRef value, long by, boolean seen) {
@@ -55,13 +61,22 @@ public class FirstValueBytesRefAggregator {
         state.add(groupId, value, /*TODO get timestamp value*/ 0L);
     }
 
-    public static  void combineIntermediate(FirstValueLongGroupingState current, int groupId, BytesRef value, long by, boolean seen) {
+    public static void combine(FirstValueLongGroupingState state, int groupId, long timestamp, BytesRef value) {
+        state.add(groupId, value, timestamp);
+    }
+
+    public static void combineIntermediate(FirstValueLongGroupingState current, int groupId, BytesRef value, long by, boolean seen) {
         if (seen) {
             current.add(groupId, value, by);
         }
     }
 
-    public static void combineStates(FirstValueLongGroupingState state, int groupId, FirstValueLongGroupingState otherState, int otherGroupId) {
+    public static void combineStates(
+        FirstValueLongGroupingState state,
+        int groupId,
+        FirstValueLongGroupingState otherState,
+        int otherGroupId
+    ) {
         if (otherState.byState.hasValue(otherGroupId)) {
             state.add(groupId, otherState.valueState.get(otherGroupId), otherState.byState.get(otherGroupId));
         }

@@ -73,9 +73,8 @@ public abstract class InternalBounds<T extends SpatialPoint> extends InternalAgg
             };
         } else if (path.size() == 2) {
             BoundingBox<T> bbox = resolveBoundingBox();
-            T cornerPoint = null;
             String cornerString = path.get(0);
-            cornerPoint = switch (cornerString) {
+            T cornerPoint = switch (cornerString) {
                 case "top_left" -> bbox.topLeft();
                 case "bottom_right" -> bbox.bottomRight();
                 default -> throw new IllegalArgumentException("Found unknown path element [" + cornerString + "] in [" + getName() + "]");

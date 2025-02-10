@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -48,7 +49,7 @@ public final class SpatialExtent extends SpatialAggregateFunction implements ToA
     @FunctionInfo(
         returnType = { "geo_shape", "cartesian_shape" },
         description = "Calculate the spatial extent over a field with geometry type. Returns a bounding box for all values of the field.",
-        isAggregation = true,
+        type = FunctionType.AGGREGATE,
         examples = @Example(file = "spatial", tag = "st_extent_agg-airports")
     )
     public SpatialExtent(

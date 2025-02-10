@@ -17,11 +17,24 @@ import java.net.DatagramSocket;
 import java.net.DatagramSocketImpl;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
+import java.net.ProtocolFamily;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketAddress;
 import java.net.SocketException;
 import java.net.SocketImpl;
+import java.nio.channels.AsynchronousChannelGroup;
+import java.nio.channels.AsynchronousServerSocketChannel;
+import java.nio.channels.AsynchronousSocketChannel;
+import java.nio.channels.DatagramChannel;
+import java.nio.channels.Pipe;
+import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
+import java.nio.channels.spi.AbstractSelector;
+import java.nio.channels.spi.AsynchronousChannelProvider;
+import java.nio.channels.spi.SelectorProvider;
+import java.nio.charset.Charset;
+import java.nio.charset.spi.CharsetProvider;
 import java.security.cert.Certificate;
 import java.text.BreakIterator;
 import java.text.Collator;
@@ -35,8 +48,11 @@ import java.text.spi.DateFormatProvider;
 import java.text.spi.DateFormatSymbolsProvider;
 import java.text.spi.DecimalFormatSymbolsProvider;
 import java.text.spi.NumberFormatProvider;
+import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadFactory;
 import java.util.spi.CalendarDataProvider;
 import java.util.spi.CalendarNameProvider;
 import java.util.spi.CurrencyNameProvider;
@@ -485,5 +501,71 @@ class DummyImplementations {
 
     private static RuntimeException unexpected() {
         return new IllegalStateException("This method isn't supposed to be called");
+    }
+
+    static class DummySelectorProvider extends SelectorProvider {
+        @Override
+        public DatagramChannel openDatagramChannel() throws IOException {
+            return null;
+        }
+
+        @Override
+        public DatagramChannel openDatagramChannel(ProtocolFamily family) throws IOException {
+            return null;
+        }
+
+        @Override
+        public Pipe openPipe() throws IOException {
+            return null;
+        }
+
+        @Override
+        public AbstractSelector openSelector() throws IOException {
+            return null;
+        }
+
+        @Override
+        public ServerSocketChannel openServerSocketChannel() throws IOException {
+            return null;
+        }
+
+        @Override
+        public SocketChannel openSocketChannel() throws IOException {
+            return null;
+        }
+    }
+
+    static class DummyAsynchronousChannelProvider extends AsynchronousChannelProvider {
+        @Override
+        public AsynchronousChannelGroup openAsynchronousChannelGroup(int nThreads, ThreadFactory threadFactory) throws IOException {
+            return null;
+        }
+
+        @Override
+        public AsynchronousChannelGroup openAsynchronousChannelGroup(ExecutorService executor, int initialSize) throws IOException {
+            return null;
+        }
+
+        @Override
+        public AsynchronousServerSocketChannel openAsynchronousServerSocketChannel(AsynchronousChannelGroup group) throws IOException {
+            return null;
+        }
+
+        @Override
+        public AsynchronousSocketChannel openAsynchronousSocketChannel(AsynchronousChannelGroup group) throws IOException {
+            return null;
+        }
+    }
+
+    static class DummyCharsetProvider extends CharsetProvider {
+        @Override
+        public Iterator<Charset> charsets() {
+            return null;
+        }
+
+        @Override
+        public Charset charsetForName(String charsetName) {
+            return null;
+        }
     }
 }

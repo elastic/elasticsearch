@@ -128,7 +128,7 @@ public class FileServiceAccountTokenStoreTests extends ESTestCase {
 
     public void testAutoReload() throws Exception {
         Path serviceTokensSourceFile = getDataPath("service_tokens");
-        Path configDir = env.configFile();
+        Path configDir = env.configDir();
         Files.createDirectories(configDir);
         Path targetFile = configDir.resolve("service_tokens");
         Files.copy(serviceTokensSourceFile, targetFile, StandardCopyOption.REPLACE_EXISTING);
@@ -225,7 +225,7 @@ public class FileServiceAccountTokenStoreTests extends ESTestCase {
 
     public void testFindTokensFor() throws IOException {
         Path serviceTokensSourceFile = getDataPath("service_tokens");
-        Path configDir = env.configFile();
+        Path configDir = env.configDir();
         Files.createDirectories(configDir);
         Path targetFile = configDir.resolve("service_tokens");
         Files.copy(serviceTokensSourceFile, targetFile, StandardCopyOption.REPLACE_EXISTING);

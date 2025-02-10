@@ -100,7 +100,7 @@ class AddStringKeyStoreCommand extends BaseKeyStoreCommand {
             }
         }
 
-        keyStore.save(env.configFile(), getKeyStorePassword().getChars());
+        keyStore.save(env.configDir(), getKeyStorePassword().getChars());
     }
 
 }

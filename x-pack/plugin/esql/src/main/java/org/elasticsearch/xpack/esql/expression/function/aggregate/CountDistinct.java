@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
@@ -101,7 +102,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
             maximum supported value is 40000, thresholds above this number will have the
             same effect as a threshold of 40000. The default value is `3000`.
             """,
-        isAggregation = true,
+        type = FunctionType.AGGREGATE,
         examples = {
             @Example(file = "stats_count_distinct", tag = "count-distinct"),
             @Example(

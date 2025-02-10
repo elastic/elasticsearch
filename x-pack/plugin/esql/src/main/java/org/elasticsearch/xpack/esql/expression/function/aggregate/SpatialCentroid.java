@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -45,7 +46,7 @@ public class SpatialCentroid extends SpatialAggregateFunction implements ToAggre
     @FunctionInfo(
         returnType = { "geo_point", "cartesian_point" },
         description = "Calculate the spatial centroid over a field with spatial point geometry type.",
-        isAggregation = true,
+        type = FunctionType.AGGREGATE,
         examples = @Example(file = "spatial", tag = "st_centroid_agg-airports")
     )
     public SpatialCentroid(Source source, @Param(name = "field", type = { "geo_point", "cartesian_point" }) Expression field) {

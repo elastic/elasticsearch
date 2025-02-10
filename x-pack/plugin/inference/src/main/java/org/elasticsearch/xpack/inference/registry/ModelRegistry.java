@@ -28,6 +28,7 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -61,6 +62,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -111,7 +113,7 @@ public class ModelRegistry {
 
     public ModelRegistry(Client client) {
         this.client = new OriginSettingClient(client, ClientHelper.INFERENCE_ORIGIN);
-        defaultConfigIds = new HashMap<>();
+        defaultConfigIds = new ConcurrentHashMap<>();
     }
 
     /**
@@ -644,11 +646,32 @@ public class ModelRegistry {
         return null;
     }
 
+    public synchronized void removeDefaultConfigs(Set<String> inferenceEntityIds, ActionListener<Boolean> listener) {
+        if (inferenceEntityIds.isEmpty()) {
+            listener.onResponse(true);
+            return;
+        }
+
+        defaultConfigIds.keySet().removeAll(inferenceEntityIds);
+        deleteModels(inferenceEntityIds, listener);
+    }
+
     public void deleteModel(String inferenceEntityId, ActionListener<Boolean> listener) {
-        if (preventDeletionLock.contains(inferenceEntityId)) {
+        deleteModels(Set.of(inferenceEntityId), listener);
+    }
+
+    public void deleteModels(Set<String> inferenceEntityIds, ActionListener<Boolean> listener) {
+        var lockedInferenceIds = new HashSet<>(inferenceEntityIds);
+        lockedInferenceIds.retainAll(preventDeletionLock);
+
+        if (lockedInferenceIds.isEmpty() == false) {
             listener.onFailure(
                 new ElasticsearchStatusException(
-                    "Model is currently being updated, you may delete the model once the update completes",
+                    Strings.format(
+                        "The inference endpoint(s) %s are currently being updated, please wait until after they are "
+                            + "finished updating to delete.",
+                        lockedInferenceIds
+                    ),
                     RestStatus.CONFLICT
                 )
             );
@@ -657,7 +680,7 @@ public class ModelRegistry {
 
         DeleteByQueryRequest request = new DeleteByQueryRequest().setAbortOnVersionConflict(false);
         request.indices(InferenceIndex.INDEX_PATTERN, InferenceSecretsIndex.INDEX_PATTERN);
-        request.setQuery(documentIdQuery(inferenceEntityId));
+        request.setQuery(documentIdsQuery(inferenceEntityIds));
         request.setRefresh(true);
 
         client.execute(DeleteByQueryAction.INSTANCE, request, listener.delegateFailureAndWrap((l, r) -> l.onResponse(Boolean.TRUE)));
@@ -693,6 +716,11 @@ public class ModelRegistry {
 
     private QueryBuilder documentIdQuery(String inferenceEntityId) {
         return QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds(Model.documentId(inferenceEntityId)));
+    }
+
+    private QueryBuilder documentIdsQuery(Set<String> inferenceEntityIds) {
+        var documentIdsArray = inferenceEntityIds.stream().map(Model::documentId).toArray(String[]::new);
+        return QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds(documentIdsArray));
     }
 
     static Optional<InferenceService.DefaultConfigId> idMatchedDefault(

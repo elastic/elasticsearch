@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
 import java.util.AbstractList;
@@ -163,6 +164,10 @@ public abstract class BucketsAggregator extends AggregatorBase {
      *         array of ordinals
      */
     protected final IntFunction<InternalAggregations> buildSubAggsForBuckets(LongArray bucketOrdsToCollect) throws IOException {
+        if (context.isCancelled()) {
+            throw new TaskCancelledException("not building sub-aggregations due to task cancellation");
+        }
+
         prepareSubAggs(bucketOrdsToCollect);
         InternalAggregation[][] aggregations = new InternalAggregation[subAggregators.length][];
         for (int i = 0; i < subAggregators.length; i++) {

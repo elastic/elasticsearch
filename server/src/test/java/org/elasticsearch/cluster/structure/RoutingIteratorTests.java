@@ -17,9 +17,7 @@ import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.OperationRouting;
-import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.RotationShardShuffler;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -51,7 +49,7 @@ import static org.hamcrest.Matchers.sameInstance;
 public class RoutingIteratorTests extends ESAllocationTestCase {
     public void testEmptyIterator() {
         ShardShuffler shuffler = new RotationShardShuffler(0);
-        ShardIterator shardIterator = new PlainShardIterator(
+        ShardIterator shardIterator = new ShardIterator(
             new ShardId("test1", "_na_", 0),
             shuffler.shuffle(Collections.<ShardRouting>emptyList())
         );
@@ -61,21 +59,21 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
         assertThat(shardIterator.nextOrNull(), nullValue());
         assertThat(shardIterator.remaining(), equalTo(0));
 
-        shardIterator = new PlainShardIterator(new ShardId("test1", "_na_", 0), shuffler.shuffle(Collections.<ShardRouting>emptyList()));
+        shardIterator = new ShardIterator(new ShardId("test1", "_na_", 0), shuffler.shuffle(Collections.<ShardRouting>emptyList()));
         assertThat(shardIterator.remaining(), equalTo(0));
         assertThat(shardIterator.nextOrNull(), nullValue());
         assertThat(shardIterator.remaining(), equalTo(0));
         assertThat(shardIterator.nextOrNull(), nullValue());
         assertThat(shardIterator.remaining(), equalTo(0));
 
-        shardIterator = new PlainShardIterator(new ShardId("test1", "_na_", 0), shuffler.shuffle(Collections.<ShardRouting>emptyList()));
+        shardIterator = new ShardIterator(new ShardId("test1", "_na_", 0), shuffler.shuffle(Collections.<ShardRouting>emptyList()));
         assertThat(shardIterator.remaining(), equalTo(0));
         assertThat(shardIterator.nextOrNull(), nullValue());
         assertThat(shardIterator.remaining(), equalTo(0));
         assertThat(shardIterator.nextOrNull(), nullValue());
         assertThat(shardIterator.remaining(), equalTo(0));
 
-        shardIterator = new PlainShardIterator(new ShardId("test1", "_na_", 0), shuffler.shuffle(Collections.<ShardRouting>emptyList()));
+        shardIterator = new ShardIterator(new ShardId("test1", "_na_", 0), shuffler.shuffle(Collections.<ShardRouting>emptyList()));
         assertThat(shardIterator.remaining(), equalTo(0));
         assertThat(shardIterator.nextOrNull(), nullValue());
         assertThat(shardIterator.remaining(), equalTo(0));
@@ -357,12 +355,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
 
-        GroupShardsIterator<ShardIterator> shardIterators = operationRouting.searchShards(
-            clusterState,
-            new String[] { "test" },
-            null,
-            "_shards:0"
-        );
+        List<ShardIterator> shardIterators = operationRouting.searchShards(clusterState, new String[] { "test" }, null, "_shards:0");
         assertThat(shardIterators.size(), equalTo(1));
         assertThat(shardIterators.iterator().next().shardId().id(), equalTo(0));
 

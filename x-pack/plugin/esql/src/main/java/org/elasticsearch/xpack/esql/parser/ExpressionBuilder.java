@@ -795,9 +795,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     private NamedExpression enrichFieldName(EsqlBaseParser.QualifiedNamePatternContext ctx) {
         return visitQualifiedNamePattern(ctx, ne -> {
-            if (ne instanceof UnresolvedNamePattern up) {
+            if (ne instanceof UnresolvedNamePattern || ne instanceof UnresolvedStar) {
                 var src = ne.source();
-                throw new ParsingException(src, "Using wildcards [*] in ENRICH WITH projections is not allowed [{}]", up.pattern());
+                throw new ParsingException(src, "Using wildcards [*] in ENRICH WITH projections is not allowed, found [{}]", src.text());
             }
         });
     }

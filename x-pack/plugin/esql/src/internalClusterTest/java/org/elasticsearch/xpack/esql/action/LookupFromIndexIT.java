@@ -227,6 +227,7 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
             DriverContext driverContext = driverContext();
             try (
                 var driver = new Driver(
+                    "test",
                     driverContext,
                     source.get(driverContext),
                     List.of(reader.get(driverContext), lookup.get(driverContext)),

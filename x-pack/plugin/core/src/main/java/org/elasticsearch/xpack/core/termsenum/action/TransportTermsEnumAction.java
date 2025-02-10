@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -205,8 +204,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
 
             String[] singleIndex = { indexName };
 
-            GroupShardsIterator<ShardIterator> shards = clusterService.operationRouting()
-                .searchShards(clusterState, singleIndex, null, null);
+            List<ShardIterator> shards = clusterService.operationRouting().searchShards(clusterState, singleIndex, null, null);
 
             for (ShardIterator copiesOfShard : shards) {
                 ShardRouting selectedCopyOfShard = null;

@@ -30,7 +30,6 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
@@ -308,14 +307,6 @@ public abstract class AggregationContext implements Releasable {
     public abstract boolean isInSortOrderExecutionRequired();
 
     public abstract Set<String> sourcePath(String fullName);
-
-    /**
-     * Returns the MappingLookup for the index, if one is initialized.
-     */
-    @Nullable
-    public MappingLookup getMappingLookup() {
-        return null;
-    }
 
     /**
      * Does this index have a {@code _doc_count} field in any segment?
@@ -619,11 +610,6 @@ public abstract class AggregationContext implements Releasable {
         @Override
         public Set<String> sourcePath(String fullName) {
             return context.sourcePath(fullName);
-        }
-
-        @Override
-        public MappingLookup getMappingLookup() {
-            return context.getMappingLookup();
         }
 
         @Override

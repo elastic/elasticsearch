@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAvg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
@@ -48,7 +49,7 @@ public class WeightedAvg extends AggregateFunction implements SurrogateExpressio
     @FunctionInfo(
         returnType = "double",
         description = "The weighted average of a numeric expression.",
-        isAggregation = true,
+        type = FunctionType.AGGREGATE,
         examples = @Example(file = "stats", tag = "weighted-avg")
     )
     public WeightedAvg(

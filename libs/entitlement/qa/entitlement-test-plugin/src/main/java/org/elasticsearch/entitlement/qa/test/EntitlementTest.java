@@ -20,6 +20,7 @@ public @interface EntitlementTest {
     enum ExpectedAccess {
         PLUGINS,
         ES_MODULES_ONLY,
+        SERVER_ONLY,
         ALWAYS_DENIED
     }
 

@@ -884,8 +884,11 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         throws IOException {
         assertReaderEquals(
             "round trip " + syntheticSource,
-            new FieldMaskingReader(SourceFieldMapper.RECOVERY_SOURCE_NAME, reader),
-            new FieldMaskingReader(SourceFieldMapper.RECOVERY_SOURCE_NAME, roundTripReader)
+            new FieldMaskingReader(Set.of(SourceFieldMapper.RECOVERY_SOURCE_NAME, SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME), reader),
+            new FieldMaskingReader(
+                Set.of(SourceFieldMapper.RECOVERY_SOURCE_NAME, SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME),
+                roundTripReader
+            )
         );
     }
 

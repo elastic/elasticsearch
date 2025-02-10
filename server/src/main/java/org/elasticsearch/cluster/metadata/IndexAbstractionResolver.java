@@ -168,6 +168,13 @@ public class IndexAbstractionResolver {
         final boolean isHidden = indexAbstraction.isHidden();
         boolean isVisible = isHidden == false || indicesOptions.expandWildcardsHidden() || isVisibleDueToImplicitHidden(expression, index);
         if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
+            if (indexAbstraction.isSystem()) {
+                // check if it is net new
+                if (resolver.getNetNewSystemIndexPredicate().test(indexAbstraction.getName())) {
+                    return isSystemIndexVisible(resolver, indexAbstraction);
+                }
+            }
+
             // it's an alias, ignore expandWildcardsOpen and expandWildcardsClosed.
             // complicated to support those options with aliases pointing to multiple indices...
             isVisible = isVisible && indicesOptions.ignoreAliases() == false;

@@ -10,6 +10,7 @@
 package org.elasticsearch.logsdb.datageneration.matchers.source;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.logsdb.datageneration.matchers.ListEqualMatcher;
 import org.elasticsearch.logsdb.datageneration.matchers.MatchResult;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -46,9 +47,12 @@ class DynamicFieldMatcher {
      * @return {#{@link MatchResult}} if field values need special treatment by this matcher.
      * If field values can be matched using generic mapper, returns {@link Optional#empty()}.
      */
-    public Optional<MatchResult> match(List<Object> actual, List<Object> expected) {
+    public MatchResult match(List<Object> actual, List<Object> expected) {
         if (expected == null) {
-            return Optional.empty();
+            expected = List.of();
+        }
+        if (actual == null) {
+            actual = List.of();
         }
 
         // Floating point values are always mapped as float with dynamic mapping.
@@ -59,7 +63,7 @@ class DynamicFieldMatcher {
             var normalizedActual = normalizeDoubles(actual);
             var normalizedExpected = normalizeDoubles(expected);
 
-            var matchResult = normalizedActual.equals(normalizedExpected)
+            return normalizedActual.equals(normalizedExpected)
                 ? MatchResult.match()
                 : MatchResult.noMatch(
                     formatErrorMessage(
@@ -71,10 +75,9 @@ class DynamicFieldMatcher {
                             + prettyPrintCollections(normalizedActual, normalizedExpected)
                     )
                 );
-            return Optional.of(matchResult);
         }
 
-        return Optional.empty();
+        return matchWithGenericMatcher(actual, expected);
     }
 
     private static Set<Float> normalizeDoubles(List<Object> values) {
@@ -84,5 +87,19 @@ class DynamicFieldMatcher {
 
         Function<Object, Float> toFloat = (o) -> o instanceof Number n ? n.floatValue() : Float.parseFloat((String) o);
         return values.stream().filter(Objects::nonNull).map(toFloat).collect(Collectors.toSet());
+    }
+
+    private MatchResult matchWithGenericMatcher(List<Object> actualValues, List<Object> expectedValues) {
+        var genericListMatcher = new ListEqualMatcher(
+            actualMappings,
+            actualSettings,
+            expectedMappings,
+            expectedSettings,
+            SourceTransforms.normalizeValues(actualValues),
+            SourceTransforms.normalizeValues(expectedValues),
+            true
+        );
+
+        return genericListMatcher.match();
     }
 }

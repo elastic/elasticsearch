@@ -22,7 +22,7 @@ import java.lang.annotation.Target;
  * using this annotation is considered parseable as part of a policy file
  * for entitlements.
  */
-@Target(ElementType.CONSTRUCTOR)
+@Target({ ElementType.CONSTRUCTOR, ElementType.METHOD })
 @Retention(RetentionPolicy.RUNTIME)
 public @interface ExternalEntitlement {
 

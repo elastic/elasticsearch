@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTe
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
+import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.junit.AfterClass;
 
@@ -147,8 +148,8 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
             }
 
             @Override
-            public boolean isAggregation() {
-                return orig.isAggregation();
+            public FunctionType type() {
+                return orig.type();
             }
 
             @Override

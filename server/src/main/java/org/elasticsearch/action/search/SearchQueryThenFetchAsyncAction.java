@@ -14,7 +14,6 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -25,6 +24,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.Transport;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
@@ -52,7 +52,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         SearchPhaseResults<SearchPhaseResult> resultConsumer,
         SearchRequest request,
         ActionListener<SearchResponse> listener,
-        GroupShardsIterator<SearchShardIterator> shardsIts,
+        List<SearchShardIterator> shardsIts,
         TransportSearchAction.SearchTimeProvider timeProvider,
         ClusterState clusterState,
         SearchTask task,
@@ -104,7 +104,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
     }
 
     @Override
-    protected void onShardResult(SearchPhaseResult result, SearchShardIterator shardIt) {
+    protected void onShardResult(SearchPhaseResult result) {
         QuerySearchResult queryResult = result.queryResult();
         if (queryResult.isNull() == false
             // disable sort optims for scroll requests because they keep track of the last bottom doc locally (per shard)
@@ -123,7 +123,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
             }
             bottomSortCollector.consumeTopDocs(topDocs, queryResult.sortValueFormats());
         }
-        super.onShardResult(result, shardIt);
+        super.onShardResult(result);
     }
 
     static SearchPhase nextPhase(

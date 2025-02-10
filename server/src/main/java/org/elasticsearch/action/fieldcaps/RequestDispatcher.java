@@ -18,7 +18,6 @@ import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -93,7 +92,7 @@ final class RequestDispatcher {
         this.onComplete = new RunOnce(onComplete);
         this.indexSelectors = ConcurrentCollections.newConcurrentMap();
         for (String index : indices) {
-            final GroupShardsIterator<ShardIterator> shardIts;
+            final List<ShardIterator> shardIts;
             try {
                 shardIts = clusterService.operationRouting().searchShards(clusterState, new String[] { index }, null, null);
             } catch (Exception e) {
@@ -250,7 +249,7 @@ final class RequestDispatcher {
         private final Set<ShardId> unmatchedShardIds = new HashSet<>();
         private final Map<ShardId, Exception> failures = new HashMap<>();
 
-        IndexSelector(GroupShardsIterator<ShardIterator> shardIts) {
+        IndexSelector(List<ShardIterator> shardIts) {
             for (ShardIterator shardIt : shardIts) {
                 for (ShardRouting shard : shardIt) {
                     nodeToShards.computeIfAbsent(shard.currentNodeId(), node -> new ArrayList<>()).add(shard);

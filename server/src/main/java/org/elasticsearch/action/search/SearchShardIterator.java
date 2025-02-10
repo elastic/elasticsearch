@@ -10,8 +10,8 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.common.util.Countable;
 import org.elasticsearch.common.util.PlainIterator;
 import org.elasticsearch.core.Nullable;
@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Extension of {@link PlainShardIterator} used in the search api, which also holds the {@link OriginalIndices}
+ * Iterator for shards used in the search api, which also holds the {@link OriginalIndices}
  * of the search request (useful especially with cross-cluster search, as each cluster has its own set of original indices) as well as
  * the cluster alias.
  * @see OriginalIndices
@@ -42,7 +42,7 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
     private final PlainIterator<String> targetNodesIterator;
 
     /**
-     * Creates a {@link PlainShardIterator} instance that iterates over a subset of the given shards
+     * Creates a {@link SearchShardIterator} instance that iterates over a subset of the given shards
      * this the a given <code>shardId</code>.
      *
      * @param clusterAlias    the alias of the cluster where the shard is located
@@ -55,7 +55,7 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
     }
 
     /**
-     * Creates a {@link PlainShardIterator} instance that iterates over a subset of the given shards
+     * Creates a {@link SearchShardIterator} instance that iterates over a subset of the given shards
      *
      * @param clusterAlias           the alias of the cluster where the shard is located
      * @param shardId                shard id of the group
@@ -103,6 +103,9 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
         return clusterAlias;
     }
 
+    /**
+     * Returns the next shard, or {@code null} if none available.
+     */
     SearchShardTarget nextOrNull() {
         final String nodeId = targetNodesIterator.nextOrNull();
         if (nodeId != null) {
@@ -111,6 +114,11 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
         return null;
     }
 
+    /**
+     * Return the number of shards remaining in this {@link ShardsIterator}
+     *
+     * @return number of shard remaining
+     */
     int remaining() {
         return targetNodesIterator.remaining();
     }
@@ -130,6 +138,9 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
         return targetNodesIterator.asList();
     }
 
+    /**
+     * Resets the iterator to its initial state.
+     */
     void reset() {
         targetNodesIterator.reset();
     }
@@ -155,11 +166,19 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
         return prefiltered;
     }
 
+    /**
+     * The number of shard routing instances.
+     *
+     * @return number of shard routing instances in this iterator
+     */
     @Override
     public int size() {
         return targetNodesIterator.size();
     }
 
+    /**
+     * The shard id this group relates to.
+     */
     ShardId shardId() {
         return shardId;
     }

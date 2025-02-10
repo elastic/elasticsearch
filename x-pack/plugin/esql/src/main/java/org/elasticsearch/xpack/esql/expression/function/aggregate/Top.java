@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
@@ -54,7 +55,7 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
     @FunctionInfo(
         returnType = { "boolean", "double", "integer", "long", "date", "ip", "keyword" },
         description = "Collects the top values for a field. Includes repeated values.",
-        isAggregation = true,
+        type = FunctionType.AGGREGATE,
         examples = @Example(file = "stats_top", tag = "top")
     )
     public Top(

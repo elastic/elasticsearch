@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
@@ -39,6 +40,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -722,9 +724,25 @@ public final class IndexSettings {
         Setting.Property.ServerlessPublic
     );
 
+    public static final FeatureFlag RECOVERY_USE_SYNTHETIC_SOURCE = new FeatureFlag("index_recovery_use_synthetic_source");
     public static final Setting<Boolean> RECOVERY_USE_SYNTHETIC_SOURCE_SETTING = Setting.boolSetting(
         "index.recovery.use_synthetic_source",
-        false,
+        settings -> {
+            boolean isSyntheticSourceRecoveryFeatureFlagEnabled = RECOVERY_USE_SYNTHETIC_SOURCE.isEnabled();
+            boolean isNewIndexVersion = SETTING_INDEX_VERSION_CREATED.get(settings)
+                .onOrAfter(IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT);
+            boolean isIndexVersionInBackportRange = SETTING_INDEX_VERSION_CREATED.get(settings)
+                .between(IndexVersions.USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT_BACKPORT, IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
+
+            boolean useSyntheticRecoverySource = isSyntheticSourceRecoveryFeatureFlagEnabled
+                && (isNewIndexVersion || isIndexVersionInBackportRange);
+
+            return String.valueOf(
+                useSyntheticRecoverySource
+                    && Objects.equals(INDEX_MAPPER_SOURCE_MODE_SETTING.get(settings), SourceFieldMapper.Mode.SYNTHETIC)
+            );
+
+        },
         new Setting.Validator<>() {
             @Override
             public void validate(Boolean value) {}
@@ -1083,7 +1101,8 @@ public final class IndexSettings {
         skipIgnoredSourceRead = scopedSettings.get(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING);
         indexMappingSourceMode = scopedSettings.get(INDEX_MAPPER_SOURCE_MODE_SETTING);
         recoverySourceEnabled = RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.get(nodeSettings);
-        recoverySourceSyntheticEnabled = scopedSettings.get(RECOVERY_USE_SYNTHETIC_SOURCE_SETTING);
+        recoverySourceSyntheticEnabled = DiscoveryNode.isStateless(nodeSettings) == false
+            && scopedSettings.get(RECOVERY_USE_SYNTHETIC_SOURCE_SETTING);
         if (recoverySourceSyntheticEnabled) {
             if (DiscoveryNode.isStateless(settings)) {
                 throw new IllegalArgumentException("synthetic recovery source is only allowed in stateful");

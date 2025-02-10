@@ -924,7 +924,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     description.returnType(),
                     description.description(),
                     description.variadic(),
-                    description.isAggregation()
+                    description.type()
                 );
             }
             renderTypes(name, description.args());
@@ -1216,7 +1216,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             builder.field("operator", info.operator());
             assertThat(isAggregation(), equalTo(false));
         } else {
-            builder.field("type", isAggregation() ? "agg" : "eval");
+            builder.field("type", switch (info.type()) {
+                case SCALAR -> "scalar";
+                case AGGREGATE -> "agg";
+                case GROUPING -> "grouping";
+            });
         }
         builder.field("name", name);
         builder.field("description", removeAsciidocLinks(info.description()));

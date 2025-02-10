@@ -47,7 +47,7 @@ import static org.elasticsearch.core.Strings.format;
 public class InferenceAction extends ActionType<InferenceAction.Response> {
 
     public static final InferenceAction INSTANCE = new InferenceAction();
-    public static final String NAME = "cluster:monitor/xpack/inference";
+    public static final String NAME = "cluster:internal/xpack/inference";
 
     public InferenceAction() {
         super(NAME);

@@ -32,6 +32,11 @@ public class DefaultWrappersHandler implements DataSourceHandler {
         return new DataSourceResponse.RepeatingWrapper(repeatValues());
     }
 
+    @Override
+    public DataSourceResponse.MalformedWrapper handle(DataSourceRequest.MalformedWrapper request) {
+        return new DataSourceResponse.MalformedWrapper(injectMalformed(request.malformedValues()));
+    }
+
     private static Function<Supplier<Object>, Supplier<Object>> injectNulls() {
         // Inject some nulls but majority of data should be non-null (as it likely is in reality).
         return (values) -> () -> ESTestCase.randomDouble() <= 0.05 ? null : values.get();
@@ -61,5 +66,9 @@ public class DefaultWrappersHandler implements DataSourceHandler {
                 }
             };
         };
+    }
+
+    private static Function<Supplier<Object>, Supplier<Object>> injectMalformed(Supplier<Object> malformedValues) {
+        return (values) -> () -> ESTestCase.randomDouble() <= 0.1 ? malformedValues.get() : values.get();
     }
 }

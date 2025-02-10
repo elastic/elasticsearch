@@ -1127,7 +1127,7 @@ public class ObjectMapper extends Mapper {
             for (SourceLoader.SyntheticFieldLoader loader : fields) {
                 ignoredValuesPresent |= loader.setIgnoredValues(objectsWithIgnoredFields);
             }
-            return this.ignoredValues != null;
+            return ignoredValuesPresent;
         }
 
         @Override

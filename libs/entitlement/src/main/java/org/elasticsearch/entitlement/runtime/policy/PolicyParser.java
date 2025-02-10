@@ -11,7 +11,7 @@ package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoaderEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
-import org.elasticsearch.entitlement.runtime.policy.entitlements.FileEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.InboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetworkEntitlement;
@@ -27,6 +27,8 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -44,7 +46,7 @@ import java.util.stream.Stream;
 public class PolicyParser {
 
     private static final Map<String, Class<?>> EXTERNAL_ENTITLEMENTS = Stream.of(
-        FileEntitlement.class,
+        FilesEntitlement.class,
         CreateClassLoaderEntitlement.class,
         SetHttpsConnectionPropertiesEntitlement.class,
         OutboundNetworkEntitlement.class,
@@ -147,6 +149,7 @@ public class PolicyParser {
         }
 
         Constructor<?> entitlementConstructor = null;
+        Method entitlementMethod = null;
         ExternalEntitlement entitlementMetadata = null;
         for (var ctor : entitlementClass.getConstructors()) {
             var metadata = ctor.getAnnotation(ExternalEntitlement.class);
@@ -161,8 +164,27 @@ public class PolicyParser {
                 entitlementConstructor = ctor;
                 entitlementMetadata = metadata;
             }
-
         }
+        for (var method : entitlementClass.getMethods()) {
+            var metadata = method.getAnnotation(ExternalEntitlement.class);
+            if (metadata != null) {
+                if (Modifier.isStatic(method.getModifiers()) == false) {
+                    throw new IllegalStateException(
+                        "entitlement class [" + entitlementClass.getName() + "] has non-static method annotated with ExternalEntitlement"
+                    );
+                }
+                if (entitlementMetadata != null) {
+                    throw new IllegalStateException(
+                        "entitlement class ["
+                            + entitlementClass.getName()
+                            + "] has more than one constructor and/or method annotated with ExternalEntitlement"
+                    );
+                }
+                entitlementMethod = method;
+                entitlementMetadata = metadata;
+            }
+        }
+
         if (entitlementMetadata == null) {
             throw newPolicyParserException(scopeName, "unknown entitlement type [" + entitlementType + "]");
         }
@@ -171,40 +193,53 @@ public class PolicyParser {
             throw newPolicyParserException("entitlement type [" + entitlementType + "] is allowed only on modules");
         }
 
-        Class<?>[] parameterTypes = entitlementConstructor.getParameterTypes();
+        Class<?>[] parameterTypes = entitlementConstructor != null
+            ? entitlementConstructor.getParameterTypes()
+            : entitlementMethod.getParameterTypes();
         String[] parametersNames = entitlementMetadata.parameterNames();
+        Object[] parameterValues = new Object[parameterTypes.length];
 
         if (parameterTypes.length != 0 || parametersNames.length != 0) {
-            if (policyParser.nextToken() != XContentParser.Token.START_OBJECT) {
+            if (policyParser.nextToken() == XContentParser.Token.START_OBJECT) {
+                Map<String, Object> parsedValues = policyParser.map();
+
+                for (int parameterIndex = 0; parameterIndex < parameterTypes.length; ++parameterIndex) {
+                    String parameterName = parametersNames[parameterIndex];
+                    Object parameterValue = parsedValues.remove(parameterName);
+                    if (parameterValue == null) {
+                        throw newPolicyParserException(scopeName, entitlementType, "missing entitlement parameter [" + parameterName + "]");
+                    }
+                    Class<?> parameterType = parameterTypes[parameterIndex];
+                    if (parameterType.isAssignableFrom(parameterValue.getClass()) == false) {
+                        throw newPolicyParserException(
+                            scopeName,
+                            entitlementType,
+                            "unexpected parameter type ["
+                                + parameterType.getSimpleName()
+                                + "] for entitlement parameter ["
+                                + parameterName
+                                + "]"
+                        );
+                    }
+                    parameterValues[parameterIndex] = parameterValue;
+                }
+                if (parsedValues.isEmpty() == false) {
+                    throw newPolicyParserException(scopeName, entitlementType, "extraneous entitlement parameter(s) " + parsedValues);
+                }
+            } else if (policyParser.currentToken() == XContentParser.Token.START_ARRAY) {
+                List<Object> parsedValues = policyParser.list();
+                parameterValues[0] = parsedValues;
+            } else {
                 throw newPolicyParserException(scopeName, entitlementType, "expected entitlement parameters");
             }
         }
 
-        Map<String, Object> parsedValues = policyParser.map();
-
-        Object[] parameterValues = new Object[parameterTypes.length];
-        for (int parameterIndex = 0; parameterIndex < parameterTypes.length; ++parameterIndex) {
-            String parameterName = parametersNames[parameterIndex];
-            Object parameterValue = parsedValues.remove(parameterName);
-            if (parameterValue == null) {
-                throw newPolicyParserException(scopeName, entitlementType, "missing entitlement parameter [" + parameterName + "]");
-            }
-            Class<?> parameterType = parameterTypes[parameterIndex];
-            if (parameterType.isAssignableFrom(parameterValue.getClass()) == false) {
-                throw newPolicyParserException(
-                    scopeName,
-                    entitlementType,
-                    "unexpected parameter type [" + parameterType.getSimpleName() + "] for entitlement parameter [" + parameterName + "]"
-                );
-            }
-            parameterValues[parameterIndex] = parameterValue;
-        }
-        if (parsedValues.isEmpty() == false) {
-            throw newPolicyParserException(scopeName, entitlementType, "extraneous entitlement parameter(s) " + parsedValues);
-        }
-
         try {
-            return (Entitlement) entitlementConstructor.newInstance(parameterValues);
+            if (entitlementConstructor != null) {
+                return (Entitlement) entitlementConstructor.newInstance(parameterValues);
+            } else {
+                return (Entitlement) entitlementMethod.invoke(null, parameterValues);
+            }
         } catch (InvocationTargetException | InstantiationException | IllegalAccessException e) {
             if (e.getCause() instanceof PolicyValidationException piae) {
                 throw newPolicyParserException(startLocation, scopeName, entitlementType, piae);

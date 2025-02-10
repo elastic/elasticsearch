@@ -9,11 +9,13 @@
 
 package org.elasticsearch.logsdb.datageneration;
 
+import java.util.Map;
+
 /**
  * Entity responsible for generating a valid value for a field.
  *
  * Generator is expected to produce a different value on every call.
  */
 public interface FieldDataGenerator {
-    Object generateValue();
+    Object generateValue(Map<String, Object> fieldMapping);
 }

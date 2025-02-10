@@ -80,7 +80,6 @@ setup:
                 time_series_dimension: true
               agg_metric:
                 type: aggregate_metric_double
-                # TODO: tests with a subset of metrics
                 metrics: [ min, max, sum, value_count ]
                 default_metric: max
               k8s:
@@ -102,6 +101,80 @@ setup:
           - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim": "A", "agg_metric": {"max": 10, "min": -1, "sum": 20, "value_count": 5}}'
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:50:24.467Z", "dim": "B", "agg_metric": {"max": 20, "min": 3, "sum": 50, "value_count": 7}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:44.467Z", "dim": "B", "agg_metric": {"max": 17, "min": -5, "sum": 33, "value_count": 9}}'
+
+  - do:
+      indices.create:
+        index: test3
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ k8s.pod.uid ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              agg_metric:
+                type: aggregate_metric_double
+                metrics: [ min, max ]
+                default_metric: min
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      uid:
+                        type: keyword
+                        time_series_dimension: true
+  - do:
+      bulk:
+        refresh: true
+        index: test3
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:50:04.467Z", "agg_metric": {"max": 1, "min": -3}, "k8s": {"pod": {"uid":"947e4ced-1786-4e53-9e0c-5c447e959507"}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:50:24.467Z", "agg_metric": {"max": 10, "min": 3}, "k8s": {"pod": {"uid":"947e4ced-1786-4e53-9e0c-5c447e959507"}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:50:44.467Z", "agg_metric": {"max": 17, "min": 2}, "k8s": {"pod": {"uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9"}}}'
+
+  - do:
+      indices.create:
+        index: test4
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ k8s.pod.uid ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              agg_metric:
+                type: aggregate_metric_double
+                metrics: [ sum, value_count ]
+                default_metric: sum
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      uid:
+                        type: keyword
+                        time_series_dimension: true
+  - do:
+      bulk:
+        refresh: true
+        index: test4
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T23:50:04.467Z", "agg_metric": {"sum": 1, "value_count": 10}, "k8s": {"pod": {"uid":"947e4ced-1786-4e53-9e0c-5c447e959507"}}}'
 
 ---
 load everything:
@@ -226,7 +299,7 @@ from doc with aggregate_metric_double:
   - match: {columns.3.type: "ip"}
   - match: {columns.4.name: "k8s.pod.network.tx"}
   - match: {columns.4.type: "long"}
-  - length: {values: 2}
+  - length: {values: 3}
 
 ---
 stats on aggregate_metric_double:
@@ -255,9 +328,122 @@ stats on aggregate_metric_double:
   - match: {columns.3.name: "count(agg_metric)"}
   - match: {columns.3.type: "long"}
   - match: {values.0.0: 20.0}
+  - match: {values.0.1: -5.0}
+  - match: {values.0.2: 103.0}
+  - match: {values.0.3: 21.0}
+
+---
+grouping stats on aggregate_metric_double:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [aggregate_metric_double]
+      reason: "Support for aggregate_metric_double"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: "FROM test2
+          | STATS max(agg_metric), min(agg_metric), sum(agg_metric), count(agg_metric) BY dim
+          | SORT dim"
+  - length: {values: 2}
+  - length: {values.0: 5}
+  - match: {columns.0.name: "max(agg_metric)"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "min(agg_metric)"}
+  - match: {columns.1.type: "double"}
+  - match: {columns.2.name: "sum(agg_metric)"}
+  - match: {columns.2.type: "double"}
+  - match: {columns.3.name: "count(agg_metric)"}
+  - match: {columns.3.type: "long"}
+  - match: {columns.4.name: "dim"}
+  - match: {columns.4.type: "keyword"}
+  - match: {values.0.0: 10.0}
   - match: {values.0.1: -1.0}
-  - match: {values.0.2: 70.0}
-  - match: {values.0.3: 12.0}
+  - match: {values.0.2: 20.0}
+  - match: {values.0.3: 5.0}
+  - match: {values.0.4: "A"}
+  - match: {values.1.0: 20.0}
+  - match: {values.1.1: -5.0}
+  - match: {values.1.2: 83.0}
+  - match: {values.1.3: 16.0}
+  - match: {values.1.4: "B"}
+
+---
+stats on aggregate_metric_double with partial submetrics:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [aggregate_metric_double_partial_submetrics]
+      reason: "Support for partial submetrics in aggregate_metric_double"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test3 | STATS max(agg_metric), min(agg_metric), sum(agg_metric), count(agg_metric) BY k8s.pod.uid | SORT k8s.pod.uid'
+
+  - length: {values: 2}
+  - length: {values.0: 5}
+  - match: {columns.0.name: "max(agg_metric)"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "min(agg_metric)"}
+  - match: {columns.1.type: "double"}
+  - match: {columns.2.name: "sum(agg_metric)"}
+  - match: {columns.2.type: "double"}
+  - match: {columns.3.name: "count(agg_metric)"}
+  - match: {columns.3.type: "long"}
+  - match: {columns.4.name: "k8s.pod.uid"}
+  - match: {columns.4.type: "keyword"}
+  - match: {values.0.0: 10.0}
+  - match: {values.0.1: -3.0}
+  - match: {values.0.2: null}
+  - match: {values.0.3: null}
+  - match: {values.0.4: "947e4ced-1786-4e53-9e0c-5c447e959507"}
+  - match: {values.1.0: 17.0}
+  - match: {values.1.1: 2.0}
+  - match: {values.1.2: null}
+  - match: {values.1.3: null}
+  - match: {values.1.4: "df3145b3-0563-4d3b-a0f7-897eb2876ea9"}
+
+---
+stats on aggregate_metric_double missing min and max:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ aggregate_metric_double_partial_submetrics ]
+      reason: "Support for partial submetrics in aggregate_metric_double"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test4 | STATS max(agg_metric), min(agg_metric), sum(agg_metric), count(agg_metric)'
+
+  - length: {values: 1}
+  - length: {values.0: 4}
+  - match: {columns.0.name: "max(agg_metric)"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "min(agg_metric)"}
+  - match: {columns.1.type: "double"}
+  - match: {columns.2.name: "sum(agg_metric)"}
+  - match: {columns.2.type: "double"}
+  - match: {columns.3.name: "count(agg_metric)"}
+  - match: {columns.3.type: "long"}
+  - match: {values.0.0: null}
+  - match: {values.0.1: null}
+  - match: {values.0.2: 1.0}
+  - match: {values.0.3: 10}
 
 ---
 from index pattern unsupported counter:
@@ -267,8 +453,8 @@ from index pattern unsupported counter:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double]
-      reason: "Support for aggregate_metric_double"
+          capabilities: [aggregate_metric_double_partial_submetrics]
+      reason: "Support for partial submetrics in aggregate_metric_double"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
@@ -294,7 +480,7 @@ from index pattern unsupported counter:
   - match: {columns.7.type: "keyword"}
   - match: {columns.8.name: "metricset"}
   - match: {columns.8.type: "keyword"}
-  - length: {values: 10}
+  - length: {values: 15}
 
 ---
 from index pattern explicit counter use:
@@ -315,7 +501,7 @@ from index pattern explicit counter use:
           query: 'FROM test* | keep *.tx'
   - match: {columns.0.name: "k8s.pod.network.tx"}
   - match: {columns.0.type: "unsupported"}
-  - length: {values: 10}
+  - length: {values: 15}
 
 ---
 _source:

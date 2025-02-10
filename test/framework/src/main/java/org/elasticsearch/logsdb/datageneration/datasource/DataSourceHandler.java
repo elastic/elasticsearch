@@ -58,6 +58,10 @@ public interface DataSourceHandler {
         return null;
     }
 
+    default DataSourceResponse.MalformedWrapper handle(DataSourceRequest.MalformedWrapper request) {
+        return null;
+    }
+
     default DataSourceResponse.ChildFieldGenerator handle(DataSourceRequest.ChildFieldGenerator request) {
         return null;
     }

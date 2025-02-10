@@ -664,7 +664,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             .map(DiscoveryNode::getId)
             .collect(Collectors.toSet());
         // All nodes share the same geoip base dir in the shared tmp dir:
-        Path geoipBaseTmpDir = internalCluster().getDataNodeInstance(Environment.class).tmpFile().resolve("geoip-databases");
+        Path geoipBaseTmpDir = internalCluster().getDataNodeInstance(Environment.class).tmpDir().resolve("geoip-databases");
         assertThat(Files.exists(geoipBaseTmpDir), is(true));
         final List<Path> geoipTmpDirs;
         try (Stream<Path> files = Files.list(geoipBaseTmpDir)) {
@@ -676,7 +676,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     private void setupDatabasesInConfigDirectory() throws Exception {
         StreamSupport.stream(internalCluster().getInstances(Environment.class).spliterator(), false)
-            .map(Environment::configFile)
+            .map(Environment::configDir)
             .map(path -> path.resolve("ingest-geoip"))
             .distinct()
             .forEach(path -> {
@@ -704,7 +704,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     private void deleteDatabasesInConfigDirectory() throws Exception {
         StreamSupport.stream(internalCluster().getInstances(Environment.class).spliterator(), false)
-            .map(Environment::configFile)
+            .map(Environment::configDir)
             .map(path -> path.resolve("ingest-geoip"))
             .distinct()
             .forEach(path -> {

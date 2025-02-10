@@ -148,7 +148,6 @@ public class NativeRolesStoreTests extends ESTestCase {
             TestUtils.newTestLicenseState(),
             securityIndex,
             clusterService,
-            mock(FeatureService.class),
             new ReservedRoleNameChecker.Default(),
             mock(NamedXContentRegistry.class)
         );
@@ -404,7 +403,6 @@ public class NativeRolesStoreTests extends ESTestCase {
             licenseState,
             securityIndex,
             clusterService,
-            mock(FeatureService.class),
             mock(ReservedRoleNameChecker.class),
             mock(NamedXContentRegistry.class)
         );

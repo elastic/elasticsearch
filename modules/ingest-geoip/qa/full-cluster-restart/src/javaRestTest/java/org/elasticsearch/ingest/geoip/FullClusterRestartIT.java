@@ -119,9 +119,15 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
 
             // before the upgrade, Kibana should work
             assertBusy(() -> testGetStarAsKibana(List.of("my-index-00001"), maybeSecurityIndex));
+
+            // as should a normal get *
+            assertBusy(() -> testGetStar(List.of("my-index-00001"), maybeSecurityIndex));
         } else {
             // after the upgrade, but before the migration, Kibana should work
             assertBusy(() -> testGetStarAsKibana(List.of("my-index-00001"), maybeSecurityIndex));
+
+            // as should a normal get *
+            assertBusy(() -> testGetStar(List.of("my-index-00001"), maybeSecurityIndex));
 
             // migrate the system features and give the cluster a moment to settle
             Request migrateSystemFeatures = new Request("POST", "/_migration/system_features");
@@ -132,9 +138,10 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             assertBusy(() -> testIndexGeoDoc());
 
             // after the migration, Kibana should work
-            if (useSecurity == false) { // BUT IT DOESN'T if security is enabled
-                assertBusy(() -> testGetStarAsKibana(List.of("my-index-00001"), maybeSecurityIndexReindexed));
-            }
+            assertBusy(() -> testGetStarAsKibana(List.of("my-index-00001"), maybeSecurityIndexReindexed));
+
+            // as should a normal get *
+            assertBusy(() -> testGetStar(List.of("my-index-00001"), maybeSecurityIndexReindexed));
 
             Request disableDownloader = new Request("PUT", "/_cluster/settings");
             disableDownloader.setJsonEntity("""
@@ -211,6 +218,23 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         ObjectPath doc = ObjectPath.createFromResponse(client().performRequest(getDoc));
         assertNull(doc.evaluate("_source.tags"));
         assertEquals("Sweden", doc.evaluate("_source.geo.country_name"));
+    }
+
+    private void testGetStar(List<String> indexNames, @Nullable List<String> additionalIndexNames) throws IOException {
+        Request getStar = new Request("GET", "*?expand_wildcards=all");
+        getStar.setOptions(
+            RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE) // we don't care about warnings, just errors
+        );
+        Response response = client().performRequest(getStar);
+        assertOK(response);
+
+        if (additionalIndexNames != null && additionalIndexNames.isEmpty() == false) {
+            indexNames = new ArrayList<>(indexNames); // recopy into a mutable list
+            indexNames.addAll(additionalIndexNames);
+        }
+
+        Map<String, Object> map = responseAsMap(response);
+        assertThat(map.keySet(), is(new HashSet<>(indexNames)));
     }
 
     private void testGetStarAsKibana(List<String> indexNames, @Nullable List<String> additionalIndexNames) throws IOException {

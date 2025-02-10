@@ -583,7 +583,7 @@ public class EsqlFunctionRegistry {
         String[] returnType,
         String description,
         boolean variadic,
-        boolean isAggregation
+        FunctionType type
     ) {
         /**
          * The name of every argument.
@@ -626,7 +626,7 @@ public class EsqlFunctionRegistry {
     public static FunctionDescription description(FunctionDefinition def) {
         Constructor<?> constructor = constructorFor(def.clazz());
         if (constructor == null) {
-            return new FunctionDescription(def.name(), List.of(), null, null, false, false);
+            return new FunctionDescription(def.name(), List.of(), null, null, false, FunctionType.SCALAR);
         }
         FunctionInfo functionInfo = functionInfo(def);
         String functionDescription = functionInfo == null ? "" : functionInfo.description().replace('\n', ' ');
@@ -635,7 +635,6 @@ public class EsqlFunctionRegistry {
 
         List<EsqlFunctionRegistry.ArgSignature> args = new ArrayList<>(params.length);
         boolean variadic = false;
-        boolean isAggregation = functionInfo != null && functionInfo.isAggregation();
         for (int i = 1; i < params.length; i++) { // skipping 1st argument, the source
             if (Configuration.class.isAssignableFrom(params[i].getType()) == false) {
                 variadic |= List.class.isAssignableFrom(params[i].getType());
@@ -648,7 +647,7 @@ public class EsqlFunctionRegistry {
                 }
             }
         }
-        return new FunctionDescription(def.name(), args, returnType, functionDescription, variadic, isAggregation);
+        return new FunctionDescription(def.name(), args, returnType, functionDescription, variadic, functionInfo.type());
     }
 
     public static ArgSignature param(Param param) {

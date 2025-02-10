@@ -20,7 +20,6 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.UpdateForV10;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
@@ -37,56 +36,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 
 public class TransportHandshakerRawMessageTests extends ESSingleNodeTestCase {
-
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // remove support for v7 handshakes in v9
-    public void testV7Handshake() throws Exception {
-        final BytesRef handshakeRequestBytes;
-        final var requestId = randomNonNegativeLong();
-        try (var outputStream = new BytesStreamOutput()) {
-            outputStream.setTransportVersion(TransportHandshaker.V7_HANDSHAKE_VERSION);
-            outputStream.writeLong(requestId);
-            outputStream.writeByte(TransportStatus.setRequest(TransportStatus.setHandshake((byte) 0)));
-            outputStream.writeInt(TransportHandshaker.V7_HANDSHAKE_VERSION.id());
-            outputStream.writeByte((byte) 0); // no request headers;
-            outputStream.writeByte((byte) 0); // no response headers;
-            outputStream.writeStringArray(new String[] { "x-pack" }); // one feature
-            outputStream.writeString("internal:tcp/handshake");
-            outputStream.writeByte((byte) 0); // no parent task ID;
-
-            final var requestNodeTransportVersionId = TransportVersionUtils.randomCompatibleVersion(random()).id();
-            assertThat(requestNodeTransportVersionId, allOf(greaterThanOrEqualTo(1 << 22), lessThan(1 << 28))); // 4-byte vInt
-            outputStream.writeByte((byte) 4); // payload length
-            outputStream.writeVInt(requestNodeTransportVersionId);
-
-            handshakeRequestBytes = outputStream.bytes().toBytesRef();
-        }
-
-        final BytesRef handshakeResponseBytes;
-        try (var socket = openTransportConnection()) {
-            var streamOutput = new OutputStreamStreamOutput(socket.getOutputStream());
-            streamOutput.write("ES".getBytes(StandardCharsets.US_ASCII));
-            streamOutput.writeInt(handshakeRequestBytes.length);
-            streamOutput.writeBytes(handshakeRequestBytes.bytes, handshakeRequestBytes.offset, handshakeRequestBytes.length);
-            streamOutput.flush();
-
-            var streamInput = new InputStreamStreamInput(socket.getInputStream());
-            assertEquals((byte) 'E', streamInput.readByte());
-            assertEquals((byte) 'S', streamInput.readByte());
-            var responseLength = streamInput.readInt();
-            handshakeResponseBytes = streamInput.readBytesRef(responseLength);
-        }
-
-        try (var inputStream = new BytesArray(handshakeResponseBytes).streamInput()) {
-            assertEquals(requestId, inputStream.readLong());
-            assertEquals(TransportStatus.setResponse(TransportStatus.setHandshake((byte) 0)), inputStream.readByte());
-            assertEquals(TransportHandshaker.V7_HANDSHAKE_VERSION.id(), inputStream.readInt());
-            assertEquals((byte) 0, inputStream.readByte()); // no request headers
-            assertEquals((byte) 0, inputStream.readByte()); // no response headers
-            inputStream.setTransportVersion(TransportHandshaker.V7_HANDSHAKE_VERSION);
-            assertEquals(TransportVersion.current().id(), inputStream.readVInt());
-            assertEquals(-1, inputStream.read());
-        }
-    }
 
     @UpdateForV10(owner = UpdateForV10.Owner.CORE_INFRA) // remove support for v8 handshakes in v10
     public void testV8Handshake() throws Exception {
@@ -223,11 +172,10 @@ public class TransportHandshakerRawMessageTests extends ESSingleNodeTestCase {
         try (var inputStream = new BytesArray(handshakeRequestBytes).streamInput()) {
             assertThat(inputStream.readLong(), greaterThan(0L));
             assertEquals(TransportStatus.setRequest(TransportStatus.setHandshake((byte) 0)), inputStream.readByte());
-            assertEquals(TransportHandshaker.V8_HANDSHAKE_VERSION.id(), inputStream.readInt());
-            assertEquals(0x1a, inputStream.readInt()); // length of variable-length header, always 0x1a
+            assertEquals(TransportHandshaker.V9_HANDSHAKE_VERSION.id(), inputStream.readInt());
+            assertEquals(0x19, inputStream.readInt()); // length of variable-length header, always 0x19
             assertEquals((byte) 0, inputStream.readByte()); // no request headers
             assertEquals((byte) 0, inputStream.readByte()); // no response headers
-            assertEquals((byte) 0, inputStream.readByte()); // no features
             assertEquals("internal:tcp/handshake", inputStream.readString());
             assertEquals((byte) 0, inputStream.readByte()); // no parent task
             inputStream.setTransportVersion(TransportHandshaker.V8_HANDSHAKE_VERSION);
@@ -236,8 +184,9 @@ public class TransportHandshakerRawMessageTests extends ESSingleNodeTestCase {
         }
 
         try (var inputStream = new BytesArray(payloadBytes).streamInput()) {
-            inputStream.setTransportVersion(TransportHandshaker.V8_HANDSHAKE_VERSION);
+            inputStream.setTransportVersion(TransportHandshaker.V9_HANDSHAKE_VERSION);
             assertEquals(TransportVersion.current().id(), inputStream.readVInt());
+            assertEquals(Build.current().version(), inputStream.readString());
             assertEquals(-1, inputStream.read());
         }
     }

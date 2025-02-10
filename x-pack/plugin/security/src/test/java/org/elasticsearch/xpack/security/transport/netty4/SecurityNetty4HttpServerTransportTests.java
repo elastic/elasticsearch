@@ -370,7 +370,21 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
                 new NetworkService(List.of()),
                 testThreadPool,
                 xContentRegistry(),
-                new NullDispatcher(),
+                new HttpServerTransport.Dispatcher() {
+                    @Override
+                    public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
+                        fail("Request should not be dispatched");
+                    }
+
+                    @Override
+                    public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
+                        try {
+                            channel.sendResponse(new RestResponse(channel, (Exception) cause));
+                        } catch (IOException e) {
+                            fail(e, "Unexpected exception dispatching bad request");
+                        }
+                    }
+                },
                 randomClusterSettings(),
                 new SharedGroupFactory(settings),
                 Tracer.NOOP,

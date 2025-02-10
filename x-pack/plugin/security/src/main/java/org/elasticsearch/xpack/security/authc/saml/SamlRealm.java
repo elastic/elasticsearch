@@ -792,7 +792,7 @@ public final class SamlRealm extends Realm implements Releasable {
     ) throws ResolverException, ComponentInitializationException, IOException, PrivilegedActionException {
 
         final String entityId = require(config, IDP_ENTITY_ID);
-        final Path path = config.env().configFile().resolve(metadataPath);
+        final Path path = config.env().configDir().resolve(metadataPath);
         final FilesystemMetadataResolver resolver = new SamlFilesystemMetadataResolver(path.toFile());
 
         for (var httpSetting : List.of(IDP_METADATA_HTTP_REFRESH, IDP_METADATA_HTTP_MIN_REFRESH, IDP_METADATA_HTTP_FAIL_ON_ERROR)) {

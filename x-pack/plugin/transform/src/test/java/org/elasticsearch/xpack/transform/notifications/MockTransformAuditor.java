@@ -16,6 +16,8 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.common.notifications.Level;
 import org.elasticsearch.xpack.core.transform.notifications.TransformAuditMessage;
 
@@ -51,13 +53,16 @@ public class MockTransformAuditor extends TransformAuditor {
         when(state.getMetadata()).thenReturn(metadata);
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(state);
+        ThreadPool threadPool = mock();
+        when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        when(clusterService.threadPool()).thenReturn(threadPool);
 
         return new MockTransformAuditor(clusterService, mock(IndexNameExpressionResolver.class));
     }
 
     private final List<AuditExpectation> expectations;
 
-    public MockTransformAuditor(ClusterService clusterService, IndexNameExpressionResolver indexNameResolver) {
+    private MockTransformAuditor(ClusterService clusterService, IndexNameExpressionResolver indexNameResolver) {
         super(mock(Client.class), MOCK_NODE_NAME, clusterService, indexNameResolver, true);
         expectations = new CopyOnWriteArrayList<>();
     }

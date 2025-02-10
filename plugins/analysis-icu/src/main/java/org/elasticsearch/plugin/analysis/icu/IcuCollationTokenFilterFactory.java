@@ -51,7 +51,7 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
         if (rules != null) {
             Exception failureToResolve = null;
             try {
-                rules = Streams.copyToString(Files.newBufferedReader(environment.configFile().resolve(rules), Charset.forName("UTF-8")));
+                rules = Streams.copyToString(Files.newBufferedReader(environment.configDir().resolve(rules), Charset.forName("UTF-8")));
             } catch (IOException | SecurityException | InvalidPathException e) {
                 failureToResolve = e;
             }

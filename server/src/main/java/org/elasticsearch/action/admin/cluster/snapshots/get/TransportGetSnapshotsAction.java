@@ -543,7 +543,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             }
             return new GetSnapshotsResponse(
                 snapshotInfos,
-                null,
                 remaining > 0 ? sortBy.encodeAfterQueryParam(snapshotInfos.get(snapshotInfos.size() - 1)) : null,
                 totalCount.get(),
                 remaining

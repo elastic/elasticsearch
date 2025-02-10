@@ -42,7 +42,7 @@ public class BootstrapTests extends ESTestCase {
 
     public void testLoadSecureSettings() throws Exception {
         final char[] password = KeyStoreWrapperTests.getPossibleKeystorePassword();
-        final Path configPath = env.configFile();
+        final Path configPath = env.configDir();
         final SecureString seed;
         try (KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create()) {
             seed = KeyStoreWrapper.SEED_SETTING.get(Settings.builder().setSecureSettings(keyStoreWrapper).build());

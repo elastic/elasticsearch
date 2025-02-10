@@ -411,9 +411,9 @@ public class XPackPlugin extends XPackClientPlugin
     }
 
     public static Path resolveConfigFile(Environment env, String name) {
-        Path config = env.configFile().resolve(name);
+        Path config = env.configDir().resolve(name);
         if (Files.exists(config) == false) {
-            Path legacyConfig = env.configFile().resolve("x-pack").resolve(name);
+            Path legacyConfig = env.configDir().resolve("x-pack").resolve(name);
             if (Files.exists(legacyConfig)) {
                 deprecationLogger.warn(
                     DeprecationCategory.OTHER,

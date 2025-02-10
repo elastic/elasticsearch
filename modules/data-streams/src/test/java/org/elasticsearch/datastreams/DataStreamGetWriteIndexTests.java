@@ -248,7 +248,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
         MetadataCreateIndexService createIndexService;
         {
             Environment env = mock(Environment.class);
-            when(env.sharedDataFile()).thenReturn(null);
+            when(env.sharedDataDir()).thenReturn(null);
             AllocationService allocationService = mock(AllocationService.class);
             when(allocationService.reroute(any(ClusterState.class), any(String.class), any())).then(i -> i.getArguments()[0]);
             when(allocationService.getShardRoutingRoleStrategy()).thenReturn(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);

@@ -210,6 +210,7 @@ public class LuceneQueryExpressionEvaluatorTests extends ComputeTestCase {
             operators.add(new EvalOperator(blockFactory, luceneQueryEvaluator));
             List<Page> results = new ArrayList<>();
             Driver driver = new Driver(
+                "test",
                 driverContext,
                 luceneOperatorFactory(reader, new MatchAllDocsQuery(), LuceneOperator.NO_LIMIT, scoring).get(driverContext),
                 operators,

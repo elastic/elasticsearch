@@ -50,6 +50,7 @@ public class CoreWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTest
         .user(USER, PASS)
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .feature(FeatureFlag.SUB_OBJECTS_AUTO_ENABLED)
+        .feature(FeatureFlag.INDEX_RECOVERY_USE_SYNTHETIC_SOURCE)
         .build();
 
     public CoreWithSecurityClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

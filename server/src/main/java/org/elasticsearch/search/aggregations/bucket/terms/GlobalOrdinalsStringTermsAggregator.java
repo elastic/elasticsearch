@@ -290,7 +290,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             BucketCountThresholds bucketCountThresholds,
             AggregationContext context,
             Aggregator parent,
-            boolean remapGlobalOrds,
             SubAggCollectionMode collectionMode,
             boolean showTermDocCountError,
             Map<String, Object> metadata,
@@ -308,7 +307,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 ALWAYS_TRUE,
                 context,
                 parent,
-                remapGlobalOrds,
+                false,
                 collectionMode,
                 showTermDocCountError,
                 CardinalityUpperBound.ONE,
@@ -385,7 +384,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             Releasables.close(resultStrategy, segmentDocCounts, collectionStrategy);
         }
 
-        private void mapSegmentCountsToGlobalCounts(LongUnaryOperator mapping) throws IOException {
+        private void mapSegmentCountsToGlobalCounts(LongUnaryOperator mapping) {
             for (long i = 1; i < segmentDocCounts.size(); i++) {
                 // We use set(...) here, because we need to reset the slow to 0.
                 // segmentDocCounts get reused over the segments and otherwise counts would be too high.
@@ -395,7 +394,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 }
                 long ord = i - 1; // remember we do +1 when counting
                 long globalOrd = mapping.applyAsLong(ord);
-                incrementBucketDocCount(collectionStrategy.globalOrdToBucketOrd(0, globalOrd), inc);
+                incrementBucketDocCount(collectionStrategy.globalOrdToBucketOrd(globalOrd), inc);
             }
         }
     }
@@ -440,7 +439,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         /**
          * Convert a global ordinal into a bucket ordinal.
          */
-        abstract long globalOrdToBucketOrd(long owningBucketOrd, long globalOrd);
+        abstract long globalOrdToBucketOrd(long globalOrd);
 
         /**
          * Create the aggregation result
@@ -491,8 +490,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        long globalOrdToBucketOrd(long owningBucketOrd, long globalOrd) {
-            assert owningBucketOrd == 0;
+        long globalOrdToBucketOrd(long globalOrd) {
             return globalOrd;
         }
 
@@ -659,8 +657,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        long globalOrdToBucketOrd(long owningBucketOrd, long globalOrd) {
-            return bucketOrds.find(owningBucketOrd, globalOrd);
+        long globalOrdToBucketOrd(long globalOrd) {
+            return bucketOrds.find(0, globalOrd);
         }
 
         private void collectZeroDocEntriesIfNeeded(long owningBucketOrd) throws IOException {
@@ -789,7 +787,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     /**
      * Strategy for building results.
      */
-    abstract class ResultStrategy<
+    abstract static class ResultStrategy<
         R extends InternalAggregation,
         B extends InternalMultiBucketAggregation.InternalBucket,
         TB extends InternalMultiBucketAggregation.InternalBucket> implements Releasable {

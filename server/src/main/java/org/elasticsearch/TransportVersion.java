@@ -98,6 +98,15 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
         return CurrentHolder.CURRENT;
     }
 
+    /**
+     * @return whether this is a known {@link TransportVersion}, i.e. one declared in {@link TransportVersions} or which dates back to
+     *         before 8.9.0 when they matched the release versions exactly and there was no branching or patching. Other versions may exist
+     *         in the wild (they're sent over the wire by numeric ID) but we don't know how to communicate using such versions.
+     */
+    public boolean isKnown() {
+        return before(TransportVersions.V_8_9_X) || TransportVersions.VERSION_IDS.containsKey(id);
+    }
+
     public static TransportVersion fromString(String str) {
         return TransportVersion.fromId(Integer.parseInt(str));
     }

@@ -114,7 +114,7 @@ public final class DatabaseNodeService implements IpDatabaseProvider {
         ClusterService clusterService
     ) {
         this(
-            environment.tmpFile(),
+            environment.tmpDir(),
             new OriginSettingClient(client, IngestService.INGEST_ORIGIN),
             cache,
             new ConfigDatabases(environment, cache),

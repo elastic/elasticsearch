@@ -77,6 +77,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.source;
@@ -622,10 +623,18 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public List<PlanFactory> visitForkSubQueries(EsqlBaseParser.ForkSubQueriesContext ctx) {
-        var subQueriesCtx = ctx.forkSubQuery();
         ArrayList<PlanFactory> list = new ArrayList<>();
-        for (var subQueryCtx : subQueriesCtx) {
-            list.add(visitForkSubQuery(subQueryCtx));
+        int count = 1; // automatic fork branch ids start at 1
+
+        for (var subQueryCtx : ctx.forkSubQuery()) {
+            var subQuery = visitForkSubQuery(subQueryCtx);
+            String forkValue = "fork" + count++;
+            PlanFactory newSubQuery = p -> new Eval(
+                source(ctx),
+                subQuery.apply(p),
+                List.of(new Alias(source(ctx), "_fork", new Literal(source(ctx), forkValue, KEYWORD)))
+            );
+            list.add(newSubQuery);
         }
         return List.copyOf(list);
     }

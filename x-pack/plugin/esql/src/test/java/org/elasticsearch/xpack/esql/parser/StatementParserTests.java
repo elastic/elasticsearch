@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -2992,12 +2993,16 @@ public class StatementParserTests extends AbstractStatementParserTests {
             | FORK ( WHERE a:"baz" | LIMIT 11 )
                    ( WHERE b:"bar" | SORT b )
                    ( WHERE c:"bat" )
+                   ( SORT c )
+                   ( LIMIT 5 )
             """);
         var fork = as(plan, Fork.class);
         var subPlans = fork.subPlans();
 
         // first subplan
-        var limit = as(subPlans.get(0), Limit.class);
+        var eval = as(subPlans.get(0), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", literalString("fork1"))));
+        var limit = as(eval.child(), Limit.class);
         assertThat(limit.limit(), instanceOf(Literal.class));
         assertThat(((Literal) limit.limit()).value(), equalTo(11));
         var filter = as(limit.child(), Filter.class);
@@ -3007,7 +3012,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(match.query().fold(FoldContext.small()), equalTo("baz"));
 
         // second subplan
-        var orderBy = as(subPlans.get(1), OrderBy.class);
+        eval = as(subPlans.get(1), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", literalString("fork2"))));
+        var orderBy = as(eval.child(), OrderBy.class);
         assertThat(orderBy.order().size(), equalTo(1));
         Order order = orderBy.order().get(0);
         assertThat(order.child(), instanceOf(UnresolvedAttribute.class));
@@ -3019,11 +3026,29 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(match.query().fold(FoldContext.small()), equalTo("bar"));
 
         // third subplan
-        filter = as(subPlans.get(2), Filter.class);
+        eval = as(subPlans.get(2), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", literalString("fork3"))));
+        filter = as(eval.child(), Filter.class);
         match = (MatchOperator) filter.condition();
         matchField = (UnresolvedAttribute) match.field();
         assertThat(matchField.name(), equalTo("c"));
         assertThat(match.query().fold(FoldContext.small()), equalTo("bat"));
+
+        // fourth subplan
+        eval = as(subPlans.get(3), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", literalString("fork4"))));
+        orderBy = as(eval.child(), OrderBy.class);
+        assertThat(orderBy.order().size(), equalTo(1));
+        order = orderBy.order().get(0);
+        assertThat(order.child(), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) order.child()).name(), equalTo("c"));
+
+        // fifth subplan
+        eval = as(subPlans.get(4), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", literalString("fork5"))));
+        limit = as(eval.child(), Limit.class);
+        assertThat(limit.limit(), instanceOf(Literal.class));
+        assertThat(((Literal) limit.limit()).value(), equalTo(5));
     }
 
     public void testInvalidFork() {
@@ -3049,5 +3074,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "FROM foo* | FORK (WHERE x>1 |STATS count(x) by y) (WHERE x>1)",
             "line 1:30: mismatched input 'STATS' expecting {'limit', 'sort', 'where'}"
         );
+    }
+
+    static Alias alias(String name, Expression value) {
+        return new Alias(EMPTY, name, value);
     }
 }

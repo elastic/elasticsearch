@@ -187,20 +187,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         List<LogicalPlan> analyzedPlans = new ArrayList<>();
 
         LogicalPlan forkAnalyzed = plan.transformDown(Fork.class, fr -> {
-            int count = 1; // automatic fork branch ids start at 1
             for (var subPlan : fr.subPlans()) {
                 LogicalPlan subPlanCopy = subPlan.transformUp(
                     LogicalPlan.class,
                     p -> p instanceof LeafPlan ? p : p.replaceChildren(p.children())
                 );
-
-                String forkValue = "fork" + count++;
-                subPlanCopy = new Eval(
-                    fr.source(),
-                    subPlanCopy,
-                    List.of(new Alias(fr.source(), "_fork", new Literal(fr.source(), forkValue, KEYWORD)))
-                );
-
                 LogicalPlan analyzedCopy = execute(subPlanCopy);
                 analyzedPlans.add(analyzedCopy);
             }

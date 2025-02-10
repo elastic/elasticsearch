@@ -70,18 +70,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     @After
-    private void cleanupCluster() throws Exception {
-        safeGet(
-            clusterAdmin().execute(
-                DeletePipelineTransportAction.TYPE,
-                new DeletePipelineRequest(
-                    TEST_REQUEST_TIMEOUT,
-                    TEST_REQUEST_TIMEOUT,
-                    MigrateTemplateRegistry.REINDEX_DATA_STREAM_PIPELINE_NAME
-                )
-            )
-        );
-        super.cleanUpCluster();
+    private void cleanup() {
+        deletePipeline(MigrateTemplateRegistry.REINDEX_DATA_STREAM_PIPELINE_NAME);
     }
 
     private static final String MAPPING = """

@@ -799,6 +799,11 @@ public class EsqlCapabilities {
         AGGREGATE_METRIC_DOUBLE_PARTIAL_SUBMETRICS(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
 
         /**
+         * Support change point detection "CHANGE_POINT".
+         */
+        CHANGE_POINT(Build.current().isSnapshot()),
+
+        /**
          * Support for FORK command
          */
         FORK(Build.current().isSnapshot());

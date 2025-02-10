@@ -178,10 +178,6 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
         return locations;
     }
 
-    public List<MultiGetRequest.Item> items() {
-        return items;
-    }
-
     @Override
     public String[] indices() {
         String[] indices = new String[items.size()];

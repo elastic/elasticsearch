@@ -854,12 +854,15 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             return;
         }
 
-        var modelsByDeploymentIds = new HashMap<String, ElasticsearchInternalModel>();
+        var modelsByDeploymentIds = new HashMap<String, List<ElasticsearchInternalModel>>();
         for (var model : models) {
             assert model instanceof ElasticsearchInternalModel;
 
             if (model instanceof ElasticsearchInternalModel esModel) {
-                modelsByDeploymentIds.put(esModel.mlNodeDeploymentId(), esModel);
+                modelsByDeploymentIds.merge(esModel.mlNodeDeploymentId(), new ArrayList<>(List.of(esModel)), (a, b) -> {
+                    a.addAll(b);
+                    return a;
+                });
             } else {
                 listener.onFailure(
                     new ElasticsearchStatusException(
@@ -878,10 +881,13 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             new GetDeploymentStatsAction.Request(deploymentIds),
             ActionListener.wrap(stats -> {
                 for (var deploymentStats : stats.getStats().results()) {
-                    var model = modelsByDeploymentIds.get(deploymentStats.getDeploymentId());
-                    model.updateNumAllocations(deploymentStats.getNumberOfAllocations());
+                    var modelsForDeploymentId = modelsByDeploymentIds.get(deploymentStats.getDeploymentId());
+                    modelsForDeploymentId.forEach(model -> model.updateNumAllocations(deploymentStats.getNumberOfAllocations()));
                 }
-                listener.onResponse(new ArrayList<>(modelsByDeploymentIds.values()));
+                var updatedModels = new ArrayList<Model>();
+                modelsByDeploymentIds.values().forEach(updatedModels::addAll);
+
+                listener.onResponse(updatedModels);
             }, e -> {
                 logger.warn("Get deployment stats failed, cannot update the endpoint's number of allocations", e);
                 // continue with the original response

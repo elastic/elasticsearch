@@ -392,6 +392,22 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         AsyncExecutionId asyncExecutionId,
         Class<T> tClass
     ) throws IOException {
+        return getTaskAndCheckAuthentication(taskManager, security, asyncExecutionId, tClass);
+    }
+
+    /**
+    * Returns the {@link AsyncTask} if the provided <code>asyncTaskId</code>
+    * is registered in the task manager, <code>null</code> otherwise.
+    *
+    * This method throws a {@link ResourceNotFoundException} if the authenticated user
+    * is not the creator of the original task.
+    */
+    public static <T extends AsyncTask> T getTaskAndCheckAuthentication(
+        TaskManager taskManager,
+        AsyncSearchSecurity security,
+        AsyncExecutionId asyncExecutionId,
+        Class<T> tClass
+    ) throws IOException {
         T asyncTask = getTask(taskManager, asyncExecutionId, tClass);
         if (asyncTask == null) {
             return null;

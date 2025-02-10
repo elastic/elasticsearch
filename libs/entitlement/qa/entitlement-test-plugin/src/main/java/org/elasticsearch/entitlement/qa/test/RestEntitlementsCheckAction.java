@@ -13,18 +13,6 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.entitlement.qa.test.DummyImplementations.DummyBreakIteratorProvider;
-import org.elasticsearch.entitlement.qa.test.DummyImplementations.DummyCalendarDataProvider;
-import org.elasticsearch.entitlement.qa.test.DummyImplementations.DummyCalendarNameProvider;
-import org.elasticsearch.entitlement.qa.test.DummyImplementations.DummyCollatorProvider;
-import org.elasticsearch.entitlement.qa.test.DummyImplementations.DummyCurrencyNameProvider;
-import org.elasticsearch.entitlement.qa.test.DummyImplementations.DummyDateFormatProvider;
-import org.elasticsearch.entitlement.qa.test.DummyImplementations.DummyDateFormatSymbolsProvider;
-import org.elasticsearch.entitlement.qa.test.DummyImplementations.DummyDecimalFormatSymbolsProvider;
-import org.elasticsearch.entitlement.qa.test.DummyImplementations.DummyLocaleNameProvider;
-import org.elasticsearch.entitlement.qa.test.DummyImplementations.DummyLocaleServiceProvider;
-import org.elasticsearch.entitlement.qa.test.DummyImplementations.DummyNumberFormatProvider;
-import org.elasticsearch.entitlement.qa.test.DummyImplementations.DummyTimeZoneNameProvider;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -59,6 +47,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -75,7 +64,6 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 @SuppressWarnings("unused")
 public class RestEntitlementsCheckAction extends BaseRestHandler {
     private static final Logger logger = LogManager.getLogger(RestEntitlementsCheckAction.class);
-    public static final Thread NO_OP_SHUTDOWN_HOOK = new Thread(() -> {}, "Shutdown hook for testing");
 
     record CheckAction(CheckedRunnable<Exception> action, boolean isAlwaysDeniedToPlugins, Integer fromJavaVersion) {
         /**
@@ -94,14 +82,8 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         }
     }
 
-    private static final Map<String, CheckAction> checkActions = Stream.concat(
+    private static final Map<String, CheckAction> checkActions = Stream.of(
         Stream.<Entry<String, CheckAction>>of(
-            entry("static_reflection", deniedToPlugins(RestEntitlementsCheckAction::staticMethodNeverEntitledViaReflection)),
-            entry("nonstatic_reflection", deniedToPlugins(RestEntitlementsCheckAction::nonstaticMethodNeverEntitledViaReflection)),
-            entry("constructor_reflection", deniedToPlugins(RestEntitlementsCheckAction::constructorNeverEntitledViaReflection)),
-            entry("runtime_exit", deniedToPlugins(RestEntitlementsCheckAction::runtimeExit)),
-            entry("runtime_halt", deniedToPlugins(RestEntitlementsCheckAction::runtimeHalt)),
-            entry("system_exit", deniedToPlugins(RestEntitlementsCheckAction::systemExit)),
             entry("create_classloader", forPlugins(RestEntitlementsCheckAction::createClassLoader)),
             entry("processBuilder_start", deniedToPlugins(RestEntitlementsCheckAction::processBuilder_start)),
             entry("processBuilder_startPipeline", deniedToPlugins(RestEntitlementsCheckAction::processBuilder_startPipeline)),
@@ -109,27 +91,10 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
             entry("set_default_ssl_socket_factory", alwaysDenied(RestEntitlementsCheckAction::setDefaultSSLSocketFactory)),
             entry("set_default_hostname_verifier", alwaysDenied(RestEntitlementsCheckAction::setDefaultHostnameVerifier)),
             entry("set_default_ssl_context", alwaysDenied(RestEntitlementsCheckAction::setDefaultSSLContext)),
-            entry("system_setIn", alwaysDenied(RestEntitlementsCheckAction::system$$setIn)),
-            entry("system_setOut", alwaysDenied(RestEntitlementsCheckAction::system$$setOut)),
-            entry("system_setErr", alwaysDenied(RestEntitlementsCheckAction::system$$setErr)),
-            entry("runtime_addShutdownHook", alwaysDenied(RestEntitlementsCheckAction::runtime$addShutdownHook)),
-            entry("runtime_removeShutdownHook", alwaysDenied(RestEntitlementsCheckAction::runtime$$removeShutdownHook)),
             entry(
                 "thread_setDefaultUncaughtExceptionHandler",
                 alwaysDenied(RestEntitlementsCheckAction::thread$$setDefaultUncaughtExceptionHandler)
             ),
-            entry("localeServiceProvider", alwaysDenied(RestEntitlementsCheckAction::localeServiceProvider$)),
-            entry("breakIteratorProvider", alwaysDenied(RestEntitlementsCheckAction::breakIteratorProvider$)),
-            entry("collatorProvider", alwaysDenied(RestEntitlementsCheckAction::collatorProvider$)),
-            entry("dateFormatProvider", alwaysDenied(RestEntitlementsCheckAction::dateFormatProvider$)),
-            entry("dateFormatSymbolsProvider", alwaysDenied(RestEntitlementsCheckAction::dateFormatSymbolsProvider$)),
-            entry("decimalFormatSymbolsProvider", alwaysDenied(RestEntitlementsCheckAction::decimalFormatSymbolsProvider$)),
-            entry("numberFormatProvider", alwaysDenied(RestEntitlementsCheckAction::numberFormatProvider$)),
-            entry("calendarDataProvider", alwaysDenied(RestEntitlementsCheckAction::calendarDataProvider$)),
-            entry("calendarNameProvider", alwaysDenied(RestEntitlementsCheckAction::calendarNameProvider$)),
-            entry("currencyNameProvider", alwaysDenied(RestEntitlementsCheckAction::currencyNameProvider$)),
-            entry("localeNameProvider", alwaysDenied(RestEntitlementsCheckAction::localeNameProvider$)),
-            entry("timeZoneNameProvider", alwaysDenied(RestEntitlementsCheckAction::timeZoneNameProvider$)),
             entry("logManager", alwaysDenied(RestEntitlementsCheckAction::logManager$)),
 
             entry("locale_setDefault", alwaysDenied(WritePropertiesCheckActions::setDefaultLocale)),
@@ -215,26 +180,14 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
             entry("runtime_load", forPlugins(LoadNativeLibrariesCheckActions::runtimeLoad)),
             entry("runtime_load_library", forPlugins(LoadNativeLibrariesCheckActions::runtimeLoadLibrary)),
             entry("system_load", forPlugins(LoadNativeLibrariesCheckActions::systemLoad)),
-            entry("system_load_library", forPlugins(LoadNativeLibrariesCheckActions::systemLoadLibrary)),
-            entry("enable_native_access", new CheckAction(VersionSpecificNativeChecks::enableNativeAccess, false, 22)),
-            entry("address_target_layout", new CheckAction(VersionSpecificNativeChecks::addressLayoutWithTargetLayout, false, 22)),
-            entry("donwncall_handle", new CheckAction(VersionSpecificNativeChecks::linkerDowncallHandle, false, 22)),
-            entry(
-                "donwncall_handle_with_address",
-                new CheckAction(VersionSpecificNativeChecks::linkerDowncallHandleWithAddress, false, 22)
-            ),
-            entry("upcall_stub", new CheckAction(VersionSpecificNativeChecks::linkerUpcallStub, false, 22)),
-            entry("reinterpret", new CheckAction(VersionSpecificNativeChecks::memorySegmentReinterpret, false, 22)),
-            entry("reinterpret_cleanup", new CheckAction(VersionSpecificNativeChecks::memorySegmentReinterpretWithCleanup, false, 22)),
-            entry(
-                "reinterpret_size_cleanup",
-                new CheckAction(VersionSpecificNativeChecks::memorySegmentReinterpretWithSizeAndCleanup, false, 22)
-            ),
-            entry("symbol_lookup_name", new CheckAction(VersionSpecificNativeChecks::symbolLookupWithName, false, 22)),
-            entry("symbol_lookup_path", new CheckAction(VersionSpecificNativeChecks::symbolLookupWithPath, false, 22))
+            entry("system_load_library", forPlugins(LoadNativeLibrariesCheckActions::systemLoadLibrary))
         ),
-        getTestEntries(FileCheckActions.class)
+        getTestEntries(FileCheckActions.class),
+        getTestEntries(SpiActions.class),
+        getTestEntries(SystemActions.class),
+        getTestEntries(NativeActions.class)
     )
+        .flatMap(Function.identity())
         .filter(entry -> entry.getValue().fromJavaVersion() == null || Runtime.version().feature() >= entry.getValue().fromJavaVersion())
         .collect(Collectors.toUnmodifiableMap(Entry::getKey, Entry::getValue));
 
@@ -270,7 +223,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
                     }
                 }
             };
-            boolean deniedToPlugins = testAnnotation.expectedAccess() == PLUGINS;
+            boolean deniedToPlugins = testAnnotation.expectedAccess() != PLUGINS;
             Integer fromJavaVersion = testAnnotation.fromJavaVersion() == -1 ? null : testAnnotation.fromJavaVersion();
             entries.add(entry(method.getName(), new CheckAction(runnable, deniedToPlugins, fromJavaVersion)));
         }
@@ -326,26 +279,6 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         HttpsURLConnection.setDefaultSSLSocketFactory(new DummyImplementations.DummySSLSocketFactory());
     }
 
-    @SuppressForbidden(reason = "Specifically testing Runtime.exit")
-    private static void runtimeExit() {
-        Runtime.getRuntime().exit(123);
-    }
-
-    @SuppressForbidden(reason = "Specifically testing Runtime.halt")
-    private static void runtimeHalt() {
-        Runtime.getRuntime().halt(123);
-    }
-
-    @SuppressForbidden(reason = "Specifically testing System.exit")
-    private static void systemExit() {
-        System.exit(123);
-    }
-
-    private static void staticMethodNeverEntitledViaReflection() throws Exception {
-        Method systemExit = System.class.getMethod("exit", int.class);
-        systemExit.invoke(null, 123);
-    }
-
     private static void createClassLoader() throws IOException {
         try (var classLoader = new URLClassLoader("test", new URL[0], RestEntitlementsCheckAction.class.getClassLoader())) {
             logger.info("Created URLClassLoader [{}]", classLoader.getName());
@@ -356,11 +289,6 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         new ProcessBuilder("").start();
     }
 
-    private static void nonstaticMethodNeverEntitledViaReflection() throws Exception {
-        Method processBuilderStart = ProcessBuilder.class.getMethod("start");
-        processBuilderStart.invoke(new ProcessBuilder(""));
-    }
-
     private static void processBuilder_startPipeline() throws IOException {
         ProcessBuilder.startPipeline(List.of());
     }
@@ -369,82 +297,8 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         new DummyImplementations.DummyHttpsURLConnection().setSSLSocketFactory(new DummyImplementations.DummySSLSocketFactory());
     }
 
-    private static void system$$setIn() {
-        System.setIn(System.in);
-    }
-
-    @SuppressForbidden(reason = "This should be a no-op so we don't interfere with system streams")
-    private static void system$$setOut() {
-        System.setOut(System.out);
-    }
-
-    @SuppressForbidden(reason = "This should be a no-op so we don't interfere with system streams")
-    private static void system$$setErr() {
-        System.setErr(System.err);
-    }
-
-    private static void runtime$addShutdownHook() {
-        Runtime.getRuntime().addShutdownHook(NO_OP_SHUTDOWN_HOOK);
-    }
-
-    private static void runtime$$removeShutdownHook() {
-        Runtime.getRuntime().removeShutdownHook(NO_OP_SHUTDOWN_HOOK);
-    }
-
     private static void thread$$setDefaultUncaughtExceptionHandler() {
         Thread.setDefaultUncaughtExceptionHandler(Thread.getDefaultUncaughtExceptionHandler());
-    }
-
-    private static void localeServiceProvider$() {
-        new DummyLocaleServiceProvider();
-    }
-
-    private static void constructorNeverEntitledViaReflection() throws Exception {
-        DummyLocaleServiceProvider.class.getConstructor().newInstance();
-    }
-
-    private static void breakIteratorProvider$() {
-        new DummyBreakIteratorProvider();
-    }
-
-    private static void collatorProvider$() {
-        new DummyCollatorProvider();
-    }
-
-    private static void dateFormatProvider$() {
-        new DummyDateFormatProvider();
-    }
-
-    private static void dateFormatSymbolsProvider$() {
-        new DummyDateFormatSymbolsProvider();
-    }
-
-    private static void decimalFormatSymbolsProvider$() {
-        new DummyDecimalFormatSymbolsProvider();
-    }
-
-    private static void numberFormatProvider$() {
-        new DummyNumberFormatProvider();
-    }
-
-    private static void calendarDataProvider$() {
-        new DummyCalendarDataProvider();
-    }
-
-    private static void calendarNameProvider$() {
-        new DummyCalendarNameProvider();
-    }
-
-    private static void currencyNameProvider$() {
-        new DummyCurrencyNameProvider();
-    }
-
-    private static void localeNameProvider$() {
-        new DummyLocaleNameProvider();
-    }
-
-    private static void timeZoneNameProvider$() {
-        new DummyTimeZoneNameProvider();
     }
 
     private static void logManager$() {

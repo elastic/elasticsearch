@@ -1808,7 +1808,7 @@ public final class InternalTestCluster extends TestCluster {
                     .distinct()
                     .collect(Collectors.toList());
                 Set<Path> configPaths = Stream.concat(currentNodes.stream(), newNodes.stream())
-                    .map(nac -> nac.node.getEnvironment().configFile())
+                    .map(nac -> nac.node.getEnvironment().configDir())
                     .collect(Collectors.toSet());
                 logger.debug("configuring discovery with {} at {}", discoveryFileContents, configPaths);
                 for (final Path configPath : configPaths) {
@@ -1822,7 +1822,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public Collection<Path> configPaths() {
-        return nodes.values().stream().map(nac -> nac.node.getEnvironment().configFile()).toList();
+        return nodes.values().stream().map(nac -> nac.node.getEnvironment().configDir()).toList();
     }
 
     private void stopNodesAndClient(NodeAndClient nodeAndClient) throws IOException {

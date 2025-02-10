@@ -981,4 +981,14 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitJoinPredicate(EsqlBaseParser.JoinPredicateContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#changePointCommand}.
+   * @param ctx the parse tree
+   */
+  void enterChangePointCommand(EsqlBaseParser.ChangePointCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#changePointCommand}.
+   * @param ctx the parse tree
+   */
+  void exitChangePointCommand(EsqlBaseParser.ChangePointCommandContext ctx);
 }

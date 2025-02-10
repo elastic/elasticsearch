@@ -361,9 +361,6 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/cat/health/cat-health-no-timestamp-example}
   issue: https://github.com/elastic/elasticsearch/issues/121867
-- class: org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests
-  method: testCreateAndRestorePartialSearchableSnapshot
-  issue: https://github.com/elastic/elasticsearch/issues/121927
 - class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
   method: test {yaml=analysis-common/40_token_filters/stemmer_override file access}
   issue: https://github.com/elastic/elasticsearch/issues/121625
@@ -410,6 +407,15 @@ tests:
 - class: org.elasticsearch.search.SearchCancellationIT
   method: testCancelFailedSearchWhenPartialResultDisallowed
   issue: https://github.com/elastic/elasticsearch/issues/121719
+- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
+  method: testChangePoint
+  issue: https://github.com/elastic/elasticsearch/issues/122179
+- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
+  method: testChangePoint_keySortable
+  issue: https://github.com/elastic/elasticsearch/issues/122180
+- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
+  method: testChangePoint_valueNumeric
+  issue: https://github.com/elastic/elasticsearch/issues/122181
 
 # Examples:
 #

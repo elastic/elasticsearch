@@ -400,6 +400,7 @@ public final class DateFieldMapper extends FieldMapper {
         public DateFieldMapper build(MapperBuilderContext context) {
             final String fullFieldName = context.buildFullName(leafName());
             boolean hasDocValuesSkipper = useDocValuesSkipper
+                && indexCreatedVersion.onOrAfter(IndexVersions.TIMESTAMP_DOC_VALUES_SPARSE_INDEX)
                 && hasDocValuesSkipper(docValues.getValue(), indexMode, indexSortConfig, fullFieldName);
             DateFieldType ft = new DateFieldType(
                 fullFieldName,

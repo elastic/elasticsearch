@@ -41,18 +41,17 @@ public class HdfsClassPatcher {
         try (JarFile jarFile = new JarFile(new File(jarPath))) {
             for (var patcher : patchers.entrySet()) {
                 JarEntry jarEntry = jarFile.getJarEntry(patcher.getKey());
-                if (jarEntry == null) {
-                    throw new IllegalArgumentException("path [" + patcher.getKey() + "] not found in [" + jarPath + "]");
+                if (jarEntry != null) {
+                    byte[] classToPatch = jarFile.getInputStream(jarEntry).readAllBytes();
+
+                    ClassReader classReader = new ClassReader(classToPatch);
+                    ClassWriter classWriter = new ClassWriter(classReader, 0);
+                    classReader.accept(patcher.getValue().apply(classWriter), 0);
+
+                    Path outputFile = outputDir.resolve(patcher.getKey());
+                    Files.createDirectories(outputFile.getParent());
+                    Files.write(outputFile, classWriter.toByteArray());
                 }
-                byte[] classToPatch = jarFile.getInputStream(jarEntry).readAllBytes();
-
-                ClassReader classReader = new ClassReader(classToPatch);
-                ClassWriter classWriter = new ClassWriter(classReader, 0);
-                classReader.accept(patcher.getValue().apply(classWriter), 0);
-
-                Path outputFile = outputDir.resolve(patcher.getKey());
-                Files.createDirectories(outputFile.getParent());
-                Files.write(outputFile, classWriter.toByteArray());
             }
         }
     }

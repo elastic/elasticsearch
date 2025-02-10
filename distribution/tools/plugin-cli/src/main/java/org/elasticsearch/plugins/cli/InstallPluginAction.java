@@ -38,6 +38,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
+import org.elasticsearch.jdk.RuntimeVersionFeature;
 import org.elasticsearch.plugin.scanner.ClassReaders;
 import org.elasticsearch.plugin.scanner.NamedComponentScanner;
 import org.elasticsearch.plugins.Platforms;
@@ -922,10 +923,12 @@ public class InstallPluginAction implements Closeable {
      */
     private PluginDescriptor installPlugin(InstallablePlugin descriptor, Path tmpRoot, List<Path> deleteOnFailure) throws Exception {
         final PluginDescriptor info = loadPluginInfo(tmpRoot);
-        PluginPolicyInfo pluginPolicy = PolicyUtil.getPluginPolicyInfo(tmpRoot, env.tmpDir());
-        if (pluginPolicy != null) {
-            Set<String> permissions = PluginSecurity.getPermissionDescriptions(pluginPolicy, env.tmpDir());
-            PluginSecurity.confirmPolicyExceptions(terminal, permissions, batch);
+        if (RuntimeVersionFeature.isSecurityManagerAvailable()) {
+            PluginPolicyInfo pluginPolicy = PolicyUtil.getPluginPolicyInfo(tmpRoot, env.tmpDir());
+            if (pluginPolicy != null) {
+                Set<String> permissions = PluginSecurity.getPermissionDescriptions(pluginPolicy, env.tmpDir());
+                PluginSecurity.confirmPolicyExceptions(terminal, permissions, batch);
+            }
         }
 
         // Validate that the downloaded plugin's ID matches what we expect from the descriptor. The

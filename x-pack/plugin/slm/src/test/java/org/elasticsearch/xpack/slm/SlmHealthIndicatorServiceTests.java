@@ -314,7 +314,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         );
     }
 
-    public void testIsYellowWhenPoliciesExceedsMissingSnapshotThreshold() {
+    public void testIsYellowWhenPoliciesExceedsUnhealthyIfNoSnapshotWithin() {
         long tenMinutesAgo = Instant.now().minus(10, ChronoUnit.MINUTES).toEpochMilli();
         long fiveMinutesAgo = Instant.now().minus(5, ChronoUnit.MINUTES).toEpochMilli();
 
@@ -499,7 +499,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
     public void testSnapshotPolicyMissingSnapshotTimeExceededPredicate() {
         long tenMinutesAgo = Instant.now().minus(10, ChronoUnit.MINUTES).toEpochMilli();
         long fiveMinutesAgo = Instant.now().minus(5, ChronoUnit.MINUTES).toEpochMilli();
-        // null missingSnapshotUnhealthyThreshold
+        // null unhealthyIfNoSnapshotWithin
         {
             SnapshotLifecyclePolicyMetadata slmPolicyMetadata = SnapshotLifecyclePolicyMetadata.builder()
                 .setPolicy(new SnapshotLifecyclePolicy("id", "test-policy", "", "test-repository", null, null, null))
@@ -509,7 +509,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                 .build();
             assertThat(SlmHealthIndicatorService.missingSnapshotTimeExceeded(slmPolicyMetadata), is(false));
         }
-        // does not exceed missingSnapshotUnhealthyThreshold
+        // does not exceed unhealthyIfNoSnapshotWithin
         {
             SnapshotLifecyclePolicyMetadata slmPolicyMetadata = SnapshotLifecyclePolicyMetadata.builder()
                 .setPolicy(new SnapshotLifecyclePolicy("id", "test-policy", "", "test-repository", null, null, TimeValue.MAX_VALUE))
@@ -519,7 +519,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                 .build();
             assertThat(SlmHealthIndicatorService.missingSnapshotTimeExceeded(slmPolicyMetadata), is(false));
         }
-        // exceed missingSnapshotUnhealthyThreshold
+        // exceed unhealthyIfNoSnapshotWithin
         {
             SnapshotLifecyclePolicyMetadata slmPolicyMetadata = SnapshotLifecyclePolicyMetadata.builder()
                 .setPolicy(new SnapshotLifecyclePolicy("id", "test-policy", "", "test-repository", null, null, TimeValue.ONE_MINUTE))
@@ -529,7 +529,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                 .build();
             assertThat(SlmHealthIndicatorService.missingSnapshotTimeExceeded(slmPolicyMetadata), is(true));
         }
-        // first snapshot, does not exceed missingSnapshotUnhealthyThreshold
+        // first snapshot, does not exceed unhealthyIfNoSnapshotWithin
         {
             SnapshotLifecyclePolicyMetadata slmPolicyMetadata = SnapshotLifecyclePolicyMetadata.builder()
                 .setPolicy(new SnapshotLifecyclePolicy("id", "test-policy", "", "test-repository", null, null, TimeValue.MAX_VALUE))
@@ -539,7 +539,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                 .build();
             assertThat(SlmHealthIndicatorService.missingSnapshotTimeExceeded(slmPolicyMetadata), is(false));
         }
-        // first snapshot, exceed missingSnapshotUnhealthyThreshold
+        // first snapshot, exceed unhealthyIfNoSnapshotWithin
         {
             SnapshotLifecyclePolicyMetadata slmPolicyMetadata = SnapshotLifecyclePolicyMetadata.builder()
                 .setPolicy(new SnapshotLifecyclePolicy("id", "test-policy", "", "test-repository", null, null, TimeValue.ONE_MINUTE))
@@ -606,7 +606,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         SnapshotInvocationRecord lastSuccess,
         SnapshotInvocationRecord lastFailure,
         long invocationsSinceLastSuccess,
-        TimeValue missingSnapshotUnhealthyThreshold
+        TimeValue unhealthyIfNoSnapshotWithin
     ) {
         return Map.of(
             "test-policy",
@@ -619,7 +619,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                         "test-repository",
                         null,
                         null,
-                        missingSnapshotUnhealthyThreshold
+                        unhealthyIfNoSnapshotWithin
                     )
                 )
                 .setVersion(1L)

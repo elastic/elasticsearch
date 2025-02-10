@@ -187,15 +187,15 @@ public final class SlmHealthIndicatorService implements HealthIndicatorService {
     }
 
     static boolean missingSnapshotTimeExceeded(SnapshotLifecyclePolicyMetadata policyMetadata) {
-        TimeValue missingSnapshotUnhealthyThreshold = policyMetadata.getPolicy().getMissingSnapshotUnhealthyThreshold();
-        if (missingSnapshotUnhealthyThreshold == null) {
+        TimeValue unhealthyIfNoSnapshotWithin = policyMetadata.getPolicy().getUnhealthyIfNoSnapshotWithin();
+        if (unhealthyIfNoSnapshotWithin == null) {
             return false;
         }
         Long startTime = getMissingSnapshotPeriodStartTime(policyMetadata);
         if (startTime != null) {
             // time since last successful snapshot is exceeded
             long now = Instant.now().toEpochMilli();
-            long threshold = policyMetadata.getPolicy().getMissingSnapshotUnhealthyThreshold().getMillis();
+            long threshold = policyMetadata.getPolicy().getUnhealthyIfNoSnapshotWithin().getMillis();
             return now - startTime > threshold;
         }
         return false;
@@ -338,8 +338,8 @@ public final class SlmHealthIndicatorService implements HealthIndicatorService {
             return "- ["
                 + policy.getId()
                 + "] has not had a snapshot for "
-                + (policy.getPolicy().getMissingSnapshotUnhealthyThreshold() != null
-                    ? policy.getPolicy().getMissingSnapshotUnhealthyThreshold().toHumanReadableString(2)
+                + (policy.getPolicy().getUnhealthyIfNoSnapshotWithin() != null
+                    ? policy.getPolicy().getUnhealthyIfNoSnapshotWithin().toHumanReadableString(2)
                     : "")
                 + (missingStartTime != null ? ", since [" + FORMATTER.formatMillis(missingStartTime) + "]" : "");
         }).collect(Collectors.joining("\n"));

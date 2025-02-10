@@ -227,7 +227,7 @@ public class SLMHealthBlockedSnapshotIT extends AbstractSnapshotIntegTestCase {
         String schedule,
         String repoId,
         String indexPattern,
-        TimeValue missingSnapshotUnhealthyThreshold
+        TimeValue unhealthyIfNoSnapshotWithin
     ) {
         Map<String, Object> snapConfig = new HashMap<>();
         snapConfig.put("indices", Collections.singletonList(indexPattern));
@@ -241,7 +241,7 @@ public class SLMHealthBlockedSnapshotIT extends AbstractSnapshotIntegTestCase {
             repoId,
             snapConfig,
             SnapshotRetentionConfiguration.EMPTY,
-            missingSnapshotUnhealthyThreshold
+            unhealthyIfNoSnapshotWithin
         );
 
         PutSnapshotLifecycleAction.Request putLifecycle = new PutSnapshotLifecycleAction.Request(

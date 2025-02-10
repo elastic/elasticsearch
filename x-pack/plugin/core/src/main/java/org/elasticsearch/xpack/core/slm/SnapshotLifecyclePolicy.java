@@ -54,14 +54,14 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
     private final Map<String, Object> configuration;
     private final SnapshotRetentionConfiguration retentionPolicy;
     private final boolean isCronSchedule;
-    private final TimeValue missingSnapshotUnhealthyThreshold;
+    private final TimeValue unhealthyIfNoSnapshotWithin;
 
     private static final ParseField NAME = new ParseField("name");
     private static final ParseField SCHEDULE = new ParseField("schedule");
     private static final ParseField REPOSITORY = new ParseField("repository");
     private static final ParseField CONFIG = new ParseField("config");
     private static final ParseField RETENTION = new ParseField("retention");
-    private static final ParseField MISSING_SNAPSHOT_UNHEALTHY_THRESHOLD = new ParseField("missing_snapshot_unhealthy_threshold");
+    private static final ParseField UNHEALTHY_IF_NO_SNAPSHOT_WITHIN = new ParseField("unhealthy_if_no_snapshot_within");
     private static final String METADATA_FIELD_NAME = "metadata";
 
     @SuppressWarnings("unchecked")
@@ -74,8 +74,8 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
             String repo = (String) a[2];
             Map<String, Object> config = (Map<String, Object>) a[3];
             SnapshotRetentionConfiguration retention = (SnapshotRetentionConfiguration) a[4];
-            TimeValue missingSnapshotUnhealthyThreshold = (TimeValue) a[5];
-            return new SnapshotLifecyclePolicy(id, name, schedule, repo, config, retention, missingSnapshotUnhealthyThreshold);
+            TimeValue unhealthyIfNoSnapshotWithin = (TimeValue) a[5];
+            return new SnapshotLifecyclePolicy(id, name, schedule, repo, config, retention, unhealthyIfNoSnapshotWithin);
         }
     );
 
@@ -87,8 +87,8 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), SnapshotRetentionConfiguration::parse, RETENTION);
         PARSER.declareField(
             ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> TimeValue.parseTimeValue(p.text(), MISSING_SNAPSHOT_UNHEALTHY_THRESHOLD.getPreferredName()),
-            MISSING_SNAPSHOT_UNHEALTHY_THRESHOLD,
+            (p, c) -> TimeValue.parseTimeValue(p.text(), UNHEALTHY_IF_NO_SNAPSHOT_WITHIN.getPreferredName()),
+            UNHEALTHY_IF_NO_SNAPSHOT_WITHIN,
             ObjectParser.ValueType.STRING
         );
     }
@@ -111,7 +111,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         final String repository,
         @Nullable final Map<String, Object> configuration,
         @Nullable final SnapshotRetentionConfiguration retentionPolicy,
-        @Nullable final TimeValue missingSnapshotUnhealthyThreshold
+        @Nullable final TimeValue unhealthyIfNoSnapshotWithin
     ) {
         this.id = Objects.requireNonNull(id, "policy id is required");
         this.name = Objects.requireNonNull(name, "policy snapshot name is required");
@@ -119,7 +119,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         this.repository = Objects.requireNonNull(repository, "policy snapshot repository is required");
         this.configuration = configuration;
         this.retentionPolicy = retentionPolicy;
-        this.missingSnapshotUnhealthyThreshold = missingSnapshotUnhealthyThreshold;
+        this.unhealthyIfNoSnapshotWithin = unhealthyIfNoSnapshotWithin;
         this.isCronSchedule = isCronSchedule(schedule);
     }
 
@@ -130,8 +130,8 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         this.repository = in.readString();
         this.configuration = in.readGenericMap();
         this.retentionPolicy = in.readOptionalWriteable(SnapshotRetentionConfiguration::new);
-        this.missingSnapshotUnhealthyThreshold = in.getTransportVersion()
-            .onOrAfter(TransportVersions.SLM_MISSING_SNAPSHOT_UNHEALTHY_THRESHOLD) ? in.readOptionalTimeValue() : null;
+        this.unhealthyIfNoSnapshotWithin = in.getTransportVersion()
+            .onOrAfter(TransportVersions.SLM_UNHEALTHY_IF_NO_SNAPSHOT_WITHIN) ? in.readOptionalTimeValue() : null;
         this.isCronSchedule = isCronSchedule(schedule);
     }
 
@@ -162,8 +162,8 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
     }
 
     @Nullable
-    public TimeValue getMissingSnapshotUnhealthyThreshold() {
-        return this.missingSnapshotUnhealthyThreshold;
+    public TimeValue getUnhealthyIfNoSnapshotWithin() {
+        return this.unhealthyIfNoSnapshotWithin;
     }
 
     boolean isCronSchedule() {
@@ -267,7 +267,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
 
         // Schedule validation
         // n.b. there's more validation beyond this in SnapshotLifecycleService#validateMinimumInterval
-        boolean canValidateMissingSnapshotUnhealthyThreshold = false;    // true if schedule is syntactically valid
+        boolean canValidateUnhealthyIfNoSnapshotWithin = false;    // true if schedule is syntactically valid
         if (Strings.hasText(schedule) == false) {
             err.addValidationError("invalid schedule [" + schedule + "]: must not be empty");
         } else {
@@ -276,25 +276,25 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
                 if (intervalTimeValue.millis() == 0) {
                     err.addValidationError("invalid schedule [" + schedule + "]: time unit must be at least 1 millisecond");
                 }
-                canValidateMissingSnapshotUnhealthyThreshold = true;
+                canValidateUnhealthyIfNoSnapshotWithin = true;
             } catch (IllegalArgumentException e1) {
                 if (isCronSchedule(schedule) == false) {
                     err.addValidationError("invalid schedule [" + schedule + "]: must be a valid cron expression or time unit");
                 } else {
-                    canValidateMissingSnapshotUnhealthyThreshold = true;
+                    canValidateUnhealthyIfNoSnapshotWithin = true;
                 }
             }
         }
 
-        // validate missingSnapshotUnhealthyThreshold if schedule is syntactically valid
-        if (canValidateMissingSnapshotUnhealthyThreshold) {
+        // validate unhealthyIfNoSnapshotWithin if schedule is syntactically valid
+        if (canValidateUnhealthyIfNoSnapshotWithin) {
             TimeValue snapshotInterval = calculateNextInterval(Clock.systemUTC());
-            if (missingSnapshotUnhealthyThreshold != null
+            if (unhealthyIfNoSnapshotWithin != null
                 && snapshotInterval.duration() > 0
-                && missingSnapshotUnhealthyThreshold.compareTo(snapshotInterval) < 0) {
+                && unhealthyIfNoSnapshotWithin.compareTo(snapshotInterval) < 0) {
                 err.addValidationError(
-                    "invalid missingSnapshotUnhealthyThreshold ["
-                        + missingSnapshotUnhealthyThreshold.getStringRep()
+                    "invalid unhealthyIfNoSnapshotWithin ["
+                        + unhealthyIfNoSnapshotWithin.getStringRep()
                         + "]: "
                         + "time is too short, expecting at least more than the interval between snapshots ["
                         + snapshotInterval.toHumanReadableString(2)
@@ -393,8 +393,8 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         out.writeString(this.repository);
         out.writeGenericMap(this.configuration);
         out.writeOptionalWriteable(this.retentionPolicy);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SLM_MISSING_SNAPSHOT_UNHEALTHY_THRESHOLD)) {
-            out.writeOptionalTimeValue(this.missingSnapshotUnhealthyThreshold);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SLM_UNHEALTHY_IF_NO_SNAPSHOT_WITHIN)) {
+            out.writeOptionalTimeValue(this.unhealthyIfNoSnapshotWithin);
         }
     }
 
@@ -410,8 +410,8 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         if (this.retentionPolicy != null) {
             builder.field(RETENTION.getPreferredName(), this.retentionPolicy);
         }
-        if (this.missingSnapshotUnhealthyThreshold != null) {
-            builder.field(MISSING_SNAPSHOT_UNHEALTHY_THRESHOLD.getPreferredName(), this.missingSnapshotUnhealthyThreshold);
+        if (this.unhealthyIfNoSnapshotWithin != null) {
+            builder.field(UNHEALTHY_IF_NO_SNAPSHOT_WITHIN.getPreferredName(), this.unhealthyIfNoSnapshotWithin);
         }
         builder.endObject();
         return builder;
@@ -419,7 +419,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, name, schedule, repository, configuration, retentionPolicy, missingSnapshotUnhealthyThreshold);
+        return Objects.hash(id, name, schedule, repository, configuration, retentionPolicy, unhealthyIfNoSnapshotWithin);
     }
 
     @Override
@@ -438,7 +438,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
             && Objects.equals(repository, other.repository)
             && Objects.equals(configuration, other.configuration)
             && Objects.equals(retentionPolicy, other.retentionPolicy)
-            && Objects.equals(missingSnapshotUnhealthyThreshold, other.missingSnapshotUnhealthyThreshold);
+            && Objects.equals(unhealthyIfNoSnapshotWithin, other.unhealthyIfNoSnapshotWithin);
     }
 
     @Override

@@ -309,7 +309,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                 "repo",
                 Collections.emptyMap(),
                 SnapshotRetentionConfiguration.EMPTY,
-                TimeValue.parseTimeValue("1h", "missingSnapshotUnhealthyThreshold")
+                TimeValue.parseTimeValue("1h", "unhealthyIfNoSnapshotWithin")
             );
             ValidationException e = policy.validate();
             assertThat(e, nullValue());
@@ -344,7 +344,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
             assertThat(
                 e.validationErrors(),
                 containsInAnyOrder(
-                    "invalid missingSnapshotUnhealthyThreshold [1m]: time is too short, "
+                    "invalid unhealthyIfNoSnapshotWithin [1m]: time is too short, "
                         + "expecting at least more than the interval between snapshots [15m] for schedule [15m]"
                 )
             );
@@ -357,7 +357,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                 "repo",
                 Collections.emptyMap(),
                 SnapshotRetentionConfiguration.EMPTY,
-                TimeValue.parseTimeValue("2d", "missingSnapshotUnhealthyThreshold")
+                TimeValue.parseTimeValue("2d", "unhealthyIfNoSnapshotWithin")
             );
 
             ValidationException e = policy.validate();
@@ -378,7 +378,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
             assertThat(
                 e.validationErrors(),
                 containsInAnyOrder(
-                    "invalid missingSnapshotUnhealthyThreshold [1m]: time is too short, "
+                    "invalid unhealthyIfNoSnapshotWithin [1m]: time is too short, "
                         + "expecting at least more than the interval between snapshots [1d] for schedule [0 0 1 * * ?]"
                 )
             );
@@ -484,7 +484,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                     instance.getRepository(),
                     instance.getConfig(),
                     instance.getRetentionPolicy(),
-                    instance.getMissingSnapshotUnhealthyThreshold()
+                    instance.getUnhealthyIfNoSnapshotWithin()
                 );
             case 1:
                 return new SnapshotLifecyclePolicy(
@@ -494,7 +494,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                     instance.getRepository(),
                     instance.getConfig(),
                     instance.getRetentionPolicy(),
-                    instance.getMissingSnapshotUnhealthyThreshold()
+                    instance.getUnhealthyIfNoSnapshotWithin()
                 );
             case 2:
                 return new SnapshotLifecyclePolicy(
@@ -504,7 +504,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                     instance.getRepository(),
                     instance.getConfig(),
                     instance.getRetentionPolicy(),
-                    instance.getMissingSnapshotUnhealthyThreshold()
+                    instance.getUnhealthyIfNoSnapshotWithin()
                 );
             case 3:
                 return new SnapshotLifecyclePolicy(
@@ -514,7 +514,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                     instance.getRepository() + randomAlphaOfLength(2),
                     instance.getConfig(),
                     instance.getRetentionPolicy(),
-                    instance.getMissingSnapshotUnhealthyThreshold()
+                    instance.getUnhealthyIfNoSnapshotWithin()
                 );
             case 4:
                 Map<String, Object> newConfig = new HashMap<>();
@@ -528,7 +528,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                     instance.getRepository(),
                     newConfig,
                     instance.getRetentionPolicy(),
-                    instance.getMissingSnapshotUnhealthyThreshold()
+                    instance.getUnhealthyIfNoSnapshotWithin()
                 );
             case 5:
                 return new SnapshotLifecyclePolicy(
@@ -538,7 +538,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                     instance.getRepository(),
                     instance.getConfig(),
                     randomValueOtherThan(instance.getRetentionPolicy(), SnapshotLifecyclePolicyMetadataTests::randomRetention),
-                    instance.getMissingSnapshotUnhealthyThreshold()
+                    instance.getUnhealthyIfNoSnapshotWithin()
                 );
             case 6:
                 return new SnapshotLifecyclePolicy(
@@ -548,7 +548,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                     instance.getRepository(),
                     instance.getConfig(),
                     instance.getRetentionPolicy(),
-                    randomValueOtherThan(instance.getMissingSnapshotUnhealthyThreshold(), ESTestCase::randomTimeValue)
+                    randomValueOtherThan(instance.getUnhealthyIfNoSnapshotWithin(), ESTestCase::randomTimeValue)
                 );
             default:
                 throw new AssertionError("failure, got illegal switch case");

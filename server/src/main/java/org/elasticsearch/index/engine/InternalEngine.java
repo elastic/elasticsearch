@@ -79,6 +79,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
+import org.elasticsearch.index.codec.TrackingInMemoryPostingsBytesCodec;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -2734,7 +2735,7 @@ public class InternalEngine extends Engine {
         iwc.setMaxFullFlushMergeWaitMillis(-1);
         iwc.setSimilarity(engineConfig.getSimilarity());
         iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().getMbFrac());
-        iwc.setCodec(engineConfig.getCodec());
+        iwc.setCodec(new TrackingInMemoryPostingsBytesCodec(engineConfig.getCodec()));
         boolean useCompoundFile = engineConfig.getUseCompoundFile();
         iwc.setUseCompoundFile(useCompoundFile);
         if (useCompoundFile == false) {

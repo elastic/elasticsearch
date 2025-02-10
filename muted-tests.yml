@@ -409,6 +409,9 @@ tests:
 - class: org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests
   method: testDuplicateDownsampleRequest
   issue: https://github.com/elastic/elasticsearch/issues/122158
+- class: org.elasticsearch.search.SearchCancellationIT
+  method: testCancelFailedSearchWhenPartialResultDisallowed
+  issue: https://github.com/elastic/elasticsearch/issues/121719
 
 # Examples:
 #

@@ -32,6 +32,9 @@ import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.Rule;
+import org.junit.rules.ExternalResource;
+import org.junit.rules.TestRule;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -44,7 +47,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ShardSnapshotTaskRunnerTests extends ESTestCase {
 
-    private static List<Store> dummyStores;
+    @Rule
+    public DummyContextFactory dummyContextFactory = new DummyContextFactory();
     private ThreadPool threadPool;
     private Executor executor;
 
@@ -53,16 +57,12 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
         super.setUp();
         threadPool = new TestThreadPool("test");
         executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
-        dummyStores = new ArrayList<>();
     }
 
     @Override
     public void tearDown() throws Exception {
         super.tearDown();
         TestThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
-        // Don't trigger leak detection
-        dummyStores.forEach(Store::close);
-        dummyStores.clear();
     }
 
     private static class MockedRepo {
@@ -114,35 +114,49 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
         return new BlobStoreIndexShardSnapshot.FileInfo(filename, metadata, null);
     }
 
-    public static SnapshotShardContext dummyContext() {
-        return dummyContext(new SnapshotId(randomAlphaOfLength(10), UUIDs.randomBase64UUID()), randomMillisUpToYear9999());
-    }
+    /**
+     * Creates {@link SnapshotShardContext}s, managing the lifecycle appropriately to avoid leak detection
+     */
+    public static class DummyContextFactory extends ExternalResource implements TestRule {
 
-    public static SnapshotShardContext dummyContext(final SnapshotId snapshotId, final long startTime) {
-        return dummyContext(snapshotId, startTime, randomIdentifier(), 1);
-    }
+        private final List<Store> dummyStores = new ArrayList<>();
 
-    public static SnapshotShardContext dummyContext(final SnapshotId snapshotId, final long startTime, String indexName, int shardIndex) {
-        final var indexId = new IndexId(indexName, UUIDs.randomBase64UUID());
-        final var shardId = new ShardId(indexId.getName(), UUIDs.randomBase64UUID(), shardIndex);
-        final var indexSettings = new IndexSettings(
-            IndexMetadata.builder(indexId.getName()).settings(indexSettings(IndexVersion.current(), 1, 0)).build(),
-            Settings.EMPTY
-        );
-        final var dummyStore = new Store(shardId, indexSettings, new ByteBuffersDirectory(), new DummyShardLock(shardId));
-        dummyStores.add(dummyStore);
-        return new SnapshotShardContext(
-            dummyStore,
-            null,
-            snapshotId,
-            indexId,
-            new SnapshotIndexCommit(new Engine.IndexCommitRef(null, () -> {})),
-            null,
-            IndexShardSnapshotStatus.newInitializing(null),
-            IndexVersion.current(),
-            startTime,
-            ActionListener.noop()
-        );
+        public SnapshotShardContext dummyContext() {
+            return dummyContext(new SnapshotId(randomAlphaOfLength(10), UUIDs.randomBase64UUID()), randomMillisUpToYear9999());
+        }
+
+        public SnapshotShardContext dummyContext(final SnapshotId snapshotId, final long startTime) {
+            return dummyContext(snapshotId, startTime, randomIdentifier(), 1);
+        }
+
+        public SnapshotShardContext dummyContext(final SnapshotId snapshotId, final long startTime, String indexName, int shardIndex) {
+            final var indexId = new IndexId(indexName, UUIDs.randomBase64UUID());
+            final var shardId = new ShardId(indexId.getName(), UUIDs.randomBase64UUID(), shardIndex);
+            final var indexSettings = new IndexSettings(
+                IndexMetadata.builder(indexId.getName()).settings(indexSettings(IndexVersion.current(), 1, 0)).build(),
+                Settings.EMPTY
+            );
+            final var dummyStore = new Store(shardId, indexSettings, new ByteBuffersDirectory(), new DummyShardLock(shardId));
+            dummyStores.add(dummyStore);
+            return new SnapshotShardContext(
+                dummyStore,
+                null,
+                snapshotId,
+                indexId,
+                new SnapshotIndexCommit(new Engine.IndexCommitRef(null, () -> {})),
+                null,
+                IndexShardSnapshotStatus.newInitializing(null),
+                IndexVersion.current(),
+                startTime,
+                ActionListener.noop()
+            );
+        }
+
+        @Override
+        public void after() {
+            dummyStores.forEach(Store::close);
+            dummyStores.clear();
+        }
     }
 
     public void testShardSnapshotTaskRunner() throws Exception {
@@ -152,7 +166,7 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
         repo.setTaskRunner(taskRunner);
         int enqueuedSnapshots = randomIntBetween(maxTasks * 2, maxTasks * 10);
         for (int i = 0; i < enqueuedSnapshots; i++) {
-            threadPool.generic().execute(() -> taskRunner.enqueueShardSnapshot(dummyContext()));
+            threadPool.generic().execute(() -> taskRunner.enqueueShardSnapshot(dummyContextFactory.dummyContext()));
         }
         // Eventually all snapshots are finished
         assertBusy(() -> {
@@ -176,13 +190,13 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
 
         // first snapshot, one shard, one file, but should execute the shard-level task before the file task
         final var earlyStartTime = randomLongBetween(1L, Long.MAX_VALUE - 1000);
-        final var s1Context = dummyContext(new SnapshotId(randomIdentifier(), randomUUID()), earlyStartTime);
+        final var s1Context = dummyContextFactory.dummyContext(new SnapshotId(randomIdentifier(), randomUUID()), earlyStartTime);
         tasksInExpectedOrder.add(new CapturedTask(s1Context));
         tasksInExpectedOrder.add(new CapturedTask(s1Context, dummyFileInfo()));
 
         // second snapshot, also one shard and one file, starts later than the first
         final var laterStartTime = randomLongBetween(earlyStartTime + 1, Long.MAX_VALUE);
-        final var s2Context = dummyContext(new SnapshotId(randomIdentifier(), "early-uuid"), laterStartTime);
+        final var s2Context = dummyContextFactory.dummyContext(new SnapshotId(randomIdentifier(), "early-uuid"), laterStartTime);
         tasksInExpectedOrder.add(new CapturedTask(s2Context));
         tasksInExpectedOrder.add(new CapturedTask(s2Context, dummyFileInfo()));
 
@@ -190,9 +204,9 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
         final var snapshotId3 = new SnapshotId(randomIdentifier(), "later-uuid");
 
         // the third snapshot has three shards, and their respective tasks should execute in shard-id then index-name order:
-        final var s3ContextShard1 = dummyContext(snapshotId3, laterStartTime, "early-index-name", 0);
-        final var s3ContextShard2 = dummyContext(snapshotId3, laterStartTime, "later-index-name", 0);
-        final var s3ContextShard3 = dummyContext(snapshotId3, laterStartTime, randomIdentifier(), 1);
+        final var s3ContextShard1 = dummyContextFactory.dummyContext(snapshotId3, laterStartTime, "early-index-name", 0);
+        final var s3ContextShard2 = dummyContextFactory.dummyContext(snapshotId3, laterStartTime, "later-index-name", 0);
+        final var s3ContextShard3 = dummyContextFactory.dummyContext(snapshotId3, laterStartTime, randomIdentifier(), 1);
 
         tasksInExpectedOrder.add(new CapturedTask(s3ContextShard1));
         tasksInExpectedOrder.add(new CapturedTask(s3ContextShard2));
@@ -219,7 +233,9 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
 
         // prime the pipeline by executing a dummy task and waiting for it to block the executor, so that the rest of the tasks are sorted
         // by the underlying PriorityQueue before any of them start to execute
-        runner.enqueueShardSnapshot(dummyContext(new SnapshotId(randomIdentifier(), UUIDs.randomBase64UUID()), randomNonNegativeLong()));
+        runner.enqueueShardSnapshot(
+            dummyContextFactory.dummyContext(new SnapshotId(randomIdentifier(), UUIDs.randomBase64UUID()), randomNonNegativeLong())
+        );
         safeAwait(readyLatch);
         tasksInExecutionOrder.clear(); // remove the dummy task
 

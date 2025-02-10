@@ -12,12 +12,12 @@ event_duration:long | message:keyword
 first_grouped
 required_capability: fn_first_last
 FROM sample_data
-| STATS event_duration = first_value(event_duration), message = first_value(message) BY @timestamp = BUCKET(@timestamp, 1 hour) 
-| SORT @timestamp
-| KEEP @timestamp, event_duration, message
+| STATS event_duration = first_value(event_duration), message = first_value(message) BY hourly = BUCKET(@timestamp, 1 hour) 
+| SORT hourly
+| KEEP hourly, event_duration, message
 ;
 
-@timestamp:date          | event_duration:long | message:keyword
+hourly:date              | event_duration:long | message:keyword
 2023-10-23T12:00:00.000Z | 3450233             | Connected to 10.1.0.3
 2023-10-23T13:00:00.000Z | 1232382             | Disconnected
 ;
@@ -26,12 +26,12 @@ FROM sample_data
 first_grouped_long
 required_capability: fn_first_last
 FROM sample_data
-| STATS event_duration = first_value(event_duration) BY @timestamp = BUCKET(@timestamp, 1 hour) 
-| SORT @timestamp
-| KEEP @timestamp, event_duration
+| STATS event_duration = first_value(event_duration) BY hourly = BUCKET(@timestamp, 1 hour) 
+| SORT hourly
+| KEEP hourly, event_duration
 ;
 
-@timestamp:date          | event_duration:long
+hourly:date              | event_duration:long
 2023-10-23T12:00:00.000Z | 3450233            
 2023-10-23T13:00:00.000Z | 1232382            
 ;

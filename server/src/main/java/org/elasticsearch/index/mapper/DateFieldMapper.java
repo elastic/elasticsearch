@@ -483,6 +483,33 @@ public final class DateFieldMapper extends FieldMapper {
             boolean pointsMetadataAvailable,
             boolean isStored,
             boolean hasDocValues,
+            DateFormatter dateTimeFormatter,
+            Resolution resolution,
+            String nullValue,
+            FieldValues<Long> scriptValues,
+            Map<String, String> meta
+        ) {
+            this(
+                name,
+                isIndexed,
+                pointsMetadataAvailable,
+                isStored,
+                hasDocValues,
+                false,
+                dateTimeFormatter,
+                resolution,
+                nullValue,
+                scriptValues,
+                meta
+            );
+        }
+
+        public DateFieldType(
+            String name,
+            boolean isIndexed,
+            boolean pointsMetadataAvailable,
+            boolean isStored,
+            boolean hasDocValues,
             boolean hasDocValuesSkipper,
             DateFormatter dateTimeFormatter,
             Resolution resolution,

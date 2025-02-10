@@ -214,14 +214,9 @@ public class EsqlSession {
         physicalPlan = physicalPlan.transformUp(PhysicalPlan.class, p -> {
             if (p instanceof FragmentExec f) {
                 f.fragment().forEachUp(LogicalPlan.class, bp -> {
-                    LogicalPlan subplan = null;
                     if (bp instanceof InlineJoin ij) {
                         // extract the right side of the plan and replace its source
-                        subplan = InlineJoin.replaceStub(ij.left(), ij.right());
-                    } else if (bp instanceof Merge mr) {
-                        // subplan = mr.right(); TODO
-                    }
-                    if (subplan != null) {
+                        LogicalPlan subplan = InlineJoin.replaceStub(ij.left(), ij.right());
                         // mark the new root node as optimized
                         subplan.setOptimized();
                         PhysicalPlan subqueryPlan = logicalPlanToPhysicalPlan(subplan, request);

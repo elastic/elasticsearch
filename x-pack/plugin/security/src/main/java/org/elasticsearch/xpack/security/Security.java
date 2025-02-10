@@ -65,7 +65,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.http.HttpPreRequest;
@@ -754,7 +753,6 @@ public class Security extends Plugin
                 services.scriptService(),
                 services.xContentRegistry(),
                 services.environment(),
-                services.nodeEnvironment().nodeMetadata(),
                 services.indexNameExpressionResolver(),
                 services.telemetryProvider(),
                 new PersistentTasksService(services.clusterService(), services.threadPool(), services.client())
@@ -774,7 +772,6 @@ public class Security extends Plugin
         ScriptService scriptService,
         NamedXContentRegistry xContentRegistry,
         Environment environment,
-        NodeMetadata nodeMetadata,
         IndexNameExpressionResolver expressionResolver,
         TelemetryProvider telemetryProvider,
         PersistentTasksService persistentTasksService
@@ -980,7 +977,6 @@ public class Security extends Plugin
             getLicenseState(),
             systemIndices.getMainIndexManager(),
             clusterService,
-            featureService,
             reservedRoleNameChecker,
             xContentRegistry
         );

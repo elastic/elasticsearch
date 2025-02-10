@@ -55,9 +55,8 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
      * @param rerankedScores {@code true} if the document scores have been reranked
      */
     protected RankFeatureDoc[] preprocess(RankFeatureDoc[] originalDocs, boolean rerankedScores) {
-        RankFeatureDoc[] sorted = originalDocs.clone();
-        Arrays.sort(sorted, Comparator.comparing((RankFeatureDoc doc) -> doc.score).reversed());
-        return sorted;
+        Arrays.sort(originalDocs, Comparator.comparing((RankFeatureDoc doc) -> doc.score).reversed());
+        return originalDocs;
     }
 
     /**

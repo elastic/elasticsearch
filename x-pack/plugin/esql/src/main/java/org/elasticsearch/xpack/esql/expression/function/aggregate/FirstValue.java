@@ -31,7 +31,7 @@ import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 
@@ -39,7 +39,7 @@ public class FirstValue extends AggregateFunction implements OptionalArgument, T
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "First", FirstValue::new);
 
-    private static final Map<DataType, Function<List<Integer>, AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
+    private static final Map<DataType, Supplier<AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
         Map.entry(DataType.LONG, FirstValueLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.KEYWORD, FirstValueBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.TEXT, FirstValueBytesRefAggregatorFunctionSupplier::new),
@@ -110,14 +110,14 @@ public class FirstValue extends AggregateFunction implements OptionalArgument, T
     }
 
     @Override
-    public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
+    public AggregatorFunctionSupplier supplier() {
         var type = field().dataType();
         var supplier = SUPPLIERS.get(type);
         if (supplier == null) {
             // If the type checking did its job, this should never happen
             throw EsqlIllegalArgumentException.illegalDataType(type);
         }
-        return supplier.apply(inputChannels);
+        return supplier.get();
     }
 
     public Expression by() {

@@ -11,6 +11,7 @@ package org.elasticsearch.action.get;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -154,7 +155,9 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         final ClusterState clusterState = clusterService.state();
         if (clusterState.metadata().index(shardId.getIndex()).isSystem()) {
             return threadPool.executor(executorSelector.executorForGet(shardId.getIndexName()));
-        } else if (indicesService.indexServiceSafe(shardId.getIndex()).getIndexSettings().isSearchThrottled()) {
+        }
+        var indexService = indicesService.indexService(shardId.getIndex());
+        if (indexService != null && indexService.getIndexSettings().isSearchThrottled()) {
             return threadPool.executor(ThreadPool.Names.SEARCH_THROTTLED);
         } else {
             return super.getExecutor(request, shardId);
@@ -211,7 +214,9 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         final var retryingListener = listener.delegateResponse((l, e) -> {
             final var cause = ExceptionsHelper.unwrapCause(e);
             logger.debug("mget_from_translog[shard] failed", cause);
-            if (cause instanceof ShardNotFoundException || cause instanceof IndexNotFoundException) {
+            if (cause instanceof ShardNotFoundException
+                || cause instanceof IndexNotFoundException
+                || cause instanceof AlreadyClosedException) {
                 logger.debug("retrying mget_from_translog[shard]");
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override

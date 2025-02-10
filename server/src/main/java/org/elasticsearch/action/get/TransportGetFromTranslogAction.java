@@ -27,6 +27,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -81,7 +82,11 @@ public class TransportGetFromTranslogAction extends HandledTransportAction<
                 if (engine == null) {
                     throw new AlreadyClosedException("engine closed");
                 }
-                segmentGeneration = ((InternalEngine) engine).getLastUnsafeSegmentGenerationForGets();
+                if (engine instanceof InternalEngine internalEngine) {
+                    segmentGeneration = internalEngine.getLastUnsafeSegmentGenerationForGets();
+                } else if (engine instanceof ReadOnlyEngine readOnlyEngine) {
+                    segmentGeneration = readOnlyEngine.getLastUnsafeSegmentGenerationForGets();
+                }
             }
             return new Response(result, indexShard.getOperationPrimaryTerm(), segmentGeneration);
         });

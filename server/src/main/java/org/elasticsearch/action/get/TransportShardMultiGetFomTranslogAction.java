@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -102,7 +103,11 @@ public class TransportShardMultiGetFomTranslogAction extends HandledTransportAct
                 if (engine == null) {
                     throw new AlreadyClosedException("engine closed");
                 }
-                segmentGeneration = ((InternalEngine) engine).getLastUnsafeSegmentGenerationForGets();
+                if (engine instanceof InternalEngine internalEngine) {
+                    segmentGeneration = internalEngine.getLastUnsafeSegmentGenerationForGets();
+                } else if (engine instanceof ReadOnlyEngine readOnlyEngine) {
+                    segmentGeneration = readOnlyEngine.getLastUnsafeSegmentGenerationForGets();
+                }
             }
             return new Response(multiGetShardResponse, indexShard.getOperationPrimaryTerm(), segmentGeneration);
         });

@@ -94,6 +94,7 @@ public class IndexMetadataTests extends ESTestCase {
         Double indexWriteLoadForecast = randomBoolean() ? randomDoubleBetween(0.0, 128, true) : null;
         Long shardSizeInBytesForecast = randomBoolean() ? randomLongBetween(1024, 10240) : null;
         Map<String, InferenceFieldMetadata> inferenceFields = randomInferenceFields();
+        IndexReshardingMetadata reshardingMetadata = randomBoolean() ? randomIndexReshardingMetadata(numShard) : null;
 
         IndexMetadata metadata = IndexMetadata.builder("foo")
             .settings(indexSettings(numShard, numberOfReplicas).put("index.version.created", 1))
@@ -129,6 +130,7 @@ public class IndexMetadataTests extends ESTestCase {
                     IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(5000000, 5500000))
                 )
             )
+            .reshardingMetadata(reshardingMetadata)
             .build();
         assertEquals(system, metadata.isSystem());
 
@@ -705,5 +707,15 @@ public class IndexMetadataTests extends ESTestCase {
             indexWriteLoadBuilder.withShardWriteLoad(i, randomDoubleBetween(0.0, 128.0, true), randomNonNegativeLong());
         }
         return new IndexMetadataStats(indexWriteLoadBuilder.build(), randomLongBetween(100, 1024), randomIntBetween(1, 2));
+    }
+
+    private IndexReshardingMetadata randomIndexReshardingMetadata(int oldShards) {
+        final int newShards = randomIntBetween(2, 5) * oldShards;
+        final var targetReshardingStates = new IndexReshardingMetadata.ShardReshardingState[newShards - oldShards];
+        for (int i = 0; i < targetReshardingStates.length; i++) {
+            targetReshardingStates[i] = randomFrom(IndexReshardingMetadata.ShardReshardingState.values());
+        }
+
+        return new IndexReshardingMetadata(oldShards, newShards, targetReshardingStates);
     }
 }

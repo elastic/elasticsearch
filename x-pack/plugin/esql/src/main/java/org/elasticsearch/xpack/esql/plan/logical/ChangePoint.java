@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -41,21 +40,14 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  */
 public class ChangePoint extends UnaryPlan implements SurrogateLogicalPlan, PostAnalysisVerificationAware {
 
-    private final NamedExpression value;
-    private final NamedExpression key;
+    private final Attribute value;
+    private final Attribute key;
     private final Attribute targetType;
     private final Attribute targetPvalue;
 
     private List<Attribute> output;
 
-    public ChangePoint(
-        Source source,
-        LogicalPlan child,
-        NamedExpression value,
-        NamedExpression key,
-        Attribute targetType,
-        Attribute targetPvalue
-    ) {
+    public ChangePoint(Source source, LogicalPlan child, Attribute value, Attribute key, Attribute targetType, Attribute targetPvalue) {
         super(source, child);
         this.value = value;
         this.key = key;
@@ -91,11 +83,11 @@ public class ChangePoint extends UnaryPlan implements SurrogateLogicalPlan, Post
         return output;
     }
 
-    public NamedExpression value() {
+    public Attribute value() {
         return value;
     }
 
-    public NamedExpression key() {
+    public Attribute key() {
         return key;
     }
 

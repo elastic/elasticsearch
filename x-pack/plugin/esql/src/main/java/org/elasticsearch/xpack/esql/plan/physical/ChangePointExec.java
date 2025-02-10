@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
@@ -21,8 +20,8 @@ import java.util.Objects;
 
 public class ChangePointExec extends UnaryExec {
 
-    private final NamedExpression value;
-    private final NamedExpression key;
+    private final Attribute value;
+    private final Attribute key;
     private final Attribute targetType;
     private final Attribute targetPvalue;
 
@@ -31,8 +30,8 @@ public class ChangePointExec extends UnaryExec {
     public ChangePointExec(
         Source source,
         PhysicalPlan child,
-        NamedExpression value,
-        NamedExpression key,
+        Attribute value,
+        Attribute key,
         Attribute targetType,
         Attribute targetPvalue
     ) {
@@ -76,11 +75,11 @@ public class ChangePointExec extends UnaryExec {
         return output;
     }
 
-    public NamedExpression value() {
+    public Attribute value() {
         return value;
     }
 
-    public NamedExpression key() {
+    public Attribute key() {
         return key;
     }
 

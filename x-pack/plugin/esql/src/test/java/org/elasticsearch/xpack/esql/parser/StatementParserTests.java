@@ -3041,5 +3041,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "FROM foo* | FORK [WHERE x>1 |EVAL x = 1] [WHERE x>1]",
             "line 1:30: mismatched input 'EVAL' expecting {'limit', 'sort', 'where'}"
         );
+        expectError(
+            "FROM foo* | FORK [WHERE x>1 |EVAL x = 1] [WHERE x>1]",
+            "line 1:30: mismatched input 'EVAL' expecting {'limit', 'sort', 'where'}"
+        );
+        expectError(
+            "FROM foo* | FORK [WHERE x>1 |STATS count(x) by y] [WHERE x>1]",
+            "line 1:30: mismatched input 'STATS' expecting {'limit', 'sort', 'where'}"
+        );
     }
 }

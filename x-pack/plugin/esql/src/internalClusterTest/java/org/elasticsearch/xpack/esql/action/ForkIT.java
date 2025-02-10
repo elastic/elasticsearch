@@ -363,6 +363,48 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testSubqueryWithoutResults() {
+        var query = """
+            FROM test
+            | WHERE id > 2
+            | FORK
+               [ WHERE content:"rabbit" ]
+               [ WHERE content:"dog" ]
+               [ WHERE content:"cat" ]
+            | KEEP _fork, id, content
+            | SORT _fork, id
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("_fork", "id", "content"));
+            assertColumnTypes(resp.columns(), List.of("keyword", "integer", "text"));
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                List.of("fork2", 3, "This dog is really brown"),
+                List.of("fork2", 4, "The dog is brown but this document is very very long"),
+                List.of("fork2", 6, "The quick brown fox jumps over the lazy dog"),
+                List.of("fork3", 5, "There is also a white cat")
+            );
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
+    public void testAllSubQueriesWithoutResults() {
+        var query = """
+            FROM test
+            | FORK
+               [ WHERE content:"rabbit" ]
+               [ WHERE content:"lion" ]
+               [ WHERE content:"tiger" ]
+            | KEEP _fork, id, content
+            | SORT _fork, id
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("_fork", "id", "content"));
+            assertColumnTypes(resp.columns(), List.of("keyword", "integer", "text"));
+            Iterable<Iterable<Object>> empty = List.of();
+            assertValues(resp.values(), empty);
+        }
+    }
+
     public void testOneSubQuery() {
         var query = """
             FROM test

@@ -245,8 +245,8 @@ public class SearchTimeoutIT extends ESIntegTestCase {
                                                     ((ContextIndexSearcher) searcher).throwTimeExceededException();
                                                 }
                                             }
-                                            //there is a slight chance that no docs are scored for a specific segment.
-                                            //other shards / slices will throw the timeout anyway, one is enough.
+                                            // there is a slight chance that no docs are scored for a specific segment.
+                                            // other shards / slices will throw the timeout anyway, one is enough.
                                             return max == maxDoc ? DocIdSetIterator.NO_MORE_DOCS : max;
                                         }
 

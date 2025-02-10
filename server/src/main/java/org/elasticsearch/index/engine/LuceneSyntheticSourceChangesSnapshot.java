@@ -209,6 +209,9 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
                     nextDocIds.add(segmentDocID);
                 }
 
+                // This computed doc ids arrays us used by stored field loader as a heuristic to determine whether to use a sequential
+                // stored field reader (which bulk loads stored fields and avoids decompressing the same blocks multiple times). For
+                // source loader, it is also used as a heuristic for bulk reading doc values (E.g. SingletonDocValuesLoader).
                 int[] nextDocIdArray = nextDocIds.toArray();
                 leafFieldLoader = storedFieldLoader.getLoader(leafReaderContext, nextDocIdArray);
                 leafSourceLoader = sourceLoader.leaf(leafReaderContext.reader(), nextDocIdArray);

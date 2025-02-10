@@ -230,6 +230,9 @@ public class FirstValueBytesRefAggregator {
 
         @Override
         public void close() {
+            for (int i = 0; i < valueState.size(); i++) {
+                Releasables.closeWhileHandlingException(valueState.get(i));
+            }
             Releasables.close(valueState, timestampState, seen);
         }
     }

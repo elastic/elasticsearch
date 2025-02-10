@@ -21,17 +21,3 @@ hourly:date              | event_duration:long | message:keyword
 2023-10-23T12:00:00.000Z | 3450233             | Connected to 10.1.0.3
 2023-10-23T13:00:00.000Z | 1232382             | Disconnected
 ;
-
-
-first_grouped_long
-required_capability: fn_first_last
-FROM sample_data
-| STATS event_duration = first_value(event_duration) BY hourly = BUCKET(@timestamp, 1 hour) 
-| SORT hourly
-| KEEP hourly, event_duration
-;
-
-hourly:date              | event_duration:long
-2023-10-23T12:00:00.000Z | 3450233            
-2023-10-23T13:00:00.000Z | 1232382            
-;

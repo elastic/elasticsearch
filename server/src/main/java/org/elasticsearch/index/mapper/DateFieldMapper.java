@@ -267,7 +267,7 @@ public final class DateFieldMapper extends FieldMapper {
         private final ScriptCompiler scriptCompiler;
         private final IndexMode indexMode;
         private final IndexSortConfig indexSortConfig;
-        private final boolean isDocValuesSkipperEnabled;
+        private final boolean useDocValuesSkipper;
 
         public Builder(
             String name,
@@ -299,7 +299,7 @@ public final class DateFieldMapper extends FieldMapper {
             IndexMode indexMode,
             IndexSortConfig indexSortConfig,
             IndexVersion indexCreatedVersion,
-            boolean isDocValuesSkipperEnabled
+            boolean useDocValuesSkipper
         ) {
             super(name);
             this.resolution = resolution;
@@ -325,7 +325,7 @@ public final class DateFieldMapper extends FieldMapper {
             }
             this.indexMode = indexMode;
             this.indexSortConfig = indexSortConfig;
-            this.isDocValuesSkipperEnabled = isDocValuesSkipperEnabled;
+            this.useDocValuesSkipper = useDocValuesSkipper;
         }
 
         DateFormatter buildFormatter() {
@@ -399,7 +399,7 @@ public final class DateFieldMapper extends FieldMapper {
         @Override
         public DateFieldMapper build(MapperBuilderContext context) {
             final String fullFieldName = context.buildFullName(leafName());
-            boolean hasDocValuesSkipper = isDocValuesSkipperEnabled
+            boolean hasDocValuesSkipper = useDocValuesSkipper
                 && hasDocValuesSkipper(docValues.getValue(), indexMode, indexSortConfig, fullFieldName);
             DateFieldType ft = new DateFieldType(
                 fullFieldName,

@@ -607,8 +607,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
             expectInvalidIndexNameErrorWithLineNumber(command, "<<logstash<{now/d}>>>", lineNumber, "<logstash<");
             expectInvalidIndexNameErrorWithLineNumber(command, "\"<<logstash<{now/d}>>>\"", lineNumber, "<logstash<");
             expectInvalidIndexNameErrorWithLineNumber(command, "\"-<logstash- {now/d{yyyy.MM.dd|+12:00}}>\"", lineNumber, "logstash- ");
-            if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled()) {
+            if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled() && command.contains("LOOKUP_🐔") == false) {
                 expectInvalidIndexNameErrorWithLineNumber(command, "index::dat", lineNumber);
+                expectInvalidIndexNameErrorWithLineNumber(command, "index::failure", lineNumber);
+                expectError(LoggerMessageFormat.format(null, command, "\"index:::data\""), lineNumber + "Invalid index name [index:::data");
+                expectError(
+                    LoggerMessageFormat.format(null, command, "\"index::::data\""),
+                    lineNumber + "Invalid index name [index::::data"
+                );
             }
         }
 
@@ -627,6 +633,29 @@ public class StatementParserTests extends AbstractStatementParserTests {
             expectInvalidIndexNameErrorWithLineNumber(command, "\"indexpattern,-\"", commands.get(command), "", "must not be empty");
             clustersAndIndices(command, "indexpattern", "*-");
             clustersAndIndices(command, "indexpattern", "-indexpattern");
+            if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled()) {
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    "indexpattern, --index::data",
+                    lineNumber,
+                    "-index",
+                    "must not start with '_', '-', or '+'"
+                );
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    "indexpattern, \"--index\"::data",
+                    lineNumber,
+                    "-index",
+                    "must not start with '_', '-', or '+'"
+                );
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    "\"indexpattern, --index::data\"",
+                    commands.get(command),
+                    "-index::data",
+                    "must not contain ':'"
+                );
+            }
         }
 
         // Invalid index names, except invalid DateMath, are ignored if there is an index name with wildcard before it
@@ -636,6 +665,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 continue;
             }
             lineNumber = command.contains("FROM") ? "line 1:9: " : "line 1:12: ";
+            String indexStarLineNumber = command.contains("FROM") ? "line 1:14: " : "line 1:17: ";
             clustersAndIndices(command, "*", "-index#pattern");
             clustersAndIndices(command, "index*", "-index#pattern");
             clustersAndIndices(command, "*", "-<--logstash-{now/M{yyyy.MM}}>");
@@ -643,6 +673,61 @@ public class StatementParserTests extends AbstractStatementParserTests {
             expectDateMathErrorWithLineNumber(command, "*, \"-<-logstash-{now/D}>\"", lineNumber, dateMathError);
             expectDateMathErrorWithLineNumber(command, "*, -<-logstash-{now/D}>", lineNumber, dateMathError);
             expectDateMathErrorWithLineNumber(command, "\"*, -<-logstash-{now/D}>\"", commands.get(command), dateMathError);
+            expectDateMathErrorWithLineNumber(command, "\"*, -<-logst:ash-{now/D}>\"", commands.get(command), dateMathError);
+            if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled()) {
+                clustersAndIndices(command, "*", "-index#pattern::data");
+                clustersAndIndices(command, "*", "-index#pattern::data");
+                clustersAndIndices(command, "index*", "-index#pattern::data");
+                clustersAndIndices(command, "*", "-<--logstash-{now/M{yyyy.MM}}>::data");
+                clustersAndIndices(command, "index*", "-<--logstash#-{now/M{yyyy.MM}}>::data");
+                // Throw on invalid date math
+                expectDateMathErrorWithLineNumber(command, "*, \"-<-logstash-{now/D}>\"::data", lineNumber, dateMathError);
+                expectDateMathErrorWithLineNumber(command, "*, -<-logstash-{now/D}>::data", lineNumber, dateMathError);
+                // Check that invalid selectors throw (they're resolved first in /_search, and always validated)
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    "*, -index::garbage",
+                    lineNumber,
+                    "-index::garbage",
+                    "Invalid usage of :: separator, [garbage] is not a recognized selector"
+                );
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    "index*, -index::garbage",
+                    indexStarLineNumber,
+                    "-index::garbage",
+                    "Invalid usage of :: separator, [garbage] is not a recognized selector"
+                );
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    "*, -<logstash-{now/M{yyyy.MM}}>::garbage",
+                    lineNumber,
+                    "-<logstash-{now/M{yyyy.MM}}>::garbage",
+                    "Invalid usage of :: separator, [garbage] is not a recognized selector"
+                );
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    "index*, -<logstash-{now/M{yyyy.MM}}>::garbage",
+                    indexStarLineNumber,
+                    "-<logstash-{now/M{yyyy.MM}}>::garbage",
+                    "Invalid usage of :: separator, [garbage] is not a recognized selector"
+                );
+                // Invalid selectors will throw validation errors before invalid date math
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    "\"*, -<-logstash-{now/D}>::d\"",
+                    commands.get(command),
+                    "-<-logstash-{now/D}>::d",
+                    "Invalid usage of :: separator, [d] is not a recognized selector"
+                );
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    "\"*, -<-logstash-{now/D}>::\"",
+                    commands.get(command),
+                    "-<-logstash-{now/D}>::",
+                    "Invalid usage of :: separator, [] is not a recognized selector"
+                );
+            }
         }
     }
 
@@ -2977,7 +3062,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testValidJoinPattern() {
         var basePattern = randomIndexPatterns();
-        var joinPattern = randomIndexPattern(without(WILDCARD_PATTERN));
+        var joinPattern = randomIndexPattern(without(WILDCARD_PATTERN), without(INDEX_SELECTOR));
         var onField = randomIdentifier();
         var type = randomFrom("", "LOOKUP ");
 
@@ -2994,19 +3079,20 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidJoinPatterns() {
-        var joinPattern = randomIndexPattern(WILDCARD_PATTERN);
+        var joinPattern = randomIndexPattern(WILDCARD_PATTERN, without(INDEX_SELECTOR));
         expectError(
             "FROM " + randomIndexPatterns() + " | JOIN " + joinPattern + " ON " + randomIdentifier(),
             "invalid index pattern [" + unquoteIndexPattern(joinPattern) + "], * is not allowed in LOOKUP JOIN"
         );
 
-        joinPattern = randomIndexPattern(without(WILDCARD_PATTERN), without(INDEX_SELECTOR));
-        joinPattern = maybeQuote(joinPattern + "::garbage");
-        expectError(
-            "FROM " + randomIndexPatterns() + " | JOIN " + joinPattern + " ON " + randomIdentifier(),
-            "Invalid index name ["
-                + unquoteIndexPattern(joinPattern)
-                + "], Invalid usage of :: separator, [garbage] is not a recognized selector"
-        );
+        if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled()) {
+            // Selectors are not yet supported in join patterns.
+            joinPattern = randomIndexPattern(without(WILDCARD_PATTERN), without(INDEX_SELECTOR));
+            joinPattern = maybeQuote(joinPattern + "::garbage");
+            expectError(
+                "FROM " + randomIndexPatterns() + " | JOIN " + joinPattern + " ON " + randomIdentifier(),
+                "mismatched input ':' expecting {"
+            );
+        }
     }
 }

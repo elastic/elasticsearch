@@ -66,7 +66,8 @@ public class IdentifierGenerator {
         if (canAdd(Features.CROSS_CLUSTER, features)) {
             var cluster = randomIdentifier();
             pattern = maybeQuote(cluster + ":" + pattern);
-        } else if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled() && canAdd(Features.INDEX_SELECTOR, features)) {
+        }
+        if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled() && canAdd(Features.INDEX_SELECTOR, features)) {
             var selector = ESTestCase.randomFrom(IndexComponentSelector.values());
             pattern = maybeQuote(pattern + "::" + selector.getKey());
         }

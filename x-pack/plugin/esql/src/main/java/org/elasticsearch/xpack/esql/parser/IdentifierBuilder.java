@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.IdentifierContext;
@@ -70,13 +71,15 @@ abstract class IdentifierBuilder extends AbstractBuilder {
             if (clusterString == null) {
                 hasSeenStar.set(indexPattern.contains(WILDCARD) || hasSeenStar.get());
                 validateIndexPattern(indexPattern, c, hasSeenStar.get());
-            }
-            if (selectorString != null) {
-                try {
-                    // Ensures that the selector provided is one of the valid kinds
-                    IndexNameExpressionResolver.SelectorResolver.validateIndexSelectorString(indexPattern, selectorString);
-                } catch (InvalidIndexNameException e) {
-                    throw new ParsingException(e, source(c), e.getMessage());
+                // Other instances of Elasticsearch may have differing selectors so only validate selector string if remote cluster
+                // string is unset
+                if (selectorString != null) {
+                    try {
+                        // Ensures that the selector provided is one of the valid kinds
+                        IndexNameExpressionResolver.SelectorResolver.validateIndexSelectorString(indexPattern, selectorString);
+                    } catch (InvalidIndexNameException e) {
+                        throw new ParsingException(e, source(c), e.getMessage());
+                    }
                 }
             }
             patterns.add(reassembleIndexName(clusterString, indexPattern, selectorString));
@@ -104,8 +107,19 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         String[] indices = indexPattern.split(",");
         boolean hasExclusion = false;
         for (String index : indices) {
+            // Strip spaces off first because validation checks are not written to handle them
+            index = index.strip();
             if (isRemoteIndexName(index)) { // skip the validation if there is remote cluster
                 continue;
+            }
+            try {
+                Tuple<String, String> splitPattern = IndexNameExpressionResolver.splitSelectorExpression(index);
+                if (splitPattern.v2() == null) {
+                    index = splitPattern.v1();
+                }
+            } catch (InvalidIndexNameException e) {
+                // throws exception if the selector expression is invalid. Selector resolution does not complain about exclusions
+                throw new ParsingException(e, source(ctx), e.getMessage());
             }
             hasSeenStar = index.contains(WILDCARD) || hasSeenStar;
             index = index.replace(WILDCARD, "").strip();

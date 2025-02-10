@@ -77,6 +77,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
@@ -999,31 +1000,103 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
 
         Map<String, Long> testCases = new HashMap<>();
-        testCases.put("test_ds_patterns*", 15L);
-        testCases.put("test_ds_patterns*::data", 15L);
-        testCases.put("test_ds_patterns*::failures", 9L);
-        testCases.put("test_ds_patterns*::*", 24L);
-
-        testCases.put("test_ds_patterns_1,test_ds_patterns_2", 10L);
-        testCases.put("test_ds_patterns_1::data,test_ds_patterns_2::data", 10L);
-        testCases.put("test_ds_patterns_1::failures,test_ds_patterns_2::failures", 6L);
-        testCases.put("test_ds_patterns_1::*,test_ds_patterns_2::*", 16L);
-
-        testCases.put("test_ds_patterns_1*,test_ds_patterns_2*", 10L);
-        testCases.put("test_ds_patterns_1*::data,test_ds_patterns_2*::data", 10L);
-        testCases.put("test_ds_patterns_1*::failures,test_ds_patterns_2*::failures", 6L);
-        testCases.put("test_ds_patterns_1*::*,test_ds_patterns_2*::*", 16L);
-
-        testCases.put("*", 15L);
-        testCases.put("*::data", 15L);
-        testCases.put("*::failures", 9L);
-        testCases.put("*::*", 24L);
-
+        // Concrete data stream with each selector
+        testCases.put("test_ds_patterns_1", 5L);
+        testCases.put("test_ds_patterns_1::data", 5L);
+        testCases.put("test_ds_patterns_1::failures", 3L);
+        testCases.put("test_ds_patterns_1::*", 8L);
         testCases.put("test_ds_patterns_2", 5L);
         testCases.put("test_ds_patterns_2::data", 5L);
         testCases.put("test_ds_patterns_2::failures", 3L);
         testCases.put("test_ds_patterns_2::*", 8L);
 
+        // Wildcard pattern with each selector
+        testCases.put("test_ds_patterns*", 15L);
+        testCases.put("test_ds_patterns*::data", 15L);
+        testCases.put("test_ds_patterns*::failures", 9L);
+        testCases.put("test_ds_patterns*::*", 24L);
+
+        // Match all pattern with each selector
+        testCases.put("*", 15L);
+        testCases.put("*::data", 15L);
+        testCases.put("*::failures", 9L);
+        testCases.put("*::*", 24L);
+
+        // Concrete multi-pattern
+        testCases.put("test_ds_patterns_1,test_ds_patterns_2", 10L);
+        testCases.put("test_ds_patterns_1::data,test_ds_patterns_2::data", 10L);
+        testCases.put("test_ds_patterns_1::failures,test_ds_patterns_2::failures", 6L);
+        testCases.put("test_ds_patterns_1::*,test_ds_patterns_2::*", 16L);
+
+        // Wildcard multi-pattern
+        testCases.put("test_ds_patterns_1*,test_ds_patterns_2*", 10L);
+        testCases.put("test_ds_patterns_1*::data,test_ds_patterns_2*::data", 10L);
+        testCases.put("test_ds_patterns_1*::failures,test_ds_patterns_2*::failures", 6L);
+        testCases.put("test_ds_patterns_1*::*,test_ds_patterns_2*::*", 16L);
+
+        // Wildcard pattern with data stream exclusions for each selector combination (data stream exclusions need * on the end to negate)
+        // None (default)
+        testCases.put("test_ds_patterns*,-test_ds_patterns_2*", 10L);
+        testCases.put("test_ds_patterns*,-test_ds_patterns_2*::data", 10L);
+        testCases.put("test_ds_patterns*,-test_ds_patterns_2*::failures", 15L);
+        testCases.put("test_ds_patterns*,-test_ds_patterns_2*::*", 10L);
+        // Subtracting from ::data
+        testCases.put("test_ds_patterns*::data,-test_ds_patterns_2*", 10L);
+        testCases.put("test_ds_patterns*::data,-test_ds_patterns_2*::data", 10L);
+        testCases.put("test_ds_patterns*::data,-test_ds_patterns_2*::failures", 15L);
+        testCases.put("test_ds_patterns*::data,-test_ds_patterns_2*::*", 10L);
+        // Subtracting from ::failures
+        testCases.put("test_ds_patterns*::failures,-test_ds_patterns_2*", 9L);
+        testCases.put("test_ds_patterns*::failures,-test_ds_patterns_2*::data", 9L);
+        testCases.put("test_ds_patterns*::failures,-test_ds_patterns_2*::failures", 6L);
+        testCases.put("test_ds_patterns*::failures,-test_ds_patterns_2*::*", 6L);
+        // Subtracting from ::*
+        testCases.put("test_ds_patterns*::*,-test_ds_patterns_2*", 19L);
+        testCases.put("test_ds_patterns*::*,-test_ds_patterns_2*::data", 19L);
+        testCases.put("test_ds_patterns*::*,-test_ds_patterns_2*::failures", 21L);
+        testCases.put("test_ds_patterns*::*,-test_ds_patterns_2*::*", 16L);
+
+        runDataStreamTest(testCases, new String[] { "test_ds_patterns_1", "test_ds_patterns_2", "test_ds_patterns_3" }, (key, value) -> {
+            try (var results = run("from " + key + " | stats count(@timestamp)")) {
+                assertEquals(key, 1, getValuesList(results).size());
+                assertEquals(key, value, getValuesList(results).get(0).get(0));
+            }
+        });
+    }
+
+    public void testDataStreamInvalidPatterns() throws Exception {
+        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
+
+        Map<String, String> testCases = new HashMap<>();
+        // === Errors
+        // Only recognized components can be selected
+        testCases.put("testXXX::custom", "Invalid usage of :: separator, [custom] is not a recognized selector");
+        // Spelling is important
+        testCases.put("testXXX::failres", "Invalid usage of :: separator, [failres] is not a recognized selector");
+        // Only the match all wildcard is supported
+        testCases.put(
+            "testXXX::d*ta",
+            "Invalid usage of :: separator, [d*ta] contains a wildcard, but only the match all wildcard [*] is supported in a selector"
+        );
+        // The first instance of :: is split upon so that you cannot chain the selector
+        testCases.put("test::XXX::data", "mismatched input '::' expecting {<EOF>, '|', ',', 'metadata'}");
+        // Selectors must be outside of date math expressions or else they trip up the selector parsing
+        testCases.put("<test-{now/d}::failures>", "Invalid index name [<test-{now/d}], must not contain the following characters [");
+        // Only one selector separator is allowed per expression
+        testCases.put("::::data", "mismatched input '::' expecting {QUOTED_STRING, UNQUOTED_SOURCE}");
+        // Suffix case is not supported because there is no component named with the empty string
+        testCases.put("index::", "missing UNQUOTED_SOURCE at '|'");
+
+        runDataStreamTest(testCases, new String[] { "test_ds_patterns_1" }, (key, value) -> {
+            logger.info(key);
+            var exception = expectThrows(ParsingException.class, () -> {
+                run("from " + key + " | stats count(@timestamp)").close();
+            });
+            assertThat(exception.getMessage(), containsString(value));
+        });
+    }
+
+    private <V> void runDataStreamTest(Map<String, V> testCases, String[] dsNames, BiConsumer<String, V> testMethod) throws IOException {
         boolean deleteTemplate = false;
         List<String> deleteDataStreams = new ArrayList<>();
         try {
@@ -1063,7 +1136,6 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             );
             deleteTemplate = true;
 
-            String[] dsNames = { "test_ds_patterns_1", "test_ds_patterns_2", "test_ds_patterns_3" };
             String time = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
             int i = 0;
             for (String dsName : dsNames) {
@@ -1076,15 +1148,12 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 }
                 BulkResponse bulkItemResponses = bulk.get();
                 assertThat(bulkItemResponses.hasFailures(), is(false));
-                ensureYellow(dsName);
                 deleteDataStreams.add(dsName);
+                ensureYellow(dsName);
             }
 
-            for (Map.Entry<String, Long> testCase : testCases.entrySet()) {
-                try (var results = run("from " + testCase.getKey() + " | stats count(@timestamp)")) {
-                    assertEquals(testCase.getKey(), 1, getValuesList(results).size());
-                    assertEquals(testCase.getKey(), testCase.getValue(), getValuesList(results).get(0).get(0));
-                }
+            for (Map.Entry<String, V> testCase : testCases.entrySet()) {
+                testMethod.accept(testCase.getKey(), testCase.getValue());
             }
         } finally {
             if (deleteDataStreams.isEmpty() == false) {

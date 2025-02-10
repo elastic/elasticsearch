@@ -143,6 +143,7 @@ indexPattern
 
 clusterString
     : UNQUOTED_SOURCE
+    | QUOTED_STRING
     ;
 
 indexString
@@ -202,7 +203,7 @@ identifier
 
 identifierPattern
     : ID_PATTERN
-    | {this.isDevVersion()}? parameter
+    | parameter
     ;
 
 constant
@@ -225,7 +226,7 @@ parameter
 
 identifierOrParameter
     : identifier
-    | {this.isDevVersion()}? parameter
+    | parameter
     ;
 
 limitCommand

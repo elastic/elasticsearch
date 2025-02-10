@@ -214,9 +214,6 @@ final class AggregateMapper {
         if (tuple.v1().isAssignableFrom(Rate.class)) {
             // rate doesn't support non-grouping aggregations
             return Stream.of(new AggDef(tuple.v1(), tuple.v2().v1(), tuple.v2().v2(), true));
-        } else if (tuple.v2().v1().equals("AggregateMetricDouble")) {
-            // TODO: support grouping aggregations for aggregate metric double
-            return Stream.of(new AggDef(tuple.v1(), tuple.v2().v1(), tuple.v2().v2(), false));
         } else {
             return Stream.of(
                 new AggDef(tuple.v1(), tuple.v2().v1(), tuple.v2().v2(), true),

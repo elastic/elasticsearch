@@ -47,6 +47,10 @@ import static org.elasticsearch.core.Strings.format;
 
 public class GoogleCloudStorageService {
 
+    public GoogleCloudStorageService() {
+        GcpTracer.createAndRegister();
+    }
+
     private static final Logger logger = LogManager.getLogger(GoogleCloudStorageService.class);
 
     private volatile Map<String, GoogleCloudStorageClientSettings> clientSettings = emptyMap();
@@ -85,6 +89,7 @@ public class GoogleCloudStorageService {
      */
     public Storage client(final String clientName, final String repositoryName, final GoogleCloudStorageOperationsStats stats)
         throws IOException {
+
         {
             final Storage storage = clientCache.get(repositoryName);
             if (storage != null) {
@@ -280,4 +285,8 @@ public class GoogleCloudStorageService {
 
     // used for unit testing
     void notifyProxyIsSet(Proxy proxy) {}
+
+    public void shutdown() {
+        GcpTracer.shutdown();
+    }
 }

@@ -49,66 +49,58 @@ class NioFileSystemActions {
     @EntitlementTest(expectedAccess = PLUGINS)
     static void checkNewInputStream() throws IOException {
         var fs = FileSystems.getDefault().provider();
-        var file = EntitledActions.createTempFile();
-        try (var is = fs.newInputStream(file)) {}
+        try (var is = fs.newInputStream(FileCheckActions.readFile())) {}
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void checkNewOutputStream() throws IOException {
         var fs = FileSystems.getDefault().provider();
-        var file = EntitledActions.createTempFile();
-        try (var os = fs.newOutputStream(file)) {}
+        try (var os = fs.newOutputStream(FileCheckActions.readWriteFile())) {}
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void checkNewFileChannelRead() throws IOException {
         var fs = FileSystems.getDefault().provider();
-        var file = EntitledActions.createTempFile();
-        try (var fc = fs.newFileChannel(file, Set.of(StandardOpenOption.READ))) {}
+        try (var fc = fs.newFileChannel(FileCheckActions.readFile(), Set.of(StandardOpenOption.READ))) {}
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void checkNewFileChannelWrite() throws IOException {
         var fs = FileSystems.getDefault().provider();
-        var file = EntitledActions.createTempFile();
-        try (var fc = fs.newFileChannel(file, Set.of(StandardOpenOption.WRITE))) {}
+        try (var fc = fs.newFileChannel(FileCheckActions.readWriteFile(), Set.of(StandardOpenOption.WRITE))) {}
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void checkNewAsynchronousFileChannel() throws IOException {
         var fs = FileSystems.getDefault().provider();
-        var file = EntitledActions.createTempFile();
-        try (var fc = fs.newAsynchronousFileChannel(file, Set.of(StandardOpenOption.WRITE), EsExecutors.DIRECT_EXECUTOR_SERVICE)) {}
+        try (var fc = fs.newAsynchronousFileChannel(FileCheckActions.readWriteFile(), Set.of(StandardOpenOption.WRITE), EsExecutors.DIRECT_EXECUTOR_SERVICE)) {}
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void checkNewByteChannel() throws IOException {
         var fs = FileSystems.getDefault().provider();
-        var file = EntitledActions.createTempFile();
-        try (var bc = fs.newByteChannel(file, Set.of(StandardOpenOption.WRITE))) {}
+        try (var bc = fs.newByteChannel(FileCheckActions.readWriteFile(), Set.of(StandardOpenOption.WRITE))) {}
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void checkNewDirectoryStream() throws IOException {
         var fs = FileSystems.getDefault().provider();
-        var directory = EntitledActions.createTempDirectory();
-        try (var bc = fs.newDirectoryStream(directory, entry -> false)) {}
+        try (var bc = fs.newDirectoryStream(FileCheckActions.readDir(), entry -> false)) {}
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void checkCreateDirectory() throws IOException {
         var fs = FileSystems.getDefault().provider();
-        var directory = EntitledActions.createTempDirectory();
+        var directory = EntitledActions.createTempDirectoryForWrite();
         fs.createDirectory(directory.resolve("subdir"));
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void checkCreateSymbolicLink() throws IOException {
         var fs = FileSystems.getDefault().provider();
-        var directory = EntitledActions.createTempDirectory();
-        var file = EntitledActions.createTempFile();
+        var directory = EntitledActions.createTempDirectoryForWrite();
         try {
-            fs.createSymbolicLink(directory.resolve("link"), file);
+            fs.createSymbolicLink(directory.resolve("link"), FileCheckActions.readFile());
         } catch (UnsupportedOperationException e) {
             // OK not to implement symbolic link in the filesystem
         }
@@ -117,111 +109,103 @@ class NioFileSystemActions {
     @EntitlementTest(expectedAccess = PLUGINS)
     static void checkCreateLink() throws IOException {
         var fs = FileSystems.getDefault().provider();
-        var directory = EntitledActions.createTempDirectory();
-        var file = EntitledActions.createTempFile();
+        var directory = EntitledActions.createTempDirectoryForWrite();
         try {
-            fs.createLink(directory.resolve("link"), file);
+            fs.createLink(directory.resolve("link"), FileCheckActions.readFile());
         } catch (UnsupportedOperationException e) {
             // OK not to implement symbolic link in the filesystem
         }
-
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void checkDelete() throws IOException {
         var fs = FileSystems.getDefault().provider();
-        var file = EntitledActions.createTempFile();
+        var file = EntitledActions.createTempFileForWrite();
         fs.delete(file);
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void checkDeleteIfExists() throws IOException {
         var fs = FileSystems.getDefault().provider();
-        fs.deleteIfExists(Path.of("/dummy/path"));
+        var file = EntitledActions.createTempFileForWrite();
+        fs.deleteIfExists(file);
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void checkReadSymbolicLink() {
-        // TODO
+    static void checkReadSymbolicLink() throws IOException {
+        var fs = FileSystems.getDefault().provider();
+        var link = EntitledActions.createTempSymbolicLink();
+        fs.readSymbolicLink(link);
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void checkCopy() throws IOException {
         var fs = FileSystems.getDefault().provider();
-        var directory = EntitledActions.createTempDirectory();
-        var file = EntitledActions.createTempFile();
-        fs.copy(file, directory.resolve("copied"));
+        var directory = EntitledActions.createTempDirectoryForWrite();
+        fs.copy(FileCheckActions.readFile(), directory.resolve("copied"));
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void checkMove() throws IOException {
         var fs = FileSystems.getDefault().provider();
-        var directory = EntitledActions.createTempDirectory();
-        var file = EntitledActions.createTempFile();
+        var directory = EntitledActions.createTempDirectoryForWrite();
+        var file = EntitledActions.createTempFileForWrite();
         fs.move(file, directory.resolve("moved"));
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void checkIsSameFile() throws IOException {
         var fs = FileSystems.getDefault().provider();
-        var file1 = EntitledActions.createTempFile();
-        var file2 = EntitledActions.createTempFile();
-        fs.isSameFile(file1, file2);
+        fs.isSameFile(FileCheckActions.readWriteFile(), FileCheckActions.readFile());
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void checkIsHidden() throws IOException {
         var fs = FileSystems.getDefault().provider();
-        var file = EntitledActions.createTempFile();
-        fs.isHidden(file);
+        fs.isHidden(FileCheckActions.readFile());
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void checkGetFileStore() throws IOException {
         var fs = FileSystems.getDefault().provider();
-        var file = EntitledActions.createTempFile();
+        var file = EntitledActions.createTempFileForRead();
         var store = fs.getFileStore(file);
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void checkCheckAccess() throws IOException {
         var fs = FileSystems.getDefault().provider();
-        var file = EntitledActions.createTempFile();
-        fs.checkAccess(file);
+        fs.checkAccess(FileCheckActions.readFile());
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
-    static void checkGetFileAttributeView() throws IOException {
+    static void checkGetFileAttributeView() {
         var fs = FileSystems.getDefault().provider();
-        var file = EntitledActions.createTempFile();
-        fs.getFileAttributeView(file, FileOwnerAttributeView.class);
+        fs.getFileAttributeView(FileCheckActions.readFile(), FileOwnerAttributeView.class);
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void checkReadAttributesWithClass() throws IOException {
         var fs = FileSystems.getDefault().provider();
-        var file = EntitledActions.createTempFile();
-        fs.readAttributes(file, BasicFileAttributes.class);
+        fs.readAttributes(FileCheckActions.readFile(), BasicFileAttributes.class);
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void checkReadAttributesWithString() throws IOException {
         var fs = FileSystems.getDefault().provider();
-        var file = EntitledActions.createTempFile();
-        fs.readAttributes(file, "*");
+        fs.readAttributes(FileCheckActions.readFile(), "*");
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void checkReadAttributesIfExists() throws IOException {
         var fs = FileSystems.getDefault().provider();
-        var file = EntitledActions.createTempFile();
-        fs.readAttributesIfExists(file, BasicFileAttributes.class);
+        fs.readAttributesIfExists(FileCheckActions.readFile(), BasicFileAttributes.class);
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void checkSetAttribute() throws IOException {
         var fs = FileSystems.getDefault().provider();
-        var file = EntitledActions.createTempFile();
+        var file = EntitledActions.createTempFileForWrite();
         try {
             fs.setAttribute(file, "dos:hidden", true);
         } catch (UnsupportedOperationException | IllegalArgumentException e) {
@@ -232,7 +216,7 @@ class NioFileSystemActions {
     @EntitlementTest(expectedAccess = PLUGINS)
     static void checkExists() {
         var fs = FileSystems.getDefault().provider();
-        fs.exists(Path.of("/dummy/path"));
+        fs.exists(FileCheckActions.readFile());
     }
 
     private NioFileSystemActions() {}

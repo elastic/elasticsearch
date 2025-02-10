@@ -1,7 +1,7 @@
 pr: 121731
 summary: Remove TLSv1.1 from default protocols
 area: TLS
-type: "breaking, enhancement"
+type: breaking
 issues: []
 breaking:
   title: Remove TLSv1.1 from default protocols

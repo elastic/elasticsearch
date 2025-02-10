@@ -301,10 +301,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         if (indexMode == IndexMode.STANDARD && settingSourceMode == Mode.STORED) {
             return DEFAULT;
         }
+        SourceFieldMapper sourceFieldMapper = null;
         if (onOrAfterDeprecateModeVersion(c.indexVersionCreated())) {
-            return resolveStaticInstance(settingSourceMode);
+            sourceFieldMapper = resolveStaticInstance(settingSourceMode);
         } else {
-            return new SourceFieldMapper(
+            sourceFieldMapper = new SourceFieldMapper(
                 settingSourceMode,
                 Explicit.IMPLICIT_TRUE,
                 Strings.EMPTY_ARRAY,
@@ -313,6 +314,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 c.indexVersionCreated().onOrAfter(IndexVersions.SOURCE_MAPPER_MODE_ATTRIBUTE_NOOP)
             );
         }
+        // By default no attributes are specified and so the Builder doesn't get used.
+        // Need to validate the returned instance based on index mode:
+        indexMode.validateSourceFieldMapper(sourceFieldMapper);
+        return sourceFieldMapper;
     },
         c -> new Builder(
             c.getIndexSettings().getMode(),

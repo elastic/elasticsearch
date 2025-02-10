@@ -16,15 +16,23 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.UserPrincipal;
 
+@SuppressForbidden(reason = "Exposes forbidden APIs for testing purposes")
 public final class EntitledActions {
     private EntitledActions() {}
 
-    @SuppressForbidden(reason = "Exposes forbidden APIs for testing purposes")
     static void System_clearProperty(String key) {
         System.clearProperty(key);
     }
 
     public static UserPrincipal getFileOwner(Path path) throws IOException {
         return Files.getOwner(path);
+    }
+
+    public static Path createTempFile() throws IOException {
+        return Files.createTempFile("entitlements", "");
+    }
+
+    public static Path createTempDirectory() throws IOException {
+        return Files.createTempDirectory("entitlements-dir");
     }
 }

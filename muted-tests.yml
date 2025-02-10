@@ -408,6 +408,8 @@ tests:
 - class: org.elasticsearch.xpack.esql.analysis.VerifierTests
   method: testChangePoint_valueNumeric
   issue: https://github.com/elastic/elasticsearch/issues/122181
+- class: org.elasticsearch.datastreams.TSDBPassthroughIndexingIT
+  issue: https://github.com/elastic/elasticsearch/issues/121716
 
 # Examples:
 #

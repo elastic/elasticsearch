@@ -410,6 +410,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/122181
 - class: org.elasticsearch.datastreams.TSDBPassthroughIndexingIT
   issue: https://github.com/elastic/elasticsearch/issues/121716
+- class: org.elasticsearch.smoketest.SmokeTestMonitoringWithSecurityIT
+  method: testHTTPExporterWithSSL
+  issue: https://github.com/elastic/elasticsearch/issues/122220
 
 # Examples:
 #

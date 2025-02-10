@@ -100,20 +100,21 @@ public final class SpatialExtent extends SpatialAggregateFunction implements ToA
     }
 
     @Override
-    public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
-        return switch (field().dataType()) {
+    public AggregatorFunctionSupplier supplier() {
+        DataType type = field().dataType();
+        return switch (type) {
             case GEO_POINT -> switch (fieldExtractPreference) {
-                case DOC_VALUES -> new SpatialExtentGeoPointDocValuesAggregatorFunctionSupplier(inputChannels);
-                case NONE, EXTRACT_SPATIAL_BOUNDS -> new SpatialExtentGeoPointSourceValuesAggregatorFunctionSupplier(inputChannels);
+                case DOC_VALUES -> new SpatialExtentGeoPointDocValuesAggregatorFunctionSupplier();
+                case NONE, EXTRACT_SPATIAL_BOUNDS -> new SpatialExtentGeoPointSourceValuesAggregatorFunctionSupplier();
             };
             case CARTESIAN_POINT -> switch (fieldExtractPreference) {
-                case DOC_VALUES -> new SpatialExtentCartesianPointDocValuesAggregatorFunctionSupplier(inputChannels);
-                case NONE, EXTRACT_SPATIAL_BOUNDS -> new SpatialExtentCartesianPointSourceValuesAggregatorFunctionSupplier(inputChannels);
+                case DOC_VALUES -> new SpatialExtentCartesianPointDocValuesAggregatorFunctionSupplier();
+                case NONE, EXTRACT_SPATIAL_BOUNDS -> new SpatialExtentCartesianPointSourceValuesAggregatorFunctionSupplier();
             };
             // Shapes don't differentiate between source and doc values.
-            case GEO_SHAPE -> new SpatialExtentGeoShapeAggregatorFunctionSupplier(inputChannels);
-            case CARTESIAN_SHAPE -> new SpatialExtentCartesianShapeAggregatorFunctionSupplier(inputChannels);
-            default -> throw EsqlIllegalArgumentException.illegalDataType(field().dataType());
+            case GEO_SHAPE -> new SpatialExtentGeoShapeAggregatorFunctionSupplier();
+            case CARTESIAN_SHAPE -> new SpatialExtentCartesianShapeAggregatorFunctionSupplier();
+            default -> throw EsqlIllegalArgumentException.illegalDataType(type);
         };
     }
 }

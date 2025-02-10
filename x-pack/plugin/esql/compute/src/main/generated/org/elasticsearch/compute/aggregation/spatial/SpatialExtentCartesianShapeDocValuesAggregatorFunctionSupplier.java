@@ -13,37 +13,37 @@ import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunctionSupplier} implementation for {@link SpatialExtentCartesianPointDocValuesAggregator}.
+ * {@link AggregatorFunctionSupplier} implementation for {@link SpatialExtentCartesianShapeDocValuesAggregator}.
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
-public final class SpatialExtentCartesianPointDocValuesAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  public SpatialExtentCartesianPointDocValuesAggregatorFunctionSupplier() {
+public final class SpatialExtentCartesianShapeDocValuesAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+  public SpatialExtentCartesianShapeDocValuesAggregatorFunctionSupplier() {
   }
 
   @Override
   public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
-    return SpatialExtentCartesianPointDocValuesAggregatorFunction.intermediateStateDesc();
+    return SpatialExtentCartesianShapeDocValuesAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
   public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
-    return SpatialExtentCartesianPointDocValuesGroupingAggregatorFunction.intermediateStateDesc();
+    return SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunction.intermediateStateDesc();
   }
 
   @Override
-  public SpatialExtentCartesianPointDocValuesAggregatorFunction aggregator(
+  public SpatialExtentCartesianShapeDocValuesAggregatorFunction aggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return SpatialExtentCartesianPointDocValuesAggregatorFunction.create(driverContext, channels);
+    return SpatialExtentCartesianShapeDocValuesAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
-  public SpatialExtentCartesianPointDocValuesGroupingAggregatorFunction groupingAggregator(
+  public SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext, List<Integer> channels) {
-    return SpatialExtentCartesianPointDocValuesGroupingAggregatorFunction.create(channels, driverContext);
+    return SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunction.create(channels, driverContext);
   }
 
   @Override
   public String describe() {
-    return "spatial_extent_cartesian_point_doc of valuess";
+    return "spatial_extent_cartesian_shape_doc of valuess";
   }
 }

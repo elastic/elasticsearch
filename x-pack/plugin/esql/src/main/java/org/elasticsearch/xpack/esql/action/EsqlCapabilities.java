@@ -804,6 +804,13 @@ public class EsqlCapabilities {
         CHANGE_POINT(Build.current().isSnapshot()),
 
         /**
+         * Fix for https://github.com/elastic/elasticsearch/issues/120817
+         * and https://github.com/elastic/elasticsearch/issues/120803
+         * Support for queries that have multiple SORTs that cannot become TopN
+         */
+        REMOVE_REDUNDANT_SORT,
+
+        /**
          * Support for FORK command
          */
         FORK(Build.current().isSnapshot());

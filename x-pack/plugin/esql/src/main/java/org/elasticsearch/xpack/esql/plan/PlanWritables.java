@@ -43,7 +43,6 @@ import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
-import org.elasticsearch.xpack.esql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.SubqueryExec;
@@ -57,7 +56,7 @@ public class PlanWritables {
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(logical());
-        entries.addAll(phsyical());
+        entries.addAll(physical());
         return entries;
     }
 
@@ -84,7 +83,7 @@ public class PlanWritables {
         );
     }
 
-    public static List<NamedWriteableRegistry.Entry> phsyical() {
+    public static List<NamedWriteableRegistry.Entry> physical() {
         return List.of(
             AggregateExec.ENTRY,
             DissectExec.ENTRY,
@@ -103,7 +102,6 @@ public class PlanWritables {
             LimitExec.ENTRY,
             LocalSourceExec.ENTRY,
             MvExpandExec.ENTRY,
-            OrderExec.ENTRY,
             ProjectExec.ENTRY,
             ShowExec.ENTRY,
             SubqueryExec.ENTRY,

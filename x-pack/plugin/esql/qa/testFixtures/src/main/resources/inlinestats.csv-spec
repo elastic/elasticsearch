@@ -2,7 +2,7 @@
 // TODO: re-enable the commented tests once the Join functionality stabilizes
 //
 
-maxOfInt-Ignore
+maxOfInt
 required_capability: join_planning_v1
 // tag::max-languages[]
 FROM employees
@@ -57,7 +57,7 @@ emp_no:integer | avg_worked_seconds:long | gender:keyword | max_avg_worked_secon
          10030 |               394597613 | M              | 394597613
 ;
 
-maxOfLong-Ignore
+maxOfLong
 required_capability: join_planning_v1
 
 FROM employees
@@ -112,7 +112,7 @@ emp_no:integer | avg_worked_seconds:long | last_name:keyword | l:keyword | max_a
          10087 |               305782871 | Eugenio           | E         | 305782871
 ;
 
-maxOfLongByCalculatedDroppedKeyword
+maxOfLongByCalculatedDroppedKeyword-Ignore
 required_capability: join_planning_v1
 
 FROM employees
@@ -205,7 +205,7 @@ emp_no:integer | languages:integer | avg_worked_seconds:long | gender:keyword | 
          10007 |                 4 |               393084805 | F              | 2.863684210555556E8           | 5
 ;
 
-byMultivaluedSimple
+byMultivaluedSimple-Ignore
 required_capability: join_planning_v1
 
 // tag::mv-group[]
@@ -223,7 +223,7 @@ abbrev:keyword |  type:keyword   | scalerank:integer | min_scalerank:integer
 // end::mv-group-result[]
 ;
 
-byMultivaluedMvExpand
+byMultivaluedMvExpand-Ignore
 required_capability: join_planning_v1
 
 // tag::mv-expand[]
@@ -243,7 +243,7 @@ abbrev:keyword | type:keyword | scalerank:integer | min_scalerank:integer
 // end::mv-expand-result[]
 ;
 
-byMvExpand
+byMvExpand-Ignore
 required_capability: join_planning_v1
 
 // tag::extreme-airports[]
@@ -307,7 +307,7 @@ count:long | country:keyword | avg:double
         17 |  United Kingdom | 4.455
 ;
 
-afterWhere
+afterWhere-Ignore
 required_capability: join_planning_v1
 
 FROM airports
@@ -330,7 +330,7 @@ required_capability: join_planning_v1
 
 FROM airports
 | RENAME scalerank AS int
-| LOOKUP int_number_names ON int
+| LOOKUP JOIN int_number_names ON int
 | RENAME name as scalerank
 | DROP int
 | INLINESTATS count=COUNT(*) BY scalerank
@@ -366,7 +366,7 @@ abbrev:keyword | city:keyword |       region:text | "COUNT(*)":long
            FUK |      Fukuoka |             中央区 | 2
 ;
 
-beforeStats-Ignore
+beforeStats
 required_capability: join_planning_v1
 
 FROM airports
@@ -379,7 +379,7 @@ northern:long | southern:long
           520 | 371
 ;
 
-beforeKeepSort
+beforeKeepSort-Ignore
 required_capability: join_planning_v1
 
 FROM employees
@@ -394,7 +394,7 @@ emp_no:integer | languages:integer | max_salary:integer
          10003 |                 4 | 74572
 ;
 
-beforeKeepWhere
+beforeKeepWhere-Ignore
 required_capability: join_planning_v1
 
 FROM employees
@@ -537,7 +537,7 @@ emp_no:integer | one:integer
          10005 | 1
 ;
 
-percentile-Ignore
+percentile
 required_capability: join_planning_v1
 
 FROM employees

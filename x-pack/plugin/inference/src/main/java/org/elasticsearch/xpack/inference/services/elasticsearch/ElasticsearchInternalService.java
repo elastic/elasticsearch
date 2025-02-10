@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
-import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
@@ -568,6 +567,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             model.getServiceSettings().getNumThreads(),
             model.getServiceSettings().modelId(),
             model.getServiceSettings().getAdaptiveAllocationsSettings(),
+            model.getServiceSettings().getDeploymentId(),
             embeddingSize,
             model.getServiceSettings().similarity(),
             model.getServiceSettings().elementType()
@@ -914,12 +914,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             DEFAULT_ELSER_ID,
             TaskType.SPARSE_EMBEDDING,
             NAME,
-            new ElserInternalServiceSettings(
-                null,
-                1,
-                useLinuxOptimizedModel ? ELSER_V2_MODEL_LINUX_X86 : ELSER_V2_MODEL,
-                new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 32)
-            ),
+            ElserInternalServiceSettings.defaultEndpointSettings(useLinuxOptimizedModel),
             ElserMlNodeTaskSettings.DEFAULT,
             ChunkingSettingsBuilder.DEFAULT_SETTINGS
         );
@@ -927,19 +922,14 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             DEFAULT_E5_ID,
             TaskType.TEXT_EMBEDDING,
             NAME,
-            new MultilingualE5SmallInternalServiceSettings(
-                null,
-                1,
-                useLinuxOptimizedModel ? MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86 : MULTILINGUAL_E5_SMALL_MODEL_ID,
-                new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 32)
-            ),
+            MultilingualE5SmallInternalServiceSettings.defaultEndpointSettings(useLinuxOptimizedModel),
             ChunkingSettingsBuilder.DEFAULT_SETTINGS
         );
         var defaultRerank = new ElasticRerankerModel(
             DEFAULT_RERANK_ID,
             TaskType.RERANK,
             NAME,
-            new ElasticRerankerServiceSettings(null, 1, RERANKER_ID, new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 32)),
+            ElasticRerankerServiceSettings.defaultEndpointSettings(),
             RerankTaskSettings.DEFAULT_SETTINGS
         );
         return List.of(defaultElser, defaultE5, defaultRerank);

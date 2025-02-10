@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.FirstValueBytesRefAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.FirstValueLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -39,6 +40,7 @@ public class FirstValue extends AggregateFunction implements OptionalArgument, T
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "First", FirstValue::new);
 
     private static final Map<DataType, Function<List<Integer>, AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
+        Map.entry(DataType.LONG, FirstValueLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.KEYWORD, FirstValueBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.TEXT, FirstValueBytesRefAggregatorFunctionSupplier::new),
         Map.entry(DataType.SEMANTIC_TEXT, FirstValueBytesRefAggregatorFunctionSupplier::new),

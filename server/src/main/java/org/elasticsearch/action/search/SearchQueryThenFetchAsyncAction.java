@@ -525,55 +525,6 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         }
     }
 
-    protected void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final SearchShardTarget shard) {
-        final Transport.Connection connection;
-        try {
-            connection = getConnection(shard.getClusterAlias(), shard.getNodeId());
-        } catch (Exception e) {
-            onShardFailure(shardIndex, shard, shardIt, e);
-            return;
-        }
-        final String indexUUID = shardIt.shardId().getIndex().getUUID();
-        searchTransportService.sendExecuteQuery(
-            connection,
-            rewriteShardSearchRequest(
-                bottomSortCollector,
-                trackTotalHitsUpTo,
-                buildShardSearchRequest(
-                    shardIt.shardId(),
-                    shardIt.getClusterAlias(),
-                    shardIndex,
-                    shardIt.getSearchContextId(),
-                    shardIt.getOriginalIndices(),
-                    aliasFilter.getOrDefault(indexUUID, AliasFilter.EMPTY),
-                    shardIt.getSearchContextKeepAlive(),
-                    concreteIndexBoosts.getOrDefault(indexUUID, DEFAULT_INDEX_BOOST),
-                    request,
-                    results.getNumShards(),
-                    timeProvider.absoluteStartMillis(),
-                    hasShardResponse.getAcquire()
-                )
-            ),
-            task,
-            new SearchActionListener<>(shard, shardIndex) {
-                @Override
-                public void innerOnResponse(SearchPhaseResult result) {
-                    try {
-                        onShardResult(result);
-                    } catch (Exception exc) {
-                        // TODO: this looks like a nasty bug where it to actually happen
-                        assert false : exc;
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    onShardFailure(shardIndex, shard, shardIt, e);
-                }
-            }
-        );
-    }
-
     public static final String NODE_SEARCH_ACTION_NAME = "indices:data/read/search[query][n]";
 
     private static final CircuitBreaker NOOP_CIRCUIT_BREAKER = new NoopCircuitBreaker("request");

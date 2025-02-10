@@ -461,7 +461,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         private static boolean indexSortConfigByHostName(final IndexSortConfig indexSortConfig) {
-            return indexSortConfig != null && indexSortConfig.hasIndexSort() && indexSortConfig.hasSortOnFiled(HOST_NAME);
+            return indexSortConfig != null && indexSortConfig.hasIndexSort() && indexSortConfig.hasSortOnField(HOST_NAME);
         }
     }
 

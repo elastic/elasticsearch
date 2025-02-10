@@ -93,7 +93,6 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:smoke-test-security-with-mustache");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:xpack-prefix-rest-compat");
         map.put(LegacyRestTestBasePlugin.class, ":modules:ingest-geoip:qa:file-based-update");
-        map.put(LegacyRestTestBasePlugin.class, ":plugins:discovery-ec2:qa:amazon-ec2");
         map.put(LegacyRestTestBasePlugin.class, ":plugins:discovery-gce:qa:gce");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:multi-cluster-search-security:legacy-with-basic-license");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:qa:multi-cluster-search-security:legacy-with-full-license");

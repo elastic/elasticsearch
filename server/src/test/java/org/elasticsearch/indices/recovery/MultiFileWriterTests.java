@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.util.Collections;
 
 import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -45,6 +46,8 @@ public class MultiFileWriterTests extends IndexShardTestCase {
         indexShard = newShard(true);
         directory = newMockFSDirectory(indexShard.shardPath().resolveIndex());
         directorySpy = spy(directory);
+        // The underlying directory will already be closed by #closeShards(indexShard)
+        doNothing().when(directorySpy).close();
         store = createStore(indexShard.shardId(), indexShard.indexSettings(), directorySpy);
     }
 
@@ -53,6 +56,7 @@ public class MultiFileWriterTests extends IndexShardTestCase {
         super.tearDown();
         directory.close();
         closeShards(indexShard);
+        store.close();
     }
 
     public void testWritesFile() throws IOException {

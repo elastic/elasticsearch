@@ -1028,7 +1028,7 @@ public final class DateFieldMapper extends FieldMapper {
         return hasDocValues
             && IndexMode.LOGSDB.equals(indexMode)
             && indexSortConfig != null
-            && indexSortConfig.hasSortOnFiled(fullFieldName)
+            && indexSortConfig.hasSortOnField(fullFieldName)
             && DataStreamTimestampFieldMapper.DEFAULT_PATH.equals(fullFieldName);
     }
 

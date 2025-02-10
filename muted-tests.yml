@@ -406,6 +406,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClustersCancellationIT
   method: testCloseSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/121627
+- class: org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests
+  method: testDuplicateDownsampleRequest
+  issue: https://github.com/elastic/elasticsearch/issues/122158
 
 # Examples:
 #

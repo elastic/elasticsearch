@@ -2989,9 +2989,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         var plan = statement("""
             FROM foo*
-            | FORK [WHERE a:"baz" | LIMIT 11]
-                   [WHERE b:"bar" | SORT b ]
-                   [WHERE c:"bat"]
+            | FORK ( WHERE a:"baz" | LIMIT 11 )
+                   ( WHERE b:"bar" | SORT b )
+                   ( WHERE c:"bat" )
             """);
         var fork = as(plan, Fork.class);
         var subPlans = fork.subPlans();
@@ -3029,24 +3029,24 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testInvalidFork() {
         assumeTrue("FORK requires corresponding capability", EsqlCapabilities.Cap.FORK.isEnabled());
 
-        expectError("FROM foo* | FORK [WHERE a:\"baz\"]", "line 1:13: Fork requires at least two branches");
-        expectError("FROM foo* | FORK [LIMIT 10]", "line 1:13: Fork requires at least two branches");
-        expectError("FROM foo* | FORK [SORT a]", "line 1:13: Fork requires at least two branches");
-        expectError("FROM foo* | FORK [WHERE x>1 | LIMIT 5]", "line 1:13: Fork requires at least two branches");
-        expectError("FROM foo* | WHERE x>1 | FORK [WHERE a:\"baz\"]", "Fork requires at least two branches");
+        expectError("FROM foo* | FORK (WHERE a:\"baz\")", "line 1:13: Fork requires at least two branches");
+        expectError("FROM foo* | FORK (LIMIT 10)", "line 1:13: Fork requires at least two branches");
+        expectError("FROM foo* | FORK (SORT a)", "line 1:13: Fork requires at least two branches");
+        expectError("FROM foo* | FORK (WHERE x>1 | LIMIT 5)", "line 1:13: Fork requires at least two branches");
+        expectError("FROM foo* | WHERE x>1 | FORK (WHERE a:\"baz\")", "Fork requires at least two branches");
 
-        expectError("FROM foo* | FORK [LIMIT 10] [EVAL x = 1]", "line 1:30: mismatched input 'EVAL' expecting {'limit', 'sort', 'where'}");
-        expectError("FROM foo* | FORK [EVAL x = 1] [LIMIT 10]", "line 1:19: mismatched input 'EVAL' expecting {'limit', 'sort', 'where'}");
+        expectError("FROM foo* | FORK (LIMIT 10) (EVAL x = 1)", "line 1:30: mismatched input 'EVAL' expecting {'limit', 'sort', 'where'}");
+        expectError("FROM foo* | FORK (EVAL x = 1) (LIMIT 10)", "line 1:19: mismatched input 'EVAL' expecting {'limit', 'sort', 'where'}");
         expectError(
-            "FROM foo* | FORK [WHERE x>1 |EVAL x = 1] [WHERE x>1]",
+            "FROM foo* | FORK (WHERE x>1 |EVAL x = 1) (WHERE x>1)",
             "line 1:30: mismatched input 'EVAL' expecting {'limit', 'sort', 'where'}"
         );
         expectError(
-            "FROM foo* | FORK [WHERE x>1 |EVAL x = 1] [WHERE x>1]",
+            "FROM foo* | FORK (WHERE x>1 |EVAL x = 1) (WHERE x>1)",
             "line 1:30: mismatched input 'EVAL' expecting {'limit', 'sort', 'where'}"
         );
         expectError(
-            "FROM foo* | FORK [WHERE x>1 |STATS count(x) by y] [WHERE x>1]",
+            "FROM foo* | FORK (WHERE x>1 |STATS count(x) by y) (WHERE x>1)",
             "line 1:30: mismatched input 'STATS' expecting {'limit', 'sort', 'where'}"
         );
     }

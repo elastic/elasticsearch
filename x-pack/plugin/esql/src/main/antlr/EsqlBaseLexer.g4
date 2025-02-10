@@ -222,6 +222,8 @@ LEFT_BRACES : '{';
 RIGHT_BRACES : '}';
 
 NESTED_WHERE : WHERE -> type(WHERE);
+NESTED_SORT : SORT -> type(SORT);
+NESTED_LIMIT : LIMIT -> type(LIMIT);
 
 NAMED_OR_POSITIONAL_PARAM
     : PARAM (LETTER | UNDERSCORE) UNQUOTED_ID_BODY*
@@ -662,9 +664,8 @@ CHANGE_POINT_WS: WS -> channel(HIDDEN);
 // Fork
 //
 mode FORK_MODE;
-// double push since expression mode double pops
-FORK_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET), pushMode(DEFAULT_MODE);
-FORK_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET), popMode;
+FORK_LP : LP -> type(LP), pushMode(DEFAULT_MODE);
+FORK_RP : RP -> type(RP), popMode;
 FORK_PIPE : PIPE -> type(PIPE), popMode;
 FORK_WS : WS -> channel(HIDDEN);
 FORK_LINE_COMMENT : LINE_COMMENT -> channel(HIDDEN);

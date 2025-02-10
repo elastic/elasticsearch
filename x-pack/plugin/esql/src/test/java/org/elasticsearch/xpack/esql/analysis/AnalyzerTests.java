@@ -2597,9 +2597,11 @@ public class AnalyzerTests extends ESTestCase {
         LogicalPlan plan = analyze("""
             from test*
             | WHERE x > 1
-            | FORK [ WHERE b > 2 ]
-                   [ WHERE C > 3 ]
-                   [ WHERE d > 4 | SORT x | LIMIT 7 ]
+            | FORK ( WHERE b > 2 )
+                   ( WHERE C > 3 )
+                   ( WHERE d > 4 | SORT x | LIMIT 7 )
+                   ( SORT x )
+                   ( LIMIT 9 )
             """);
 
         Limit limit = as(plan, Limit.class);
@@ -2640,6 +2642,28 @@ public class AnalyzerTests extends ESTestCase {
         filter = as(orderBy.child(), Filter.class);
         assertThat(as(filter.condition(), GreaterThan.class), equalTo(greaterThan(attribute("d"), literal(4))));
         filter = as(filter.child(), Filter.class);
+        assertThat(as(filter.condition(), GreaterThan.class), equalTo(greaterThan(attribute("x"), literal(1))));
+        esRelation = as(filter.child(), EsRelation.class);
+        assertThat(esRelation.indexPattern(), equalTo("test"));
+
+        // fork branch 4
+        limit = as(merge.subPlans().get(3), Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
+        eval = as(limit.child(), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork4"))));
+        orderBy = as(eval.child(), OrderBy.class);
+        filter = as(orderBy.child(), Filter.class);
+        assertThat(as(filter.condition(), GreaterThan.class), equalTo(greaterThan(attribute("x"), literal(1))));
+        esRelation = as(filter.child(), EsRelation.class);
+        assertThat(esRelation.indexPattern(), equalTo("test"));
+
+        // fork branch 5
+        limit = as(merge.subPlans().get(4), Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
+        eval = as(limit.child(), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork5"))));
+        limit = as(eval.child(), Limit.class);
+        filter = as(limit.child(), Filter.class);
         assertThat(as(filter.condition(), GreaterThan.class), equalTo(greaterThan(attribute("x"), literal(1))));
         esRelation = as(filter.child(), EsRelation.class);
         assertThat(esRelation.indexPattern(), equalTo("test"));

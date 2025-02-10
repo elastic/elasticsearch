@@ -355,7 +355,7 @@ forkSubQueries
     ;
 
 forkSubQuery
-    : OPENING_BRACKET forkSubQueryCommand CLOSING_BRACKET
+    : LP forkSubQueryCommand RP
     ;
 
 forkSubQueryCommand

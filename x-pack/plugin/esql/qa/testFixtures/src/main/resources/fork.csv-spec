@@ -6,8 +6,8 @@ simpleFork
 required_capability: fork
 
 FROM employees
-| FORK [ WHERE emp_no == 10001]
-       [ WHERE emp_no == 10002]
+| FORK ( WHERE emp_no == 10001 )
+       ( WHERE emp_no == 10002 )
 | KEEP emp_no, _fork
 | SORT emp_no
 ;
@@ -21,8 +21,8 @@ forkWithWhereSortAndLimit
 required_capability: fork
 
 FROM employees
-| FORK [ WHERE hire_date < "1985-03-01T00:00:00Z" | SORT first_name | LIMIT 5]
-       [ WHERE hire_date < "1988-03-01T00:00:00Z" | SORT first_name | LIMIT 5]
+| FORK ( WHERE hire_date < "1985-03-01T00:00:00Z" | SORT first_name | LIMIT 5 )
+       ( WHERE hire_date < "1988-03-01T00:00:00Z" | SORT first_name | LIMIT 5 )
 | KEEP emp_no, first_name, _fork
 | SORT emp_no, _fork
 ;
@@ -41,11 +41,11 @@ fiveFork
 required_capability: fork
 
 FROM employees
-| FORK [ WHERE emp_no == 10005 ]
-       [ WHERE emp_no == 10004 ]
-       [ WHERE emp_no == 10003 ]
-       [ WHERE emp_no == 10002 ]
-       [ WHERE emp_no == 10001 ]
+| FORK ( WHERE emp_no == 10005 )
+       ( WHERE emp_no == 10004 )
+       ( WHERE emp_no == 10003 )
+       ( WHERE emp_no == 10002 )
+       ( WHERE emp_no == 10001 )
 | KEEP  _fork, emp_no
 | SORT _fork
 ;
@@ -62,8 +62,8 @@ forkWithWhereSortDescAndLimit
 required_capability: fork
 
 FROM employees
-| FORK [ WHERE hire_date < "1985-03-01T00:00:00Z" | SORT first_name DESC | LIMIT 2]
-       [ WHERE hire_date < "1988-03-01T00:00:00Z" | SORT first_name DESC NULLS LAST | LIMIT 2]
+| FORK ( WHERE hire_date < "1985-03-01T00:00:00Z" | SORT first_name DESC | LIMIT 2 )
+       ( WHERE hire_date < "1988-03-01T00:00:00Z" | SORT first_name DESC NULLS LAST | LIMIT 2 )
 | KEEP _fork, emp_no, first_name
 | SORT _fork, first_name DESC
 ;
@@ -80,8 +80,8 @@ required_capability: fork
 
 FROM employees
 | WHERE emp_no > 10050
-| FORK [ SORT emp_no ASC | LIMIT 2]
-       [ SORT emp_no DESC NULLS LAST | LIMIT 2]
+| FORK ( SORT emp_no ASC | LIMIT 2 )
+       ( SORT emp_no DESC NULLS LAST | LIMIT 2 )
 | KEEP _fork, emp_no
 | SORT _fork, emp_no
 ;

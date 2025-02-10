@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.junit.Before;
 
@@ -22,7 +21,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.equalTo;
 
-@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
+//@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class ForkIT extends AbstractEsqlIntegTestCase {
 
     @Before
@@ -35,8 +34,8 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             FROM test
             | WHERE id > 2
             | FORK
-               [WHERE content:"fox" ]
-               [WHERE content:"dog" ]
+               ( WHERE content:"fox" )
+               ( WHERE content:"dog" )
             | KEEP id, _fork, content
             | SORT id, _fork
             """;
@@ -58,8 +57,8 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             FROM test
             | WHERE id > 0
             | FORK
-               [WHERE content:"fox" | SORT id DESC | LIMIT 1 ]
-               [WHERE content:"dog" ]
+               ( WHERE content:"fox" | SORT id DESC | LIMIT 1 )
+               ( WHERE content:"dog" )
             | KEEP id, _fork, content
             | SORT id, _fork
             """;
@@ -82,8 +81,8 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             FROM test
             | WHERE id > 0
             | FORK
-               [WHERE content:"fox" | SORT id ASC | LIMIT 1 ]
-               [WHERE content:"dog" ]
+               ( WHERE content:"fox" | SORT id ASC | LIMIT 1 )
+               ( WHERE content:"dog" )
             | KEEP id, _fork, content
             | SORT id, _fork
             """;
@@ -106,8 +105,8 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             FROM test
             | WHERE id > 2
             | FORK
-               [WHERE content:"fox" ]
-               [WHERE content:"dog" | SORT id DESC | LIMIT 2]
+               ( WHERE content:"fox" )
+               ( WHERE content:"dog" | SORT id DESC | LIMIT 2 )
             | KEEP _fork, id, content
             | SORT _fork, id
             """;
@@ -128,8 +127,8 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             FROM test
             | WHERE id > 0
             | FORK
-               [WHERE content:"fox" | SORT id | LIMIT 1]
-               [WHERE content:"dog" | SORT id | LIMIT 1]
+               ( WHERE content:"fox" | SORT id | LIMIT 1 )
+               ( WHERE content:"dog" | SORT id | LIMIT 1 )
             | KEEP id, _fork, content
             | SORT id, _fork
             """;
@@ -148,8 +147,8 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
         var query = """
             FROM test
             | FORK
-               [WHERE id < 2 | WHERE content:"fox"]
-               [WHERE id > 2 | WHERE content:"dog"]
+               ( WHERE id < 2 | WHERE content:"fox" )
+               ( WHERE id > 2 | WHERE content:"dog" )
             | SORT _fork, id
             | KEEP _fork, id, content
             """;
@@ -170,8 +169,8 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
         var query = """
             FROM test
             | FORK
-               [WHERE content:"fox" | SORT id ]
-               [WHERE content:"dog" | SORT id ]
+               ( WHERE content:"fox" | SORT id )
+               ( WHERE content:"dog" | SORT id )
             | SORT _fork, id
             | KEEP _fork, id, content
             """;
@@ -191,34 +190,43 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testWhereSortOnlyInFork() {
-        var query = """
+        var queryWithMatchOperator = """
             FROM test
             | FORK
-               [WHERE content:"fox" | SORT id ]
-               [WHERE content:"dog" | SORT id ]
+               ( WHERE content:"fox" | SORT id )
+               ( WHERE content:"dog" | SORT id )
             | KEEP _fork, id, content
             """;
-        try (var resp = run(query)) {
-            assertColumnNames(resp.columns(), List.of("_fork", "id", "content"));
-            assertColumnTypes(resp.columns(), List.of("keyword", "integer", "text"));
-            Iterable<Iterable<Object>> expectedValues = List.of(
-                List.of("fork1", 1, "This is a brown fox"),
-                List.of("fork1", 6, "The quick brown fox jumps over the lazy dog"),
-                List.of("fork2", 2, "This is a brown dog"),
-                List.of("fork2", 3, "This dog is really brown"),
-                List.of("fork2", 4, "The dog is brown but this document is very very long"),
-                List.of("fork2", 6, "The quick brown fox jumps over the lazy dog")
-            );
-            assertValues(resp.values(), expectedValues);
+        var queryWithMatchFunction = """
+            FROM test
+            | FORK
+               ( WHERE match(content, "fox") | SORT id )
+               ( WHERE match(content, "dog") | SORT id )
+            | KEEP _fork, id, content
+            """;
+        for (var query : List.of(queryWithMatchOperator, queryWithMatchFunction)) {
+            try (var resp = run(query)) {
+                assertColumnNames(resp.columns(), List.of("_fork", "id", "content"));
+                assertColumnTypes(resp.columns(), List.of("keyword", "integer", "text"));
+                Iterable<Iterable<Object>> expectedValues = List.of(
+                    List.of("fork1", 1, "This is a brown fox"),
+                    List.of("fork1", 6, "The quick brown fox jumps over the lazy dog"),
+                    List.of("fork2", 2, "This is a brown dog"),
+                    List.of("fork2", 3, "This dog is really brown"),
+                    List.of("fork2", 4, "The dog is brown but this document is very very long"),
+                    List.of("fork2", 6, "The quick brown fox jumps over the lazy dog")
+                );
+                assertValues(resp.values(), expectedValues);
+            }
         }
     }
 
-    public void testLimitOnlyInSecondSubQuery() {
+    public void testSortAndLimitOnlyInSecondSubQuery() {
         var query = """
             FROM test
             | FORK
-               [ WHERE content:"fox" ]
-               [ SORT id | LIMIT 3 ]
+               ( WHERE content:"fox" )
+               ( SORT id | LIMIT 3 )
             | SORT _fork, id
             | KEEP _fork, id, content
             """;
@@ -236,13 +244,39 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testLimitOnlyInSecondSubQuery() {
+        var query = """
+            FROM test
+            | FORK
+               ( WHERE content:"fox" )
+               ( LIMIT 100 )
+            | SORT _fork, id
+            | KEEP _fork, id, content
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("_fork", "id", "content"));
+            assertColumnTypes(resp.columns(), List.of("keyword", "integer", "text"));
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                List.of("fork1", 1, "This is a brown fox"),
+                List.of("fork1", 6, "The quick brown fox jumps over the lazy dog"),
+                List.of("fork2", 1, "This is a brown fox"),
+                List.of("fork2", 2, "This is a brown dog"),
+                List.of("fork2", 3, "This dog is really brown"),
+                List.of("fork2", 4, "The dog is brown but this document is very very long"),
+                List.of("fork2", 5, "There is also a white cat"),
+                List.of("fork2", 6, "The quick brown fox jumps over the lazy dog")
+            );
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
     public void testKeepOnlyId() {
         var query = """
             FROM test METADATA _score
             | WHERE id > 2
             | FORK
-               [WHERE content:"fox" ]
-               [WHERE content:"dog" ]
+               ( WHERE content:"fox" )
+               ( WHERE content:"dog" )
             | KEEP id
             | SORT id
             """;
@@ -259,8 +293,8 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             FROM test METADATA _score
             | WHERE id > 2
             | FORK
-               [ WHERE content:"fox" ]
-               [ WHERE content:"dog" ]
+               ( WHERE content:"fox" )
+               ( WHERE content:"dog" )
             | KEEP id, content, _fork, _score
             | SORT id
             """;
@@ -276,9 +310,9 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             FROM test
             | WHERE id > 2
             | FORK
-               [WHERE content:"fox" ]
-               [WHERE content:"dog" ]
-               [WHERE content:"cat" ]
+               ( WHERE content:"fox" )
+               ( WHERE content:"dog" )
+               ( WHERE content:"cat" )
             | KEEP _fork, id, content
             | SORT _fork, id
             """;
@@ -300,11 +334,11 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
         var query = """
             FROM test
             | FORK
-               [ WHERE id == 6 ]
-               [ WHERE id == 2 ]
-               [ WHERE id == 5 ]
-               [ WHERE id == 1 ]
-               [ WHERE id == 3 ]
+               ( WHERE id == 6 )
+               ( WHERE id == 2 )
+               ( WHERE id == 5 )
+               ( WHERE id == 1 )
+               ( WHERE id == 3 )
             | SORT _fork, id
             | KEEP _fork, id, content
             """;
@@ -328,10 +362,10 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
         var query = """
             FROM test
             | FORK
-               [ WHERE id > 0 | SORT id DESC | LIMIT 2]
-               [ WHERE id > 1 | SORT id ASC  | LIMIT 3]
-               [ WHERE id < 3 | SORT id DESC | LIMIT 2]
-               [ WHERE id > 2 | SORT id ASC  | LIMIT 3]
+               ( WHERE id > 0 | SORT id DESC | LIMIT 2 )
+               ( WHERE id > 1 | SORT id ASC  | LIMIT 3 )
+               ( WHERE id < 3 | SORT id DESC | LIMIT 2 )
+               ( WHERE id > 2 | SORT id ASC  | LIMIT 3 )
             | KEEP _fork, id, content
             """;
         try (var resp = run(query)) {
@@ -368,9 +402,9 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             FROM test
             | WHERE id > 2
             | FORK
-               [ WHERE content:"rabbit" ]
-               [ WHERE content:"dog" ]
-               [ WHERE content:"cat" ]
+               ( WHERE content:"rabbit" )
+               ( WHERE content:"dog" )
+               ( WHERE content:"cat" )
             | KEEP _fork, id, content
             | SORT _fork, id
             """;
@@ -391,9 +425,9 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
         var query = """
             FROM test
             | FORK
-               [ WHERE content:"rabbit" ]
-               [ WHERE content:"lion" ]
-               [ WHERE content:"tiger" ]
+               ( WHERE content:"rabbit" )
+               ( WHERE content:"lion" )
+               ( WHERE content:"tiger" )
             | KEEP _fork, id, content
             | SORT _fork, id
             """;
@@ -410,7 +444,7 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             FROM test
             | WHERE id > 2
             | FORK
-               [ WHERE content:"fox" ]
+               ( WHERE content:"fox" )
             """;
         var e = expectThrows(ParsingException.class, () -> run(query));
         assertTrue(e.getMessage().contains("Fork requires at least two branches"));

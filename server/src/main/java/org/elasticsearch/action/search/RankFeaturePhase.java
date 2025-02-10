@@ -209,7 +209,7 @@ public class RankFeaturePhase extends SearchPhase {
                         RankFeatureDoc[] rankDocs = new RankFeatureDoc[inputDocs.length];
                         for (int i = 0; i < inputDocs.length; i++) {
                             ScoreDoc doc = inputDocs[i];
-                            rankDocs[i] = new RankFeatureDoc(doc.doc, Float.isNaN(doc.score) ? 1f / (i+1) : doc.score, doc.shardIndex);
+                            rankDocs[i] = new RankFeatureDoc(doc.doc, Float.isNaN(doc.score) ? 1f / (i + 1) : doc.score, doc.shardIndex);
                         }
                         RankDoc[] topResults = rankFeaturePhaseRankCoordinatorContext.rankAndPaginate(rankDocs, false);
                         SearchPhaseController.ReducedQueryPhase reducedRankFeaturePhase = newReducedQueryPhaseResults(

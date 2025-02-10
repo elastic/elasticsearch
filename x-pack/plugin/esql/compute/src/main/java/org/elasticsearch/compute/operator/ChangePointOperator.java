@@ -128,26 +128,21 @@ public class ChangePointOperator implements Operator {
                     valuesIndex++;
                 } else if (value instanceof List<?>) {
                     hasMultivalued = true;
+                    valuesIndex++;
                 } else {
                     values.add(((Number) value).doubleValue());
                     bucketIndexes.add(valuesIndex++);
                 }
             }
         }
-        ChangeType changeType;
-        int changePointIndex;
-        if (hasMultivalued == false) {
-            MlAggsHelper.DoubleBucketValues bucketValues = new MlAggsHelper.DoubleBucketValues(
-                null,
-                values.stream().mapToDouble(Double::doubleValue).toArray(),
-                bucketIndexes.stream().mapToInt(Integer::intValue).toArray()
-            );
-            changeType = ChangePointDetector.getChangeType(bucketValues);
-            changePointIndex = changeType.changePoint();
-        } else {
-            changeType = null;
-            changePointIndex = -1;
-        }
+
+        MlAggsHelper.DoubleBucketValues bucketValues = new MlAggsHelper.DoubleBucketValues(
+            null,
+            values.stream().mapToDouble(Double::doubleValue).toArray(),
+            bucketIndexes.stream().mapToInt(Integer::intValue).toArray()
+        );
+        ChangeType changeType = ChangePointDetector.getChangeType(bucketValues);
+        int changePointIndex = changeType.changePoint();
 
         BlockFactory blockFactory = driverContext.blockFactory();
         int pageStartIndex = 0;
@@ -196,11 +191,6 @@ public class ChangePointOperator implements Operator {
         if (changeType instanceof ChangeType.Indeterminable indeterminable) {
             warnings(false).registerException(new IllegalArgumentException(indeterminable.getReason()));
         }
-        if (hasMultivalued) {
-            warnings(false).registerException(
-                new IllegalArgumentException("values is multivalued; please reduce them with e.g. MV_AVG or MV_SUM")
-            );
-        }
         if (tooManyValues) {
             warnings(true).registerException(
                 new IllegalArgumentException("too many values; keeping only first " + INPUT_VALUE_COUNT_LIMIT + " values")
@@ -208,6 +198,13 @@ public class ChangePointOperator implements Operator {
         }
         if (hasNulls) {
             warnings(true).registerException(new IllegalArgumentException("values contain nulls; skipping them"));
+        }
+        if (hasMultivalued) {
+            warnings(true).registerException(
+                new IllegalArgumentException(
+                    "values contains multivalued entries; skipping them (please consider reducing them with e.g. MV_AVG or MV_SUM)"
+                )
+            );
         }
     }
 

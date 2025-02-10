@@ -736,11 +736,12 @@ FROM employees
   | STATS salary=MV_SORT(VALUES(salary)) BY height
   | EVAL salary = CASE(height == 1.5, [1, 22222, 33333], salary)
   | EVAL salary = CASE(height == 1.63, [43210, -10000, 999999999], salary)
+  | EVAL salary = CASE(height == 1.8, 999999999, salary)
   | CHANGE_POINT salary ON height
 ;
 
-warning:Line 5:3: evaluation of [CHANGE_POINT salary ON height] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 5:3: java.lang.IllegalArgumentException: values is multivalued; please reduce them with e.g. MV_AVG or MV_SUM
+warning:Line 6:3: warnings during evaluation of [CHANGE_POINT salary ON height]. Only first 20 failures recorded.
+warning:Line 6:3: java.lang.IllegalArgumentException: values contains multivalued entries; skipping them (please consider reducing them with e.g. MV_AVG or MV_SUM)
 
 height:double | salary:integer                      | type:keyword | pvalue:double       
 1.41          | 40031                               | null         | null                
@@ -772,7 +773,7 @@ height:double | salary:integer                      | type:keyword | pvalue:doub
 1.77          | [41933, 52044, 54329, 68431]        | null         | null                
 1.78          | [36174, 52121]                      | null         | null                
 1.79          | 55360                               | null         | null                
-1.8           | 52833                               | null         | null                
+1.8           | 999999999                           | spike        | 0.0                
 1.81          | [25945, 69904, 73578]               | null         | null                
 1.82          | [48233, 54518, 65367]               | null         | null                
 1.83          | [38376, 61805, 62405]               | null         | null                

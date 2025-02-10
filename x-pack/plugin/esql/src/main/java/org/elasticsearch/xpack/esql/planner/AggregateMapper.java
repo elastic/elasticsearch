@@ -49,7 +49,6 @@ import java.lang.invoke.MethodType;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -204,9 +203,6 @@ final class AggregateMapper {
             if (clazz.isAssignableFrom(Rate.class)) {
                 // rate doesn't support non-grouping aggregations
                 return Stream.of(new AggDef(clazz, type, extra, true));
-            } else if (Objects.equals(type, "AggregateMetricDouble")) {
-                // TODO: support grouping aggregations for aggregate metric double
-                return Stream.of(new AggDef(clazz, type, extra, false));
             } else {
                 return Stream.of(new AggDef(clazz, type, extra, true), new AggDef(clazz, type, extra, false));
             }

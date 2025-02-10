@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.test.ESTestCase;
@@ -79,22 +80,7 @@ public class RollupIndexerStateTests extends ESTestCase {
 
             ActionListener.respondAndRelease(
                 nextPhase,
-                new SearchResponse(
-                    SearchHits.EMPTY_WITH_TOTAL_HITS,
-                    aggs,
-                    null,
-                    false,
-                    null,
-                    null,
-                    1,
-                    null,
-                    1,
-                    1,
-                    0,
-                    0,
-                    new ShardSearchFailure[0],
-                    null
-                )
+                SearchResponseUtils.builder(SearchHits.EMPTY_WITH_TOTAL_HITS).aggregations(aggs).numReducePhases(1).shards(1, 1, 0).build()
             );
         }
 
@@ -430,22 +416,11 @@ public class RollupIndexerStateTests extends ESTestCase {
 
                     ActionListener.respondAndRelease(
                         nextPhase,
-                        new SearchResponse(
-                            SearchHits.EMPTY_WITH_TOTAL_HITS,
-                            aggs,
-                            null,
-                            false,
-                            null,
-                            null,
-                            1,
-                            null,
-                            1,
-                            1,
-                            0,
-                            0,
-                            ShardSearchFailure.EMPTY_ARRAY,
-                            null
-                        )
+                        SearchResponseUtils.builder(SearchHits.EMPTY_WITH_TOTAL_HITS)
+                            .aggregations(aggs)
+                            .numReducePhases(1)
+                            .shards(1, 1, 0)
+                            .build()
                     );
                 }
 
@@ -597,22 +572,11 @@ public class RollupIndexerStateTests extends ESTestCase {
 
             InternalAggregations aggs = InternalAggregations.from(List.of(composite));
 
-            return new SearchResponse(
-                SearchHits.EMPTY_WITH_TOTAL_HITS,
-                aggs,
-                null,
-                false,
-                null,
-                null,
-                1,
-                null,
-                1,
-                1,
-                0,
-                0,
-                ShardSearchFailure.EMPTY_ARRAY,
-                null
-            );
+            return SearchResponseUtils.builder(SearchHits.EMPTY_WITH_TOTAL_HITS)
+                .aggregations(aggs)
+                .numReducePhases(1)
+                .shards(1, 1, 0)
+                .build();
         };
 
         Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
@@ -682,22 +646,11 @@ public class RollupIndexerStateTests extends ESTestCase {
             when(composite.getName()).thenReturn(RollupField.NAME);
 
             InternalAggregations aggs = InternalAggregations.from(List.of(composite));
-            return new SearchResponse(
-                SearchHits.EMPTY_WITH_TOTAL_HITS,
-                aggs,
-                null,
-                false,
-                null,
-                null,
-                1,
-                null,
-                1,
-                1,
-                0,
-                0,
-                ShardSearchFailure.EMPTY_ARRAY,
-                null
-            );
+            return SearchResponseUtils.builder(SearchHits.EMPTY_WITH_TOTAL_HITS)
+                .aggregations(aggs)
+                .numReducePhases(1)
+                .shards(1, 1, 0)
+                .build();
         };
 
         Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
@@ -815,22 +768,11 @@ public class RollupIndexerStateTests extends ESTestCase {
 
             InternalAggregations aggs = InternalAggregations.from(List.of(composite));
 
-            return new SearchResponse(
-                SearchHits.EMPTY_WITH_TOTAL_HITS,
-                aggs,
-                null,
-                false,
-                null,
-                null,
-                1,
-                null,
-                1,
-                1,
-                0,
-                0,
-                ShardSearchFailure.EMPTY_ARRAY,
-                null
-            );
+            return SearchResponseUtils.builder(SearchHits.EMPTY_WITH_TOTAL_HITS)
+                .aggregations(aggs)
+                .numReducePhases(1)
+                .shards(1, 1, 0)
+                .build();
         };
 
         Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> {

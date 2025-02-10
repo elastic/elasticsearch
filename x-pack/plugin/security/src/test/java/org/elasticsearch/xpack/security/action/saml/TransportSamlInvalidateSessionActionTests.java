@@ -26,7 +26,6 @@ import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.TransportClearScrollAction;
 import org.elasticsearch.action.search.TransportSearchAction;
@@ -53,6 +52,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.client.NoOpClient;
@@ -201,49 +201,13 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     final SearchHit[] hits = searchFunction.apply(searchRequest);
                     final var searchHits = new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f);
                     try {
-                        ActionListener.respondAndRelease(
-                            listener,
-                            (Response) new SearchResponse(
-                                searchHits,
-                                null,
-                                null,
-                                false,
-                                false,
-                                null,
-                                1,
-                                "_scrollId1",
-                                1,
-                                1,
-                                0,
-                                1,
-                                null,
-                                null
-                            )
-                        );
+                        ActionListener.respondAndRelease(listener, (Response) SearchResponseUtils.success(searchHits));
                     } finally {
                         searchHits.decRef();
                     }
                 } else if (TransportSearchScrollAction.TYPE.name().equals(action.name())) {
                     assertThat(request, instanceOf(SearchScrollRequest.class));
-                    ActionListener.respondAndRelease(
-                        listener,
-                        (Response) new SearchResponse(
-                            SearchHits.EMPTY_WITH_TOTAL_HITS,
-                            null,
-                            null,
-                            false,
-                            false,
-                            null,
-                            1,
-                            "_scrollId1",
-                            1,
-                            1,
-                            0,
-                            1,
-                            null,
-                            null
-                        )
-                    );
+                    ActionListener.respondAndRelease(listener, (Response) SearchResponseUtils.success(SearchHits.EMPTY_WITH_TOTAL_HITS));
                 } else if (TransportClearScrollAction.NAME.equals(action.name())) {
                     assertThat(request, instanceOf(ClearScrollRequest.class));
                     ClearScrollRequest scrollRequest = (ClearScrollRequest) request;

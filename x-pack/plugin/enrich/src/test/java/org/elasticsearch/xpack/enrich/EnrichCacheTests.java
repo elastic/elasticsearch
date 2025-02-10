@@ -12,6 +12,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -180,22 +181,7 @@ public class EnrichCacheTests extends ESTestCase {
             }
         }).toArray(SearchHit[]::new);
         SearchHits hits = SearchHits.unpooled(hitArray, null, 0);
-        return new SearchResponse(
-            hits,
-            null,
-            null,
-            false,
-            false,
-            null,
-            1,
-            null,
-            5,
-            4,
-            0,
-            randomLong(),
-            null,
-            SearchResponse.Clusters.EMPTY
-        );
+        return SearchResponseUtils.builder(hits).numReducePhases(1).shards(5, 4, 0).tookInMillis(randomLong()).build();
     }
 
     private BytesReference convertMapToJson(Map<String, ?> simpleMap) throws IOException {

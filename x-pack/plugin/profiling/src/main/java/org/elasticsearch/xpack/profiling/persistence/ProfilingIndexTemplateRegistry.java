@@ -54,10 +54,12 @@ public class ProfilingIndexTemplateRegistry extends IndexTemplateRegistry {
     // version 11: Added 'profiling.agent.protocol' keyword mapping to profiling-hosts
     // version 12: Added 'profiling.agent.env_https_proxy' keyword mapping to profiling-hosts
     // version 13: Added 'container.id' keyword mapping to profiling-events
-    public static final int INDEX_TEMPLATE_VERSION = 14;
+    // version 14: Stop using using _source.mode attribute in index templates
+    // version 15: Use LogsDB mode for profiling-events-* (~30% smaller storage footprint)
+    public static final int INDEX_TEMPLATE_VERSION = 15;
 
     // history for individual indices / index templates. Only bump these for breaking changes that require to create a new index
-    public static final int PROFILING_EVENTS_VERSION = 5;
+    public static final int PROFILING_EVENTS_VERSION = 6;
     public static final int PROFILING_EXECUTABLES_VERSION = 1;
     public static final int PROFILING_METRICS_VERSION = 2;
     public static final int PROFILING_HOSTS_VERSION = 2;

@@ -178,7 +178,8 @@ WORKDIR /usr/share/elasticsearch/config
 ## TODO tweak this to not use hard coded password
 RUN cat <<EOF > /usr/share/elasticsearch/config/jvm.options.d/fips.options
 -Djavax.net.ssl.keyStoreType=BCFKS
--Djavax.net.ssl.keyStorePassword=3xtral0ngf1pSc0mpl1antpassw0rd
+-Djavax.net.ssl.trustStore=certs/truststore.bcfks
+-Djavax.net.ssl.keyStorePassword=SomeReallyLongPassword123_123!
 -Dorg.bouncycastle.fips.approved_only=true
 -Djava.security.properties=/usr/share/elasticsearch/config/fips_java.security
 -Djava.security.policy=/usr/share/elasticsearch/config/fips_java.policy

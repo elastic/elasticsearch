@@ -400,8 +400,6 @@ tests:
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=snapshot.delete/10_basic/Delete a snapshot asynchronously}
   issue: https://github.com/elastic/elasticsearch/issues/122104
-- class: org.elasticsearch.datastreams.TSDBPassthroughIndexingIT
-  issue: https://github.com/elastic/elasticsearch/issues/121716
 - class: org.elasticsearch.xpack.ml.integration.ClassificationIT
   method: testWithOnlyTrainingRowsAndTrainingPercentIsFifty_DependentVariableIsBoolean
   issue: https://github.com/elastic/elasticsearch/issues/121680

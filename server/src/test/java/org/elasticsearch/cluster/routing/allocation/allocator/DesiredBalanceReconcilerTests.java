@@ -1212,12 +1212,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             new ConcurrentRebalanceAllocationDecider(clusterSettings),
             new ThrottlingAllocationDecider(clusterSettings) };
 
-        var reconciler = new DesiredBalanceReconciler(
-            clusterSettings,
-            new DeterministicTaskQueue().getThreadPool(),
-            DesiredBalanceMetrics.NOOP,
-            EMPTY_NODE_ALLOCATION_STATS
-        );
+        var reconciler = new DesiredBalanceReconciler(clusterSettings, new DeterministicTaskQueue().getThreadPool());
 
         var totalOutgoingMoves = new HashMap<String, AtomicInteger>();
         for (int i = 0; i < numberOfNodes; i++) {
@@ -1299,12 +1294,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         final var timeInMillisSupplier = new AtomicLong();
         when(threadPool.relativeTimeInMillisSupplier()).thenReturn(timeInMillisSupplier::incrementAndGet);
 
-        var reconciler = new DesiredBalanceReconciler(
-            createBuiltInClusterSettings(),
-            threadPool,
-            DesiredBalanceMetrics.NOOP,
-            EMPTY_NODE_ALLOCATION_STATS
-        );
+        var reconciler = new DesiredBalanceReconciler(createBuiltInClusterSettings(), threadPool);
         final long initialDelayInMillis = TimeValue.timeValueMinutes(5).getMillis();
         timeInMillisSupplier.addAndGet(randomLongBetween(initialDelayInMillis, 2 * initialDelayInMillis));
 
@@ -1356,8 +1346,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
     private static void reconcile(RoutingAllocation routingAllocation, DesiredBalance desiredBalance) {
         final var threadPool = mock(ThreadPool.class);
         when(threadPool.relativeTimeInMillisSupplier()).thenReturn(new AtomicLong()::incrementAndGet);
-        new DesiredBalanceReconciler(createBuiltInClusterSettings(), threadPool, DesiredBalanceMetrics.NOOP, EMPTY_NODE_ALLOCATION_STATS)
-            .reconcile(desiredBalance, routingAllocation);
+        new DesiredBalanceReconciler(createBuiltInClusterSettings(), threadPool).reconcile(desiredBalance, routingAllocation);
     }
 
     private static boolean isReconciled(RoutingNode node, DesiredBalance balance) {

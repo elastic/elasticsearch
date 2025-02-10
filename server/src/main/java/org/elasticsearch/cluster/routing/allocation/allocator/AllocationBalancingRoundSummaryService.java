@@ -18,6 +18,8 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -84,9 +86,89 @@ public class AllocationBalancingRoundSummaryService {
     }
 
     /**
+     * Summarizes the work required to move from an old to new desired balance shard allocation.
+     */
+    public static BalancingRoundSummary createBalancerRoundSummary(DesiredBalance oldDesiredBalance, DesiredBalance newDesiredBalance) {
+        return new BalancingRoundSummary(
+            createWeightsSummary(oldDesiredBalance, newDesiredBalance),
+            DesiredBalance.shardMovements(oldDesiredBalance, newDesiredBalance)
+        );
+    }
+
+    /**
+     * Creates a summary of the node weight changes from {@code oldDesiredBalance} to {@code newDesiredBalance}.
+     * See {@link BalancingRoundSummary.NodesWeightsChanges} for content details.
+     *
+     * @VisibleForTesting
+     */
+    protected static Map<String, BalancingRoundSummary.NodesWeightsChanges> createWeightsSummary(
+        DesiredBalance oldDesiredBalance,
+        DesiredBalance newDesiredBalance
+    ) {
+        var oldWeightsPerNode = oldDesiredBalance.weightsPerNode();
+        var newWeightsPerNode = newDesiredBalance.weightsPerNode();
+
+        Map<String, BalancingRoundSummary.NodesWeightsChanges> nodeNameToWeightInfo = new HashMap<>(oldWeightsPerNode.size());
+        for (var nodeAndWeights : oldWeightsPerNode.entrySet()) {
+            var discoveryNode = nodeAndWeights.getKey();
+            var oldNodeWeightStats = nodeAndWeights.getValue();
+            var newNodeWeightStats = newWeightsPerNode.get(discoveryNode);
+
+            if (newNodeWeightStats == null) {
+                // The node no longer exists in the new DesiredBalance. The weight diffs will be equal to the negative of the old
+                // DesiredBalance weights to reflect a new DesiredBalance of zero for each weight.
+                nodeNameToWeightInfo.put(
+                    discoveryNode.getName(),
+                    new BalancingRoundSummary.NodesWeightsChanges(
+                        oldNodeWeightStats,
+                        new BalancingRoundSummary.NodeWeightsDiff(
+                            -oldNodeWeightStats.shardCount(),
+                            -oldNodeWeightStats.diskUsageInBytes(),
+                            -oldNodeWeightStats.writeLoad(),
+                            -oldNodeWeightStats.nodeWeight()
+                        )
+                    )
+                );
+                continue;
+            }
+
+            nodeNameToWeightInfo.put(
+                discoveryNode.getName(),
+                new BalancingRoundSummary.NodesWeightsChanges(
+                    oldNodeWeightStats,
+                    BalancingRoundSummary.NodeWeightsDiff.create(oldNodeWeightStats, newNodeWeightStats)
+                )
+            );
+        }
+
+        // There may be a new node in the new DesiredBalance that was not in the old DesiredBalance. So we'll need to iterate the nodes in
+        // the new DesiredBalance to check.
+        for (var nodeAndWeights : newWeightsPerNode.entrySet()) {
+            var discoveryNode = nodeAndWeights.getKey();
+            if (nodeNameToWeightInfo.containsKey(discoveryNode.getName()) == false) {
+                // This node is new in the new DesiredBalance, there is no entry in the result yet because we previously iterated the nodes
+                // in the old DesiredBalance. So we'll make a new entry with a base of zero value weights and a weights diff of the new
+                // node's weights.
+                var zeroBaseWeights = new DesiredBalanceMetrics.NodeWeightStats(0, 0, 0, 0);
+                nodeNameToWeightInfo.put(
+                    discoveryNode.getName(),
+                    new BalancingRoundSummary.NodesWeightsChanges(
+                        zeroBaseWeights,
+                        BalancingRoundSummary.NodeWeightsDiff.create(zeroBaseWeights, nodeAndWeights.getValue())
+                    )
+                );
+            }
+        }
+
+        return nodeNameToWeightInfo;
+    }
+
+    /**
      * Adds the summary of a balancing round. If summaries are enabled, this will eventually be reported (logging, etc.). If balancer round
      * summaries are not enabled in the cluster, then the summary is immediately discarded (so as not to fill up a data structure that will
      * never be drained).
+     *
+     * @VisibleForTesting
      */
     public void addBalancerRoundSummary(BalancingRoundSummary summary) {
         if (enableBalancerRoundSummaries == false) {
@@ -110,7 +192,7 @@ public class AllocationBalancingRoundSummaryService {
      */
     private void drainAndReportSummaries() {
         var combinedSummaries = drainSummaries();
-        if (combinedSummaries == CombinedBalancingRoundSummary.EMPTY_RESULTS) {
+        if (combinedSummaries == BalancingRoundSummary.CombinedBalancingRoundSummary.EMPTY_RESULTS) {
             return;
         }
 
@@ -120,14 +202,14 @@ public class AllocationBalancingRoundSummaryService {
     /**
      * Returns a combined summary of all unreported allocation round summaries: may summarize a single balancer round, multiple, or none.
      *
-     * @return {@link CombinedBalancingRoundSummary#EMPTY_RESULTS} if there are no balancing round summaries waiting to be reported.
+     * @return {@link BalancingRoundSummary.CombinedBalancingRoundSummary#EMPTY_RESULTS} if there are no balancing round summaries waiting to be reported.
      */
-    private CombinedBalancingRoundSummary drainSummaries() {
+    private BalancingRoundSummary.CombinedBalancingRoundSummary drainSummaries() {
         ArrayList<BalancingRoundSummary> batchOfSummaries = new ArrayList<>();
         while (summaries.isEmpty() == false) {
             batchOfSummaries.add(summaries.poll());
         }
-        return CombinedBalancingRoundSummary.combine(batchOfSummaries);
+        return BalancingRoundSummary.CombinedBalancingRoundSummary.combine(batchOfSummaries);
     }
 
     /**
@@ -186,7 +268,11 @@ public class AllocationBalancingRoundSummaryService {
         }
     }
 
-    // @VisibleForTesting
+    /**
+     * Checks that the number of entries in {@link #summaries} matches the given {@code numberOfSummaries}.
+     *
+     * @VisibleForTesting
+     */
     protected void verifyNumberOfSummaries(int numberOfSummaries) {
         assert numberOfSummaries == summaries.size();
     }

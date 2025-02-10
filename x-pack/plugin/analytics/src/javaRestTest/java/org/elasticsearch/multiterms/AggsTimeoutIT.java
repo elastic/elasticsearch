@@ -8,6 +8,7 @@
 package org.elasticsearch.multiterms;
 
 import org.apache.http.client.config.RequestConfig;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
@@ -30,6 +31,7 @@ import java.io.IOException;
 import java.net.SocketTimeoutException;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
@@ -287,14 +289,33 @@ public class AggsTimeoutIT extends ESRestTestCase {
         request.setOptions(request.getOptions().toBuilder().setRequestConfig(config.build()));
     }
 
+    /**
+     * Asserts that within a minute the _search has left the _tasks api.
+     * <p>
+     *     It'd sure be more convenient if, whenever the _search has returned
+     *     back to us the _tasks API doesn't contain the _search. But sometimes
+     *     it still does. So long as it stops <strong>eventually</strong> that's
+     *     still indicative of the interrupt code working.
+     * </p>
+     */
     private void assertNoSearchesRunning() throws Exception {
-        Request tasks = new Request("GET", "/_tasks");
-        tasks.addParameter("actions", "*search");
-        tasks.addParameter("detailed", "");
         assertBusy(() -> {
-            Map<?, ?> response = responseAsMap(client().performRequest(tasks));
-            // If there are running searches the map in `nodes` is non-empty.
-            assertMap(response, matchesMap().entry("nodes", matchesMap()));
-        });
+            Request tasks = new Request("GET", "/_tasks");
+            tasks.addParameter("actions", "*search");
+            tasks.addParameter("detailed", "");
+            assertBusy(() -> {
+                Map<?, ?> response = responseAsMap(client().performRequest(tasks));
+                // If there are running searches the map in `nodes` is non-empty.
+                if (response.isEmpty() == false) {
+                    logger.warn("search still running, hot threads:\n{}", hotThreads());
+                }
+                assertMap(response, matchesMap().entry("nodes", matchesMap()));
+            });
+        }, 1, TimeUnit.MINUTES);
+    }
+
+    private String hotThreads() throws IOException {
+        Request tasks = new Request("GET", "/_nodes/hot_threads");
+        return EntityUtils.toString(client().performRequest(tasks).getEntity());
     }
 }

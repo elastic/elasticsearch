@@ -15,6 +15,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 
 import java.io.IOException;
 
@@ -41,21 +42,22 @@ abstract class BaseInferenceAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         var params = parseParams(restRequest);
-
-        InferenceAction.Request.Builder requestBuilder;
-        try (var parser = restRequest.contentParser()) {
-            requestBuilder = InferenceAction.Request.parseRequest(params.inferenceEntityId(), params.taskType(), parser);
-        }
-
+        var content = restRequest.requiredContent();
         var inferTimeout = parseTimeout(restRequest);
-        requestBuilder.setInferenceTimeout(inferTimeout);
-        var request = prepareInferenceRequest(requestBuilder);
-        return channel -> client.execute(InferenceAction.INSTANCE, request, listener(channel));
+
+        var request = new InferenceActionProxy.Request(
+            params.taskType(),
+            params.inferenceEntityId(),
+            content,
+            restRequest.getXContentType(),
+            inferTimeout,
+            shouldStream()
+        );
+
+        return channel -> client.execute(InferenceActionProxy.INSTANCE, request, ActionListener.withRef(listener(channel), content));
     }
 
-    protected InferenceAction.Request prepareInferenceRequest(InferenceAction.Request.Builder builder) {
-        return builder.build();
-    }
+    protected abstract boolean shouldStream();
 
     protected abstract ActionListener<InferenceAction.Response> listener(RestChannel channel);
 }

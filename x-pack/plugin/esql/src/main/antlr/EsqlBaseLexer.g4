@@ -54,8 +54,8 @@ options {
  * the UNKNOWN_CMD token *last* because it takes over parsing for
  * all other commands.
  */
-import Enrich,
-       ChangePoint, // TODO figure out why Enrich has to be first.
+import ChangePoint,
+       Enrich,
        Explain,
        Expression,
        From,

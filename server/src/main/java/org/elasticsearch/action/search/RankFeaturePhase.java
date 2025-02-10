@@ -204,9 +204,8 @@ public class RankFeaturePhase extends SearchPhase {
                         logger.warn("Exception computing updated ranks, continuing with existing ranks: {}", e.toString());
                         // use the existing score docs as-is
                         // downstream things expect every doc to have a score, so we need to infer a score here
-                        // if the doc doesn't otherwise have a score. We can use the rank.
+                        // if the doc doesn't otherwise have one. We can use the rank to infer a possible score instead (1/rank).
                         ScoreDoc[] inputDocs = reducedQueryPhase.sortedTopDocs().scoreDocs();
-                        // use RankDoc to indicate there was a problem using the specified features
                         RankFeatureDoc[] rankDocs = new RankFeatureDoc[inputDocs.length];
                         for (int i = 0; i < inputDocs.length; i++) {
                             ScoreDoc doc = inputDocs[i];

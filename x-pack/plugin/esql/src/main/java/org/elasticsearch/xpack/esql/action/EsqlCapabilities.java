@@ -808,7 +808,12 @@ public class EsqlCapabilities {
          * and https://github.com/elastic/elasticsearch/issues/120803
          * Support for queries that have multiple SORTs that cannot become TopN
          */
-        REMOVE_REDUNDANT_SORT;
+        REMOVE_REDUNDANT_SORT,
+
+        /**
+         * Support for FORK command
+         */
+        FORK(Build.current().isSnapshot());
 
         private final boolean enabled;
 

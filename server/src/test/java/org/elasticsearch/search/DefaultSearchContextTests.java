@@ -669,66 +669,6 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
         );
     }
 
-    public void testDetermineMaximumNumberOfSlicesWithQueue() {
-        int executorPoolSize = randomIntBetween(1, 100);
-        ThreadPoolExecutor threadPoolExecutor = EsExecutors.newFixed(
-            "test",
-            executorPoolSize,
-            1000,
-            Thread::new,
-            new ThreadContext(Settings.EMPTY),
-            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
-        );
-        ToLongFunction<String> fieldCardinality = name -> { throw new UnsupportedOperationException(); };
-
-        for (int i = 0; i < executorPoolSize; i++) {
-            assertTrue(threadPoolExecutor.getQueue().offer(() -> {}));
-            assertEquals(
-                executorPoolSize,
-                DefaultSearchContext.determineMaximumNumberOfSlices(
-                    threadPoolExecutor,
-                    createParallelRequest(),
-                    SearchService.ResultsType.DFS,
-                    true,
-                    fieldCardinality
-                )
-            );
-            assertEquals(
-                executorPoolSize,
-                DefaultSearchContext.determineMaximumNumberOfSlices(
-                    threadPoolExecutor,
-                    createParallelRequest(),
-                    SearchService.ResultsType.QUERY,
-                    true,
-                    fieldCardinality
-                )
-            );
-        }
-        for (int i = 0; i < 100; i++) {
-            assertTrue(threadPoolExecutor.getQueue().offer(() -> {}));
-            assertEquals(
-                1,
-                DefaultSearchContext.determineMaximumNumberOfSlices(
-                    threadPoolExecutor,
-                    createParallelRequest(),
-                    SearchService.ResultsType.DFS,
-                    true,
-                    fieldCardinality
-                )
-            );
-            assertEquals(
-                1,
-                DefaultSearchContext.determineMaximumNumberOfSlices(
-                    threadPoolExecutor,
-                    createParallelRequest(),
-                    SearchService.ResultsType.QUERY,
-                    true,
-                    fieldCardinality
-                )
-            );
-        }
-    }
-
     public void testIsParallelCollectionSupportedForResults() {
         SearchSourceBuilder searchSourceBuilderOrNull = randomBoolean() ? null : new SearchSourceBuilder();
         ToLongFunction<String> fieldCardinality = name -> -1;

@@ -1,0 +1,5 @@
+pr: 97969
+summary: Always resolve the reroute listener
+area: Allocation
+type: bug
+issues: []

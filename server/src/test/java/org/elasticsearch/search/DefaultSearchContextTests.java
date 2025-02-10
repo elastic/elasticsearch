@@ -74,6 +74,7 @@ import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -586,7 +587,8 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
             0,
             Thread::new,
             new ThreadContext(Settings.EMPTY),
-            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK,
+            MeterRegistry.NOOP
         );
         ToLongFunction<String> fieldCardinality = name -> -1;
         assertEquals(
@@ -644,7 +646,8 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
             0,
             Thread::new,
             new ThreadContext(Settings.EMPTY),
-            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK,
+            MeterRegistry.NOOP
         );
         // DFS concurrency does not rely on slices, hence it kicks in regardless of the request (supportsParallelCollection is not called)
         assertEquals(
@@ -677,7 +680,8 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
             1000,
             Thread::new,
             new ThreadContext(Settings.EMPTY),
-            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK,
+            MeterRegistry.NOOP
         );
         ToLongFunction<String> fieldCardinality = name -> { throw new UnsupportedOperationException(); };
 

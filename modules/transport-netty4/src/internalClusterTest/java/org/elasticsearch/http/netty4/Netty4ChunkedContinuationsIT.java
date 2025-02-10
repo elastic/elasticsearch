@@ -71,6 +71,7 @@ import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -162,7 +163,8 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
                 -1,
                 EsExecutors.daemonThreadFactory(Settings.EMPTY, "test"),
                 new ThreadContext(Settings.EMPTY),
-                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK,
+                MeterRegistry.NOOP
             );
             resources.add(() -> assertTrue(ThreadPool.terminate(executor, 10, TimeUnit.SECONDS)));
             var loggingFinishedLatch = new CountDownLatch(1);

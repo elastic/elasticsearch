@@ -122,10 +122,14 @@ public class CreateIndexFromSourceTransportAction extends HandledTransportAction
             .orElse(Map.of());
     }
 
+    @SuppressWarnings("unchecked")
     private static Map<String, Object> mergeMappings(@Nullable MappingMetadata sourceMapping, Map<String, Object> mappingAddition)
         throws IOException {
         Map<String, Object> combinedMappingMap = new HashMap<>(toMap(sourceMapping));
         XContentHelper.update(combinedMappingMap, mappingAddition, true);
+        if (sourceMapping != null && combinedMappingMap.size() == 1 && combinedMappingMap.containsKey(sourceMapping.type())) {
+            combinedMappingMap = (Map<String, Object>) combinedMappingMap.get(sourceMapping.type());
+        }
         return combinedMappingMap;
     }
 

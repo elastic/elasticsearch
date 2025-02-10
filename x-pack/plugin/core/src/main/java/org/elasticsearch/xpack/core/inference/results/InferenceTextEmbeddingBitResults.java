@@ -52,7 +52,8 @@ public record InferenceTextEmbeddingBitResults(List<InferenceByteEmbedding> embe
 
     @Override
     public int getFirstEmbeddingSize() {
-        return TextEmbeddingUtils.getFirstEmbeddingSize(new ArrayList<>(embeddings));
+        // bit embeddings are encoded as bytes so convert this to bits
+        return Byte.SIZE * TextEmbeddingUtils.getFirstEmbeddingSize(new ArrayList<>(embeddings));
     }
 
     @Override

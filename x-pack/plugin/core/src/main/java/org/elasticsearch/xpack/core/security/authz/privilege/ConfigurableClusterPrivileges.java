@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -419,6 +420,7 @@ public final class ConfigurableClusterPrivileges {
                         FieldPermissions.DEFAULT,
                         null,
                         false,
+                        IndexComponentSelector.DATA,
                         indexPatternPrivilege.indexPatterns()
                     );
                 }
@@ -651,7 +653,7 @@ public final class ConfigurableClusterPrivileges {
             String[] requestIndexPatterns,
             String[] privileges
         ) {
-            return indicesPermission.checkResourcePrivileges(Set.of(requestIndexPatterns), false, Set.of(privileges), true, null);
+            return indicesPermission.checkResourcePrivileges(Set.of(requestIndexPatterns), false, Set.of(privileges), true, null, null);
         }
 
         private static boolean hasNonIndexPrivileges(RoleDescriptor roleDescriptor) {

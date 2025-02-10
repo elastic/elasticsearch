@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
@@ -504,6 +505,7 @@ public class CompositeRolesStore {
                 runAs.addAll(Arrays.asList(descriptor.getRunAs()));
             }
 
+            // TODO we need to prevent read_failures with DLS or FLS; we need to avoid merging such groups
             MergeableIndicesPrivilege.collatePrivilegesByIndices(descriptor.getIndicesPrivileges(), true, restrictedIndicesPrivilegesMap);
             MergeableIndicesPrivilege.collatePrivilegesByIndices(descriptor.getIndicesPrivileges(), false, indicesPrivilegesMap);
 
@@ -538,28 +540,64 @@ public class CompositeRolesStore {
         final Role.Builder builder = Role.builder(restrictedIndices, roleNames.toArray(Strings.EMPTY_ARRAY))
             .cluster(clusterPrivileges, configurableClusterPrivileges)
             .runAs(runAsPrivilege);
-        indicesPrivilegesMap.forEach(
-            (key, privilege) -> builder.add(
+
+        indicesPrivilegesMap.forEach((key, privilege) -> {
+            if (privilege.privileges.contains("read_failures")) {
+                builder.add(
+                    fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
+                    privilege.query,
+                    IndexPrivilege.get(Set.of("read_failures")),
+                    false,
+                    IndexComponentSelector.FAILURES,
+                    privilege.indices.toArray(Strings.EMPTY_ARRAY)
+                );
+            }
+            Set<String> privilegesWithoutReadFailures = filterOutReadFailures(privilege.privileges);
+            if (privilegesWithoutReadFailures.isEmpty()) {
+                return;
+            }
+            builder.add(
                 fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
                 privilege.query,
-                IndexPrivilege.get(privilege.privileges),
+                IndexPrivilege.get(privilegesWithoutReadFailures),
                 false,
+                (privilege.privileges.contains("all") || privilege.privileges.contains("ALL"))
+                    ? IndexComponentSelector.ALL_APPLICABLE
+                    : IndexComponentSelector.DATA,
                 privilege.indices.toArray(Strings.EMPTY_ARRAY)
-            )
-        );
-        restrictedIndicesPrivilegesMap.forEach(
-            (key, privilege) -> builder.add(
+            );
+
+        });
+        restrictedIndicesPrivilegesMap.forEach((key, privilege) -> {
+            if (privilege.privileges.contains("read_failures")) {
+                builder.add(
+                    fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
+                    privilege.query,
+                    IndexPrivilege.get(Set.of("read_failures")),
+                    true,
+                    IndexComponentSelector.FAILURES,
+                    privilege.indices.toArray(Strings.EMPTY_ARRAY)
+                );
+            }
+            Set<String> privilegesWithoutReadFailures = filterOutReadFailures(privilege.privileges);
+            if (privilegesWithoutReadFailures.isEmpty()) {
+                return;
+            }
+            builder.add(
                 fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
                 privilege.query,
                 IndexPrivilege.get(privilege.privileges),
                 true,
+                (privilege.privileges.contains("all") || privilege.privileges.contains("ALL"))
+                    ? IndexComponentSelector.ALL_APPLICABLE
+                    : IndexComponentSelector.DATA,
                 privilege.indices.toArray(Strings.EMPTY_ARRAY)
-            )
-        );
+            );
+        });
 
         remoteIndicesPrivilegesByCluster.forEach((clusterAliasKey, remoteIndicesPrivilegesForCluster) -> {
-            remoteIndicesPrivilegesForCluster.forEach(
-                (privilege) -> builder.addRemoteIndicesGroup(
+            remoteIndicesPrivilegesForCluster.forEach((privilege) -> {
+                builder.addRemoteIndicesGroup(
                     clusterAliasKey,
                     fieldPermissionsCache.getFieldPermissions(
                         new FieldPermissionsDefinition(privilege.getGrantedFields(), privilege.getDeniedFields())
@@ -567,9 +605,11 @@ public class CompositeRolesStore {
                     privilege.getQuery() == null ? null : newHashSet(privilege.getQuery()),
                     IndexPrivilege.get(newHashSet(Objects.requireNonNull(privilege.getPrivileges()))),
                     privilege.allowRestrictedIndices(),
+                    // TODO handle read_failures (i.e., prevent it for remote indices)
+                    IndexComponentSelector.DATA,
                     newHashSet(Objects.requireNonNull(privilege.getIndices())).toArray(new String[0])
-                )
-            );
+                );
+            });
         });
 
         if (remoteClusterPermissions.hasAnyPrivileges()) {
@@ -602,6 +642,10 @@ public class CompositeRolesStore {
                 })
             );
         }
+    }
+
+    private static Set<String> filterOutReadFailures(Set<String> privileges) {
+        return privileges.stream().filter(p -> p.equals("read_failures") == false).collect(Collectors.toSet());
     }
 
     public void invalidateAll() {

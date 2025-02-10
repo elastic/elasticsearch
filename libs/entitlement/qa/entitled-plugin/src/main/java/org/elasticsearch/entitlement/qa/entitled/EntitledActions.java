@@ -27,4 +27,8 @@ public final class EntitledActions {
     public static UserPrincipal getFileOwner(Path path) throws IOException {
         return Files.getOwner(path);
     }
+
+    public static void createFile(Path path) throws IOException {
+        Files.createFile(path);
+    }
 }

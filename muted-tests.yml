@@ -379,9 +379,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/121537
 - class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
   issue: https://github.com/elastic/elasticsearch/issues/121737
-- class: org.elasticsearch.xpack.downsample.DataStreamLifecycleDownsampleDisruptionIT
-  method: testDataStreamLifecycleDownsampleRollingRestart
-  issue: https://github.com/elastic/elasticsearch/issues/122056
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testWatcherWithApiKey {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/122061
@@ -406,31 +403,12 @@ tests:
   method: testWithOnlyTrainingRowsAndTrainingPercentIsFifty_DependentVariableIsBoolean
   issue: https://github.com/elastic/elasticsearch/issues/121680
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
-  method: testExtractFields
-  issue: https://github.com/elastic/elasticsearch/issues/122125
-- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
-  method: testIndexPatterns
-  issue: https://github.com/elastic/elasticsearch/issues/122128
+  issue: https://github.com/elastic/elasticsearch/issues/122153
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/121411
-- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
-  method: testGroupingMultiValueByOrdinals
-  issue: https://github.com/elastic/elasticsearch/issues/122131
 - class: org.elasticsearch.xpack.esql.action.EsqlNodeFailureIT
   method: testFailureLoadingFields
   issue: https://github.com/elastic/elasticsearch/issues/122132
-- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
-  method: testEvalWhere
-  issue: https://github.com/elastic/elasticsearch/issues/122141
-- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
-  method: testFromStatsProjectGroupWithAlias
-  issue: https://github.com/elastic/elasticsearch/issues/122144
-- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
-  method: testProjectRenameEvalProject
-  issue: https://github.com/elastic/elasticsearch/issues/122150
-- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
-  method: testWhereNegatedCondition
-  issue: https://github.com/elastic/elasticsearch/issues/122147
 - class: org.elasticsearch.xpack.esql.action.CrossClustersCancellationIT
   method: testCloseSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/121627

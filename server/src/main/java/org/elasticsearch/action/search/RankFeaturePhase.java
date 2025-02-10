@@ -20,6 +20,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureResult;
@@ -187,7 +188,7 @@ public class RankFeaturePhase extends SearchPhase {
             new ActionListener<>() {
                 @Override
                 public void onResponse(RankFeatureDoc[] docsWithUpdatedScores) {
-                    RankFeatureDoc[] topResults = rankFeaturePhaseRankCoordinatorContext.rankAndPaginate(docsWithUpdatedScores, true);
+                    RankDoc[] topResults = rankFeaturePhaseRankCoordinatorContext.rankAndPaginate(docsWithUpdatedScores, true);
                     SearchPhaseController.ReducedQueryPhase reducedRankFeaturePhase = newReducedQueryPhaseResults(
                         reducedQueryPhase,
                         topResults
@@ -200,13 +201,18 @@ public class RankFeaturePhase extends SearchPhase {
                     if (rankFeaturePhaseRankCoordinatorContext.failuresAllowed()) {
                         // TODO: handle the exception somewhere
                         // don't want to log the entire stack trace, it's not helpful here
-                        logger.warn("Exception computing updated ranks: {}. Continuing with existing ranks.", e.toString());
+                        logger.warn("Exception computing updated ranks, continuing with existing ranks: {}", e.toString());
                         // use the existing score docs as-is
-                        RankFeatureDoc[] existingScores = Arrays.stream(reducedQueryPhase.sortedTopDocs().scoreDocs())
-                            .map(sd -> new RankFeatureDoc(sd.doc, sd.score, sd.shardIndex))
-                            .toArray(RankFeatureDoc[]::new);
-
-                        RankFeatureDoc[] topResults = rankFeaturePhaseRankCoordinatorContext.rankAndPaginate(existingScores, false);
+                        // downstream things expect every doc to have a score, so we need to infer a score here
+                        // if the doc doesn't otherwise have a score. We can use the rank.
+                        ScoreDoc[] inputDocs = reducedQueryPhase.sortedTopDocs().scoreDocs();
+                        // use RankDoc to indicate there was a problem using the specified features
+                        RankFeatureDoc[] rankDocs = new RankFeatureDoc[inputDocs.length];
+                        for (int i = 0; i < inputDocs.length; i++) {
+                            ScoreDoc doc = inputDocs[i];
+                            rankDocs[i] = new RankFeatureDoc(doc.doc, Float.isNaN(doc.score) ? 1f / (i+1) : doc.score, doc.shardIndex);
+                        }
+                        RankDoc[] topResults = rankFeaturePhaseRankCoordinatorContext.rankAndPaginate(rankDocs, false);
                         SearchPhaseController.ReducedQueryPhase reducedRankFeaturePhase = newReducedQueryPhaseResults(
                             reducedQueryPhase,
                             topResults

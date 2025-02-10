@@ -40,6 +40,7 @@ import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -427,7 +428,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             final IndexMode indexMode,
             final String fullFieldName
         ) {
-            if (FieldMapper.DOC_VALUES_SPARSE_INDEX.isEnabled()
+            if (IndexSettings.DOC_VALUES_SKIPPER.isEnabled()
                 && indexCreatedVersion.onOrAfter(IndexVersions.HOSTNAME_DOC_VALUES_SPARSE_INDEX)
                 && shouldUseDocValuesSparseIndex(indexSortConfig, indexMode, fullFieldName)) {
                 return new FieldType(Defaults.FIELD_TYPE_WITH_SKIP_DOC_VALUES);
@@ -1021,7 +1022,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             return indexSortConfig;
         }
 
-        public boolean hasDocValuesSparseIndex() {
+        public boolean hasDocValuesSkipper() {
             return hasDocValuesSparseIndex;
         }
     }

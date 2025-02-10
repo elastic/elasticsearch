@@ -773,7 +773,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testFieldTypeWithSkipDocValues_LogsDbMode() throws IOException {
-        assumeTrue("Needs feature flag to be enabled", FieldMapper.DOC_VALUES_SPARSE_INDEX.isEnabled());
+        assumeTrue("Needs feature flag to be enabled", IndexSettings.DOC_VALUES_SKIPPER.isEnabled());
 
         final MapperService mapperService = createMapperService(
             Settings.builder()
@@ -790,11 +790,11 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
         assertTrue(mapper.fieldType().hasDocValues());
         assertFalse(mapper.fieldType().isIndexed());
-        assertTrue(mapper.fieldType().hasDocValuesSparseIndex());
+        assertTrue(mapper.fieldType().hasDocValuesSkipper());
     }
 
     public void testFieldTypeDefault_StandardMode() throws IOException {
-        assumeTrue("Needs feature flag to be enabled", FieldMapper.DOC_VALUES_SPARSE_INDEX.isEnabled());
+        assumeTrue("Needs feature flag to be enabled", IndexSettings.DOC_VALUES_SKIPPER.isEnabled());
 
         final MapperService mapperService = createMapperService(
             Settings.builder()
@@ -811,11 +811,11 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
         assertTrue(mapper.fieldType().hasDocValues());
         assertTrue(mapper.fieldType().isIndexed());
-        assertFalse(mapper.fieldType().hasDocValuesSparseIndex());
+        assertFalse(mapper.fieldType().hasDocValuesSkipper());
     }
 
     public void testFieldTypeDefault_NonMatchingFieldName() throws IOException {
-        assumeTrue("Needs feature flag to be enabled", FieldMapper.DOC_VALUES_SPARSE_INDEX.isEnabled());
+        assumeTrue("Needs feature flag to be enabled", IndexSettings.DOC_VALUES_SKIPPER.isEnabled());
 
         final MapperService mapperService = createMapperService(
             Settings.builder()
@@ -832,11 +832,11 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("hostname");
         assertTrue(mapper.fieldType().hasDocValues());
         assertTrue(mapper.fieldType().isIndexed());
-        assertFalse(mapper.fieldType().hasDocValuesSparseIndex());
+        assertFalse(mapper.fieldType().hasDocValuesSkipper());
     }
 
     public void testFieldTypeDefault_ConfiguredIndexed() throws IOException {
-        assumeTrue("Needs feature flag to be enabled", FieldMapper.DOC_VALUES_SPARSE_INDEX.isEnabled());
+        assumeTrue("Needs feature flag to be enabled", IndexSettings.DOC_VALUES_SKIPPER.isEnabled());
 
         final MapperService mapperService = createMapperService(
             Settings.builder()
@@ -854,11 +854,11 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
         assertTrue(mapper.fieldType().hasDocValues());
         assertTrue(mapper.fieldType().isIndexed());
-        assertFalse(mapper.fieldType().hasDocValuesSparseIndex());
+        assertFalse(mapper.fieldType().hasDocValuesSkipper());
     }
 
     public void testFieldTypeDefault_ConfiguredDocValues() throws IOException {
-        assumeTrue("Needs feature flag to be enabled", FieldMapper.DOC_VALUES_SPARSE_INDEX.isEnabled());
+        assumeTrue("Needs feature flag to be enabled", IndexSettings.DOC_VALUES_SKIPPER.isEnabled());
 
         final MapperService mapperService = createMapperService(
             Settings.builder()
@@ -876,11 +876,11 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
         assertTrue(mapper.fieldType().hasDocValues());
         assertFalse(mapper.fieldType().isIndexed());
-        assertTrue(mapper.fieldType().hasDocValuesSparseIndex());
+        assertTrue(mapper.fieldType().hasDocValuesSkipper());
     }
 
     public void testFieldTypeDefault_LogsDbMode_NonSortField() throws IOException {
-        assumeTrue("Needs feature flag to be enabled", FieldMapper.DOC_VALUES_SPARSE_INDEX.isEnabled());
+        assumeTrue("Needs feature flag to be enabled", IndexSettings.DOC_VALUES_SKIPPER.isEnabled());
 
         final MapperService mapperService = createMapperService(
             Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name()).build(),
@@ -894,11 +894,11 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
         assertTrue(mapper.fieldType().hasDocValues());
         assertTrue(mapper.fieldType().isIndexed());
-        assertFalse(mapper.fieldType().hasDocValuesSparseIndex());
+        assertFalse(mapper.fieldType().hasDocValuesSkipper());
     }
 
     public void testFieldTypeWithSkipDocValues_IndexedFalseDocValuesTrue() throws IOException {
-        assumeTrue("Needs feature flag to be enabled", FieldMapper.DOC_VALUES_SPARSE_INDEX.isEnabled());
+        assumeTrue("Needs feature flag to be enabled", IndexSettings.DOC_VALUES_SKIPPER.isEnabled());
 
         final MapperService mapperService = createMapperService(
             Settings.builder()
@@ -917,11 +917,11 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
         assertTrue(mapper.fieldType().hasDocValues());
         assertFalse(mapper.fieldType().isIndexed());
-        assertFalse(mapper.fieldType().hasDocValuesSparseIndex());
+        assertFalse(mapper.fieldType().hasDocValuesSkipper());
     }
 
     public void testFieldTypeDefault_IndexedFalseDocValuesFalse() throws IOException {
-        assumeTrue("Needs feature flag to be enabled", FieldMapper.DOC_VALUES_SPARSE_INDEX.isEnabled());
+        assumeTrue("Needs feature flag to be enabled", IndexSettings.DOC_VALUES_SKIPPER.isEnabled());
 
         final MapperService mapperService = createMapperService(
             Settings.builder()
@@ -940,6 +940,6 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
         assertFalse(mapper.fieldType().hasDocValues());
         assertFalse(mapper.fieldType().isIndexed());
-        assertFalse(mapper.fieldType().hasDocValuesSparseIndex());
+        assertFalse(mapper.fieldType().hasDocValuesSkipper());
     }
 }

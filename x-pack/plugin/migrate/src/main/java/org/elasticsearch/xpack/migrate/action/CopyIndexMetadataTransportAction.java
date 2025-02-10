@@ -99,18 +99,24 @@ public class CopyIndexMetadataTransportAction extends TransportMasterNodeAction<
             throw new IndexNotFoundException(updateTask.destIndex);
         }
 
-        IndexMetadata newDestMetadata = IndexMetadata.builder(destMetadata)
-            .putCustom(
+        IndexMetadata.Builder newDestMetadata = IndexMetadata.builder(destMetadata);
+
+        var sourceILM = sourceMetadata.getCustomData(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY);
+        if (sourceILM != null) {
+            newDestMetadata.putCustom(
                 LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY,
                 sourceMetadata.getCustomData(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY)
-            )
-            .putRolloverInfos(sourceMetadata.getRolloverInfos())
-            // creation data is required for ILM to function
+            );
+        }
+
+        newDestMetadata.putRolloverInfos(sourceMetadata.getRolloverInfos())
+            // creation date is required for ILM to function
             .creationDate(sourceMetadata.getCreationDate())
-            .build();
+            // creation date updates settings so must increment settings version
+            .settingsVersion(destMetadata.getSettingsVersion() + 1);
 
         var indices = new HashMap<>(state.metadata().indices());
-        indices.put(updateTask.destIndex, newDestMetadata);
+        indices.put(updateTask.destIndex, newDestMetadata.build());
 
         Metadata newMetadata = Metadata.builder(state.metadata()).indices(indices).build();
         return ClusterState.builder(state).metadata(newMetadata).build();

@@ -71,7 +71,8 @@ public class PolicyManagerTests extends ESTestCase {
             Map.of("plugin1", createPluginPolicy("plugin.module")),
             c -> "plugin1",
             TEST_AGENTS_PACKAGE_NAME,
-            NO_ENTITLEMENTS_MODULE
+            NO_ENTITLEMENTS_MODULE,
+            null
         );
 
         // Any class from the current module (unnamed) will do
@@ -90,7 +91,8 @@ public class PolicyManagerTests extends ESTestCase {
             Map.of(),
             c -> "plugin1",
             TEST_AGENTS_PACKAGE_NAME,
-            NO_ENTITLEMENTS_MODULE
+            NO_ENTITLEMENTS_MODULE,
+            null
         );
 
         // Any class from the current module (unnamed) will do
@@ -109,7 +111,8 @@ public class PolicyManagerTests extends ESTestCase {
             Map.of(),
             c -> "plugin1",
             TEST_AGENTS_PACKAGE_NAME,
-            NO_ENTITLEMENTS_MODULE
+            NO_ENTITLEMENTS_MODULE,
+            null
         );
 
         // Any class from the current module (unnamed) will do
@@ -133,7 +136,8 @@ public class PolicyManagerTests extends ESTestCase {
             Map.ofEntries(entry("plugin2", createPluginPolicy(ALL_UNNAMED))),
             c -> "plugin2",
             TEST_AGENTS_PACKAGE_NAME,
-            NO_ENTITLEMENTS_MODULE
+            NO_ENTITLEMENTS_MODULE,
+            null
         );
 
         // Any class from the current module (unnamed) will do
@@ -150,7 +154,8 @@ public class PolicyManagerTests extends ESTestCase {
             Map.of(),
             c -> null,
             TEST_AGENTS_PACKAGE_NAME,
-            NO_ENTITLEMENTS_MODULE
+            NO_ENTITLEMENTS_MODULE,
+            null
         );
 
         // Tests do not run modular, so we cannot use a server class.
@@ -176,7 +181,8 @@ public class PolicyManagerTests extends ESTestCase {
             Map.of(),
             c -> null,
             TEST_AGENTS_PACKAGE_NAME,
-            NO_ENTITLEMENTS_MODULE
+            NO_ENTITLEMENTS_MODULE,
+            null
         );
 
         // Tests do not run modular, so we cannot use a server class.
@@ -201,7 +207,8 @@ public class PolicyManagerTests extends ESTestCase {
             Map.of("mock-plugin", createPluginPolicy("org.example.plugin")),
             c -> "mock-plugin",
             TEST_AGENTS_PACKAGE_NAME,
-            NO_ENTITLEMENTS_MODULE
+            NO_ENTITLEMENTS_MODULE,
+            null
         );
 
         var layer = createLayerForJar(jar, "org.example.plugin");
@@ -220,7 +227,8 @@ public class PolicyManagerTests extends ESTestCase {
             Map.ofEntries(entry("plugin2", createPluginPolicy(ALL_UNNAMED))),
             c -> "plugin2",
             TEST_AGENTS_PACKAGE_NAME,
-            NO_ENTITLEMENTS_MODULE
+            NO_ENTITLEMENTS_MODULE,
+            null
         );
 
         // Any class from the current module (unnamed) will do
@@ -278,7 +286,8 @@ public class PolicyManagerTests extends ESTestCase {
             Map.of(),
             c -> c.getPackageName().startsWith(TEST_AGENTS_PACKAGE_NAME) ? null : "test",
             TEST_AGENTS_PACKAGE_NAME,
-            NO_ENTITLEMENTS_MODULE
+            NO_ENTITLEMENTS_MODULE,
+            null
         );
         ModuleEntitlements agentsEntitlements = policyManager.getEntitlements(TestAgent.class);
         assertThat(agentsEntitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(true));
@@ -305,7 +314,8 @@ public class PolicyManagerTests extends ESTestCase {
                 Map.of(),
                 c -> "test",
                 TEST_AGENTS_PACKAGE_NAME,
-                NO_ENTITLEMENTS_MODULE
+                NO_ENTITLEMENTS_MODULE,
+                null
             )
         );
         assertEquals(
@@ -321,7 +331,8 @@ public class PolicyManagerTests extends ESTestCase {
                 Map.of(),
                 c -> "test",
                 TEST_AGENTS_PACKAGE_NAME,
-                NO_ENTITLEMENTS_MODULE
+                NO_ENTITLEMENTS_MODULE,
+                null
             )
         );
         assertEquals(
@@ -344,7 +355,11 @@ public class PolicyManagerTests extends ESTestCase {
                                 List.of(
                                     FilesEntitlement.EMPTY,
                                     new CreateClassLoaderEntitlement(),
-                                    new FilesEntitlement(List.of(new FilesEntitlement.FileData("test", FilesEntitlement.Mode.READ)))
+                                    new FilesEntitlement(
+                                        List.of(
+                                            new FilesEntitlement.FileData("test", FilesEntitlement.Mode.READ, FilesEntitlement.BaseDir.NONE)
+                                        )
+                                    )
                                 )
                             )
                         )
@@ -352,7 +367,8 @@ public class PolicyManagerTests extends ESTestCase {
                 ),
                 c -> "plugin1",
                 TEST_AGENTS_PACKAGE_NAME,
-                NO_ENTITLEMENTS_MODULE
+                NO_ENTITLEMENTS_MODULE,
+                null
             )
         );
         assertEquals(
@@ -371,7 +387,8 @@ public class PolicyManagerTests extends ESTestCase {
             Map.of(),
             c -> "test", // Insist that the class is in a plugin
             TEST_AGENTS_PACKAGE_NAME,
-            NO_ENTITLEMENTS_MODULE
+            NO_ENTITLEMENTS_MODULE,
+            null
         );
         ModuleEntitlements notAgentsEntitlements = policyManager.getEntitlements(TestAgent.class);
         assertThat(notAgentsEntitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(false));
@@ -385,7 +402,15 @@ public class PolicyManagerTests extends ESTestCase {
     }
 
     private static PolicyManager policyManager(String agentsPackageName, Module entitlementsModule) {
-        return new PolicyManager(createEmptyTestServerPolicy(), List.of(), Map.of(), c -> "test", agentsPackageName, entitlementsModule);
+        return new PolicyManager(
+            createEmptyTestServerPolicy(),
+            List.of(),
+            Map.of(),
+            c -> "test",
+            agentsPackageName,
+            entitlementsModule,
+            null
+        );
     }
 
     private static Policy createEmptyTestServerPolicy() {
@@ -404,7 +429,11 @@ public class PolicyManagerTests extends ESTestCase {
                     name -> new Scope(
                         name,
                         List.of(
-                            new FilesEntitlement(List.of(new FilesEntitlement.FileData("/test/path", FilesEntitlement.Mode.READ))),
+                            new FilesEntitlement(
+                                List.of(
+                                    new FilesEntitlement.FileData("/test/path", FilesEntitlement.Mode.READ, FilesEntitlement.BaseDir.NONE)
+                                )
+                            ),
                             new CreateClassLoaderEntitlement()
                         )
                     )

@@ -29,7 +29,12 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         READ_WRITE
     }
 
-    public record FileData(String path, Mode mode) {
+    public enum BaseDir {
+        NONE,
+        CONFIG
+    }
+
+    public record FileData(String path, Mode mode, BaseDir baseDir) {
 
     }
 
@@ -60,10 +65,21 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
             if (mode == null) {
                 throw new PolicyValidationException("files entitlement must contain mode for every listed file");
             }
+            String baseDirString = file.remove("base_dir");
+            BaseDir baseDir = BaseDir.NONE;
+            if (baseDirString != null) {
+                if ("config".equals(baseDirString)) {
+                    baseDir = BaseDir.CONFIG;
+                } else {
+                    throw new PolicyValidationException(
+                        "unexpected basedir [" + baseDirString + "] for in a listed file for files entitlement"
+                    );
+                }
+            }
             if (file.isEmpty() == false) {
                 throw new PolicyValidationException("unknown key(s) " + file + " in a listed file for files entitlement");
             }
-            filesData.add(new FileData(path, parseMode(mode)));
+            filesData.add(new FileData(path, parseMode(mode), baseDir));
         }
         return new FilesEntitlement(filesData);
     }

@@ -108,7 +108,9 @@ public class EntitlementInitialization {
     }
 
     private static PolicyManager createPolicyManager() {
-        Map<String, Policy> pluginPolicies = EntitlementBootstrap.bootstrapArgs().pluginPolicies();
+        EntitlementBootstrap.BootstrapArgs bootstrapArgs = EntitlementBootstrap.bootstrapArgs();
+        Map<String, Policy> pluginPolicies = bootstrapArgs.pluginPolicies();
+        Path configDir = bootstrapArgs.configDir();
 
         // TODO(ES-10031): Decide what goes in the elasticsearch default policy and extend it
         var serverPolicy = new Policy(
@@ -136,7 +138,15 @@ public class EntitlementInitialization {
         // this should be removed once https://github.com/elastic/elasticsearch/issues/109335 is completed
         List<Entitlement> agentEntitlements = List.of(new CreateClassLoaderEntitlement());
         var resolver = EntitlementBootstrap.bootstrapArgs().pluginResolver();
-        return new PolicyManager(serverPolicy, agentEntitlements, pluginPolicies, resolver, AGENTS_PACKAGE_NAME, ENTITLEMENTS_MODULE);
+        return new PolicyManager(
+            serverPolicy,
+            agentEntitlements,
+            pluginPolicies,
+            resolver,
+            AGENTS_PACKAGE_NAME,
+            ENTITLEMENTS_MODULE,
+            configDir
+        );
     }
 
     /**

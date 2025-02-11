@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.MemoryAccountingBytesRefCounted;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -264,10 +265,11 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                         });
                         final SearchHit hit = new SearchHit(scoreDoc.doc, visitor.id(), breaker);
                         try {
-                            BytesReference source = visitor.source();
-                            hit.unfilteredSourceRef(source);
-                            breaker.addEstimateBytesAndMaybeBreak(source.length(), "enrich_msearch");
-                            hit.sourceRef(filterSource(fetchSourceContext, source));
+                            BytesReference sourceBytesRef = visitor.source();
+                            MemoryAccountingBytesRefCounted memAccountingSourceRef = MemoryAccountingBytesRefCounted
+                                .createAndAccountForBytes(sourceBytesRef, breaker, "enrich source");
+                            hit.unfilteredSource(memAccountingSourceRef);
+                            hit.sourceRef(filterSource(fetchSourceContext, sourceBytesRef));
                             hits[j] = hit;
                         } catch (CircuitBreakingException e) {
                             hit.decRef();

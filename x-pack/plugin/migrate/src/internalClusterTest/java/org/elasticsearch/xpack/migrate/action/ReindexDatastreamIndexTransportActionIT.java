@@ -71,9 +71,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     @After
     private void cleanup() throws Exception {
         deletePipeline(MigrateTemplateRegistry.REINDEX_DATA_STREAM_PIPELINE_NAME);
-        assertBusy(() -> {
-            assertTrue(getPipelines(MigrateTemplateRegistry.REINDEX_DATA_STREAM_PIPELINE_NAME).isFound());
-        });
+        assertBusy(() -> { assertTrue(getPipelines(MigrateTemplateRegistry.REINDEX_DATA_STREAM_PIPELINE_NAME).isFound()); });
     }
 
     private static final String MAPPING = """

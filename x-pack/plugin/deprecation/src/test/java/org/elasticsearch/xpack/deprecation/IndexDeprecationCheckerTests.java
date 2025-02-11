@@ -105,7 +105,11 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             "One or more Transforms write to this index with a compatibility version < 9.0",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-9.0.html"
                 + "#breaking_90_transform_destination_index",
-            "Transforms [test-transform] write to this index with version [" + OLD_VERSION.toReleaseVersion() + "].",
+            "This index was created in version ["
+                + OLD_VERSION.toReleaseVersion()
+                + "] and will be supported as a read-only index in 9.0. "
+                + "The following transforms will not be able to write to this index: [test-transform]. Refer to the "
+                + "migration guide to learn more about how to handle your transforms destination indices.",
             false,
             Map.of("reindex_required", true, "transform_ids", List.of("test-transform"))
         );
@@ -128,7 +132,11 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             "One or more Transforms write to this index with a compatibility version < 9.0",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-9.0.html"
                 + "#breaking_90_transform_destination_index",
-            "Transforms [test-transform1, test-transform2] write to this index with version [" + OLD_VERSION.toReleaseVersion() + "].",
+            "This index was created in version ["
+                + OLD_VERSION.toReleaseVersion()
+                + "] and will be supported as a read-only index in 9.0. "
+                + "The following transforms will not be able to write to this index: [test-transform1, test-transform2]. Refer to the "
+                + "migration guide to learn more about how to handle your transforms destination indices.",
             false,
             Map.of("reindex_required", true, "transform_ids", List.of("test-transform1", "test-transform2"))
         );
@@ -155,7 +163,11 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
                     "One or more Transforms write to this index with a compatibility version < 9.0",
                     "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-9.0.html"
                         + "#breaking_90_transform_destination_index",
-                    "Transforms [test-transform1] write to this index with version [" + OLD_VERSION.toReleaseVersion() + "].",
+                    "This index was created in version ["
+                        + OLD_VERSION.toReleaseVersion()
+                        + "] and will be supported as a read-only index in 9.0. "
+                        + "The following transforms will not be able to write to this index: [test-transform1]. Refer to the "
+                        + "migration guide to learn more about how to handle your transforms destination indices.",
                     false,
                     Map.of("reindex_required", true, "transform_ids", List.of("test-transform1"))
                 )
@@ -167,7 +179,11 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
                     "One or more Transforms write to this index with a compatibility version < 9.0",
                     "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-9.0.html"
                         + "#breaking_90_transform_destination_index",
-                    "Transforms [test-transform2] write to this index with version [" + OLD_VERSION.toReleaseVersion() + "].",
+                    "This index was created in version ["
+                        + OLD_VERSION.toReleaseVersion()
+                        + "] and will be supported as a read-only index in 9.0. "
+                        + "The following transforms will not be able to write to this index: [test-transform2]. Refer to the "
+                        + "migration guide to learn more about how to handle your transforms destination indices.",
                     false,
                     Map.of("reindex_required", true, "transform_ids", List.of("test-transform2"))
                 )
@@ -267,7 +283,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             .build();
         DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
-            "Old index with a compatibility version < 9.0 Has Been Ignored",
+            "Old index with a compatibility version < 9.0 has been ignored",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
             "This read-only index has version: " + OLD_VERSION.toReleaseVersion() + " and will be supported as read-only in 9.0",
             false,
@@ -299,9 +315,11 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             "One or more Transforms write to this old index with a compatibility version < 9.0",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-9.0.html"
                 + "#breaking_90_transform_destination_index",
-            "Transforms [test-transform] write to this index with version ["
+            "This index was created in version ["
                 + OLD_VERSION.toReleaseVersion()
-                + "] and cannot be supported as read-only in 9.0",
+                + "] and will be supported as a read-only index in 9.0. "
+                + "The following transforms are no longer able to write to this index: [test-transform]. Refer to the "
+                + "migration guide to learn more about how to handle your transforms destination indices.",
             false,
             Map.of("reindex_required", true, "transform_ids", List.of("test-transform"))
         );
@@ -324,9 +342,11 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             "One or more Transforms write to this old index with a compatibility version < 9.0",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-9.0.html"
                 + "#breaking_90_transform_destination_index",
-            "Transforms [test-transform1, test-transform2] write to this index with version ["
+            "This index was created in version ["
                 + OLD_VERSION.toReleaseVersion()
-                + "] and cannot be supported as read-only in 9.0",
+                + "] and will be supported as a read-only index in 9.0. "
+                + "The following transforms are no longer able to write to this index: [test-transform1, test-transform2]. Refer to the "
+                + "migration guide to learn more about how to handle your transforms destination indices.",
             false,
             Map.of("reindex_required", true, "transform_ids", List.of("test-transform1", "test-transform2"))
         );
@@ -353,9 +373,11 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
                     "One or more Transforms write to this old index with a compatibility version < 9.0",
                     "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-9.0.html"
                         + "#breaking_90_transform_destination_index",
-                    "Transforms [test-transform1] write to this index with version ["
+                    "This index was created in version ["
                         + OLD_VERSION.toReleaseVersion()
-                        + "] and cannot be supported as read-only in 9.0",
+                        + "] and will be supported as a read-only index in 9.0. "
+                        + "The following transforms are no longer able to write to this index: [test-transform1]. Refer to the "
+                        + "migration guide to learn more about how to handle your transforms destination indices.",
                     false,
                     Map.of("reindex_required", true, "transform_ids", List.of("test-transform1"))
                 )
@@ -367,9 +389,11 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
                     "One or more Transforms write to this old index with a compatibility version < 9.0",
                     "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-9.0.html"
                         + "#breaking_90_transform_destination_index",
-                    "Transforms [test-transform2] write to this index with version ["
+                    "This index was created in version ["
                         + OLD_VERSION.toReleaseVersion()
-                        + "] and cannot be supported as read-only in 9.0",
+                        + "] and will be supported as a read-only index in 9.0. "
+                        + "The following transforms are no longer able to write to this index: [test-transform2]. Refer to the "
+                        + "migration guide to learn more about how to handle your transforms destination indices.",
                     false,
                     Map.of("reindex_required", true, "transform_ids", List.of("test-transform2"))
                 )

@@ -104,9 +104,11 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
                     "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-9.0.html"
                         + "#breaking_90_transform_destination_index",
                     Strings.format(
-                        "Transforms [%s] write to this index with version [%s].",
-                        String.join(", ", transforms),
-                        currentCompatibilityVersion.toReleaseVersion()
+                        "This index was created in version [%s] and will be supported as a read-only index in 9.0. The following "
+                            + "transforms will not be able to write to this index: [%s]. Refer to the migration guide to learn more "
+                            + "about how to handle your transforms destination indices.",
+                        currentCompatibilityVersion.toReleaseVersion(),
+                        String.join(", ", transforms)
                     ),
                     false,
                     Map.of("reindex_required", true, "transform_ids", transforms)
@@ -145,9 +147,11 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
                     "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-9.0.html"
                         + "#breaking_90_transform_destination_index",
                     Strings.format(
-                        "Transforms [%s] write to this index with version [%s] and cannot be supported as read-only in 9.0",
-                        String.join(", ", transforms),
-                        currentCompatibilityVersion.toReleaseVersion()
+                        "This index was created in version [%s] and will be supported as a read-only index in 9.0. The following "
+                            + "transforms are no longer able to write to this index: [%s]. Refer to the migration guide to learn more "
+                            + "about how to handle your transforms destination indices.",
+                        currentCompatibilityVersion.toReleaseVersion(),
+                        String.join(", ", transforms)
                     ),
                     false,
                     Map.of("reindex_required", true, "transform_ids", transforms)
@@ -155,7 +159,7 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
             } else {
                 return new DeprecationIssue(
                     DeprecationIssue.Level.WARNING,
-                    "Old index with a compatibility version < 9.0 Has Been Ignored",
+                    "Old index with a compatibility version < 9.0 has been ignored",
                     "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-9.0.html",
                     "This read-only index has version: "
                         + currentCompatibilityVersion.toReleaseVersion()

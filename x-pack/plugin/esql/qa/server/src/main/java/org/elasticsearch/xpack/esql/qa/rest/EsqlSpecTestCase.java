@@ -132,8 +132,10 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             createInferenceEndpoint(client());
         }
 
-        if (indexExists(availableDatasetsForEs(client(), supportsIndexModeLookup()).iterator().next().indexName()) == false) {
-            loadDataSetIntoEs(client(), supportsIndexModeLookup());
+        boolean supportsLookup = supportsIndexModeLookup();
+        boolean supportsUnmappedFields = supportsUnmappedFields();
+        if (indexExists(availableDatasetsForEs(client(), supportsLookup, supportsUnmappedFields).iterator().next().indexName()) == false) {
+            loadDataSetIntoEs(client(), supportsLookup, supportsUnmappedFields);
         }
     }
 
@@ -226,6 +228,10 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected boolean supportsIndexModeLookup() throws IOException {
+        return true;
+    }
+
+    protected boolean supportsUnmappedFields() throws IOException {
         return true;
     }
 

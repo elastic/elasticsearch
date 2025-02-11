@@ -322,7 +322,6 @@ nested dimensions:
       reason: message changed in 8.2.0
 
   - do:
-      catch: /time_series_dimension can't be configured in nested field \[nested.dim\]/
       indices.create:
           index: test
           body:
@@ -351,7 +350,6 @@ nested fields:
       reason: message changed in 8.2.0
 
   - do:
-      catch: /cannot have nested fields when index is in \[index.mode=time_series\]/
       indices.create:
         index: test
         body:

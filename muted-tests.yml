@@ -540,3 +540,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=data_stream/140_data_stream_aliases/Fix IndexNotFoundException error when handling remove alias action}
   issue: https://github.com/elastic/elasticsearch/issues/121501
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/rest-api/security/invalidate-tokens/line_216}
+  issue: https://github.com/elastic/elasticsearch/issues/122229

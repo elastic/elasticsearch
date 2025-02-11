@@ -19,14 +19,11 @@ package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Objects;
-import java.util.function.Supplier;
 
 class StatelessIndexingOperationListener implements IndexingOperationListener {
 
@@ -34,11 +31,6 @@ class StatelessIndexingOperationListener implements IndexingOperationListener {
 
     StatelessIndexingOperationListener(HollowShardsService hollowShardsService) {
         this.hollowShardsService = Objects.requireNonNull(hollowShardsService);
-    }
-
-    @Override
-    public void preBulkOnPrimary(IndexShard indexShard, Supplier<ActionListener<Void>> proceedListenerSupplier) {
-        hollowShardsService.onIngestion(indexShard.shardId(), proceedListenerSupplier);
     }
 
     @Override

@@ -73,7 +73,13 @@ class NioFileSystemActions {
     @EntitlementTest(expectedAccess = PLUGINS)
     static void checkNewAsynchronousFileChannel() throws IOException {
         var fs = FileSystems.getDefault().provider();
-        try (var fc = fs.newAsynchronousFileChannel(FileCheckActions.readWriteFile(), Set.of(StandardOpenOption.WRITE), EsExecutors.DIRECT_EXECUTOR_SERVICE)) {}
+        try (
+            var fc = fs.newAsynchronousFileChannel(
+                FileCheckActions.readWriteFile(),
+                Set.of(StandardOpenOption.WRITE),
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            )
+        ) {}
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)

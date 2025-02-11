@@ -24,6 +24,7 @@ import org.elasticsearch.entitlement.runtime.policy.Scope;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoaderEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ExitVMEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.InboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetworkEntitlement;
@@ -43,6 +44,7 @@ import java.nio.file.Path;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.spi.FileSystemProvider;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -50,6 +52,8 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ_WRITE;
 
 /**
  * Called by the agent during {@code agentmain} to configure the entitlement system,
@@ -128,7 +132,10 @@ public class EntitlementInitialization {
                         new CreateClassLoaderEntitlement(),
                         new InboundNetworkEntitlement(),
                         new OutboundNetworkEntitlement(),
-                        new LoadNativeLibrariesEntitlement()
+                        new LoadNativeLibrariesEntitlement(),
+                        new FilesEntitlement(
+                            List.of(new FilesEntitlement.FileData(EntitlementBootstrap.bootstrapArgs().tempDir().toString(), READ_WRITE))
+                        )
                     )
                 ),
                 new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),

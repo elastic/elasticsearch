@@ -118,7 +118,8 @@ public class InstrumentationServiceImpl implements InstrumentationService {
     ) throws NoSuchMethodException, ClassNotFoundException {
 
         var targetMethod = targetSuperclass.getDeclaredMethod(methodName, parameterTypes);
-        validateTargetMethod(implementationClass, targetMethod);
+        var implementationMethod = implementationClass.getMethod(targetMethod.getName(), targetMethod.getParameterTypes());
+        validateTargetMethod(implementationClass, targetMethod, implementationMethod);
 
         var checkerAdditionalArguments = Stream.of(Class.class, targetSuperclass);
         var checkMethodArgumentTypes = Stream.concat(checkerAdditionalArguments, Arrays.stream(parameterTypes))
@@ -169,15 +170,15 @@ public class InstrumentationServiceImpl implements InstrumentationService {
 
         return new InstrumentationInfo(
             new MethodKey(
-                Type.getInternalName(implementationClass),
-                targetMethod.getName(),
+                Type.getInternalName(implementationMethod.getDeclaringClass()),
+                implementationMethod.getName(),
                 Arrays.stream(parameterTypes).map(c -> Type.getType(c).getInternalName()).toList()
             ),
             checkMethod[0]
         );
     }
 
-    private static void validateTargetMethod(Class<?> implementationClass, Method targetMethod) {
+    private static void validateTargetMethod(Class<?> implementationClass, Method targetMethod, Method implementationMethod) {
         if (targetMethod.getDeclaringClass().isAssignableFrom(implementationClass) == false) {
             throw new IllegalArgumentException(
                 String.format(
@@ -209,37 +210,26 @@ public class InstrumentationServiceImpl implements InstrumentationService {
                 )
             );
         }
-        try {
-            var implementationMethod = implementationClass.getMethod(targetMethod.getName(), targetMethod.getParameterTypes());
-            var methodModifiers = implementationMethod.getModifiers();
-            if (Modifier.isAbstract(methodModifiers)) {
-                throw new IllegalArgumentException(
-                    String.format(
-                        Locale.ROOT,
-                        "Not a valid instrumentation method: %s is abstract in %s",
-                        targetMethod.getName(),
-                        implementationClass.getName()
-                    )
-                );
-            }
-            if (Modifier.isPublic(methodModifiers) == false) {
-                throw new IllegalArgumentException(
-                    String.format(
-                        Locale.ROOT,
-                        "Not a valid instrumentation method: %s is not public in %s",
-                        targetMethod.getName(),
-                        implementationClass.getName()
-                    )
-                );
-            }
-        } catch (NoSuchMethodException e) {
-            assert false
-                : String.format(
+        var methodModifiers = implementationMethod.getModifiers();
+        if (Modifier.isAbstract(methodModifiers)) {
+            throw new IllegalArgumentException(
+                String.format(
                     Locale.ROOT,
-                    "Not a valid instrumentation method: %s cannot be found in %s",
+                    "Not a valid instrumentation method: %s is abstract in %s",
                     targetMethod.getName(),
                     implementationClass.getName()
-                );
+                )
+            );
+        }
+        if (Modifier.isPublic(methodModifiers) == false) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "Not a valid instrumentation method: %s is not public in %s",
+                    targetMethod.getName(),
+                    implementationClass.getName()
+                )
+            );
         }
     }
 

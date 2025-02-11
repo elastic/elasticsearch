@@ -284,10 +284,14 @@ public class IndexAbstractionResolverTests extends ESTestCase {
 
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, "false");
-        indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, systemIndices);
+        indexNameExpressionResolver = new IndexNameExpressionResolver(
+            threadContext,
+            systemIndices,
+            TestProjectResolvers.DEFAULT_PROJECT_ONLY
+        );
         indexAbstractionResolver = new IndexAbstractionResolver(indexNameExpressionResolver);
 
-        metadata = Metadata.builder().put(foo, true).put(barReindexed, true).put(other, true).build();
+        projectMetadata = Metadata.builder().put(foo, true).put(barReindexed, true).put(other, true).build().getProject();
 
         assertThat(isIndexVisible("other", "*"), is(true));
         assertThat(isIndexVisible(".foo", "*"), is(false));

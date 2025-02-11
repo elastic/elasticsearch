@@ -312,7 +312,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         MultiGetRequest.Item item = request.items.get(location);
         try {
             GetResult getResult = indexShard.getService()
-                .get(
+                .mget(
                     item.id(),
                     item.storedFields(),
                     request.realtime(),

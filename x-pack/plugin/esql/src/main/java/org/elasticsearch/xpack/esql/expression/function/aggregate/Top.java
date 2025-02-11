@@ -189,25 +189,25 @@ public class Top extends AggregateFunction implements ToAggregator, SurrogateExp
     }
 
     @Override
-    public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
+    public AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
         if (type == DataType.LONG || type == DataType.DATETIME) {
-            return new TopLongAggregatorFunctionSupplier(inputChannels, limitValue(), orderValue());
+            return new TopLongAggregatorFunctionSupplier(limitValue(), orderValue());
         }
         if (type == DataType.INTEGER) {
-            return new TopIntAggregatorFunctionSupplier(inputChannels, limitValue(), orderValue());
+            return new TopIntAggregatorFunctionSupplier(limitValue(), orderValue());
         }
         if (type == DataType.DOUBLE) {
-            return new TopDoubleAggregatorFunctionSupplier(inputChannels, limitValue(), orderValue());
+            return new TopDoubleAggregatorFunctionSupplier(limitValue(), orderValue());
         }
         if (type == DataType.BOOLEAN) {
-            return new TopBooleanAggregatorFunctionSupplier(inputChannels, limitValue(), orderValue());
+            return new TopBooleanAggregatorFunctionSupplier(limitValue(), orderValue());
         }
         if (type == DataType.IP) {
-            return new TopIpAggregatorFunctionSupplier(inputChannels, limitValue(), orderValue());
+            return new TopIpAggregatorFunctionSupplier(limitValue(), orderValue());
         }
         if (DataType.isString(type)) {
-            return new TopBytesRefAggregatorFunctionSupplier(inputChannels, limitValue(), orderValue());
+            return new TopBytesRefAggregatorFunctionSupplier(limitValue(), orderValue());
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);
     }

@@ -4317,17 +4317,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert waitForEngineOrClosedShardListeners.isDone();
         try {
             synchronized (engineMutex) {
-                final var currentEngine = getEngine();
-                currentEngine.prepareForEngineReset();
-                var engineConfig = newEngineConfig(replicationTracker);
                 verifyNotClosed();
-                IOUtils.close(currentEngine);
-                var newEngine = createEngine(engineConfig);
-                currentEngineReference.set(newEngine);
+                getEngine().prepareForEngineReset();
+                var newEngine = createEngine(newEngineConfig(replicationTracker));
+                IOUtils.close(currentEngineReference.getAndSet(newEngine));
                 onNewEngine(newEngine);
             }
             onSettingsChanged();
         } catch (Exception e) {
+            assert false : e;
             failShard("unable to reset engine", e);
         }
     }

@@ -91,7 +91,7 @@ public class AggregatorImplementer {
 
         this.init = requireStaticMethod(
             declarationType,
-            requirePrimitiveOrImplements(elements, ClassName.get("org.elasticsearch.compute.aggregation", "AggregatorState")),
+            requirePrimitiveOrImplements(elements, Types.AGGREGATOR_STATE),
             requireName("init", "initSingle"),
             requireAnyArgs("<arbitrary init arguments>")
         );

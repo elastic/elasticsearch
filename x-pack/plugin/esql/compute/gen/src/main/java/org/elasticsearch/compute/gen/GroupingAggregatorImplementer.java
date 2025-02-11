@@ -99,7 +99,7 @@ public class GroupingAggregatorImplementer {
 
         this.init = requireStaticMethod(
             declarationType,
-            requirePrimitiveOrImplements(elements, ClassName.get("org.elasticsearch.compute.aggregation", "GroupingAggregatorState")),
+            requirePrimitiveOrImplements(elements, Types.GROUPING_AGGREGATOR_STATE),
             requireName("init", "initGrouping"),
             requireAnyArgs("<arbitrary init arguments>")
         );

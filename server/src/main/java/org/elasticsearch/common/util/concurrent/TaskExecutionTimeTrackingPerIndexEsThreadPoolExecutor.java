@@ -24,7 +24,8 @@ import java.util.function.Function;
 
 /**
  * A specialized thread pool executor that tracks the execution time of tasks per index.
- * This executor provides detailed metrics on task execution times per index, which can be useful for performance monitoring and debugging.
+ * This executor provides detailed metrics on task execution times per index, which can be useful for performance monitoring and debugging
+ * 
  */
 public class TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor extends TaskExecutionTimeTrackingEsThreadPoolExecutor {
     private static final Logger logger = LogManager.getLogger(TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor.class);

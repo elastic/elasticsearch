@@ -4565,8 +4565,7 @@ public class IndexShardTests extends IndexShardTestCase {
             try {
                 return new ReadOnlyEngine(config, null, new TranslogStats(), false, Function.identity(), true, true) {
                     @Override
-                    public void prepareForEngineReset() throws IOException {
-                    }
+                    public void prepareForEngineReset() throws IOException {}
                 };
             } finally {
                 newEngineCreated.countDown();

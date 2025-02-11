@@ -318,7 +318,7 @@ runtime field matching routing path:
 ---
 nested dimensions:
   - requires:
-      cluster_features: ["gte_v8.2.0"]
+      cluster_features: ["gte_v8.2.0", "mapper.tsdb_nested_field_support"]
       reason: message changed in 8.2.0
 
   - do:
@@ -346,7 +346,7 @@ nested dimensions:
 ---
 nested fields:
   - requires:
-      cluster_features: ["gte_v8.2.0"]
+      cluster_features: ["gte_v8.2.0", "mapper.tsdb_nested_field_support"]
       reason: message changed in 8.2.0
 
   - do:

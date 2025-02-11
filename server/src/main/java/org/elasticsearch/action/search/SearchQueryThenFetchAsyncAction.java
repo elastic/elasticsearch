@@ -63,12 +63,11 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.BitSet;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -531,17 +530,21 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
 
     private static final CircuitBreaker NOOP_CIRCUIT_BREAKER = new NoopCircuitBreaker("request");
 
-    public static void registerNodeSearchAction(SearchTransportService searchTransportService, SearchService searchService) {
+    public static void registerNodeSearchAction(
+        SearchTransportService searchTransportService,
+        SearchService searchService,
+        SearchPhaseController searchPhaseController
+    ) {
         var transportService = searchTransportService.transportService();
         var threadPool = transportService.getThreadPool();
         final Dependencies dependencies = new Dependencies(searchService, threadPool.executor(ThreadPool.Names.SEARCH));
         final int searchPoolMax = threadPool.info(ThreadPool.Names.SEARCH).getMax();
-        final SearchPhaseController searchPhaseController = new SearchPhaseController(searchService::aggReduceContextBuilder);
         transportService.registerRequestHandler(
             NODE_SEARCH_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             NodeQueryRequest::new,
             (request, channel, task) -> {
+                final CancellableTask cancellableTask = (CancellableTask) task;
                 final int shardCount = request.shards.size();
                 int workers = Math.min(request.searchRequest.getMaxConcurrentShardRequests(), Math.min(shardCount, searchPoolMax));
                 final var state = new QueryPerNodeState(
@@ -551,16 +554,17 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                         dependencies.executor,
                         NOOP_CIRCUIT_BREAKER, // noop cb for now since we do not have a breaker in this situation in un-batched execution
                         searchPhaseController,
-                        ((CancellableTask) task)::isCancelled,
+                        cancellableTask::isCancelled,
                         SearchProgressListener.NOOP,
                         shardCount,
                         e -> logger.error("failed to merge on data node", e)
                     ),
                     request,
-                    (CancellableTask) task,
+                    cancellableTask,
                     channel,
                     dependencies
                 );
+                // TODO: log activating or otherwise limiting parallelism might be helpful here
                 for (int i = 0; i < workers; i++) {
                     dependencies.executor.execute(shardTask(state, i));
                 }
@@ -569,7 +573,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         TransportActionProxy.registerProxyAction(transportService, NODE_SEARCH_ACTION_NAME, true, NodeQueryResponse::new);
     }
 
-    private static void maybeRelease(SearchService searchService, NodeQueryRequest request, SearchPhaseResult result) {
+    private static void releaseLocalContext(SearchService searchService, NodeQueryRequest request, SearchPhaseResult result) {
         var phaseResult = result.queryResult() != null ? result.queryResult() : result.rankFeatureResult();
         if (phaseResult != null
             && phaseResult.hasSearchContext()
@@ -657,8 +661,6 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                                 searchPhaseResult.setSearchShardTarget(
                                     new SearchShardTarget(null, shardToQuery.shardId, request.localClusterAlias)
                                 );
-                                // no need for any cache effects when we're already flipped to ture => plain read + set-release
-                                state.hasResponse.compareAndExchangeRelease(false, true);
                                 state.consumeResult(searchPhaseResult.queryResult());
                             } catch (Exception e) {
                                 setFailure(state, dataNodeLocalIdx, e);
@@ -674,21 +676,10 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
 
                         @Override
                         public void onFailure(Exception e) {
-                            try {
-                                // TODO: count down fully and just respond with an exception if partial results aren't allowed
-                                setFailure(state, dataNodeLocalIdx, e);
-                                maybeNext();
-                            } catch (Throwable expected) {
-                                expected.addSuppressed(e);
-                                throw new AssertionError(expected);
-                            }
-                        }
-
-                        private void maybeNext() {
-                            final int shardToQuery = state.currentShardIndex.incrementAndGet();
-                            if (shardToQuery < request.shards.size()) {
-                                state.dependencies.executor.execute(shardTask(state, shardToQuery));
-                            }
+                            // TODO: count down fully and just respond with an exception if partial results aren't allowed as an
+                            // optimization
+                            setFailure(state, dataNodeLocalIdx, e);
+                            maybeNext();
                         }
                     }
                 );
@@ -700,19 +691,21 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 // minimum and ignore + requeue rejections in that case
                 state.failures.put(dataNodeLocalIdx, e);
                 state.onDone();
-                // TODO SO risk!
+                // TODO SO risk in case of rejections
                 maybeNext();
             }
 
             @Override
             public void onRejection(Exception e) {
-                // TODO this could be done better now, we probably should only make sure to have a single loop running at
+                // TODO this could be done better now, we probably should only make sure to have a single loop running per search
                 onFailure(e);
             }
 
             private void maybeNext() {
                 final int shardToQuery = state.currentShardIndex.incrementAndGet();
                 if (shardToQuery < state.searchRequest.shards.size()) {
+                    // TODO: this approach of repeatedly submitting tasks gives us fairness at the cost of throughput, we could
+                    // also go for throughput by looping in tasks
                     state.dependencies.executor.execute(shardTask(state, shardToQuery));
                 }
             }
@@ -755,9 +748,9 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             this.queryPhaseResultConsumer = queryPhaseResultConsumer;
             this.searchRequest = searchRequest;
             this.trackTotalHitsUpTo = searchRequest.searchRequest.resolveTrackTotalHitsUpTo();
-            topDocsSize = getTopDocsSize(searchRequest.searchRequest);
+            this.topDocsSize = getTopDocsSize(searchRequest.searchRequest);
             this.task = task;
-            countDown = new CountDown(queryPhaseResultConsumer.getNumShards());
+            this.countDown = new CountDown(queryPhaseResultConsumer.getNumShards());
             this.channel = channel;
             this.dependencies = dependencies;
         }
@@ -771,21 +764,9 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 var failure = queryPhaseResultConsumer.failure.get();
                 if (failure != null) {
                     queryPhaseResultConsumer.getSuccessfulResults()
-                        .forEach(searchPhaseResult -> maybeRelease(dependencies.searchService, searchRequest, searchPhaseResult));
+                        .forEach(searchPhaseResult -> releaseLocalContext(dependencies.searchService, searchRequest, searchPhaseResult));
                     channelListener.onFailure(failure);
                     return;
-                }
-                final Object[] results = new Object[queryPhaseResultConsumer.getNumShards()];
-                for (int i = 0; i < results.length; i++) {
-                    var e = failures.get(i);
-                    var res = queryPhaseResultConsumer.results.get(i);
-                    if (e != null) {
-                        results[i] = e;
-                        assert res == null;
-                    } else {
-                        results[i] = res;
-                        assert results[i] != null;
-                    }
                 }
                 final QueryPhaseResultConsumer.MergeResult mergeResult;
                 try {
@@ -794,25 +775,36 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     channelListener.onFailure(e);
                     return;
                 }
-                // translate shard indices to those on the coordinator so that it can interpret the merge result without adjustments
-                final Set<Integer> relevantShardIndices = new HashSet<>();
+                // translate shard indices to those on the coordinator so that it can interpret the merge result without adjustments,
+                // also collect the set of indices that may be part of a subsequent fetch operation here so that we can release all other
+                // indices without a roundtrip to the coordinating node
+                final BitSet relevantShardIndices = new BitSet(searchRequest.shards.size());
                 for (ScoreDoc scoreDoc : mergeResult.reducedTopDocs().scoreDocs) {
                     final int localIndex = scoreDoc.shardIndex;
                     scoreDoc.shardIndex = searchRequest.shards.get(localIndex).shardIndex;
-                    relevantShardIndices.add(localIndex);
+                    relevantShardIndices.set(localIndex);
                 }
-                for (Object result : results) {
-                    if (result instanceof QuerySearchResult q
-                        && q.getContextId() != null
-                        && relevantShardIndices.contains(q.getShardIndex()) == false
-                        && q.hasSuggestHits() == false
-                        && q.getRankShardResult() == null
-                        && searchRequest.searchRequest.scroll() == null
-                        && (isPartOfPIT(searchRequest.searchRequest, q.getContextId()) == false)) {
-                        if (dependencies.searchService.freeReaderContext(q.getContextId())) {
-                            q.clearContextId();
+                final Object[] results = new Object[queryPhaseResultConsumer.getNumShards()];
+                for (int i = 0; i < results.length; i++) {
+                    var result = queryPhaseResultConsumer.results.get(i);
+                    if (result == null) {
+                        results[i] = failures.get(i);
+                    } else {
+                        // free context id and remove it from the result right away in case we don't need it anymore
+                        if (result instanceof QuerySearchResult q
+                            && q.getContextId() != null
+                            && relevantShardIndices.get(q.getShardIndex()) == false
+                            && q.hasSuggestHits() == false
+                            && q.getRankShardResult() == null
+                            && searchRequest.searchRequest.scroll() == null
+                            && isPartOfPIT(searchRequest.searchRequest, q.getContextId()) == false) {
+                            if (dependencies.searchService.freeReaderContext(q.getContextId())) {
+                                q.clearContextId();
+                            }
                         }
+                        results[i] = result;
                     }
+                    assert results[i] != null;
                 }
 
                 ActionListener.respondAndRelease(
@@ -823,6 +815,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         }
 
         void consumeResult(QuerySearchResult queryResult) {
+            // no need for any cache effects when we're already flipped to ture => plain read + set-release
+            hasResponse.compareAndExchangeRelease(false, true);
             if (queryResult.isNull() == false
                 // disable sort optims for scroll requests because they keep track of the last bottom doc locally (per shard)
                 && searchRequest.searchRequest.scroll() == null

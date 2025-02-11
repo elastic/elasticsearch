@@ -84,7 +84,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
     private final ArrayDeque<MergeTask> queue = new ArrayDeque<>();
     private final AtomicReference<MergeTask> runningTask = new AtomicReference<>();
-    public final AtomicReference<Exception> failure = new AtomicReference<>();
+    final AtomicReference<Exception> failure = new AtomicReference<>();
 
     public final TopDocsStats topDocsStats;
     private volatile MergeResult mergeResult;

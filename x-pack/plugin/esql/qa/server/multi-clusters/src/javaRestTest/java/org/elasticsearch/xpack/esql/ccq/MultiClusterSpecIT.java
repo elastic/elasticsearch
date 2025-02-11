@@ -130,6 +130,11 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         assumeFalse("UNMAPPED FIELDS not yet supported in CCS", testCase.requiredCapabilities.contains(UNMAPPED_FIELDS.capabilityName()));
     }
 
+    @Override
+    protected boolean shouldSkipTestsWithSemanticTextFields() {
+        return true;
+    }
+
     private TestFeatureService remoteFeaturesService() throws IOException {
         if (remoteFeaturesService == null) {
             var remoteNodeVersions = readVersionsFromNodesInfo(remoteClusterClient());

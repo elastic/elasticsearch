@@ -9,6 +9,9 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
+import org.elasticsearch.core.Tuple;
+
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.RejectedExecutionHandler;
@@ -17,11 +20,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Function;
 
-// TODO MP add java doc
+/**
+ * A specialized thread pool executor that tracks the execution time of tasks per index.
+ * This executor provides detailed metrics on task execution times per index, which can be useful for performance monitoring and debugging.
+ */
 public class TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor extends TaskExecutionTimeTrackingEsThreadPoolExecutor {
-    private final ConcurrentHashMap<String, LongAdder> indexExecutionTime;
+    private final ConcurrentHashMap<String, Tuple<LongAdder, ExponentiallyWeightedMovingAverage>> indexExecutionTime;
     private final ConcurrentHashMap<Runnable, String> runnableToIndexName;
-    // TODO MP do we need also EWMA per-index or per-project?
 
     TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor(
         String name,
@@ -53,53 +58,52 @@ public class TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor extends TaskE
         runnableToIndexName = new ConcurrentHashMap<>();
     }
 
+    /**
+     * Gets the total execution time for tasks associated with a specific index.
+     *
+     * @param indexName the name of the index
+     * @return the total execution time for the index
+     */
     public long getSearchLoadPerIndex(String indexName) {
-        // TODO MP check for null maybe we don't need getOrDefault
-        // return indexExecutionTime.getOrDefault(indexName, new LongAdder()).sum();
-
-        // Avoid creating LongAdder objects if indexName not present
-        LongAdder adder = indexExecutionTime.get(indexName);
-        return (adder != null) ? adder.sum() : 0;
+        Tuple<LongAdder, ExponentiallyWeightedMovingAverage> t = indexExecutionTime.get(indexName);
+        return (t != null) ? t.v1().sum() : 0;
     }
 
-    public long getLoadEMWAPerIndex(String indexName) {
-        // TODO MP do we need to report load EMWA per index?
-        throw new UnsupportedOperationException("Not supported yet");
+    /**
+     * Gets the exponentially weighted moving average (EWMA) of the execution time for tasks associated with a specific index name.
+     *
+     * @param indexName the name of the index
+     * @return the EWMA of the execution time for the index
+     */
+    public double getLoadEMWAPerIndex(String indexName) {
+        Tuple<LongAdder, ExponentiallyWeightedMovingAverage> t = indexExecutionTime.get(indexName);
+        return (t != null) ? t.v2().getAverage() : 0;
     }
 
-    public long getSearchLoadPerProject() {
-        // TODO MP we probably need to report sl per project?
-        throw new UnsupportedOperationException("Not supported yet");
-    }
-
-    public long getLoadEMWAPerProject() {
-        // TODO MP we probably need to report load EMWA per project?
-        throw new UnsupportedOperationException("Not supported yet");
-    }
-
+    /**
+     * Registers an index name for a given runnable task.
+     *
+     * @param indexName the name of the index
+     * @param r the runnable task
+     */
     public void registerIndexNameForRunnable(String indexName, Runnable r) {
         runnableToIndexName.put(r, indexName);
-    }
-
-    private void trackExecutionTimePerIndex(Runnable r, long timeSpentExecuting) {
-        // TODO MP do we need a LongAdder here?
-        String indexName = runnableToIndexName.get(r);
-        if (indexName != null) {
-            // Use of computeIfAbsent to avoid creating LongAdder objects if indexName not present
-            // This is preferable when working with Immutable objects
-            // Avoid possible race conditions
-            indexExecutionTime.computeIfAbsent(indexName, n -> new LongAdder()).add(timeSpentExecuting);
-        }
     }
 
     @Override
     protected void trackExecutionTime(Runnable r, long taskTime) {
         try {
-            trackExecutionTimePerIndex(r, taskTime);
+            String indexName = runnableToIndexName.get(r);
+            if (indexName != null) {
+                Tuple<LongAdder, ExponentiallyWeightedMovingAverage> t = indexExecutionTime.computeIfAbsent(
+                    indexName,
+                    k -> new Tuple<>(new LongAdder(), new ExponentiallyWeightedMovingAverage(trackingConfig.getEwmaAlpha(), 0))
+                );
+                t.v1().add(taskTime);
+                t.v2().addValue(taskTime);
+            }
             super.trackExecutionTime(r, taskTime);
         } finally {
-            // Unregister the runnable from the map to avoid memory leaks
-            // assert runnableToIndexName.isEmpty();
             runnableToIndexName.remove(r);
         }
     }

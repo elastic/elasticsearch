@@ -33,6 +33,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThreadPoolE
     private final boolean trackOngoingTasks;
     // The set of currently running tasks and the timestamp of when they started execution in the Executor.
     private final Map<Runnable, Long> ongoingTasks = new ConcurrentHashMap<>();
+    protected final TaskTrackingConfig trackingConfig;
 
     TaskExecutionTimeTrackingEsThreadPoolExecutor(
         String name,
@@ -49,6 +50,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThreadPoolE
     ) {
         super(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler, contextHolder);
         this.runnableWrapper = runnableWrapper;
+        this.trackingConfig = trackingConfig;
         this.executionEWMA = new ExponentiallyWeightedMovingAverage(trackingConfig.getEwmaAlpha(), 0);
         this.trackOngoingTasks = trackingConfig.trackOngoingTasks();
     }

@@ -385,9 +385,6 @@ tests:
 - class: org.elasticsearch.search.basic.SearchWithRandomIOExceptionsIT
   method: testRandomDirectoryIOExceptions
   issue: https://github.com/elastic/elasticsearch/issues/118733
-- class: org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT
-  method: test {p0=search.vectors/41_knn_search_bbq_hnsw/Vector rescoring has same scoring as exact search for kNN section}
-  issue: https://github.com/elastic/elasticsearch/issues/120441
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=logsdb/10_settings/missing hostname field}
   issue: https://github.com/elastic/elasticsearch/issues/120476
@@ -567,12 +564,12 @@ tests:
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testGetUsersWithProfileUid
   issue: https://github.com/elastic/elasticsearch/issues/121483
-- class: org.elasticsearch.xpack.esql.action.CrossClustersCancellationIT
-  method: testCloseSkipUnavailable
-  issue: https://github.com/elastic/elasticsearch/issues/121627
 - class: org.elasticsearch.xpack.application.FullClusterRestartIT
   issue: https://github.com/elastic/elasticsearch/issues/121935
 - class: org.elasticsearch.xpack.inference.qa.mixed.CohereServiceMixedIT
   issue: https://github.com/elastic/elasticsearch/issues/122110
 - class: org.elasticsearch.xpack.application.HuggingFaceServiceUpgradeIT
   issue: https://github.com/elastic/elasticsearch/issues/122111
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncEnrichStopIT
+  method: testEnrichAfterStop
+  issue: https://github.com/elastic/elasticsearch/issues/121994

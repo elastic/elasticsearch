@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class CrossClustersCancellationIT extends AbstractMultiClustersTestCase {
+public class CrossClusterCancellationIT extends AbstractMultiClustersTestCase {
     private static final String REMOTE_CLUSTER = "cluster-a";
 
     @Override

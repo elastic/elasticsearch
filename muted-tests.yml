@@ -573,3 +573,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncEnrichStopIT
   method: testEnrichAfterStop
   issue: https://github.com/elastic/elasticsearch/issues/121994
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {date_nanos.Bucket Date nanos by 10 minutes SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/122273

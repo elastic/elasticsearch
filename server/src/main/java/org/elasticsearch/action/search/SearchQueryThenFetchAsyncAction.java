@@ -88,6 +88,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
     private final int trackTotalHitsUpTo;
     private volatile BottomSortValuesCollector bottomSortCollector;
     private final Client client;
+    private final boolean batchQueryPhase;
 
     SearchQueryThenFetchAsyncAction(
         Logger logger,
@@ -105,7 +106,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         ClusterState clusterState,
         SearchTask task,
         SearchResponse.Clusters clusters,
-        Client client
+        Client client,
+        boolean batchQueryPhase
     ) {
         super(
             "query",
@@ -130,7 +132,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         this.trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();
         this.progressListener = task.getProgressListener();
         this.client = client;
-
+        this.batchQueryPhase = batchQueryPhase;
         // don't build the SearchShard list (can be expensive) if the SearchProgressListener won't use it
         if (progressListener != SearchProgressListener.NOOP) {
             notifyListShards(progressListener, clusters, request.source());
@@ -415,7 +417,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             } else {
                 final String nodeId = routing.getNodeId();
                 // local requests don't need batching as there's no network latency
-                if (localNodeId.equals(nodeId) == false) {
+                if (this.batchQueryPhase && localNodeId.equals(nodeId) == false) {
                     perNodeQueries.computeIfAbsent(
                         new CanMatchPreFilterSearchPhase.SendingTarget(routing.getClusterAlias(), routing.getNodeId()),
                         ignored -> new NodeQueryRequest(

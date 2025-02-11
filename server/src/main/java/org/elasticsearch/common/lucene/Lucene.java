@@ -485,14 +485,14 @@ public class Lucene {
         if (topDocs.topDocs instanceof TopFieldGroups topFieldGroups) {
             out.writeByte((byte) 2);
 
-            writeTotalHits(out, topDocs.topDocs.totalHits);
+            writeTotalHits(out, topFieldGroups.totalHits);
             out.writeFloat(topDocs.maxScore);
 
             out.writeString(topFieldGroups.field);
             out.writeArray(Lucene::writeSortField, topFieldGroups.fields);
 
-            out.writeVInt(topDocs.topDocs.scoreDocs.length);
-            for (int i = 0; i < topDocs.topDocs.scoreDocs.length; i++) {
+            out.writeVInt(topFieldGroups.scoreDocs.length);
+            for (int i = 0; i < topFieldGroups.scoreDocs.length; i++) {
                 ScoreDoc doc = topFieldGroups.scoreDocs[i];
                 writeFieldDoc(out, (FieldDoc) doc);
                 writeSortValue(out, topFieldGroups.groupValues[i]);
@@ -500,7 +500,7 @@ public class Lucene {
         } else if (topDocs.topDocs instanceof TopFieldDocs topFieldDocs) {
             out.writeByte((byte) 1);
 
-            writeTotalHits(out, topDocs.topDocs.totalHits);
+            writeTotalHits(out, topFieldDocs.totalHits);
             out.writeFloat(topDocs.maxScore);
 
             out.writeArray(Lucene::writeSortField, topFieldDocs.fields);

@@ -1,3 +1,8 @@
+setup:
+  - requires:
+      cluster_features: ["mapper.tsdb_nested_field_support"]
+      reason: "tsdb index with nested field support enabled"
+
 ---
 "Create TSDB index with field of nested type":
   - do:

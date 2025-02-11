@@ -90,6 +90,9 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
       if (bwcVersion.onOrAfter(Version.fromString("8.4.0"))) {
         setting 'health.master_history.no_master_transitions_threshold', '10'
       }
+      // TODO: conditionally add jvmarg based on old version
+      // Avoid tripping assertion on old nodes:
+      jvmArgs '-da:org.elasticsearch.index.mapper.DocumentMapper'
       requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
     }
 

@@ -119,7 +119,7 @@ class NioFileSystemActions {
         var directory = EntitledActions.createTempDirectoryForWrite();
         try {
             fs.createLink(directory.resolve("link"), FileCheckActions.readFile());
-        } catch (UnsupportedOperationException | FileSystemException  e) {
+        } catch (UnsupportedOperationException | FileSystemException e) {
             // OK not to implement symbolic link in the filesystem
         }
     }

@@ -427,6 +427,8 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/122316
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   issue: https://github.com/elastic/elasticsearch/issues/120816
+- class: org.elasticsearch.xpack.eql.EqlClientYamlIT
+  issue: https://github.com/elastic/elasticsearch/issues/122317
 
 # Examples:
 #

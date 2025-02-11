@@ -318,10 +318,11 @@ runtime field matching routing path:
 ---
 nested dimensions:
   - requires:
-      cluster_features: ["gte_v8.2.0", "mapper.tsdb_nested_field_support"]
+      cluster_features: ["gte_v8.2.0"]
       reason: message changed in 8.2.0
 
   - do:
+      catch: /time_series_dimension can't be configured in nested field \[nested.dim\]/
       indices.create:
           index: test
           body:

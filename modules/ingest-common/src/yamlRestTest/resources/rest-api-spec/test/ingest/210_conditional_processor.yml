@@ -100,7 +100,7 @@ teardown:
                 field: "fallback"
                 value: "fallback"
             - set:
-                if: "field('nested.array.get-with-index.field').get(1, null) == 'two'"
+                if: "field('nested.array.get.with.index.field').get(1, null) == 'two'"
                 field: "two"
                 value: 2
             - set:
@@ -144,7 +144,7 @@ teardown:
           get.field: "one"
           nested:
             array:
-              get-with-index.field: ["one", "two", "three"]
+              get.with.index.field: ["one", "two", "three"]
           getName.field: "my_name"
           existing.field: "indeed"
           empty.field: []
@@ -161,7 +161,7 @@ teardown:
   - is_false: _source.missing
   - is_true: _source.dollar
   - match: { _source.fallback: "fallback" }
-  - match: { _source.nested.array.get-with-index\.field: ["one", "two", "three"] }
+  - match: { _source.nested.array.get\.with\.index\.field: ["one", "two", "three"] }
   - match: { _source.two: 2 }
   - match: { _source.three: 3 }
   - match: { _source.four: 4 }

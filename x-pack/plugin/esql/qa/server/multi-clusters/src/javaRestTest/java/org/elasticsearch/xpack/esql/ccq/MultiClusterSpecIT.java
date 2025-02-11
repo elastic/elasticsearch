@@ -297,7 +297,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     }
 
     @Override
-    protected boolean supportsUnmappedFields() throws IOException {
+    protected boolean supportsSourceFieldMapping() {
         return false;
     }
 }

@@ -292,7 +292,7 @@ public class CsvTestsDataLoader {
     public static Set<TestDataset> availableDatasetsForEs(
         RestClient client,
         boolean supportsIndexModeLookup,
-        boolean supportsUnmappedFields
+        boolean supportsSourceFieldMapping
     ) throws IOException {
         boolean inferenceEnabled = clusterHasInferenceEndpoint(client);
 
@@ -301,7 +301,7 @@ public class CsvTestsDataLoader {
         for (TestDataset dataset : CSV_DATASET_MAP.values()) {
             if ((inferenceEnabled || dataset.requiresInferenceEndpoint == false)
                 && (supportsIndexModeLookup || isLookupDataset(dataset) == false)
-                && (supportsUnmappedFields || isUnmappedFieldsDataset(dataset) == false)) {
+                && (supportsSourceFieldMapping || isSourceMappingDataset(dataset) == false)) {
                 testDataSets.add(dataset);
             }
         }
@@ -315,33 +315,38 @@ public class CsvTestsDataLoader {
         return (mode != null && mode.equalsIgnoreCase("lookup"));
     }
 
-    private static boolean isUnmappedFieldsDataset(TestDataset dataset) throws IOException {
+    private static boolean isSourceMappingDataset(TestDataset dataset) throws IOException {
         if (dataset.mappingFileName() == null) {
             return true;
         }
         String mappingJsonText = readTextFile(getResource("/" + dataset.mappingFileName()));
         JsonNode mappingNode = new ObjectMapper().readTree(mappingJsonText);
-        // BWC tests don't support _source field directives, so don't load those datasets.
+        // BWC tests don't support _source field mappings, so don't load those datasets.
         return mappingNode.get("_source") != null;
     }
 
-    public static void loadDataSetIntoEs(RestClient client, boolean supportsIndexModeLookup, boolean supportsUnmappedFields)
+    public static void loadDataSetIntoEs(RestClient client, boolean supportsIndexModeLookup, boolean supportsSourceFieldMapping)
         throws IOException {
-        loadDataSetIntoEs(client, supportsIndexModeLookup, supportsUnmappedFields, (restClient, indexName, indexMapping, indexSettings) -> {
-            ESRestTestCase.createIndex(restClient, indexName, indexSettings, indexMapping, null);
-        });
+        loadDataSetIntoEs(
+            client,
+            supportsIndexModeLookup,
+            supportsSourceFieldMapping,
+            (restClient, indexName, indexMapping, indexSettings) -> {
+                ESRestTestCase.createIndex(restClient, indexName, indexSettings, indexMapping, null);
+            }
+        );
     }
 
     private static void loadDataSetIntoEs(
         RestClient client,
         boolean supportsIndexModeLookup,
-        boolean supportsUnmappedFields,
+        boolean supportsSourceFieldMapping,
         IndexCreator indexCreator
     ) throws IOException {
         Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
 
         Set<String> loadedDatasets = new HashSet<>();
-        for (var dataset : availableDatasetsForEs(client, supportsIndexModeLookup, supportsUnmappedFields)) {
+        for (var dataset : availableDatasetsForEs(client, supportsIndexModeLookup, supportsSourceFieldMapping)) {
             load(client, dataset, logger, indexCreator);
             loadedDatasets.add(dataset.indexName);
         }

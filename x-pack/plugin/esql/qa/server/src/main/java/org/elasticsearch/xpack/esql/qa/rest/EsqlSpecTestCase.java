@@ -71,6 +71,7 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteInferenceEnd
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SOURCE_FIELD_MAPPING;
 
 // This test can run very long in serverless configurations
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
@@ -137,9 +138,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
 
         boolean supportsLookup = supportsIndexModeLookup();
-        boolean supportsUnmappedFields = supportsUnmappedFields();
-        if (indexExists(availableDatasetsForEs(client(), supportsLookup, supportsUnmappedFields).iterator().next().indexName()) == false) {
-            loadDataSetIntoEs(client(), supportsLookup, supportsUnmappedFields);
+        boolean supportsSourceMapping = supportsSourceFieldMapping();
+        if (indexExists(availableDatasetsForEs(client(), supportsLookup, supportsSourceMapping).iterator().next().indexName()) == false) {
+            loadDataSetIntoEs(client(), supportsLookup, supportsSourceMapping);
         }
     }
 
@@ -185,6 +186,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
         if (shouldSkipTestsWithSemanticTextFields()) {
             assumeFalse("semantic_text tests are muted", testCase.requiredCapabilities.contains(SEMANTIC_TEXT_TYPE.capabilityName()));
+        }
+        if (supportsSourceFieldMapping() == false) {
+            assumeFalse("source mapping tests are muted", testCase.requiredCapabilities.contains(SOURCE_FIELD_MAPPING.capabilityName()));
         }
     }
 
@@ -243,7 +247,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return true;
     }
 
-    protected boolean supportsUnmappedFields() throws IOException {
+    protected boolean supportsSourceFieldMapping() throws IOException {
         return true;
     }
 

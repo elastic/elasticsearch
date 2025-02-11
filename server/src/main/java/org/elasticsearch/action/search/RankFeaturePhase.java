@@ -215,7 +215,7 @@ public class RankFeaturePhase extends SearchPhase {
             .filter(rfd -> rfd.featureData != null)
             .sorted(
                 Comparator.comparing(
-                    (RankFeatureDoc doc) -> topResultsOrder.getOrDefault(new RankDoc.RankKey(doc.doc, doc.shardIndex), Integer.MIN_VALUE)
+                    (RankFeatureDoc doc) -> topResultsOrder.getOrDefault(new RankDoc.RankKey(doc.doc, doc.shardIndex), Integer.MAX_VALUE)
                 )
             )
             .toArray(RankFeatureDoc[]::new);

@@ -68,7 +68,7 @@ public class DocumentMapper {
         this.logger = Loggers.getLogger(getClass(), indexName);
         this.indexName = indexName;
 
-        assert mapping.toCompressedXContent().equals(source) || isSyntheticSourceMalformed(source, version) || equalsWithEmptySource(source)
+        assert mapping.toCompressedXContent().equals(source) || isSyntheticSourceMalformed(source, version)
             : "provided source [" + source + "] differs from mapping [" + mapping.toCompressedXContent() + "]";
     }
 
@@ -89,20 +89,6 @@ public class DocumentMapper {
         return sourceMapper().isSynthetic()
             && source.string().contains("\"_source\":{\"mode\":\"synthetic\"}") == false
             && version.onOrBefore(IndexVersions.V_8_10_0);
-    }
-
-    /**
-     * In case when source is empty in bwc situations. Empty _source now doesn't get serialized anymore.
-     */
-    boolean equalsWithEmptySource(CompressedXContent source) {
-        String sourceAsString = source.string();
-        if (sourceAsString.contains(",\"_source\":{}")) {
-            return mapping().toString().equals(sourceAsString.replace(",\"_source\":{}", ""));
-        } else if (sourceAsString.contains("\"_source\":{}")) {
-            return mapping().toString().equals(sourceAsString.replace("\"_source\":{}", ""));
-        } else {
-            return false;
-        }
     }
 
     public Mapping mapping() {

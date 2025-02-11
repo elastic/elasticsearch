@@ -177,7 +177,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 () -> null,
                 (n, c, o) -> Mode.valueOf(o.toString().toUpperCase(Locale.ROOT)),
                 // Avoid initializing _source.mode if it doesn't need to be serialized:
-                m -> toType(m).enabled.explicit() ? null : toType(m).serializeMode ? toType(m).mode : null,
+                m -> toType(m).enabled.explicit() ? null : toType(m).mode,
                 (b, n, v) -> b.field(n, v.toString().toLowerCase(Locale.ROOT)),
                 v -> v.toString().toLowerCase(Locale.ROOT)
             ).setMergeValidator((previous, current, conflicts) -> (previous == current) || current != Mode.STORED)
@@ -301,11 +301,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         if (indexMode == IndexMode.STANDARD && settingSourceMode == Mode.STORED) {
             return DEFAULT;
         }
-        SourceFieldMapper sourceFieldMapper = null;
         if (onOrAfterDeprecateModeVersion(c.indexVersionCreated())) {
-            sourceFieldMapper = resolveStaticInstance(settingSourceMode);
+            return resolveStaticInstance(settingSourceMode);
         } else {
-            sourceFieldMapper = new SourceFieldMapper(
+            return new SourceFieldMapper(
                 settingSourceMode,
                 Explicit.IMPLICIT_TRUE,
                 Strings.EMPTY_ARRAY,
@@ -314,10 +313,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 c.indexVersionCreated().onOrAfter(IndexVersions.SOURCE_MAPPER_MODE_ATTRIBUTE_NOOP)
             );
         }
-        // By default no attributes are specified and so the Builder doesn't get used.
-        // Need to validate the returned instance based on index mode:
-        indexMode.validateSourceFieldMapper(sourceFieldMapper);
-        return sourceFieldMapper;
     },
         c -> new Builder(
             c.getIndexSettings().getMode(),

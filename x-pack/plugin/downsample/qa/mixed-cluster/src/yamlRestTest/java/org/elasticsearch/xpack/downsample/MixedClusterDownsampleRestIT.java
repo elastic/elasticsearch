@@ -25,9 +25,6 @@ public class MixedClusterDownsampleRestIT extends ESClientYamlSuiteTestCase {
         .withNode(node -> node.version(Version.CURRENT))
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
-        // TODO: conditionally add jvmarg based on old version
-        // Avoid tripping assertion on old nodes:
-        .jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper")
         .build();
 
     static Version getOldVersion() {

@@ -150,6 +150,7 @@ clusterString
 
 selectorString
     : UNQUOTED_SOURCE
+    | QUOTED_STRING
     ;
 
 indexString

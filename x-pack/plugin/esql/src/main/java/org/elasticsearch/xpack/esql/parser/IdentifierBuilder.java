@@ -74,13 +74,24 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         }
     }
 
+    @Override
+    public String visitSelectorString(EsqlBaseParser.SelectorStringContext ctx) {
+        if (ctx == null) {
+            return null;
+        } else if (ctx.UNQUOTED_SOURCE() != null) {
+            return ctx.UNQUOTED_SOURCE().getText();
+        } else {
+            return unquote(ctx.QUOTED_STRING().getText());
+        }
+    }
+
     public String visitIndexPattern(List<EsqlBaseParser.IndexPatternContext> ctx) {
         List<String> patterns = new ArrayList<>(ctx.size());
         Holder<Boolean> hasSeenStar = new Holder<>(false);
         ctx.forEach(c -> {
             String indexPattern = visitIndexString(c.indexString());
             String clusterString = visitClusterString(c.clusterString());
-            String selectorString = c.selectorString() != null ? c.selectorString().getText() : null;
+            String selectorString = visitSelectorString(c.selectorString());
             // skip validating index on remote cluster, because the behavior of remote cluster is not consistent with local cluster
             // For example, invalid#index is an invalid index name, however FROM *:invalid#index does not return an error
             if (clusterString == null) {

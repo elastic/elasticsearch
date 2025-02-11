@@ -567,7 +567,7 @@ public class MachineLearning extends Plugin
             parameters.client,
             parameters.ingestService.getClusterService(),
             this.settings,
-            machineLearningExtension.get().includeNodeInfo()
+            inferenceAuditor
         );
         parameters.ingestService.addIngestClusterStateListener(inferenceFactory);
         return Map.of(InferenceProcessor.TYPE, inferenceFactory);
@@ -764,6 +764,8 @@ public class MachineLearning extends Plugin
     private final SetOnce<DatafeedRunner> datafeedRunner = new SetOnce<>();
     private final SetOnce<DataFrameAnalyticsManager> dataFrameAnalyticsManager = new SetOnce<>();
     private final SetOnce<DataFrameAnalyticsAuditor> dataFrameAnalyticsAuditor = new SetOnce<>();
+    private final SetOnce<AnomalyDetectionAuditor> anomalyDetectionAuditor = new SetOnce<>();
+    private final SetOnce<InferenceAuditor> inferenceAuditor = new SetOnce<>();
     private final SetOnce<MlMemoryTracker> memoryTracker = new SetOnce<>();
     private final SetOnce<ActionFilter> mlUpgradeModeActionFilter = new SetOnce<>();
     private final SetOnce<MlLifeCycleService> mlLifeCycleService = new SetOnce<>();
@@ -943,15 +945,24 @@ public class MachineLearning extends Plugin
         AnomalyDetectionAuditor anomalyDetectionAuditor = new AnomalyDetectionAuditor(
             client,
             clusterService,
+            indexNameExpressionResolver,
             machineLearningExtension.get().includeNodeInfo()
         );
+        this.anomalyDetectionAuditor.set(anomalyDetectionAuditor);
         DataFrameAnalyticsAuditor dataFrameAnalyticsAuditor = new DataFrameAnalyticsAuditor(
             client,
             clusterService,
+            indexNameExpressionResolver,
             machineLearningExtension.get().includeNodeInfo()
         );
-        InferenceAuditor inferenceAuditor = new InferenceAuditor(client, clusterService, machineLearningExtension.get().includeNodeInfo());
-        SystemAuditor systemAuditor = new SystemAuditor(client, clusterService);
+        InferenceAuditor inferenceAuditor = new InferenceAuditor(
+            client,
+            clusterService,
+            indexNameExpressionResolver,
+            machineLearningExtension.get().includeNodeInfo()
+        );
+        this.inferenceAuditor.set(inferenceAuditor);
+        SystemAuditor systemAuditor = new SystemAuditor(client, clusterService, indexNameExpressionResolver);
 
         this.dataFrameAnalyticsAuditor.set(dataFrameAnalyticsAuditor);
         OriginSettingClient originSettingClient = new OriginSettingClient(client, ML_ORIGIN);
@@ -1231,11 +1242,6 @@ public class MachineLearning extends Plugin
                             AnomalyDetectorsIndex.jobStateIndexWriteAlias()
                         ),
                         new MlIndexRollover.IndexPatternAndAlias(MlStatsIndex.indexPattern(), MlStatsIndex.writeAlias())
-                        // .ml-annotations-000001 added in v8.0, no need to update
-                        // TODO notifications = https://github.com/elastic/elasticsearch/pull/120064
-                        // TODO anomaly results
-                        // TODO .ml-inference-XXXXXX - requires alias
-                        // TODO .ml-inference-native-XXXXXX - requires alias (index added in 8.0)
                     ),
                     indexNameExpressionResolver,
                     client
@@ -1372,7 +1378,7 @@ public class MachineLearning extends Plugin
                 client,
                 expressionResolver,
                 getLicenseState(),
-                machineLearningExtension.get().includeNodeInfo()
+                anomalyDetectionAuditor.get()
             ),
             new TransportStartDatafeedAction.StartDatafeedPersistentTasksExecutor(datafeedRunner.get(), expressionResolver, threadPool),
             new TransportStartDataFrameAnalyticsAction.TaskExecutor(
@@ -1393,7 +1399,7 @@ public class MachineLearning extends Plugin
                 expressionResolver,
                 client,
                 getLicenseState(),
-                machineLearningExtension.get().includeNodeInfo()
+                anomalyDetectionAuditor.get()
             )
         );
     }
@@ -2107,35 +2113,33 @@ public class MachineLearning extends Plugin
 
         final Map<String, Boolean> results = new ConcurrentHashMap<>();
 
-        ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> unsetResetModeListener = ActionListener.wrap(
-            success -> client.execute(
-                SetResetModeAction.INSTANCE,
-                SetResetModeActionRequest.disabled(true),
-                ActionListener.wrap(resetSuccess -> {
-                    finalListener.onResponse(success);
-                    logger.info("Finished machine learning feature reset");
-                }, resetFailure -> {
-                    logger.error("failed to disable reset mode after state otherwise successful machine learning reset", resetFailure);
-                    finalListener.onFailure(
-                        ExceptionsHelper.serverError(
-                            "failed to disable reset mode after state otherwise successful machine learning reset",
-                            resetFailure
-                        )
-                    );
-                })
-            ),
-            failure -> {
-                logger.error("failed to reset machine learning", failure);
-                client.execute(
-                    SetResetModeAction.INSTANCE,
-                    SetResetModeActionRequest.disabled(false),
-                    ActionListener.wrap(resetSuccess -> finalListener.onFailure(failure), resetFailure -> {
-                        logger.error("failed to disable reset mode after state clean up failure", resetFailure);
-                        finalListener.onFailure(failure);
-                    })
+        ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> unsetResetModeListener = ActionListener.wrap(success -> {
+            // reset the auditors as aliases used may be removed
+            resetAuditors();
+
+            client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.disabled(true), ActionListener.wrap(resetSuccess -> {
+                finalListener.onResponse(success);
+                logger.info("Finished machine learning feature reset");
+            }, resetFailure -> {
+                logger.error("failed to disable reset mode after state otherwise successful machine learning reset", resetFailure);
+                finalListener.onFailure(
+                    ExceptionsHelper.serverError(
+                        "failed to disable reset mode after state otherwise successful machine learning reset",
+                        resetFailure
+                    )
                 );
-            }
-        );
+            }));
+        }, failure -> {
+            logger.error("failed to reset machine learning", failure);
+            client.execute(
+                SetResetModeAction.INSTANCE,
+                SetResetModeActionRequest.disabled(false),
+                ActionListener.wrap(resetSuccess -> finalListener.onFailure(failure), resetFailure -> {
+                    logger.error("failed to disable reset mode after state clean up failure", resetFailure);
+                    finalListener.onFailure(failure);
+                })
+            );
+        });
 
         // Stop all model deployments
         ActionListener<AcknowledgedResponse> pipelineValidation = unsetResetModeListener.<ListTasksResponse>delegateFailureAndWrap(
@@ -2286,6 +2290,18 @@ public class MachineLearning extends Plugin
 
         // Indicate that a reset is now in progress
         client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.enabled(), afterResetModeSet);
+    }
+
+    private void resetAuditors() {
+        if (anomalyDetectionAuditor.get() != null) {
+            anomalyDetectionAuditor.get().reset();
+        }
+        if (dataFrameAnalyticsAuditor.get() != null) {
+            dataFrameAnalyticsAuditor.get().reset();
+        }
+        if (inferenceAuditor.get() != null) {
+            inferenceAuditor.get().reset();
+        }
     }
 
     @Override

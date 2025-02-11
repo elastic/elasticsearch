@@ -38,33 +38,6 @@ public class GroupShardsIteratorTests extends ESTestCase {
         return shardRoutings;
     }
 
-    public void testSize() {
-        List<ShardIterator> list = new ArrayList<>();
-        Index index = new Index("foo", "na");
-        {
-            ShardId shardId = new ShardId(index, 0);
-            list.add(new PlainShardIterator(shardId, randomShardRoutings(shardId, 2)));
-        }
-        list.add(new PlainShardIterator(new ShardId(index, 1), Collections.emptyList()));
-        {
-            ShardId shardId = new ShardId(index, 2);
-            list.add(new PlainShardIterator(shardId, randomShardRoutings(shardId, 0)));
-        }
-        index = new Index("foo_1", "na");
-        {
-            ShardId shardId = new ShardId(index, 0);
-            list.add(new PlainShardIterator(shardId, randomShardRoutings(shardId, 0)));
-        }
-        {
-            ShardId shardId = new ShardId(index, 1);
-            list.add(new PlainShardIterator(shardId, randomShardRoutings(shardId, 0)));
-        }
-        GroupShardsIterator<ShardIterator> iter = new GroupShardsIterator<>(list);
-        assertEquals(7, iter.totalSizeWith1ForEmpty());
-        assertEquals(5, iter.size());
-        assertEquals(6, iter.totalSize());
-    }
-
     public void testIterate() {
         List<ShardIterator> list = new ArrayList<>();
         Index index = new Index("foo", "na");

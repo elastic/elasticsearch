@@ -69,7 +69,7 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
         );
 
         // We know that the data stream checks ignore the request.
-        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState, null);
+        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState);
         assertThat(issuesByDataStream.size(), equalTo(1));
         assertThat(issuesByDataStream.containsKey(dataStream.getName()), equalTo(true));
         assertThat(issuesByDataStream.get(dataStream.getName()), equalTo(List.of(expected)));
@@ -91,7 +91,7 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
 
-        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState, null);
+        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState);
         assertThat(issuesByDataStream.size(), equalTo(0));
     }
 
@@ -137,7 +137,7 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
             )
         );
 
-        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState, null);
+        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState);
         assertThat(issuesByDataStream.containsKey(dataStream.getName()), equalTo(true));
         assertThat(issuesByDataStream.get(dataStream.getName()), equalTo(List.of(expected)));
     }
@@ -290,14 +290,14 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
                 + "OK to remain read-only after upgrade",
             false,
             ofEntries(
-                entry("reindex_required", true),
+                entry("reindex_required", false),
                 entry("total_backing_indices", oldIndexCount + newIndexCount),
                 entry("ignored_indices_requiring_upgrade_count", expectedIndices.size()),
                 entry("ignored_indices_requiring_upgrade", expectedIndices)
             )
         );
 
-        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState, null);
+        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState);
         assertThat(issuesByDataStream.containsKey(dataStream.getName()), equalTo(true));
         assertThat(issuesByDataStream.get(dataStream.getName()), equalTo(List.of(expected)));
     }

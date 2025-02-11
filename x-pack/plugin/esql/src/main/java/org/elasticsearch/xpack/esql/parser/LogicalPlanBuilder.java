@@ -18,6 +18,7 @@ import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -109,17 +110,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (errors.hasNext() == false) {
             return p;
         } else {
-            StringBuilder message = new StringBuilder();
-            int i = 0;
-
-            while (errors.hasNext()) {
-                if (i > 0) {
-                    message.append("; ");
-                }
-                message.append(errors.next().getMessage());
-                i++;
-            }
-            throw new ParsingException(message.toString());
+            throw ParsingException.combineParsingExceptions(errors);
         }
     }
 
@@ -447,7 +438,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 : matchField instanceof UnresolvedStar ? WILDCARD
                 : null;
             if (patternString != null) {
-                throw new ParsingException(source, "Using wildcards [*] in ENRICH WITH projections is not allowed [{}]", patternString);
+                throw new ParsingException(
+                    source,
+                    "Using wildcards [*] in ENRICH WITH projections is not allowed, found [{}]",
+                    patternString
+                );
             }
 
             List<NamedExpression> keepClauses = visitList(this, ctx.enrichWithClause(), NamedExpression.class);
@@ -541,11 +536,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     public PlanFactory visitJoinCommand(EsqlBaseParser.JoinCommandContext ctx) {
         var source = source(ctx);
-        if (false == Build.current().isSnapshot()) {
+        if (false == EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled()) {
             throw new ParsingException(source, "JOIN is in preview and only available in SNAPSHOT build");
         }
 
-        if (ctx.type != null && ctx.type.getType() != EsqlBaseParser.DEV_JOIN_LOOKUP) {
+        if (ctx.type != null && ctx.type.getType() != EsqlBaseParser.JOIN_LOOKUP) {
             String joinType = ctx.type == null ? "(INNER)" : ctx.type.getText();
             throw new ParsingException(source, "only LOOKUP JOIN available, {} JOIN unsupported at the moment", joinType);
         }

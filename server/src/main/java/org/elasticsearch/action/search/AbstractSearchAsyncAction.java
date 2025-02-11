@@ -10,7 +10,6 @@
 package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -27,6 +26,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -44,8 +44,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -92,16 +91,13 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final Object shardFailuresMutex = new Object();
     private final AtomicBoolean hasShardResponse = new AtomicBoolean(false);
     private final AtomicInteger successfulOps = new AtomicInteger();
-    private final AtomicInteger skippedOps = new AtomicInteger();
     private final SearchTimeProvider timeProvider;
     private final SearchResponse.Clusters clusters;
 
     protected final GroupShardsIterator<SearchShardIterator> toSkipShardsIts;
     protected final GroupShardsIterator<SearchShardIterator> shardsIts;
     private final SearchShardIterator[] shardIterators;
-    private final Map<SearchShardIterator, Integer> shardIndexMap;
-    private final int expectedTotalOps;
-    private final AtomicInteger totalOps = new AtomicInteger();
+    private final AtomicInteger outstandingShards;
     private final int maxConcurrentRequestsPerNode;
     private final Map<String, PendingExecutions> pendingExecutionsPerNode = new ConcurrentHashMap<>();
     private final boolean throttleConcurrentRequests;
@@ -142,24 +138,12 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
         this.toSkipShardsIts = new GroupShardsIterator<>(toSkipIterators);
         this.shardsIts = new GroupShardsIterator<>(iterators);
-
-        // we compute the shard index based on the natural order of the shards
+        outstandingShards = new AtomicInteger(shardsIts.size());
+        this.shardIterators = iterators.toArray(new SearchShardIterator[0]);
+        // we later compute the shard index based on the natural order of the shards
         // that participate in the search request. This means that this number is
         // consistent between two requests that target the same shards.
-        Map<SearchShardIterator, Integer> shardMap = new HashMap<>();
-        List<SearchShardIterator> searchIterators = new ArrayList<>(iterators);
-        CollectionUtil.timSort(searchIterators);
-        for (int i = 0; i < searchIterators.size(); i++) {
-            shardMap.put(searchIterators.get(i), i);
-        }
-        this.shardIndexMap = Collections.unmodifiableMap(shardMap);
-        this.shardIterators = searchIterators.toArray(SearchShardIterator[]::new);
-
-        // we need to add 1 for non active partition, since we count it in the total. This means for each shard in the iterator we sum up
-        // it's number of active shards but use 1 as the default if no replica of a shard is active at this point.
-        // on a per shards level we use shardIt.remaining() to increment the totalOps pointer but add 1 for the current shard result
-        // we process hence we add one for the non active partition here.
-        this.expectedTotalOps = shardsIts.totalSizeWith1ForEmpty();
+        Arrays.sort(shardIterators);
         this.maxConcurrentRequestsPerNode = maxConcurrentRequestsPerNode;
         // in the case were we have less shards than maxConcurrentRequestsPerNode we don't need to throttle
         this.throttleConcurrentRequests = maxConcurrentRequestsPerNode < shardsIts.size();
@@ -237,6 +221,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             assert iterator.skip();
             skipShard(iterator);
         }
+        final Map<SearchShardIterator, Integer> shardIndexMap = Maps.newHashMapWithExpectedSize(shardIterators.length);
+        for (int i = 0; i < shardIterators.length; i++) {
+            shardIndexMap.put(shardIterators[i], i);
+        }
         if (shardsIts.size() > 0) {
             doCheckNoMissingShards(getName(), request, shardsIts);
             Version version = request.minCompatibleShardNode();
@@ -265,9 +253,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     void skipShard(SearchShardIterator iterator) {
         successfulOps.incrementAndGet();
-        skippedOps.incrementAndGet();
         assert iterator.skip();
-        successfulShardExecution(iterator);
+        successfulShardExecution();
     }
 
     private boolean checkMinimumVersion(GroupShardsIterator<SearchShardIterator> shardsIts) {
@@ -409,7 +396,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                             "Partial shards failure (unavailable: {}, successful: {}, skipped: {}, num-shards: {}, phase: {})",
                             discrepancy,
                             successfulOps.get(),
-                            skippedOps.get(),
+                            toSkipShardsIts.size(),
                             getNumShards(),
                             currentPhase.getName()
                         );
@@ -478,17 +465,14 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             }
             onShardGroupFailure(shardIndex, shard, e);
         }
-        final int totalOps = this.totalOps.incrementAndGet();
-        if (totalOps == expectedTotalOps) {
-            onPhaseDone();
-        } else if (totalOps > expectedTotalOps) {
-            throw new AssertionError(
-                "unexpected higher total ops [" + totalOps + "] compared to expected [" + expectedTotalOps + "]",
-                new SearchPhaseExecutionException(getName(), "Shard failures", null, buildShardFailures())
-            );
+        if (lastShard == false) {
+            performPhaseOnShard(shardIndex, shardIt, nextShard);
         } else {
-            if (lastShard == false) {
-                performPhaseOnShard(shardIndex, shardIt, nextShard);
+            // count down outstanding shards, we're done with this shard as there's no more copies to try
+            final int outstanding = outstandingShards.decrementAndGet();
+            assert outstanding >= 0 : "outstanding: " + outstanding;
+            if (outstanding == 0) {
+                onPhaseDone();
             }
         }
     }
@@ -565,10 +549,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (logger.isTraceEnabled()) {
             logger.trace("got first-phase result from {}", result != null ? result.getSearchShardTarget() : null);
         }
-        results.consumeResult(result, () -> onShardResultConsumed(result, shardIt));
+        results.consumeResult(result, () -> onShardResultConsumed(result));
     }
 
-    private void onShardResultConsumed(Result result, SearchShardIterator shardIt) {
+    private void onShardResultConsumed(Result result) {
         successfulOps.incrementAndGet();
         // clean a previous error on this shard group (note, this code will be serialized on the same shardIndex value level
         // so its ok concurrency wise to miss potentially the shard failures being created because of another failure
@@ -582,28 +566,14 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // cause the successor to read a wrong value from successfulOps if second phase is very fast ie. count etc.
         // increment all the "future" shards to update the total ops since we some may work and some may not...
         // and when that happens, we break on total ops, so we must maintain them
-        successfulShardExecution(shardIt);
+        successfulShardExecution();
     }
 
-    private void successfulShardExecution(SearchShardIterator shardsIt) {
-        final int remainingOpsOnIterator;
-        if (shardsIt.skip()) {
-            // It's possible that we're skipping a shard that's unavailable
-            // but its range was available in the IndexMetadata, in that
-            // case the shardsIt.remaining() would be 0, expectedTotalOps
-            // accounts for unavailable shards too.
-            remainingOpsOnIterator = Math.max(shardsIt.remaining(), 1);
-        } else {
-            remainingOpsOnIterator = shardsIt.remaining() + 1;
-        }
-        final int xTotalOps = totalOps.addAndGet(remainingOpsOnIterator);
-        if (xTotalOps == expectedTotalOps) {
+    private void successfulShardExecution() {
+        final int outstanding = outstandingShards.decrementAndGet();
+        assert outstanding >= 0 : "outstanding: " + outstanding;
+        if (outstanding == 0) {
             onPhaseDone();
-        } else if (xTotalOps > expectedTotalOps) {
-            throw new AssertionError(
-                "unexpected higher total ops [" + xTotalOps + "] compared to expected [" + expectedTotalOps + "]",
-                new SearchPhaseExecutionException(getName(), "Shard failures", null, buildShardFailures())
-            );
         }
     }
 
@@ -670,7 +640,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             scrollId,
             getNumShards(),
             numSuccess,
-            skippedOps.get(),
+            toSkipShardsIts.size(),
             buildTookInMillis(),
             failures,
             clusters,

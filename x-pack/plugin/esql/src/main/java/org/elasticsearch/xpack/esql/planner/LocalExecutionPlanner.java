@@ -372,7 +372,7 @@ public class LocalExecutionPlanner {
                 case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE, COUNTER_LONG, COUNTER_INTEGER, COUNTER_DOUBLE, SOURCE ->
                     TopNEncoder.DEFAULT_UNSORTABLE;
                 // unsupported fields are encoded as BytesRef, we'll use the same encoder; all values should be null at this point
-                case PARTIAL_AGG, UNSUPPORTED -> TopNEncoder.UNSUPPORTED;
+                case PARTIAL_AGG, UNSUPPORTED, AGGREGATE_METRIC_DOUBLE -> TopNEncoder.UNSUPPORTED;
             };
         }
         List<TopNOperator.SortOrder> orders = topNExec.order().stream().map(order -> {

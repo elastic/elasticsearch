@@ -18,26 +18,31 @@ import org.elasticsearch.entitlement.instrumentation.Instrumenter;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.instrumentation.Transformer;
 import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
-import org.elasticsearch.entitlement.runtime.policy.CreateClassLoaderEntitlement;
-import org.elasticsearch.entitlement.runtime.policy.Entitlement;
-import org.elasticsearch.entitlement.runtime.policy.ExitVMEntitlement;
-import org.elasticsearch.entitlement.runtime.policy.InboundNetworkEntitlement;
-import org.elasticsearch.entitlement.runtime.policy.LoadNativeLibrariesEntitlement;
-import org.elasticsearch.entitlement.runtime.policy.OutboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import org.elasticsearch.entitlement.runtime.policy.Scope;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoaderEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.ExitVMEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.InboundNetworkEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetworkEntitlement;
 
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.channels.spi.SelectorProvider;
+import java.nio.file.FileSystems;
+import java.nio.file.OpenOption;
+import java.nio.file.Path;
+import java.nio.file.spi.FileSystemProvider;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Called by the agent during {@code agentmain} to configure the entitlement system,
@@ -62,24 +67,32 @@ public class EntitlementInitialization {
     public static void initialize(Instrumentation inst) throws Exception {
         manager = initChecker();
 
-        Map<MethodKey, CheckMethod> checkMethods = new HashMap<>();
-        int javaVersion = Runtime.version().feature();
-        Set<Class<?>> interfaces = new HashSet<>();
-        for (int i = 17; i <= javaVersion; ++i) {
-            interfaces.add(getVersionSpecificCheckerClass(i, "org.elasticsearch.entitlement.bridge", "EntitlementChecker"));
-        }
-        for (var checkerInterface : interfaces) {
-            checkMethods.putAll(INSTRUMENTER_FACTORY.lookupMethods(checkerInterface));
-        }
+        var latestCheckerInterface = getVersionSpecificCheckerClass(EntitlementChecker.class);
 
-        var latestCheckerInterface = getVersionSpecificCheckerClass(
-            javaVersion,
-            "org.elasticsearch.entitlement.bridge",
-            "EntitlementChecker"
-        );
+        Map<MethodKey, CheckMethod> checkMethods = new HashMap<>(INSTRUMENTATION_SERVICE.lookupMethods(latestCheckerInterface));
+        var fileSystemProviderClass = FileSystems.getDefault().provider().getClass();
+        Stream.of(
+            INSTRUMENTATION_SERVICE.lookupImplementationMethod(
+                FileSystemProvider.class,
+                "newInputStream",
+                fileSystemProviderClass,
+                EntitlementChecker.class,
+                "checkNewInputStream",
+                Path.class,
+                OpenOption[].class
+            ),
+            INSTRUMENTATION_SERVICE.lookupImplementationMethod(
+                SelectorProvider.class,
+                "inheritedChannel",
+                SelectorProvider.provider().getClass(),
+                EntitlementChecker.class,
+                "checkSelectorProviderInheritedChannel"
+            )
+        ).forEach(instrumentation -> checkMethods.put(instrumentation.targetMethod(), instrumentation.checkMethod()));
+
         var classesToTransform = checkMethods.keySet().stream().map(MethodKey::className).collect(Collectors.toSet());
 
-        Instrumenter instrumenter = INSTRUMENTER_FACTORY.newInstrumenter(latestCheckerInterface, checkMethods);
+        Instrumenter instrumenter = INSTRUMENTATION_SERVICE.newInstrumenter(latestCheckerInterface, checkMethods);
         inst.addTransformer(new Transformer(instrumenter, classesToTransform), true);
         inst.retransformClasses(findClassesToRetransform(inst.getAllLoadedClasses(), classesToTransform));
     }
@@ -126,14 +139,43 @@ public class EntitlementInitialization {
         return new PolicyManager(serverPolicy, agentEntitlements, pluginPolicies, resolver, AGENTS_PACKAGE_NAME, ENTITLEMENTS_MODULE);
     }
 
+    /**
+     * Returns the "most recent" checker class compatible with the current runtime Java version.
+     * For checkers, we have (optionally) version specific classes, each with a prefix (e.g. Java23).
+     * The mapping cannot be automatic, as it depends on the actual presence of these classes in the final Jar (see
+     * the various mainXX source sets).
+     */
+    private static Class<?> getVersionSpecificCheckerClass(Class<?> baseClass) {
+        String packageName = baseClass.getPackageName();
+        String baseClassName = baseClass.getSimpleName();
+        int javaVersion = Runtime.version().feature();
+
+        final String classNamePrefix;
+        if (javaVersion < 19) {
+            // For older Java versions, the basic EntitlementChecker interface and implementation contains all the supported checks
+            classNamePrefix = "";
+        } else if (javaVersion < 23) {
+            classNamePrefix = "Java" + javaVersion;
+        } else {
+            // All Java version from 23 onwards will be able to use che checks in the Java23EntitlementChecker interface and implementation
+            classNamePrefix = "Java23";
+        }
+
+        final String className = packageName + "." + classNamePrefix + baseClassName;
+        Class<?> clazz;
+        try {
+            clazz = Class.forName(className);
+        } catch (ClassNotFoundException e) {
+            throw new AssertionError("entitlement lib cannot find entitlement class " + className, e);
+        }
+        return clazz;
+    }
+
     private static ElasticsearchEntitlementChecker initChecker() {
         final PolicyManager policyManager = createPolicyManager();
 
-        Class<?> clazz = getVersionSpecificCheckerClass(
-            Runtime.version().feature(),
-            "org.elasticsearch.entitlement.runtime.api",
-            "ElasticsearchEntitlementChecker"
-        );
+        final Class<?> clazz = getVersionSpecificCheckerClass(ElasticsearchEntitlementChecker.class);
+
         Constructor<?> constructor;
         try {
             constructor = clazz.getConstructor(PolicyManager.class);
@@ -147,28 +189,7 @@ public class EntitlementInitialization {
         }
     }
 
-    private static Class<?> getVersionSpecificCheckerClass(int javaVersion, String packageName, String baseClassName) {
-        final String classNamePrefix;
-        if (javaVersion == 21) {
-            classNamePrefix = "Java21";
-        } else if (javaVersion == 22) {
-            classNamePrefix = "Java22";
-        } else if (javaVersion >= 23) {
-            classNamePrefix = "Java23";
-        } else {
-            classNamePrefix = "";
-        }
-        final String className = packageName + "." + classNamePrefix + baseClassName;
-        Class<?> clazz;
-        try {
-            clazz = Class.forName(className);
-        } catch (ClassNotFoundException e) {
-            throw new AssertionError("entitlement lib cannot find entitlement class " + className, e);
-        }
-        return clazz;
-    }
-
-    private static final InstrumentationService INSTRUMENTER_FACTORY = new ProviderLocator<>(
+    private static final InstrumentationService INSTRUMENTATION_SERVICE = new ProviderLocator<>(
         "entitlement",
         InstrumentationService.class,
         "org.elasticsearch.entitlement.instrumentation",

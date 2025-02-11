@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
@@ -289,6 +290,10 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
     private Block extractBlockForSingleDoc(DocBlock docBlock, String columnName, TestBlockCopier blockCopier) {
         var indexId = docBlock.asVector().shards().getInt(0);
         var indexPage = indexPages.get(indexId);
+        if (MetadataAttribute.INDEX.equals(columnName)) {
+            return docBlock.blockFactory()
+                .newConstantBytesRefBlockWith(new BytesRef(indexPage.index), blockCopier.docIndices.getPositionCount());
+        }
         int columnIndex = indexPage.columnIndex(columnName)
             .orElseThrow(() -> new EsqlIllegalArgumentException("Cannot find column named [{}] in {}", columnName, indexPage.columnNames));
         var originalData = indexPage.page.getBlock(columnIndex);
@@ -408,8 +413,9 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                 TestBlockCopier blockCopier = mapToDocValues
                     ? TestSpatialPointStatsBlockCopier.create(indexDoc.asVector().docs(), dataType)
                     : new TestBlockCopier(indexDoc.asVector().docs());
-                Block blockForIndex = extractBlock.apply(indexDoc, blockCopier);
-                blockBuilder.copyFrom(blockForIndex, 0, blockForIndex.getPositionCount());
+                try (Block blockForIndex = extractBlock.apply(indexDoc, blockCopier)) {
+                    blockBuilder.copyFrom(blockForIndex, 0, blockForIndex.getPositionCount());
+                }
             });
             var result = blockBuilder.build();
             assert result.getPositionCount() == docBlock.getPositionCount()

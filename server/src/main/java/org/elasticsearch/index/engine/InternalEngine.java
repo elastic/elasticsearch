@@ -825,7 +825,8 @@ public class InternalEngine extends Engine {
             mappingLookup,
             documentParser,
             config(),
-            translogInMemorySegmentsCount::incrementAndGet
+            translogInMemorySegmentsCount::incrementAndGet,
+            false
         );
         final Searcher searcher = new Searcher(
             "realtime_get",

@@ -49,7 +49,7 @@ import java.util.function.Predicate;
 import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 
 public class DefaultHighlighter implements Highlighter {
-
+    public static final String NAME = "unified";
     public static final NodeFeature UNIFIED_HIGHLIGHTER_MATCHED_FIELDS = new NodeFeature("unified_highlighter_matched_fields", true);
 
     @Override

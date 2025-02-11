@@ -168,6 +168,8 @@ public final class JobModelSnapshotUpgrader {
             .execute(ActionListener.wrap(searchResponse -> {
                 if (searchResponse.getHits().getTotalHits().value > 1) {
                     deleteOlderSnapshotDoc(searchResponse, runAfter);
+                } else {
+                    onFinish.accept(null);
                 }
             }, e -> {
                 logger.warn(() -> format("[%s] [%s] error during search for model snapshot documents", jobId, snapshotId), e);
@@ -177,6 +179,7 @@ public final class JobModelSnapshotUpgrader {
 
     private void deleteOlderSnapshotDoc(SearchResponse searchResponse, Consumer<Exception> runAfter) {
         SearchHit firstHit = searchResponse.getHits().getAt(0);
+        logger.debug(() -> format("[%s] deleting duplicate model snapshot doc [%s]", jobId, firstHit.getId()));
         client.prepareDelete()
             .setIndex(firstHit.getIndex())
             .setId(firstHit.getId())

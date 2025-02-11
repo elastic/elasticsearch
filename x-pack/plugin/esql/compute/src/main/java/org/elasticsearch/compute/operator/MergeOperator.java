@@ -22,10 +22,6 @@ import java.util.function.Supplier;
  */
 public class MergeOperator extends SourceOperator {
 
-    private final BlockFactory blockFactory;
-    private boolean finished;
-    private ListIterator<Block[]> subPlanBlocks;
-
     public record MergeOperatorFactory(BlockSuppliers suppliers) implements SourceOperatorFactory {
         @Override
         public String describe() {
@@ -38,26 +34,25 @@ public class MergeOperator extends SourceOperator {
         }
     }
 
+    private final BlockFactory blockFactory;
     private final BlockSuppliers suppliers;
+    private boolean finished;
+    private ListIterator<Block[]> subPlanBlocks;
 
     public MergeOperator(BlockFactory blockFactory, BlockSuppliers suppliers) {
         super();
         this.blockFactory = blockFactory;
         this.suppliers = suppliers;
-        this.finished = false;
-        this.subPlanBlocks = null;
     }
 
     public interface BlockSuppliers extends Supplier<List<Block[]>> {};
 
     @Override
-    public void finish() {
-        finished = true;
-    }
+    public void finish() {}
 
     @Override
     public boolean isFinished() {
-        return finished && subPlanBlocks != null && subPlanBlocks.hasNext() == false;
+        return finished;
     }
 
     @Override
@@ -66,16 +61,11 @@ public class MergeOperator extends SourceOperator {
             subPlanBlocks = suppliers.get().listIterator();
         }
 
-        Page page = null;
-
         if (subPlanBlocks.hasNext()) {
-            page = new Page(subPlanBlocks.next());
+            return new Page(subPlanBlocks.next());
         }
-        if (page == null) {
-            finished = true;
-        }
-
-        return page;
+        finished = true;
+        return null;
     }
 
     @Override

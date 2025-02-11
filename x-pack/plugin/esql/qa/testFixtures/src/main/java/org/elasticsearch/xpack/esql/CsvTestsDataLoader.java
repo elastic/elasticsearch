@@ -316,7 +316,10 @@ public class CsvTestsDataLoader {
     }
 
     private static boolean isUnmappedFieldsDataset(TestDataset dataset) throws IOException {
-        String mappingJsonText = readTextFile(getResource(dataset.mappingFileName()));
+        if (dataset.mappingFileName() == null) {
+            return true;
+        }
+        String mappingJsonText = readTextFile(getResource("/" + dataset.mappingFileName()));
         JsonNode mappingNode = new ObjectMapper().readTree(mappingJsonText);
         // BWC tests don't support _source field directives, so don't load those datasets.
         return mappingNode.get("_source") != null;

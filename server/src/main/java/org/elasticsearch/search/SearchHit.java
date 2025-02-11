@@ -724,11 +724,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             r.decRef();
         }
         SearchHit.this.source = null;
-
-        if (unfilteredSource != null) {
-            unfilteredSource.decRef();
-            unfilteredSource = null;
-        }
     }
 
     @Override

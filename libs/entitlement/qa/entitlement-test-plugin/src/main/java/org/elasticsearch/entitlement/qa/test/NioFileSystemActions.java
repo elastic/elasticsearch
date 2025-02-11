@@ -14,6 +14,7 @@ import org.elasticsearch.entitlement.qa.entitled.EntitledActions;
 
 import java.io.IOException;
 import java.net.URI;
+import java.nio.file.FileSystemException;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -107,7 +108,7 @@ class NioFileSystemActions {
         var directory = EntitledActions.createTempDirectoryForWrite();
         try {
             fs.createSymbolicLink(directory.resolve("link"), FileCheckActions.readFile());
-        } catch (UnsupportedOperationException e) {
+        } catch (UnsupportedOperationException | FileSystemException e) {
             // OK not to implement symbolic link in the filesystem
         }
     }
@@ -118,7 +119,7 @@ class NioFileSystemActions {
         var directory = EntitledActions.createTempDirectoryForWrite();
         try {
             fs.createLink(directory.resolve("link"), FileCheckActions.readFile());
-        } catch (UnsupportedOperationException e) {
+        } catch (UnsupportedOperationException | FileSystemException  e) {
             // OK not to implement symbolic link in the filesystem
         }
     }
@@ -214,7 +215,7 @@ class NioFileSystemActions {
         var file = EntitledActions.createTempFileForWrite();
         try {
             fs.setAttribute(file, "dos:hidden", true);
-        } catch (UnsupportedOperationException | IllegalArgumentException e) {
+        } catch (UnsupportedOperationException | IllegalArgumentException | FileSystemException e) {
             // OK if the file does not have/does not support the attribute
         }
     }

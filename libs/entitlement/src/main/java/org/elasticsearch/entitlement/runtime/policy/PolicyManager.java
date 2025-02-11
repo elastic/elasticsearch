@@ -287,7 +287,7 @@ public class PolicyManager {
 
     /**
      * Invoked when we try to get an arbitrary {@code FileAttributeView} class. Such a class can modify attributes, like owner etc.;
-     * we could think about introducing checks for each of the operations, but for now we over-approximate this and simply deny when it's
+     * we could think about introducing checks for each of the operations, but for now we over-approximate this and simply deny when it is
      * used directly.
      */
     public void checkGetFileAttributeView(Class<?> callerClass) {

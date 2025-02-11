@@ -1,0 +1,5 @@
+pr: 121327
+summary: Reduce Data Loss in System Indices Migration
+area: Infra/Core
+type: bug
+issues: []

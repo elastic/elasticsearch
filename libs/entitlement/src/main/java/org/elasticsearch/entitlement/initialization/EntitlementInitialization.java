@@ -139,7 +139,7 @@ public class EntitlementInitialization {
                     "org.elasticsearch.nativeaccess",
                     List.of(
                         new LoadNativeLibrariesEntitlement(),
-                        new FilesEntitlement(Arrays.asList(dataDirs).stream().map(d -> new FileData(d.toString(), READ_WRITE)).toList())
+                        new FilesEntitlement(Arrays.stream(dataDirs).map(d -> new FileData(d.toString(), READ_WRITE)).toList())
                     )
                 )
             )

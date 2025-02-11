@@ -1,0 +1,6 @@
+pr: 122250
+summary: "ES|QL: Improve `RENAME` logic to swap names"
+area: ES|QL
+type: enhancement
+issues:
+  - 121739

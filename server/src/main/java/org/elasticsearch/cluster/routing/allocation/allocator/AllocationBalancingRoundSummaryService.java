@@ -98,10 +98,8 @@ public class AllocationBalancingRoundSummaryService {
     /**
      * Creates a summary of the node weight changes from {@code oldDesiredBalance} to {@code newDesiredBalance}.
      * See {@link BalancingRoundSummary.NodesWeightsChanges} for content details.
-     *
-     * @VisibleForTesting
      */
-    protected static Map<String, BalancingRoundSummary.NodesWeightsChanges> createWeightsSummary(
+    private static Map<String, BalancingRoundSummary.NodesWeightsChanges> createWeightsSummary(
         DesiredBalance oldDesiredBalance,
         DesiredBalance newDesiredBalance
     ) {
@@ -167,8 +165,6 @@ public class AllocationBalancingRoundSummaryService {
      * Adds the summary of a balancing round. If summaries are enabled, this will eventually be reported (logging, etc.). If balancer round
      * summaries are not enabled in the cluster, then the summary is immediately discarded (so as not to fill up a data structure that will
      * never be drained).
-     *
-     * @VisibleForTesting
      */
     public void addBalancerRoundSummary(BalancingRoundSummary summary) {
         if (enableBalancerRoundSummaries == false) {
@@ -271,8 +267,6 @@ public class AllocationBalancingRoundSummaryService {
 
     /**
      * Checks that the number of entries in {@link #summaries} matches the given {@code numberOfSummaries}.
-     *
-     * @VisibleForTesting
      */
     protected void verifyNumberOfSummaries(int numberOfSummaries) {
         assert numberOfSummaries == summaries.size();

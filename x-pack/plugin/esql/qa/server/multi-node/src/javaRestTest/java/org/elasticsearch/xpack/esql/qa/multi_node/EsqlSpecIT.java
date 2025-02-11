@@ -37,4 +37,9 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
     protected boolean enableRoundingDoubleValuesOnAsserting() {
         return true;
     }
+
+    @Override
+    protected boolean shouldSkipTestsWithSemanticTextFields() {
+        return true;
+    }
 }

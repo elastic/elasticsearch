@@ -204,12 +204,12 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
             }
         });
 
-        GetAliasesRequest request = new GetAliasesRequest(timeout, config.getDestination().getIndex());
+        GetAliasesRequest request = new GetAliasesRequest(timeout, destIndex);
         request.setParentTask(parentTaskId);
         executeWithHeadersAsync(config.getHeaders(), TRANSFORM_ORIGIN, client, GetAliasesAction.INSTANCE, request, responseListener);
     }
 
-    private void findDestinationIndexInAliases(GetAliasesResponse aliases, String destIndex, ActionListener<String> listener) {
+    private static void findDestinationIndexInAliases(GetAliasesResponse aliases, String destIndex, ActionListener<String> listener) {
         var indexToAliases = aliases.getAliases();
         if (indexToAliases.isEmpty()) {
             // if the alias list is empty, that means the index is a concrete index

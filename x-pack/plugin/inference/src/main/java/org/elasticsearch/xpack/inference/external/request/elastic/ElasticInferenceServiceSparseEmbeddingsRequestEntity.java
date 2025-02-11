@@ -23,7 +23,7 @@ public record ElasticInferenceServiceSparseEmbeddingsRequestEntity(
 ) implements ToXContentObject {
 
     private static final String INPUT_FIELD = "input";
-    private static final String MODEL_ID_FIELD = "model_id";
+    private static final String MODEL_ID_FIELD = "model";
     private static final String USAGE_CONTEXT = "usage_context";
 
     public ElasticInferenceServiceSparseEmbeddingsRequestEntity {

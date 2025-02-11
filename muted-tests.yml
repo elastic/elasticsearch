@@ -423,6 +423,15 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/122310
 - class: org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/122315
+- class: org.elasticsearch.xpack.kql.KqlRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/122316
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/120816
+- class: org.elasticsearch.xpack.eql.EqlClientYamlIT
+  issue: https://github.com/elastic/elasticsearch/issues/122317
+- class: org.elasticsearch.blocks.SimpleBlocksIT
+  method: testConcurrentAddBlock
+  issue: https://github.com/elastic/elasticsearch/issues/122324
 
 # Examples:
 #

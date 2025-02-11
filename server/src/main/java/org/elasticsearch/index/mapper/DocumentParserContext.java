@@ -672,6 +672,7 @@ public abstract class DocumentParserContext {
             // parent document's _id is not yet available.
             // So we just add the child document without the parent _id, then in TimeSeriesIdFieldMapper#postParse we set the _id on all
             // child documents once we've calculated it.
+            assert getRoutingFields().equals(RoutingFields.Noop.INSTANCE) == false;
         } else {
             throw new IllegalStateException("The root document of a nested document should have an _id field");
         }

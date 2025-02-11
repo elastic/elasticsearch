@@ -146,11 +146,12 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         );
 
         // We need to add the uid or id to nested Lucene documents so that when a document gets deleted, the nested documents are
-        // also deleted. Usually this happens when the nested document is created (in DocumentParser#createNestedContext), but
+        // also deleted. Usually this happens when the nested document is created (in DocumentParserContext#createNestedContext), but
         // for time-series indices the _id isn't available at that point.
-        assert context.id() != null;
+        var binaryId = context.doc().getField(IdFieldMapper.NAME).binaryValue();
         for (LuceneDocument doc : context.nonRootDocuments()) {
-            doc.add(new StringField(IdFieldMapper.NAME, Uid.encodeId(context.id()), Field.Store.NO));
+            assert doc.getField(IdFieldMapper.NAME) == null;
+            doc.add(new StringField(IdFieldMapper.NAME, binaryId, Field.Store.NO));
         }
     }
 

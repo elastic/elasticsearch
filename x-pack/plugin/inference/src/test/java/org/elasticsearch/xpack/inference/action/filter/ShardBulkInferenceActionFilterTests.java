@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.action.filter;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkItemRequest;
@@ -40,6 +41,7 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -49,6 +51,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingSparse;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
+import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
@@ -113,7 +116,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testFilterNoop() throws Exception {
-        ShardBulkInferenceActionFilter filter = createFilter(threadPool, Map.of(), DEFAULT_BATCH_SIZE, useLegacyFormat);
+        ShardBulkInferenceActionFilter filter = createFilter(threadPool, Map.of(), DEFAULT_BATCH_SIZE, useLegacyFormat, true);
         CountDownLatch chainExecuted = new CountDownLatch(1);
         ActionFilterChain actionFilterChain = (task, action, request, listener) -> {
             try {
@@ -137,13 +140,34 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
+    public void testLicenseInvalidForInference() {
+        ShardBulkInferenceActionFilter filter = createFilter(threadPool, Map.of(), DEFAULT_BATCH_SIZE, useLegacyFormat, false);
+        ActionFilterChain actionFilterChain = mock(ActionFilterChain.class);
+        ActionListener actionListener = mock(ActionListener.class);
+        Task task = mock(Task.class);
+        BulkShardRequest request = new BulkShardRequest(
+            new ShardId("test", "test", 0),
+            WriteRequest.RefreshPolicy.NONE,
+            new BulkItemRequest[0]
+        );
+        request.setInferenceFieldMap(
+            Map.of("foo", new InferenceFieldMetadata("foo", "bar", "baz", generateRandomStringArray(5, 10, false, false)))
+        );
+        assertThrows(
+            ElasticsearchSecurityException.class,
+            () -> filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain)
+        );
+    }
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testInferenceNotFound() throws Exception {
         StaticModel model = StaticModel.createRandomInstance();
         ShardBulkInferenceActionFilter filter = createFilter(
             threadPool,
             Map.of(model.getInferenceEntityId(), model),
             randomIntBetween(1, 10),
-            useLegacyFormat
+            useLegacyFormat,
+            true
         );
         CountDownLatch chainExecuted = new CountDownLatch(1);
         ActionFilterChain actionFilterChain = (task, action, request, listener) -> {
@@ -189,7 +213,8 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             threadPool,
             Map.of(model.getInferenceEntityId(), model),
             randomIntBetween(1, 10),
-            useLegacyFormat
+            useLegacyFormat,
+            true
         );
         model.putResult("I am a failure", new ChunkedInferenceError(new IllegalArgumentException("boom")));
         model.putResult("I am a success", randomChunkedInferenceEmbeddingSparse(List.of("I am a success")));
@@ -255,7 +280,8 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             threadPool,
             Map.of(model.getInferenceEntityId(), model),
             randomIntBetween(1, 10),
-            useLegacyFormat
+            useLegacyFormat,
+            true
         );
 
         CountDownLatch chainExecuted = new CountDownLatch(1);
@@ -344,7 +370,13 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             modifiedRequests[id] = res[1];
         }
 
-        ShardBulkInferenceActionFilter filter = createFilter(threadPool, inferenceModelMap, randomIntBetween(10, 30), useLegacyFormat);
+        ShardBulkInferenceActionFilter filter = createFilter(
+            threadPool,
+            inferenceModelMap,
+            randomIntBetween(10, 30),
+            useLegacyFormat,
+            true
+        );
         CountDownLatch chainExecuted = new CountDownLatch(1);
         ActionFilterChain actionFilterChain = (task, action, request, listener) -> {
             try {
@@ -379,7 +411,8 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         ThreadPool threadPool,
         Map<String, StaticModel> modelMap,
         int batchSize,
-        boolean useLegacyFormat
+        boolean useLegacyFormat,
+        boolean isLicenseValidForInference
     ) {
         ModelRegistry modelRegistry = mock(ModelRegistry.class);
         Answer<?> unparsedModelAnswer = invocationOnMock -> {
@@ -437,10 +470,14 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         InferenceServiceRegistry inferenceServiceRegistry = mock(InferenceServiceRegistry.class);
         when(inferenceServiceRegistry.getService(any())).thenReturn(Optional.of(inferenceService));
 
+        MockLicenseState licenseState = MockLicenseState.createMock();
+        when(licenseState.isAllowed(InferencePlugin.INFERENCE_API_FEATURE)).thenReturn(isLicenseValidForInference);
+
         return new ShardBulkInferenceActionFilter(
             createClusterService(useLegacyFormat),
             inferenceServiceRegistry,
             modelRegistry,
+            licenseState,
             batchSize
         );
     }

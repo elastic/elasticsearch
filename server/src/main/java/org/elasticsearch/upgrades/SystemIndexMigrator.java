@@ -635,7 +635,6 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         String indexName = Optional.ofNullable(migrationInfo).map(SystemIndexMigrationInfo::getCurrentIndexName).orElse("<unknown index>");
 
         MigrationResultsUpdateTask.upsert(
-            // this is for the Custom Metadata, not the Persistent Task
             featureName,
             SingleFeatureMigrationResult.failure(indexName, e),
             ActionListener.wrap(state -> super.markAsFailed(e), exception -> super.markAsFailed(e))

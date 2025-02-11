@@ -2244,7 +2244,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     .clusterService(clusterService)
                     .projectResolver(DefaultProjectResolver.INSTANCE)
                     .client(client)
-                    .featureService(new FeatureService(List.of()))
                     .metaStateService(new MetaStateService(nodeEnv, namedXContentRegistry))
                     .mapperMetrics(MapperMetrics.NOOP)
                     .build();

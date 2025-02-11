@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -37,7 +38,7 @@ public class StdDev extends AggregateFunction implements ToAggregator {
     @FunctionInfo(
         returnType = "double",
         description = "The standard deviation of a numeric field.",
-        isAggregation = true,
+        type = FunctionType.AGGREGATE,
         examples = {
             @Example(file = "stats", tag = "stdev"),
             @Example(
@@ -96,16 +97,16 @@ public class StdDev extends AggregateFunction implements ToAggregator {
     }
 
     @Override
-    public final AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
+    public final AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
         if (type == DataType.LONG) {
-            return new StdDevLongAggregatorFunctionSupplier(inputChannels);
+            return new StdDevLongAggregatorFunctionSupplier();
         }
         if (type == DataType.INTEGER) {
-            return new StdDevIntAggregatorFunctionSupplier(inputChannels);
+            return new StdDevIntAggregatorFunctionSupplier();
         }
         if (type == DataType.DOUBLE) {
-            return new StdDevDoubleAggregatorFunctionSupplier(inputChannels);
+            return new StdDevDoubleAggregatorFunctionSupplier();
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);
     }

@@ -200,6 +200,8 @@ public class TransportVersions {
      * A new transport version should be added EVERY TIME a change is made to the serialization protocol of one or more classes. Each
      * transport version should only be used in a single merged commit (apart from the BwC versions copied from o.e.Version, ≤V_8_8_1).
      *
+     * More information about versions and backporting at docs/internal/Versioning.md
+     *
      * ADDING A TRANSPORT VERSION
      * To add a new transport version, add a new constant at the bottom of the list, above this comment. Don't add other lines,
      * comments, etc. The version id has the following layout:

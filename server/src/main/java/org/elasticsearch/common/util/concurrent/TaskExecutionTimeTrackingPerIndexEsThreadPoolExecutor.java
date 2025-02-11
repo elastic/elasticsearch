@@ -9,8 +9,6 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.RejectedExecutionHandler;
@@ -22,7 +20,7 @@ import java.util.function.Function;
 // TODO MP add java doc
 public class TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor extends TaskExecutionTimeTrackingEsThreadPoolExecutor {
     private final ConcurrentHashMap<String, LongAdder> indexExecutionTime;
-    private final Map<Runnable, String> runnableToIndexName;
+    private final ConcurrentHashMap<Runnable, String> runnableToIndexName;
     // TODO MP do we need also EWMA per-index or per-project?
 
     TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor(
@@ -52,12 +50,16 @@ public class TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor extends TaskE
             trackingConfig
         );
         indexExecutionTime = new ConcurrentHashMap<>();
-        runnableToIndexName = new HashMap<>();
+        runnableToIndexName = new ConcurrentHashMap<>();
     }
 
     public long getSearchLoadPerIndex(String indexName) {
         // TODO MP check for null maybe we don't need getOrDefault
-        return indexExecutionTime.getOrDefault(indexName, new LongAdder()).sum();
+        // return indexExecutionTime.getOrDefault(indexName, new LongAdder()).sum();
+
+        // Avoid creating LongAdder objects if indexName not present
+        LongAdder adder = indexExecutionTime.get(indexName);
+        return (adder != null) ? adder.sum() : 0;
     }
 
     public long getLoadEMWAPerIndex(String indexName) {
@@ -83,14 +85,22 @@ public class TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor extends TaskE
         // TODO MP do we need a LongAdder here?
         String indexName = runnableToIndexName.get(r);
         if (indexName != null) {
-            indexExecutionTime.putIfAbsent(indexName, new LongAdder());
-            indexExecutionTime.get(indexName).add(timeSpentExecuting);
+            // Use of computeIfAbsent to avoid creating LongAdder objects if indexName not present
+            // This is preferable when working with Immutable objects
+            // Avoid possible race conditions
+            indexExecutionTime.computeIfAbsent(indexName, n -> new LongAdder()).add(timeSpentExecuting);
         }
     }
 
     @Override
     protected void trackExecutionTime(Runnable r, long taskTime) {
-        trackExecutionTimePerIndex(r, taskTime);
-        super.trackExecutionTime(r, taskTime);
+        try {
+            trackExecutionTimePerIndex(r, taskTime);
+            super.trackExecutionTime(r, taskTime);
+        } finally {
+            // Unregister the runnable from the map to avoid memory leaks
+            // assert runnableToIndexName.isEmpty();
+            runnableToIndexName.remove(r);
+        }
     }
 }

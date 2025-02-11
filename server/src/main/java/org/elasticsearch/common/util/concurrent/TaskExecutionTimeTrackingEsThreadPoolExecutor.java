@@ -115,7 +115,7 @@ public class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThreadPoolE
                     + failedOrRejected;
             if (taskExecutionNanos != -1) {
                 // taskExecutionNanos may be -1 if the task threw an exception
-                trackExecutionTime(r, taskExecutionNanos);
+                trackExecutionTime(timedRunnable.unwrap(), taskExecutionNanos);
             }
         } finally {
             removeTrackedTask(r);

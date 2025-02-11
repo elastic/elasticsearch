@@ -11,6 +11,7 @@ package org.elasticsearch.entitlement.qa;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.entitlement.qa.EntitlementsTestRule.PolicyBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
@@ -22,7 +23,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractEntitlementsIT extends ESRestTestCase {
 
-    static final EntitlementsTestRule.PolicyBuilder ALLOWED_TEST_ENTITLEMENTS = (builder, tempDir) -> {
+    static final PolicyBuilder ALLOWED_TEST_ENTITLEMENTS = (builder, tempDir) -> {
         builder.value("create_class_loader");
         builder.value("set_https_connection_properties");
         builder.value("inbound_network");

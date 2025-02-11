@@ -26,10 +26,10 @@ import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.http.sender.VoyageAIEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.external.http.sender.VoyageAIEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.request.voyageai.VoyageAIUtils;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingType;
@@ -139,12 +139,18 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
                 requestMap,
                 equalTo(
                     Map.of(
-                        "input", List.of("abc"),
-                        "model", "model",
-                        "input_type", "document",
-                        "output_dtype", "float",
-                        "truncation", true,
-                        "output_dimension", 1024
+                        "input",
+                        List.of("abc"),
+                        "model",
+                        "model",
+                        "input_type",
+                        "document",
+                        "output_dtype",
+                        "float",
+                        "truncation",
+                        true,
+                        "output_dimension",
+                        1024
                     )
                 )
             );
@@ -208,12 +214,18 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
                 requestMap,
                 is(
                     Map.of(
-                        "input", List.of("abc"),
-                        "model", "model",
-                        "input_type", "document",
-                        "output_dtype", "int8",
-                        "truncation", true,
-                        "output_dimension", 1024
+                        "input",
+                        List.of("abc"),
+                        "model",
+                        "model",
+                        "input_type",
+                        "document",
+                        "output_dtype",
+                        "int8",
+                        "truncation",
+                        true,
+                        "output_dimension",
+                        1024
                     )
                 )
             );
@@ -277,12 +289,18 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
                 requestMap,
                 is(
                     Map.of(
-                        "input", List.of("abc"),
-                        "model", "model",
-                        "input_type", "document",
-                        "output_dtype", "binary",
-                        "truncation", true,
-                        "output_dimension", 1024
+                        "input",
+                        List.of("abc"),
+                        "model",
+                        "model",
+                        "input_type",
+                        "document",
+                        "output_dtype",
+                        "binary",
+                        "truncation",
+                        true,
+                        "output_dimension",
+                        1024
                     )
                 )
             );

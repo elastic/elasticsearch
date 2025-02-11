@@ -49,12 +49,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
             List.of("abc", "def"),
-            createModel(
-                "url",
-                "api_key",
-                null,
-                "voyage-3-large"
-            )
+            createModel("url", "api_key", null, "voyage-3-large")
         );
 
         InferenceServiceResults parsedResults = VoyageAIEmbeddingsResponseEntity.fromResponse(
@@ -63,7 +58,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
         );
 
         assertThat(
-            ((InferenceTextEmbeddingFloatResults)parsedResults).embeddings(),
+            ((InferenceTextEmbeddingFloatResults) parsedResults).embeddings(),
             is(List.of(new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { 0.014539449F, -0.015288644F })))
         );
     }
@@ -100,12 +95,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
             List.of("abc", "def"),
-            createModel(
-                "url",
-                "api_key",
-                null,
-                "voyage-3-large"
-            )
+            createModel("url", "api_key", null, "voyage-3-large")
         );
 
         InferenceServiceResults parsedResults = VoyageAIEmbeddingsResponseEntity.fromResponse(
@@ -114,7 +104,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
         );
 
         assertThat(
-            ((InferenceTextEmbeddingFloatResults)parsedResults).embeddings(),
+            ((InferenceTextEmbeddingFloatResults) parsedResults).embeddings(),
             is(
                 List.of(
                     new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { 0.014539449F, -0.015288644F }),
@@ -148,12 +138,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
             List.of("abc", "def"),
-            createModel(
-                "url",
-                "api_key",
-                null,
-                "voyage-3-large"
-            )
+            createModel("url", "api_key", null, "voyage-3-large")
         );
 
         var thrownException = expectThrows(
@@ -191,12 +176,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
             List.of("abc", "def"),
-            createModel(
-                "url",
-                "api_key",
-                null,
-                "voyage-3-large"
-            )
+            createModel("url", "api_key", null, "voyage-3-large")
         );
 
         var thrownException = expectThrows(
@@ -237,12 +217,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
             List.of("abc", "def"),
-            createModel(
-                "url",
-                "api_key",
-                null,
-                "voyage-3-large"
-            )
+            createModel("url", "api_key", null, "voyage-3-large")
         );
 
         var thrownException = expectThrows(
@@ -279,12 +254,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
             List.of("abc", "def"),
-            createModel(
-                "url",
-                "api_key",
-                null,
-                "voyage-3-large"
-            )
+            createModel("url", "api_key", null, "voyage-3-large")
         );
 
         var thrownException = expectThrows(
@@ -324,12 +294,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
             List.of("abc", "def"),
-            createModel(
-                "url",
-                "api_key",
-                null,
-                "voyage-3-large"
-            )
+            createModel("url", "api_key", null, "voyage-3-large")
         );
 
         InferenceServiceResults parsedResults = VoyageAIEmbeddingsResponseEntity.fromResponse(
@@ -338,7 +303,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
         );
 
         assertThat(
-            ((InferenceTextEmbeddingFloatResults)parsedResults).embeddings(),
+            ((InferenceTextEmbeddingFloatResults) parsedResults).embeddings(),
             is(List.of(new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { 1.0F })))
         );
     }
@@ -366,12 +331,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
             List.of("abc", "def"),
-            createModel(
-                "url",
-                "api_key",
-                null,
-                "voyage-3-large"
-            )
+            createModel("url", "api_key", null, "voyage-3-large")
         );
 
         InferenceServiceResults parsedResults = VoyageAIEmbeddingsResponseEntity.fromResponse(
@@ -380,7 +340,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
         );
 
         assertThat(
-            ((InferenceTextEmbeddingFloatResults)parsedResults).embeddings(),
+            ((InferenceTextEmbeddingFloatResults) parsedResults).embeddings(),
             is(List.of(new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { 4.0294965E10F })))
         );
     }
@@ -408,12 +368,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
             List.of("abc", "def"),
-            createModel(
-                "url",
-                "api_key",
-                null,
-                "voyage-3-large"
-            )
+            createModel("url", "api_key", null, "voyage-3-large")
         );
 
         var thrownException = expectThrows(
@@ -473,12 +428,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
             List.of("abc", "def"),
-            createModel(
-                "url",
-                "api_key",
-                null,
-                "voyage-3-large"
-            )
+            createModel("url", "api_key", null, "voyage-3-large")
         );
 
         InferenceServiceResults parsedResults = VoyageAIEmbeddingsResponseEntity.fromResponse(
@@ -486,13 +436,10 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
             new HttpResult(mock(HttpResponse.class), response.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(
-          parsedResults,
-          instanceOf(InferenceTextEmbeddingFloatResults.class)
-        );
+        assertThat(parsedResults, instanceOf(InferenceTextEmbeddingFloatResults.class));
 
         assertThat(
-            ((InferenceTextEmbeddingFloatResults)parsedResults).embeddings(),
+            ((InferenceTextEmbeddingFloatResults) parsedResults).embeddings(),
             is(
                 List.of(
                     new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { -0.9F, 0.5F, 0.3F }),

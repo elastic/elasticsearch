@@ -47,11 +47,7 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
         );
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        MatcherAssert.assertThat(requestMap, is(Map.of(
-            "input", List.of("abc"),
-            "model", "model",
-            "output_dtype", "float"
-        )));
+        MatcherAssert.assertThat(requestMap, is(Map.of("input", List.of("abc"), "model", "model", "output_dtype", "float")));
     }
 
     public void testCreateRequest_AllOptionsDefined() throws IOException {
@@ -59,7 +55,8 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
             List.of("abc"),
             VoyageAIEmbeddingsModelTests.createModel(
                 "url",
-                "secret", new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null),
+                "secret",
+                new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null),
                 null,
                 null,
                 "model"
@@ -80,12 +77,10 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
         );
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        MatcherAssert.assertThat(requestMap, is(Map.of(
-            "input", List.of("abc"),
-            "model", "model",
-            "input_type", "document",
-            "output_dtype", "float"
-        )));
+        MatcherAssert.assertThat(
+            requestMap,
+            is(Map.of("input", List.of("abc"), "model", "model", "input_type", "document", "output_dtype", "float"))
+        );
     }
 
     public void testCreateRequest_DimensionDefined() throws IOException {
@@ -93,7 +88,8 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
             List.of("abc"),
             VoyageAIEmbeddingsModelTests.createModel(
                 "url",
-                "secret", new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null),
+                "secret",
+                new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null),
                 null,
                 2048,
                 "model"
@@ -114,13 +110,23 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
         );
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        MatcherAssert.assertThat(requestMap, is(Map.of(
-            "input", List.of("abc"),
-            "model", "model",
-            "input_type", "document",
-            "output_dtype", "float",
-            "output_dimension", 2048
-        )));
+        MatcherAssert.assertThat(
+            requestMap,
+            is(
+                Map.of(
+                    "input",
+                    List.of("abc"),
+                    "model",
+                    "model",
+                    "input_type",
+                    "document",
+                    "output_dtype",
+                    "float",
+                    "output_dimension",
+                    2048
+                )
+            )
+        );
     }
 
     public void testCreateRequest_EmbeddingTypeDefined() throws IOException {
@@ -128,7 +134,8 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
             List.of("abc"),
             VoyageAIEmbeddingsModelTests.createModel(
                 "url",
-                "secret", new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null),
+                "secret",
+                new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null),
                 null,
                 2048,
                 "model",
@@ -150,13 +157,23 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
         );
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        MatcherAssert.assertThat(requestMap, is(Map.of(
-            "input", List.of("abc"),
-            "model", "model",
-            "input_type", "document",
-            "output_dtype", "int8",
-            "output_dimension", 2048
-        )));
+        MatcherAssert.assertThat(
+            requestMap,
+            is(
+                Map.of(
+                    "input",
+                    List.of("abc"),
+                    "model",
+                    "model",
+                    "input_type",
+                    "document",
+                    "output_dtype",
+                    "int8",
+                    "output_dimension",
+                    2048
+                )
+            )
+        );
     }
 
     public void testCreateRequest_InputTypeSearch() throws IOException {
@@ -186,12 +203,10 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
         );
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        MatcherAssert.assertThat(requestMap, is(Map.of(
-            "input", List.of("abc"),
-            "model", "model",
-            "input_type", "query",
-            "output_dtype", "float"
-        )));
+        MatcherAssert.assertThat(
+            requestMap,
+            is(Map.of("input", List.of("abc"), "model", "model", "input_type", "query", "output_dtype", "float"))
+        );
     }
 
     public static VoyageAIEmbeddingsRequest createRequest(List<String> input, VoyageAIEmbeddingsModel model) {

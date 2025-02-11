@@ -138,7 +138,10 @@
  *     </li>
  *     <li>type I (input to your aggregation function), usually primitive types and {@link org.apache.lucene.util.BytesRef}</li>
  *     <li>{@code AggregatorState init()} or {@code AggregatorState initSingle()} returns empty initialized aggregation state</li>
- *     <li>{@code void combine(SS state, I input)} or {@code SS combine(SS state, I input)} adds input entry to the aggregation state</li>
+ *     <li>
+ *         {@code void combine(AggregatorState state, I input)} or {@code AggregatorState combine(AggregatorState state, I input)}
+ *         adds input entry to the aggregation state
+ *     </li>
  *     <li>
  *         {@code void combineIntermediate(AggregatorState state, intermediate states)} adds serialized aggregation state
  *         to the current aggregation state (used to combine results across different nodes)

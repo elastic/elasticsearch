@@ -402,9 +402,12 @@ public final class DateFieldMapper extends FieldMapper {
             boolean hasDocValuesSkipper = useDocValuesSkipper
                 && indexCreatedVersion.onOrAfter(IndexVersions.TIMESTAMP_DOC_VALUES_SPARSE_INDEX)
                 && hasDocValuesSkipper(docValues.getValue(), indexMode, indexSortConfig, fullFieldName);
+            boolean hasInvertedIndex = hasDocValuesSkipper == false
+                && index.getValue()
+                && indexCreatedVersion.isLegacyIndexVersion() == false;
             DateFieldType ft = new DateFieldType(
                 fullFieldName,
-                hasDocValuesSkipper == false && index.getValue() && indexCreatedVersion.isLegacyIndexVersion() == false,
+                hasInvertedIndex,
                 hasDocValuesSkipper == false && index.getValue(),
                 store.getValue(),
                 docValues.getValue(),
@@ -1101,8 +1104,7 @@ public final class DateFieldMapper extends FieldMapper {
 
         if (hasDocValuesSkipper && hasDocValues) {
             context.doc().add(SortedNumericDocValuesField.indexedField(fieldType().name(), timestamp));
-        }
-        if (indexed && hasDocValues) {
+        } else if (indexed && hasDocValues) {
             context.doc().add(new LongField(fieldType().name(), timestamp, Field.Store.NO));
         } else if (hasDocValues) {
             context.doc().add(new SortedNumericDocValuesField(fieldType().name(), timestamp));

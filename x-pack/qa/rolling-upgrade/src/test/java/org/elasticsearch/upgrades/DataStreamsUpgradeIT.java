@@ -256,7 +256,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     private void createAndRolloverDataStream(String dataStreamName, int numRollovers) throws IOException {
-        boolean useIlm = minimumTransportVersion().before(TransportVersions.V_8_9_X) || randomBoolean();
+        boolean useIlm = minimumTransportVersion().before(TransportVersions.V_8_11_X) || randomBoolean();
         if (useIlm) {
             createIlmPolicy();
         }

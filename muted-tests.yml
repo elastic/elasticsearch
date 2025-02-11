@@ -361,9 +361,6 @@ tests:
 - class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
   method: test {yaml=analysis-common/40_token_filters/stemmer_override file access}
   issue: https://github.com/elastic/elasticsearch/issues/121625
-- class: org.elasticsearch.xpack.esql.plugin.DataNodeRequestSenderTests
-  method: testDoNotRetryOnRequestLevelFailure
-  issue: https://github.com/elastic/elasticsearch/issues/121966
 - class: org.elasticsearch.xpack.searchablesnapshots.hdfs.SecureHdfsSearchableSnapshotsIT
   issue: https://github.com/elastic/elasticsearch/issues/121967
 - class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
@@ -371,8 +368,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/121503
 - class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
   issue: https://github.com/elastic/elasticsearch/issues/121537
-- class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
-  issue: https://github.com/elastic/elasticsearch/issues/121737
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testWatcherWithApiKey {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/122061
@@ -388,16 +383,8 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.ClassificationIT
   method: testWithOnlyTrainingRowsAndTrainingPercentIsFifty_DependentVariableIsBoolean
   issue: https://github.com/elastic/elasticsearch/issues/121680
-- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
-  issue: https://github.com/elastic/elasticsearch/issues/122153
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/121411
-- class: org.elasticsearch.xpack.esql.action.EsqlNodeFailureIT
-  method: testFailureLoadingFields
-  issue: https://github.com/elastic/elasticsearch/issues/122132
-- class: org.elasticsearch.xpack.esql.action.CrossClustersCancellationIT
-  method: testCloseSkipUnavailable
-  issue: https://github.com/elastic/elasticsearch/issues/121627
 - class: org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests
   method: testDuplicateDownsampleRequest
   issue: https://github.com/elastic/elasticsearch/issues/122158
@@ -413,6 +400,17 @@ tests:
 - class: org.elasticsearch.xpack.esql.analysis.VerifierTests
   method: testChangePoint_valueNumeric
   issue: https://github.com/elastic/elasticsearch/issues/122181
+- class: org.elasticsearch.datastreams.TSDBPassthroughIndexingIT
+  issue: https://github.com/elastic/elasticsearch/issues/121716
+- class: org.elasticsearch.smoketest.SmokeTestMonitoringWithSecurityIT
+  method: testHTTPExporterWithSSL
+  issue: https://github.com/elastic/elasticsearch/issues/122220
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
+  method: testStopQueryLocal
+  issue: https://github.com/elastic/elasticsearch/issues/121672
+- class: org.elasticsearch.xpack.security.authz.IndexAliasesTests
+  method: testRemoveIndex
+  issue: https://github.com/elastic/elasticsearch/issues/122221
 
 # Examples:
 #

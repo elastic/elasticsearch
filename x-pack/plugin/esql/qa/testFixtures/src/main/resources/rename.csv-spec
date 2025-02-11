@@ -213,3 +213,12 @@ x:keyword
 Facello
 Simmel
 ;
+
+swappingName
+row  foo = 10, bar = null 
+| rename bar AS foo, foo AS bar
+;
+
+bar:INTEGER | foo:NULL
+10          | null
+;

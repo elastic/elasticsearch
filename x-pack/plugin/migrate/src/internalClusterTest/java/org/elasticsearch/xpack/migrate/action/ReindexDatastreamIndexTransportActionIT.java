@@ -602,8 +602,6 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
                 .get(FrozenEngine.INDEX_FROZEN.getKey()),
             not(equalTo(null))
         );
-        // add timestamp to source mapping
-        indicesAdmin().preparePutMapping(sourceIndex).setSource(DATA_STREAM_MAPPING, XContentType.JSON).get();
 
         String destIndex = safeGet(
             client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))

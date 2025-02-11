@@ -12,6 +12,7 @@ package org.elasticsearch.bootstrap;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.jdk.RuntimeVersionFeature;
 import org.elasticsearch.test.GraalVMThreadsFilter;
 
 import static org.hamcrest.Matchers.is;
@@ -20,6 +21,7 @@ import static org.hamcrest.Matchers.is;
 public class NoSecurityManagerTests extends LuceneTestCase {
 
     public void testPrepopulateSecurityCaller() {
+        assumeTrue("security manager must be available", RuntimeVersionFeature.isSecurityManagerAvailable());
         assumeTrue("Unexpected security manager:" + System.getSecurityManager(), System.getSecurityManager() == null);
         boolean isAtLeastJava17 = Runtime.version().feature() >= 17;
         boolean isPrepopulated = Security.prepopulateSecurityCaller();

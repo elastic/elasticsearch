@@ -200,25 +200,10 @@ public final class WriteField extends SourceMapField {
         return this;
     }
 
-    /**
-     * Iterate through all elements of this path
-     */
-    @Override
     @SuppressWarnings("unchecked")
-    public Iterator<Object> iterator() {
-        if (leaf == null) {
-            return Collections.emptyIterator();
-        }
-
-        Object value = container.getOrDefault(leaf, MISSING);
-        if (value == MISSING) {
-            return Collections.emptyIterator();
-        }
-
-        if (value instanceof List<?> list) {
-            return (Iterator<Object>) list.iterator();
-        }
-        return Collections.singleton(value).iterator();
+    @Override
+    protected Iterator<Object> getListIterator(List<?> list) {
+        return (Iterator<Object>) list.iterator();
     }
 
     // Value Update

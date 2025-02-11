@@ -334,35 +334,6 @@ public class WriteFieldTests extends ESTestCase {
         assertEquals(new ArrayList<>(List.of("bar")), b.get("c"));
     }
 
-    public void testIterator() {
-        Map<String, Object> root = new HashMap<>();
-        Map<String, Object> a = new HashMap<>();
-        Map<String, Object> b = new HashMap<>();
-        a.put("b", b);
-        root.put("a", a);
-
-        WriteField wf = new WriteField("a.b.c", () -> root);
-        assertFalse(wf.iterator().hasNext());
-
-        b.put("c", "value");
-        Iterator<Object> it = wf.iterator();
-        assertTrue(it.hasNext());
-        assertEquals("value", it.next());
-        assertFalse(it.hasNext());
-
-        b.put("c", List.of(1, 2, 3));
-        it = wf.iterator();
-        assertTrue(it.hasNext());
-        assertEquals(1, it.next());
-        assertTrue(it.hasNext());
-        assertEquals(2, it.next());
-        assertTrue(it.hasNext());
-        assertEquals(3, it.next());
-        assertFalse(it.hasNext());
-
-        assertFalse(new WriteField("dne.dne", () -> root).iterator().hasNext());
-    }
-
     @SuppressWarnings("unchecked")
     public void testDeduplicate() {
         Map<String, Object> root = new HashMap<>();

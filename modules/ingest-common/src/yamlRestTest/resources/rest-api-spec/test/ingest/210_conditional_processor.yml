@@ -168,3 +168,56 @@ teardown:
   - match: { _source.five: 5 }
   - match: { _source.six: 6 }
   - match: { _source.seven: 7 }
+
+---
+"Test fields iterator is unmodifiable":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:
+          description: "_description"
+          processors:
+            - set:
+                if: >
+                  def iterator = field('iterator.field').iterator();
+                  def sum = 0;
+                    while (iterator.hasNext()) {
+                      sum += iterator.next();
+                      iterator.remove();
+                    }
+                  return sum == 6;
+                field: "sum"
+                value: 6
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body:
+          test.field: [1, 2, 3]
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        pipeline: "my_pipeline"
+        body:
+          iterator.field: [1, 2, 3]
+      catch: bad_request
+  - match: { error.root_cause.0.type: "script_exception" }
+  - match: { error.root_cause.0.reason: "runtime error" }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.test\.field: [1, 2, 3] }
+  - is_false: _source.sum
+
+  - do:
+      get:
+        index: test
+        id: "2"
+      catch: missing

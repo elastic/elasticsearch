@@ -79,7 +79,6 @@ public class SourceMapField implements Field<Object> {
      * Iterate through all elements of this path with an iterator that cannot mutate the underlying map.
      */
     @Override
-    @SuppressWarnings("unchecked")
     public Iterator<Object> iterator() {
         if (leaf == null) {
             return Collections.emptyIterator();
@@ -91,10 +90,21 @@ public class SourceMapField implements Field<Object> {
         }
 
         if (value instanceof List<?> list) {
-            // todo - revisit whether this is how we want to guarantee immutability
-            return (Iterator<Object>) Collections.unmodifiableList(list).iterator();
+            return getListIterator(list);
         }
         return Collections.singleton(value).iterator();
+    }
+
+    /**
+     * todo - revisit whether this is how we want to guarantee immutability
+     * Get an iterator for the given list that cannot mutate the underlying list. Subclasses can override this method to allow for
+     * mutating iterators.
+     * @param list the list to get an iterator for
+     * @return an iterator that cannot mutate the underlying list
+     */
+    @SuppressWarnings("unchecked")
+    protected Iterator<Object> getListIterator(List<?> list) {
+        return (Iterator<Object>) Collections.unmodifiableList(list).iterator();
     }
 
     /**

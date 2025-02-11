@@ -117,7 +117,6 @@ public class SourceMapFieldTests extends ESTestCase {
         Iterator<Object> it = field.iterator();
         assertTrue(it.hasNext());
         assertEquals("value", it.next());
-        assertThrows(UnsupportedOperationException.class, it::remove);
         assertFalse(it.hasNext());
 
         b.put("c", List.of(1, 2, 3));

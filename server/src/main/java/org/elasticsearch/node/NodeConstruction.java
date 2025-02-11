@@ -863,7 +863,6 @@ class NodeConstruction {
             .clusterService(clusterService)
             .projectResolver(projectResolver)
             .client(client)
-            .featureService(featureService)
             .metaStateService(metaStateService)
             .valuesSourceRegistry(searchModule.getValuesSourceRegistry())
             .requestCacheKeyDifferentiator(searchModule.getRequestCacheKeyDifferentiator())
@@ -1168,7 +1167,6 @@ class NodeConstruction {
                 clusterService,
                 threadPool,
                 systemIndices,
-                featureService,
                 clusterModule.getIndexNameExpressionResolver(),
                 metadataUpdateSettingsService,
                 metadataCreateIndexService
@@ -1182,7 +1180,6 @@ class NodeConstruction {
                 discoveryModule.getCoordinator(),
                 clusterService,
                 transportService,
-                featureService,
                 threadPool,
                 telemetryProvider,
                 repositoriesService,
@@ -1354,7 +1351,6 @@ class NodeConstruction {
         Coordinator coordinator,
         ClusterService clusterService,
         TransportService transportService,
-        FeatureService featureService,
         ThreadPool threadPool,
         TelemetryProvider telemetryProvider,
         RepositoriesService repositoriesService,
@@ -1372,7 +1368,7 @@ class NodeConstruction {
         var serverHealthIndicatorServices = Stream.of(
             new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService),
             new RepositoryIntegrityHealthIndicatorService(clusterService),
-            new DiskHealthIndicatorService(clusterService, featureService),
+            new DiskHealthIndicatorService(clusterService),
             new ShardsCapacityHealthIndicatorService(clusterService),
             fileSettingsHealthIndicatorService
         );
@@ -1390,7 +1386,7 @@ class NodeConstruction {
             healthService,
             telemetryProvider
         );
-        HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService, featureService, settings);
+        HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService, settings);
 
         List<HealthTracker<?>> healthTrackers = List.of(
             new DiskHealthTracker(nodeService, clusterService),
@@ -1679,7 +1675,6 @@ class NodeConstruction {
         ClusterService clusterService,
         ThreadPool threadPool,
         SystemIndices systemIndices,
-        FeatureService featureService,
         IndexNameExpressionResolver indexNameExpressionResolver,
         MetadataUpdateSettingsService metadataUpdateSettingsService,
         MetadataCreateIndexService metadataCreateIndexService
@@ -1696,7 +1691,6 @@ class NodeConstruction {
         HealthNodeTaskExecutor healthNodeTaskExecutor = HealthNodeTaskExecutor.create(
             clusterService,
             persistentTasksService,
-            featureService,
             settingsModule.getSettings(),
             clusterService.getClusterSettings()
         );

@@ -34,7 +34,9 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -58,6 +60,7 @@ abstract class DataNodeRequestSender {
     private final Map<DiscoveryNode, Semaphore> nodePermits = new HashMap<>();
     private final Map<ShardId, ShardFailure> shardFailures = ConcurrentCollections.newConcurrentMap();
     private final AtomicBoolean changed = new AtomicBoolean();
+    private boolean reportedFailure = false; // guarded by sendingLock
 
     DataNodeRequestSender(TransportService transportService, Executor esqlExecutor, CancellableTask rootTask) {
         this.transportService = transportService;
@@ -117,11 +120,14 @@ abstract class DataNodeRequestSender {
                             );
                         }
                     }
-                    if (shardFailures.values().stream().anyMatch(shardFailure -> shardFailure.fatal)) {
-                        for (var e : shardFailures.values()) {
-                            computeListener.acquireAvoid().onFailure(e.failure);
-                        }
+                    if (reportedFailure || shardFailures.values().stream().anyMatch(shardFailure -> shardFailure.fatal)) {
+                        reportedFailure = true;
+                        reportFailures(computeListener);
                     } else {
+                        pendingShardIds.removeIf(shr -> {
+                            var failure = shardFailures.get(shr);
+                            return failure != null && failure.fatal;
+                        });
                         var nodeRequests = selectNodeRequests(targetShards);
                         for (NodeRequest request : nodeRequests) {
                             sendOneNodeRequest(targetShards, computeListener, request);
@@ -133,6 +139,20 @@ abstract class DataNodeRequestSender {
             }
         } finally {
             listener.onResponse(null);
+        }
+    }
+
+    private void reportFailures(ComputeListener computeListener) {
+        assert sendingLock.isHeldByCurrentThread();
+        assert reportedFailure;
+        Iterator<ShardFailure> it = shardFailures.values().iterator();
+        Set<Exception> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        while (it.hasNext()) {
+            ShardFailure failure = it.next();
+            if (seen.add(failure.failure)) {
+                computeListener.acquireAvoid().onFailure(failure.failure);
+            }
+            it.remove();
         }
     }
 
@@ -148,7 +168,7 @@ abstract class DataNodeRequestSender {
             @Override
             public void onResponse(DataNodeComputeResponse response) {
                 // remove failures of successful shards
-                for (ShardId shardId : targetShards.shardIds()) {
+                for (ShardId shardId : request.shardIds()) {
                     if (response.shardLevelFailures().containsKey(shardId) == false) {
                         shardFailures.remove(shardId);
                     }
@@ -250,6 +270,7 @@ abstract class DataNodeRequestSender {
         final Iterator<ShardId> shardsIt = pendingShardIds.iterator();
         while (shardsIt.hasNext()) {
             ShardId shardId = shardsIt.next();
+            assert shardFailures.get(shardId) == null || shardFailures.get(shardId).fatal == false;
             TargetShard shard = targetShards.getShard(shardId);
             Iterator<DiscoveryNode> nodesIt = shard.remainingNodes.iterator();
             DiscoveryNode selectedNode = null;

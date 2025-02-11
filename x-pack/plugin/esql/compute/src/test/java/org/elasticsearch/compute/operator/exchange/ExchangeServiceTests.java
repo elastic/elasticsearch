@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -16,6 +17,7 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -23,6 +25,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.compute.EsqlRefCountingListener;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockWritables;
 import org.elasticsearch.compute.data.IntBlock;
@@ -37,6 +40,7 @@ import org.elasticsearch.core.ReleasableRef;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancellationService;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
@@ -69,6 +73,7 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class ExchangeServiceTests extends ESTestCase {
 
@@ -623,14 +628,15 @@ public class ExchangeServiceTests extends ESTestCase {
             );
             ExchangeSinkHandler sinkHandler = exchange1.createSinkHandler(exchangeId, randomIntBetween(1, 128));
             Transport.Connection connection = node0.getConnection(node1.getLocalNode());
+            PlainActionFuture<Void> remoteSinkFuture = new PlainActionFuture<>();
             sourceHandler.addRemoteSink(
                 exchange0.newRemoteSink(task, exchangeId, node0, connection),
                 true,
                 () -> {},
                 randomIntBetween(1, 5),
-                ActionListener.noop()
+                remoteSinkFuture
             );
-            Exception err = expectThrows(
+            Exception driverException = expectThrows(
                 Exception.class,
                 () -> runConcurrentTest(
                     maxSeqNo,
@@ -639,13 +645,37 @@ public class ExchangeServiceTests extends ESTestCase {
                     () -> sinkHandler.createExchangeSink(() -> {})
                 )
             );
-            Throwable cause = ExceptionsHelper.unwrap(err, IOException.class);
+            assertThat(driverException, instanceOf(TaskCancelledException.class));
+            var sinkException = expectThrows(Exception.class, remoteSinkFuture::actionGet);
+            Throwable cause = ExceptionsHelper.unwrap(sinkException, IOException.class);
             assertNotNull(cause);
             assertThat(cause.getMessage(), equalTo("page is too large"));
             PlainActionFuture<Void> sinkCompletionFuture = new PlainActionFuture<>();
             sinkHandler.addCompletionListener(sinkCompletionFuture);
             assertBusy(() -> assertTrue(sinkCompletionFuture.isDone()));
             expectThrows(Exception.class, () -> sourceCompletionFuture.actionGet(10, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testNoCyclicException() throws Exception {
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        try (EsqlRefCountingListener refs = new EsqlRefCountingListener(future)) {
+            var exchangeSourceHandler = new ExchangeSourceHandler(between(10, 100), threadPool.generic(), refs.acquire());
+            int numSinks = between(5, 10);
+            for (int i = 0; i < numSinks; i++) {
+                RemoteSink remoteSink = (allSourcesFinished, listener) -> threadPool.schedule(
+                    () -> listener.onFailure(new IOException("simulated")),
+                    TimeValue.timeValueMillis(1),
+                    threadPool.generic()
+                );
+                exchangeSourceHandler.addRemoteSink(remoteSink, randomBoolean(), () -> {}, between(1, 3), refs.acquire());
+            }
+        }
+        Exception err = expectThrows(Exception.class, () -> future.actionGet(10, TimeUnit.SECONDS));
+        assertThat(ExceptionsHelper.unwrap(err, IOException.class).getMessage(), equalTo("simulated"));
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            // ensure no cyclic exception
+            ElasticsearchException.writeException(err, output);
         }
     }
 

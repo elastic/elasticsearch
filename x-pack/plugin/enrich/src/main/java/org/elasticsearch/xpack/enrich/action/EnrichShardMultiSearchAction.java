@@ -263,12 +263,11 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                             }
                             return context.getFieldType(field);
                         });
-                        final SearchHit hit = new SearchHit(scoreDoc.doc, visitor.id());
+                        MemoryAccountingBytesRefCounted memAccountingRefCounted = MemoryAccountingBytesRefCounted.create(breaker);
+                        final SearchHit hit = new SearchHit(scoreDoc.doc, visitor.id(), null, memAccountingRefCounted);
                         try {
                             BytesReference sourceBytesRef = visitor.source();
-                            MemoryAccountingBytesRefCounted memAccountingSourceRef = MemoryAccountingBytesRefCounted
-                                .createAndAccountForBytes(sourceBytesRef, breaker, "enrich source");
-                            hit.unfilteredSource(memAccountingSourceRef);
+                            memAccountingRefCounted.account(sourceBytesRef.length(), "enrich source");
                             hit.sourceRef(filterSource(fetchSourceContext, sourceBytesRef));
                             hits[j] = hit;
                         } catch (CircuitBreakingException e) {

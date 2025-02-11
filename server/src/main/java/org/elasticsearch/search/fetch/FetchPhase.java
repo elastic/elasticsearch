@@ -40,6 +40,7 @@ import org.elasticsearch.search.profile.Timer;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankDocShardInfo;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -302,23 +303,20 @@ public final class FetchPhase {
 
         String id = idLoader.getId(subDocId);
         if (id == null) {
-            SearchHit hit = new SearchHit(docId);
+            MemoryAccountingBytesRefCounted memAccountingRefCounted = MemoryAccountingBytesRefCounted.create(circuitBreaker);
+            SearchHit hit = new SearchHit(docId, null, null, LeakTracker.wrap(memAccountingRefCounted));
             // TODO: can we use real pooled buffers here as well?
-            Source source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId, hit, circuitBreaker));
+            Source source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId, memAccountingRefCounted));
             return new HitContext(hit, subReaderContext, subDocId, Map.of(), source, rankDoc);
         } else {
-            SearchHit hit = new SearchHit(docId, id);
+            MemoryAccountingBytesRefCounted memAccountingRefCounted = MemoryAccountingBytesRefCounted.create(circuitBreaker);
+            SearchHit hit = new SearchHit(docId, id, null, LeakTracker.wrap(memAccountingRefCounted));
             Source source;
             if (requiresSource) {
                 Timer timer = profiler.startLoadingSource();
                 try {
                     source = sourceLoader.source(leafStoredFieldLoader, subDocId);
-                    MemoryAccountingBytesRefCounted sourceRef = MemoryAccountingBytesRefCounted.createAndAccountForBytes(
-                        source.internalSourceRef(),
-                        circuitBreaker,
-                        "fetch phase source loader"
-                    );
-                    hit.unfilteredSource(sourceRef);
+                    memAccountingRefCounted.account(source.internalSourceRef().length(), "fetch phase source loader");
                 } catch (CircuitBreakingException e) {
                     hit.decRef();
                     throw e;
@@ -328,7 +326,7 @@ public final class FetchPhase {
                     }
                 }
             } else {
-                source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId, hit, circuitBreaker));
+                source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId, memAccountingRefCounted));
             }
             return new HitContext(hit, subReaderContext, subDocId, leafStoredFieldLoader.storedFields(), source, rankDoc);
         }
@@ -338,8 +336,7 @@ public final class FetchPhase {
         Profiler profiler,
         LeafReaderContext ctx,
         int doc,
-        SearchHit hit,
-        CircuitBreaker circuitBreaker
+        MemoryAccountingBytesRefCounted memAccountingRefCounted
     ) {
         return () -> {
             StoredFieldLoader rootLoader = profiler.storedFields(StoredFieldLoader.create(true, Collections.emptySet()));
@@ -347,19 +344,7 @@ public final class FetchPhase {
                 LeafStoredFieldLoader leafRootLoader = rootLoader.getLoader(ctx, null);
                 leafRootLoader.advanceTo(doc);
                 BytesReference source = leafRootLoader.source();
-                MemoryAccountingBytesRefCounted memAccountingSourceRef = MemoryAccountingBytesRefCounted.createAndAccountForBytes(
-                    source,
-                    circuitBreaker,
-                    "fetch phase source loader"
-                );
-                // Saving the entire source we loaded in the hit, so that we can release it entirely when the hit is released
-                // This is important for the circuit breaker accounting - note that this lazy loader can be triggered in the case of
-                // inner hits even though the top hit source is not requested (see {@link FetchPhase#prepareNestedHitContext} when
-                // the `nestedSource` is created), so we need to save the entire source on the hit - we account
-                // for the top level source via the {@link SearchHit#unfilteredSourceRef(BytesReference)} method because the
-                // {@link SearchHit#source()} method can be null when the top level source is not requested.
-                // NB all of the above also applies for source filtering and field collapsing
-                hit.unfilteredSource(memAccountingSourceRef);
+                memAccountingRefCounted.account(source.length(), "fetch phase source loader");
                 return Source.fromBytes(source);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
@@ -404,7 +389,6 @@ public final class FetchPhase {
             if (requiresSource) {
                 BytesReference source = leafRootLoader.source();
                 if (source != null) {
-                    NOOP_CIRCUIT_BREAKER.addEstimateBytesAndMaybeBreak(source.length(), "fetch phase nested hit source loader");
                     rootSource = Source.fromBytes(source);
                 }
             }

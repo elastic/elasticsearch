@@ -10,30 +10,30 @@
 package org.elasticsearch.common;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.AbstractRefCounted;
 
 public final class MemoryAccountingBytesRefCounted extends AbstractRefCounted {
 
-    private BytesReference bytes;
-    private CircuitBreaker breaker;
+    private long bytes;
+    private final CircuitBreaker breaker;
 
-    private MemoryAccountingBytesRefCounted(BytesReference bytes, CircuitBreaker breaker) {
+    private MemoryAccountingBytesRefCounted(long bytes, CircuitBreaker breaker) {
         this.bytes = bytes;
         this.breaker = breaker;
     }
 
-    public static MemoryAccountingBytesRefCounted createAndAccountForBytes(
-        BytesReference bytes,
-        CircuitBreaker breaker,
-        String memAccountingLabel
-    ) {
-        breaker.addEstimateBytesAndMaybeBreak(bytes.length(), memAccountingLabel);
-        return new MemoryAccountingBytesRefCounted(bytes, breaker);
+    public static MemoryAccountingBytesRefCounted create(CircuitBreaker breaker) {
+        return new MemoryAccountingBytesRefCounted(0L, breaker);
+    }
+
+    public void account(long bytes, String label) {
+        breaker.addEstimateBytesAndMaybeBreak(bytes, label);
+        this.bytes += bytes;
     }
 
     @Override
     protected void closeInternal() {
-        breaker.addWithoutBreaking(-bytes.length());
+        System.err.println("REMOVING " + bytes);
+        breaker.addWithoutBreaking(-bytes);
     }
 }

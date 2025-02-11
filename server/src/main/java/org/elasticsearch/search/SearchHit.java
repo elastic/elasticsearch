@@ -83,8 +83,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     private long primaryTerm;
 
     private BytesReference source;
-    @Nullable
-    private RefCounted unfilteredSource;
 
     private final Map<String, DocumentField> documentFields;
     private final Map<String, DocumentField> metaFields;
@@ -125,7 +123,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         this(nestedTopDocId, id, nestedIdentity, null);
     }
 
-    private SearchHit(int nestedTopDocId, String id, NestedIdentity nestedIdentity, @Nullable RefCounted refCounted) {
+    public SearchHit(int nestedTopDocId, String id, NestedIdentity nestedIdentity, @Nullable RefCounted refCounted) {
         this(
             nestedTopDocId,
             DEFAULT_SCORE,
@@ -446,17 +444,6 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
      */
     public SearchHit sourceRef(BytesReference source) {
         this.source = source;
-        return this;
-    }
-
-    /**
-     * We track the unfiltered, entire, source so we can release the entire size from the
-     * circuit breakers when the hit is released.
-     * The regular source might be a subset of the unfiltered source due to either
-     * source filtering, field collapsing or inner hits.
-     */
-    public SearchHit unfilteredSource(RefCounted source) {
-        this.unfilteredSource = source;
         return this;
     }
 

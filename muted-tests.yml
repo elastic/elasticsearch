@@ -423,6 +423,8 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/122310
 - class: org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/122315
+- class: org.elasticsearch.xpack.kql.KqlRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/122316
 
 # Examples:
 #

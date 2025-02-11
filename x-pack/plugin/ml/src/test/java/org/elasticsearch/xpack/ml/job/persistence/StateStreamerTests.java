@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.ml.job.persistence;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -105,9 +103,7 @@ public class StateStreamerTests extends ESTestCase {
         SearchHit[] hits = new SearchHit[source.size()];
         int i = 0;
         for (Map<String, Object> s : source) {
-            SearchHit hit = new SearchHit(1, new NoopCircuitBreaker(CircuitBreaker.REQUEST)).sourceRef(
-                BytesReference.bytes(XContentFactory.jsonBuilder().map(s))
-            );
+            SearchHit hit = new SearchHit(1).sourceRef(BytesReference.bytes(XContentFactory.jsonBuilder().map(s)));
             hits[i++] = hit;
         }
         SearchHits searchHits = new SearchHits(hits, null, (float) 0.0);

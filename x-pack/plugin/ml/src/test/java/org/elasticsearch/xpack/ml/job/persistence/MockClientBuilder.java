@@ -25,8 +25,6 @@ import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ClusterAdminClient;
 import org.elasticsearch.client.internal.IndicesAdminClient;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
@@ -132,7 +130,7 @@ public class MockClientBuilder {
 
         SearchHit hits[] = new SearchHit[docs.size()];
         for (int i = 0; i < docs.size(); i++) {
-            SearchHit hit = new SearchHit(10, new NoopCircuitBreaker(CircuitBreaker.REQUEST));
+            SearchHit hit = new SearchHit(10);
             hit.sourceRef(docs.get(i));
             hits[i] = hit;
         }

@@ -250,7 +250,12 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
 
                     @Override
                     public void onTimeout(TimeValue timeout) {
-                        l.onFailure(new ElasticsearchException("Timed out retrying get_from_translog", cause));
+                        if (cause instanceof AlreadyClosedException) {
+                            // Do an additional retry just in case AlreadyClosedException didn't generate a cluster update
+                            getFromTranslog(request, indexShard, state, observer, l);
+                        } else {
+                            l.onFailure(new ElasticsearchException("Timed out retrying get_from_translog", cause));
+                        }
                     }
                 });
             } else {

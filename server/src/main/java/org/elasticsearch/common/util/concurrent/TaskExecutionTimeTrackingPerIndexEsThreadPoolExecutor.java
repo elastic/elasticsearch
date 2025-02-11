@@ -9,6 +9,8 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.core.Tuple;
 
@@ -25,6 +27,7 @@ import java.util.function.Function;
  * This executor provides detailed metrics on task execution times per index, which can be useful for performance monitoring and debugging.
  */
 public class TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor extends TaskExecutionTimeTrackingEsThreadPoolExecutor {
+    private static final Logger logger = LogManager.getLogger(TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor.class);
     private final ConcurrentHashMap<String, Tuple<LongAdder, ExponentiallyWeightedMovingAverage>> indexExecutionTime;
     private final ConcurrentHashMap<Runnable, String> runnableToIndexName;
 
@@ -88,6 +91,14 @@ public class TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor extends TaskE
      */
     public void registerIndexNameForRunnable(String indexName, Runnable r) {
         runnableToIndexName.put(r, indexName);
+    }
+
+    public void stopTrackingIndex(String indexName) {
+        try {
+            indexExecutionTime.remove(indexName);
+        } catch (NullPointerException e) {
+            logger.debug("Trying to stop tracking index [{}] that was never tracked", indexName);
+        }
     }
 
     @Override

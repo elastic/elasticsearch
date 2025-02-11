@@ -785,16 +785,8 @@ public class RankFeaturePhaseTests extends ESTestCase {
             }
 
             @Override
-            public void computeRankScoresForGlobalResults(
-                List<RankFeatureResult> rankSearchResults,
-                ActionListener<RankFeatureDoc[]> rankListener
-            ) {
-                List<RankFeatureDoc> features = new ArrayList<>();
-                for (RankFeatureResult rankFeatureResult : rankSearchResults) {
-                    RankFeatureShardResult shardResult = rankFeatureResult.shardResult();
-                    features.addAll(Arrays.stream(shardResult.rankFeatureDocs).toList());
-                }
-                rankListener.onResponse(features.toArray(new RankFeatureDoc[0]));
+            public void computeRankScoresForGlobalResults(RankFeatureDoc[] rankDocs, ActionListener<RankFeatureDoc[]> rankListener) {
+                rankListener.onResponse(rankDocs);
             }
 
             @Override

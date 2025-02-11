@@ -20,13 +20,18 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
 import org.elasticsearch.transport.Transport;
 
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * This search phase is responsible for executing any re-ranking needed for the given search request, iff that is applicable.
@@ -200,10 +205,21 @@ public class RankFeaturePhase extends SearchPhase {
                 }
             }
         );
-        rankFeaturePhaseRankCoordinatorContext.computeRankScoresForGlobalResults(
-            rankPhaseResults.getAtomicArray().asList().stream().map(SearchPhaseResult::rankFeatureResult).toList(),
-            rankResultListener
-        );
+        ScoreDoc[] topResults = reducedQueryPhase.sortedTopDocs().scoreDocs();
+        Map<RankDoc.RankKey, Integer> topResultsOrder = new HashMap<>();
+        for (int i = 0; i < topResults.length; i++) {
+            topResultsOrder.put(new RankDoc.RankKey(topResults[i].doc, topResults[i].shardIndex), i);
+        }
+        RankFeatureDoc[] rankFeatureDocs = rankPhaseResults.getSuccessfulResults()
+            .flatMap(r -> Arrays.stream(r.rankFeatureResult().shardResult().rankFeatureDocs))
+            .filter(rfd -> rfd.featureData != null)
+            .sorted(
+                Comparator.comparing(
+                    (RankFeatureDoc doc) -> topResultsOrder.getOrDefault(new RankDoc.RankKey(doc.doc, doc.shardIndex), Integer.MIN_VALUE)
+                )
+            )
+            .toArray(RankFeatureDoc[]::new);
+        rankFeaturePhaseRankCoordinatorContext.computeRankScoresForGlobalResults(rankFeatureDocs, rankResultListener);
     }
 
     private SearchPhaseController.ReducedQueryPhase newReducedQueryPhaseResults(

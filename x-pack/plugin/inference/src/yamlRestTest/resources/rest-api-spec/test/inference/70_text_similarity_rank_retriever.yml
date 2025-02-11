@@ -2,7 +2,6 @@ setup:
   - skip:
       features:
         - close_to
-        - contains
   - requires:
       test_runner_features: "close_to"
 
@@ -37,16 +36,6 @@ setup:
   - do:
       index:
         index: test-index
-        id: doc_1
-        body:
-          text: "As seen from Earth, a solar eclipse happens when the Moon is directly between the Earth and the Sun."
-          topic: [ "science" ]
-          subtopic: [ "technology" ]
-        refresh: true
-
-  - do:
-      index:
-        index: test-index
         id: doc_2
         body:
           text: "The phases of the Moon come from the position of the Moon relative to the Earth and Sun."
@@ -61,6 +50,16 @@ setup:
         body:
           text: "Sun Moon Lake is a lake in Nantou County, Taiwan. It is the largest lake in Taiwan."
           topic: [ "geography" ]
+        refresh: true
+
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          text: "As seen from Earth, a solar eclipse happens when the Moon is directly between the Earth and the Sun."
+          topic: [ "science" ]
+          subtopic: [ "technology" ]
         refresh: true
 
 ---
@@ -203,8 +202,8 @@ setup:
           size: 10
           explain: true
 
-  - contains: { hits.hits: { _id: "doc_2" } }
-  - contains: { hits.hits: { _id: "doc_1" } }
+  - match: { hits.hits.0._id: "doc_2" }
+  - match: { hits.hits.1._id: "doc_1" }
 
   - match: {hits.hits.0._explanation.description: "/text_similarity_reranker.match.using.inference.endpoint:.\\[my-rerank-model\\].on.document.field:.\\[text\\].*/" }
   - match: {hits.hits.0._explanation.details.0.description: "/weight.*science.*/" }

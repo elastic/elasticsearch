@@ -154,7 +154,11 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             float resultDiff = 0.2f;
             for (int i = 0; i < input.size(); i++) {
                 results.add(
-                    new RankedDocsResults.RankedDoc(totalResults - 1 - i, minScore + resultDiff * (totalResults - i), input.get(i))
+                    new RankedDocsResults.RankedDoc(
+                        totalResults - 1 - i,
+                        minScore + resultDiff * (totalResults - i),
+                        input.get(totalResults - 1 - i)
+                    )
                 );
             }
             return new RankedDocsResults(results);

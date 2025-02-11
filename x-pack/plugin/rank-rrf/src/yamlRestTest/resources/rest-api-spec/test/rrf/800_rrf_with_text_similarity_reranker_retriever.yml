@@ -2,7 +2,6 @@ setup:
   - skip:
       features:
         - close_to
-        - contains
 
   - requires:
       test_runner_features: "close_to"
@@ -40,14 +39,6 @@ setup:
               integer:
                 type: integer
 
-  - do:
-      index:
-        index: test-index
-        id: doc_1
-        body:
-          text: "Sun Moon Lake is a lake in Nantou County, Taiwan. It is the largest lake in Taiwan."
-          topic: [ "geography" ]
-          integer: 1
 
   - do:
       index:
@@ -68,6 +59,15 @@ setup:
           topic: [ "science" ]
           subtopic: [ "technology" ]
           integer: 3
+
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          text: "Sun Moon Lake is a lake in Nantou County, Taiwan. It is the largest lake in Taiwan."
+          topic: [ "geography" ]
+          integer: 1
 
   - do:
       indices.refresh: {}
@@ -152,8 +152,8 @@ setup:
   - match: { hits.total.value: 3 }
   - length: { hits.hits: 2 }
 
-  - contains: { hits.hits: { _id: "doc_1" } }
-  - contains: { hits.hits: { _id: "doc_3" } }
+  - match: { hits.hits.0._id: "doc_1" }
+  - match: { hits.hits.1._id: "doc_3" }
 
   - match: { aggregations.topics.buckets.0.key: "science" }
   - match: { aggregations.topics.buckets.0.doc_count: 2 }
@@ -174,55 +174,34 @@ setup:
               text_similarity_reranker: {
                 retriever:
                   {
-                    rrf: {
-                      retrievers:
-                        [
-                          {
-                            standard: {
-                              query: {
-                                bool: {
-                                  should:
-                                    [
-                                      {
-                                        constant_score: {
-                                          filter: {
-                                            term: {
-                                              integer: 1
-                                            }
-                                          },
-                                          boost: 10
-                                        }
-                                      },
-                                      {
-                                        constant_score:
-                                          {
-                                            filter:
-                                              {
-                                                term:
-                                                  {
-                                                    integer: 3
-                                                  }
-                                              },
-                                            boost: 1
-                                          }
-                                      }
-                                    ]
+                    standard: {
+                      query: {
+                        bool: {
+                          should:
+                            [
+                              {
+                                constant_score: {
+                                  filter: {
+                                    term: {
+                                      integer: 1
+                                    }
+                                  },
+                                  boost: 10
+                                }
+                              },
+                              {
+                                constant_score: {
+                                  filter: {
+                                    term: {
+                                      integer: 3
+                                    }
+                                  },
+                                  boost: 1
                                 }
                               }
-                            }
-                          },
-                          {
-                            standard: {
-                              query: {
-                                term: {
-                                  topic: "geography"
-                                }
-                              }
-                            }
-                          }
-                        ],
-                      rank_window_size: 10,
-                      rank_constant: 1
+                            ]
+                        }
+                      }
                     }
                   },
                 rank_window_size: 10,

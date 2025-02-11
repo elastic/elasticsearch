@@ -85,10 +85,6 @@
  *         To introduce your aggregation to the engine:
  *         <ul>
  *             <li>
- *                 Add it to {@code org.elasticsearch.xpack.esql.planner.AggregateMapper}.
- *                 Check all usages of other aggregations there, and replicate the logic.
- *             </li>
- *             <li>
  *                 Implement serialization for your aggregation by implementing
  *                 {@link org.elasticsearch.common.io.stream.NamedWriteable#getWriteableName},
  *                 {@link org.elasticsearch.common.io.stream.NamedWriteable#writeTo},
@@ -97,7 +93,7 @@
  *                 {@link org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateWritables#getNamedWriteables}.
  *             </li>
  *             <li>
- *                 Do the same with {@link org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry}.
+ *                 Add it to {@link org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry}.
  *             </li>
  *         </ul>
  *     </li>
@@ -120,12 +116,13 @@
  * <ul>
  *     <li>All methods must be public static</li>
  *     <li>
- *         init/initSingle/initGrouping could have optional BigArrays, DriverContext arguments that are going to be injected automatically.
+ *         {@code init/initSingle/initGrouping} could have optional {@link org.elasticsearch.common.util.BigArrays} or
+ *         {@link org.elasticsearch.compute.operator.DriverContext} arguments that are going to be injected automatically.
  *         It is also possible to declare any number of arbitrary arguments that must be provided via generated Supplier.
  *     </li>
  *     <li>
- *         combine, combineStates, combineIntermediate, evaluateFinal methods (see below) could be omitted and generated automatically
- *         when both input type I and mutable accumulator state SS and GS are primitive (DOUBLE, INT).
+ *         {@code combine, combineStates, combineIntermediate, evaluateFinal} methods (see below) could be generated automatically
+ *         when both input type I and mutable accumulator state AggregatorState and GroupingAggregatorState are primitive (DOUBLE, INT).
  *     </li>
  *     <li>
  *         Code generation expects at least one IntermediateState field that is going to be used to keep
@@ -136,40 +133,46 @@
  * <h4>Aggregation expects:</h4>
  * <ul>
  *     <li>
- *         type SS (a mutable state used to accumulate result of the aggregation) to be public, not inner and implements
+ *         type AggregatorState (a mutable state used to accumulate result of the aggregation) to be public, not inner and implements
  *         {@link org.elasticsearch.compute.aggregation.AggregatorState}
  *     </li>
  *     <li>type I (input to your aggregation function), usually primitive types and {@link org.apache.lucene.util.BytesRef}</li>
- *     <li>{@code SS init()} or {@code SS initSingle()} returns empty initialized aggregation state</li>
+ *     <li>{@code AggregatorState init()} or {@code AggregatorState initSingle()} returns empty initialized aggregation state</li>
  *     <li>{@code void combine(SS state, I input)} or {@code SS combine(SS state, I input)} adds input entry to the aggregation state</li>
  *     <li>
- *         {@code void combineIntermediate(SS state, intermediate states)} adds serialized aggregation state
+ *         {@code void combineIntermediate(AggregatorState state, intermediate states)} adds serialized aggregation state
  *         to the current aggregation state (used to combine results across different nodes)
  *     </li>
- *     <li>{@code Block evaluateFinal(SS state, DriverContext)} converts the inner state of the aggregation to the result column</li>
+ *     <li>
+ *         {@code Block evaluateFinal(AggregatorState state, DriverContext)} converts the inner state of the aggregation to the result
+ *         column
+ *     </li>
  * </ul>
  * <h4>Grouping aggregation expects:</h4>
  * <ul>
  *     <li>
- *         type GS (a mutable state used to accumulate result of the grouping aggregation) to be public, not inner and implements
- *         {@link org.elasticsearch.compute.aggregation.GroupingAggregatorState}
+ *         type GroupingAggregatorState (a mutable state used to accumulate result of the grouping aggregation) to be public,
+ *         not inner and implements {@link org.elasticsearch.compute.aggregation.GroupingAggregatorState}
  *     </li>
  *     <li>type I (input to your aggregation function), usually primitive types and {@link org.apache.lucene.util.BytesRef}</li>
- *     <li>{@code GS init()} or {@code GS initGrouping()} returns empty initialized grouping aggregation state</li>
  *     <li>
- *         {@code void combine(GS state, int groupId, I input)} adds input entry to the corresponding group (bucket)
+ *         {@code GroupingAggregatorState init()} or {@code GroupingAggregatorState initGrouping()} returns empty initialized grouping
+ *         aggregation state
+ *     </li>
+ *     <li>
+ *         {@code void combine(GroupingAggregatorState state, int groupId, I input)} adds input entry to the corresponding group (bucket)
  *         of the grouping aggregation state
  *     </li>
  *     <li>
- *         {@code void combineStates(GS targetState, int targetGroupId, GS otherState, int otherGroupId)} merges other grouped
- *         aggregation state into the first one
+ *         {@code void combineStates(GroupingAggregatorState targetState, int targetGroupId, GS otherState, int otherGroupId)}
+ *         merges other grouped aggregation state into the first one
  *     </li>
  *     <li>
- *         {@code void combineIntermediate(GS current, int groupId, intermediate states)} adds serialized aggregation state
- *         to the current grouped aggregation state (used to combine results across different nodes)
+ *         {@code void combineIntermediate(GroupingAggregatorState current, int groupId, intermediate states)} adds serialized
+ *         aggregation state to the current grouped aggregation state (used to combine results across different nodes)
  *     </li>
  *     <li>
- *         {@code Block evaluateFinal(GS state, IntVectorSelected, DriverContext)} converts the inner state
+ *         {@code Block evaluateFinal(GroupingAggregatorState state, IntVectorSelected, DriverContext)} converts the inner state
  *         of the grouping aggregation to the result column
  *     </li>
  * </ul>

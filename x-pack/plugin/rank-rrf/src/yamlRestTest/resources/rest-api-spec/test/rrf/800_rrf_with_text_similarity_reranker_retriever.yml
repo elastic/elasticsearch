@@ -174,34 +174,55 @@ setup:
               text_similarity_reranker: {
                 retriever:
                   {
-                    standard: {
-                      query: {
-                        bool: {
-                          should:
-                            [
-                              {
-                                constant_score: {
-                                  filter: {
-                                    term: {
-                                      integer: 1
-                                    }
-                                  },
-                                  boost: 10
-                                }
-                              },
-                              {
-                                constant_score: {
-                                  filter: {
-                                    term: {
-                                      integer: 3
-                                    }
-                                  },
-                                  boost: 1
+                    rrf: {
+                      retrievers:
+                        [
+                          {
+                            standard: {
+                              query: {
+                                bool: {
+                                  should:
+                                    [
+                                      {
+                                        constant_score: {
+                                          filter: {
+                                            term: {
+                                              integer: 1
+                                            }
+                                          },
+                                          boost: 10
+                                        }
+                                      },
+                                      {
+                                        constant_score:
+                                          {
+                                            filter:
+                                              {
+                                                term:
+                                                  {
+                                                    integer: 3
+                                                  }
+                                              },
+                                            boost: 1
+                                          }
+                                      }
+                                    ]
                                 }
                               }
-                            ]
-                        }
-                      }
+                            }
+                          },
+                          {
+                            standard: {
+                              query: {
+                                term: {
+                                  topic: "geography"
+                                }
+                              }
+                            }
+                          }
+                        ],
+                      rank_window_size: 10,
+                      rank_constant: 1
                     }
                   },
                 rank_window_size: 10,

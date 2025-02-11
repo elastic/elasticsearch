@@ -217,6 +217,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
             if (cause instanceof ShardNotFoundException
                 || cause instanceof IndexNotFoundException
                 || cause instanceof AlreadyClosedException) {
+                // TODO AlreadyClosedException the engine reset should be fixed by ES-10826
                 logger.debug("retrying mget_from_translog[shard]");
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
@@ -231,6 +232,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
 
                     @Override
                     public void onTimeout(TimeValue timeout) {
+                        // TODO AlreadyClosedException the engine reset should be fixed by ES-10826
                         if (cause instanceof AlreadyClosedException) {
                             // Do an additional retry just in case AlreadyClosedException didn't generate a cluster update
                             tryShardMultiGetFromTranslog(request, indexShard, node, l);

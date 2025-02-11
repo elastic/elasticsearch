@@ -13,6 +13,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -909,6 +910,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
      * 3 one-shard indices.
      */
     public void testFixedDocs() throws Exception {
+        updateClusterSettings(Settings.builder().put(SearchService.BATCHED_QUERY_PHASE.getKey(), false));
         assertNoFailuresAndResponse(
             prepareSearch("idx_fixed_docs_0", "idx_fixed_docs_1", "idx_fixed_docs_2").addAggregation(
                 terms("terms").executionHint(randomExecutionHint())
@@ -957,6 +959,7 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                 assertThat(bucket.getDocCountError(), equalTo(29L));
             }
         );
+        updateClusterSettings(Settings.builder().putNull(SearchService.BATCHED_QUERY_PHASE.getKey()));
     }
 
     /**

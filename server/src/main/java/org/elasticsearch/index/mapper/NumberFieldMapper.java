@@ -1773,9 +1773,6 @@ public class NumberFieldMapper extends FieldMapper {
                     accumulator.add(type.parse(rawValue, coerce));
                 } catch (Exception e) {
                     // Malformed value, skip it./gradlew ":server:test" --tests
-                    // "org.elasticsearch.index.mapper.blockloader.HalfFloatFieldBlockLoaderTests.testBlockLoader"
-                    // -Dtests.seed=F720BB3C1E5FC1C0:E76110A0744DB0CB -Dtests.locale=or-IN -Dtests.timezone=America/Miquelon
-                    // -Druntime.java=23
                 }
             }
         };

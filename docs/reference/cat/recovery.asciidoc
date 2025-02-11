@@ -68,6 +68,101 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=detailed]
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=http-format]
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
++
+--
+If you do not specify which columns to include, the API returns the default
+columns in the order listed below. If you explicitly specify one or more
+columns, it only returns the specified columns.
+
+Valid columns are:
+
+`index`, `i`, `idx`::
+(Default) Name of the index.
+
+`shard`, `s`, `sh`::
+(Default) Name of the shard.
+
+`time`, `t`, `ti`, `primaryOrReplica`::
+(Default) Recovery time elasped.
+
+`type`, `ty`::
+(Default) Type of recovery, from a `peer` or a `snapshot`.
+
+`stage`, `st`::
+(Default) Stage of the recovery. 
+Returned values are:
++
+* `INIT`
+* `INDEX` recovery of lucene files, either reusing local ones are copying new ones
+* `VERIFY_INDEX` potentially running check index
+* `TRANSLOG` starting up the engine, replaying the translog
+* `FINALIZE` performing final task after all translog ops have been done
+* `DONE`
+
+`source_host`, `shost`::
+(Default) Host address the index is moving from.
+
+`source_node`, `snode`::
+(Default) Node name the index is moving from.
+
+`target_host`, `thost`::
+(Default) Host address the index is moving to.
+
+`target_node`, `tnode`::
+(Default) Node name the index is moving to.
+
+`repository`, `rep`::
+(Default) Name of the repository being used. if not relevant `n/a`.
+
+`snapshot`, `snap`::
+(Default) Name of the snapshot being used. if not relevant `n/a`.
+                
+`files`, `f`::
+(Default) Total number of files to recover.
+
+`files_recovered`, `fr`::
+(Default) Number of files currently recovered.
+
+`files_percent`, `fp`::
+(Default) Percentage of files currently recovered.
+
+`files_total`, `tf`::
+(Default) Total number of files.
+
+`bytes`, `b`::
+(Default) Total number of bytes to recover.
+
+`bytes_recovered`, `br`::
+(Default) Total number of bytes currently recovered.
+
+`bytes_percent`, `bp`::
+(Default) Percentage of bytes currently recovered.
+
+`bytes_total`, `tb`::
+(Default) Total number of bytes.
+
+`translog_ops`, `to`::
+(Default) Total number of translog ops to recover.
+
+`translog_ops_recovered`, `tor`::
+(Default) Total number of translog ops currently recovered.
+
+`translog_ops_percent`, `top`::
+(Default) Percentage of translog ops currently recovered.
+
+`start_time`, `start`::
+Start time of the recovery operation.
+
+`start_time_millis`, `start_millis`::
+Start time of the recovery operation in eopch milliseconds.
+
+`stop_time`, `stop`::
+End time of the recovery operation. If ongoing `1970-01-01T00:00:00.000Z`
+
+`stop_time_millis`, `stop_millis`::
+End time of the recovery operation in eopch milliseconds. If ongoing `0`
+
+--
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=help]
 

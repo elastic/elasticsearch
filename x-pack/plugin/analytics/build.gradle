@@ -2,6 +2,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 esplugin {
   name = 'x-pack-analytics'
@@ -11,6 +12,10 @@ esplugin {
 }
 base {
   archivesName = 'x-pack-analytics'
+}
+
+tasks.named('javaRestTest') {
+  usesDefaultDistribution()
 }
 
 dependencies {

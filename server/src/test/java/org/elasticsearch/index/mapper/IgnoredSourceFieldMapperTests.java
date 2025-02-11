@@ -2193,6 +2193,34 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             {"outer":{"inner":[{"a.b":"a.b","a.c":"a.c"}]}}""", syntheticSource);
     }
 
+    public void testSingleDeepIgnoredField() throws IOException {
+        DocumentMapper documentMapper = createSytheticSourceMapperService(mapping(b -> {
+            b.startObject("top");
+            b.startObject("properties");
+            {
+                b.startObject("level1").startObject("properties");
+                {
+                    b.startObject("level2").startObject("properties");
+                    {
+                        b.startObject("n")
+                            .field("type", "integer")
+                            .field("doc_values", "false")
+                            .field("synthetic_source_keep", "all")
+                            .endObject();
+                    }
+                    b.endObject().endObject();
+                }
+                b.endObject().endObject();
+            }
+            b.endObject().endObject();
+        })).documentMapper();
+
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startObject("top").startObject("level1").startObject("level2").field("n", 25).endObject().endObject().endObject();
+        });
+        assertEquals("{\"top\":{\"level1\":{\"level2\":{\"n\":25}}}}", syntheticSource);
+    }
+
     protected void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader)
         throws IOException {
         // We exclude ignored source field since in some cases it contains an exact copy of a part of document source.

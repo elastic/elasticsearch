@@ -75,7 +75,7 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     def baseCluster = testClusters.register(baseName) {
       versions = [bwcVersion.toString(), project.version]
       numberOfNodes = 4
-      setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
+      setting 'path.repo', "${layout.buildDirectory.asFile.get()}/cluster/shared/repo/${baseName}"
       setting 'xpack.security.enabled', 'false'
       setting "xpack.license.self_generated.type", "trial"
       /* There is a chance we have more master changes than "normal", so to avoid this test from failing,
@@ -89,50 +89,32 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     tasks.register("${baseName}#mixedClusterTest", StandaloneRestIntegTestTask) {
       useCluster baseCluster
       mustRunAfter("precommit")
-      Provider<TestClustersRegistry> serviceProvider = GradleUtils.getBuildService(
-        project.gradle.sharedServices,
-        TestClustersPlugin.REGISTRY_SERVICE_NAME
-      )
-
-      def baseInfo = project.getProviders().of(TestClusterValueSource.class) {
-        it.parameters.path.set(clusterPath)
-        it.parameters.clusterName.set(baseName)
-        it.parameters.service = serviceProvider
-      }.map { it.getAllHttpSocketURI() }
-
-      def baseInfoAfterOneNodeUpdate = project.getProviders().of(TestClusterValueSource.class) {
-        it.parameters.path.set(clusterPath)
-        it.parameters.clusterName.set(baseName)
-        it.parameters.service = serviceProvider
-      }.map { it.getAllHttpSocketURI() }
-
-      def baseInfoAfterTwoNodesUpdate = project.getProviders().of(TestClusterValueSource.class) {
-        it.parameters.path.set(clusterPath)
-        it.parameters.clusterName.set(baseName)
-        it.parameters.service = serviceProvider
-      }.map { it.getAllHttpSocketURI() }
-      def nonInputProps = nonInputProperties
-      def sharedRepoFolder = new File(buildDir, "cluster/shared/repo/${baseName}")
+      def baseInfo = getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") }
+      def baseInfoAfterOneNodeUpdate = getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") }
+      def baseInfoAfterTwoNodesUpdate = getClusterInfo(baseName).map { it.allHttpSocketURI.join(",") }
+      def sharedRepoFolder = layout.buildDirectory.file("cluster/shared/repo/${baseName}").get().asFile
       doFirst {
         delete(sharedRepoFolder)
         // Getting the endpoints causes a wait for the cluster
         println "Test cluster endpoints are: ${-> baseInfo.get().join(",")}"
         println "Upgrading one node to create a mixed cluster"
-        baseCluster.get().nextNodeToNextVersion()
+        getRegistry().get().nextNodeToNextVersion(baseCluster)
+
         // Getting the endpoints causes a wait for the cluster
-        println "Upgrade complete, endpoints are: ${-> baseInfoAfterOneNodeUpdate.get().join(",")}"
+        println "Upgrade complete, endpoints are: ${-> baseInfoAfterOneNodeUpdate.get()}"
         println "Upgrading another node to create a mixed cluster"
-        baseCluster.get().nextNodeToNextVersion()
-        nonInputProps.systemProperty('tests.rest.cluster', baseInfoAfterTwoNodesUpdate.map(c -> c.join(",")))
-        nonInputProps.systemProperty('tests.clustername', baseName)
-        if (excludeList.isEmpty() == false) {
-          systemProperty 'tests.rest.blacklist', excludeList.join(',')
-        }
+        getRegistry().get().nextNodeToNextVersion(baseCluster)
       }
-      systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
+      if (excludeList.isEmpty() == false) {
+        systemProperty 'tests.rest.blacklist', excludeList.join(',')
+      }
+      nonInputProperties.systemProperty('tests.rest.cluster', baseInfoAfterTwoNodesUpdate)
+      nonInputProperties.systemProperty('tests.clustername', baseName)
+      systemProperty 'tests.path.repo', "${layout.buildDirectory.file("cluster/shared/repo/${baseName}").get().asFile}"
       systemProperty 'tests.bwc_nodes_version', bwcVersion.toString().replace('-SNAPSHOT', '')
       systemProperty 'tests.new_nodes_version', project.version.toString().replace('-SNAPSHOT', '')
-//      onlyIf("BWC tests disabled") { project.bwc_tests_enabled }
+      def bwcEnabled = project.bwc_tests_enabled
+      onlyIf("BWC tests disabled") { bwcEnabled }
     }
 
     tasks.register(bwcTaskName(bwcVersion)) {

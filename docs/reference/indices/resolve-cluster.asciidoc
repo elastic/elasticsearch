@@ -11,7 +11,7 @@ For the most up-to-date API details, refer to {api-es}/group/endpoint-indices[In
 --
 
 Resolves the specified index expressions to return information about
-each cluster, including the local cluster, if included.
+each cluster, including the local "querying" cluster, if included.
 
 This endpoint is useful before doing a <<modules-cross-cluster-search,{ccs}>> in
 order to determine which remote clusters should be included in a search.
@@ -22,12 +22,13 @@ with this endpoint.
 
 For each cluster in the index expression, information is returned about:
 
-1. whether the querying ("local") cluster is currently connected to each remote cluster
-   in the index expression scope
+1. whether the querying ("local") cluster was able to connect to each remote cluster
+   specified in the index expression. Note that this endpoint actively attempts to
+   contact the remote clusters, unlike the <<cluster-remote-info,remote/info>> endpoint.
 2. whether each remote cluster is configured with `skip_unavailable` as `true` or `false`
 3. whether there are any indices, aliases or data streams on that cluster that match
    the index expression
-4. whether the search is likely to have errors returned when you do the {ccs} (including any
+4. whether the search is likely to have errors returned when you do a {ccs} (including any
    authorization errors if your user does not have permission to query a remote cluster or
    the indices on that cluster)
 5. (in some cases) cluster version information, including the Elasticsearch server version
@@ -40,7 +41,6 @@ permissions to access that cluster (or perhaps the remote index) you are queryin
 Once the proper security permissions are obtained, then you can rely on the `connected` field
 in the response to determine whether the remote cluster is available and ready for querying.
 ====
-
 
 ////
 [source,console]
@@ -129,11 +129,25 @@ deprecated:[7.16.0]
 
 [discrete]
 [[usecases-for-resolve-cluster]]
+=== Test availability of remote clusters
+
+The <<cluster-remote-info,remote/info>> endpoint is commonly used to test whether the "local"
+cluster (the cluster being queried) is connected to its remote clusters, but it does not
+necessarily reflect whether the remote cluster is available or not. The remote cluster may
+be available, while the local cluster is not currently connected to it.
+
+You can use the resolve-cluster API to attempt to reconnect to remote clusters
+(for example with `GET _resolve/cluster/*:*`) and
+the `connected` field in the response will indicate whether it was successful or not.
+If a connection was (re-)established, this will also cause the
+<<cluster-remote-info,remote/info>> endpoint to now indicate a connected status.
+
+
 === Advantages of using this endpoint before a {ccs}
 
 You may want to exclude a cluster or index from a search when:
 
-1. A remote cluster is not currently connected and is configured with `skip_unavailable`=`false`.
+1. A remote cluster could not be connected to and is configured with `skip_unavailable`=`false`.
 Executing a {ccs} under those conditions will cause
 <<cross-cluster-search-failures,the entire search to fail>>.
 
@@ -247,14 +261,7 @@ GET /_resolve/cluster/not-present,clust*:my-index*,oldcluster:*?ignore_unavailab
   },
   "cluster_two": {
     "connected": false,           <3>
-    "skip_unavailable": false,
-    "matching_indices": true,
-    "version": {
-      "number": "8.13.0",
-      "build_flavor": "default",
-      "minimum_wire_compatibility_version": "7.17.0",
-      "minimum_index_compatibility_version": "7.0.0"
-    }
+    "skip_unavailable": false
   },
   "oldcluster": {         <4>
     "connected": true,

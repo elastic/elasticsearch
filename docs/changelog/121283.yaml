@@ -1,0 +1,5 @@
+pr: 121283
+summary: Cheaper snapshot-related `toString()` impls
+area: Snapshot/Restore
+type: bug
+issues: []

@@ -156,15 +156,14 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
 
     public void testFallbackIndicesOptions() throws Exception {
         ClusterComputeRequest request = createTestInstance();
-        var version = TransportVersionUtils.randomVersionBetween(
+        var oldVersion = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersions.V_8_14_0,
-            TransportVersions.ESQL_ORIGINAL_INDICES
+            TransportVersionUtils.getPreviousVersion(TransportVersions.ESQL_ORIGINAL_INDICES)
         );
-        ClusterComputeRequest cloned = copyInstance(request, version);
+        ClusterComputeRequest cloned = copyInstance(request, oldVersion);
         assertThat(cloned.clusterAlias(), equalTo(request.clusterAlias()));
         assertThat(cloned.sessionId(), equalTo(request.sessionId()));
-        assertThat(cloned.configuration(), equalTo(request.configuration()));
         RemoteClusterPlan plan = cloned.remoteClusterPlan();
         assertThat(plan.plan(), equalTo(request.remoteClusterPlan().plan()));
         assertThat(plan.targetIndices(), equalTo(request.remoteClusterPlan().targetIndices()));

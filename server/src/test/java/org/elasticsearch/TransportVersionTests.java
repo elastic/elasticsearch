@@ -163,15 +163,15 @@ public class TransportVersionTests extends ESTestCase {
     }
 
     public void testIsPatchFrom() {
-        TransportVersion patchVersion = TransportVersion.fromId(8_800_00_4);
-        assertThat(TransportVersion.fromId(8_799_00_0).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_799_00_9).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_800_00_0).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_800_00_3).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_800_00_4).isPatchFrom(patchVersion), is(true));
-        assertThat(TransportVersion.fromId(8_800_00_9).isPatchFrom(patchVersion), is(true));
-        assertThat(TransportVersion.fromId(8_800_01_0).isPatchFrom(patchVersion), is(false));
-        assertThat(TransportVersion.fromId(8_801_00_0).isPatchFrom(patchVersion), is(false));
+        TransportVersion patchVersion = TransportVersion.fromId(8_800_0_04);
+        assertThat(TransportVersion.fromId(8_799_0_00).isPatchFrom(patchVersion), is(false));
+        assertThat(TransportVersion.fromId(8_799_0_09).isPatchFrom(patchVersion), is(false));
+        assertThat(TransportVersion.fromId(8_800_0_00).isPatchFrom(patchVersion), is(false));
+        assertThat(TransportVersion.fromId(8_800_0_03).isPatchFrom(patchVersion), is(false));
+        assertThat(TransportVersion.fromId(8_800_0_04).isPatchFrom(patchVersion), is(true));
+        assertThat(TransportVersion.fromId(8_800_0_49).isPatchFrom(patchVersion), is(true));
+        assertThat(TransportVersion.fromId(8_800_1_00).isPatchFrom(patchVersion), is(false));
+        assertThat(TransportVersion.fromId(8_801_0_00).isPatchFrom(patchVersion), is(false));
     }
 
     public void testVersionConstantPresent() {
@@ -187,6 +187,19 @@ public class TransportVersionTests extends ESTestCase {
 
     public void testCURRENTIsLatest() {
         assertThat(Collections.max(TransportVersions.getAllVersions()), is(TransportVersion.current()));
+    }
+
+    public void testPatchVersionsStillAvailable() {
+        for (TransportVersion tv : TransportVersionUtils.allReleasedVersions()) {
+            if (tv.onOrAfter(TransportVersions.V_8_9_X) && (tv.id() % 100) > 90) {
+                fail(
+                    "Transport version "
+                        + tv
+                        + " is nearing the limit of available patch numbers."
+                        + " Please inform the Core/Infra team that isPatchFrom may need to be modified"
+                );
+            }
+        }
     }
 
     public void testToReleaseVersion() {

@@ -235,6 +235,11 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return putRequest(endpoint, modelConfig);
     }
 
+    static Map<String, Object> updateEndpoint(String inferenceID, String modelConfig) throws IOException {
+        String endpoint = Strings.format("_inference/%s/_update", inferenceID);
+        return putRequest(endpoint, modelConfig);
+    }
+
     protected Map<String, Object> putPipeline(String pipelineId, String modelId) throws IOException {
         String endpoint = Strings.format("_ingest/pipeline/%s", pipelineId);
         String body = """
@@ -266,7 +271,7 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return putRequest(endpoint, modelConfig);
     }
 
-    Map<String, Object> putRequest(String endpoint, String body) throws IOException {
+    static Map<String, Object> putRequest(String endpoint, String body) throws IOException {
         var request = new Request("PUT", endpoint);
         request.setJsonEntity(body);
         var response = client().performRequest(request);

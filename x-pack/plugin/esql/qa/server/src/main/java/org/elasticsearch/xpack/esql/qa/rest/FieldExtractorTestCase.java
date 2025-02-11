@@ -28,6 +28,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
@@ -1104,6 +1105,323 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
                 "Cannot use field [foo.emp_no] due to ambiguities being "
                     + "mapped as [2] incompatible types: [integer] in [test1], [keyword] in [test2]"
             )
+        );
+    }
+
+    /**
+     * Test for https://github.com/elastic/elasticsearch/issues/117054 fix
+     */
+    public void testOneNestedSubField_AndSameNameSupportedField() throws IOException {
+        assumeIndexResolverNestedFieldsNameClashFixed();
+        ESRestTestCase.createIndex("test", Settings.EMPTY, """
+            "properties": {
+              "Responses": {
+                "properties": {
+                  "process": {
+                    "type": "nested",
+                    "properties": {
+                      "pid": {
+                        "type": "long"
+                      }
+                    }
+                  }
+                }
+              },
+              "process": {
+                "properties": {
+                  "parent": {
+                    "properties": {
+                      "command_line": {
+                        "type": "wildcard",
+                        "fields": {
+                          "text": {
+                            "type": "text"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+
+        Map<String, Object> result = runEsql("FROM test");
+        assertMap(
+            result,
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("process.parent.command_line", "keyword"), columnInfo("process.parent.command_line.text", "text"))
+            ).entry("values", Collections.EMPTY_LIST)
+        );
+
+        index("test", """
+            {"Responses.process.pid": 123,"process.parent.command_line":"run.bat"}""");
+
+        result = runEsql("FROM test");
+        assertMap(
+            result,
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("process.parent.command_line", "keyword"), columnInfo("process.parent.command_line.text", "text"))
+            ).entry("values", List.of(matchesList().item("run.bat").item("run.bat")))
+        );
+
+        result = runEsql("""
+            FROM test | where process.parent.command_line == "run.bat"
+            """);
+        assertMap(
+            result,
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("process.parent.command_line", "keyword"), columnInfo("process.parent.command_line.text", "text"))
+            ).entry("values", List.of(matchesList().item("run.bat").item("run.bat")))
+        );
+
+        ResponseException e = expectThrows(ResponseException.class, () -> runEsql("FROM test | SORT Responses.process.pid"));
+        String err = EntityUtils.toString(e.getResponse().getEntity());
+        assertThat(err, containsString("line 1:18: Unknown column [Responses.process.pid]"));
+
+        e = expectThrows(ResponseException.class, () -> runEsql("""
+            FROM test
+            | SORT Responses.process.pid
+            | WHERE Responses.process IS NULL
+            """));
+        err = EntityUtils.toString(e.getResponse().getEntity());
+        assertThat(err, containsString("line 2:8: Unknown column [Responses.process.pid]"));
+    }
+
+    public void testOneNestedSubField_AndSameNameSupportedField_TwoIndices() throws IOException {
+        assumeIndexResolverNestedFieldsNameClashFixed();
+        ESRestTestCase.createIndex("test1", Settings.EMPTY, """
+                  "properties": {
+                    "Responses": {
+                      "properties": {
+                        "process": {
+                          "type": "nested",
+                          "properties": {
+                            "pid": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+            """);
+        ESRestTestCase.createIndex("test2", Settings.EMPTY, """
+                  "properties": {
+                    "process": {
+                      "properties": {
+                        "parent": {
+                          "properties": {
+                            "command_line": {
+                              "type": "wildcard",
+                              "fields": {
+                                "text": {
+                                  "type": "text"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+            """);
+        index("test1", """
+            {"Responses.process.pid": 123}""");
+        index("test2", """
+            {"process.parent.command_line":"run.bat"}""");
+
+        Map<String, Object> result = runEsql("FROM test* | SORT process.parent.command_line ASC NULLS FIRST");
+        assertMap(
+            result,
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("process.parent.command_line", "keyword"), columnInfo("process.parent.command_line.text", "text"))
+            ).entry("values", List.of(matchesList().item(null).item(null), matchesList().item("run.bat").item("run.bat")))
+        );
+
+        result = runEsql("""
+            FROM test* | where process.parent.command_line == "run.bat"
+            """);
+        assertMap(
+            result,
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("process.parent.command_line", "keyword"), columnInfo("process.parent.command_line.text", "text"))
+            ).entry("values", List.of(matchesList().item("run.bat").item("run.bat")))
+        );
+
+        ResponseException e = expectThrows(ResponseException.class, () -> runEsql("FROM test* | SORT Responses.process.pid"));
+        String err = EntityUtils.toString(e.getResponse().getEntity());
+        assertThat(err, containsString("line 1:19: Unknown column [Responses.process.pid]"));
+
+        e = expectThrows(ResponseException.class, () -> runEsql("""
+            FROM test*
+            | SORT Responses.process.pid
+            | WHERE Responses.process IS NULL
+            """));
+        err = EntityUtils.toString(e.getResponse().getEntity());
+        assertThat(err, containsString("line 2:8: Unknown column [Responses.process.pid]"));
+    }
+
+    public void testOneNestedField_AndSameNameSupportedField_TwoIndices() throws IOException {
+        assumeIndexResolverNestedFieldsNameClashFixed();
+        ESRestTestCase.createIndex("test1", Settings.EMPTY, """
+            "properties": {
+              "Responses": {
+                "properties": {
+                  "process": {
+                    "type": "nested",
+                    "properties": {
+                      "pid": {
+                        "type": "long"
+                      }
+                    }
+                  }
+                }
+              },
+              "process": {
+                "properties": {
+                  "parent": {
+                    "properties": {
+                      "command_line": {
+                        "type": "wildcard",
+                        "fields": {
+                          "text": {
+                            "type": "text"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        ESRestTestCase.createIndex("test2", Settings.EMPTY, """
+            "properties": {
+              "Responses": {
+                "properties": {
+                  "process": {
+                    "type": "integer",
+                    "fields": {
+                      "pid": {
+                        "type": "long"
+                      }
+                    }
+                  }
+                }
+              },
+              "process": {
+                "properties": {
+                  "parent": {
+                    "properties": {
+                      "command_line": {
+                        "type": "wildcard",
+                        "fields": {
+                          "text": {
+                            "type": "text"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        index("test1", """
+            {"Responses.process.pid": 111,"process.parent.command_line":"run1.bat"}""");
+        index("test2", """
+            {"Responses.process": 222,"process.parent.command_line":"run2.bat"}""");
+
+        Map<String, Object> result = runEsql("FROM test* | SORT process.parent.command_line");
+        assertMap(
+            result,
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(
+                    columnInfo("Responses.process", "integer"),
+                    columnInfo("Responses.process.pid", "long"),
+                    columnInfo("process.parent.command_line", "keyword"),
+                    columnInfo("process.parent.command_line.text", "text")
+                )
+            )
+                .entry(
+                    "values",
+                    List.of(
+                        matchesList().item(null).item(null).item("run1.bat").item("run1.bat"),
+                        matchesList().item(222).item(222).item("run2.bat").item("run2.bat")
+                    )
+                )
+        );
+
+        result = runEsql("""
+            FROM test* | where Responses.process.pid == 111
+            """);
+        assertMap(
+            result,
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(
+                    columnInfo("Responses.process", "integer"),
+                    columnInfo("Responses.process.pid", "long"),
+                    columnInfo("process.parent.command_line", "keyword"),
+                    columnInfo("process.parent.command_line.text", "text")
+                )
+            ).entry("values", List.of())
+        );
+
+        result = runEsql("FROM test* | SORT process.parent.command_line");
+        assertMap(
+            result,
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(
+                    columnInfo("Responses.process", "integer"),
+                    columnInfo("Responses.process.pid", "long"),
+                    columnInfo("process.parent.command_line", "keyword"),
+                    columnInfo("process.parent.command_line.text", "text")
+                )
+            )
+                .entry(
+                    "values",
+                    List.of(
+                        matchesList().item(null).item(null).item("run1.bat").item("run1.bat"),
+                        matchesList().item(222).item(222).item("run2.bat").item("run2.bat")
+                    )
+                )
+        );
+
+        result = runEsql("""
+            FROM test*
+            | SORT process.parent.command_line
+            | WHERE Responses.process IS NULL
+            """);
+        assertMap(
+            result,
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(
+                    columnInfo("Responses.process", "integer"),
+                    columnInfo("Responses.process.pid", "long"),
+                    columnInfo("process.parent.command_line", "keyword"),
+                    columnInfo("process.parent.command_line.text", "text")
+                )
+            ).entry("values", List.of(matchesList().item(null).item(null).item("run1.bat").item("run1.bat")))
+        );
+    }
+
+    private void assumeIndexResolverNestedFieldsNameClashFixed() throws IOException {
+        // especially for BWC tests but also for regular tests
+        var capsName = EsqlCapabilities.Cap.FIX_NESTED_FIELDS_NAME_CLASH_IN_INDEXRESOLVER.name().toLowerCase(Locale.ROOT);
+        boolean requiredClusterCapability = clusterHasCapability("POST", "/_query", List.of(), List.of(capsName)).orElse(false);
+        assumeTrue(
+            "This test makes sense for versions that have the fix for https://github.com/elastic/elasticsearch/issues/117054",
+            requiredClusterCapability
         );
     }
 

@@ -90,7 +90,6 @@ public interface IndexEventListener {
      * Invoked before a shard performs a mutable operation. Mutable operations include, but are not limited to:
      * <ul>
      *     <li>Indexing operations</li>
-     *     <li>Document updates</li>
      *     <li>Force merges</li>
      * </ul>
      *

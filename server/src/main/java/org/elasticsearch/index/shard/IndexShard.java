@@ -4515,6 +4515,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void ensureMutable(ActionListener<Void> listener) {
         indexEventListener.beforeIndexShardMutableOperation(this, listener.delegateFailure((l, unused) -> {
             // TODO: Acquire ref to engine and retry if it's immutable again?
+            l.onResponse(null);
         }));
     }
 }

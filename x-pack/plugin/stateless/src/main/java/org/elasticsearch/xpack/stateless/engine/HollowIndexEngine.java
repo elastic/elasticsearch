@@ -48,7 +48,8 @@ public class HollowIndexEngine extends ReadOnlyEngine {
     private final HollowShardsService hollowShardsService;
 
     public HollowIndexEngine(EngineConfig config, StatelessCommitService statelessCommitService, HollowShardsService hollowShardsService) {
-        super(config, null, new TranslogStats(), true, Function.identity(), true, true);
+        // no index writer lock allows opening an HollowIndexEngine on top of an IndexEngine
+        super(config, null, new TranslogStats(), false, Function.identity(), true, true);
         this.statelessCommitService = statelessCommitService;
         this.hollowShardsService = hollowShardsService;
     }

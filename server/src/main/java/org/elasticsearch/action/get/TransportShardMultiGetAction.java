@@ -233,7 +233,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                     public void onTimeout(TimeValue timeout) {
                         if (cause instanceof AlreadyClosedException) {
                             // Do an additional retry just in case AlreadyClosedException didn't generate a cluster update
-                            shardMultiGetFromTranslog(request, indexShard, state, observer, l);
+                            tryShardMultiGetFromTranslog(request, indexShard, node, l);
                         } else {
                             l.onFailure(new ElasticsearchException("Timed out retrying mget_from_translog[shard]", cause));
                         }

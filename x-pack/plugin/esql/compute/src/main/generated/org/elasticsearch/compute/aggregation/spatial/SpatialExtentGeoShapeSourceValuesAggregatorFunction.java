@@ -23,7 +23,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunction} implementation for {@link SpatialExtentGeoShapeAggregator}.
+ * {@link AggregatorFunction} implementation for {@link SpatialExtentGeoShapeSourceValuesAggregator}.
  * This class is generated. Edit {@code AggregatorImplementer} instead.
  */
 public final class SpatialExtentGeoShapeSourceValuesAggregatorFunction implements AggregatorFunction {

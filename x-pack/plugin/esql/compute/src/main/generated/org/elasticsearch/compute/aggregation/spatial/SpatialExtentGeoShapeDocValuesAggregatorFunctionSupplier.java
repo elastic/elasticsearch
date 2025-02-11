@@ -12,7 +12,7 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunctionSupplier} implementation for {@link SpatialExtentGeoShapeAggregator}.
+ * {@link AggregatorFunctionSupplier} implementation for {@link SpatialExtentGeoShapeDocValuesAggregator}.
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class SpatialExtentGeoShapeDocValuesAggregatorFunctionSupplier implements AggregatorFunctionSupplier {

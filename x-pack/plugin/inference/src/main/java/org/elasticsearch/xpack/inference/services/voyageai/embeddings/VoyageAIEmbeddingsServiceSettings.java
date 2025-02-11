@@ -39,7 +39,11 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsTy
 public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject implements ServiceSettings {
     public static final String NAME = "voyageai_embeddings_service_settings";
     public static final VoyageAIEmbeddingsServiceSettings EMPTY_SETTINGS = new VoyageAIEmbeddingsServiceSettings(
-            null, null, null, null, null
+        null,
+        null,
+        null,
+        null,
+        null
     );
 
     public static final String EMBEDDING_TYPE = "embedding_type";

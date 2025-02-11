@@ -156,9 +156,15 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractWireSerializ
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
-        assertThat(xContentResult, is("""
-            {"url":"url","model_id":"model",""" + """
-            "rate_limit":{"requests_per_minute":3},"similarity":"cosine","dimensions":5,"max_input_tokens":10,"embedding_type":"float"}"""));
+        assertThat(
+            xContentResult,
+            is(
+                """
+                    {"url":"url","model_id":"model","""
+                    + """
+                        "rate_limit":{"requests_per_minute":3},"similarity":"cosine","dimensions":5,"max_input_tokens":10,"embedding_type":"float"}"""
+            )
+        );
     }
 
     @Override

@@ -1138,13 +1138,20 @@ public class VoyageAIServiceTests extends ESTestCase {
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
             MatcherAssert.assertThat(
                 requestMap,
-                is(Map.of(
-                    "input", List.of("abc"),
-                    "model", "voyage-clip-v2",
-                    "input_type", "document",
-                    "output_dtype", "float",
-                    "output_dimension", 1024
-                ))
+                is(
+                    Map.of(
+                        "input",
+                        List.of("abc"),
+                        "model",
+                        "voyage-clip-v2",
+                        "input_type",
+                        "document",
+                        "output_dtype",
+                        "float",
+                        "output_dimension",
+                        1024
+                    )
+                )
             );
         }
     }
@@ -1210,13 +1217,23 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
-            MatcherAssert.assertThat(requestMap, is(Map.of(
-                "input", List.of("abc"),
-                "model", "voyage-clip-v2",
-                "input_type", "query",
-                "output_dtype", "float",
-                "output_dimension", 1024
-            )));
+            MatcherAssert.assertThat(
+                requestMap,
+                is(
+                    Map.of(
+                        "input",
+                        List.of("abc"),
+                        "model",
+                        "voyage-clip-v2",
+                        "input_type",
+                        "query",
+                        "output_dtype",
+                        "float",
+                        "output_dimension",
+                        1024
+                    )
+                )
+            );
         }
     }
 
@@ -1265,12 +1282,10 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
-            MatcherAssert.assertThat(requestMap, is(Map.of(
-                "input", List.of("abc"),
-                "model", "voyage-clip-v2",
-                "output_dtype", "float",
-                "output_dimension", 1024
-            )));
+            MatcherAssert.assertThat(
+                requestMap,
+                is(Map.of("input", List.of("abc"), "model", "voyage-clip-v2", "output_dtype", "float", "output_dimension", 1024))
+            );
         }
     }
 
@@ -1326,12 +1341,10 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
-            MatcherAssert.assertThat(requestMap, is(Map.of(
-                "input", List.of("abc"),
-                "model", "voyage-clip-v2",
-                "output_dtype", "float",
-                "output_dimension", 1024
-            )));
+            MatcherAssert.assertThat(
+                requestMap,
+                is(Map.of("input", List.of("abc"), "model", "voyage-clip-v2", "output_dtype", "float", "output_dimension", 1024))
+            );
         }
     }
 
@@ -1579,11 +1592,7 @@ public class VoyageAIServiceTests extends ESTestCase {
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
             MatcherAssert.assertThat(
                 requestMap,
-                is(Map.of(
-                    "query", "query",
-                    "documents", List.of("candidate1", "candidate2", "candidate3"),
-                    "model", "model"
-                ))
+                is(Map.of("query", "query", "documents", List.of("candidate1", "candidate2", "candidate3"), "model", "model"))
             );
 
         }
@@ -1741,13 +1750,23 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
-            MatcherAssert.assertThat(requestMap, is(Map.of(
-                "input", List.of("abc"),
-                "model", "voyage-clip-v2",
-                "input_type", "document",
-                "output_dtype", "float",
-                "output_dimension", 1024
-            )));
+            MatcherAssert.assertThat(
+                requestMap,
+                is(
+                    Map.of(
+                        "input",
+                        List.of("abc"),
+                        "model",
+                        "voyage-clip-v2",
+                        "input_type",
+                        "document",
+                        "output_dtype",
+                        "float",
+                        "output_dimension",
+                        1024
+                    )
+                )
+            );
         }
     }
 
@@ -1853,12 +1872,10 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
 
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
-            MatcherAssert.assertThat(requestMap, is(Map.of(
-                "input", List.of("foo", "bar"),
-                "model", "voyage-clip-v2",
-                "output_dtype", "float",
-                "output_dimension", 1024
-            )));
+            MatcherAssert.assertThat(
+                requestMap,
+                is(Map.of("input", List.of("foo", "bar"), "model", "voyage-clip-v2", "output_dtype", "float", "output_dimension", 1024))
+            );
         }
     }
 
@@ -1869,35 +1886,33 @@ public class VoyageAIServiceTests extends ESTestCase {
     @SuppressWarnings("checkstyle:LineLength")
     public void testGetConfiguration() throws Exception {
         try (var service = createVoyageAIService()) {
-            String content = XContentHelper.stripWhitespace(
-                """
-                    {
-                            "service": "voyageai",
-                            "name": "Voyage AI",
-                            "task_types": ["text_embedding", "rerank"],
-                            "configurations": {
-                                "api_key": {
-                                    "description": "API Key for the provider you're connecting to.",
-                                    "label": "API Key",
-                                    "required": true,
-                                    "sensitive": true,
-                                    "updatable": true,
-                                    "type": "str",
-                                    "supported_task_types": ["text_embedding", "rerank"]
-                                },
-                                "rate_limit.requests_per_minute": {
-                                    "description": "Minimize the number of rate limit errors.",
-                                    "label": "Rate Limit",
-                                    "required": false,
-                                    "sensitive": false,
-                                    "updatable": false,
-                                    "type": "int",
-                                    "supported_task_types": ["text_embedding", "rerank"]
-                                }
+            String content = XContentHelper.stripWhitespace("""
+                {
+                        "service": "voyageai",
+                        "name": "Voyage AI",
+                        "task_types": ["text_embedding", "rerank"],
+                        "configurations": {
+                            "api_key": {
+                                "description": "API Key for the provider you're connecting to.",
+                                "label": "API Key",
+                                "required": true,
+                                "sensitive": true,
+                                "updatable": true,
+                                "type": "str",
+                                "supported_task_types": ["text_embedding", "rerank"]
+                            },
+                            "rate_limit.requests_per_minute": {
+                                "description": "Minimize the number of rate limit errors.",
+                                "label": "Rate Limit",
+                                "required": false,
+                                "sensitive": false,
+                                "updatable": false,
+                                "type": "int",
+                                "supported_task_types": ["text_embedding", "rerank"]
                             }
                         }
-                    """
-            );
+                    }
+                """);
             InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
                 new BytesArray(content),
                 XContentType.JSON

@@ -85,8 +85,8 @@ public class VoyageAIRerankTaskSettingsTests extends AbstractWireSerializingTest
         var thrownException = expectThrows(ValidationException.class, () -> VoyageAIRerankTaskSettings.fromMap(new HashMap<>(taskMap)));
         assertThat(
             thrownException.getMessage(),
-            containsString("field [top_k] is not of the expected type. The value [invalid] cannot be converted to a [Integer];"
-            ));
+            containsString("field [top_k] is not of the expected type. The value [invalid] cannot be converted to a [Integer];")
+        );
     }
 
     public void testUpdatedTaskSettings_WithEmptyMap_ReturnsSameSettings() {

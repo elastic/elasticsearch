@@ -4325,7 +4325,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
             onSettingsChanged();
         } catch (Exception e) {
-            assert false : e;
+            // we want to fail the shard in the case prepareForEngineReset throws
             failShard("unable to reset engine", e);
         }
     }

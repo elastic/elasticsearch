@@ -79,6 +79,7 @@ import org.mockito.Mockito;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -109,6 +110,7 @@ import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class ElasticsearchInternalServiceTests extends ESTestCase {
@@ -359,7 +361,9 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 )
             );
 
-            var elserServiceSettings = new ElserInternalServiceSettings(1, 4, ElserModels.ELSER_V2_MODEL, null);
+            var elserServiceSettings = new ElserInternalServiceSettings(
+                new ElasticsearchInternalServiceSettings(1, 4, ElserModels.ELSER_V2_MODEL, null, null)
+            );
 
             service.parseRequestConfig(
                 randomInferenceEntityId,
@@ -389,7 +393,9 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 )
             );
 
-            var elserServiceSettings = new ElserInternalServiceSettings(1, 4, ElserModels.ELSER_V2_MODEL, null);
+            var elserServiceSettings = new ElserInternalServiceSettings(
+                new ElasticsearchInternalServiceSettings(1, 4, ElserModels.ELSER_V2_MODEL, null, null)
+            );
 
             String criticalWarning =
                 "Putting elasticsearch service inference endpoints (including elser service) without a model_id field is"
@@ -458,7 +464,9 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             );
             config.put(ModelConfigurations.CHUNKING_SETTINGS, createRandomChunkingSettingsMap());
 
-            var elserServiceSettings = new ElserInternalServiceSettings(1, 4, ElserModels.ELSER_V2_MODEL, null);
+            var elserServiceSettings = new ElserInternalServiceSettings(
+                new ElasticsearchInternalServiceSettings(1, 4, ElserModels.ELSER_V2_MODEL, null, null)
+            );
 
             service.parseRequestConfig(
                 randomInferenceEntityId,
@@ -494,7 +502,9 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 )
             );
 
-            var elserServiceSettings = new ElserInternalServiceSettings(1, 4, ElserModels.ELSER_V2_MODEL, null);
+            var elserServiceSettings = new ElserInternalServiceSettings(
+                new ElasticsearchInternalServiceSettings(1, 4, ElserModels.ELSER_V2_MODEL, null, null)
+            );
 
             service.parseRequestConfig(
                 randomInferenceEntityId,
@@ -750,7 +760,16 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 TaskType.TEXT_EMBEDDING,
                 settings
             );
-            var elandServiceSettings = new CustomElandInternalTextEmbeddingServiceSettings(1, 4, "invalid", null);
+            var elandServiceSettings = new CustomElandInternalTextEmbeddingServiceSettings(
+                1,
+                4,
+                "invalid",
+                null,
+                null,
+                null,
+                SimilarityMeasure.COSINE,
+                DenseVectorFieldMapper.ElementType.FLOAT
+            );
             assertEquals(
                 new CustomElandEmbeddingModel(
                     randomInferenceEntityId,
@@ -941,7 +960,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             "foo",
             TaskType.SPARSE_EMBEDDING,
             "elasticsearch",
-            new ElasticsearchInternalServiceSettings(1, 1, "model-id", null),
+            new ElasticsearchInternalServiceSettings(1, 1, "model-id", null, null),
             chunkingSettings
         );
         var service = createService(client);
@@ -1011,7 +1030,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             "foo",
             TaskType.SPARSE_EMBEDDING,
             "elasticsearch",
-            new ElserInternalServiceSettings(1, 1, "model-id", null),
+            new ElserInternalServiceSettings(new ElasticsearchInternalServiceSettings(1, 1, "model-id", null, null)),
             new ElserMlNodeTaskSettings(),
             chunkingSettings
         );
@@ -1336,11 +1355,20 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 randomInferenceEntityId,
                 taskType,
                 ElasticsearchInternalService.NAME,
-                new CustomElandInternalServiceSettings(1, 4, "custom-model", null),
+                new CustomElandInternalServiceSettings(new ElasticsearchInternalServiceSettings(1, 4, "custom-model", null, null)),
                 RerankTaskSettings.DEFAULT_SETTINGS
             );
         } else if (taskType == TaskType.TEXT_EMBEDDING) {
-            var serviceSettings = new CustomElandInternalTextEmbeddingServiceSettings(1, 4, "custom-model", null);
+            var serviceSettings = new CustomElandInternalTextEmbeddingServiceSettings(
+                1,
+                4,
+                "custom-model",
+                null,
+                null,
+                null,
+                SimilarityMeasure.COSINE,
+                DenseVectorFieldMapper.ElementType.FLOAT
+            );
 
             expectedModel = new CustomElandEmbeddingModel(
                 randomInferenceEntityId,
@@ -1354,7 +1382,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 randomInferenceEntityId,
                 taskType,
                 ElasticsearchInternalService.NAME,
-                new CustomElandInternalServiceSettings(1, 4, "custom-model", null),
+                new CustomElandInternalServiceSettings(new ElasticsearchInternalServiceSettings(1, 4, "custom-model", null, null)),
                 (ChunkingSettings) null
             );
         }
@@ -1446,6 +1474,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             4,
             "custom-model",
             null,
+            null,
             1,
             SimilarityMeasure.COSINE,
             DenseVectorFieldMapper.ElementType.FLOAT
@@ -1469,6 +1498,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                     1,
                     4,
                     "custom-model",
+                    null,
                     null,
                     null,
                     SimilarityMeasure.COSINE,
@@ -1519,7 +1549,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             EmbeddingRequestChunker.EmbeddingType.SPARSE,
             ElasticsearchInternalService.embeddingTypeFromTaskTypeAndSettings(
                 TaskType.SPARSE_EMBEDDING,
-                new ElasticsearchInternalServiceSettings(1, 1, "foo", null)
+                new ElasticsearchInternalServiceSettings(1, 1, "foo", null, null)
             )
         );
         assertEquals(
@@ -1534,7 +1564,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             ElasticsearchStatusException.class,
             () -> ElasticsearchInternalService.embeddingTypeFromTaskTypeAndSettings(
                 TaskType.COMPLETION,
-                new ElasticsearchInternalServiceSettings(1, 1, "foo", null)
+                new ElasticsearchInternalServiceSettings(1, 1, "foo", null, null)
             )
         );
         assertThat(e1.getMessage(), containsString("Chunking is not supported for task type [completion]"));
@@ -1543,7 +1573,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             ElasticsearchStatusException.class,
             () -> ElasticsearchInternalService.embeddingTypeFromTaskTypeAndSettings(
                 TaskType.RERANK,
-                new ElasticsearchInternalServiceSettings(1, 1, "foo", null)
+                new ElasticsearchInternalServiceSettings(1, 1, "foo", null, null)
             )
         );
         assertThat(e2.getMessage(), containsString("Chunking is not supported for task type [rerank]"));
@@ -1609,6 +1639,148 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 toXContent(serviceConfiguration, XContentType.JSON, humanReadable),
                 XContentType.JSON
             );
+        }
+    }
+
+    public void testUpdateModelsWithDynamicFields_NoModelsToUpdate() throws Exception {
+        ActionListener<List<Model>> resultsListener = ActionListener.<List<Model>>wrap(
+            updatedModels -> assertEquals(Collections.emptyList(), updatedModels),
+            e -> fail("Unexpected exception: " + e)
+        );
+
+        try (var service = createService(mock(Client.class))) {
+            service.updateModelsWithDynamicFields(List.of(), resultsListener);
+        }
+    }
+
+    public void testUpdateModelsWithDynamicFields_InvalidModelProvided() throws IOException {
+        ActionListener<List<Model>> resultsListener = ActionListener.wrap(
+            updatedModels -> fail("Expected invalid model assertion error to be thrown"),
+            e -> fail("Expected invalid model assertion error to be thrown")
+        );
+
+        try (var service = createService(mock(Client.class))) {
+            assertThrows(
+                AssertionError.class,
+                () -> { service.updateModelsWithDynamicFields(List.of(mock(Model.class)), resultsListener); }
+            );
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testUpdateModelsWithDynamicFields_FailsToRetrieveDeployments() throws IOException {
+        var deploymentId = randomAlphaOfLength(10);
+        var model = mock(ElasticsearchInternalModel.class);
+        when(model.mlNodeDeploymentId()).thenReturn(deploymentId);
+        when(model.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
+
+        ActionListener<List<Model>> resultsListener = ActionListener.wrap(updatedModels -> {
+            assertEquals(updatedModels.size(), 1);
+            verify(model).mlNodeDeploymentId();
+            verifyNoMoreInteractions(model);
+        }, e -> fail("Expected original models to be returned"));
+
+        var client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        doAnswer(invocation -> {
+            var listener = (ActionListener<GetDeploymentStatsAction.Response>) invocation.getArguments()[2];
+            listener.onFailure(new RuntimeException(randomAlphaOfLength(10)));
+            return null;
+        }).when(client).execute(eq(GetDeploymentStatsAction.INSTANCE), any(), any());
+
+        try (var service = createService(client)) {
+            service.updateModelsWithDynamicFields(List.of(model), resultsListener);
+        }
+    }
+
+    public void testUpdateModelsWithDynamicFields_SingleModelToUpdate() throws IOException {
+        var deploymentId = randomAlphaOfLength(10);
+        var model = mock(ElasticsearchInternalModel.class);
+        when(model.mlNodeDeploymentId()).thenReturn(deploymentId);
+        when(model.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
+
+        var modelsByDeploymentId = new HashMap<String, List<Model>>();
+        modelsByDeploymentId.put(deploymentId, List.of(model));
+
+        testUpdateModelsWithDynamicFields(modelsByDeploymentId);
+    }
+
+    public void testUpdateModelsWithDynamicFields_MultipleModelsWithDifferentDeploymentsToUpdate() throws IOException {
+        var deploymentId1 = randomAlphaOfLength(10);
+        var model1 = mock(ElasticsearchInternalModel.class);
+        when(model1.mlNodeDeploymentId()).thenReturn(deploymentId1);
+        when(model1.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
+        var deploymentId2 = randomAlphaOfLength(10);
+        var model2 = mock(ElasticsearchInternalModel.class);
+        when(model2.mlNodeDeploymentId()).thenReturn(deploymentId2);
+        when(model2.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
+
+        var modelsByDeploymentId = new HashMap<String, List<Model>>();
+        modelsByDeploymentId.put(deploymentId1, List.of(model1));
+        modelsByDeploymentId.put(deploymentId2, List.of(model2));
+
+        testUpdateModelsWithDynamicFields(modelsByDeploymentId);
+    }
+
+    public void testUpdateModelsWithDynamicFields_MultipleModelsWithSameDeploymentsToUpdate() throws IOException {
+        var deploymentId = randomAlphaOfLength(10);
+        var model1 = mock(ElasticsearchInternalModel.class);
+        when(model1.mlNodeDeploymentId()).thenReturn(deploymentId);
+        when(model1.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
+        var model2 = mock(ElasticsearchInternalModel.class);
+        when(model2.mlNodeDeploymentId()).thenReturn(deploymentId);
+        when(model2.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
+
+        var modelsByDeploymentId = new HashMap<String, List<Model>>();
+        modelsByDeploymentId.put(deploymentId, List.of(model1, model2));
+
+        testUpdateModelsWithDynamicFields(modelsByDeploymentId);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void testUpdateModelsWithDynamicFields(Map<String, List<Model>> modelsByDeploymentId) throws IOException {
+        var modelsToUpdate = new ArrayList<Model>();
+        modelsByDeploymentId.values().forEach(modelsToUpdate::addAll);
+
+        var updatedNumberOfAllocations = new HashMap<String, Integer>();
+        modelsByDeploymentId.keySet().forEach(deploymentId -> updatedNumberOfAllocations.put(deploymentId, randomIntBetween(1, 10)));
+
+        ActionListener<List<Model>> resultsListener = ActionListener.wrap(updatedModels -> {
+            assertEquals(updatedModels.size(), modelsToUpdate.size());
+            modelsByDeploymentId.forEach((deploymentId, models) -> {
+                var expectedNumberOfAllocations = updatedNumberOfAllocations.get(deploymentId);
+                models.forEach(model -> {
+                    verify((ElasticsearchInternalModel) model).updateNumAllocations(expectedNumberOfAllocations);
+                    verify((ElasticsearchInternalModel) model).mlNodeDeploymentId();
+                    verifyNoMoreInteractions(model);
+                });
+            });
+        }, e -> fail("Unexpected exception: " + e));
+
+        var client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        doAnswer(invocation -> {
+            var listener = (ActionListener<GetDeploymentStatsAction.Response>) invocation.getArguments()[2];
+            var mockAssignmentStats = new ArrayList<AssignmentStats>();
+            modelsByDeploymentId.keySet().forEach(deploymentId -> {
+                var mockAssignmentStatsForDeploymentId = mock(AssignmentStats.class);
+                when(mockAssignmentStatsForDeploymentId.getDeploymentId()).thenReturn(deploymentId);
+                when(mockAssignmentStatsForDeploymentId.getNumberOfAllocations()).thenReturn(updatedNumberOfAllocations.get(deploymentId));
+                mockAssignmentStats.add(mockAssignmentStatsForDeploymentId);
+            });
+            listener.onResponse(
+                new GetDeploymentStatsAction.Response(
+                    Collections.emptyList(),
+                    Collections.emptyList(),
+                    mockAssignmentStats,
+                    mockAssignmentStats.size()
+                )
+            );
+            return null;
+        }).when(client).execute(eq(GetDeploymentStatsAction.INSTANCE), any(), any());
+
+        try (var service = createService(client)) {
+            service.updateModelsWithDynamicFields(modelsToUpdate, resultsListener);
         }
     }
 

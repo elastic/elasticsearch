@@ -55,6 +55,7 @@ processingCommand
     // in development
     | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
+    | {this.isDevVersion()}? changePointCommand
     ;
 
 whereCommand
@@ -143,6 +144,7 @@ indexPattern
 
 clusterString
     : UNQUOTED_SOURCE
+    | QUOTED_STRING
     ;
 
 indexString
@@ -193,7 +195,7 @@ identifier
 
 identifierPattern
     : ID_PATTERN
-    | {this.isDevVersion()}? parameter
+    | parameter
     ;
 
 constant
@@ -216,7 +218,7 @@ parameter
 
 identifierOrParameter
     : identifier
-    | {this.isDevVersion()}? parameter
+    | parameter
     ;
 
 limitCommand
@@ -337,4 +339,8 @@ joinCondition
 
 joinPredicate
     : valueExpression
+    ;
+
+changePointCommand
+    : DEV_CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)?
     ;

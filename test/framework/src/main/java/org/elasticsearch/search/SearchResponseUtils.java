@@ -83,7 +83,7 @@ public enum SearchResponseUtils {
     }
 
     public static SearchResponse success(SearchHits hits) {
-        return builder(hits).searchHits(hits).numReducePhases(1).shards(1, 1, 0).tookInMillis(100).build();
+        return builder(hits).numReducePhases(1).shards(1, 1, 0).tookInMillis(100).build();
     }
 
     public static SearchResponse emptyWithTotalHits(

@@ -520,6 +520,7 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
         Map<?, ?> issuesByTemplate = (Map<?, ?>) response.get("templates");
         assertThat(issuesByTemplate.containsKey(templateName), equalTo(true));
         var templateIssues = (List<?>) issuesByTemplate.get(templateName);
-        assertThat(((Map<?, ?>) templateIssues.get(0)).get("message"), equalTo(SourceFieldMapper.DEPRECATION_WARNING));
+        assertThat(((Map<?, ?>) templateIssues.get(0)).get("message"), equalTo(SourceFieldMapper.DEPRECATION_WARNING_TITLE));
+        assertThat(((Map<?, ?>) templateIssues.get(0)).get("details"), equalTo(SourceFieldMapper.DEPRECATION_WARNING));
     }
 }

@@ -48,7 +48,7 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
     public void testDefaultNotPromptForPassword() throws Exception {
         assumeFalse("Cannot open unprotected keystore on FIPS JVM", inFipsJvm());
         execute();
-        Path configDir = env.configFile();
+        Path configDir = env.configDir();
         assertNotNull(KeyStoreWrapper.load(configDir));
     }
 
@@ -63,7 +63,7 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
         } else {
             execute();
         }
-        Path configDir = env.configFile();
+        Path configDir = env.configDir();
         assertNotNull(KeyStoreWrapper.load(configDir));
     }
 
@@ -79,13 +79,13 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
         } else {
             execute();
         }
-        Path configDir = env.configFile();
+        Path configDir = env.configDir();
         assertNotNull(KeyStoreWrapper.load(configDir));
     }
 
     public void testOverwrite() throws Exception {
         String password = getPossibleKeystorePassword();
-        Path keystoreFile = KeyStoreWrapper.keystorePath(env.configFile());
+        Path keystoreFile = KeyStoreWrapper.keystorePath(env.configDir());
         byte[] content = "not a keystore".getBytes(StandardCharsets.UTF_8);
         Files.write(keystoreFile, content);
 
@@ -110,6 +110,6 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
         } else {
             execute();
         }
-        assertNotNull(KeyStoreWrapper.load(env.configFile()));
+        assertNotNull(KeyStoreWrapper.load(env.configDir()));
     }
 }

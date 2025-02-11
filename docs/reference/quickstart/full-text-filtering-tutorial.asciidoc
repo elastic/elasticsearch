@@ -107,7 +107,7 @@ PUT /cooking_blog/_mapping
 <1> The `standard` analyzer is used by default for `text` fields if an `analyzer` isn't specified. It's included here for demonstration purposes.
 <2> <<multi-fields,Multi-fields>> are used here to index `text` fields as both `text` and `keyword` <<mapping-types,data types>>. This enables both full-text search and exact matching/filtering on the same field.
 Note that if you used <<dynamic-field-mapping,dynamic mapping>>, these multi-fields would be created automatically.
-<3> The <<ignore-above,`ignore_above` parameter>> prevents indexing values longer than 256 characters in the `keyword` field. Again this is the default value, but it's included here for for demonstration purposes.
+<3> The <<ignore-above,`ignore_above` parameter>> prevents indexing values longer than 256 characters in the `keyword` field. Again this is the default value, but it's included here for demonstration purposes.
 It helps to save disk space and avoid potential issues with Lucene's term byte-length limit.
 
 [TIP]

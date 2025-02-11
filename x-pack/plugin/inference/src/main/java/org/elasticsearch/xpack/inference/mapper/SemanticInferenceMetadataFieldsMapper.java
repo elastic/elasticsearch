@@ -40,6 +40,9 @@ public class SemanticInferenceMetadataFieldsMapper extends InferenceMetadataFiel
     private static final SemanticInferenceMetadataFieldsMapper INSTANCE = new SemanticInferenceMetadataFieldsMapper();
 
     public static final NodeFeature EXPLICIT_NULL_FIXES = new NodeFeature("semantic_text.inference_metadata_fields.explicit_null_fixes");
+    public static final NodeFeature INFERENCE_METADATA_FIELDS_ENABLED_BY_DEFAULT = new NodeFeature(
+        "semantic_text.inference_metadata_fields.enabled_by_default"
+    );
 
     public static final TypeParser PARSER = new FixedTypeParser(
         c -> InferenceMetadataFieldsMapper.isEnabled(c.getSettings()) ? INSTANCE : null

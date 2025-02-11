@@ -13,7 +13,7 @@ import org.junit.ClassRule;
 
 public class SysColumnsIT extends SysColumnsTestCase {
     @ClassRule
-    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster(false);
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster();
 
     @Override
     protected String getTestRestCluster() {

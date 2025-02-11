@@ -65,6 +65,6 @@ public class MlConfigMigrationEligibilityCheck {
         }
 
         IndexRoutingTable routingTable = clusterState.getRoutingTable().index(configIndexOrAlias.getWriteIndex());
-        return routingTable != null && routingTable.allPrimaryShardsActive() && routingTable.readyForSearch(clusterState);
+        return routingTable != null && routingTable.allPrimaryShardsActive() && routingTable.readyForSearch();
     }
 }

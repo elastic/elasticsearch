@@ -72,7 +72,7 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
 
     private boolean isMigrationComplete(ClusterState state) {
         IndexMetadata indexMetadata = state.metadata().getIndices().get(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7);
-        return indexMetadata.getCustomData(MIGRATION_VERSION_CUSTOM_KEY) != null;
+        return indexMetadata != null && indexMetadata.getCustomData(MIGRATION_VERSION_CUSTOM_KEY) != null;
     }
 
     private void awaitSecurityMigrationRanOnce() {
@@ -89,8 +89,27 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
         safeAwait(latch);
     }
 
-    public void testAutoconfigFailedPasswordPromotion() {
+    private void deleteSecurityIndex() {
+        // delete the security index, if it exist
+        GetIndexRequest getIndexRequest = new GetIndexRequest(TEST_REQUEST_TIMEOUT);
+        getIndexRequest.indices(SECURITY_MAIN_ALIAS);
+        getIndexRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
+        GetIndexResponse getIndexResponse = client().admin().indices().getIndex(getIndexRequest).actionGet();
+        if (getIndexResponse.getIndices().length > 0) {
+            assertThat(getIndexResponse.getIndices().length, is(1));
+            assertThat(getIndexResponse.getIndices()[0], is(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7));
+
+            // Security migration needs to finish before deleting the index
+            awaitSecurityMigrationRanOnce();
+            DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(getIndexResponse.getIndices());
+            assertAcked(client().admin().indices().delete(deleteIndexRequest).actionGet());
+        }
+    }
+
+    public void testAutoconfigFailedPasswordPromotion() throws Exception {
         try {
+            // .security index is created automatically on node startup so delete the security index first
+            deleteSecurityIndex();
             // prevents the .security index from being created automatically (after elastic user authentication)
             ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest(
                 TEST_REQUEST_TIMEOUT,
@@ -98,20 +117,6 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
             );
             updateSettingsRequest.transientSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true));
             assertAcked(clusterAdmin().updateSettings(updateSettingsRequest).actionGet());
-
-            // delete the security index, if it exist
-            GetIndexRequest getIndexRequest = new GetIndexRequest(TEST_REQUEST_TIMEOUT);
-            getIndexRequest.indices(SECURITY_MAIN_ALIAS);
-            getIndexRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
-            GetIndexResponse getIndexResponse = client().admin().indices().getIndex(getIndexRequest).actionGet();
-            if (getIndexResponse.getIndices().length > 0) {
-                assertThat(getIndexResponse.getIndices().length, is(1));
-                assertThat(getIndexResponse.getIndices()[0], is(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7));
-                // Security migration needs to finish before deleting the index
-                awaitSecurityMigrationRanOnce();
-                DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(getIndexResponse.getIndices());
-                assertAcked(client().admin().indices().delete(deleteIndexRequest).actionGet());
-            }
 
             // elastic user gets 503 for the good password
             Request restRequest = randomFrom(

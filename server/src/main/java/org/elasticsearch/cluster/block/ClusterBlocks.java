@@ -146,6 +146,10 @@ public class ClusterBlocks implements SimpleDiffable<ClusterBlocks> {
         return indicesBlocks.containsKey(index) && indicesBlocks.get(index).contains(block);
     }
 
+    public boolean hasIndexBlockLevel(String index, ClusterBlockLevel level) {
+        return blocksForIndex(level, index).isEmpty() == false;
+    }
+
     public boolean hasIndexBlockWithId(String index, int blockId) {
         final Set<ClusterBlock> clusterBlocks = indicesBlocks.get(index);
         if (clusterBlocks != null) {
@@ -396,6 +400,10 @@ public class ClusterBlocks implements SimpleDiffable<ClusterBlocks> {
 
         public boolean hasIndexBlock(String index, ClusterBlock block) {
             return indices.getOrDefault(index, Set.of()).contains(block);
+        }
+
+        public boolean hasIndexBlockLevel(String index, ClusterBlockLevel level) {
+            return indices.getOrDefault(index, Set.of()).stream().anyMatch(clusterBlock -> clusterBlock.contains(level));
         }
 
         public Builder removeIndexBlock(String index, ClusterBlock block) {

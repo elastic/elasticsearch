@@ -24,13 +24,11 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -80,14 +78,11 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
     private static final ConstructingObjectParser<InferenceServiceConfiguration, Void> PARSER = new ConstructingObjectParser<>(
         "inference_service_configuration",
         true,
-        args -> {
-            List<String> taskTypes = (ArrayList<String>) args[2];
-            return new InferenceServiceConfiguration.Builder().setService((String) args[0])
-                .setName((String) args[1])
-                .setTaskTypes(EnumSet.copyOf(taskTypes.stream().map(TaskType::fromString).collect(Collectors.toList())))
-                .setConfigurations((Map<String, SettingsConfiguration>) args[3])
-                .build();
-        }
+        args -> new InferenceServiceConfiguration.Builder().setService((String) args[0])
+            .setName((String) args[1])
+            .setTaskTypes((List<String>) args[2])
+            .setConfigurations((Map<String, SettingsConfiguration>) args[3])
+            .build()
     );
 
     static {
@@ -192,6 +187,16 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
 
         public Builder setTaskTypes(EnumSet<TaskType> taskTypes) {
             this.taskTypes = TaskType.copyOf(taskTypes);
+            return this;
+        }
+
+        public Builder setTaskTypes(List<String> taskTypes) {
+            var enumTaskTypes = EnumSet.noneOf(TaskType.class);
+
+            for (var supportedTaskTypeString : taskTypes) {
+                enumTaskTypes.add(TaskType.fromStringOrStatusException(supportedTaskTypeString));
+            }
+            this.taskTypes = enumTaskTypes;
             return this;
         }
 

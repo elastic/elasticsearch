@@ -230,7 +230,7 @@ final class IndexShardOperationPermits implements Closeable {
         onAcquired.onResponse(releasable);
     }
 
-    public <T extends Closeable> ActionListener<T> wrapContextPreservingActionListener(
+    private <T extends Closeable> ActionListener<T> wrapContextPreservingActionListener(
         ActionListener<T> listener,
         @Nullable final Executor executorOnDelay,
         final boolean forceExecution

@@ -13,6 +13,7 @@ import org.elasticsearch.action.RequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.indices.IndicesService;
@@ -720,4 +722,35 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         }
     }
 
+    public void testMultipleSettingsUpdateWithMetadataWriteBlock() {
+        final var indexName = randomIdentifier();
+        createIndex(indexName, Settings.builder().put(IndexMetadata.APIBlock.READ_ONLY.settingName(), true).build());
+
+        // Metadata writes are blocked by the READ_ONLY block
+        expectThrows(
+            ClusterBlockException.class,
+            () -> updateIndexSettings(Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "12s"), indexName)
+        );
+
+        var randomSetting = randomFrom(IndexMetadata.APIBlock.READ_ONLY, IndexMetadata.APIBlock.READ_ONLY_ALLOW_DELETE).settingName();
+        updateIndexSettings(
+            Settings.builder()
+                .put(randomSetting, true) // still has the metadata write block...
+                .put(IndexMetadata.APIBlock.WRITE.settingName(), true)
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "12s"), // should not be allowed
+            indexName
+        );
+
+        assertThat(
+            indicesAdmin().prepareGetSettings(indexName)
+                .get()
+                .getIndexToSettings()
+                .get(indexName)
+                .get(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()),
+            equalTo("12s")
+        );
+
+        // Updating the setting alone should always work
+        updateIndexSettings(Settings.builder().put(IndexMetadata.APIBlock.READ_ONLY.settingName(), false));
+    }
 }

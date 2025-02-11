@@ -7,3 +7,6 @@ Field that the query will target.
 
 `query`::
 Value to find in the provided field.
+
+`options`::
+(Optional) Match additional options as <<esql-function-named-params,function named parameters>>. See <<query-dsl-match-query,match query>> for more information.

@@ -39,6 +39,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.ToXContent;
@@ -103,7 +104,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
 
     private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .version(getOldClusterTestVersion())
+        .version(Version.fromString(OLD_CLUSTER_VERSION))
         .nodes(2)
         .setting("path.repo", () -> repoDirectory.getRoot().getPath())
         .setting("xpack.security.enabled", "false")

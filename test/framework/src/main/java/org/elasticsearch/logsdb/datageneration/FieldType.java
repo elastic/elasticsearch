@@ -11,9 +11,14 @@ package org.elasticsearch.logsdb.datageneration;
 
 import org.elasticsearch.logsdb.datageneration.datasource.DataSource;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.ByteFieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.fields.leaf.CountedKeywordFieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.fields.leaf.DoubleFieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.fields.leaf.FloatFieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.fields.leaf.HalfFloatFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.IntegerFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.KeywordFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.LongFieldDataGenerator;
+import org.elasticsearch.logsdb.datageneration.fields.leaf.ScaledFloatFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.ShortFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.UnsignedLongFieldDataGenerator;
 
@@ -26,7 +31,12 @@ public enum FieldType {
     UNSIGNED_LONG("unsigned_long"),
     INTEGER("integer"),
     SHORT("short"),
-    BYTE("byte");
+    BYTE("byte"),
+    DOUBLE("double"),
+    FLOAT("float"),
+    HALF_FLOAT("half_float"),
+    SCALED_FLOAT("scaled_float"),
+    COUNTED_KEYWORD("counted_keyword");
 
     private final String name;
 
@@ -42,6 +52,11 @@ public enum FieldType {
             case INTEGER -> new IntegerFieldDataGenerator(fieldName, dataSource);
             case SHORT -> new ShortFieldDataGenerator(fieldName, dataSource);
             case BYTE -> new ByteFieldDataGenerator(fieldName, dataSource);
+            case DOUBLE -> new DoubleFieldDataGenerator(fieldName, dataSource);
+            case FLOAT -> new FloatFieldDataGenerator(fieldName, dataSource);
+            case HALF_FLOAT -> new HalfFloatFieldDataGenerator(fieldName, dataSource);
+            case SCALED_FLOAT -> new ScaledFloatFieldDataGenerator(fieldName, dataSource);
+            case COUNTED_KEYWORD -> new CountedKeywordFieldDataGenerator(fieldName, dataSource);
         };
     }
 

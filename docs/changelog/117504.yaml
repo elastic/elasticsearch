@@ -1,0 +1,6 @@
+pr: 117504
+summary: Fix NPE caused by race condition in async search when minimise round trips
+  is true
+area: Search
+type: bug
+issues: []

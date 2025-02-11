@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -21,17 +23,27 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MatchErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
+
     @Override
     protected List<TestCaseSupplier> cases() {
-        return paramsToSuppliers(AbstractMatchFullTextFunctionTests.parameters());
+        return paramsToSuppliers(MatchTests.parameters());
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Match(source, args.get(0), args.get(1));
+        Match match = new Match(source, args.get(0), args.get(1), args.size() > 2 ? args.get(2) : null);
+        // We need to add the QueryBuilder to the match expression, as it is used to implement equals() and hashCode() and
+        // thus test the serialization methods. But we can only do this if the parameters make sense .
+        if (args.get(0) instanceof FieldAttribute && args.get(1).foldable()) {
+            QueryBuilder queryBuilder = TRANSLATOR_HANDLER.asQuery(match).asBuilder();
+            match.replaceQueryBuilder(queryBuilder);
+        }
+        return match;
     }
 
     @Override
@@ -46,7 +58,8 @@ public class MatchErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
         List<DataType> signature,
         AbstractFunctionTestCase.PositionalErrorMessageSupplier positionalErrorMessageSupplier
     ) {
-        for (int i = 0; i < signature.size(); i++) {
+        boolean invalid = false;
+        for (int i = 0; i < signature.size() && invalid == false; i++) {
             // Need to check for nulls and bad parameters in order
             if (signature.get(i) == DataType.NULL) {
                 return TypeResolutions.ParamOrdinal.fromIndex(i).name().toLowerCase(Locale.ROOT)
@@ -55,6 +68,10 @@ public class MatchErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                     + "] cannot be null, received []";
             }
             if (validPerPosition.get(i).contains(signature.get(i)) == false) {
+                // Map expressions have different error messages
+                if (i == 2) {
+                    return format(null, "third argument of [{}] must be a map expression, received []", sourceForSignature(signature));
+                }
                 break;
             }
         }

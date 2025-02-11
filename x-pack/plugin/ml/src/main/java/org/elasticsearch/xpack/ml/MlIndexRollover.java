@@ -117,7 +117,7 @@ public class MlIndexRollover implements MlAutoUpdateService.UpdateAction {
         }
 
         if (failures.isEmpty()) {
-            logger.info("ML legacy indies rolled over");
+            logger.info("ML legacy indices rolled over");
             return;
         }
 
@@ -136,7 +136,10 @@ public class MlIndexRollover implements MlAutoUpdateService.UpdateAction {
         }
 
         String latestIndex = MlIndexAndAlias.latestIndex(concreteIndices);
-        boolean isCompatibleIndexVersion = isCompatibleIndexVersion(clusterState.metadata().index(latestIndex).getCreationVersion());
+        // Indices created before 8.0 are read only in 9
+        boolean isCompatibleIndexVersion = MlIndexAndAlias.indexIsReadWriteCompatibleInV9(
+            clusterState.metadata().index(latestIndex).getCreationVersion()
+        );
         boolean hasAlias = clusterState.getMetadata().hasAlias(alias);
 
         if (isCompatibleIndexVersion && hasAlias) {

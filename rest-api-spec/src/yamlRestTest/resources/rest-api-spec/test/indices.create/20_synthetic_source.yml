@@ -1603,6 +1603,74 @@ synthetic_source with copy_to pointing inside object:
           c.copy: [ "100", "hello", "zap" ]
 
 ---
+synthetic_source with copy_to inside nested object:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              name:
+                type: keyword
+              my_values:
+                type: nested
+                properties:
+                  k:
+                    type: keyword
+                    copy_to: my_values.copy
+                  second_level:
+                    type: nested
+                    properties:
+                      k2:
+                        type: keyword
+                        copy_to: my_values.copy
+                  copy:
+                    type: keyword
+              dummy:
+                type: keyword
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          name: "A"
+          my_values:
+            k: "hello"
+
+  - do:
+      index:
+        index: test
+        id: 2
+        refresh: true
+        body:
+          name: "B"
+          my_values:
+            second_level:
+              k2: "hello"
+
+  - do:
+      search:
+        index: test
+        sort: name
+
+  - match:
+      hits.hits.0._source:
+        name: "A"
+        my_values:
+          k: "hello"
+  - match:
+      hits.hits.1._source:
+        name: "B"
+        my_values:
+          second_level:
+            k2: "hello"
+
+---
 synthetic_source with copy_to pointing to ambiguous field:
   - do:
       indices.create:

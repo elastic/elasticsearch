@@ -957,3 +957,51 @@ setup:
   - length: { hits.hits.1.highlight.field: 2 }
   - match:  { hits.hits.1.highlight.field.0: "some more <em>tests</em>" }
   - match:  { hits.hits.1.highlight.field.1: "that include <em>chunks</em>" }
+
+---
+"Inference metadata fields format is used by default":
+  - requires:
+      cluster_features: "semantic_text.inference_metadata_fields.enabled_by_default"
+      reason: Inference metadata fields format is used by default as of 8.18
+
+  - do:
+      indices.create:
+        index: default-index
+        body:
+          mappings:
+            properties:
+              sparse_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+              dense_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+              non_inference_field:
+                type: text
+
+  - do:
+      index:
+        index: default-index
+        id: doc_1
+        body:
+          sparse_field: "inference test"
+          dense_field: "another inference test"
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      search:
+        index: default-index
+        body:
+          query:
+            semantic:
+              field: sparse_field
+              query: "inference test"
+          fields: [ "_inference_fields" ]
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+  - match: { hits.hits.0._source.sparse_field: "inference test" }
+  - match: { hits.hits.0._source.dense_field: "another inference test" }
+  - match: { hits.hits.0._source.non_inference_field: "non inference test" }
+  - exists: hits.hits.0._source._inference_fields

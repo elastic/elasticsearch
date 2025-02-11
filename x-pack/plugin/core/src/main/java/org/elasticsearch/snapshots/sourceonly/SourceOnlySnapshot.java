@@ -216,9 +216,7 @@ public class SourceOnlySnapshot {
             Codec codec = si.getCodec();
             Directory sourceDir = si.dir;
             if (si.getUseCompoundFile()) {
-                sourceDir = new LinkedFilesDirectory.CloseMePleaseWrapper(
-                    codec.compoundFormat().getCompoundReader(sourceDir, si, IOContext.DEFAULT)
-                );
+                sourceDir = new LinkedFilesDirectory.CloseMePleaseWrapper(codec.compoundFormat().getCompoundReader(sourceDir, si));
                 toClose = sourceDir;
             }
             final String segmentSuffix = "";

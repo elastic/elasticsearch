@@ -23,6 +23,7 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.replication.PostWriteRefresh;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
@@ -143,6 +144,20 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     @Override
     protected BulkShardResponse newResponseInstance(StreamInput in) throws IOException {
         return new BulkShardResponse(in);
+    }
+
+    @Override
+    protected void shardOperationOnPrimary(
+        BulkShardRequest request,
+        IndexShard primary,
+        ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener
+    ) {
+        final ActionListener<Void> wrappedListener = listener.delegateFailure(
+            (l, ignored) -> super.shardOperationOnPrimary(request, primary, l)
+        );
+        try (var preBulkProceedListeners = new RefCountingListener(wrappedListener)) {
+            primary.getIndexingOperationListener().preBulkOnPrimary(primary, () -> preBulkProceedListeners.acquire());
+        }
     }
 
     @Override
@@ -376,6 +391,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 request.getContentType(),
                 request.routing(),
                 request.getDynamicTemplates(),
+                request.getIncludeSourceOnError(),
                 meteringParserDecorator
             );
             result = primary.applyIndexOperationOnPrimary(

@@ -22,10 +22,10 @@ import java.util.function.LongSupplier;
 
 /**
  * An {@link ExchangeSinkHandler} receives pages and status from its {@link ExchangeSink}s, which are created using
- * {@link #createExchangeSink()}} method. Pages and status can then be retrieved asynchronously by {@link ExchangeSourceHandler}s
+ * {@link #createExchangeSink(Runnable)}} method. Pages and status can then be retrieved asynchronously by {@link ExchangeSourceHandler}s
  * using the {@link #fetchPageAsync(boolean, ActionListener)} method.
  *
- * @see #createExchangeSink()
+ * @see #createExchangeSink(Runnable)
  * @see #fetchPageAsync(boolean, ActionListener)
  * @see ExchangeSourceHandler
  */
@@ -52,9 +52,11 @@ public final class ExchangeSinkHandler {
 
     private class ExchangeSinkImpl implements ExchangeSink {
         boolean finished;
+        private final Runnable onPageFetched;
         private final SubscribableListener<Void> onFinished = new SubscribableListener<>();
 
-        ExchangeSinkImpl() {
+        ExchangeSinkImpl(Runnable onPageFetched) {
+            this.onPageFetched = onPageFetched;
             onChanged();
             buffer.addCompletionListener(onFinished);
             outstandingSinks.incrementAndGet();
@@ -62,6 +64,7 @@ public final class ExchangeSinkHandler {
 
         @Override
         public void addPage(Page page) {
+            onPageFetched.run();
             buffer.addPage(page);
             notifyListeners();
         }
@@ -101,7 +104,7 @@ public final class ExchangeSinkHandler {
      * @param sourceFinished if true, then this handler can finish as sources have enough pages.
      * @param listener       the listener that will be notified when pages are ready or this handler is finished
      * @see RemoteSink
-     * @see ExchangeSourceHandler#addRemoteSink(RemoteSink, boolean, int, ActionListener)
+     * @see ExchangeSourceHandler#addRemoteSink(RemoteSink, boolean, Runnable, int, ActionListener)
      */
     public void fetchPageAsync(boolean sourceFinished, ActionListener<ExchangeResponse> listener) {
         if (sourceFinished) {
@@ -161,10 +164,11 @@ public final class ExchangeSinkHandler {
     /**
      * Create a new exchange sink for exchanging data
      *
+     * @param onPageFetched a {@link Runnable} that will be called when a page is fetched.
      * @see ExchangeSinkOperator
      */
-    public ExchangeSink createExchangeSink() {
-        return new ExchangeSinkImpl();
+    public ExchangeSink createExchangeSink(Runnable onPageFetched) {
+        return new ExchangeSinkImpl(onPageFetched);
     }
 
     /**

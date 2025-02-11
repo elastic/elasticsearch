@@ -62,7 +62,6 @@ import static org.elasticsearch.core.Strings.format;
 
 public abstract class FieldMapper extends Mapper {
     private static final Logger logger = LogManager.getLogger(FieldMapper.class);
-
     public static final Setting<Boolean> IGNORE_MALFORMED_SETTING = Setting.boolSetting("index.mapping.ignore_malformed", settings -> {
         if (IndexSettings.MODE.get(settings) == IndexMode.LOGSDB
             && IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings).onOrAfter(IndexVersions.ENABLE_IGNORE_MALFORMED_LOGSDB)) {
@@ -560,10 +559,26 @@ public abstract class FieldMapper extends Mapper {
 
         SyntheticSourceSupport FALLBACK = new Fallback();
 
-        record Native(SourceLoader.SyntheticFieldLoader loader) implements SyntheticSourceSupport {
+        final class Native implements SyntheticSourceSupport {
+            Supplier<SourceLoader.SyntheticFieldLoader> loaderSupplier;
+            private SourceLoader.SyntheticFieldLoader loader;
+
+            @SuppressWarnings("checkstyle:RedundantModifier")
+            public Native(Supplier<SourceLoader.SyntheticFieldLoader> loaderSupplier) {
+                this.loaderSupplier = loaderSupplier;
+            }
+
             @Override
             public SyntheticSourceMode mode() {
                 return SyntheticSourceMode.NATIVE;
+            }
+
+            @Override
+            public SourceLoader.SyntheticFieldLoader loader() {
+                if (loader == null) {
+                    loader = loaderSupplier.get();
+                }
+                return loader;
             }
         }
 
@@ -833,6 +848,10 @@ public abstract class FieldMapper extends Mapper {
 
         public boolean isConfigured() {
             return isSet && Objects.equals(value, getDefaultValue()) == false;
+        }
+
+        public boolean isSet() {
+            return isSet;
         }
 
         /**

@@ -1056,6 +1056,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         testCases.put("test_ds_patterns*::*,-test_ds_patterns_2*::failures", 21L);
         testCases.put("test_ds_patterns*::*,-test_ds_patterns_2*::*", 16L);
 
+        testCases.put("\"test_ds_patterns_1,test_ds_patterns_2\"::failures", 8L);
+
         runDataStreamTest(testCases, new String[] { "test_ds_patterns_1", "test_ds_patterns_2", "test_ds_patterns_3" }, (key, value) -> {
             try (var results = run("from " + key + " | stats count(@timestamp)")) {
                 assertEquals(key, 1, getValuesList(results).size());

@@ -56,8 +56,8 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.external.action.openai.OpenAiActionCreator.COMPLETION_ERROR_PREFIX;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
@@ -376,7 +376,7 @@ public class OpenAiService extends SenderService {
 
     @Override
     public Set<TaskType> supportedStreamingTasks() {
-        return EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION, TaskType.ANY);
+        return EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
     }
 
     /**
@@ -440,19 +440,16 @@ public class OpenAiService extends SenderService {
                 );
 
                 configurationMap.put(
-                    URL,
-                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES_FOR_SERVICES_API).setDefaultValue(
-                        "https://api.openai.com/v1/chat/completions"
+                    DIMENSIONS,
+                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING)).setDescription(
+                        "The number of dimensions the resulting embeddings should have. For more information refer to "
+                            + "https://platform.openai.com/docs/api-reference/embeddings/create#embeddings-create-dimensions."
                     )
-                        .setDescription(
-                            "The OpenAI API endpoint URL. For more information on the URL, refer to the "
-                                + "https://platform.openai.com/docs/api-reference."
-                        )
-                        .setLabel("URL")
-                        .setRequired(true)
+                        .setLabel("Dimensions")
+                        .setRequired(false)
                         .setSensitive(false)
                         .setUpdatable(false)
-                        .setType(SettingsConfigurationFieldType.STRING)
+                        .setType(SettingsConfigurationFieldType.INTEGER)
                         .build()
                 );
 

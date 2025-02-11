@@ -9,7 +9,7 @@ package org.elasticsearch.compute.operator.lookup;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.KeywordField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -35,9 +35,12 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -54,6 +57,7 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class EnrichQuerySourceOperatorTests extends ESTestCase {
 
@@ -67,8 +71,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
     }
 
     @After
-    public void allBreakersEmpty() throws Exception {
-        MockBigArrays.ensureAllArraysAreReleased();
+    public void allBreakersEmpty() {
         assertThat(blockFactory.breaker().getUsed(), equalTo(0L));
     }
 
@@ -76,23 +79,11 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
         try (
             var directoryData = makeDirectoryWith(
                 List.of(List.of("a2"), List.of("a1", "c1", "b2"), List.of("a2"), List.of("a3"), List.of("b2", "b1", "a1"))
-            )
+            );
+            var inputTerms = makeTermsBlock(List.of(List.of("b2"), List.of("c1", "a2"), List.of("z2"), List.of(), List.of("a3"), List.of()))
         ) {
-            final BytesRefBlock inputTerms;
-            try (BytesRefBlock.Builder termBuilder = blockFactory.newBytesRefBlockBuilder(6)) {
-                termBuilder.appendBytesRef(new BytesRef("b2"))
-                    .beginPositionEntry()
-                    .appendBytesRef(new BytesRef("c1"))
-                    .appendBytesRef(new BytesRef("a2"))
-                    .endPositionEntry()
-                    .appendBytesRef(new BytesRef("z2"))
-                    .appendNull()
-                    .appendBytesRef(new BytesRef("a3"))
-                    .appendNull();
-                inputTerms = termBuilder.build();
-            }
             MappedFieldType uidField = new KeywordFieldMapper.KeywordFieldType("uid");
-            QueryList queryList = QueryList.rawTermQueryList(uidField, mock(SearchExecutionContext.class), inputTerms);
+            QueryList queryList = QueryList.rawTermQueryList(uidField, directoryData.searchExecutionContext, inputTerms);
             assertThat(queryList.getPositionCount(), equalTo(6));
             assertThat(queryList.getQuery(0), equalTo(new TermQuery(new Term("uid", new BytesRef("b2")))));
             assertThat(queryList.getQuery(1), equalTo(new TermInSetQuery("uid", List.of(new BytesRef("c1"), new BytesRef("a2")))));
@@ -106,7 +97,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
             // 1 -> [c1, a2] -> [1, 0, 2]
             // 2 -> [z2] -> []
             // 3 -> [] -> []
-            // 4 -> [a1] -> [3]
+            // 4 -> [a3] -> [3]
             // 5 -> [] -> []
             var warnings = Warnings.createWarnings(DriverContext.WarningsMode.IGNORE, 0, 0, "test enrich");
             EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(
@@ -136,38 +127,34 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
             assertThat(BlockUtils.toJavaObject(positions, 5), equalTo(4));
             page.releaseBlocks();
             assertTrue(queryOperator.isFinished());
-            IOUtils.close(inputTerms);
         }
     }
 
     public void testRandomMatchQueries() throws Exception {
+        // Build lookup index values
         int numTerms = randomIntBetween(10, 1000);
-        List<List<String>> termsList = IntStream.range(0, numTerms).mapToObj(i -> List.of("term-" + i)).toList();
-        Map<String, Integer> terms = IntStream.range(0, numTerms).boxed().collect(Collectors.toMap(i -> "term-" + i, i -> i));
+        List<List<String>> directoryTermsList = IntStream.range(0, numTerms).mapToObj(i -> List.of("term-" + i)).toList();
+        Map<String, Integer> directoryTerms = IntStream.range(0, numTerms).boxed().collect(Collectors.toMap(i -> "term-" + i, i -> i));
 
-        try (var directoryData = makeDirectoryWith(termsList)) {
-            Map<Integer, Set<Integer>> expectedPositions = new HashMap<>();
-            int numPositions = randomIntBetween(1, 1000);
-            final BytesRefBlock inputTerms;
-            try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(numPositions)) {
-                for (int i = 0; i < numPositions; i++) {
-                    if (randomBoolean()) {
-                        String term = randomFrom(terms.keySet());
-                        builder.appendBytesRef(new BytesRef(term));
-                        Integer position = terms.get(term);
-                        expectedPositions.put(i, Set.of(position));
-                    } else {
-                        if (randomBoolean()) {
-                            builder.appendNull();
-                        } else {
-                            String term = "other-" + randomIntBetween(1, 100);
-                            builder.appendBytesRef(new BytesRef(term));
-                        }
-                    }
-                }
-                inputTerms = builder.build();
+        // Build input terms
+        Map<Integer, Set<Integer>> expectedPositions = new HashMap<>();
+        int numPositions = randomIntBetween(1, 1000);
+        List<List<String>> inputTermsList = IntStream.range(0, numPositions).<List<String>>mapToObj(i -> {
+            if (randomBoolean()) {
+                String term = randomFrom(directoryTerms.keySet());
+                Integer position = directoryTerms.get(term);
+                expectedPositions.put(i, Set.of(position));
+                return List.of(term);
+            } else if (randomBoolean()) {
+                return List.of();
+            } else {
+                String term = "other-" + randomIntBetween(1, 100);
+                return List.of(term);
             }
-            var queryList = QueryList.rawTermQueryList(directoryData.field, mock(SearchExecutionContext.class), inputTerms);
+        }).toList();
+
+        try (var directoryData = makeDirectoryWith(directoryTermsList); var inputTerms = makeTermsBlock(inputTermsList)) {
+            var queryList = QueryList.rawTermQueryList(directoryData.field, directoryData.searchExecutionContext, inputTerms);
             int maxPageSize = between(1, 256);
             var warnings = Warnings.createWarnings(DriverContext.WarningsMode.IGNORE, 0, 0, "test enrich");
             EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(
@@ -193,7 +180,6 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                 }
             }
             assertThat(actualPositions, equalTo(expectedPositions));
-            IOUtils.close(inputTerms);
         }
     }
 
@@ -201,35 +187,20 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
         try (
             var directoryData = makeDirectoryWith(
                 List.of(List.of("a2"), List.of("a1", "c1", "b2"), List.of("a2"), List.of("a3"), List.of("b2", "b1", "a1"))
+            );
+            var inputTerms = makeTermsBlock(
+                List.of(List.of("b2"), List.of("c1", "a2"), List.of("z2"), List.of(), List.of("a3"), List.of("a3", "a2", "z2", "xx"))
             )
         ) {
-            final BytesRefBlock inputTerms;
-            try (BytesRefBlock.Builder termBuilder = blockFactory.newBytesRefBlockBuilder(6)) {
-                termBuilder.appendBytesRef(new BytesRef("b2"))
-                    .beginPositionEntry()
-                    .appendBytesRef(new BytesRef("c1"))
-                    .appendBytesRef(new BytesRef("a2"))
-                    .endPositionEntry()
-                    .appendBytesRef(new BytesRef("z2"))
-                    .appendNull()
-                    .appendBytesRef(new BytesRef("a3"))
-                    .beginPositionEntry()
-                    .appendBytesRef(new BytesRef("a3"))
-                    .appendBytesRef(new BytesRef("a2"))
-                    .appendBytesRef(new BytesRef("z2"))
-                    .appendBytesRef(new BytesRef("xx"))
-                    .endPositionEntry();
-                inputTerms = termBuilder.build();
-            }
-            QueryList queryList = QueryList.rawTermQueryList(directoryData.field, mock(SearchExecutionContext.class), inputTerms)
+            QueryList queryList = QueryList.rawTermQueryList(directoryData.field, directoryData.searchExecutionContext, inputTerms)
                 .onlySingleValues();
             // pos -> terms -> docs
             // -----------------------------
-            // 0 -> [b2] -> [1, 4]
+            // 0 -> [b2] -> []
             // 1 -> [c1, a2] -> []
             // 2 -> [z2] -> []
             // 3 -> [] -> []
-            // 4 -> [a1] -> [3]
+            // 4 -> [a3] -> [3]
             // 5 -> [a3, a2, z2, xx] -> []
             var warnings = Warnings.createWarnings(DriverContext.WarningsMode.IGNORE, 0, 0, "test lookup");
             EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(
@@ -241,19 +212,14 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
             );
             Page page = queryOperator.getOutput();
             assertNotNull(page);
-            assertThat(page.getPositionCount(), equalTo(3));
+            assertThat(page.getPositionCount(), equalTo(1));
             IntVector docs = getDocVector(page, 0);
-            assertThat(docs.getInt(0), equalTo(1));
-            assertThat(docs.getInt(1), equalTo(4));
-            assertThat(docs.getInt(2), equalTo(3));
+            assertThat(docs.getInt(0), equalTo(3));
 
             Block positions = page.getBlock(1);
-            assertThat(BlockUtils.toJavaObject(positions, 0), equalTo(0));
-            assertThat(BlockUtils.toJavaObject(positions, 1), equalTo(0));
-            assertThat(BlockUtils.toJavaObject(positions, 2), equalTo(4));
+            assertThat(BlockUtils.toJavaObject(positions, 0), equalTo(4));
             page.releaseBlocks();
             assertTrue(queryOperator.isFinished());
-            IOUtils.close(inputTerms);
         }
     }
 
@@ -262,7 +228,12 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
         return doc.asVector().docs();
     }
 
-    private record DirectoryData(DirectoryReader reader, MockDirectoryWrapper dir, MappedFieldType field) implements AutoCloseable {
+    private record DirectoryData(
+        DirectoryReader reader,
+        MockDirectoryWrapper dir,
+        SearchExecutionContext searchExecutionContext,
+        MappedFieldType field
+    ) implements AutoCloseable {
         @Override
         public void close() throws IOException {
             IOUtils.close(reader, dir);
@@ -277,14 +248,45 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
             for (var termList : terms) {
                 Document doc = new Document();
                 for (String term : termList) {
-                    doc.add(new StringField("uid", term, Field.Store.NO));
+                    doc.add(new KeywordField("uid", term, Field.Store.NO));
                 }
                 writer.addDocument(doc);
             }
             writer.forceMerge(1);
             writer.commit();
 
-            return new DirectoryData(DirectoryReader.open(writer), dir, new KeywordFieldMapper.KeywordFieldType("uid"));
+            var directoryReader = DirectoryReader.open(writer);
+            var indexSearcher = newSearcher(directoryReader);
+            var searchExecutionContext = mock(SearchExecutionContext.class);
+            var field = new KeywordFieldMapper.KeywordFieldType("uid");
+            var fieldDataContext = FieldDataContext.noRuntimeFields("test");
+            var indexFieldData = field.fielddataBuilder(fieldDataContext)
+                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
+
+            // Required for "onlySingleValues" mode to work
+            when(searchExecutionContext.searcher()).thenReturn(indexSearcher);
+            when(searchExecutionContext.getForField(field, MappedFieldType.FielddataOperation.SEARCH)).thenReturn(indexFieldData);
+
+            return new DirectoryData(directoryReader, dir, searchExecutionContext, field);
+        }
+    }
+
+    private Block makeTermsBlock(List<List<String>> terms) {
+        try (BytesRefBlock.Builder termBuilder = blockFactory.newBytesRefBlockBuilder(6)) {
+            for (var termList : terms) {
+                if (termList.isEmpty()) {
+                    termBuilder.appendNull();
+                } else if (termList.size() == 1) {
+                    termBuilder.appendBytesRef(new BytesRef(termList.get(0)));
+                } else {
+                    termBuilder.beginPositionEntry();
+                    for (String term : termList) {
+                        termBuilder.appendBytesRef(new BytesRef(term));
+                    }
+                    termBuilder.endPositionEntry();
+                }
+            }
+            return termBuilder.build();
         }
     }
 }

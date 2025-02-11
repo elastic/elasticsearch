@@ -46,9 +46,15 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
 
     private final Settings settings;
     private final SyntheticSourceLicenseService licenseService;
+    private static final Setting<Boolean> LOGSDB_PRIOR_LOGS_USAGE = Setting.boolSetting(
+        "logsdb.prior_logs_usage",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
     public static final Setting<Boolean> CLUSTER_LOGSDB_ENABLED = Setting.boolSetting(
         "cluster.logsdb.enabled",
-        false,
+        settings -> Boolean.toString(LOGSDB_PRIOR_LOGS_USAGE.get(settings) == false),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -76,6 +82,7 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
             CLUSTER_LOGSDB_ENABLED,
             logsdbIndexModeSettingsProvider::updateClusterIndexModeLogsdbEnabled
         );
+
         // Nothing to share here:
         return super.createComponents(services);
     }
@@ -95,7 +102,7 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(FALLBACK_SETTING, CLUSTER_LOGSDB_ENABLED);
+        return List.of(FALLBACK_SETTING, CLUSTER_LOGSDB_ENABLED, LOGSDB_PRIOR_LOGS_USAGE);
     }
 
     @Override

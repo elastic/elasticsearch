@@ -95,6 +95,7 @@ job can be retrieved with:
 GET _rollup/job/sensor
 --------------------------------------------------
 // TEST[setup:sensor_rollup_job]
+// TEST[warning:The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information.]
 
 The API yields the following response:
 
@@ -198,6 +199,7 @@ PUT _rollup/job/sensor2 <1>
 GET _rollup/job/_all <2>
 --------------------------------------------------
 // TEST[setup:sensor_rollup_job]
+// TEST[warning:The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information.]
 <1> We create a second job with name `sensor2`
 <2> Then request all jobs by using `_all` in the GetJobs API
 

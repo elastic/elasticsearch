@@ -42,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 
 public class TestRerankingServiceExtension implements InferenceServiceExtension {
+
     @Override
     public List<Factory> getInferenceServiceFactories() {
         return List.of(TestInferenceService::new);
@@ -149,9 +150,12 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
         private RankedDocsResults makeResults(List<String> input) {
             List<RankedDocsResults.RankedDoc> results = new ArrayList<>();
             int totalResults = input.size();
+            float minScore = random.nextFloat(-1f, 1f);
             float resultDiff = 0.2f;
             for (int i = 0; i < input.size(); i++) {
-                results.add(new RankedDocsResults.RankedDoc(totalResults - 1 - i, resultDiff * (totalResults - i), input.get(i)));
+                results.add(
+                    new RankedDocsResults.RankedDoc(totalResults - 1 - i, minScore + resultDiff * (totalResults - i), input.get(i))
+                );
             }
             return new RankedDocsResults(results);
         }

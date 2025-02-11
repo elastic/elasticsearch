@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.esql.querydsl.query;
 
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.core.Booleans;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -15,33 +15,39 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
 
 import static java.util.Map.entry;
+import static org.elasticsearch.index.query.MatchQueryBuilder.ANALYZER_FIELD;
+import static org.elasticsearch.index.query.MatchQueryBuilder.FUZZY_REWRITE_FIELD;
+import static org.elasticsearch.index.query.MatchQueryBuilder.FUZZY_TRANSPOSITIONS_FIELD;
+import static org.elasticsearch.index.query.MatchQueryBuilder.GENERATE_SYNONYMS_PHRASE_QUERY;
+import static org.elasticsearch.index.query.MatchQueryBuilder.MAX_EXPANSIONS_FIELD;
+import static org.elasticsearch.index.query.MatchQueryBuilder.MINIMUM_SHOULD_MATCH_FIELD;
+import static org.elasticsearch.index.query.MatchQueryBuilder.OPERATOR_FIELD;
+import static org.elasticsearch.index.query.MatchQueryBuilder.PREFIX_LENGTH_FIELD;
 
 public class MatchQuery extends Query {
 
-    private static final Map<String, BiConsumer<MatchQueryBuilder, String>> BUILDER_APPLIERS;
+    private static final Map<String, BiConsumer<MatchQueryBuilder, Object>> BUILDER_APPLIERS;
 
     static {
-        // TODO: it'd be great if these could be constants instead of Strings, needs a core change to make the fields public first
         // TODO: add zero terms query support, I'm not sure the best way to parse it yet...
         // appliers.put("zero_terms_query", (qb, s) -> qb.zeroTermsQuery(s));
         BUILDER_APPLIERS = Map.ofEntries(
-            entry("analyzer", MatchQueryBuilder::analyzer),
-            entry("auto_generate_synonyms_phrase_query", (qb, s) -> qb.autoGenerateSynonymsPhraseQuery(Booleans.parseBoolean(s))),
-            entry("fuzziness", (qb, s) -> qb.fuzziness(Fuzziness.fromString(s))),
-            entry("boost", (qb, s) -> qb.boost(Float.parseFloat(s))),
-            entry("fuzzy_transpositions", (qb, s) -> qb.fuzzyTranspositions(Booleans.parseBoolean(s))),
-            entry("fuzzy_rewrite", MatchQueryBuilder::fuzzyRewrite),
-            entry("lenient", (qb, s) -> qb.lenient(Booleans.parseBoolean(s))),
-            entry("max_expansions", (qb, s) -> qb.maxExpansions(Integer.valueOf(s))),
-            entry("minimum_should_match", MatchQueryBuilder::minimumShouldMatch),
-            entry("operator", (qb, s) -> qb.operator(Operator.fromString(s))),
-            entry("prefix_length", (qb, s) -> qb.prefixLength(Integer.valueOf(s)))
+            entry(ANALYZER_FIELD.getPreferredName(), (qb, s) -> qb.analyzer(s.toString())),
+            entry(GENERATE_SYNONYMS_PHRASE_QUERY.getPreferredName(), (qb, b) -> qb.autoGenerateSynonymsPhraseQuery((Boolean) b)),
+            entry(Fuzziness.FIELD.getPreferredName(), (qb, s) -> qb.fuzziness(Fuzziness.fromString(s.toString()))),
+            entry(AbstractQueryBuilder.BOOST_FIELD.getPreferredName(), (qb, s) -> qb.boost((Float) s)),
+            entry(FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), (qb, s) -> qb.fuzzyTranspositions((Boolean) s)),
+            entry(FUZZY_REWRITE_FIELD.getPreferredName(), (qb, s) -> qb.fuzzyRewrite(s.toString())),
+            entry(MatchQueryBuilder.LENIENT_FIELD.getPreferredName(), (qb, s) -> qb.lenient((Boolean) s)),
+            entry(MAX_EXPANSIONS_FIELD.getPreferredName(), (qb, s) -> qb.maxExpansions((Integer) s)),
+            entry(MINIMUM_SHOULD_MATCH_FIELD.getPreferredName(), (qb, s) -> qb.minimumShouldMatch(s.toString())),
+            entry(OPERATOR_FIELD.getPreferredName(), (qb, s) -> qb.operator(Operator.fromString(s.toString()))),
+            entry(PREFIX_LENGTH_FIELD.getPreferredName(), (qb, s) -> qb.prefixLength((Integer) s))
         );
     }
 
@@ -49,13 +55,13 @@ public class MatchQuery extends Query {
     private final Object text;
     private final Double boost;
     private final Fuzziness fuzziness;
-    private final Map<String, String> options;
+    private final Map<String, Object> options;
 
     public MatchQuery(Source source, String name, Object text) {
         this(source, name, text, Map.of());
     }
 
-    public MatchQuery(Source source, String name, Object text, Map<String, String> options) {
+    public MatchQuery(Source source, String name, Object text, Map<String, Object> options) {
         super(source);
         assert options != null;
         this.name = name;
@@ -63,15 +69,6 @@ public class MatchQuery extends Query {
         this.options = options;
         this.boost = null;
         this.fuzziness = null;
-    }
-
-    public MatchQuery(Source source, String name, Object text, Double boost, Fuzziness fuzziness) {
-        super(source);
-        this.name = name;
-        this.text = text;
-        this.options = Collections.emptyMap();
-        this.boost = boost;
-        this.fuzziness = fuzziness;
     }
 
     @Override
@@ -125,15 +122,7 @@ public class MatchQuery extends Query {
         return name + ":" + text;
     }
 
-    public Double boost() {
-        return boost;
-    }
-
-    public Fuzziness fuzziness() {
-        return fuzziness;
-    }
-
-    public Map<String, String> options() {
+    public Map<String, Object> options() {
         return options;
     }
 }

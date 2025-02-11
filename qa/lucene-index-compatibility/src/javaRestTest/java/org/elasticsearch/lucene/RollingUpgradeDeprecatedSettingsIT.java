@@ -1,0 +1,201 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.lucene;
+
+import org.apache.http.HttpHost;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.store.Store;
+import org.elasticsearch.test.cluster.util.Version;
+
+import java.io.IOException;
+import java.util.List;
+
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_READ_ONLY_BLOCK;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_WRITE_BLOCK;
+import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.INDEX_CLOSED_BLOCK;
+import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.VERIFIED_BEFORE_CLOSE_SETTING;
+import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+
+public class RollingUpgradeDeprecatedSettingsIT extends RollingUpgradeIndexCompatibilityTestCase {
+
+    static {
+        clusterConfig = config -> config.setting("xpack.license.self_generated.type", "trial");
+    }
+
+    public RollingUpgradeDeprecatedSettingsIT(List<Version> nodesVersions) {
+        super(nodesVersions);
+    }
+
+    /**
+     * Creates an index on N-2, upgrades to N -1 and marks as read-only, then remains searchable during rolling upgrades.
+     */
+    public void testIndexUpgrade() throws Exception {
+        final String index = suffix("index-rolling-upgraded");
+        final int numDocs = 2543;
+
+        if (isFullyUpgradedTo(VERSION_MINUS_2)) {
+            createIndex(
+                client(),
+                index,
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        // add some index settings deprecated in v7
+                    .put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey(), true)
+                    .put(IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey(), 100)
+                    .put(Store.FORCE_RAM_TERM_DICT.getKey(), false)
+                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), false)
+                    .build()
+            );
+            indexDocs(index, numDocs);
+            return;
+        }
+
+        assertThat(indexVersion(index), equalTo(VERSION_MINUS_2));
+        ensureGreen(index);
+
+        if (isIndexClosed(index) == false) {
+            assertDocCount(client(), index, numDocs);
+        }
+
+        if (isFullyUpgradedTo(VERSION_MINUS_1)) {
+            final var maybeClose = randomBoolean();
+            if (maybeClose) {
+                logger.debug("--> closing index [{}] before upgrade", index);
+                closeIndex(index);
+            }
+
+            final var randomBlocks = randomFrom(
+                List.of(IndexMetadata.APIBlock.WRITE, IndexMetadata.APIBlock.READ_ONLY),
+                List.of(IndexMetadata.APIBlock.READ_ONLY),
+                List.of(IndexMetadata.APIBlock.WRITE)
+            );
+            for (var randomBlock : randomBlocks) {
+                addIndexBlock(index, randomBlock);
+                assertThat(indexBlocks(index), hasItem(randomBlock.getBlock()));
+            }
+
+            assertThat(indexBlocks(index), maybeClose ? hasItem(INDEX_CLOSED_BLOCK) : not(hasItem(INDEX_CLOSED_BLOCK)));
+            assertIndexSetting(index, VERIFIED_BEFORE_CLOSE_SETTING, is(maybeClose));
+            assertIndexSetting(index, VERIFIED_READ_ONLY_SETTING, is(true));
+            return;
+        }
+
+        if (nodesVersions().values().stream().anyMatch(v -> v.onOrAfter(VERSION_CURRENT))) {
+            final var isClosed = isIndexClosed(index);
+            logger.debug("--> upgraded index [{}] is now in [{}] state", index, isClosed ? "closed" : "open");
+            assertThat(
+                indexBlocks(index),
+                allOf(
+                    either(hasItem(INDEX_READ_ONLY_BLOCK)).or(hasItem(INDEX_WRITE_BLOCK)),
+                    isClosed ? hasItem(INDEX_CLOSED_BLOCK) : not(hasItem(INDEX_CLOSED_BLOCK))
+                )
+            );
+            assertIndexSetting(index, VERIFIED_BEFORE_CLOSE_SETTING, is(isClosed));
+            assertIndexSetting(index, VERIFIED_READ_ONLY_SETTING, is(true));
+
+            var blocks = indexBlocks(index).stream().filter(c -> c.equals(INDEX_WRITE_BLOCK) || c.equals(INDEX_READ_ONLY_BLOCK)).toList();
+            if (blocks.size() == 2) {
+                switch (randomInt(2)) {
+                    case 0:
+                        updateIndexSettings(
+                            index,
+                            Settings.builder()
+                                .putNull(IndexMetadata.APIBlock.WRITE.settingName())
+                                .put(IndexMetadata.APIBlock.READ_ONLY.settingName(), true)
+                        );
+                        assertThat(
+                            indexBlocks(index),
+                            isClosed ? contains(INDEX_CLOSED_BLOCK, INDEX_READ_ONLY_BLOCK) : contains(INDEX_READ_ONLY_BLOCK)
+                        );
+                        break;
+                    case 1:
+                        updateIndexSettings(
+                            index,
+                            Settings.builder()
+                                .putNull(IndexMetadata.APIBlock.READ_ONLY.settingName())
+                                .put(IndexMetadata.APIBlock.WRITE.settingName(), true)
+                        );
+                        assertThat(
+                            indexBlocks(index),
+                            isClosed ? contains(INDEX_CLOSED_BLOCK, INDEX_WRITE_BLOCK) : contains(INDEX_WRITE_BLOCK)
+                        );
+                        break;
+                    case 2:
+                        updateIndexSettings(index, Settings.builder().put(IndexMetadata.APIBlock.READ_ONLY.settingName(), false));
+                        assertThat(
+                            indexBlocks(index),
+                            isClosed ? contains(INDEX_CLOSED_BLOCK, INDEX_WRITE_BLOCK) : contains(INDEX_WRITE_BLOCK)
+                        );
+                        break;
+                    default:
+                        throw new AssertionError();
+                }
+            }
+
+            blocks = indexBlocks(index).stream().filter(c -> c.equals(INDEX_WRITE_BLOCK) || c.equals(INDEX_READ_ONLY_BLOCK)).toList();
+            if (blocks.contains(INDEX_READ_ONLY_BLOCK)) {
+                logger.debug("--> read_only API block can be replaced by a write block (required for the remaining tests)");
+                updateIndexSettings(
+                    index,
+                    Settings.builder()
+                        .putNull(IndexMetadata.APIBlock.READ_ONLY.settingName())
+                        .put(IndexMetadata.APIBlock.WRITE.settingName(), true)
+                );
+            }
+
+            assertIndexSetting(index, VERIFIED_READ_ONLY_SETTING, is(true));
+            assertIndexSetting(index, VERIFIED_BEFORE_CLOSE_SETTING, is(isClosed));
+            assertThat(indexBlocks(index), isClosed ? contains(INDEX_CLOSED_BLOCK, INDEX_WRITE_BLOCK) : contains(INDEX_WRITE_BLOCK));
+
+            if (isClosed) {
+                logger.debug("--> re-opening index [{}] after upgrade", index);
+                openIndex(index);
+                ensureGreen(index);
+            }
+
+            assertThat(indexVersion(index), equalTo(VERSION_MINUS_2));
+            assertDocCount(client(), index, numDocs);
+
+            updateRandomIndexSettings(index);
+            updateRandomMappings(index);
+
+            if (randomBoolean()) {
+                logger.debug("--> random closing of index [{}] before upgrade", index);
+                closeIndex(index);
+                ensureGreen(index);
+            }
+        }
+    }
+
+    /**
+     * Builds a REST client that will tolerate warnings in the response headers. The default
+     * is to throw an exception.
+     */
+    @Override
+    protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
+        RestClientBuilder builder = RestClient.builder(hosts);
+        configureClient(builder, settings);
+        builder.setStrictDeprecationMode(false);
+        return builder.build();
+    }
+}

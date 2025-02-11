@@ -43,9 +43,9 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests.createSender;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
 public class VoyageAIActionCreatorTests extends ESTestCase {
@@ -125,12 +125,18 @@ public class VoyageAIActionCreatorTests extends ESTestCase {
                 requestMap,
                 is(
                     Map.of(
-                        "output_dtype","float",
-                        "truncation", true,
-                        "input_type", "query",
-                        "output_dimension",1024,
-                        "input", List.of("abc"),
-                        "model", "model"
+                        "output_dtype",
+                        "float",
+                        "truncation",
+                        true,
+                        "input_type",
+                        "query",
+                        "output_dimension",
+                        1024,
+                        "input",
+                        List.of("abc"),
+                        "model",
+                        "model"
                     )
                 )
             );

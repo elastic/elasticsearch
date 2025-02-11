@@ -295,4 +295,9 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         // return hasCapabilities(List.of(JOIN_LOOKUP_V10.capabilityName()));
         return false;
     }
+
+    @Override
+    protected boolean supportsUnmappedFields() throws IOException {
+        return false;
+    }
 }

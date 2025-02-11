@@ -573,3 +573,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/122110
 - class: org.elasticsearch.xpack.application.HuggingFaceServiceUpgradeIT
   issue: https://github.com/elastic/elasticsearch/issues/122111
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncEnrichStopIT
+  method: testEnrichAfterStop
+  issue: https://github.com/elastic/elasticsearch/issues/121994

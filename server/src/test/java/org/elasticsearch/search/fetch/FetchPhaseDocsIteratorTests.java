@@ -16,8 +16,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.test.ESTestCase;
@@ -76,7 +74,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
             protected SearchHit nextDoc(int doc) {
                 assertThat(doc, equalTo(this.docsInLeaf[this.index] + this.ctx.docBase));
                 index++;
-                return new SearchHit(doc, new NoopCircuitBreaker(CircuitBreaker.REQUEST));
+                return new SearchHit(doc);
             }
         };
 
@@ -124,7 +122,7 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
                 if (doc == badDoc) {
                     throw new IllegalArgumentException("Error processing doc");
                 }
-                return new SearchHit(doc, new NoopCircuitBreaker(CircuitBreaker.REQUEST));
+                return new SearchHit(doc);
             }
         };
 

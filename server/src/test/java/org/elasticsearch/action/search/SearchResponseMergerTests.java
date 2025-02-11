@@ -13,8 +13,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Tuple;
@@ -1096,7 +1094,7 @@ public class SearchResponseMergerTests extends ESTestCase {
         for (int j = 0; j < numDocs; j++) {
             ShardId shardId = new ShardId(randomFrom(indices), randomIntBetween(0, 10));
             SearchShardTarget shardTarget = new SearchShardTarget(randomAlphaOfLengthBetween(3, 8), shardId, clusterAlias);
-            SearchHit hit = new SearchHit(randomIntBetween(0, Integer.MAX_VALUE), new NoopCircuitBreaker(CircuitBreaker.REQUEST));
+            SearchHit hit = new SearchHit(randomIntBetween(0, Integer.MAX_VALUE));
 
             float score = Float.NaN;
             if (Float.isNaN(maxScore) == false) {

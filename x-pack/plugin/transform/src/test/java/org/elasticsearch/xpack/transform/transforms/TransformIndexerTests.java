@@ -21,7 +21,6 @@ import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -83,11 +82,7 @@ import static org.mockito.Mockito.mock;
 public class TransformIndexerTests extends ESTestCase {
 
     private static final SearchResponse ONE_HIT_SEARCH_RESPONSE = new SearchResponse(
-        new SearchHits(
-            new SearchHit[] { new SearchHit(1, new NoopCircuitBreaker(CircuitBreaker.REQUEST)) },
-            new TotalHits(1L, TotalHits.Relation.EQUAL_TO),
-            1.0f
-        ),
+        new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
         // Simulate completely null aggs
         null,
         new Suggest(Collections.emptyList()),

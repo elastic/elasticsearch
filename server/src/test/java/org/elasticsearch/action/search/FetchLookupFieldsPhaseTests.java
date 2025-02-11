@@ -11,8 +11,6 @@ package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchHit;
@@ -102,7 +100,7 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
                         };
                         final SearchHits searchHits;
                         if (fields != null) {
-                            final SearchHit hit = new SearchHit(randomInt(1000), new NoopCircuitBreaker(CircuitBreaker.REQUEST));
+                            final SearchHit hit = new SearchHit(randomInt(1000));
                             fields.forEach((f, values) -> hit.setDocumentField(f, new DocumentField(f, values, List.of())));
                             searchHits = new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f);
                         } else {
@@ -134,7 +132,7 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
                 }
             };
 
-            SearchHit leftHit0 = new SearchHit(randomInt(100), new NoopCircuitBreaker(CircuitBreaker.REQUEST));
+            SearchHit leftHit0 = new SearchHit(randomInt(100));
             final List<FieldAndFormat> fetchFields = List.of(new FieldAndFormat(randomAlphaOfLength(10), null));
             {
                 leftHit0.setDocumentField(
@@ -160,7 +158,7 @@ public class FetchLookupFieldsPhaseTests extends ESTestCase {
                 );
             }
 
-            SearchHit leftHit1 = new SearchHit(randomInt(100), new NoopCircuitBreaker(CircuitBreaker.REQUEST));
+            SearchHit leftHit1 = new SearchHit(randomInt(100));
             {
                 leftHit1.setDocumentField(
                     "lookup_field_2",

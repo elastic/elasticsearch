@@ -11,8 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
@@ -107,7 +105,7 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
     private static SearchResponse createSearchResponse(List<? extends ToXContent> toXContents, int totalHits) throws IOException {
         SearchHit[] hitsArray = new SearchHit[toXContents.size()];
         for (int i = 0; i < toXContents.size(); i++) {
-            hitsArray[i] = new SearchHit(randomInt(), new NoopCircuitBreaker(CircuitBreaker.REQUEST));
+            hitsArray[i] = new SearchHit(randomInt());
             XContentBuilder jsonBuilder = JsonXContent.contentBuilder();
             toXContents.get(i).toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
             hitsArray[i].sourceRef(BytesReference.bytes(jsonBuilder));

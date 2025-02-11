@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.common.MemoryAccountingBytesRefCounted;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -301,20 +302,23 @@ public final class FetchPhase {
 
         String id = idLoader.getId(subDocId);
         if (id == null) {
-            SearchHit hit = new SearchHit(docId, circuitBreaker);
+            SearchHit hit = new SearchHit(docId);
             // TODO: can we use real pooled buffers here as well?
             Source source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId, hit, circuitBreaker));
             return new HitContext(hit, subReaderContext, subDocId, Map.of(), source, rankDoc);
         } else {
-            SearchHit hit = new SearchHit(docId, id, circuitBreaker);
+            SearchHit hit = new SearchHit(docId, id);
             Source source;
             if (requiresSource) {
                 Timer timer = profiler.startLoadingSource();
                 try {
                     source = sourceLoader.source(leafStoredFieldLoader, subDocId);
-                    BytesReference sourceRef = source.internalSourceRef();
-                    circuitBreaker.addEstimateBytesAndMaybeBreak(sourceRef.length(), "fetch phase source loader");
-                    hit.unfilteredSourceRef(sourceRef);
+                    MemoryAccountingBytesRefCounted sourceRef = MemoryAccountingBytesRefCounted.createAndAccountForBytes(
+                        source.internalSourceRef(),
+                        circuitBreaker,
+                        "fetch phase source loader"
+                    );
+                    hit.unfilteredSource(sourceRef);
                 } catch (CircuitBreakingException e) {
                     hit.decRef();
                     throw e;
@@ -343,7 +347,11 @@ public final class FetchPhase {
                 LeafStoredFieldLoader leafRootLoader = rootLoader.getLoader(ctx, null);
                 leafRootLoader.advanceTo(doc);
                 BytesReference source = leafRootLoader.source();
-                circuitBreaker.addEstimateBytesAndMaybeBreak(source.length(), "fetch phase source loader");
+                MemoryAccountingBytesRefCounted memAccountingSourceRef = MemoryAccountingBytesRefCounted.createAndAccountForBytes(
+                    source,
+                    circuitBreaker,
+                    "fetch phase source loader"
+                );
                 // Saving the entire source we loaded in the hit, so that we can release it entirely when the hit is released
                 // This is important for the circuit breaker accounting - note that this lazy loader can be triggered in the case of
                 // inner hits even though the top hit source is not requested (see {@link FetchPhase#prepareNestedHitContext} when
@@ -351,7 +359,7 @@ public final class FetchPhase {
                 // for the top level source via the {@link SearchHit#unfilteredSourceRef(BytesReference)} method because the
                 // {@link SearchHit#source()} method can be null when the top level source is not requested.
                 // NB all of the above also applies for source filtering and field collapsing
-                hit.unfilteredSourceRef(source);
+                hit.unfilteredSource(memAccountingSourceRef);
                 return Source.fromBytes(source);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
@@ -410,7 +418,7 @@ public final class FetchPhase {
 
         // nested hits do not record their source size, as the top level hit will do so (nested hits will only reference part of the top
         // level source)
-        SearchHit nestedHit = new SearchHit(topDocId, rootId, nestedIdentity, FetchPhase.NOOP_CIRCUIT_BREAKER);
+        SearchHit nestedHit = new SearchHit(topDocId, rootId, nestedIdentity);
         return new HitContext(nestedHit, subReaderContext, nestedInfo.doc(), childFieldLoader.storedFields(), nestedSource, rankDoc);
     }
 

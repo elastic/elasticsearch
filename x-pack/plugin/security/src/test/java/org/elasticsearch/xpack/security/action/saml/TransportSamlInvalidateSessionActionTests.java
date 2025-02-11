@@ -38,8 +38,6 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -335,7 +333,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
             final Map<String, Object> accessToken = (Map<String, Object>) sourceMap.get("access_token");
             @SuppressWarnings("unchecked")
             final Map<String, Object> userToken = (Map<String, Object>) accessToken.get("user_token");
-            final SearchHit hit = new SearchHit(idx, "token_" + userToken.get("id"), new NoopCircuitBreaker(CircuitBreaker.REQUEST));
+            final SearchHit hit = new SearchHit(idx, "token_" + userToken.get("id"));
             hit.sourceRef(source);
             return hit;
         } catch (IOException e) {

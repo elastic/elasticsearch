@@ -20,8 +20,6 @@ import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
@@ -923,7 +921,7 @@ public class JobResultsProviderTests extends ESTestCase {
             fields.put("field_1", new DocumentField("field_1", Collections.singletonList("foo")));
             fields.put("field_2", new DocumentField("field_2", Collections.singletonList("foo")));
 
-            SearchHit hit = new SearchHit(123, String.valueOf(map.hashCode()), new NoopCircuitBreaker(CircuitBreaker.REQUEST));
+            SearchHit hit = new SearchHit(123, String.valueOf(map.hashCode()));
             hit.addDocumentFields(fields, Collections.emptyMap());
             hit.sourceRef(BytesReference.bytes(XContentFactory.jsonBuilder().map(_source)));
 

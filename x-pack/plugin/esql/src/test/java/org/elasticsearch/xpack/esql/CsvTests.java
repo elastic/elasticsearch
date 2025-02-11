@@ -77,6 +77,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
@@ -279,7 +280,6 @@ public class CsvTests extends ESTestCase {
                 "CSV tests cannot correctly handle the field caps change",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS.capabilityName())
             );
-            assumeFalse("fork disabled for csv tests", testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.FORK.capabilityName()));
             if (Build.current().isSnapshot()) {
                 assertThat(
                     "Capability is not included in the enabled list capabilities on a snapshot build. Spelling mistake?",
@@ -566,7 +566,9 @@ public class CsvTests extends ESTestCase {
 
     // Asserts that the serialization and deserialization of the plan creates an equivalent plan.
     private void opportunisticallyAssertPlanSerialization(PhysicalPlan plan) {
-        if (plan.anyMatch(p -> p instanceof LocalSourceExec || p instanceof HashJoinExec || p instanceof ChangePointExec)) {
+        if (plan.anyMatch(
+            p -> p instanceof LocalSourceExec || p instanceof HashJoinExec || p instanceof ChangePointExec || p instanceof MergeExec
+        )) {
             return;
         }
         SerializationTestUtils.assertSerialization(plan, configuration);

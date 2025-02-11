@@ -66,10 +66,10 @@ public record BalancingRoundSummary(Map<String, NodesWeightsChanges> nodeNameToW
      * across all those events: what allocation work was done across some period of time.
      * TODO: WIP ES-10341
      *
-     * Note that each balancing round summary is the difference between, at the time, latest desired balance and the previous desired balance.
-     * Each summary represents a step towards the next desired balance, which is based on presuming the previous desired balance is reached. So
-     * combining them is roughly the difference between the first summary's previous desired balance and the last summary's latest desired
-     * balance.
+     * Note that each balancing round summary is the difference between, at the time, latest desired balance and the previous desired
+     * balance. Each summary represents a step towards the next desired balance, which is based on presuming the previous desired balance is
+     * reached. So combining them is roughly the difference between the first summary's previous desired balance and the last summary's
+     * latest desired balance.
      *
      * @param numberOfBalancingRounds How many balancing round summaries are combined in this report.
      * @param nodeNameToWeightChanges

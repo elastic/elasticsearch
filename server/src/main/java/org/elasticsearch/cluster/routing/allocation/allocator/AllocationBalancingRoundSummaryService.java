@@ -202,7 +202,8 @@ public class AllocationBalancingRoundSummaryService {
     /**
      * Returns a combined summary of all unreported allocation round summaries: may summarize a single balancer round, multiple, or none.
      *
-     * @return {@link BalancingRoundSummary.CombinedBalancingRoundSummary#EMPTY_RESULTS} if there are no balancing round summaries waiting to be reported.
+     * @return {@link BalancingRoundSummary.CombinedBalancingRoundSummary#EMPTY_RESULTS} if there are no balancing round summaries waiting
+     * to be reported.
      */
     private BalancingRoundSummary.CombinedBalancingRoundSummary drainSummaries() {
         ArrayList<BalancingRoundSummary> batchOfSummaries = new ArrayList<>();

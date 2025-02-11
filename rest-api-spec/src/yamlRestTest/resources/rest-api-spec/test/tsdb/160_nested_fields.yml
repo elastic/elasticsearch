@@ -1,0 +1,61 @@
+---
+"Create TSDB index with field of nested type":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mode: time_series
+              number_of_replicas: 1
+              number_of_shards: 1
+              routing_path: [department]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              department:
+                type: keyword
+                time_series_dimension: true
+              staff:
+                type: integer
+              courses:
+                type: nested
+                properties:
+                  name:
+                    type: keyword
+                  credits:
+                    type: integer
+
+  - do:
+      index:
+        index: test
+        body: { "@timestamp": "2021-04-28T01:00:00Z", "department": "compsci", "staff": 12, "courses": [ { "name": "Object Oriented Programming", "credits": 3 }, { "name": "Theory of Computation", "credits": 4, } ] }
+
+  - do:
+      index:
+        index: test
+        body: { "@timestamp": "2021-04-28T02:00:00Z", "department": "math", "staff": 20, "courses": [ { "name": "Precalculus", "credits": 1 }, { "name": "Linear Algebra", "credits": 3 } ] }
+
+  - do:
+      indices.refresh:
+        index: [ test ]
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          query:
+            bool:
+              must:
+                - term:
+                    courses.name: Precalculus
+                - term:
+                    courses.credits: 3
+
+  - match:
+     hits.total.value: 0

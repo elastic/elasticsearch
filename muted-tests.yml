@@ -421,6 +421,8 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/122308
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/122310
+- class: org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/122315
 
 # Examples:
 #

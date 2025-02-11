@@ -67,6 +67,7 @@ public class DriverTests extends ESTestCase {
 
         Driver driver = new Driver(
             "unset",
+            "test",
             startEpoch,
             startNanos,
             driverContext,
@@ -116,6 +117,7 @@ public class DriverTests extends ESTestCase {
 
         Driver driver = new Driver(
             "unset",
+            "test",
             startEpoch,
             startNanos,
             driverContext,
@@ -166,6 +168,7 @@ public class DriverTests extends ESTestCase {
 
         Driver driver = new Driver(
             "unset",
+            "test",
             startEpoch,
             startNanos,
             driverContext,
@@ -231,7 +234,7 @@ public class DriverTests extends ESTestCase {
             WarningsOperator warning1 = new WarningsOperator(threadPool);
             WarningsOperator warning2 = new WarningsOperator(threadPool);
             CyclicBarrier allPagesProcessed = new CyclicBarrier(2);
-            Driver driver = new Driver(driverContext, new CannedSourceOperator(inPages.iterator()) {
+            Driver driver = new Driver("test", driverContext, new CannedSourceOperator(inPages.iterator()) {
                 @Override
                 public Page getOutput() {
                     assertRunningWithRegularUser(threadPool);
@@ -315,7 +318,7 @@ public class DriverTests extends ESTestCase {
 
                 }
             });
-            Driver driver = new Driver(driverContext, sourceOperator, List.of(delayOperator), sinkOperator, () -> {});
+            Driver driver = new Driver("test", driverContext, sourceOperator, List.of(delayOperator), sinkOperator, () -> {});
             ThreadContext threadContext = threadPool.getThreadContext();
             PlainActionFuture<Void> future = new PlainActionFuture<>();
 
@@ -336,7 +339,7 @@ public class DriverTests extends ESTestCase {
             var sinkHandler = new ExchangeSinkHandler(driverContext.blockFactory(), between(1, 5), System::currentTimeMillis);
             var sourceOperator = new ExchangeSourceOperator(sourceHandler.createExchangeSource());
             var sinkOperator = new ExchangeSinkOperator(sinkHandler.createExchangeSink(() -> {}), Function.identity());
-            Driver driver = new Driver(driverContext, sourceOperator, List.of(), sinkOperator, () -> {});
+            Driver driver = new Driver("test", driverContext, sourceOperator, List.of(), sinkOperator, () -> {});
             PlainActionFuture<Void> future = new PlainActionFuture<>();
             Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 1000), future);
             assertBusy(

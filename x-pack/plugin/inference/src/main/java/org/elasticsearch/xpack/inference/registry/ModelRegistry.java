@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
@@ -79,6 +80,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -145,7 +147,7 @@ public class ModelRegistry implements ClusterStateListener {
 
     public ModelRegistry(ClusterService clusterService, Client client) {
         this.client = new OriginSettingClient(client, ClientHelper.INFERENCE_ORIGIN);
-        this.defaultConfigIds = new HashMap<>();
+        this.defaultConfigIds = new ConcurrentHashMap<>();
         this.clusterService = clusterService;
         var executor = new SimpleBatchedAckListenerTaskExecutor<MetadataTask>() {
             @Override
@@ -732,23 +734,44 @@ public class ModelRegistry implements ClusterStateListener {
         return null;
     }
 
+    public synchronized void removeDefaultConfigs(Set<String> inferenceEntityIds, ActionListener<Boolean> listener) {
+        if (inferenceEntityIds.isEmpty()) {
+            listener.onResponse(true);
+            return;
+        }
+
+        defaultConfigIds.keySet().removeAll(inferenceEntityIds);
+        deleteModels(inferenceEntityIds, listener);
+    }
+
     public void deleteModel(String inferenceEntityId, ActionListener<Boolean> listener) {
-        if (preventDeletionLock.contains(inferenceEntityId)) {
+        deleteModels(Set.of(inferenceEntityId), listener);
+    }
+
+    public void deleteModels(Set<String> inferenceEntityIds, ActionListener<Boolean> listener) {
+        var lockedInferenceIds = new HashSet<>(inferenceEntityIds);
+        lockedInferenceIds.retainAll(preventDeletionLock);
+
+        if (lockedInferenceIds.isEmpty() == false) {
             listener.onFailure(
                 new ElasticsearchStatusException(
-                    "Model is currently being updated, you may delete the model once the update completes",
+                    Strings.format(
+                        "The inference endpoint(s) %s are currently being updated, please wait until after they are "
+                            + "finished updating to delete.",
+                        lockedInferenceIds
+                    ),
                     RestStatus.CONFLICT
                 )
             );
             return;
         }
 
-        var request = createDeleteRequest(inferenceEntityId);
-        client.execute(DeleteByQueryAction.INSTANCE, request, getDeleteModelClusterStateListener(inferenceEntityId, listener));
+        var request = createDeleteRequest(inferenceEntityIds);
+        client.execute(DeleteByQueryAction.INSTANCE, request, getDeleteModelClusterStateListener(inferenceEntityIds, listener));
     }
 
     private ActionListener<BulkByScrollResponse> getDeleteModelClusterStateListener(
-        String inferenceEntityId,
+        Set<String> inferenceEntityIds,
         ActionListener<Boolean> listener
     ) {
         return new ActionListener<>() {
@@ -767,7 +790,7 @@ public class ModelRegistry implements ClusterStateListener {
                                 format(
                                     "Failed to delete the inference endpoint [%s]. The service may be in an "
                                         + "inconsistent state. Please try deleting the endpoint again.",
-                                    inferenceEntityId
+                                    inferenceEntityIds
                                 ),
                                 RestStatus.INTERNAL_SERVER_ERROR
                             )
@@ -775,8 +798,8 @@ public class ModelRegistry implements ClusterStateListener {
                     }
                 };
                 metadataTaskQueue.submitTask(
-                    "delete model [" + inferenceEntityId + "]",
-                    new DeleteModelMetadataTask(inferenceEntityId, clusterStateListener),
+                    "delete models [" + inferenceEntityIds + "]",
+                    new DeleteModelMetadataTask(inferenceEntityIds, clusterStateListener),
                     null
                 );
             }
@@ -788,10 +811,10 @@ public class ModelRegistry implements ClusterStateListener {
         };
     }
 
-    private static DeleteByQueryRequest createDeleteRequest(String inferenceEntityId) {
+    private static DeleteByQueryRequest createDeleteRequest(Set<String> inferenceEntityIds) {
         DeleteByQueryRequest request = new DeleteByQueryRequest().setAbortOnVersionConflict(false);
         request.indices(InferenceIndex.INDEX_PATTERN, InferenceSecretsIndex.INDEX_PATTERN);
-        request.setQuery(documentIdQuery(inferenceEntityId));
+        request.setQuery(documentIdsQuery(inferenceEntityIds));
         request.setRefresh(true);
         return request;
     }
@@ -826,6 +849,11 @@ public class ModelRegistry implements ClusterStateListener {
 
     private static QueryBuilder documentIdQuery(String inferenceEntityId) {
         return QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds(Model.documentId(inferenceEntityId)));
+    }
+
+    private static QueryBuilder documentIdsQuery(Set<String> inferenceEntityIds) {
+        var documentIdsArray = inferenceEntityIds.stream().map(Model::documentId).toArray(String[]::new);
+        return QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds(documentIdsArray));
     }
 
     static Optional<InferenceService.DefaultConfigId> idMatchedDefault(
@@ -931,16 +959,16 @@ public class ModelRegistry implements ClusterStateListener {
     }
 
     private static class DeleteModelMetadataTask extends MetadataTask {
-        private final String inferenceEntityId;
+        private final Set<String> inferenceEntityIds;
 
-        DeleteModelMetadataTask(String inferenceEntityId, ActionListener<AcknowledgedResponse> listener) {
+        DeleteModelMetadataTask(Set<String> inferenceEntityId, ActionListener<AcknowledgedResponse> listener) {
             super(listener);
-            this.inferenceEntityId = inferenceEntityId;
+            this.inferenceEntityIds = inferenceEntityId;
         }
 
         @Override
         ModelRegistryMetadata executeTask(ModelRegistryMetadata current) {
-            return current.withRemovedModel(inferenceEntityId);
+            return current.withRemovedModel(inferenceEntityIds);
         }
     }
 }

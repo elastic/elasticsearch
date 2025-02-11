@@ -15,19 +15,28 @@ import org.elasticsearch.compute.operator.DriverContext;
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class MinFloatAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final List<Integer> channels;
-
-  public MinFloatAggregatorFunctionSupplier(List<Integer> channels) {
-    this.channels = channels;
+  public MinFloatAggregatorFunctionSupplier() {
   }
 
   @Override
-  public MinFloatAggregatorFunction aggregator(DriverContext driverContext) {
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return MinFloatAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return MinFloatGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public MinFloatAggregatorFunction aggregator(DriverContext driverContext,
+      List<Integer> channels) {
     return MinFloatAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
-  public MinFloatGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
+  public MinFloatGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+      List<Integer> channels) {
     return MinFloatGroupingAggregatorFunction.create(channels, driverContext);
   }
 

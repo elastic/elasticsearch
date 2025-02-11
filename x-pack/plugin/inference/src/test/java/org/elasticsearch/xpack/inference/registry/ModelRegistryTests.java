@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.registry;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -22,6 +23,7 @@ import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.junit.Before;
 
@@ -29,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.Strings.format;
@@ -134,6 +137,28 @@ public class ModelRegistryTests extends ESSingleNodeTestCase {
             exception.getMessage(),
             is(format("Inference endpoint [%s] already exists", model.getConfigurations().getInferenceEntityId()))
         );
+    }
+
+    public void testRemoveDefaultConfigs_DoesNotCallClient_WhenPassedAnEmptySet() {
+        var listener = new PlainActionFuture<Boolean>();
+        registry.removeDefaultConfigs(Set.of(), listener);
+        assertTrue(listener.actionGet(TIMEOUT));
+    }
+
+    public void testDeleteModels_Returns_ConflictException_WhenModelIsBeingAdded() {
+        var model = TestModel.createRandomInstance();
+        var newModel = TestModel.createRandomInstance();
+        registry.updateModelTransaction(newModel, model, new PlainActionFuture<>());
+
+        var listener = new PlainActionFuture<Boolean>();
+
+        registry.deleteModels(Set.of(newModel.getInferenceEntityId()), listener);
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+        assertThat(
+            exception.getMessage(),
+            containsString("are currently being updated, please wait until after they are finished updating to delete.")
+        );
+        assertThat(exception.status(), is(RestStatus.CONFLICT));
     }
 
     public void testIdMatchedDefault() {

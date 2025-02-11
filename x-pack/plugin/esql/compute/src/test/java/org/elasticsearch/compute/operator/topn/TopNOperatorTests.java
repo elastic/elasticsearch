@@ -543,6 +543,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         List<List<Object>> actualTop = new ArrayList<>();
         try (
             Driver driver = new Driver(
+                "test",
                 driverContext,
                 new CannedSourceOperator(List.of(new Page(blocks.toArray(Block[]::new))).iterator()),
                 List.of(
@@ -633,6 +634,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         List<List<Object>> actualTop = new ArrayList<>();
         try (
             Driver driver = new Driver(
+                "test",
                 driverContext,
                 new CannedSourceOperator(List.of(new Page(blocks.toArray(Block[]::new))).iterator()),
                 List.of(
@@ -668,6 +670,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         List<Tuple<Long, Long>> outputValues = new ArrayList<>();
         try (
             Driver driver = new Driver(
+                "test",
                 driverContext,
                 new TupleBlockSourceOperator(driverContext.blockFactory(), inputValues, randomIntBetween(1, 1000)),
                 List.of(
@@ -938,6 +941,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         int topCount = randomIntBetween(1, values.size());
         try (
             Driver driver = new Driver(
+                "test",
                 driverContext,
                 new CannedSourceOperator(List.of(page).iterator()),
                 List.of(
@@ -1112,6 +1116,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             List<List<Object>> actual = new ArrayList<>();
             try (
                 Driver driver = new Driver(
+                    "test",
                     driverContext,
                     new CannedSourceOperator(List.of(new Page(builder.build())).iterator()),
                     List.of(
@@ -1239,6 +1244,7 @@ public class TopNOperatorTests extends OperatorTestCase {
             DriverContext driverContext = driverContext();
             try (
                 Driver driver = new Driver(
+                    "test",
                     driverContext,
                     new CannedSourceOperator(List.of(new Page(builder.build())).iterator()),
                     List.of(
@@ -1327,6 +1333,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         DriverContext driverContext = driverContext();
         try (
             Driver driver = new Driver(
+                "test",
                 driverContext,
                 new CannedSourceOperator(List.of(new Page(blocks.toArray(Block[]::new))).iterator()),
                 List.of(
@@ -1367,6 +1374,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         DriverContext driverContext = driverContext();
         try (
             Driver driver = new Driver(
+                "test",
                 driverContext,
                 new SequenceLongBlockSourceOperator(driverContext.blockFactory(), LongStream.range(0, docCount)),
                 List.of(

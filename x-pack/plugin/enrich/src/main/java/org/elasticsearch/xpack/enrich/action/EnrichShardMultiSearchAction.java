@@ -57,6 +57,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -264,7 +265,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                             return context.getFieldType(field);
                         });
                         MemoryAccountingBytesRefCounted memAccountingRefCounted = MemoryAccountingBytesRefCounted.create(breaker);
-                        final SearchHit hit = new SearchHit(scoreDoc.doc, visitor.id(), null, memAccountingRefCounted);
+                        final SearchHit hit = new SearchHit(scoreDoc.doc, visitor.id(), null, LeakTracker.wrap(memAccountingRefCounted));
                         try {
                             BytesReference sourceBytesRef = visitor.source();
                             memAccountingRefCounted.account(sourceBytesRef.length(), "enrich source");

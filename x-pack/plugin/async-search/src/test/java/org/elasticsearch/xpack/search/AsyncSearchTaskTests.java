@@ -473,10 +473,8 @@ public class AsyncSearchTaskTests extends ESTestCase {
         int skippedShards,
         ShardSearchFailure... failures
     ) {
-        return SearchResponseUtils.builder(SearchHits.EMPTY_WITH_TOTAL_HITS)
-            .numReducePhases(1)
+        return SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS)
             .shards(totalShards, successfulShards, skippedShards)
-            .tookInMillis(100)
             .shardFailures(failures)
             .build();
     }

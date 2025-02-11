@@ -76,11 +76,9 @@ public class RollupIndexerStateTests extends ESTestCase {
             when(composite.getBuckets()).thenReturn(List.of());
             when(composite.getName()).thenReturn(AGGREGATION_NAME);
 
-            InternalAggregations aggs = InternalAggregations.from(List.of(composite));
-
             ActionListener.respondAndRelease(
                 nextPhase,
-                SearchResponseUtils.builder(SearchHits.EMPTY_WITH_TOTAL_HITS).aggregations(aggs).numReducePhases(1).shards(1, 1, 0).build()
+                SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS).aggregations(InternalAggregations.from(composite)).build()
             );
         }
 
@@ -412,14 +410,10 @@ public class RollupIndexerStateTests extends ESTestCase {
                     });
                     when(composite.getName()).thenReturn(AGGREGATION_NAME);
 
-                    InternalAggregations aggs = InternalAggregations.from(List.of(composite));
-
                     ActionListener.respondAndRelease(
                         nextPhase,
-                        SearchResponseUtils.builder(SearchHits.EMPTY_WITH_TOTAL_HITS)
-                            .aggregations(aggs)
-                            .numReducePhases(1)
-                            .shards(1, 1, 0)
+                        SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS)
+                            .aggregations(InternalAggregations.from(composite))
                             .build()
                     );
                 }
@@ -570,12 +564,8 @@ public class RollupIndexerStateTests extends ESTestCase {
             when(composite.getBuckets()).thenReturn(List.of(bucket));
             when(composite.getName()).thenReturn(RollupField.NAME);
 
-            InternalAggregations aggs = InternalAggregations.from(List.of(composite));
-
-            return SearchResponseUtils.builder(SearchHits.EMPTY_WITH_TOTAL_HITS)
-                .aggregations(aggs)
-                .numReducePhases(1)
-                .shards(1, 1, 0)
+            return SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS)
+                .aggregations(InternalAggregations.from(composite))
                 .build();
         };
 
@@ -645,11 +635,8 @@ public class RollupIndexerStateTests extends ESTestCase {
             when(composite.getBuckets()).thenReturn(List.of(bucket));
             when(composite.getName()).thenReturn(RollupField.NAME);
 
-            InternalAggregations aggs = InternalAggregations.from(List.of(composite));
-            return SearchResponseUtils.builder(SearchHits.EMPTY_WITH_TOTAL_HITS)
-                .aggregations(aggs)
-                .numReducePhases(1)
-                .shards(1, 1, 0)
+            return SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS)
+                .aggregations(InternalAggregations.from(composite))
                 .build();
         };
 
@@ -766,12 +753,8 @@ public class RollupIndexerStateTests extends ESTestCase {
             when(composite.getName()).thenReturn(RollupField.NAME);
             when(composite.getBuckets()).thenReturn(List.of(bucket));
 
-            InternalAggregations aggs = InternalAggregations.from(List.of(composite));
-
-            return SearchResponseUtils.builder(SearchHits.EMPTY_WITH_TOTAL_HITS)
-                .aggregations(aggs)
-                .numReducePhases(1)
-                .shards(1, 1, 0)
+            return SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS)
+                .aggregations(InternalAggregations.from(composite))
                 .build();
         };
 

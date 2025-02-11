@@ -167,8 +167,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
             new TotalHits(0, TotalHits.Relation.EQUAL_TO),
             0
         );
-        return SearchResponseUtils.builder(hits)
-            .numReducePhases(1)
+        return SearchResponseUtils.response(hits)
             .scrollId(randomSimpleString(random(), 1, 10))
             .shards(5, 4, 0)
             .tookInMillis(randomLong())

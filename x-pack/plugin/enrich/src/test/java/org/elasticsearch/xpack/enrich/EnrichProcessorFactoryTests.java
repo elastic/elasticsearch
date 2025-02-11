@@ -251,7 +251,10 @@ public class EnrichProcessorFactoryTests extends ESTestCase {
                 ) {
                     assert EnrichCoordinatorProxyAction.NAME.equals(action.name());
                     requestCounter[0]++;
-                    ActionListener.respondAndRelease(listener, (Response) SearchResponseUtils.success(SearchHits.EMPTY_WITH_TOTAL_HITS));
+                    ActionListener.respondAndRelease(
+                        listener,
+                        (Response) SearchResponseUtils.successfulResponse(SearchHits.EMPTY_WITH_TOTAL_HITS)
+                    );
                 }
             };
             EnrichProcessorFactory factory = new EnrichProcessorFactory(client, scriptService, enrichCache);

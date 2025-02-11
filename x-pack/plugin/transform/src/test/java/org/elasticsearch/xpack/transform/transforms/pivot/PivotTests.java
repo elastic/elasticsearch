@@ -352,7 +352,7 @@ public class PivotTests extends ESTestCase {
     }
 
     private static SearchResponse searchResponseFromAggs(InternalAggregations aggs) {
-        return SearchResponseUtils.builder(SearchHits.EMPTY_WITH_TOTAL_HITS).aggregations(aggs).numReducePhases(1).shards(10, 5, 0).build();
+        return SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS).aggregations(aggs).shards(10, 5, 0).build();
     }
 
     private class MyMockClient extends NoOpClient {
@@ -383,8 +383,7 @@ public class PivotTests extends ESTestCase {
                 }
                 ActionListener.respondAndRelease(
                     listener,
-                    (Response) SearchResponseUtils.builder(SearchHits.EMPTY_WITH_TOTAL_HITS)
-                        .numReducePhases(1)
+                    (Response) SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS)
                         .shards(10, searchFailures.isEmpty() ? 5 : 0, 0)
                         .shardFailures(searchFailures.toArray(ShardSearchFailure[]::new))
                         .build()

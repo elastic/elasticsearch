@@ -99,7 +99,9 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 SearchRequest::new,
                 (request, channel, task) -> {
-                    var searchResponse = SearchResponseUtils.success(SearchHits.empty(Lucene.TOTAL_HITS_EQUAL_TO_ZERO, Float.NaN));
+                    var searchResponse = SearchResponseUtils.successfulResponse(
+                        SearchHits.empty(Lucene.TOTAL_HITS_EQUAL_TO_ZERO, Float.NaN)
+                    );
                     try {
                         channel.sendResponse(searchResponse);
                     } finally {

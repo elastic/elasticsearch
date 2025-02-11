@@ -575,8 +575,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             new TotalHits(0, TotalHits.Relation.EQUAL_TO),
             0
         );
-        SearchResponse searchResponse = SearchResponseUtils.builder(hits)
-            .numReducePhases(1)
+        SearchResponse searchResponse = SearchResponseUtils.response(hits)
             .scrollId(scrollId())
             .shards(5, 4, 0)
             .tookInMillis(randomLong())

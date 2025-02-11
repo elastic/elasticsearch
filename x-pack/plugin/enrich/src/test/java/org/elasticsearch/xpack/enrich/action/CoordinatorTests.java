@@ -370,7 +370,7 @@ public class CoordinatorTests extends ESTestCase {
     }
 
     private static SearchResponse emptySearchResponse() {
-        return SearchResponseUtils.success(SearchHits.empty(Lucene.TOTAL_HITS_EQUAL_TO_ZERO, Float.NaN));
+        return SearchResponseUtils.successfulResponse(SearchHits.empty(Lucene.TOTAL_HITS_EQUAL_TO_ZERO, Float.NaN));
     }
 
     private class MockLookupFunction implements BiConsumer<MultiSearchRequest, BiConsumer<MultiSearchResponse, Exception>> {

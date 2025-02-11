@@ -479,7 +479,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 builder.map(apiKeySourceDoc);
                 searchHits[1].sourceRef(BytesReference.bytes(builder));
             }
-            return SearchResponseUtils.success(
+            return SearchResponseUtils.successfulResponse(
                 SearchHits.unpooled(
                     searchHits,
                     new TotalHits(searchHits.length, TotalHits.Relation.EQUAL_TO),
@@ -625,7 +625,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             }
             ActionListener.respondAndRelease(
                 listener,
-                SearchResponseUtils.success(
+                SearchResponseUtils.successfulResponse(
                     SearchHits.unpooled(
                         new SearchHit[] { searchHit },
                         new TotalHits(1, TotalHits.Relation.EQUAL_TO),
@@ -709,7 +709,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             }
             ActionListener.respondAndRelease(
                 listener,
-                SearchResponseUtils.success(
+                SearchResponseUtils.successfulResponse(
                     SearchHits.unpooled(
                         new SearchHit[] { searchHit },
                         new TotalHits(1, TotalHits.Relation.EQUAL_TO),
@@ -1040,7 +1040,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             final ActionListener<SearchResponse> listener = invocationOnMock.getArgument(1);
             ActionListener.respondAndRelease(
                 listener,
-                SearchResponseUtils.success(
+                SearchResponseUtils.successfulResponse(
                     SearchHits.unpooled(
                         searchHits.toArray(SearchHit[]::new),
                         new TotalHits(searchHits.size(), TotalHits.Relation.EQUAL_TO),

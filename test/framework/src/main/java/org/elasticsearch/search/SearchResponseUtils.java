@@ -78,12 +78,16 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public enum SearchResponseUtils {
     ;
 
-    public static SearchResponseBuilder builder(SearchHits hits) {
-        return new SearchResponseBuilder().searchHits(hits);
+    public static SearchResponseBuilder response() {
+        return new SearchResponseBuilder();
     }
 
-    public static SearchResponse success(SearchHits hits) {
-        return builder(hits).numReducePhases(1).shards(1, 1, 0).tookInMillis(100).build();
+    public static SearchResponseBuilder response(SearchHits hits) {
+        return new SearchResponseBuilder().searchHits(hits).numReducePhases(1).shards(1, 1, 0).tookInMillis(100);
+    }
+
+    public static SearchResponse successfulResponse(SearchHits hits) {
+        return response(hits).build();
     }
 
     public static SearchResponse emptyWithTotalHits(

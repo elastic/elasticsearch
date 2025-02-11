@@ -563,18 +563,14 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         }, filterBuilder, new MappedFieldType[] { fieldType }, new MappedFieldType[] { fieldType });
 
         MultiSearchResponse.Item unrolledItem = new MultiSearchResponse.Item(
-            SearchResponseUtils.builder(SearchHits.EMPTY_WITH_TOTAL_HITS)
-                .aggregations(InternalAggregations.from(responses.subList(0, 1)))
-                .numReducePhases(1)
-                .shards(1, 1, 0)
+            SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS)
+                .aggregations(InternalAggregations.from(responses.get(0)))
                 .build(),
             null
         );
         MultiSearchResponse.Item rolledItem = new MultiSearchResponse.Item(
-            SearchResponseUtils.builder(SearchHits.EMPTY_WITH_TOTAL_HITS)
-                .aggregations(InternalAggregations.from(responses.subList(1, 2)))
-                .numReducePhases(1)
-                .shards(1, 1, 0)
+            SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS)
+                .aggregations(InternalAggregations.from(responses.get(1)))
                 .build(),
             null
         );

@@ -235,7 +235,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
 
         @Override
         void doGetInitialProgress(SearchRequest request, ActionListener<SearchResponse> responseListener) {
-            ActionListener.respondAndRelease(responseListener, SearchResponseUtils.success(SearchHits.EMPTY_WITH_TOTAL_HITS));
+            ActionListener.respondAndRelease(responseListener, SearchResponseUtils.successfulResponse(SearchHits.EMPTY_WITH_TOTAL_HITS));
         }
 
         @Override
@@ -367,7 +367,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             null,
             null
         );
-        SearchResponse searchResponse = SearchResponseUtils.success(SearchHits.EMPTY_WITH_TOTAL_HITS);
+        SearchResponse searchResponse = SearchResponseUtils.successfulResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
         try {
             AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
             Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> searchResponse;
@@ -480,7 +480,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             null
         );
 
-        final SearchResponse searchResponse = SearchResponseUtils.success(
+        final SearchResponse searchResponse = SearchResponseUtils.successfulResponse(
             SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f)
         );
         try {
@@ -561,7 +561,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             null
         );
 
-        final SearchResponse searchResponse = SearchResponseUtils.success(
+        final SearchResponse searchResponse = SearchResponseUtils.successfulResponse(
             SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f)
         );
         try {
@@ -645,7 +645,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             null
         );
 
-        final SearchResponse searchResponse = SearchResponseUtils.success(
+        final SearchResponse searchResponse = SearchResponseUtils.successfulResponse(
             SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f)
         );
         try {
@@ -876,7 +876,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
     }
 
     private static Function<SearchRequest, SearchResponse> returnHit() {
-        return request -> SearchResponseUtils.success(
+        return request -> SearchResponseUtils.successfulResponse(
             SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f)
         );
     }

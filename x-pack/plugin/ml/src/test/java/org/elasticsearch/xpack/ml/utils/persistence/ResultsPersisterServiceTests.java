@@ -78,11 +78,9 @@ public class ResultsPersisterServiceTests extends ESTestCase {
 
     // Constants for searchWithRetry tests
     private static final SearchRequest SEARCH_REQUEST = new SearchRequest("my-index");
-    public static final SearchResponse SEARCH_RESPONSE_SUCCESS = SearchResponseUtils.success(SearchHits.EMPTY_WITH_TOTAL_HITS);
-    public static final SearchResponse SEARCH_RESPONSE_FAILURE = SearchResponseUtils.builder(SearchHits.EMPTY_WITHOUT_TOTAL_HITS)
-        .numReducePhases(1)
+    public static final SearchResponse SEARCH_RESPONSE_SUCCESS = SearchResponseUtils.successfulResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
+    public static final SearchResponse SEARCH_RESPONSE_FAILURE = SearchResponseUtils.response(SearchHits.EMPTY_WITHOUT_TOTAL_HITS)
         .shards(1, 0, 0)
-        .tookInMillis(1)
         .build();
 
     // Constants for bulkIndexWithRetry tests

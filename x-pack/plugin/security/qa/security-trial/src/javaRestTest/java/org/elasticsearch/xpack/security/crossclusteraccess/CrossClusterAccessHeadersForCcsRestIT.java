@@ -1216,7 +1216,7 @@ public class CrossClusterAccessHeadersForCcsRestIT extends SecurityOnTrialLicens
                     );
                     try (
                         var searchResponseRef = ReleasableRef.of(
-                            SearchResponseUtils.success(SearchHits.empty(Lucene.TOTAL_HITS_EQUAL_TO_ZERO, Float.NaN))
+                            SearchResponseUtils.successfulResponse(SearchHits.empty(Lucene.TOTAL_HITS_EQUAL_TO_ZERO, Float.NaN))
                         )
                     ) {
                         channel.sendResponse(searchResponseRef.get());

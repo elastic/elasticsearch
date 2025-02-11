@@ -114,7 +114,7 @@ public class CircuitBreakerTests extends ESTestCase {
                 new SearchSortValues(new Long[] { (long) ordinal, 1L }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW })
             );
             SearchHits searchHits = SearchHits.unpooled(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
-            ActionListener.respondAndRelease(l, SearchResponseUtils.success(searchHits));
+            ActionListener.respondAndRelease(l, SearchResponseUtils.successfulResponse(searchHits));
         }
 
         @Override

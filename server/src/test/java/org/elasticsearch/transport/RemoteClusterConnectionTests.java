@@ -155,7 +155,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     } else {
                         searchHits = SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN);
                     }
-                    try (var searchResponseRef = ReleasableRef.of(SearchResponseUtils.success(searchHits))) {
+                    try (var searchResponseRef = ReleasableRef.of(SearchResponseUtils.successfulResponse(searchHits))) {
                         channel.sendResponse(searchResponseRef.get());
                     }
                 }

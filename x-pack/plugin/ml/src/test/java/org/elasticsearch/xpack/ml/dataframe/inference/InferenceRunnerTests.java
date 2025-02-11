@@ -249,15 +249,12 @@ public class InferenceRunnerTests extends ESTestCase {
         when(threadpool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(client.threadPool()).thenReturn(threadpool);
 
-        Supplier<SearchResponse> withHits = () -> SearchResponseUtils.builder(
+        Supplier<SearchResponse> withHits = () -> SearchResponseUtils.response(
             SearchHits.unpooled(new SearchHit[] { SearchHit.unpooled(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f)
         )
             .aggregations(InternalAggregations.from(List.of(new Max(DestinationIndex.INCREMENTAL_ID, 1, DocValueFormat.RAW, Map.of()))))
-            .numReducePhases(1)
-            .shards(1, 1, 0)
-            .tookInMillis(0)
             .build();
-        Supplier<SearchResponse> withNoHits = () -> SearchResponseUtils.success(SearchHits.EMPTY_WITH_TOTAL_HITS);
+        Supplier<SearchResponse> withNoHits = () -> SearchResponseUtils.successfulResponse(SearchHits.EMPTY_WITH_TOTAL_HITS);
 
         when(client.search(any())).thenReturn(response(withHits)).thenReturn(response(withNoHits));
         return client;

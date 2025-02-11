@@ -104,9 +104,9 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
         hit.score(1f);
         hit.shard(new SearchShardTarget("a", new ShardId("a", "indexUUID", 0), null));
 
-        SearchResponse response = SearchResponseUtils.builder(
+        SearchResponse response = SearchResponseUtils.response(
             SearchHits.unpooled(new SearchHit[] { hit }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1f)
-        ).numReducePhases(1).shards(3, 3, 0).build();
+        ).shards(3, 3, 0).build();
         try {
             WatchExecutionContext ctx = mockExecutionContext("_watch_name", new Payload.XContent(response, ToXContent.EMPTY_PARAMS));
             assertThat(condition.execute(ctx).met(), is(true));

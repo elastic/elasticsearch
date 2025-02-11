@@ -181,7 +181,7 @@ public class EnrichCacheTests extends ESTestCase {
             }
         }).toArray(SearchHit[]::new);
         SearchHits hits = SearchHits.unpooled(hitArray, null, 0);
-        return SearchResponseUtils.builder(hits).numReducePhases(1).shards(5, 4, 0).tookInMillis(randomLong()).build();
+        return SearchResponseUtils.response(hits).shards(5, 4, 0).tookInMillis(randomLong()).build();
     }
 
     private BytesReference convertMapToJson(Map<String, ?> simpleMap) throws IOException {

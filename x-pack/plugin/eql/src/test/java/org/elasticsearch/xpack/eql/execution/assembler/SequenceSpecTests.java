@@ -220,7 +220,7 @@ public class SequenceSpecTests extends ESTestCase {
                 new TotalHits(eah.hits.size(), Relation.EQUAL_TO),
                 0.0f
             );
-            ActionListener.respondAndRelease(l, SearchResponseUtils.success(searchHits));
+            ActionListener.respondAndRelease(l, SearchResponseUtils.successfulResponse(searchHits));
         }
 
         @Override

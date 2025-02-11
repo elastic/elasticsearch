@@ -109,9 +109,10 @@ public class CompositeBucketsChangeCollectorTests extends ESTestCase {
 
             return compositeBuckets;
         });
-        InternalAggregations aggs = InternalAggregations.from(Collections.singletonList(composite));
 
-        SearchResponse response = SearchResponseUtils.builder(SearchHits.EMPTY_WITH_TOTAL_HITS).aggregations(aggs).build();
+        SearchResponse response = SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS)
+            .aggregations(InternalAggregations.from(composite))
+            .build();
         try {
             collector.processSearchResponse(response);
 

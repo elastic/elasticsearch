@@ -113,7 +113,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
                 return;
             }
 
-            ActionListener.respondAndRelease(nextPhase, SearchResponseUtils.success(SearchHits.EMPTY_WITH_TOTAL_HITS));
+            ActionListener.respondAndRelease(nextPhase, SearchResponseUtils.successfulResponse(SearchHits.EMPTY_WITH_TOTAL_HITS));
         }
 
         @Override
@@ -246,7 +246,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
                 awaitForLatch();
             }
 
-            ActionListener.respondAndRelease(nextPhase, SearchResponseUtils.success(SearchHits.EMPTY_WITH_TOTAL_HITS));
+            ActionListener.respondAndRelease(nextPhase, SearchResponseUtils.successfulResponse(SearchHits.EMPTY_WITH_TOTAL_HITS));
         }
 
         @Override

@@ -868,11 +868,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             }
             ActionListener.respondAndRelease(
                 listener,
-                SearchResponseUtils.builder(SearchHits.EMPTY_WITH_TOTAL_HITS)
-                    .aggregations(InternalAggregations.from(Collections.singletonList(result)))
-                    .numReducePhases(1)
-                    .shards(1, 1, 0)
-                    .build()
+                SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS).aggregations(InternalAggregations.from(result)).build()
             );
         }
 

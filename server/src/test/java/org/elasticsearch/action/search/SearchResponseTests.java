@@ -43,6 +43,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonMap;
@@ -144,7 +145,7 @@ public class SearchResponseTests extends ESTestCase {
      * compare xContent, so we omit it here
      */
     public void testFromXContent() throws IOException {
-        doFromXContentTestWithRandomFields(createTestItem(), false);
+        doFromXContentTestWithRandomFields(this::createTestItem, false);
     }
 
     /**
@@ -154,11 +155,16 @@ public class SearchResponseTests extends ESTestCase {
      * fields to SearchHits, Aggregations etc... is tested in their own tests
      */
     public void testFromXContentWithRandomFields() throws IOException {
-        doFromXContentTestWithRandomFields(createMinimalTestItem(), true);
+        doFromXContentTestWithRandomFields(this::createMinimalTestItem, true);
     }
 
-    private void doFromXContentTestWithRandomFields(SearchResponse response, boolean addRandomFields) throws IOException {
+    private void doFromXContentTestWithRandomFields(Supplier<SearchResponse> responseSupplier, boolean addRandomFields) throws IOException {
+        SearchResponse response = responseSupplier.get();
         XContentType xcontentType = randomFrom(XContentType.values());
+        if (xcontentType.equals(XContentType.YAML) && isLargeResponse(response)) {
+            // restrict YAML xContent response to < 3MB because of limit in snakeyaml input
+            response = randomValueOtherThanMany(SearchResponseTests::isLargeResponse, responseSupplier);
+        }
         boolean humanReadable = randomBoolean();
         final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
         BytesReference originalBytes = toShuffledXContent(response, xcontentType, params, humanReadable);
@@ -190,6 +196,10 @@ public class SearchResponseTests extends ESTestCase {
         }
         SearchResponse response = createTestItem(failures);
         XContentType xcontentType = randomFrom(XContentType.values());
+        if (xcontentType.equals(XContentType.YAML) && isLargeResponse(response)) {
+            // restrict YAML xContent response to < 3MB because of limit in snakeyaml input
+            response = randomValueOtherThanMany(SearchResponseTests::isLargeResponse, () -> createTestItem(failures));
+        }
         final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
         BytesReference originalBytes = toShuffledXContent(response, xcontentType, params, randomBoolean());
         try (XContentParser parser = createParser(xcontentType.xContent(), originalBytes)) {
@@ -214,6 +224,14 @@ public class SearchResponseTests extends ESTestCase {
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());
         }
+    }
+
+    /**
+     * returns true if the response object string is larger than 3 MB since this might create issues with YAML
+     * xContent parsing
+     */
+    private static boolean isLargeResponse(SearchResponse response) {
+        return Strings.toString(response).length() > 3 * 1024 * 1024;
     }
 
     public void testToXContent() {

@@ -49,7 +49,6 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.migrate.MigratePlugin;
 import org.elasticsearch.xpack.migrate.MigrateTemplateRegistry;
-import org.junit.After;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -67,10 +66,6 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
-    @After
-    private void cleanup() {
-        deletePipeline(MigrateTemplateRegistry.REINDEX_DATA_STREAM_PIPELINE_NAME);
-    }
 
     private static final String MAPPING = """
         {
@@ -108,6 +103,10 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         """;
 
     public void testTimestamp0AddedIfMissing() {
+        // Delete pipeline in case is a custom pipeline from another test
+        // MigrateTemplateRegistry will immediately rebuild pipeline
+        deletePipeline(MigrateTemplateRegistry.REINDEX_DATA_STREAM_PIPELINE_NAME);
+
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         safeGet(indicesAdmin().create(new CreateIndexRequest(sourceIndex)));
 
@@ -129,6 +128,10 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     }
 
     public void testTimestampNotAddedIfExists() {
+        // Delete pipeline in case is a custom pipeline from another test
+        // MigrateTemplateRegistry will immediately rebuild pipeline
+        deletePipeline(MigrateTemplateRegistry.REINDEX_DATA_STREAM_PIPELINE_NAME);
+
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         safeGet(indicesAdmin().create(new CreateIndexRequest(sourceIndex)));
 

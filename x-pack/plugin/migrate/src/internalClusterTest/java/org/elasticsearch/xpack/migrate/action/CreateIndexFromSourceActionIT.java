@@ -207,7 +207,7 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
         assertTrue(destSettings.getAsBoolean(IndexMetadata.SETTING_BLOCKS_READ, false));
 
         // override null removed
-        assertNull(destSettings.get(IndexMetadata.SETTING_BLOCKS_WRITE));
+        assertThat(destSettings.keySet(), not(hasItem(IndexMetadata.SETTING_BLOCKS_WRITE)));
     }
 
     public void testRemoveIndexBlocksByDefault() throws Exception {

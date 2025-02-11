@@ -49,7 +49,7 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.migrate.MigratePlugin;
 import org.elasticsearch.xpack.migrate.MigrateTemplateRegistry;
-import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -68,8 +68,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
 
-    @After
-    private void cleanup() throws Exception {
+    @Before
+    private void setup() throws Exception {
         deletePipeline(MigrateTemplateRegistry.REINDEX_DATA_STREAM_PIPELINE_NAME);
         assertBusy(() -> { assertTrue(getPipelines(MigrateTemplateRegistry.REINDEX_DATA_STREAM_PIPELINE_NAME).isFound()); });
     }

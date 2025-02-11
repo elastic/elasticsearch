@@ -540,8 +540,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.ClassificationIT
   method: testWithOnlyTrainingRowsAndTrainingPercentIsFifty_DependentVariableIsBoolean
   issue: https://github.com/elastic/elasticsearch/issues/121680
-- class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
-  issue: https://github.com/elastic/elasticsearch/issues/121737
 - class: org.elasticsearch.xpack.ml.integration.ClassificationIT
   method: testSetUpgradeMode_ExistingTaskGetsUnassigned
   issue: https://github.com/elastic/elasticsearch/issues/121928

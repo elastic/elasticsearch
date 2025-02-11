@@ -279,6 +279,53 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         }
     }
 
+    public void testFieldTypeWithDocValuesSkipper_LogsDBModeNoTimestampMapping() throws IOException {
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
+            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH)
+            .build();
+        final MapperService mapperService = createMapperService(settings, timestampMapping(true, b -> {}));
+
+        final DateFieldMapper timestampMapper = (DateFieldMapper) mapperService.documentMapper()
+            .mappers()
+            .getMapper(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+        assertTrue(timestampMapper.fieldType().hasDocValues());
+        if (IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings)) {
+            assertFalse(timestampMapper.fieldType().isIndexed());
+            assertTrue(timestampMapper.fieldType().hasDocValuesSkipper());
+        } else {
+            assertTrue(timestampMapper.fieldType().isIndexed());
+            assertFalse(timestampMapper.fieldType().hasDocValuesSkipper());
+        }
+    }
+
+    public void testFieldTypeWithDocValuesSkipper_LogsDBModeTimestampDateNanos() throws IOException {
+        final Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())
+            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH)
+            .build();
+        final MapperService mapperService = withMapping(
+            new TestMapperServiceBuilder().settings(settings).applyDefaultMapping(false).build(),
+            timestampMapping(true, b -> {
+                b.startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+                b.field("type", "date_nanos");
+                b.endObject();
+            })
+        );
+
+        final DateFieldMapper timestampMapper = (DateFieldMapper) mapperService.documentMapper()
+            .mappers()
+            .getMapper(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+        assertTrue(timestampMapper.fieldType().hasDocValues());
+        if (IndexSettings.USE_DOC_VALUES_SKIPPER.get(settings)) {
+            assertFalse(timestampMapper.fieldType().isIndexed());
+            assertTrue(timestampMapper.fieldType().hasDocValuesSkipper());
+        } else {
+            assertTrue(timestampMapper.fieldType().isIndexed());
+            assertFalse(timestampMapper.fieldType().hasDocValuesSkipper());
+        }
+    }
+
     public void testFieldTypeWithDocValuesSkipper_LogsDBModeExplicitTimestampIndexEnabledDocValuesSkipper() throws IOException {
         final Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())

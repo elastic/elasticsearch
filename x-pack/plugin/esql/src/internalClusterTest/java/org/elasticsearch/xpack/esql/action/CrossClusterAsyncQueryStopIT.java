@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.xpack.core.async.AsyncStopRequest;

@@ -87,6 +87,25 @@ public interface IndexEventListener {
     ) {}
 
     /**
+     * Invoked before a shard performs a mutable operation. Mutable operations include, but are not limited to:
+     * <ul>
+     *     <li>Indexing operations</li>
+     *     <li>Force merges</li>
+     * </ul>
+     *
+     * This method ensures that the shard is ready to accept mutating operations. This is particularly useful in cases
+     * where the shard initializes its internal {@link org.elasticsearch.index.engine.Engine} lazily, which may take some time.
+     * The provided listener should be notified once the shard is prepared to proceed with the operation.
+     * This can be called from a transport thread and therefore the function should be lightweight and not block the thread.
+     *
+     * @param indexShard the shard where the mutable operation will be performed
+     * @param listener   the listener to be notified when the shard is ready to proceed
+     */
+    default void beforeIndexShardMutableOperation(IndexShard indexShard, ActionListener<Void> listener) {
+        listener.onResponse(null);
+    }
+
+    /**
      * Called before the index gets created. Note that this is also called
      * when the index is created on data nodes
      */

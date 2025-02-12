@@ -33,8 +33,8 @@ import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 
-public class AbstractCrossClustersUsageTelemetryIT extends AbstractMultiClustersTestCase {
-    private static final Logger LOGGER = LogManager.getLogger(AbstractCrossClustersUsageTelemetryIT.class);
+public class AbstractCrossClusterUsageTelemetryIT extends AbstractMultiClustersTestCase {
+    private static final Logger LOGGER = LogManager.getLogger(AbstractCrossClusterUsageTelemetryIT.class);
     protected static final String REMOTE1 = "cluster-a";
     protected static final String REMOTE2 = "cluster-b";
     protected static final String LOCAL_INDEX = "logs-1";

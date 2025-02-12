@@ -58,7 +58,6 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
         // make sure the global build info plugin is applied to the root project
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
         buildParams = project.getRootProject().getExtensions().getByType(BuildParameterExtension.class);

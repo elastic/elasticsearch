@@ -18,6 +18,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.jdk.RuntimeVersionFeature;
 import org.elasticsearch.plugin.analysis.CharFilterFactory;
 import org.elasticsearch.plugins.scanners.PluginInfo;
 import org.elasticsearch.plugins.spi.BarPlugin;
@@ -873,6 +874,7 @@ public class PluginsServiceTests extends ESTestCase {
     }
 
     public void testCanCreateAClassLoader() {
+        assumeTrue("security manager must be available", RuntimeVersionFeature.isSecurityManagerAvailable());
         assertEquals(
             "access denied (\"java.lang.RuntimePermission\" \"createClassLoader\")",
             expectThrows(AccessControlException.class, () -> new Loader(this.getClass().getClassLoader())).getMessage()

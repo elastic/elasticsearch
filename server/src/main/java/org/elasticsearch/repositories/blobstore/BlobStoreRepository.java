@@ -1134,20 +1134,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     );
                 })
 
-                .<RepositoryData>andThen(
-                    // writeIndexGen finishes on master-service thread so must fork here.
-                    snapshotExecutor,
-                    threadPool.getThreadContext(),
-                    (l, newRepositoryData) -> {
-                        l.onResponse(newRepositoryData);
-                        // Once we have updated the repository, run the unreferenced blobs cleanup in parallel to shard-level snapshot
-                        // deletion
-                        try (var refs = new RefCountingRunnable(onCompletion)) {
-                            cleanupUnlinkedRootAndIndicesBlobs(newRepositoryData, refs.acquireListener());
-                            cleanupUnlinkedShardLevelBlobs(refs.acquireListener());
-                        }
+                .<RepositoryData>andThen((l, newRepositoryData) -> {
+                    l.onResponse(newRepositoryData);
+                    // Once we have updated the repository, run the unreferenced blobs cleanup in parallel to shard-level snapshot deletion
+                    try (var refs = new RefCountingRunnable(onCompletion)) {
+                        cleanupUnlinkedRootAndIndicesBlobs(newRepositoryData, refs.acquireListener());
+                        cleanupUnlinkedShardLevelBlobs(refs.acquireListener());
                     }
-                )
+                })
 
                 .addListener(repositoryDataUpdateListener);
         }

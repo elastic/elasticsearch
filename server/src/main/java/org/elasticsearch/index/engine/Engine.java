@@ -2346,4 +2346,8 @@ public abstract class Engine implements Closeable {
     public void prepareForEngineReset() throws IOException {
         throw new UnsupportedOperationException("does not support engine reset");
     }
+
+    public long getLastUnsafeSegmentGenerationForGets() {
+        throw new UnsupportedOperationException("Doesn't support getting the latest segment generation");
+    }
 }

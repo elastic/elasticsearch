@@ -306,8 +306,8 @@ steps:
             - signal_reason: agent_stop
               limit: 3
 
-      - label: 8.16.4 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.16.4#bwcTest
+      - label: 8.16.5 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.16.5#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -316,7 +316,7 @@ steps:
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
-          BWC_VERSION: 8.16.4
+          BWC_VERSION: 8.16.5
         retry:
           automatic:
             - exit_status: "-1"
@@ -325,8 +325,8 @@ steps:
             - signal_reason: agent_stop
               limit: 3
 
-      - label: 8.17.2 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.17.2#bwcTest
+      - label: 8.17.3 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.17.3#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -335,7 +335,7 @@ steps:
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
-          BWC_VERSION: 8.17.2
+          BWC_VERSION: 8.17.3
         retry:
           automatic:
             - exit_status: "-1"
@@ -486,7 +486,7 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - openjdk21
-            BWC_VERSION: ["8.16.4", "8.17.2", "8.18.0", "8.19.0", "9.0.0", "9.1.0"]
+            BWC_VERSION: ["8.16.5", "8.17.3", "8.18.0", "8.19.0", "9.0.0", "9.1.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -497,8 +497,8 @@ steps:
           BWC_VERSION: "{{matrix.BWC_VERSION}}"
   - group: java-matrix
     steps:
-      - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.GRADLE_TASK}} / java-matrix"
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true $$GRADLE_TASK
+      - label: "{{matrix.ES_RUNTIME_JAVA}} / entitlements={{matrix.ENTITLEMENTS_ENABLED}} / {{matrix.GRADLE_TASK}} / java-matrix"
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true -Dtests.jvm.argline="-Des.entitlements.enabled=$$ENTITLEMENTS_ENABLED" $$GRADLE_TASK
         timeout_in_minutes: 300
         matrix:
           setup:
@@ -513,6 +513,9 @@ steps:
               - checkPart4
               - checkPart5
               - checkRestCompat
+            ENTITLEMENTS_ENABLED:
+              - "true"
+              - "false"
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -521,6 +524,7 @@ steps:
         env:
           ES_RUNTIME_JAVA: "{{matrix.ES_RUNTIME_JAVA}}"
           GRADLE_TASK: "{{matrix.GRADLE_TASK}}"
+          ENTITLEMENTS_ENABLED: "{{matrix.ENTITLEMENTS_ENABLED}}"
       - label: "{{matrix.ES_RUNTIME_JAVA}} / {{matrix.BWC_VERSION}} / java-matrix-bwc"
         command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$$BWC_VERSION#bwcTest
         timeout_in_minutes: 300
@@ -529,7 +533,7 @@ steps:
             ES_RUNTIME_JAVA:
               - openjdk21
               - openjdk23
-            BWC_VERSION: ["8.16.4", "8.17.2", "8.18.0", "8.19.0", "9.0.0", "9.1.0"]
+            BWC_VERSION: ["8.16.5", "8.17.3", "8.18.0", "8.19.0", "9.0.0", "9.1.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004

@@ -226,6 +226,7 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
             }, e -> {
                 reindexDataStreamTask.reindexFailed(index.getName(), e);
                 listener.onResponse(null);
+                maybeProcessNextIndex(indicesRemaining, reindexDataStreamTask, sourceDataStream, listener, parentTaskId);
             }));
     }
 

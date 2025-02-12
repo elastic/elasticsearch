@@ -391,18 +391,18 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                     assertThat(
                         files,
                         containsInAnyOrder(
-                            "GeoLite2-City.mmdb",
-                            "GeoLite2-Country.mmdb",
                             "GeoLite2-ASN.mmdb",
-                            "MyCustomGeoLite2-City.mmdb",
-                            "GeoLite2-City.mmdb_COPYRIGHT.txt",
-                            "GeoLite2-Country.mmdb_COPYRIGHT.txt",
                             "GeoLite2-ASN.mmdb_COPYRIGHT.txt",
-                            "MyCustomGeoLite2-City.mmdb_COPYRIGHT.txt",
-                            "GeoLite2-City.mmdb_LICENSE.txt",
-                            "GeoLite2-Country.mmdb_LICENSE.txt",
                             "GeoLite2-ASN.mmdb_LICENSE.txt",
-                            "GeoLite2-ASN.mmdb_README.txt",
+                            "GeoLite2-City.mmdb",
+                            "GeoLite2-City.mmdb_COPYRIGHT.txt",
+                            "GeoLite2-City.mmdb_LICENSE.txt",
+                            "GeoLite2-City.mmdb_README.txt",
+                            "GeoLite2-Country.mmdb",
+                            "GeoLite2-Country.mmdb_COPYRIGHT.txt",
+                            "GeoLite2-Country.mmdb_LICENSE.txt",
+                            "MyCustomGeoLite2-City.mmdb",
+                            "MyCustomGeoLite2-City.mmdb_COPYRIGHT.txt",
                             "MyCustomGeoLite2-City.mmdb_LICENSE.txt"
                         )
                     );

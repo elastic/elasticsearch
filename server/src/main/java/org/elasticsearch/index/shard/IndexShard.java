@@ -451,10 +451,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return this.bulkOperationListener;
     }
 
-    public IndexingOperationListener getIndexingOperationListener() {
-        return this.indexingOperationListeners;
-    }
-
     public ShardIndexWarmerService warmerService() {
         return this.shardWarmerService;
     }
@@ -4507,4 +4503,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         );
     }
 
+    /**
+     * Ensures that the shard is ready to perform mutable operations.
+     * This method is particularly useful when the shard initializes its internal
+     * {@link org.elasticsearch.index.engine.Engine} lazily, as it may take some time before becoming mutable.
+     *
+     * The provided listener will be notified once the shard is ready for mutating operations.
+     *
+     * @param listener the listener to be notified when the shard is mutable
+     */
+    public void ensureMutable(ActionListener<Void> listener) {
+        indexEventListener.beforeIndexShardMutableOperation(this, listener.delegateFailure((l, unused) -> {
+            // TODO ES-10826: Acquire ref to engine and retry if it's immutable again?
+            l.onResponse(null);
+        }));
+    }
 }

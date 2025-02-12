@@ -71,6 +71,11 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     }
 
     @Override
+    protected boolean shouldSkipTestsWithSemanticTextFields() {
+        return true;
+    }
+
+    @Override
     protected boolean enableRoundingDoubleValuesOnAsserting() {
         return true;
     }

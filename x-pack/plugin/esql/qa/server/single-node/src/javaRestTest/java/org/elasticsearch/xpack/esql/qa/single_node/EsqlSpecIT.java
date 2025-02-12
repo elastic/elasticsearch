@@ -42,4 +42,9 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
         // This suite runs with more than one node and three shards in serverless
         return cluster.getNumNodes() > 1;
     }
+
+    @Override
+    protected boolean shouldSkipTestsWithSemanticTextFields() {
+        return cluster.getNumNodes() > 1;
+    }
 }

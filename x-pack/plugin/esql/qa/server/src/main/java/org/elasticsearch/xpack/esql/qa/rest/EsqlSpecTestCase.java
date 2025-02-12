@@ -70,6 +70,7 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.createInferenceEnd
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.deleteInferenceEndpoint;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE;
 
 // This test can run very long in serverless configurations
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
@@ -128,13 +129,20 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     @Before
     public void setup() throws IOException {
+        if (shouldSkipTestsWithSemanticTextFields()) {
+            assumeFalse("semantic_text tests are muted", testCase.requiredCapabilities.contains(SEMANTIC_TEXT_TYPE.capabilityName()));
+        }
         if (supportsInferenceTestService() && clusterHasInferenceEndpoint(client()) == false) {
             createInferenceEndpoint(client());
         }
-
         if (indexExists(availableDatasetsForEs(client(), supportsIndexModeLookup()).iterator().next().indexName()) == false) {
             loadDataSetIntoEs(client(), supportsIndexModeLookup());
         }
+    }
+
+    // https://github.com/elastic/elasticsearch/issues/121411
+    protected boolean shouldSkipTestsWithSemanticTextFields() {
+        return false;
     }
 
     @AfterClass
@@ -172,6 +180,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);
         assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
+        if (shouldSkipTestsWithSemanticTextFields()) {
+            assumeFalse("semantic_text tests are muted", testCase.requiredCapabilities.contains(SEMANTIC_TEXT_TYPE.capabilityName()));
+        }
     }
 
     protected static void checkCapabilities(RestClient client, TestFeatureService testFeatureService, String testName, CsvTestCase testCase)

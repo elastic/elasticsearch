@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-public class CrossClustersEnrichIT extends AbstractEnrichBasedCrossClusterTestCase {
+public class CrossClusterEnrichIT extends AbstractEnrichBasedCrossClusterTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {

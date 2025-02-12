@@ -75,7 +75,7 @@ public abstract class AbstractEnrichBasedCrossClusterTestCase extends AbstractMu
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
-        plugins.add(CrossClustersEnrichIT.LocalStateEnrich.class);
+        plugins.add(CrossClusterEnrichIT.LocalStateEnrich.class);
         plugins.add(IngestCommonPlugin.class);
         plugins.add(ReindexPlugin.class);
         return plugins;
@@ -274,7 +274,7 @@ public abstract class AbstractEnrichBasedCrossClusterTestCase extends AbstractMu
 
         @Override
         protected Class<? extends TransportAction<XPackInfoRequest, XPackInfoResponse>> getInfoAction() {
-            return CrossClustersQueriesWithInvalidLicenseIT.LocalStateEnrich.EnrichTransportXPackInfoAction.class;
+            return CrossClusterQueriesWithInvalidLicenseIT.LocalStateEnrich.EnrichTransportXPackInfoAction.class;
         }
     }
 }

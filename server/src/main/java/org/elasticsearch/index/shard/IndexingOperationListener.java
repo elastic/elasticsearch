@@ -9,11 +9,9 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.index.engine.Engine;
 
 import java.util.List;
-import java.util.function.Supplier;
 
 /**
  * An indexing listener for indexing, delete, events.
@@ -63,18 +61,6 @@ public interface IndexingOperationListener {
      * related failures
      */
     default void postDelete(ShardId shardId, Engine.Delete delete, Exception ex) {}
-
-    /**
-     * Called when a {@link org.elasticsearch.action.bulk.TransportShardBulkAction} is about to perform index and/or delete operation(s)
-     * on a primary shard.
-     *
-     * This is called from a transport thread and therefore the function should be lightweight and not block the thread. The acquired
-     * listener(s) can be asynchronously completed on another thread at a later time.
-     *
-     * @param indexShard the shard the bulk is about to be performed on
-     * @param proceedListenerSupplier call this immediately to get a listener which must be completed so that the bulk can proceed.
-     */
-    default void preBulkOnPrimary(IndexShard indexShard, Supplier<ActionListener<Void>> proceedListenerSupplier) {}
 
     /**
      * A Composite listener that multiplexes calls to each of the listeners methods.
@@ -160,17 +146,6 @@ public interface IndexingOperationListener {
                 } catch (Exception inner) {
                     inner.addSuppressed(ex);
                     logger.warn(() -> "postDelete listener [" + listener + "] failed", inner);
-                }
-            }
-        }
-
-        @Override
-        public void preBulkOnPrimary(IndexShard indexShard, Supplier<ActionListener<Void>> proceedListenerSupplier) {
-            for (IndexingOperationListener listener : listeners) {
-                try {
-                    listener.preBulkOnPrimary(indexShard, proceedListenerSupplier);
-                } catch (Exception e) {
-                    logger.warn(() -> "preBulkOnPrimary listener [" + listener + "] failed", e);
                 }
             }
         }

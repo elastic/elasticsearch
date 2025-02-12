@@ -9,6 +9,8 @@
 
 package org.elasticsearch.entitlement.qa.entitled;
 
+import org.elasticsearch.core.SuppressForbidden;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

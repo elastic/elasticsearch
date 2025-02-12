@@ -423,6 +423,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   method: testUnsupportedTypesOrdinalGrouping
   issue: https://github.com/elastic/elasticsearch/issues/122342
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/alias/line_260}
+  issue: https://github.com/elastic/elasticsearch/issues/122343
 
 # Examples:
 #

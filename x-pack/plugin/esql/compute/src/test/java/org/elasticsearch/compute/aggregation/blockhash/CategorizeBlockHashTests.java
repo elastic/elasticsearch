@@ -423,8 +423,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     List.of(makeGroupSpec()),
                     AggregatorMode.INITIAL,
                     List.of(
-                        new SumLongAggregatorFunctionSupplier(List.of(1)).groupingAggregatorFactory(AggregatorMode.INITIAL),
-                        new MaxLongAggregatorFunctionSupplier(List.of(1)).groupingAggregatorFactory(AggregatorMode.INITIAL)
+                        new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1)),
+                        new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1))
                     ),
                     16 * 1024,
                     analysisRegistry
@@ -443,8 +443,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     List.of(makeGroupSpec()),
                     AggregatorMode.INITIAL,
                     List.of(
-                        new SumLongAggregatorFunctionSupplier(List.of(1)).groupingAggregatorFactory(AggregatorMode.INITIAL),
-                        new MaxLongAggregatorFunctionSupplier(List.of(1)).groupingAggregatorFactory(AggregatorMode.INITIAL)
+                        new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1)),
+                        new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1))
                     ),
                     16 * 1024,
                     analysisRegistry
@@ -465,8 +465,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     List.of(makeGroupSpec()),
                     AggregatorMode.FINAL,
                     List.of(
-                        new SumLongAggregatorFunctionSupplier(List.of(1, 2)).groupingAggregatorFactory(AggregatorMode.FINAL),
-                        new MaxLongAggregatorFunctionSupplier(List.of(3, 4)).groupingAggregatorFactory(AggregatorMode.FINAL)
+                        new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(1, 2)),
+                        new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(3, 4))
                     ),
                     16 * 1024,
                     analysisRegistry

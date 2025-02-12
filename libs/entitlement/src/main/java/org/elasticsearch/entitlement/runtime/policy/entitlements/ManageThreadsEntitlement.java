@@ -12,6 +12,6 @@ package org.elasticsearch.entitlement.runtime.policy.entitlements;
 import org.elasticsearch.entitlement.runtime.policy.ExternalEntitlement;
 
 public record ManageThreadsEntitlement() implements Entitlement {
-    @ExternalEntitlement
+    @ExternalEntitlement(esModulesOnly = false)
     public ManageThreadsEntitlement {}
 }

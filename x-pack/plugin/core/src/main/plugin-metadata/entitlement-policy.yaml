@@ -7,6 +7,7 @@ org.apache.httpcomponents.httpcore.nio:
 org.apache.httpcomponents.httpasyncclient:
   - manage_threads
 unboundid.ldapsdk:
+  - manage_threads
   - write_system_properties:
       properties:
         - java.security.auth.login.config

@@ -1,5 +1,5 @@
 pr: 122425
 summary: Fix synthetic source bug that would mishandle nested `dense_vector` fields
-area: "Mapping, Vector Search"
+area: "Mapping"
 type: bug
-issues: []
+issues: [122383]

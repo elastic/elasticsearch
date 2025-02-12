@@ -404,6 +404,8 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   method: testStatsMissingFieldWithStats
   issue: https://github.com/elastic/elasticsearch/issues/122327
+- class: org.elasticsearch.xpack.esql.CsvTests
+  issue: https://github.com/elastic/elasticsearch/issues/122440
 
 # Examples:
 #

@@ -28,21 +28,21 @@ import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAcce
 @SuppressForbidden(reason = "Explicitly checking APIs that are forbidden")
 class FileCheckActions {
 
-    private static Path testRootDir = Paths.get(System.getProperty("es.entitlements.testdir"));
+    static Path testRootDir = Paths.get(System.getProperty("es.entitlements.testdir"));
 
-    private static Path readDir() {
+    static Path readDir() {
         return testRootDir.resolve("read_dir");
     }
 
-    private static Path readWriteDir() {
+    static Path readWriteDir() {
         return testRootDir.resolve("read_write_dir");
     }
 
-    private static Path readFile() {
+    static Path readFile() {
         return testRootDir.resolve("read_file");
     }
 
-    private static Path readWriteFile() {
+    static Path readWriteFile() {
         return testRootDir.resolve("read_write_file");
     }
 

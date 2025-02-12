@@ -388,10 +388,41 @@ setup:
                         {
                           standard: {
                             query: {
-                              match_all: {}
-                            },
-                            sort: {
-                              integer: "asc"
+                              bool: {
+                                should:
+                                  [
+                                    {
+                                      constant_score: {
+                                        filter: {
+                                          term: {
+                                            integer: 1
+                                          }
+                                        },
+                                        boost: 3
+                                      }
+                                    },
+                                    {
+                                      constant_score: {
+                                        filter: {
+                                          term: {
+                                            integer: 2
+                                          }
+                                        },
+                                        boost: 2
+                                      }
+                                    },
+                                    {
+                                      constant_score: {
+                                        filter: {
+                                          term: {
+                                            integer: 3
+                                          }
+                                        },
+                                        boost: 1
+                                      }
+                                    }
+                                  ]
+                              }
                             }
                           }
                         },

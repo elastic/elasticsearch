@@ -17,7 +17,7 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DEFAULT_EWMA_ALPHA;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutorTests extends ESTestCase  {
+public class TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutorTests extends ESTestCase {
 
     String INDEX_NAME = "index";
 
@@ -48,7 +48,7 @@ public class TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutorTests extends 
             assertTrue(executor.getSearchLoadPerIndex(INDEX_NAME) > 0);
         });
 
-       shutdownExecutor(executor);
+        shutdownExecutor(executor);
     }
 
     /** Execute a blank task {@code times} times for the executor */
@@ -64,7 +64,7 @@ public class TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutorTests extends 
         executor.shutdown();
         try {
             if (executor.awaitTermination(5, TimeUnit.SECONDS) == false) executor.shutdownNow();
-        } catch(InterruptedException e) {
+        } catch (InterruptedException e) {
             executor.shutdownNow();
         }
     }

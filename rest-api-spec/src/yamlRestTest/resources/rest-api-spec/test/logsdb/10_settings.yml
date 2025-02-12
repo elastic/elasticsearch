@@ -70,6 +70,10 @@ create logs index:
 
 ---
 create logs index without doc values sparse index:
+  - requires:
+      cluster_features: [ "mapper.doc_values_skipper" ]
+      reason: requires setting 'index.mapping.use_doc_values_skipper' to enable the doc values sparse index
+
   - do:
       indices.create:
         index: test

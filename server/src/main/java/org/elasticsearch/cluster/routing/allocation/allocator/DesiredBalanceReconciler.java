@@ -174,22 +174,19 @@ public class DesiredBalanceReconciler {
         }
 
         private void updateDesireBalanceMetrics(AllocationStats allocationStats) {
-            var nodesStatsAndWeights = nodeAllocationStatsAndWeightsCalculator.nodesAllocationStatsAndWeights(
+            var nodeIDsToStatsAndWeights = nodeAllocationStatsAndWeightsCalculator.nodesAllocationStatsAndWeights(
                 allocation.metadata(),
                 allocation.routingNodes(),
                 allocation.clusterInfo(),
                 desiredBalance
             );
-            Map<DiscoveryNode, NodeAllocationStatsAndWeight> filteredNodeAllocationStatsAndWeights = new HashMap<>(
-                nodesStatsAndWeights.size()
-            );
-            for (var nodeStatsAndWeight : nodesStatsAndWeights.entrySet()) {
+            Map<DiscoveryNode, NodeAllocationStatsAndWeight> nodeToStatsAndWeights = new HashMap<>(nodeIDsToStatsAndWeights.size());
+            for (var nodeStatsAndWeight : nodeIDsToStatsAndWeights.entrySet()) {
                 var node = allocation.nodes().get(nodeStatsAndWeight.getKey());
-                if (node != null) {
-                    filteredNodeAllocationStatsAndWeights.put(node, nodeStatsAndWeight.getValue());
-                }
+                assert node != null;
+                nodeToStatsAndWeights.put(node, nodeStatsAndWeight.getValue());
             }
-            desiredBalanceMetrics.updateMetrics(allocationStats, desiredBalance.weightsPerNode(), filteredNodeAllocationStatsAndWeights);
+            desiredBalanceMetrics.updateMetrics(allocationStats, desiredBalance.weightsPerNode(), nodeToStatsAndWeights);
         }
 
         private boolean allocateUnassignedInvariant() {

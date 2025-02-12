@@ -119,6 +119,7 @@ public class IndexEngine extends InternalEngine {
 
     private final AtomicBoolean ongoingFlushMustUpload = new AtomicBoolean(false);
     private final AtomicInteger forceMergesInProgress = new AtomicInteger(0);
+    private final AtomicInteger queuedOrRunningMergesCount = new AtomicInteger();
 
     @SuppressWarnings("this-escape")
     public IndexEngine(
@@ -295,8 +296,12 @@ public class IndexEngine extends InternalEngine {
 
     @Override
     public boolean refreshNeeded() {
+        var lastCommittedSegmentInfos = getLastCommittedSegmentInfos();
+        if (isLastCommitHollow(lastCommittedSegmentInfos)) {
+            return false;
+        }
         boolean committedLocalCheckpointNeedsUpdate = getProcessedLocalCheckpoint() > Long.parseLong(
-            getLastCommittedSegmentInfos().userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
+            lastCommittedSegmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
         );
         // It is possible that the index writer has uncommitted changes. We could check here, but we will check before actually
         // triggering the flush anyway.
@@ -743,11 +748,27 @@ public class IndexEngine extends InternalEngine {
                 ),
                 () -> forceMergesInProgress.get() == 0 && shouldSkipMerges.test(shardId),
                 this::onAfterMerge,
-                this::mergeException
+                this::mergeException,
+                this::onMergeEnqueued,
+                this::onMergeExecutedOrAborted
             );
         } else {
             return super.createMergeScheduler(shardId, indexSettings);
         }
+    }
+
+    private void onMergeEnqueued(OnGoingMerge merge) {
+        var queuedOrRunningMerges = queuedOrRunningMergesCount.incrementAndGet();
+        assert queuedOrRunningMerges > 0;
+    }
+
+    private void onMergeExecutedOrAborted(OnGoingMerge merge) {
+        var remainingMerges = queuedOrRunningMergesCount.decrementAndGet();
+        assert remainingMerges >= 0;
+    }
+
+    public boolean hasQueuedOrRunningMerges() {
+        return queuedOrRunningMergesCount.get() > 0;
     }
 
     public record EngineMetrics(TranslogRecoveryMetrics translogRecoveryMetrics, MergeMetrics mergeMetrics) {}

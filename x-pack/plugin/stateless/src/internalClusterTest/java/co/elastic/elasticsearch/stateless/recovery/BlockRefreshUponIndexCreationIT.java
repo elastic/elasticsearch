@@ -295,9 +295,12 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessIntegTestC
             pendingCommitRegistration.run();
         }
 
-        if (useRefreshBlock) {
-            assertAllUnpromotableShardsAreInState(ShardRoutingState.UNASSIGNED, ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED);
+        assertAllUnpromotableShardsAreInState(ShardRoutingState.UNASSIGNED, ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED);
 
+        if (useRefreshBlock) {
+            // If we don't use refresh blocks, the bulks might be waiting for a refresh to be executed in the assigned unpromotable nodes,
+            // but if the refresh policy was IMMEDIATE, it might have finished already. Therefore, we only assert that the bulks are not
+            // done when we use the refresh block.
             for (var bulkFuture : concurrentBulkFutures) {
                 if (bulkFuture.isDone()) {
                     // Just to debug CI failures
@@ -305,6 +308,7 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessIntegTestC
                 }
                 assertThat(bulkFuture.isDone(), is(false));
             }
+
             for (ActionFuture<BroadcastResponse> concurrentRefreshFuture : concurrentRefreshFutures) {
                 if (concurrentRefreshFuture.isDone()) {
                     // Just to debug CI failures
@@ -312,19 +316,19 @@ public class BlockRefreshUponIndexCreationIT extends AbstractStatelessIntegTestC
                 }
                 assertThat(concurrentRefreshFuture.isDone(), is(false));
             }
-            delayRegisterCommitForRecovery.set(false);
-
-            CheckedRunnable<Exception> delayedCommitRegistration;
-            while ((delayedCommitRegistration = delayedCommitRegistrations.poll()) != null) {
-                delayedCommitRegistration.run();
-            }
-
-            for (String index : indices) {
-                updateIndexSettings(Settings.builder().putNull("index.routing.allocation.exclude._name"), index);
-            }
-
-            ensureGreen(indices.toArray(new String[] {}));
         }
+
+        delayRegisterCommitForRecovery.set(false);
+        CheckedRunnable<Exception> delayedCommitRegistration;
+        while ((delayedCommitRegistration = delayedCommitRegistrations.poll()) != null) {
+            delayedCommitRegistration.run();
+        }
+
+        for (String index : indices) {
+            updateIndexSettings(Settings.builder().putNull("index.routing.allocation.exclude._name"), index);
+        }
+
+        ensureGreen(indices.toArray(new String[] {}));
 
         concurrentBulkFutures.forEach(bulkFuture -> assertNoFailures(safeGet(bulkFuture)));
         concurrentRefreshFutures.forEach(refreshFuture -> assertNoFailures(safeGet(refreshFuture)));

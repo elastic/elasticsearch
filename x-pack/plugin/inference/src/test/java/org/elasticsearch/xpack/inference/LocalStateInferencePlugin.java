@@ -8,11 +8,13 @@
 package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.action.support.MappedActionFilter;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension;
@@ -68,4 +70,13 @@ public class LocalStateInferencePlugin extends LocalStateCompositeXPackPlugin {
         return inferencePlugin.getMappedActionFilters();
     }
 
+    @Override
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return inferencePlugin.getNamedWriteables();
+    }
+
+    @Override
+    public List<NamedXContentRegistry.Entry> getNamedXContent() {
+        return inferencePlugin.getNamedXContent();
+    }
 }

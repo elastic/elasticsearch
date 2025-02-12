@@ -1,0 +1,5 @@
+pr: 119724
+summary: rrf support the window_size parameter to compatible with old version
+area: Search
+type: bug
+issues: []

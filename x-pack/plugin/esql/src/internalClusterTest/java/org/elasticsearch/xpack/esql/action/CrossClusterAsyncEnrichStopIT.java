@@ -36,6 +36,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.startAsyncQ
 import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.waitForCluster;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 // This tests if enrich after stop works correctly
 public class CrossClusterAsyncEnrichStopIT extends AbstractEnrichBasedCrossClusterTestCase {
@@ -91,6 +92,14 @@ public class CrossClusterAsyncEnrichStopIT extends AbstractEnrichBasedCrossClust
         // wait until c1 is done
         waitForCluster(client(), "c1", asyncExecutionId);
         waitForCluster(client(), LOCAL_CLUSTER, asyncExecutionId);
+        // wait until remote reduce task starts on c2
+        assertBusy(() -> {
+            List<TaskInfo> tasks = getDriverTasks(client(REMOTE_CLUSTER_2));
+            List<TaskInfo> reduceTasks = tasks.stream()
+                .filter(t -> t.status() instanceof DriverStatus ds && ds.taskDescription().equals("remote_reduce"))
+                .toList();
+            assertThat(reduceTasks, not(empty()));
+        });
 
         // Run the stop request
         var stopRequest = new AsyncStopRequest(asyncExecutionId);

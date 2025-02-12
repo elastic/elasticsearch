@@ -49,7 +49,6 @@ import static org.elasticsearch.index.query.QueryStringQueryBuilder.TYPE_FIELD;
 
 public class QueryStringQuery extends LeafQuery {
 
-    // TODO: it'd be great if these could be constants instead of Strings, needs a core change to make the fields public first
     private static final Map<String, BiConsumer<QueryStringQueryBuilder, String>> BUILDER_APPLIERS = Map.ofEntries(
         entry(ALLOW_LEADING_WILDCARD_FIELD.getPreferredName(), (qb, s) -> qb.allowLeadingWildcard(Booleans.parseBoolean(s))),
         entry(ANALYZE_WILDCARD_FIELD.getPreferredName(), (qb, s) -> qb.analyzeWildcard(Booleans.parseBoolean(s))),

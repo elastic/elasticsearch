@@ -12,8 +12,8 @@ apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  description 'Ingest processor that uses looksup geo data based on ip adresses using the Maxmind geo database'
-  classname 'org.elasticsearch.ingest.geoip.IngestGeoIpPlugin'
+  description = 'Ingest processor that uses looksup geo data based on ip adresses using the Maxmind geo database'
+  classname = 'org.elasticsearch.ingest.geoip.IngestGeoIpPlugin'
 }
 
 tasks.named('internalClusterTestTestingConventions').configure {

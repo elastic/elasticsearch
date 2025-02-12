@@ -8,8 +8,8 @@
 apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
 esplugin {
-  description 'The Ukrainian Analysis plugin integrates the Lucene UkrainianMorfologikAnalyzer into elasticsearch.'
-  classname 'org.elasticsearch.plugin.analysis.ukrainian.AnalysisUkrainianPlugin'
+  description = 'The Ukrainian Analysis plugin integrates the Lucene UkrainianMorfologikAnalyzer into elasticsearch.'
+  classname ='org.elasticsearch.plugin.analysis.ukrainian.AnalysisUkrainianPlugin'
 }
 
 dependencies {

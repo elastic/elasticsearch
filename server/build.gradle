@@ -15,7 +15,7 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 publishing {
   publications {
     elastic {
-      artifactId 'elasticsearch'
+      artifactId = 'elasticsearch'
     }
   }
 }

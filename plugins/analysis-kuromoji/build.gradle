@@ -8,8 +8,8 @@
 apply plugin: 'elasticsearch.legacy-yaml-rest-test'
 
 esplugin {
-  description 'The Japanese (kuromoji) Analysis plugin integrates Lucene kuromoji analysis module into elasticsearch.'
-  classname 'org.elasticsearch.plugin.analysis.kuromoji.AnalysisKuromojiPlugin'
+  description = 'The Japanese (kuromoji) Analysis plugin integrates Lucene kuromoji analysis module into elasticsearch.'
+  classname ='org.elasticsearch.plugin.analysis.kuromoji.AnalysisKuromojiPlugin'
 }
 
 dependencies {

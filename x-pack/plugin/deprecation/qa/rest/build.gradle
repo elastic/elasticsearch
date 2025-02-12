@@ -5,8 +5,8 @@ apply plugin: 'elasticsearch.base-internal-es-plugin'
 apply plugin: 'elasticsearch.legacy-java-rest-test'
 
 esplugin {
-  description 'Deprecated query plugin'
-  classname 'org.elasticsearch.xpack.deprecation.TestDeprecationPlugin'
+  description = 'Deprecated query plugin'
+  classname ='org.elasticsearch.xpack.deprecation.TestDeprecationPlugin'
 }
 
 dependencies {

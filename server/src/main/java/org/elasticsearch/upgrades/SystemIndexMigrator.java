@@ -497,11 +497,18 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
     }
 
     private void createIndexRetryOnFailure(SystemIndexMigrationInfo migrationInfo, ActionListener<ShardsAcknowledgedResponse> listener) {
-        createIndex(migrationInfo, ActionListener.wrap(listener::onResponse, e -> {
+        createIndex(migrationInfo, listener.delegateResponse((l, e) -> {
             logger.warn("createIndex failed, retrying after removing index [{}] from previous attempt", migrationInfo.getNextIndexName());
-            deleteIndex(migrationInfo, ActionListener.wrap(cleanupResponse -> createIndex(migrationInfo, listener), e2 -> {
-                logger.warn("createIndex failed after retrying, aborting", e2);
-                listener.onFailure(e2);
+            deleteIndex(migrationInfo, ActionListener.wrap(cleanupResponse -> createIndex(migrationInfo, l.delegateResponse((l3, e3) -> {
+                logger.error(
+                    "createIndex failed after retrying, aborting; index [{}] will be left in an inconsistent state",
+                    migrationInfo.getNextIndexName(),
+                    e3
+                );
+                l.onFailure(e3);
+            })), e2 -> {
+                logger.error("deleteIndex failed after retrying, aborting", e2);
+                l.onFailure(e2);
             }));
         }));
     }

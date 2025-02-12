@@ -99,18 +99,18 @@ public class Sum extends NumericAggregate implements SurrogateExpression {
     }
 
     @Override
-    protected AggregatorFunctionSupplier longSupplier(List<Integer> inputChannels) {
-        return new SumLongAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier longSupplier() {
+        return new SumLongAggregatorFunctionSupplier();
     }
 
     @Override
-    protected AggregatorFunctionSupplier intSupplier(List<Integer> inputChannels) {
-        return new SumIntAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier intSupplier() {
+        return new SumIntAggregatorFunctionSupplier();
     }
 
     @Override
-    protected AggregatorFunctionSupplier doubleSupplier(List<Integer> inputChannels) {
-        return new SumDoubleAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier doubleSupplier() {
+        return new SumDoubleAggregatorFunctionSupplier();
     }
 
     @Override

@@ -504,7 +504,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
 
             var requestMap = entityAsMap(request.getBody());
-            assertThat(requestMap, is(Map.of("input", List.of("input text"), "model_id", "my-model-id", "usage_context", "search")));
+            assertThat(requestMap, is(Map.of("input", List.of("input text"), "model", "my-model-id", "usage_context", "search")));
         }
     }
 
@@ -562,7 +562,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             );
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap, is(Map.of("input", List.of("input text"), "model_id", "my-model-id", "usage_context", "ingest")));
+            assertThat(requestMap, is(Map.of("input", List.of("input text"), "model", "my-model-id", "usage_context", "ingest")));
         }
     }
 
@@ -934,13 +934,17 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         }
     }
 
-    public void testDefaultConfigs_Returns_DefaultChatCompletion_V1_WhenTaskTypeIsCorrect() throws Exception {
+    public void testDefaultConfigs_Returns_DefaultEndpoints_WhenTaskTypeIsCorrect() throws Exception {
         String responseJson = """
             {
                 "models": [
                     {
                       "model_name": "rainbow-sprinkles",
                       "task_types": ["chat"]
+                    },
+                    {
+                      "model_name": "elser-v2",
+                      "task_types": ["embed/text/sparse"]
                     }
                 ]
             }
@@ -957,15 +961,19 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 service.defaultConfigIds(),
                 is(
                     List.of(
+                        new InferenceService.DefaultConfigId(".elser-v2-elastic", MinimalServiceSettings.sparseEmbedding(), service),
                         new InferenceService.DefaultConfigId(".rainbow-sprinkles-elastic", MinimalServiceSettings.chatCompletion(), service)
                     )
                 )
             );
-            assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.CHAT_COMPLETION)));
+            assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.SPARSE_EMBEDDING)));
 
             PlainActionFuture<List<Model>> listener = new PlainActionFuture<>();
             service.defaultConfigs(listener);
-            assertThat(listener.actionGet(TIMEOUT).get(0).getConfigurations().getInferenceEntityId(), is(".rainbow-sprinkles-elastic"));
+            var models = listener.actionGet(TIMEOUT);
+            assertThat(models.size(), is(2));
+            assertThat(models.get(0).getConfigurations().getInferenceEntityId(), is(".elser-v2-elastic"));
+            assertThat(models.get(1).getConfigurations().getInferenceEntityId(), is(".rainbow-sprinkles-elastic"));
         }
     }
 

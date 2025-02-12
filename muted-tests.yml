@@ -320,9 +320,6 @@ tests:
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testGetUsersWithProfileUid
   issue: https://github.com/elastic/elasticsearch/issues/121483
-- class: org.elasticsearch.xpack.transform.checkpoint.TransformCCSCanMatchIT
-  method: testTransformLifecycle_RangeQueryThatMatchesNoShards
-  issue: https://github.com/elastic/elasticsearch/issues/121480
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testSuggestProfilesWithHint
   issue: https://github.com/elastic/elasticsearch/issues/121116
@@ -374,8 +371,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authz.IndexAliasesTests
   method: testRemoveIndex
   issue: https://github.com/elastic/elasticsearch/issues/122221
-- class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
-  issue: https://github.com/elastic/elasticsearch/issues/121737
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   method: testGroupingMultiValueByOrdinals
   issue: https://github.com/elastic/elasticsearch/issues/122228
@@ -406,6 +401,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/122377
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.HdfsRepositoryAnalysisRestIT
   issue: https://github.com/elastic/elasticsearch/issues/122378
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  method: testStatsMissingFieldWithStats
+  issue: https://github.com/elastic/elasticsearch/issues/122327
 
 # Examples:
 #

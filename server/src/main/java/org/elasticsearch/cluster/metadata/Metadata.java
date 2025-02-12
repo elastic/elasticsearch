@@ -44,6 +44,8 @@ import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -730,7 +732,9 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             // need to combine reserved state together into a single block so we don't get duplicate keys
             // and not include it in the project xcontent output (through the lack of multi-project params)
             clusterReservedState.putAll(project.reservedStateMetadata());
-            return Iterators.concat(start, Iterators.single((builder, params) -> {
+
+            @FixForMultiProject(description = "consider include cluster-scoped persistent tasks")
+            final var iterators = Iterators.concat(start, Iterators.single((builder, params) -> {
                 builder.field("cluster_uuid", clusterUUID);
                 builder.field("cluster_uuid_committed", clusterUUIDCommitted);
                 builder.startObject("cluster_coordination");
@@ -748,6 +752,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 ChunkedToXContentHelper.object("reserved_state", clusterReservedState.values().iterator()),
                 ChunkedToXContentHelper.endObject()
             );
+            return iterators;
         }
     }
 
@@ -773,9 +778,17 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
          * true if this diff is a noop because before and after were the same instance
          */
         private final boolean empty;
+        /**
+         * true if this diff is read from an old node that does not know about multi-project
+         */
+        private final boolean fromNodeBeforeMultiProjectsSupport;
+        // A combined diff for both cluster and project scoped persistent tasks and packaged as project scoped ones.
+        // This is used only when the node has a single project and needs to send the diff to an old node (wire BWC).
+        private final MapDiff<String, ProjectCustom, ImmutableOpenMap<String, ProjectCustom>> combinedTasksDiff;
 
         MetadataDiff(Metadata before, Metadata after) {
             this.empty = before == after;
+            this.fromNodeBeforeMultiProjectsSupport = false; // diff on this node, always after multi-projects, even when disabled
             clusterUUID = after.clusterUUID;
             clusterUUIDCommitted = after.clusterUUIDCommitted;
             version = after.version;
@@ -795,7 +808,43 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 hashesOfConsistentSettings = DiffableStringMap.DiffableStringMapDiff.EMPTY;
                 clusterCustoms = DiffableUtils.emptyDiff();
                 reservedStateMetadata = DiffableUtils.emptyDiff();
+                combinedTasksDiff = null; // identical metadata, no need for combined tasks diff.
             } else {
+                // If only has a single project, we need to prepare a combined diff for both cluster and project
+                // scoped persistent tasks so that it is compatible with the old node in case wire BWC is needed.
+                if (singleProject != null) {
+                    final var beforeTasks = PersistentTasksCustomMetadata.combine(
+                        before.custom(ClusterPersistentTasksCustomMetadata.TYPE),
+                        before.getSingleProject().custom(PersistentTasksCustomMetadata.TYPE)
+                    );
+                    final var afterTasks = PersistentTasksCustomMetadata.combine(
+                        after.custom(ClusterPersistentTasksCustomMetadata.TYPE),
+                        after.getSingleProject().custom(PersistentTasksCustomMetadata.TYPE)
+                    );
+
+                    if (beforeTasks == null && afterTasks == null) {
+                        combinedTasksDiff = null;
+                    } else if (beforeTasks == null) {
+                        combinedTasksDiff = DiffableUtils.singleUpsertDiff(
+                            PersistentTasksCustomMetadata.TYPE,
+                            afterTasks,
+                            DiffableUtils.getStringKeySerializer()
+                        );
+                    } else if (afterTasks == null) {
+                        combinedTasksDiff = DiffableUtils.singleDeleteDiff(
+                            PersistentTasksCustomMetadata.TYPE,
+                            DiffableUtils.getStringKeySerializer()
+                        );
+                    } else {
+                        combinedTasksDiff = DiffableUtils.singleEntryDiff(
+                            PersistentTasksCustomMetadata.TYPE,
+                            afterTasks.diff(beforeTasks),
+                            DiffableUtils.getStringKeySerializer()
+                        );
+                    }
+                } else {
+                    combinedTasksDiff = null; // Metadata with multi-projects can never be sent to old node, no need for special handling
+                }
                 hashesOfConsistentSettings = after.hashesOfConsistentSettings.diff(before.hashesOfConsistentSettings);
                 clusterCustoms = DiffableUtils.diff(
                     before.customs,
@@ -827,7 +876,12 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             transientSettings = Settings.readSettingsFromStream(in);
             persistentSettings = Settings.readSettingsFromStream(in);
             hashesOfConsistentSettings = DiffableStringMap.readDiffFrom(in);
+            // We don't need combined diff for persistent tasks when the whole diff is read from wire because:
+            // (1) If the diff is read from an old node, it is already combined.
+            // (2) If the diff is read from a new node, multiProject != null, which prevents it from being sent to old nodes.
+            combinedTasksDiff = null;
             if (in.getTransportVersion().before(TransportVersions.MULTI_PROJECT)) {
+                fromNodeBeforeMultiProjectsSupport = true;
                 var indices = DiffableUtils.readImmutableOpenMapDiff(
                     in,
                     DiffableUtils.getStringKeySerializer(),
@@ -839,6 +893,8 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                     TEMPLATES_DIFF_VALUE_READER
                 );
 
+                // Read customs and split them into cluster and project ones. Note that the persistent tasks need further handling
+                // since they are returned as part of project customs at this point.
                 var bwcCustoms = readBwcCustoms(in);
                 clusterCustoms = bwcCustoms.v1();
                 var projectCustoms = bwcCustoms.v2();
@@ -853,6 +909,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 singleProject = new ProjectMetadata.ProjectMetadataDiff(indices, templates, projectCustoms, DiffableUtils.emptyDiff());
                 multiProject = null;
             } else {
+                fromNodeBeforeMultiProjectsSupport = false;
                 clusterCustoms = DiffableUtils.readImmutableOpenMapDiff(
                     in,
                     DiffableUtils.getStringKeySerializer(),
@@ -930,12 +987,28 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
 
         @SuppressWarnings("unchecked")
         private Diff<ImmutableOpenMap<String, ?>> buildUnifiedCustomDiff() {
-            return DiffableUtils.merge(
+            assert multiProject == null : "should only be used for single project metadata";
+            // First merge the cluster customs and project customs
+            final var mergedClusterAndProjectCustomDiff = DiffableUtils.merge(
                 clusterCustoms,
                 singleProject.customs(),
                 DiffableUtils.getStringKeySerializer(),
                 BWC_CUSTOM_VALUE_SERIALIZER
             );
+            if (combinedTasksDiff == null) {
+                // No combined diff means either (1) no tasks are involved or (2) the diff is from an old node
+                // In both cases, we can proceed without further changes.
+                return mergedClusterAndProjectCustomDiff;
+            } else {
+                // We need first delete the persistent tasks entries from the diffs by cluster and project customs themselves.
+                // Then add the combined tasks diff to the result.
+                return DiffableUtils.merge(
+                    DiffableUtils.removeKey(mergedClusterAndProjectCustomDiff, PersistentTasksCustomMetadata.TYPE),
+                    combinedTasksDiff,
+                    DiffableUtils.getStringKeySerializer(),
+                    BWC_CUSTOM_VALUE_SERIALIZER
+                );
+            }
         }
 
         private Diff<Map<String, ReservedStateMetadata>> buildUnifiedReservedStateMetadataDiff() {
@@ -967,11 +1040,57 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 if (part.isSingleProject() == false) {
                     throw new UnsupportedOperationException("Trying to apply a single-project diff to a multi-project metadata");
                 }
-                builder.projectMetadata(Map.of(DEFAULT_PROJECT_ID, singleProject.apply(part.getSingleProject())));
+                // This diff is either (1) read from an old node or (2) because this node only has a single project
+                if (fromNodeBeforeMultiProjectsSupport) {
+                    // If this diff is read from an old node, it has combination between cluster and project tasks.
+                    // So we need to combine the tasks first for the diff to apply.
+                    final var combinedTasksBefore = PersistentTasksCustomMetadata.combine(
+                        part.custom(ClusterPersistentTasksCustomMetadata.TYPE),
+                        part.getSingleProject().custom(PersistentTasksCustomMetadata.TYPE)
+                    );
+                    // Apply the diff to get the new project metadata with combined tasks
+                    final ProjectMetadata projectWithCombinedTasks;
+                    if (combinedTasksBefore == null) {
+                        projectWithCombinedTasks = singleProject.apply(part.getSingleProject());
+                    } else {
+                        projectWithCombinedTasks = singleProject.apply(
+                            ProjectMetadata.builder(part.getSingleProject())
+                                .putCustom(PersistentTasksCustomMetadata.TYPE, combinedTasksBefore)
+                                .build()
+                        );
+                    }
+                    final var combinedTasksAfter = (PersistentTasksCustomMetadata) projectWithCombinedTasks.custom(
+                        PersistentTasksCustomMetadata.TYPE
+                    );
+                    if (combinedTasksAfter == null) {
+                        builder.projectMetadata(Map.of(DEFAULT_PROJECT_ID, projectWithCombinedTasks));
+                        builder.customs(clusterCustoms.apply(part.customs));
+                    } else {
+                        // Now split the combined tasks back to cluster and project scoped so that they can be stored separately
+                        final var tuple = combinedTasksAfter.split();
+                        builder.projectMetadata(
+                            Map.of(
+                                DEFAULT_PROJECT_ID,
+                                ProjectMetadata.builder(projectWithCombinedTasks)
+                                    .putCustom(PersistentTasksCustomMetadata.TYPE, tuple.v2())
+                                    .build()
+                            )
+                        );
+                        // For cluster customs, we need to apply the diff (contains no info for tasks), then put the persistent tasks
+                        // from the split cluster scoped one
+                        final var clusterCustomsBuilder = ImmutableOpenMap.builder(clusterCustoms.apply(part.customs));
+                        clusterCustomsBuilder.put(ClusterPersistentTasksCustomMetadata.TYPE, tuple.v1());
+                        builder.customs(clusterCustomsBuilder.build());
+                    }
+                } else {
+                    builder.customs(clusterCustoms.apply(part.customs));
+                    builder.projectMetadata(Map.of(DEFAULT_PROJECT_ID, singleProject.apply(part.getSingleProject())));
+                }
             } else {
+                assert fromNodeBeforeMultiProjectsSupport == false;
+                builder.customs(clusterCustoms.apply(part.customs));
                 builder.projectMetadata(multiProject.apply(part.projectMetadata));
             }
-            builder.customs(clusterCustoms.apply(part.customs));
             builder.put(reservedStateMetadata.apply(part.reservedStateMetadata));
             return builder.build(true);
         }
@@ -1032,7 +1151,15 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                 builder.putCustom(custom.getWriteableName(), custom);
             } else if (projectScopedNames.contains(name)) {
                 final ProjectCustom custom = in.readNamedWriteable(ProjectCustom.class, name);
-                builder.putProjectCustom(custom.getWriteableName(), custom);
+                // Persistent tasks from an old node are serialized with the project scoped class. We split them into cluster and project
+                // scoped ones and store them separately.
+                if (custom instanceof PersistentTasksCustomMetadata persistentTasksCustomMetadata) {
+                    final var tuple = persistentTasksCustomMetadata.split();
+                    builder.putCustom(tuple.v1().getWriteableName(), tuple.v1());
+                    builder.putProjectCustom(tuple.v2().getWriteableName(), tuple.v2());
+                } else {
+                    builder.putProjectCustom(custom.getWriteableName(), custom);
+                }
             } else {
                 throw new IllegalArgumentException("Unknown custom name [" + name + "]");
             }
@@ -1074,8 +1201,21 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             // It would be nice to do this as flattening iterable (rather than allocation a whole new list), but flattening
             // Iterable<? extends VersionNamedWriteable> into Iterable<VersionNamedWriteable> is messy, so we can fix that later
             List<VersionedNamedWriteable> combinedCustoms = new ArrayList<>(customs.size() + singleProject.customs().size());
-            combinedCustoms.addAll(customs.values());
-            combinedCustoms.addAll(singleProject.customs().values());
+            // Old node expects persistent tasks to be a single custom. So we merge cluster and project scoped tasks into one single
+            // custom for serialization so that old node understands it.
+            final var persistentTasksCustomMetadata = PersistentTasksCustomMetadata.combine(
+                ClusterPersistentTasksCustomMetadata.get(this),
+                PersistentTasksCustomMetadata.get(singleProject)
+            );
+            if (persistentTasksCustomMetadata != null) {
+                combinedCustoms.add(persistentTasksCustomMetadata);
+            }
+            combinedCustoms.addAll(
+                customs.values().stream().filter(c -> c instanceof ClusterPersistentTasksCustomMetadata == false).toList()
+            );
+            combinedCustoms.addAll(
+                singleProject.customs().values().stream().filter(c -> c instanceof PersistentTasksCustomMetadata == false).toList()
+            );
             VersionedNamedWriteable.writeVersionedWriteables(out, combinedCustoms);
 
             List<ReservedStateMetadata> combinedMetadata = new ArrayList<>(

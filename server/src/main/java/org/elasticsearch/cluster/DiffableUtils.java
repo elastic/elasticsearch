@@ -120,6 +120,16 @@ public final class DiffableUtils {
     }
 
     /**
+     * Create a new MapDiff by removing the key from any of its deletes, diffs and upserts
+     */
+    public static <K, T, M extends Map<K, T>> MapDiff<K, T, M> removeKey(MapDiff<K, T, M> diff, K key) {
+        final List<K> deletes = diff.getDeletes().stream().filter(k -> k.equals(key) == false).toList();
+        final List<Map.Entry<K, Diff<T>>> diffs = diff.getDiffs().stream().filter(entry -> entry.getKey().equals(key) == false).toList();
+        final List<Map.Entry<K, T>> upserts = diff.getUpserts().stream().filter(entry -> entry.getKey().equals(key) == false).toList();
+        return new MapDiff<>(diff.keySerializer, diff.valueSerializer, deletes, diffs, upserts, diff.builderCtor);
+    }
+
+    /**
      * Creates a MapDiff that applies a single entry diff to a map
      */
     public static <K, T extends Diffable<T>, M extends Map<K, T>> MapDiff<K, T, M> singleEntryDiff(
@@ -133,6 +143,38 @@ public final class DiffableUtils {
             List.of(),
             List.of(Map.entry(key, diff)),
             List.of(),
+            DiffableUtils::createJdkMapBuilder
+        );
+    }
+
+    /**
+     * Creates a MapDiff that applies a single entry deletion to a map
+     */
+    public static <K, T extends Diffable<T>, M extends Map<K, T>> MapDiff<K, T, M> singleDeleteDiff(K key, KeySerializer<K> keySerializer) {
+        return new MapDiff<K, T, M>(
+            keySerializer,
+            DiffableValueSerializer.getWriteOnlyInstance(),
+            List.of(key),
+            List.of(),
+            List.of(),
+            DiffableUtils::createJdkMapBuilder
+        );
+    }
+
+    /**
+     * Creates a MapDiff that applies a single entry upsert to a map
+     */
+    public static <K, T extends Diffable<T>, M extends Map<K, T>> MapDiff<K, T, M> singleUpsertDiff(
+        K key,
+        T entry,
+        KeySerializer<K> keySerializer
+    ) {
+        return new MapDiff<>(
+            keySerializer,
+            DiffableValueSerializer.getWriteOnlyInstance(),
+            List.of(),
+            List.of(),
+            List.of(Map.entry(key, entry)),
             DiffableUtils::createJdkMapBuilder
         );
     }

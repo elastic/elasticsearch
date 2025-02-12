@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
@@ -32,9 +33,12 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.Metadata.ALL_CONTEXTS;
 import static org.elasticsearch.persistent.PersistentTasks.Parsers.PERSISTENT_TASK_PARSER;
@@ -449,5 +453,76 @@ public final class PersistentTasksCustomMetadata extends AbstractNamedDiffable<M
         public PersistentTasksCustomMetadata build() {
             return new PersistentTasksCustomMetadata(getLastAllocationId(), Collections.unmodifiableMap(getCurrentTasks()));
         }
+    }
+
+    /**
+     * A helper method for handling wire BWC. An old node sends metadata without the notion of separate
+     * cluster and project persistent tasks. The new node needs to separate them and store them
+     * in different locations. This method does the split for the old metadata (read as project scoped) from the old node.
+     */
+    public Tuple<ClusterPersistentTasksCustomMetadata, PersistentTasksCustomMetadata> split() {
+        final var clusterTasks = new HashMap<String, PersistentTask<?>>();
+        final var projectTasks = new HashMap<String, PersistentTask<?>>();
+        for (var entry : tasks.entrySet()) {
+            final var task = entry.getValue();
+            if (PersistentTasksExecutorRegistry.isClusterScopedTask(task.getTaskName())) {
+                clusterTasks.put(entry.getKey(), task);
+            } else {
+                projectTasks.put(entry.getKey(), task);
+            }
+        }
+        return new Tuple<>(
+            new ClusterPersistentTasksCustomMetadata(lastAllocationId, Map.copyOf(clusterTasks)),
+            new PersistentTasksCustomMetadata(lastAllocationId, Map.copyOf(projectTasks))
+        );
+    }
+
+    /**
+     * A helper method for handling wire BWC. A new node with separate cluster and project scoped
+     * persistent tasks needs to send the metadata an old node. It must combine these persistent tasks
+     * and send over as one (use the project-scoped class). This method does the combination.
+     */
+    @Nullable
+    public static PersistentTasksCustomMetadata combine(
+        @Nullable ClusterPersistentTasksCustomMetadata clusterTasksMetadata,
+        @Nullable PersistentTasksCustomMetadata projectTasksMetadata
+    ) {
+        if (clusterTasksMetadata == null && projectTasksMetadata == null) {
+            return null;
+        } else if (clusterTasksMetadata == null) {
+            return projectTasksMetadata;
+        } else if (projectTasksMetadata == null) {
+            return new PersistentTasksCustomMetadata(clusterTasksMetadata.getLastAllocationId(), clusterTasksMetadata.taskMap());
+        } else {
+            final long allocationId = Math.max(clusterTasksMetadata.getLastAllocationId(), projectTasksMetadata.getLastAllocationId());
+            final var allTasks = new HashMap<>(clusterTasksMetadata.taskMap());
+            allTasks.putAll(projectTasksMetadata.taskMap());
+            final var combinedTasksMetadata = new PersistentTasksCustomMetadata(allocationId, Map.copyOf(allTasks));
+            assert assertAllocationIdsConsistencyForOnePersistentTasks(combinedTasksMetadata);
+            return combinedTasksMetadata;
+        }
+    }
+
+    static boolean assertAllocationIdsConsistencyForOnePersistentTasks(PersistentTasks persistentTasks) {
+        if (persistentTasks == null) {
+            return true;
+        }
+        final List<Long> allocationIds = getNonZeroAllocationIds(persistentTasks);
+        assert allocationIds.size() == Set.copyOf(allocationIds).size()
+            : persistentTasks.getClass().getSimpleName() + ": duplicated allocationIds [" + persistentTasks + "]";
+        assert persistentTasks.getLastAllocationId() >= allocationIds.stream().max(Long::compare).orElse(0L)
+            : persistentTasks.getClass().getSimpleName()
+                + ": lastAllocationId is less than one of the allocationId for individual tasks ["
+                + persistentTasks
+                + "]";
+        return true;
+    }
+
+    static List<Long> getNonZeroAllocationIds(PersistentTasks persistentTasks) {
+        return persistentTasks.tasks()
+            .stream()
+            .map(PersistentTask::getAllocationId)
+            .filter(id -> id != 0L) // filter out 0 since it is used for unassigned tasks (on node restart or restored from snapshot)
+            .toList();
     }
 }

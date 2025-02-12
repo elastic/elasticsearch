@@ -934,4 +934,239 @@ public class ShardStateAction {
 
     }
 
+    public static class StartedSplitHandoffUpdateTaskExecutor implements ClusterStateTaskExecutor<StartedSplitHandoffUpdateTask> {
+        private final AllocationService allocationService;
+        private final RerouteService rerouteService;
+
+        public StartedSplitHandoffUpdateTaskExecutor(AllocationService allocationService, RerouteService rerouteService) {
+            this.allocationService = allocationService;
+            this.rerouteService = rerouteService;
+        }
+
+        @Override
+        public ClusterState execute(BatchExecutionContext<StartedSplitHandoffUpdateTask> batchExecutionContext) throws Exception {
+            List<TaskContext<StartedSplitHandoffUpdateTask>> tasksToBeApplied = new ArrayList<>();
+            List<ShardRouting> shardRoutingsToBeApplied = new ArrayList<>(batchExecutionContext.taskContexts().size());
+            Set<ShardRouting> seenShardRoutings = new HashSet<>(); // to prevent duplicates
+            final Map<Index, ClusterStateTimeRanges> updatedTimestampRanges = new HashMap<>();
+            final ClusterState initialState = batchExecutionContext.initialState();
+            for (var taskContext : batchExecutionContext.taskContexts()) {
+                final var task = taskContext.getTask();
+                StartedShardEntry startedShardEntry = task.getEntry();
+                final ShardRouting matched = initialState.getRoutingTable()
+                    .getByAllocationId(startedShardEntry.shardId, startedShardEntry.allocationId);
+                if (matched == null) {
+                    // tasks that correspond to non-existent shards are marked as successful. The reason is that we resend shard started
+                    // events on every cluster state publishing that does not contain the shard as started yet. This means that old stale
+                    // requests might still be in flight even after the shard has already been started or failed on the master. We just
+                    // ignore these requests for now.
+                    logger.debug(
+                        "{} ignoring shard started task [{}] (shard does not exist anymore)",
+                        startedShardEntry.shardId,
+                        startedShardEntry
+                    );
+                    taskContext.success(task::onSuccess);
+                } else {
+                    if (matched.primary() && startedShardEntry.primaryTerm > 0) {
+                        final IndexMetadata indexMetadata = initialState.metadata().index(startedShardEntry.shardId.getIndex());
+                        assert indexMetadata != null;
+                        final long currentPrimaryTerm = indexMetadata.primaryTerm(startedShardEntry.shardId.id());
+                        if (currentPrimaryTerm != startedShardEntry.primaryTerm) {
+                            assert currentPrimaryTerm > startedShardEntry.primaryTerm
+                                : "received a primary term with a higher term than in the "
+                                + "current cluster state (received ["
+                                + startedShardEntry.primaryTerm
+                                + "] but current is ["
+                                + currentPrimaryTerm
+                                + "])";
+                            logger.debug(
+                                "{} ignoring shard started task [{}] (primary term {} does not match current term {})",
+                                startedShardEntry.shardId,
+                                startedShardEntry,
+                                startedShardEntry.primaryTerm,
+                                currentPrimaryTerm
+                            );
+                            taskContext.success(task::onSuccess);
+                            continue;
+                        }
+                    }
+                    if (matched.initializing() == false) {
+                        assert matched.active() : "expected active shard routing for task " + startedShardEntry + " but found " + matched;
+                        // same as above, this might have been a stale in-flight request, so we just ignore.
+                        logger.debug(
+                            "{} ignoring shard started task [{}] (shard exists but is not initializing: {})",
+                            startedShardEntry.shardId,
+                            startedShardEntry,
+                            matched
+                        );
+                        taskContext.success(task::onSuccess);
+                    } else {
+                        // remove duplicate actions as allocation service expects a clean list without duplicates
+                        if (seenShardRoutings.contains(matched)) {
+                            logger.trace(
+                                "{} ignoring shard started task [{}] (already scheduled to start {})",
+                                startedShardEntry.shardId,
+                                startedShardEntry,
+                                matched
+                            );
+                            tasksToBeApplied.add(taskContext);
+                        } else {
+                            logger.debug(
+                                "{} starting shard {} (shard started task: [{}])",
+                                startedShardEntry.shardId,
+                                matched,
+                                startedShardEntry
+                            );
+                            tasksToBeApplied.add(taskContext);
+                            shardRoutingsToBeApplied.add(matched);
+                            seenShardRoutings.add(matched);
+
+                            // expand the timestamp range(s) recorded in the index metadata if needed
+                            final Index index = startedShardEntry.shardId.getIndex();
+                            ClusterStateTimeRanges clusterStateTimeRanges = updatedTimestampRanges.get(index);
+                            IndexLongFieldRange currentTimestampMillisRange = clusterStateTimeRanges == null
+                                ? null
+                                : clusterStateTimeRanges.timestampRange();
+                            IndexLongFieldRange currentEventIngestedMillisRange = clusterStateTimeRanges == null
+                                ? null
+                                : clusterStateTimeRanges.eventIngestedRange();
+
+                            final IndexMetadata indexMetadata = initialState.metadata().index(index);
+                            if (currentTimestampMillisRange == null) {
+                                currentTimestampMillisRange = indexMetadata.getTimestampRange();
+                            }
+                            if (currentEventIngestedMillisRange == null) {
+                                currentEventIngestedMillisRange = indexMetadata.getEventIngestedRange();
+                            }
+
+                            final IndexLongFieldRange newTimestampMillisRange = currentTimestampMillisRange.extendWithShardRange(
+                                startedShardEntry.shardId.id(),
+                                indexMetadata.getNumberOfShards(),
+                                startedShardEntry.timestampRange
+                            );
+                            /*
+                             * Only track 'event.ingested' range this if the cluster state min transport version is on/after the version
+                             * where we added 'event.ingested'. If we don't do that, we will have different cluster states on different
+                             * nodes because we can't send this data over the wire to older nodes.
+                             */
+                            IndexLongFieldRange newEventIngestedMillisRange = IndexLongFieldRange.UNKNOWN;
+                            TransportVersion minTransportVersion = batchExecutionContext.initialState().getMinTransportVersion();
+                            if (minTransportVersion.onOrAfter(TransportVersions.V_8_15_0)) {
+                                newEventIngestedMillisRange = currentEventIngestedMillisRange.extendWithShardRange(
+                                    startedShardEntry.shardId.id(),
+                                    indexMetadata.getNumberOfShards(),
+                                    startedShardEntry.eventIngestedRange
+                                );
+                            }
+
+                            if (newTimestampMillisRange != currentTimestampMillisRange
+                                || newEventIngestedMillisRange != currentEventIngestedMillisRange) {
+                                updatedTimestampRanges.put(
+                                    index,
+                                    new ClusterStateTimeRanges(newTimestampMillisRange, newEventIngestedMillisRange)
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            assert tasksToBeApplied.size() >= shardRoutingsToBeApplied.size();
+
+            ClusterState maybeUpdatedState = initialState;
+            try {
+                maybeUpdatedState = allocationService.applyStartedShards(initialState, shardRoutingsToBeApplied);
+
+                if (updatedTimestampRanges.isEmpty() == false) {
+                    final Metadata.Builder metadataBuilder = Metadata.builder(maybeUpdatedState.metadata());
+                    for (Map.Entry<Index, ClusterStateTimeRanges> updatedTimeRangesEntry : updatedTimestampRanges.entrySet()) {
+                        ClusterStateTimeRanges timeRanges = updatedTimeRangesEntry.getValue();
+                        metadataBuilder.put(
+                            IndexMetadata.builder(metadataBuilder.getSafe(updatedTimeRangesEntry.getKey()))
+                                .timestampRange(timeRanges.timestampRange())
+                                .eventIngestedRange(timeRanges.eventIngestedRange())
+                        );
+                    }
+                    maybeUpdatedState = ClusterState.builder(maybeUpdatedState).metadata(metadataBuilder).build();
+                }
+
+                assert assertStartedIndicesHaveCompleteTimestampRanges(maybeUpdatedState);
+
+                for (final var taskContext : tasksToBeApplied) {
+                    final var task = taskContext.getTask();
+                    taskContext.success(task::onSuccess);
+                }
+            } catch (Exception e) {
+                logger.warn(() -> format("failed to apply started shards %s", shardRoutingsToBeApplied), e);
+                for (final var taskContext : tasksToBeApplied) {
+                    taskContext.onFailure(e);
+                }
+            }
+
+            return maybeUpdatedState;
+        }
+
+        private static boolean assertStartedIndicesHaveCompleteTimestampRanges(ClusterState clusterState) {
+            for (Map.Entry<String, IndexRoutingTable> cursor : clusterState.getRoutingTable().getIndicesRouting().entrySet()) {
+                assert cursor.getValue().allPrimaryShardsActive() == false
+                    || clusterState.metadata().index(cursor.getKey()).getTimestampRange().isComplete()
+                    : "index ["
+                    + cursor.getKey()
+                    + "] should have complete timestamp range, but got "
+                    + clusterState.metadata().index(cursor.getKey()).getTimestampRange()
+                    + " for "
+                    + cursor.getValue().prettyPrint();
+
+                assert cursor.getValue().allPrimaryShardsActive() == false
+                    || clusterState.metadata().index(cursor.getKey()).getEventIngestedRange().isComplete()
+                    : "index ["
+                    + cursor.getKey()
+                    + "] should have complete event.ingested range, but got "
+                    + clusterState.metadata().index(cursor.getKey()).getEventIngestedRange()
+                    + " for "
+                    + cursor.getValue().prettyPrint();
+            }
+            return true;
+        }
+
+        @Override
+        public void clusterStatePublished(ClusterState newClusterState) {
+            rerouteService.reroute(
+                "reroute after starting shards",
+                Priority.NORMAL,
+                ActionListener.wrap(
+                    r -> logger.trace("reroute after starting shards succeeded"),
+                    e -> logger.debug("reroute after starting shards failed", e)
+                )
+            );
+        }
+    }
+
+
+    public record StartedSplitHandoffUpdateTask(StartedShardEntry entry, ActionListener<Void> listener) implements ClusterStateTaskListener {
+
+        public StartedShardEntry getEntry() {
+            return entry;
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            if (e instanceof NotMasterException) {
+                logger.debug(() -> format("%s no longer master while starting split target shard [%s]", entry.shardId, entry));
+            } else if (e instanceof FailedToCommitClusterStateException) {
+                logger.debug(() -> format("%s unexpected failure while starting split target shard [%s]", entry.shardId, entry), e);
+            } else {
+                logger.error(() -> format("%s unexpected failure while starting split target shard [%s]", entry.shardId, entry), e);
+            }
+            listener.onFailure(e);
+        }
+
+        public void onSuccess() {
+            listener.onResponse(null);
+        }
+
+        @Override
+        public String toString() {
+            return "StartedSplitHandoffUpdateTask{entry=" + entry + ", listener=" + listener + "}";
+        }
+    }
 }

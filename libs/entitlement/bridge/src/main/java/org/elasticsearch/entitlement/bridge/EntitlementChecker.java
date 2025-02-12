@@ -438,6 +438,36 @@ public interface EntitlementChecker {
     //
 
     // old io (ie File)
+    void check$java_io_File$createNewFile(Class<?> callerClass, File file);
+
+    void check$java_io_File$$createTempFile(Class<?> callerClass, String prefix, String suffix, File directory);
+
+    void check$java_io_File$delete(Class<?> callerClass, File file);
+
+    void check$java_io_File$deleteOnExit(Class<?> callerClass, File file);
+
+    void check$java_io_File$mkdir(Class<?> callerClass, File file);
+
+    void check$java_io_File$mkdirs(Class<?> callerClass, File file);
+
+    void check$java_io_File$renameTo(Class<?> callerClass, File file, File dest);
+
+    void check$java_io_File$setExecutable(Class<?> callerClass, File file, boolean executable);
+
+    void check$java_io_File$setExecutable(Class<?> callerClass, File file, boolean executable, boolean ownerOnly);
+
+    void check$java_io_File$setLastModified(Class<?> callerClass, File file, long time);
+
+    void check$java_io_File$setReadable(Class<?> callerClass, File file, boolean readable);
+
+    void check$java_io_File$setReadable(Class<?> callerClass, File file, boolean readable, boolean ownerOnly);
+
+    void check$java_io_File$setReadOnly(Class<?> callerClass, File file);
+
+    void check$java_io_File$setWritable(Class<?> callerClass, File file, boolean writable);
+
+    void check$java_io_File$setWritable(Class<?> callerClass, File file, boolean writable, boolean ownerOnly);
+
     void check$java_io_FileOutputStream$(Class<?> callerClass, File file);
 
     void check$java_io_FileOutputStream$(Class<?> callerClass, File file, boolean append);

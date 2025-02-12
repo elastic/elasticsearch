@@ -154,9 +154,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             }
             // Source.readFrom() requires the query from the Configuration passed to PlanStreamInput.
             // As we don't have the Configuration here, and it may be heavy to serialize, we directly pass the Source text.
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_SOURCE_TEXT)
-                || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_LOOKUP_JOIN_SOURCE_TEXT_90)
-                || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_LOOKUP_JOIN_SOURCE_TEXT_8_X)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_SOURCE_TEXT)) {
                 String sourceText = in.readString();
                 source = new Source(source.source(), sourceText);
             }
@@ -187,9 +185,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENRICH_RUNTIME_WARNINGS)) {
                 source.writeTo(planOut);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_SOURCE_TEXT)
-                || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_LOOKUP_JOIN_SOURCE_TEXT_90)
-                || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_LOOKUP_JOIN_SOURCE_TEXT_8_X)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_SOURCE_TEXT)) {
                 out.writeString(source.text());
             }
         }

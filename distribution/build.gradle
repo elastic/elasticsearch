@@ -377,7 +377,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
             exclude "**/platform/${excludePlatform}/**"
           }
         }
-        if (buildParams.isSnapshotBuild()) {
+        if (buildParams.getSnapshotBuild()) {
           from(buildExternalTestModulesTaskProvider)
         }
         if (project.path.startsWith(':distribution:packages')) {

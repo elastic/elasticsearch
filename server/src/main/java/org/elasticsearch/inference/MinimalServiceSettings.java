@@ -251,9 +251,9 @@ public record MinimalServiceSettings(
      */
     public boolean canMergeWith(MinimalServiceSettings other) {
         return taskType == other.taskType
-            && dimensions == other.dimensions
+            && Objects.equals(dimensions, other.dimensions)
             && similarity == other.similarity
             && elementType == other.elementType
-            && (service == null || service == other.service);
+            && (service == null || service.equals(other.service));
     }
 }

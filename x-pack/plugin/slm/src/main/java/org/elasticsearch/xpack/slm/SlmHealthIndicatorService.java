@@ -342,9 +342,7 @@ public final class SlmHealthIndicatorService implements HealthIndicatorService {
             return "- ["
                 + policy.getId()
                 + "] has not had a snapshot for "
-                + (unhealthyIfNoSnapshotWithin != null
-                    ? unhealthyIfNoSnapshotWithin.toHumanReadableString(2)
-                    : "some time")
+                + (unhealthyIfNoSnapshotWithin != null ? unhealthyIfNoSnapshotWithin.toHumanReadableString(2) : "some time")
                 + (missingStartTime != null ? ", since [" + FORMATTER.formatMillis(missingStartTime) + "]" : "");
         }).collect(Collectors.joining("\n"));
         String cause = (unhealthyPolicies.size() > 1

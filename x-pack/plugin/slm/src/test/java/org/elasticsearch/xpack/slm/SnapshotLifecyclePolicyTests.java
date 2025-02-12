@@ -495,12 +495,15 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
                 }
                 config = newConfig;
             }
-            case 5 -> retentionPolicy = randomValueOtherThan(instance.getRetentionPolicy(),
-                SnapshotLifecyclePolicyMetadataTests::randomRetention);
-            case 6 -> unhealthyIfNoSnapshotWithin = randomValueOtherThan(instance.getUnhealthyIfNoSnapshotWithin(),
-                ESTestCase::randomTimeValue);
-            default ->
-                throw new AssertionError("failure, got illegal switch case");
+            case 5 -> retentionPolicy = randomValueOtherThan(
+                instance.getRetentionPolicy(),
+                SnapshotLifecyclePolicyMetadataTests::randomRetention
+            );
+            case 6 -> unhealthyIfNoSnapshotWithin = randomValueOtherThan(
+                instance.getUnhealthyIfNoSnapshotWithin(),
+                ESTestCase::randomTimeValue
+            );
+            default -> throw new AssertionError("failure, got illegal switch case");
         }
         return new SnapshotLifecyclePolicy(id, name, schedule, repository, config, retentionPolicy, unhealthyIfNoSnapshotWithin);
     }

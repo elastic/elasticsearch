@@ -72,7 +72,7 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
                             IndexMetadata indexMetadata = cursor.getValue();
                             if (requiresUpdate(indexMetadata)) {
                                 submitUpdateTask();
-                                break;
+                                return;
                             }
                         }
                     }
@@ -81,7 +81,7 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
                             DataStream dataStream = cursor.getValue();
                             if (requiresUpdate(dataStream)) {
                                 submitUpdateTask();
-                                break;
+                                return;
                             }
                         }
                     }

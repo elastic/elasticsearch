@@ -166,7 +166,7 @@ public final class JobModelSnapshotUpgrader {
             .setSize(2)
             .addSort(ModelSnapshot.MIN_VERSION.getPreferredName(), org.elasticsearch.search.sort.SortOrder.ASC)
             .execute(ActionListener.wrap(searchResponse -> {
-                if (searchResponse.getHits().getTotalHits().value > 1) {
+                if (searchResponse.getHits().getTotalHits().value() > 1) {
                     deleteOlderSnapshotDoc(searchResponse, runAfter);
                 } else {
                     onFinish.accept(null);

@@ -371,7 +371,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
      * that are also present across the whole cluster as a result.
      */
     private Set<String> calculateEffectiveClusterFeatures(DiscoveryNodes nodes, Map<String, Set<String>> nodeFeatures) {
-        if (featureService.featuresCanBeAssumedForNodes(nodes)) {
+        if (FeatureService.featuresCanBeAssumedForNodes(nodes)) {
             Set<String> assumedFeatures = featureService.getNodeFeatures()
                 .values()
                 .stream()
@@ -382,7 +382,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
             // add all assumed features to the featureset of all nodes of the next major version
             nodeFeatures = new HashMap<>(nodeFeatures);
             for (var node : nodes.getNodes().entrySet()) {
-                if (featureService.featuresCanBeAssumedForNode(node.getValue())) {
+                if (FeatureService.featuresCanBeAssumedForNode(node.getValue())) {
                     assert nodeFeatures.containsKey(node.getKey()) : "Node " + node.getKey() + " does not have any features";
                     nodeFeatures.computeIfPresent(node.getKey(), (k, v) -> {
                         var newFeatures = new HashSet<>(v);
@@ -525,7 +525,7 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
             return newNodeFeatures;
         }
 
-        if (featureService.featuresCanBeAssumedForNode(node)) {
+        if (FeatureService.featuresCanBeAssumedForNode(node)) {
             // it might still be ok for this node to join if this node can have assumed features,
             // and all the missing features are assumed
             // we can get the NodeFeature object direct from this node's registered features

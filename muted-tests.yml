@@ -329,32 +329,11 @@ tests:
 - class: org.elasticsearch.search.CrossClusterSearchUnavailableClusterIT
   method: testSearchSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/121497
-- class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
-  method: testDestIndexContainsDocs
-  issue: https://github.com/elastic/elasticsearch/issues/121915
-- class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
-  method: testTsdbStartEndSet
-  issue: https://github.com/elastic/elasticsearch/issues/121916
-- class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
-  method: testDestIndexNameSet_noDotPrefix
-  issue: https://github.com/elastic/elasticsearch/issues/121772
 - class: org.elasticsearch.ingest.geoip.FullClusterRestartIT
   issue: https://github.com/elastic/elasticsearch/issues/121935
-- class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
-  method: testTimestampNotAddedIfExists
-  issue: https://github.com/elastic/elasticsearch/issues/121842
-- class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
-  method: testDestIndexNameSet_withDotPrefix
-  issue: https://github.com/elastic/elasticsearch/issues/121977
-- class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
-  method: testFailIfMetadataBlockSet
-  issue: https://github.com/elastic/elasticsearch/issues/121978
-- class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
-  method: testFailIfReadBlockSet
-  issue: https://github.com/elastic/elasticsearch/issues/122123
-- class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
-  method: testTimestamp0AddedIfMissing
-  issue: https://github.com/elastic/elasticsearch/issues/121745
+- class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
+  method: testExchangeSourceContinueOnFailure
+  issue: https://github.com/elastic/elasticsearch/issues/122408
 
 # Examples:
 #

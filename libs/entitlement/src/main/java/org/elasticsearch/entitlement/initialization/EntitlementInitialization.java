@@ -51,6 +51,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -71,7 +72,7 @@ public class EntitlementInitialization {
 
     private static ElasticsearchEntitlementChecker manager;
 
-    interface InstrumentationInfoFunction {
+    interface InstrumentationInfoFactory {
         InstrumentationService.InstrumentationInfo of(String methodName, Class<?>... parameterTypes) throws ClassNotFoundException,
             NoSuchMethodException;
     }
@@ -88,21 +89,21 @@ public class EntitlementInitialization {
         var latestCheckerInterface = getVersionSpecificCheckerClass(EntitlementChecker.class);
 
         Map<MethodKey, CheckMethod> checkMethods = new HashMap<>(INSTRUMENTATION_SERVICE.lookupMethods(latestCheckerInterface));
-        Stream.concat(
+        Stream.of(
             fileSystemProviderChecks(),
-            Stream.concat(
-                fileStoreChecks(),
-                Stream.of(
-                    INSTRUMENTATION_SERVICE.lookupImplementationMethod(
-                        SelectorProvider.class,
-                        "inheritedChannel",
-                        SelectorProvider.provider().getClass(),
-                        EntitlementChecker.class,
-                        "checkSelectorProviderInheritedChannel"
-                    )
+            fileStoreChecks(),
+            Stream.of(
+                INSTRUMENTATION_SERVICE.lookupImplementationMethod(
+                    SelectorProvider.class,
+                    "inheritedChannel",
+                    SelectorProvider.provider().getClass(),
+                    EntitlementChecker.class,
+                    "checkSelectorProviderInheritedChannel"
                 )
             )
-        ).forEach(instrumentation -> checkMethods.put(instrumentation.targetMethod(), instrumentation.checkMethod()));
+        )
+            .flatMap(Function.identity())
+            .forEach(instrumentation -> checkMethods.put(instrumentation.targetMethod(), instrumentation.checkMethod()));
 
         var classesToTransform = checkMethods.keySet().stream().map(MethodKey::className).collect(Collectors.toSet());
 
@@ -161,7 +162,7 @@ public class EntitlementInitialization {
         NoSuchMethodException {
         var fileSystemProviderClass = FileSystems.getDefault().provider().getClass();
 
-        var instrumentation = new InstrumentationInfoFunction() {
+        var instrumentation = new InstrumentationInfoFactory() {
             @Override
             public InstrumentationService.InstrumentationInfo of(String methodName, Class<?>... parameterTypes)
                 throws ClassNotFoundException, NoSuchMethodException {
@@ -211,7 +212,7 @@ public class EntitlementInitialization {
             .map(FileStore::getClass)
             .distinct();
         return fileStoreClasses.flatMap(fileStoreClass -> {
-            var instrumentation = new InstrumentationInfoFunction() {
+            var instrumentation = new InstrumentationInfoFactory() {
                 @Override
                 public InstrumentationService.InstrumentationInfo of(String methodName, Class<?>... parameterTypes)
                     throws ClassNotFoundException, NoSuchMethodException {

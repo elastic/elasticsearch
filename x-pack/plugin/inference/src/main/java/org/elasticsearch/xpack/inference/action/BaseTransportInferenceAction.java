@@ -142,7 +142,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
             try {
                 validateRequest(request, unparsedModel);
             } catch (Exception e) {
-                recordMetrics(unparsedModel, timer, e);
+                recordRequestDurationMetrics(unparsedModel, timer, e);
                 listener.onFailure(e);
                 return;
             }
@@ -261,7 +261,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         );
     }
 
-    private void recordMetrics(UnparsedModel model, InferenceTimer timer, @Nullable Throwable t) {
+    private void recordRequestDurationMetrics(UnparsedModel model, InferenceTimer timer, @Nullable Throwable t) {
         try {
             Map<String, Object> metricAttributes = new HashMap<>();
             metricAttributes.putAll(modelAttributes(model));
@@ -281,7 +281,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         String localNodeId,
         ActionListener<InferenceAction.Response> listener
     ) {
-        inferenceStats.requestCount().incrementBy(1, modelAttributes(model));
+        recordRequestCountMetrics(model, request, localNodeId);
         inferOnService(model, request, service, ActionListener.wrap(inferenceResults -> {
             if (request.isStreaming()) {
                 var taskProcessor = streamingTaskManager.<ChunkedToXContent>create(STREAMING_INFERENCE_TASK_TYPE, STREAMING_TASK_ACTION);
@@ -294,11 +294,11 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
 
                 listener.onResponse(new InferenceAction.Response(inferenceResults, streamErrorHandler));
             } else {
-                recordMetrics(model, timer, request, localNodeId, null);
+                recordRequestDurationMetrics(model, timer, request, localNodeId, null);
                 listener.onResponse(new InferenceAction.Response(inferenceResults));
             }
         }, e -> {
-            recordMetrics(model, timer, request, localNodeId, e);
+            recordRequestDurationMetrics(model, timer, request, localNodeId, e);
             listener.onFailure(e);
         }));
     }
@@ -307,7 +307,21 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         return upstream;
     }
 
-    private void recordMetrics(Model model, InferenceTimer timer, Request request, String localNodeId, @Nullable Throwable t) {
+    private void recordRequestCountMetrics(Model model, Request request, String localNodeId) {
+        Map<String, Object> requestCountAttributes = new HashMap<>();
+        requestCountAttributes.putAll(modelAttributes(model));
+        requestCountAttributes.putAll(routingAttributes(request, localNodeId));
+
+        inferenceStats.requestCount().incrementBy(1, requestCountAttributes);
+    }
+
+    private void recordRequestDurationMetrics(
+        Model model,
+        InferenceTimer timer,
+        Request request,
+        String localNodeId,
+        @Nullable Throwable t
+    ) {
         try {
             Map<String, Object> metricAttributes = new HashMap<>();
             metricAttributes.putAll(modelAttributes(model));
@@ -383,19 +397,19 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
 
         @Override
         public void onError(Throwable throwable) {
-            recordMetrics(model, timer, request, localNodeId, throwable);
+            recordRequestDurationMetrics(model, timer, request, localNodeId, throwable);
             super.onError(throwable);
         }
 
         @Override
         protected void onCancel() {
-            recordMetrics(model, timer, request, localNodeId, null);
+            recordRequestDurationMetrics(model, timer, request, localNodeId, null);
             super.onCancel();
         }
 
         @Override
         public void onComplete() {
-            recordMetrics(model, timer, request, localNodeId, null);
+            recordRequestDurationMetrics(model, timer, request, localNodeId, null);
             super.onComplete();
         }
     }

@@ -195,7 +195,7 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
         );
 
         assertAcked(clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName));
-        IOUtils.rm(internalCluster().getCurrentMasterNodeInstance(Environment.class).resolveRepoFile(repoPath.toString()));
+        IOUtils.rm(internalCluster().getCurrentMasterNodeInstance(Environment.class).resolveRepoDir(repoPath.toString()));
         createRepository(repoName, "fs", repoPath);
         createFullSnapshot(repoName, "snap-1");
 

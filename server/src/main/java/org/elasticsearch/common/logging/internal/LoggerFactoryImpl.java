@@ -22,6 +22,12 @@ public class LoggerFactoryImpl extends LoggerFactory {
 
     @Override
     public Logger getLogger(Class<?> clazz) {
-        return new LoggerImpl(LogManager.getLogger(clazz));
+        // Elasticsearch configures logging at the root level, it does not support
+        // programmatic configuration at the logger level. Log4j's method for
+        // getting a logger by Class doesn't just use the class name, but also
+        // scans the classloader hierarchy for programmatic configuration. Here we
+        // just delegate to use the String class name so that regardless of which
+        // classloader a class comes from, we will use the root logging config.
+        return getLogger(clazz.getName());
     }
 }

@@ -1,0 +1,5 @@
+pr: 121074
+summary: Implement a `MetricsAware` interface
+area: ES|QL
+type: enhancement
+issues: []

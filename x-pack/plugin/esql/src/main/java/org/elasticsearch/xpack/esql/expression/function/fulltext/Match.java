@@ -14,7 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.querydsl.query.MatchQuery;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -48,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiConsumer;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -88,7 +91,7 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
 /**
  * Full text function that performs a {@link org.elasticsearch.xpack.esql.querydsl.query.MatchQuery} .
  */
-public class Match extends FullTextFunction implements OptionalArgument, PostOptimizationVerificationAware {
+public class Match extends FullTextFunction implements OptionalArgument, PostAnalysisPlanVerificationAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Match", Match::readFrom);
     public static final Set<DataType> FIELD_DATA_TYPES = Set.of(
@@ -251,7 +254,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostOpt
                     valueHint = { "none", "all" },
                     description = "Number of beginning characters left unchanged for fuzzy matching."
                 ) },
-            description = "Match additional options as <<esql-function-named-params,function named parameters>>."
+            description = "(Optional) Match additional options as <<esql-function-named-params,function named parameters>>."
                 + " See <<query-dsl-match-query,match query>> for more information.",
             optional = true
         ) Expression options
@@ -429,23 +432,23 @@ public class Match extends FullTextFunction implements OptionalArgument, PostOpt
     }
 
     @Override
-    public void postOptimizationVerification(Failures failures) {
-        Expression fieldExpression = field();
-        // Field may be converted to other data type (field_name :: data_type), so we need to check the original field
-        if (fieldExpression instanceof AbstractConvertFunction convertFunction) {
-            fieldExpression = convertFunction.field();
-        }
-        if (fieldExpression instanceof FieldAttribute == false) {
-            failures.add(
-                Failure.fail(
-                    field,
-                    "[{}] {} cannot operate on [{}], which is not a field from an index mapping",
-                    functionName(),
-                    functionType(),
-                    field.sourceText()
-                )
-            );
-        }
+    public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
+        return (plan, failures) -> {
+            super.postAnalysisPlanVerification().accept(plan, failures);
+            plan.forEachExpression(Match.class, m -> {
+                if (m.fieldAsFieldAttribute() == null) {
+                    failures.add(
+                        Failure.fail(
+                            m.field(),
+                            "[{}] {} cannot operate on [{}], which is not a field from an index mapping",
+                            functionName(),
+                            functionType(),
+                            m.field().sourceText()
+                        )
+                    );
+                }
+            });
+        };
     }
 
     @Override
@@ -476,22 +479,24 @@ public class Match extends FullTextFunction implements OptionalArgument, PostOpt
 
     @Override
     protected Query translate(TranslatorHandler handler) {
+        var fieldAttribute = fieldAsFieldAttribute();
+        Check.notNull(fieldAttribute, "Match must have a field attribute as the first argument");
+        String fieldName = fieldAttribute.name();
+        if (fieldAttribute.field() instanceof MultiTypeEsField multiTypeEsField) {
+            // If we have multiple field types, we allow the query to be done, but getting the underlying field name
+            fieldName = multiTypeEsField.getName();
+        }
+        // Make query lenient so mixed field types can be queried when a field type is incompatible with the value provided
+        return new MatchQuery(source(), fieldName, queryAsObject(), matchQueryOptions());
+    }
+
+    private FieldAttribute fieldAsFieldAttribute() {
         Expression fieldExpression = field;
         // Field may be converted to other data type (field_name :: data_type), so we need to check the original field
         if (fieldExpression instanceof AbstractConvertFunction convertFunction) {
             fieldExpression = convertFunction.field();
         }
-        if (fieldExpression instanceof FieldAttribute fieldAttribute) {
-            String fieldName = fieldAttribute.name();
-            if (fieldAttribute.field() instanceof MultiTypeEsField multiTypeEsField) {
-                // If we have multiple field types, we allow the query to be done, but getting the underlying field name
-                fieldName = multiTypeEsField.getName();
-            }
-            // Make query lenient so mixed field types can be queried when a field type is incompatible with the value provided
-            return new MatchQuery(source(), fieldName, queryAsObject(), matchQueryOptions());
-        }
-
-        throw new IllegalArgumentException("Match must have a field attribute as the first argument");
+        return fieldExpression instanceof FieldAttribute fieldAttribute ? fieldAttribute : null;
     }
 
     @Override

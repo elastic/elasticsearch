@@ -22,59 +22,75 @@ import java.nio.file.Paths;
 import java.nio.file.attribute.UserPrincipal;
 import java.util.Scanner;
 
+import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
+
 @SuppressForbidden(reason = "Explicitly checking APIs that are forbidden")
 class FileCheckActions {
 
-    private static Path testRootDir = Paths.get(System.getProperty("es.entitlements.testdir"));
+    static Path testRootDir = Paths.get(System.getProperty("es.entitlements.testdir"));
 
-    private static Path readDir() {
+    static Path readDir() {
         return testRootDir.resolve("read_dir");
     }
 
-    private static Path readWriteDir() {
+    static Path readWriteDir() {
         return testRootDir.resolve("read_write_dir");
     }
 
-    private static Path readFile() {
+    static Path readFile() {
         return testRootDir.resolve("read_file");
     }
 
-    private static Path readWriteFile() {
+    static Path readWriteFile() {
         return testRootDir.resolve("read_write_file");
     }
 
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void createScannerFile() throws FileNotFoundException {
         new Scanner(readFile().toFile());
     }
 
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void createScannerFileWithCharset() throws IOException {
         new Scanner(readFile().toFile(), StandardCharsets.UTF_8);
     }
 
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void createScannerFileWithCharsetName() throws FileNotFoundException {
         new Scanner(readFile().toFile(), "UTF-8");
     }
 
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void createFileOutputStreamString() throws IOException {
         new FileOutputStream(readWriteFile().toString()).close();
     }
 
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void createFileOutputStreamStringWithAppend() throws IOException {
         new FileOutputStream(readWriteFile().toString(), false).close();
     }
 
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void createFileOutputStreamFile() throws IOException {
         new FileOutputStream(readWriteFile().toFile()).close();
     }
 
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void createFileOutputStreamFileWithAppend() throws IOException {
         new FileOutputStream(readWriteFile().toFile(), false).close();
     }
 
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void filesGetOwner() throws IOException {
+        Files.getOwner(readFile());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void filesProbeContentType() throws IOException {
         Files.probeContentType(readFile());
     }
 
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void filesSetOwner() throws IOException {
         UserPrincipal owner = EntitledActions.getFileOwner(readWriteFile());
         Files.setOwner(readWriteFile(), owner); // set to existing owner, just trying to execute the method

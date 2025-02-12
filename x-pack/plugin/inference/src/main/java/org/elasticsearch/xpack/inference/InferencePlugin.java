@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.core.inference.action.GetInferenceDiagnosticsActi
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceServicesAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
 import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
@@ -67,11 +68,15 @@ import org.elasticsearch.xpack.inference.action.TransportGetInferenceDiagnostics
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportGetInferenceServicesAction;
 import org.elasticsearch.xpack.inference.action.TransportInferenceAction;
+import org.elasticsearch.xpack.inference.action.TransportInferenceActionProxy;
 import org.elasticsearch.xpack.inference.action.TransportInferenceUsageAction;
 import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportUnifiedCompletionInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportUpdateInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter;
+import org.elasticsearch.xpack.inference.common.InferenceServiceNodeLocalRateLimitCalculator;
+import org.elasticsearch.xpack.inference.common.InferenceServiceRateLimitCalculator;
+import org.elasticsearch.xpack.inference.common.NoopNodeLocalRateLimitCalculator;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockRequestSender;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
@@ -101,7 +106,6 @@ import org.elasticsearch.xpack.inference.rest.RestGetInferenceServicesAction;
 import org.elasticsearch.xpack.inference.rest.RestInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestStreamInferenceAction;
-import org.elasticsearch.xpack.inference.rest.RestUnifiedCompletionInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestUpdateInferenceModelAction;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchService;
@@ -133,6 +137,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.inference.common.InferenceAPIClusterAwareRateLimitingFeature.INFERENCE_API_CLUSTER_AWARE_RATE_LIMITING_FEATURE_FLAG;
 
 public class InferencePlugin extends Plugin
     implements
@@ -191,6 +196,7 @@ public class InferencePlugin extends Plugin
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return List.of(
             new ActionHandler<>(InferenceAction.INSTANCE, TransportInferenceAction.class),
+            new ActionHandler<>(InferenceActionProxy.INSTANCE, TransportInferenceActionProxy.class),
             new ActionHandler<>(GetInferenceModelAction.INSTANCE, TransportGetInferenceModelAction.class),
             new ActionHandler<>(PutInferenceModelAction.INSTANCE, TransportPutInferenceModelAction.class),
             new ActionHandler<>(UpdateInferenceModelAction.INSTANCE, TransportUpdateInferenceModelAction.class),
@@ -222,13 +228,13 @@ public class InferencePlugin extends Plugin
             new RestUpdateInferenceModelAction(),
             new RestDeleteInferenceEndpointAction(),
             new RestGetInferenceDiagnosticsAction(),
-            new RestGetInferenceServicesAction(),
-            new RestUnifiedCompletionInferenceAction(threadPoolSetOnce)
+            new RestGetInferenceServicesAction()
         );
     }
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
+        var components = new ArrayList<>();
         var throttlerManager = new ThrottlerManager(settings, services.threadPool(), services.clusterService());
         var truncator = new Truncator(settings, services.clusterService());
         serviceComponents.set(new ServiceComponents(services.threadPool(), throttlerManager, settings, truncator));
@@ -297,20 +303,37 @@ public class InferencePlugin extends Plugin
 
         // This must be done after the HttpRequestSenderFactory is created so that the services can get the
         // reference correctly
-        var registry = new InferenceServiceRegistry(inferenceServices, factoryContext);
-        registry.init(services.client());
-        for (var service : registry.getServices().values()) {
+        var serviceRegistry = new InferenceServiceRegistry(inferenceServices, factoryContext);
+        serviceRegistry.init(services.client());
+        for (var service : serviceRegistry.getServices().values()) {
             service.defaultConfigIds().forEach(modelRegistry::addDefaultIds);
         }
-        inferenceServiceRegistry.set(registry);
+        inferenceServiceRegistry.set(serviceRegistry);
 
-        var actionFilter = new ShardBulkInferenceActionFilter(services.clusterService(), registry, modelRegistry);
+        var actionFilter = new ShardBulkInferenceActionFilter(services.clusterService(), serviceRegistry, modelRegistry);
         shardBulkInferenceActionFilter.set(actionFilter);
 
         var meterRegistry = services.telemetryProvider().getMeterRegistry();
-        var stats = new PluginComponentBinding<>(InferenceStats.class, InferenceStats.create(meterRegistry));
+        var inferenceStats = new PluginComponentBinding<>(InferenceStats.class, InferenceStats.create(meterRegistry));
 
-        return List.of(modelRegistry, registry, httpClientManager, stats);
+        components.add(serviceRegistry);
+        components.add(modelRegistry);
+        components.add(httpClientManager);
+        components.add(inferenceStats);
+
+        // Only add InferenceServiceNodeLocalRateLimitCalculator (which is a ClusterStateListener) for cluster aware rate limiting,
+        // if the rate limiting feature flags are enabled, otherwise provide noop implementation
+        InferenceServiceRateLimitCalculator calculator;
+        if (INFERENCE_API_CLUSTER_AWARE_RATE_LIMITING_FEATURE_FLAG.isEnabled()) {
+            calculator = new InferenceServiceNodeLocalRateLimitCalculator(services.clusterService(), serviceRegistry);
+        } else {
+            calculator = new NoopNodeLocalRateLimitCalculator();
+        }
+
+        // Add binding for interface -> implementation
+        components.add(new PluginComponentBinding<>(InferenceServiceRateLimitCalculator.class, calculator));
+
+        return components;
     }
 
     @Override

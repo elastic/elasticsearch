@@ -18,24 +18,34 @@ import org.elasticsearch.entitlement.instrumentation.Instrumenter;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.instrumentation.Transformer;
 import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
-import org.elasticsearch.entitlement.runtime.policy.CreateClassLoaderEntitlement;
-import org.elasticsearch.entitlement.runtime.policy.Entitlement;
-import org.elasticsearch.entitlement.runtime.policy.ExitVMEntitlement;
-import org.elasticsearch.entitlement.runtime.policy.InboundNetworkEntitlement;
-import org.elasticsearch.entitlement.runtime.policy.LoadNativeLibrariesEntitlement;
-import org.elasticsearch.entitlement.runtime.policy.OutboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import org.elasticsearch.entitlement.runtime.policy.Scope;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoaderEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.ExitVMEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.InboundNetworkEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetworkEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.ReadStoreAttributesEntitlement;
 
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.channels.spi.SelectorProvider;
+import java.nio.file.FileStore;
+import java.nio.file.FileSystems;
+import java.nio.file.OpenOption;
+import java.nio.file.Path;
+import java.nio.file.spi.FileSystemProvider;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 /**
  * Called by the agent during {@code agentmain} to configure the entitlement system,
@@ -51,6 +61,11 @@ public class EntitlementInitialization {
 
     private static ElasticsearchEntitlementChecker manager;
 
+    interface InstrumentationInfoFunction {
+        InstrumentationService.InstrumentationInfo of(String methodName, Class<?>... parameterTypes) throws ClassNotFoundException,
+            NoSuchMethodException;
+    }
+
     // Note: referenced by bridge reflectively
     public static EntitlementChecker checker() {
         return manager;
@@ -60,11 +75,36 @@ public class EntitlementInitialization {
     public static void initialize(Instrumentation inst) throws Exception {
         manager = initChecker();
 
-        Map<MethodKey, CheckMethod> checkMethods = INSTRUMENTER_FACTORY.lookupMethods(EntitlementChecker.class);
+        var latestCheckerInterface = getVersionSpecificCheckerClass(EntitlementChecker.class);
+
+        Map<MethodKey, CheckMethod> checkMethods = new HashMap<>(INSTRUMENTATION_SERVICE.lookupMethods(latestCheckerInterface));
+        var fileSystemProviderClass = FileSystems.getDefault().provider().getClass();
+
+        Stream.concat(
+            fileStoreChecks(),
+            Stream.of(
+                INSTRUMENTATION_SERVICE.lookupImplementationMethod(
+                    FileSystemProvider.class,
+                    "newInputStream",
+                    fileSystemProviderClass,
+                    EntitlementChecker.class,
+                    "checkNewInputStream",
+                    Path.class,
+                    OpenOption[].class
+                ),
+                INSTRUMENTATION_SERVICE.lookupImplementationMethod(
+                    SelectorProvider.class,
+                    "inheritedChannel",
+                    SelectorProvider.provider().getClass(),
+                    EntitlementChecker.class,
+                    "checkSelectorProviderInheritedChannel"
+                )
+            )
+        ).forEach(instrumentation -> checkMethods.put(instrumentation.targetMethod(), instrumentation.checkMethod()));
 
         var classesToTransform = checkMethods.keySet().stream().map(MethodKey::className).collect(Collectors.toSet());
 
-        Instrumenter instrumenter = INSTRUMENTER_FACTORY.newInstrumenter(EntitlementChecker.class, checkMethods);
+        Instrumenter instrumenter = INSTRUMENTATION_SERVICE.newInstrumenter(latestCheckerInterface, checkMethods);
         inst.addTransformer(new Transformer(instrumenter, classesToTransform), true);
         inst.retransformClasses(findClassesToRetransform(inst.getAllLoadedClasses(), classesToTransform));
     }
@@ -92,6 +132,7 @@ public class EntitlementInitialization {
                     "org.elasticsearch.server",
                     List.of(
                         new ExitVMEntitlement(),
+                        new ReadStoreAttributesEntitlement(),
                         new CreateClassLoaderEntitlement(),
                         new InboundNetworkEntitlement(),
                         new OutboundNetworkEntitlement(),
@@ -111,23 +152,79 @@ public class EntitlementInitialization {
         return new PolicyManager(serverPolicy, agentEntitlements, pluginPolicies, resolver, AGENTS_PACKAGE_NAME, ENTITLEMENTS_MODULE);
     }
 
-    private static ElasticsearchEntitlementChecker initChecker() {
-        final PolicyManager policyManager = createPolicyManager();
+    private static Stream<InstrumentationService.InstrumentationInfo> fileStoreChecks() {
+        var fileStoreClasses = StreamSupport.stream(FileSystems.getDefault().getFileStores().spliterator(), false)
+            .map(FileStore::getClass)
+            .distinct();
+        return fileStoreClasses.flatMap(fileStoreClass -> {
+            var instrumentation = new InstrumentationInfoFunction() {
+                @Override
+                public InstrumentationService.InstrumentationInfo of(String methodName, Class<?>... parameterTypes)
+                    throws ClassNotFoundException, NoSuchMethodException {
+                    return INSTRUMENTATION_SERVICE.lookupImplementationMethod(
+                        FileStore.class,
+                        methodName,
+                        fileStoreClass,
+                        EntitlementChecker.class,
+                        "check" + Character.toUpperCase(methodName.charAt(0)) + methodName.substring(1),
+                        parameterTypes
+                    );
+                }
+            };
 
+            try {
+                return Stream.of(
+                    instrumentation.of("getFileStoreAttributeView", Class.class),
+                    instrumentation.of("getAttribute", String.class),
+                    instrumentation.of("getBlockSize"),
+                    instrumentation.of("getTotalSpace"),
+                    instrumentation.of("getUnallocatedSpace"),
+                    instrumentation.of("getUsableSpace"),
+                    instrumentation.of("isReadOnly"),
+                    instrumentation.of("name"),
+                    instrumentation.of("type")
+
+                );
+            } catch (NoSuchMethodException | ClassNotFoundException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    /**
+     * Returns the "most recent" checker class compatible with the current runtime Java version.
+     * For checkers, we have (optionally) version specific classes, each with a prefix (e.g. Java23).
+     * The mapping cannot be automatic, as it depends on the actual presence of these classes in the final Jar (see
+     * the various mainXX source sets).
+     */
+    private static Class<?> getVersionSpecificCheckerClass(Class<?> baseClass) {
+        String packageName = baseClass.getPackageName();
+        String baseClassName = baseClass.getSimpleName();
         int javaVersion = Runtime.version().feature();
+
         final String classNamePrefix;
         if (javaVersion >= 23) {
+            // All Java version from 23 onwards will be able to use che checks in the Java23EntitlementChecker interface and implementation
             classNamePrefix = "Java23";
         } else {
+            // For any other Java version, the basic EntitlementChecker interface and implementation contains all the supported checks
             classNamePrefix = "";
         }
-        final String className = "org.elasticsearch.entitlement.runtime.api." + classNamePrefix + "ElasticsearchEntitlementChecker";
+        final String className = packageName + "." + classNamePrefix + baseClassName;
         Class<?> clazz;
         try {
             clazz = Class.forName(className);
         } catch (ClassNotFoundException e) {
-            throw new AssertionError("entitlement lib cannot find entitlement impl", e);
+            throw new AssertionError("entitlement lib cannot find entitlement class " + className, e);
         }
+        return clazz;
+    }
+
+    private static ElasticsearchEntitlementChecker initChecker() {
+        final PolicyManager policyManager = createPolicyManager();
+
+        final Class<?> clazz = getVersionSpecificCheckerClass(ElasticsearchEntitlementChecker.class);
+
         Constructor<?> constructor;
         try {
             constructor = clazz.getConstructor(PolicyManager.class);
@@ -141,7 +238,7 @@ public class EntitlementInitialization {
         }
     }
 
-    private static final InstrumentationService INSTRUMENTER_FACTORY = new ProviderLocator<>(
+    private static final InstrumentationService INSTRUMENTATION_SERVICE = new ProviderLocator<>(
         "entitlement",
         InstrumentationService.class,
         "org.elasticsearch.entitlement.instrumentation",

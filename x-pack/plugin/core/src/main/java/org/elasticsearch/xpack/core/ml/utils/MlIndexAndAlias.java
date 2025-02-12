@@ -107,6 +107,34 @@ public final class MlIndexAndAlias {
         ActiveShardCount waitForShardCount,
         ActionListener<Boolean> finalListener
     ) {
+        createIndexAndAliasIfNecessary(
+            client,
+            clusterState,
+            resolver,
+            indexPatternPrefix,
+            FIRST_INDEX_SIX_DIGIT_SUFFIX,
+            alias,
+            masterNodeTimeout,
+            waitForShardCount,
+            finalListener
+        );
+    }
+
+    /**
+     * Same as createIndexAndAliasIfNecessary but with the first concrete
+     * index number specified.
+     */
+    public static void createIndexAndAliasIfNecessary(
+        Client client,
+        ClusterState clusterState,
+        IndexNameExpressionResolver resolver,
+        String indexPatternPrefix,
+        String indexNumber,
+        String alias,
+        TimeValue masterNodeTimeout,
+        ActiveShardCount waitForShardCount,
+        ActionListener<Boolean> finalListener
+    ) {
 
         final ActionListener<Boolean> loggingListener = ActionListener.wrap(finalListener::onResponse, e -> {
             logger.error(() -> format("Failed to create alias and index with pattern [%s] and alias [%s]", indexPatternPrefix, alias), e);
@@ -125,7 +153,7 @@ public final class MlIndexAndAlias {
         String legacyIndexWithoutSuffix = indexPatternPrefix;
         String indexPattern = indexPatternPrefix + "*";
         // The initial index name must be suitable for rollover functionality.
-        String firstConcreteIndex = indexPatternPrefix + FIRST_INDEX_SIX_DIGIT_SUFFIX;
+        String firstConcreteIndex = indexPatternPrefix + indexNumber;
         String[] concreteIndexNames = resolver.concreteIndexNames(clusterState, IndicesOptions.lenientExpandHidden(), indexPattern);
         Optional<String> indexPointedByCurrentWriteAlias = clusterState.getMetadata().hasAlias(alias)
             ? clusterState.getMetadata().getIndicesLookup().get(alias).getIndices().stream().map(Index::getName).findFirst()
@@ -330,7 +358,7 @@ public final class MlIndexAndAlias {
         String templateName = templateConfig.getTemplateName();
 
         // The check for existence of the template is against the cluster state, so very cheap
-        if (hasIndexTemplate(clusterState, templateName)) {
+        if (hasIndexTemplate(clusterState, templateName, templateConfig.getVersion())) {
             listener.onResponse(true);
             return;
         }
@@ -344,7 +372,7 @@ public final class MlIndexAndAlias {
             throw new ElasticsearchParseException("unable to parse composable template " + templateConfig.getTemplateName(), e);
         }
 
-        installIndexTemplateIfRequired(clusterState, client, request, listener);
+        installIndexTemplateIfRequired(clusterState, client, templateConfig.getVersion(), request, listener);
     }
 
     /**
@@ -360,11 +388,12 @@ public final class MlIndexAndAlias {
     public static void installIndexTemplateIfRequired(
         ClusterState clusterState,
         Client client,
+        int templateVersion,
         TransportPutComposableIndexTemplateAction.Request templateRequest,
         ActionListener<Boolean> listener
     ) {
         // The check for existence of the template is against the cluster state, so very cheap
-        if (hasIndexTemplate(clusterState, templateRequest.name())) {
+        if (hasIndexTemplate(clusterState, templateRequest.name(), templateVersion)) {
             listener.onResponse(true);
             return;
         }
@@ -379,8 +408,9 @@ public final class MlIndexAndAlias {
         executeAsyncWithOrigin(client, ML_ORIGIN, TransportPutComposableIndexTemplateAction.TYPE, templateRequest, innerListener);
     }
 
-    public static boolean hasIndexTemplate(ClusterState state, String templateName) {
-        return state.getMetadata().templatesV2().containsKey(templateName);
+    public static boolean hasIndexTemplate(ClusterState state, String templateName, long version) {
+        var template = state.getMetadata().templatesV2().get(templateName);
+        return template != null && Long.valueOf(version).equals(template.version());
     }
 
     public static boolean has6DigitSuffix(String indexName) {

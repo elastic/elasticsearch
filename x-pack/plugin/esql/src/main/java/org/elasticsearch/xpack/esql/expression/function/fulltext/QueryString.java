@@ -254,7 +254,7 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
                     description = "Coordinated Universal Time (UTC) offset or IANA time zone used to convert date values in the "
                         + "query string to UTC."
                 ), },
-            description = "Additional options for Query String as <<esql-function-named-params,function named parameters>>."
+            description = "(Optional) Additional options for Query String as <<esql-function-named-params,function named parameters>>."
                 + " See <<query-dsl-query-string-query,query string query>> for more information.",
             optional = true
         ) Expression options

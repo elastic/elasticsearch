@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.alibabacloudsearch.AlibabaCloudSearchAccount;
 import org.elasticsearch.xpack.inference.external.alibabacloudsearch.AlibabaCloudSearchResponseHandler;
@@ -23,6 +24,8 @@ import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.inference.TaskType.COMPLETION;
 
 public class AlibabaCloudSearchCompletionRequestManager extends AlibabaCloudSearchRequestManager {
     private static final Logger logger = LogManager.getLogger(AlibabaCloudSearchCompletionRequestManager.class);
@@ -72,5 +75,10 @@ public class AlibabaCloudSearchCompletionRequestManager extends AlibabaCloudSear
         List<String> input = inferenceInputs.castTo(ChatCompletionInput.class).getInputs();
         AlibabaCloudSearchCompletionRequest request = new AlibabaCloudSearchCompletionRequest(account, input, model);
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
+    }
+
+    @Override
+    public TaskType taskType() {
+        return COMPLETION;
     }
 }

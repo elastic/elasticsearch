@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.cohere.CohereResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
@@ -21,6 +22,8 @@ import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankMode
 
 import java.util.Objects;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.inference.TaskType.RERANK;
 
 public class CohereRerankRequestManager extends CohereRequestManager {
     private static final Logger logger = LogManager.getLogger(CohereRerankRequestManager.class);
@@ -52,5 +55,10 @@ public class CohereRerankRequestManager extends CohereRequestManager {
         CohereRerankRequest request = new CohereRerankRequest(rerankInput.getQuery(), rerankInput.getChunks(), model);
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
+    }
+
+    @Override
+    public TaskType taskType() {
+        return RERANK;
     }
 }

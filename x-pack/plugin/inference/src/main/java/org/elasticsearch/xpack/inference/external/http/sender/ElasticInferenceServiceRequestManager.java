@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
 
 import java.util.Objects;
@@ -24,5 +25,10 @@ public abstract class ElasticInferenceServiceRequestManager extends BaseRequestM
 
             return new RateLimitGrouping(model.rateLimitServiceSettings().modelId().hashCode());
         }
+    }
+
+    @Override
+    public String service() {
+        return ElasticInferenceService.NAME;
     }
 }

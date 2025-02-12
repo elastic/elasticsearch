@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.azureopenai.AzureOpenAiResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
@@ -21,6 +22,8 @@ import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOp
 
 import java.util.Objects;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.inference.TaskType.COMPLETION;
 
 public class AzureOpenAiCompletionRequestManager extends AzureOpenAiRequestManager {
 
@@ -51,6 +54,11 @@ public class AzureOpenAiCompletionRequestManager extends AzureOpenAiRequestManag
         var stream = chatCompletionInput.stream();
         AzureOpenAiCompletionRequest request = new AzureOpenAiCompletionRequest(inputs, model, stream);
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
+    }
+
+    @Override
+    public TaskType taskType() {
+        return COMPLETION;
     }
 
 }

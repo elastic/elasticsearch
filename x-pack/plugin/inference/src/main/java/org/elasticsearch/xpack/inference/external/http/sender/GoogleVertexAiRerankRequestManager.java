@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.googlevertexai.GoogleVertexAiResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
@@ -21,6 +22,8 @@ import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVe
 
 import java.util.Objects;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.inference.TaskType.RERANK;
 
 public class GoogleVertexAiRerankRequestManager extends GoogleVertexAiRequestManager {
 
@@ -65,5 +68,10 @@ public class GoogleVertexAiRerankRequestManager extends GoogleVertexAiRequestMan
         GoogleVertexAiRerankRequest request = new GoogleVertexAiRerankRequest(rerankInput.getQuery(), rerankInput.getChunks(), model);
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
+    }
+
+    @Override
+    public TaskType taskType() {
+        return RERANK;
     }
 }

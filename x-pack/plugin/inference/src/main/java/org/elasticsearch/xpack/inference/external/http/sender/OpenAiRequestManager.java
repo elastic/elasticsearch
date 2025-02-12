@@ -11,6 +11,7 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.openai.OpenAiAccount;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiModel;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -36,5 +37,10 @@ abstract class OpenAiRequestManager extends BaseRequestManager {
                 model.rateLimitServiceSettings().modelId().hashCode()
             );
         }
+    }
+
+    @Override
+    public String service() {
+        return OpenAiService.NAME;
     }
 }

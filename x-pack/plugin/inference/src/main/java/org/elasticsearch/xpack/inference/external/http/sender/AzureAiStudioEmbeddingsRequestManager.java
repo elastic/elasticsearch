@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.Azure
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
 
 public class AzureAiStudioEmbeddingsRequestManager extends AzureAiStudioRequestManager {
@@ -59,6 +61,11 @@ public class AzureAiStudioEmbeddingsRequestManager extends AzureAiStudioRequestM
             ErrorMessageResponseEntity::fromResponse,
             false
         );
+    }
+
+    @Override
+    public TaskType taskType() {
+        return TEXT_EMBEDDING;
     }
 
 }

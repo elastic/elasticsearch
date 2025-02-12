@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.alibabacloudsearch.AlibabaCloudSearchAccount;
 import org.elasticsearch.xpack.inference.external.alibabacloudsearch.AlibabaCloudSearchResponseHandler;
@@ -23,6 +24,8 @@ import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 
 public class AlibabaCloudSearchEmbeddingsRequestManager extends AlibabaCloudSearchRequestManager {
     private static final Logger logger = LogManager.getLogger(AlibabaCloudSearchEmbeddingsRequestManager.class);
@@ -73,5 +76,10 @@ public class AlibabaCloudSearchEmbeddingsRequestManager extends AlibabaCloudSear
         AlibabaCloudSearchEmbeddingsRequest request = new AlibabaCloudSearchEmbeddingsRequest(account, input, model);
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
+    }
+
+    @Override
+    public TaskType taskType() {
+        return TEXT_EMBEDDING;
     }
 }

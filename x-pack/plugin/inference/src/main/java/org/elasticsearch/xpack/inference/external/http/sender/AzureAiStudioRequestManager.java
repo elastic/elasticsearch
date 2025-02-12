@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioModel;
+import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioService;
 
 import java.util.Objects;
 
@@ -24,5 +25,10 @@ public abstract class AzureAiStudioRequestManager extends BaseRequestManager {
 
             return new AzureAiStudioRequestManager.RateLimitGrouping(model.target().hashCode());
         }
+    }
+
+    @Override
+    public String service() {
+        return AzureAiStudioService.NAME;
     }
 }

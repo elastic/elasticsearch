@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
@@ -22,6 +23,8 @@ import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRe
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.inference.TaskType.RERANK;
 
 public class IbmWatsonxRerankRequestManager extends IbmWatsonxRequestManager {
     private static final Logger logger = LogManager.getLogger(IbmWatsonxRerankRequestManager.class);
@@ -68,5 +71,10 @@ public class IbmWatsonxRerankRequestManager extends IbmWatsonxRequestManager {
 
     protected IbmWatsonxRerankRequest getRerankRequest(String query, List<String> chunks, IbmWatsonxRerankModel model) {
         return new IbmWatsonxRerankRequest(query, chunks, model);
+    }
+
+    @Override
+    public TaskType taskType() {
+        return RERANK;
     }
 }

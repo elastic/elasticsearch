@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.services.jinaai.JinaAIModel;
+import org.elasticsearch.xpack.inference.services.jinaai.JinaAIService;
 
 import java.util.Objects;
 
@@ -24,5 +25,10 @@ abstract class JinaAIRequestManager extends BaseRequestManager {
 
             return new RateLimitGrouping(model.apiKey().hashCode());
         }
+    }
+
+    @Override
+    public String service() {
+        return JinaAIService.NAME;
     }
 }

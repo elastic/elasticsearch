@@ -3,8 +3,7 @@
 //
 
 maxOfInt
-required_capability: join_planning_v1
-required_capability: inlinestats_stubrelation_proper_replacement
+required_capability: inlinestats_v3
 // tag::max-languages[]
 FROM employees
 | KEEP emp_no, languages
@@ -26,8 +25,7 @@ emp_no:integer | languages:integer | max_lang:integer
 ;
 
 maxOfIntByKeyword
-required_capability: join_planning_v1
-required_capability: inlinestats_stubrelation_proper_replacement
+required_capability: inlinestats_v3
 
 FROM employees
 | KEEP emp_no, languages, gender
@@ -45,8 +43,7 @@ emp_no:integer | languages:integer | gender:keyword | max_lang:integer
 ;
 
 maxOfLongByKeyword
-required_capability: join_planning_v1
-required_capability: inlinestats_stubrelation_proper_replacement
+required_capability: inlinestats_v3
 
 FROM employees
 | KEEP emp_no, avg_worked_seconds, gender
@@ -61,8 +58,7 @@ emp_no:integer | avg_worked_seconds:long | gender:keyword | max_avg_worked_secon
 ;
 
 maxOfLong
-required_capability: join_planning_v1
-required_capability: inlinestats_stubrelation_proper_replacement
+required_capability: inlinestats_v3
 
 FROM employees
 | KEEP emp_no, avg_worked_seconds, gender
@@ -75,8 +71,7 @@ emp_no:integer | avg_worked_seconds:long | gender:keyword | max_avg_worked_secon
 ;
 
 maxOfLongByCalculatedKeyword
-required_capability: join_planning_v1
-required_capability: inlinestats_stubrelation_proper_replacement
+required_capability: inlinestats_v3
 
 // tag::longest-tenured-by-first[]
 FROM employees
@@ -99,8 +94,7 @@ emp_no:integer | avg_worked_seconds:long | last_name:keyword | SUBSTRING(last_na
 ;
 
 maxOfLongByCalculatedNamedKeyword
-required_capability: join_planning_v1
-required_capability: inlinestats_stubrelation_proper_replacement
+required_capability: inlinestats_v3
 
 FROM employees
 | KEEP emp_no, avg_worked_seconds, last_name
@@ -138,8 +132,7 @@ emp_no:integer | avg_worked_seconds:long | last_name:keyword | max_avg_worked_se
 ;
 
 maxOfLongByEvaledKeyword
-required_capability: join_planning_v1
-required_capability: inlinestats_stubrelation_proper_replacement
+required_capability: inlinestats_v3
 
 FROM employees
 | EVAL l = SUBSTRING(last_name, 0, 1)
@@ -159,8 +152,7 @@ emp_no:integer | avg_worked_seconds:long | l:keyword | max_avg_worked_seconds:lo
 ;
 
 maxOfLongByInt
-required_capability: join_planning_v1
-required_capability: inlinestats_stubrelation_proper_replacement
+required_capability: inlinestats_v3
 
 FROM employees
 | KEEP emp_no, avg_worked_seconds, languages
@@ -178,8 +170,7 @@ emp_no:integer | avg_worked_seconds:long | languages:integer | max_avg_worked_se
 ;
 
 maxOfLongByIntDouble
-required_capability: join_planning_v1
-required_capability: inlinestats_stubrelation_proper_replacement
+required_capability: inlinestats_v3
 
 FROM employees
 | KEEP emp_no, avg_worked_seconds, languages, height
@@ -376,8 +367,7 @@ abbrev:keyword | city:keyword |       region:text | "COUNT(*)":long
 ;
 
 beforeStats
-required_capability: join_planning_v1
-required_capability: inlinestats_stubrelation_proper_replacement
+required_capability: inlinestats_v3
 
 FROM airports
 | EVAL lat = ST_Y(location)
@@ -548,8 +538,7 @@ emp_no:integer | one:integer
 ;
 
 percentile
-required_capability: join_planning_v1
-required_capability: inlinestats_stubrelation_proper_replacement
+required_capability: inlinestats_v3
 
 FROM employees
 | KEEP emp_no, salary

@@ -814,7 +814,7 @@ public class EsqlCapabilities {
          * Fixes a series of issues with inlinestats which had an incomplete implementation after lookup and inlinestats
          * were refactored.
          */
-        INLINESTATS_STUBRELATION_PROPER_REPLACEMENT;
+        INLINESTATS_V3;
 
         private final boolean enabled;
 

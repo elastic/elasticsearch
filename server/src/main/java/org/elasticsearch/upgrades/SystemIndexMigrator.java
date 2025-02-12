@@ -513,6 +513,8 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             if (ackedResponse.isAcknowledged()) {
                 logger.info("successfully removed index [{}]", newIndexName);
                 listener.onResponse(ackedResponse);
+            } else {
+                listener.onFailure(new ElasticsearchException("Failed to acknowledge index deletion for [" + newIndexName + "]"));
             }
         }, listener::onFailure));
     }

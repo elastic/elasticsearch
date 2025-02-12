@@ -50,6 +50,7 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
 import java.nio.charset.Charset;
+import java.nio.file.FileStore;
 import java.nio.file.LinkOption;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
@@ -553,4 +554,23 @@ public interface EntitlementChecker {
 
     // file system providers
     void checkNewInputStream(Class<?> callerClass, FileSystemProvider that, Path path, OpenOption... options);
+
+    // file store
+    void checkGetFileStoreAttributeView(Class<?> callerClass, FileStore that, Class<?> type);
+
+    void checkGetAttribute(Class<?> callerClass, FileStore that, String attribute);
+
+    void checkGetBlockSize(Class<?> callerClass, FileStore that);
+
+    void checkGetTotalSpace(Class<?> callerClass, FileStore that);
+
+    void checkGetUnallocatedSpace(Class<?> callerClass, FileStore that);
+
+    void checkGetUsableSpace(Class<?> callerClass, FileStore that);
+
+    void checkIsReadOnly(Class<?> callerClass, FileStore that);
+
+    void checkName(Class<?> callerClass, FileStore that);
+
+    void checkType(Class<?> callerClass, FileStore that);
 }

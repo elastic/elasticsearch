@@ -1037,7 +1037,8 @@ public final class DateFieldMapper extends FieldMapper {
      * the index sorting configuration must include the {@code @timestamp} field.
      *
      * @param indexCreatedVersion  The version of the index when it was created.
-     * @param useDocValuesSkipper  Whether the doc values skipper feature is enabled via the {@code index.mapping.use_doc_values_skipper} setting.
+     * @param useDocValuesSkipper  Whether the doc values skipper feature is enabled via the {@code index.mapping.use_doc_values_skipper}
+     *                             setting.
      * @param hasDocValues         Whether the field has doc values enabled.
      * @param indexMode            The index mode, which must be {@link IndexMode#LOGSDB}.
      * @param indexSortConfig      The index sorting configuration, which must include the {@code @timestamp} field.

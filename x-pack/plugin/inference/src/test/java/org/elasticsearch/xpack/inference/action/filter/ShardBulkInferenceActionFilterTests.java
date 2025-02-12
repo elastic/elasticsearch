@@ -141,22 +141,29 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testLicenseInvalidForInference() {
+        StaticModel model = StaticModel.createRandomInstance();
         ShardBulkInferenceActionFilter filter = createFilter(threadPool, Map.of(), DEFAULT_BATCH_SIZE, useLegacyFormat, false);
-        ActionFilterChain actionFilterChain = mock(ActionFilterChain.class);
+        ActionFilterChain actionFilterChain = (task, action, request, listener) -> {
+            BulkShardRequest bulkShardRequest = (BulkShardRequest) request;
+            assertThat(bulkShardRequest.items().length, equalTo(1));
+
+            BulkItemResponse.Failure failure = bulkShardRequest.items()[0].getPrimaryResponse().getFailure();
+            assertNotNull(failure);
+            assertThat(failure.getCause(), instanceOf(ElasticsearchSecurityException.class));
+        };
         ActionListener actionListener = mock(ActionListener.class);
         Task task = mock(Task.class);
-        BulkShardRequest request = new BulkShardRequest(
-            new ShardId("test", "test", 0),
-            WriteRequest.RefreshPolicy.NONE,
-            new BulkItemRequest[0]
+
+        Map<String, InferenceFieldMetadata> inferenceFieldMap = Map.of(
+            "obj.field1",
+            new InferenceFieldMetadata("obj.field1", model.getInferenceEntityId(), new String[] { "obj.field1" })
         );
-        request.setInferenceFieldMap(
-            Map.of("foo", new InferenceFieldMetadata("foo", "bar", "baz", generateRandomStringArray(5, 10, false, false)))
-        );
-        assertThrows(
-            ElasticsearchSecurityException.class,
-            () -> filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain)
-        );
+        BulkItemRequest[] items = new BulkItemRequest[1];
+        items[0] = new BulkItemRequest(0, new IndexRequest("test").source("obj.field1", "Test"));
+        BulkShardRequest request = new BulkShardRequest(new ShardId("test", "test", 0), WriteRequest.RefreshPolicy.NONE, items);
+        request.setInferenceFieldMap(inferenceFieldMap);
+
+        filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })

@@ -216,10 +216,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
 
         @Override
         public void run() {
-            if (INFERENCE_API_FEATURE.check(licenseState) == false) {
-                throw LicenseUtils.newComplianceException(XPackField.INFERENCE);
-            }
-
             Map<String, List<FieldInferenceRequest>> inferenceRequests = createFieldInferenceRequests(bulkShardRequest);
             Runnable onInferenceCompletion = () -> {
                 try {
@@ -571,6 +567,11 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                             values = SemanticTextUtils.nodeStringValues(field, valueObj);
                         } catch (Exception exc) {
                             addInferenceResponseFailure(item.id(), exc);
+                            break;
+                        }
+
+                        if (INFERENCE_API_FEATURE.check(licenseState) == false) {
+                            addInferenceResponseFailure(itemIndex, LicenseUtils.newComplianceException(XPackField.INFERENCE));
                             break;
                         }
 

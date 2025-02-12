@@ -16,9 +16,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.DeprecationHandler;
@@ -229,20 +226,6 @@ public record SemanticTextField(
                 throw new IllegalArgumentException("Missing chunk text");
             }
             return new Chunk(text, args[1] != null ? (int) args[1] : -1, args[2] != null ? (int) args[2] : -1, (BytesReference) args[3]);
-        }
-    );
-
-    private static final ConstructingObjectParser<ModelSettings, Void> MODEL_SETTINGS_PARSER = new ConstructingObjectParser<>(
-        MODEL_SETTINGS_FIELD,
-        true,
-        args -> {
-            TaskType taskType = TaskType.fromString((String) args[0]);
-            Integer dimensions = (Integer) args[1];
-            SimilarityMeasure similarity = args[2] == null ? null : SimilarityMeasure.fromString((String) args[2]);
-            DenseVectorFieldMapper.ElementType elementType = args[3] == null
-                ? null
-                : DenseVectorFieldMapper.ElementType.fromString((String) args[3]);
-            return new ModelSettings(taskType, dimensions, similarity, elementType);
         }
     );
 

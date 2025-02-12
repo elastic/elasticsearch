@@ -12,7 +12,6 @@ package org.elasticsearch.indices;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.Index;
 
@@ -112,9 +111,7 @@ public class SystemDataStreamDescriptor {
         if (dataStream == null) {
             return Collections.emptyList();
         }
-        return Stream.concat(dataStream.getIndices().stream(), dataStream.getFailureIndices().stream())
-            .map(Index::getName)
-            .toList();
+        return Stream.concat(dataStream.getIndices().stream(), dataStream.getFailureIndices().stream()).map(Index::getName).toList();
     }
 
     public String getDescription() {

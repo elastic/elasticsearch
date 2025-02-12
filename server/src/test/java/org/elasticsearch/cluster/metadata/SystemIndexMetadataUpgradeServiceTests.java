@@ -110,9 +110,9 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
             .system(false)
             .settings(getSettingsBuilder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true))
             .build();
-        DataStream.DataStreamIndices failureIndices = DataStream.DataStreamIndices
-            .failureIndicesBuilder(Collections.singletonList(fsIndexMetadata.getIndex()))
-            .build();
+        DataStream.DataStreamIndices failureIndices = DataStream.DataStreamIndices.failureIndicesBuilder(
+            Collections.singletonList(fsIndexMetadata.getIndex())
+        ).build();
         DataStream dataStream = DataStream.builder(SYSTEM_DATA_STREAM_NAME, Collections.singletonList(dsIndexMetadata.getIndex()))
             .setFailureIndices(failureIndices)
             .setHidden(false)

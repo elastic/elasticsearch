@@ -254,10 +254,9 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
 
             for (DataStream updatedDataStream : updatedDataStreams) {
                 boolean shouldBeSystem = updatedDataStream.isSystem();
-                List<IndexMetadata> updatedIndicesMetadata = getIndicesBackingDataStreamMetadata(metadata, updatedDataStream)
-                    .map(idx -> updateIndexIfNecessary(idx, shouldBeSystem))
-                    .filter(Objects::nonNull)
-                    .toList();
+                List<IndexMetadata> updatedIndicesMetadata = getIndicesBackingDataStreamMetadata(metadata, updatedDataStream).map(
+                    idx -> updateIndexIfNecessary(idx, shouldBeSystem)
+                ).filter(Objects::nonNull).toList();
 
                 updatedMetadata.addAll(updatedIndicesMetadata);
             }
@@ -265,8 +264,7 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
         }
 
         private Stream<IndexMetadata> getIndicesBackingDataStreamMetadata(Metadata metadata, DataStream dataStream) {
-            return Stream.concat(dataStream.getIndices().stream(), dataStream.getFailureIndices().stream())
-                .map(metadata::index);
+            return Stream.concat(dataStream.getIndices().stream(), dataStream.getFailureIndices().stream()).map(metadata::index);
         }
 
         @Override

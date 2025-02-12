@@ -104,6 +104,7 @@ public class IncrementalBulkService {
         private boolean bulkInProgress = false;
         private Exception bulkActionLevelFailure = null;
         private long currentBulkSize = 0L;
+        private IndexingPressure.Coordinating coordinatingOperation;
         private BulkRequest bulkRequest = null;
 
         protected Handler(
@@ -152,6 +153,8 @@ public class IncrementalBulkService {
                             }
                         }, () -> {
                             bulkInProgress = false;
+                            coordinatingOperation.close();
+                            coordinatingOperation = null;
                             toRelease.forEach(Releasable::close);
                             nextItems.run();
                         }));
@@ -195,7 +198,11 @@ public class IncrementalBulkService {
                             handleBulkFailure(isFirstRequest, e);
                             errorResponse(listener);
                         }
-                    }, () -> toRelease.forEach(Releasable::close)));
+                    }, () -> {
+                        coordinatingOperation.close();
+                        coordinatingOperation = null;
+                        toRelease.forEach(Releasable::close);
+                    }));
                 } else {
                     errorResponse(listener);
                 }
@@ -205,6 +212,8 @@ public class IncrementalBulkService {
         @Override
         public void close() {
             closed = true;
+            coordinatingOperation.close();
+            coordinatingOperation = null;
             releasables.forEach(Releasable::close);
             releasables.clear();
         }
@@ -257,11 +266,13 @@ public class IncrementalBulkService {
                 bulkRequest.add(items);
                 releasables.add(releasable);
                 long size = items.stream().mapToLong(Accountable::ramBytesUsed).sum();
-                releasables.add(indexingPressure.markCoordinatingOperationStarted(items.size(), size, false));
+                coordinatingOperation.increment(items.size(), size);
                 currentBulkSize += size;
                 return true;
             } catch (EsRejectedExecutionException e) {
                 handleBulkFailure(incrementalRequestSubmitted == false, e);
+                coordinatingOperation.close();
+                coordinatingOperation = null;
                 releasables.forEach(Releasable::close);
                 releasables.clear();
                 return false;
@@ -273,6 +284,7 @@ public class IncrementalBulkService {
             assert bulkRequest == null;
             bulkRequest = new BulkRequest();
             bulkRequest.incrementalState(incrementalState);
+            coordinatingOperation = indexingPressure.markCoordinatingOperationStarted(0, 0, false);
 
             if (waitForActiveShards != null) {
                 bulkRequest.waitForActiveShards(waitForActiveShards);

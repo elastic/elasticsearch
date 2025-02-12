@@ -385,9 +385,6 @@ tests:
 - class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
   method: testOldSourceOnlyRepoAccess
   issue: https://github.com/elastic/elasticsearch/issues/120080
-- class: org.elasticsearch.xpack.ml.integration.ClassificationHousePricingIT
-  method: testFeatureImportanceValues
-  issue: https://github.com/elastic/elasticsearch/issues/116564
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {date_nanos.Bucket Date nanos by 10 minutes}
   issue: https://github.com/elastic/elasticsearch/issues/120162
@@ -504,9 +501,6 @@ tests:
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testHasPrivileges
   issue: https://github.com/elastic/elasticsearch/issues/121346
-- class: org.elasticsearch.xpack.ml.integration.ClassificationIT
-  method: testWithOnlyTrainingRowsAndTrainingPercentIsFifty_DependentVariableIsTextAndKeyword
-  issue: https://github.com/elastic/elasticsearch/issues/121502
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testSuggestProfilesWithName
   issue: https://github.com/elastic/elasticsearch/issues/121022

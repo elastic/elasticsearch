@@ -12,6 +12,7 @@ package org.elasticsearch.tasks;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.telemetry.tracing.Traceable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -254,6 +255,11 @@ public class Task implements Traceable {
      */
     public String getHeader(String header) {
         return headers.get(header);
+    }
+
+    @Nullable
+    public String getProjectId() {
+        return getHeader(X_ELASTIC_PROJECT_ID_HTTP_HEADER);
     }
 
     public Map<String, String> headers() {

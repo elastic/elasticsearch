@@ -83,7 +83,7 @@ public class ModelRegistryMetadataTests extends AbstractChunkedSerializingTestCa
 
     public void testUpgrade() {
         var metadata = randomInstance(false);
-        var metadataWithTombstones = metadata.withRemovedModel(randomFrom(metadata.getModelMap().keySet()));
+        var metadataWithTombstones = metadata.withRemovedModel(Set.of(randomFrom(metadata.getModelMap().keySet())));
 
         var indexMetadata = metadata.withAddedModel(randomAlphanumericOfLength(10), MinimalServiceSettingsTests.randomInstance());
         var upgraded = metadataWithTombstones.withUpgradedModels(indexMetadata.getModelMap());

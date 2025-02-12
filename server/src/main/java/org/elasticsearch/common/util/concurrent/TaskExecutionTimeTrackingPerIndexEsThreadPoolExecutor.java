@@ -11,8 +11,11 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -28,8 +31,8 @@ import java.util.function.Function;
  */
 public class TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor extends TaskExecutionTimeTrackingEsThreadPoolExecutor {
     private static final Logger logger = LogManager.getLogger(TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor.class);
-    private final ConcurrentHashMap<String, Tuple<LongAdder, ExponentiallyWeightedMovingAverage>> indexExecutionTime;
-    private final ConcurrentHashMap<Runnable, String> runnableToIndexName;
+    public final ConcurrentHashMap<String, Tuple<LongAdder, ExponentiallyWeightedMovingAverage>> indexExecutionTime;
+    public final ConcurrentHashMap<Runnable, String> runnableToIndexName;
 
     TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor(
         String name,

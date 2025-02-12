@@ -42,6 +42,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -52,15 +53,19 @@ import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 
 /**
- * This class periodically logs the results of the Health API to the standard Elasticsearch server log file. It a lifecycle
- * aware component because it health depends on other lifecycle aware components. This means:
+ * This class periodically logs the results of the Health API to the standard Elasticsearch server log file. It is a lifecycle
+ * aware component because it depends on other lifecycle aware components. This means:
  * - We do not schedule any jobs until the lifecycle state is STARTED
- * - When the lifecycle state becomes STOPPED, do not schedule any more runs, but we do let the current one finish
+ * - When the lifecycle state becomes STOPPED, we do not schedule any more runs, but we do let the current one finish
  * - When the lifecycle state becomes CLOSED, we will interrupt the current run as well.
  */
 public class HealthPeriodicLogger extends AbstractLifecycleComponent implements ClusterStateListener, SchedulerEngine.Listener {
     public static final String HEALTH_FIELD_PREFIX = "elasticsearch.health";
     public static final String MESSAGE_FIELD = "message";
+
+    // duplicated from SlmHealthIndicatorService since x-pack not accessible
+    private static final String SLM_HEALTH_INDICATOR_SERVICE_NAME = "slm";
+    private static final String SLM_HEALTH_INDICATOR_SERVICE_IMPACT_ID_MISSING_SNAPSHOT = "missing_snapshot";
 
     /**
      * Valid modes of output for this logger
@@ -361,11 +366,25 @@ public class HealthPeriodicLogger extends AbstractLifecycleComponent implements 
                 String.format(Locale.ROOT, "%s.%s.status", HEALTH_FIELD_PREFIX, indicatorResult.name()),
                 indicatorResult.status().xContentValue()
             );
-            if (GREEN.equals(indicatorResult.status()) == false && indicatorResult.details() != null) {
-                result.put(
-                    String.format(Locale.ROOT, "%s.%s.details", HEALTH_FIELD_PREFIX, indicatorResult.name()),
-                    Strings.toString(indicatorResult.details())
-                );
+            if (GREEN.equals(indicatorResult.status()) == false) {
+                if (indicatorResult.details() != null) {
+                    result.put(
+                        String.format(Locale.ROOT, "%s.%s.details", HEALTH_FIELD_PREFIX, indicatorResult.name()),
+                        Strings.toString(indicatorResult.details())
+                    );
+                }
+
+                // output the SLM health indicator missing snapshot impact, so it can be specifically identified when occur
+                if (SLM_HEALTH_INDICATOR_SERVICE_NAME.equals(indicatorResult.name())) {
+                    Optional<HealthIndicatorImpact> impactMissingSnapshot = indicatorResult.impacts()
+                        .stream()
+                        .filter(impact -> SLM_HEALTH_INDICATOR_SERVICE_IMPACT_ID_MISSING_SNAPSHOT.equals(impact.id()))
+                        .findFirst();
+                    impactMissingSnapshot.ifPresent(impact -> result.put(
+                        String.format(Locale.ROOT, "%s.%s.%s", HEALTH_FIELD_PREFIX, indicatorResult.name(), impact.id()),
+                        true
+                    ));
+                }
             }
         });
 

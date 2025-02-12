@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
@@ -2180,7 +2181,7 @@ public class VerifierTests extends ESTestCase {
 
         // Check all data types for available options
         DataType[] optionTypes = new DataType[] { INTEGER, LONG, FLOAT, DOUBLE, KEYWORD, BOOLEAN };
-        for (Map.Entry<String, DataType> allowedOptions : Match.ALLOWED_OPTIONS.entrySet()) {
+        for (Map.Entry<String, DataType> allowedOptions : QueryString.ALLOWED_OPTIONS.entrySet()) {
             String optionName = allowedOptions.getKey();
             DataType optionType = allowedOptions.getValue();
             // Check every possible type for the option - we'll try to convert it to the expected type
@@ -2199,7 +2200,7 @@ public class VerifierTests extends ESTestCase {
                     queryOptionValue = "\"" + optionValue + "\"";
                 }
 
-                String query = "FROM test | WHERE match(first_name, \"Jean\", {\"" + optionName + "\": " + queryOptionValue + "})";
+                String query = "FROM test | WHERE QSTR(\"first_name: Jean\", {\"" + optionName + "\": " + queryOptionValue + "})";
                 try {
                     // Check conversion is possible
                     DataTypeConverter.convert(optionValue, optionType);
@@ -2210,7 +2211,7 @@ public class VerifierTests extends ESTestCase {
                     assertEquals(
                         "1:19: Invalid option ["
                             + optionName
-                            + "] in [match(first_name, \"Jean\", {\""
+                            + "] in [QSTR(\"first_name: Jean\", {\""
                             + optionName
                             + "\": "
                             + queryOptionValue
@@ -2226,9 +2227,9 @@ public class VerifierTests extends ESTestCase {
         }
 
         assertThat(
-            error("FROM test | WHERE match(first_name, \"Jean\", {\"unknown_option\": true})"),
+            error("FROM test |  WHERE QSTR(\"first_name: Jean\", {\"unknown_option\": true})"),
             containsString(
-                "1:19: Invalid option [unknown_option] in [match(first_name, \"Jean\", {\"unknown_option\": true})]," + " expected one of "
+                "1:20: Invalid option [unknown_option] in [QSTR(\"first_name: Jean\", {\"unknown_option\": true})]," + " expected one of "
             )
         );
     }

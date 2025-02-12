@@ -11,6 +11,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.async.AsyncStopRequest;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -28,9 +29,11 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.AbstractCrossClusterTestCase.getDriverTasks;
 import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.deleteAsyncId;
 import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.startAsyncQuery;
 import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.waitForCluster;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 // This tests if enrich after stop works correctly
@@ -91,6 +94,13 @@ public class CrossClusterAsyncEnrichStopIT extends AbstractEnrichBasedCrossClust
         // Run the stop request
         var stopRequest = new AsyncStopRequest(asyncExecutionId);
         var stopAction = client().execute(EsqlAsyncStopAction.INSTANCE, stopRequest);
+        // wait until reduce tasks are gone
+        assertBusy(() -> {
+            List<TaskInfo> tasks = getDriverTasks(client(REMOTE_CLUSTER_2));
+            List<TaskInfo> reduceTasks = tasks.stream().filter(t -> t.description().contains("_LuceneSourceOperator") == false).toList();
+            assertThat(reduceTasks, empty());
+        });
+
         // Allow the processing to proceed
         SimplePauseFieldPlugin.allowEmitting.countDown();
 

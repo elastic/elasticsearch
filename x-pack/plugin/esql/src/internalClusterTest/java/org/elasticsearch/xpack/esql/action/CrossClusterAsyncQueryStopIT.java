@@ -244,8 +244,4 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
             assertAcked(deleteAsyncId(client(), asyncExecutionId));
         }
     }
-
-    private static List<TaskInfo> getDriverTasks(Client client) {
-        return client.admin().cluster().prepareListTasks().setActions(DriverTaskRunner.ACTION_NAME).setDetailed(true).get().getTasks();
-    }
 }

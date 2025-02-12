@@ -1319,6 +1319,12 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         var bulkResponse = indexDocs(indexName, randomIntBetween(256, 512));
         List<String> docIds = Arrays.stream(bulkResponse.getItems()).map(BulkItemResponse::getId).toList();
 
+        var hollowShardsServiceA = internalCluster().getInstance(HollowShardsService.class, indexNodeA);
+        for (int i = 0; i < numOfShards; i++) {
+            var indexShard = findIndexShard(index, i);
+            assertBusy(() -> assertThat(hollowShardsServiceA.isHollowableIndexShard(indexShard), equalTo(true)));
+            hollowShardsServiceA.ensureHollowShard(indexShard.shardId(), false);
+        }
         logger.info("--> relocating {} hollowable shards from {} to {}", numOfShards, indexNodeA, indexNodeB);
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
         assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));

@@ -239,12 +239,12 @@ public class DesiredBalanceReconciler {
             }
 
             /*
-             * Create some comparators to sort the unassigned shard copies in prioritized allocation order.
+             * Create some comparators to sort the unassigned shard copies in priority to allocate order.
              * TODO: We could be smarter here and group the shards by index and then
              * use the sorter to save some iterations.
              */
-            final PriorityComparator secondaryComparator = PriorityComparator.getAllocationComparator(allocation);
-            final Comparator<ShardRouting> primaryComparator = (o1, o2) -> {
+            final PriorityComparator indexPriorityComparator = PriorityComparator.getAllocationComparator(allocation);
+            final Comparator<ShardRouting> shardAllocationPriorityComparator = (o1, o2) -> {
                 // Prioritize assigning a primary shard copy, if one is a primary and the other is not.
                 if (o1.primary() ^ o2.primary()) {
                     return o1.primary() ? -1 : 1;
@@ -261,7 +261,7 @@ public class DesiredBalanceReconciler {
                 // that's why it's added last even though it could be easier to read
                 // if we'd apply it earlier. this comparator will only differentiate across
                 // indices all shards of the same index is treated equally.
-                final int secondaryComparison = secondaryComparator.compare(o1, o2);
+                final int secondaryComparison = indexPriorityComparator.compare(o1, o2);
                 assert secondaryComparison != 0 : "Index names are equal, should be returned early.";
                 return secondaryComparison;
             };
@@ -269,21 +269,21 @@ public class DesiredBalanceReconciler {
             /*
              * we use 2 arrays and move replicas to the second array once we allocated an identical
              * replica in the current iteration to make sure all indices get allocated in the same manner.
-             * The arrays are sorted by primaries first and then by index and shard ID so a 2 indices with
+             * The arrays are sorted by primaries first and then by index and shard ID so 2 indices with
              * 2 replica and 1 shard would look like:
              * [(0,P,IDX1), (0,P,IDX2), (0,R,IDX1), (0,R,IDX1), (0,R,IDX2), (0,R,IDX2)]
              * if we allocate for instance (0, R, IDX1) we move the second replica to the secondary array and proceed with
              * the next replica. If we could not find a node to allocate (0,R,IDX1) we move all it's replicas to ignoreUnassigned.
              */
-            ShardRouting[] primary = unassigned.drain();
-            ShardRouting[] secondary = new ShardRouting[primary.length];
-            int secondaryLength = 0;
-            int primaryLength = primary.length;
-            ArrayUtil.timSort(primary, primaryComparator);
+            ShardRouting[] orderedShardAllocationList = unassigned.drain();
+            ShardRouting[] deferredShardAllocationList = new ShardRouting[orderedShardAllocationList.length];
+            int deferredShardAllocationListLength = 0;
+            int orderedShardAllocationListLength = orderedShardAllocationList.length;
+            ArrayUtil.timSort(orderedShardAllocationList, shardAllocationPriorityComparator);
 
             do {
-                nextShard: for (int i = 0; i < primaryLength; i++) {
-                    final var shard = primary[i];
+                nextShard: for (int i = 0; i < orderedShardAllocationListLength; i++) {
+                    final var shard = orderedShardAllocationList[i];
                     final var assignment = desiredBalance.getAssignment(shard.shardId());
                     // An ignored shard copy is one that has no desired balance assignment.
                     final boolean ignored = assignment == null || isIgnored(routingNodes, shard, assignment);
@@ -317,8 +317,13 @@ public class DesiredBalanceReconciler {
                                     if (shard.primary() == false) {
                                         // copy over the same replica shards to the secondary array so they will get allocated
                                         // in a subsequent iteration, allowing replicas of other shards to be allocated first
-                                        while (i < primaryLength - 1 && primaryComparator.compare(primary[i], primary[i + 1]) == 0) {
-                                            secondary[secondaryLength++] = primary[++i];
+                                        while (i < orderedShardAllocationListLength - 1
+                                            && shardAllocationPriorityComparator.compare(
+                                                orderedShardAllocationList[i],
+                                                orderedShardAllocationList[i + 1]
+                                            ) == 0) {
+                                            deferredShardAllocationList[deferredShardAllocationListLength++] =
+                                                orderedShardAllocationList[++i];
                                         }
                                     }
                                     continue nextShard;
@@ -340,17 +345,21 @@ public class DesiredBalanceReconciler {
                     if (shard.primary() == false) {
                         // We could not allocate the shard copy and the copy is a replica: check if we can ignore the other unassigned
                         // replicas.
-                        while (i < primaryLength - 1 && primaryComparator.compare(primary[i], primary[i + 1]) == 0) {
-                            unassigned.ignoreShard(primary[++i], unallocatedStatus, allocation.changes());
+                        while (i < orderedShardAllocationListLength - 1
+                            && shardAllocationPriorityComparator.compare(
+                                orderedShardAllocationList[i],
+                                orderedShardAllocationList[i + 1]
+                            ) == 0) {
+                            unassigned.ignoreShard(orderedShardAllocationList[++i], unallocatedStatus, allocation.changes());
                         }
                     }
                 }
-                primaryLength = secondaryLength;
-                ShardRouting[] tmp = primary;
-                primary = secondary;
-                secondary = tmp;
-                secondaryLength = 0;
-            } while (primaryLength > 0);
+                ShardRouting[] tmp = orderedShardAllocationList;
+                orderedShardAllocationList = deferredShardAllocationList;
+                deferredShardAllocationList = tmp;
+                orderedShardAllocationListLength = deferredShardAllocationListLength;
+                deferredShardAllocationListLength = 0;
+            } while (orderedShardAllocationListLength > 0);
         }
 
         private final class NodeIdsIterator implements Iterator<String> {

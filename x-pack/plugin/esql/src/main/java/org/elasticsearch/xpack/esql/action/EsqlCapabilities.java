@@ -808,7 +808,13 @@ public class EsqlCapabilities {
          * and https://github.com/elastic/elasticsearch/issues/120803
          * Support for queries that have multiple SORTs that cannot become TopN
          */
-        REMOVE_REDUNDANT_SORT;
+        REMOVE_REDUNDANT_SORT,
+
+        /**
+         * Fixes a series of issues with inlinestats which had an incomplete implementation after lookup and inlinestats
+         * were refactored.
+         */
+        INLINESTATS_STUBRELATION_PROPER_REPLACEMENT;
 
         private final boolean enabled;
 

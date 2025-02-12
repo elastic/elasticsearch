@@ -103,7 +103,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         // branch being cut as the new branch will have the same transport version
         // See https://github.com/elastic/elasticsearch/issues/98560
 
-        assumeTrue("The mixed cluster is not always detected corretly, see https://github.com/elastic/elasticsearch/issues/98560", false);
+        assumeTrue("The mixed cluster is not always detected correctly, see https://github.com/elastic/elasticsearch/issues/98560", false);
         Map<String, Object> jobs = entityAsMap(getJob(JOB_ID));
 
         String currentSnapshot = ((List<String>) XContentMapValues.extractValue("jobs.model_snapshot_id", jobs)).get(0);

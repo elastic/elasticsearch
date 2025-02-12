@@ -1772,7 +1772,7 @@ public class NumberFieldMapper extends FieldMapper {
                     // Transform number to correct type (e.g. reduce precision)
                     accumulator.add(type.parse(rawValue, coerce));
                 } catch (Exception e) {
-                    // Malformed value, skip it./gradlew ":server:test" --tests
+                    // Malformed value, skip it
                 }
             }
         };

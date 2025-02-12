@@ -26,6 +26,8 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.DeletePipelineTransportAction;
+import org.elasticsearch.action.ingest.GetPipelineAction;
+import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -78,7 +80,17 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
                 new DeletePipelineRequest(MigrateTemplateRegistry.REINDEX_DATA_STREAM_PIPELINE_NAME)
             )
         );
-        assertBusy(() -> { assertTrue(getPipelines(MigrateTemplateRegistry.REINDEX_DATA_STREAM_PIPELINE_NAME).isFound()); });
+
+        assertBusy(() -> {
+            assertTrue(
+                safeGet(
+                    clusterAdmin().execute(
+                        GetPipelineAction.INSTANCE,
+                        new GetPipelineRequest(MigrateTemplateRegistry.REINDEX_DATA_STREAM_PIPELINE_NAME)
+                    )
+                ).isFound()
+            );
+        });
     }
 
     private static final String MAPPING = """

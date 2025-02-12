@@ -204,7 +204,7 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
             }
         });
 
-        GetAliasesRequest request = new GetAliasesRequest(timeout, destIndex);
+        GetAliasesRequest request = new GetAliasesRequest(destIndex);
         request.setParentTask(parentTaskId);
         executeWithHeadersAsync(config.getHeaders(), TRANSFORM_ORIGIN, client, GetAliasesAction.INSTANCE, request, responseListener);
     }

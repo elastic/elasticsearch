@@ -176,7 +176,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 true,
                 () -> null,
                 (n, c, o) -> Mode.valueOf(o.toString().toUpperCase(Locale.ROOT)),
-                // Avoid initializing _source.mode if it doesn't need to be serialized:
                 m -> toType(m).enabled.explicit() ? null : toType(m).mode,
                 (b, n, v) -> b.field(n, v.toString().toLowerCase(Locale.ROOT)),
                 v -> v.toString().toLowerCase(Locale.ROOT)

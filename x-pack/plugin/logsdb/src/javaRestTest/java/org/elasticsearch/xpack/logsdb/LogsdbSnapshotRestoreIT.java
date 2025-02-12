@@ -133,7 +133,7 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
     }
 
     public void testSnapshotRestoreWithSourceOnlyRepository() throws Exception {
-        snapshotAndFail("synthetic", "object", true);
+        snapshotAndFail("object");
     }
 
     public void testSnapshotRestoreNested() throws Exception {
@@ -141,7 +141,7 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
     }
 
     public void testSnapshotRestoreNestedWithSourceOnlyRepository() throws Exception {
-        snapshotAndFail("synthetic", "nested", true);
+        snapshotAndFail("nested");
     }
 
     public void testSnapshotRestoreStoredSource() throws Exception {
@@ -212,10 +212,10 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
         assertDocCount(client(), dataStreamName, 100);
     }
 
-    static void snapshotAndFail(String sourceMode, String arrayType, boolean sourceOnly) throws IOException {
+    static void snapshotAndFail(String arrayType) throws IOException {
         String dataStreamName = "logs-my-test";
         String repositoryName = "my-repository";
-        if (sourceOnly) {
+        if (true) {
             var repositorySettings = Settings.builder().put("delegate_type", "fs").put("location", getRepoPath()).build();
             registerRepository(repositoryName, "source", true, repositorySettings);
         } else {
@@ -223,7 +223,7 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
             registerRepository(repositoryName, FsRepository.TYPE, true, repositorySettings);
         }
 
-        putTemplate("my-template", LOGS_TEMPLATE.replace("{{source_mode}}", sourceMode).replace("{{array_type}}", arrayType));
+        putTemplate("my-template", LOGS_TEMPLATE.replace("{{source_mode}}", "synthetic").replace("{{array_type}}", arrayType));
         for (int i = 0; i < 100; i++) {
             indexDocument(
                 dataStreamName,
@@ -240,7 +240,7 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
         }
         refresh(dataStreamName);
         assertDocCount(client(), dataStreamName, 100);
-        assertDataStream(dataStreamName, sourceMode);
+        assertDataStream(dataStreamName, "synthetic");
 
         String snapshotName = "my-snapshot";
         var snapshotResponse = performSnapshot(repositoryName, dataStreamName, snapshotName, true);

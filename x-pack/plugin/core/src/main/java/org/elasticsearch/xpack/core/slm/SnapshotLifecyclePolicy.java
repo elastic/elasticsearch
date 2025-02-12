@@ -85,11 +85,10 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         PARSER.declareString(ConstructingObjectParser.constructorArg(), REPOSITORY);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), CONFIG);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), SnapshotRetentionConfiguration::parse, RETENTION);
-        PARSER.declareField(
+        PARSER.declareString(
             ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> TimeValue.parseTimeValue(p.text(), UNHEALTHY_IF_NO_SNAPSHOT_WITHIN.getPreferredName()),
-            UNHEALTHY_IF_NO_SNAPSHOT_WITHIN,
-            ObjectParser.ValueType.STRING
+            value -> TimeValue.parseTimeValue(value, UNHEALTHY_IF_NO_SNAPSHOT_WITHIN.getPreferredName()),
+            UNHEALTHY_IF_NO_SNAPSHOT_WITHIN
         );
     }
 
@@ -294,7 +293,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
                 && snapshotInterval.duration() > 0
                 && unhealthyIfNoSnapshotWithin.compareTo(snapshotInterval) < 0) {
                 err.addValidationError(
-                    "invalid unhealthyIfNoSnapshotWithin ["
+                    "invalid unhealthy_if_no_snapshot_within ["
                         + unhealthyIfNoSnapshotWithin.getStringRep()
                         + "]: "
                         + "time is too short, expecting at least more than the interval between snapshots ["

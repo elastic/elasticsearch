@@ -156,7 +156,7 @@ public class SLMHealthBlockedSnapshotIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    public void test() throws Exception {
+    public void testSlmHealthYellowWithBlockedSnapshot() throws Exception {
         final String repoName = "test-repo";
 
         internalCluster().startMasterOnlyNodes(1);

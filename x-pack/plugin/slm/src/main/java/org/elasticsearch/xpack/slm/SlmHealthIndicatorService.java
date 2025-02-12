@@ -195,7 +195,7 @@ public final class SlmHealthIndicatorService implements HealthIndicatorService {
         if (startTime != null) {
             // time since last successful snapshot is exceeded
             long now = Instant.now().toEpochMilli();
-            long threshold = policyMetadata.getPolicy().getUnhealthyIfNoSnapshotWithin().getMillis();
+            long threshold = unhealthyIfNoSnapshotWithin.getMillis();
             return now - startTime > threshold;
         }
         return false;
@@ -335,12 +335,16 @@ public final class SlmHealthIndicatorService implements HealthIndicatorService {
 
         String unhealthyPolicyCauses = unhealthyPolicies.stream().map(policy -> {
             Long missingStartTime = getMissingSnapshotPeriodStartTime(policy);
+            TimeValue unhealthyIfNoSnapshotWithin = policy.getPolicy().getUnhealthyIfNoSnapshotWithin();
+            // missingStartTime and unhealthyIfNoSnapshotWithin should be non-null due to above filtering with missingSnapshotTimeExceeded
+            assert missingStartTime != null;
+            assert unhealthyIfNoSnapshotWithin != null;
             return "- ["
                 + policy.getId()
                 + "] has not had a snapshot for "
-                + (policy.getPolicy().getUnhealthyIfNoSnapshotWithin() != null
-                    ? policy.getPolicy().getUnhealthyIfNoSnapshotWithin().toHumanReadableString(2)
-                    : "")
+                + (unhealthyIfNoSnapshotWithin != null
+                    ? unhealthyIfNoSnapshotWithin.toHumanReadableString(2)
+                    : "some time")
                 + (missingStartTime != null ? ", since [" + FORMATTER.formatMillis(missingStartTime) + "]" : "");
         }).collect(Collectors.joining("\n"));
         String cause = (unhealthyPolicies.size() > 1

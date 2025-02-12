@@ -344,7 +344,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
             assertThat(
                 e.validationErrors(),
                 containsInAnyOrder(
-                    "invalid unhealthyIfNoSnapshotWithin [1m]: time is too short, "
+                    "invalid unhealthy_if_no_snapshot_within [1m]: time is too short, "
                         + "expecting at least more than the interval between snapshots [15m] for schedule [15m]"
                 )
             );
@@ -378,7 +378,7 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
             assertThat(
                 e.validationErrors(),
                 containsInAnyOrder(
-                    "invalid unhealthyIfNoSnapshotWithin [1m]: time is too short, "
+                    "invalid unhealthy_if_no_snapshot_within [1m]: time is too short, "
                         + "expecting at least more than the interval between snapshots [1d] for schedule [0 0 1 * * ?]"
                 )
             );
@@ -475,84 +475,34 @@ public class SnapshotLifecyclePolicyTests extends AbstractXContentSerializingTes
 
     @Override
     protected SnapshotLifecyclePolicy mutateInstance(SnapshotLifecyclePolicy instance) {
+        String id = instance.getId();
+        String name = instance.getName();
+        String schedule = instance.getSchedule();
+        String repository = instance.getRepository();
+        Map<String, Object> config = instance.getConfig();
+        SnapshotRetentionConfiguration retentionPolicy = instance.getRetentionPolicy();
+        TimeValue unhealthyIfNoSnapshotWithin = instance.getUnhealthyIfNoSnapshotWithin();
+
         switch (between(0, 6)) {
-            case 0:
-                return new SnapshotLifecyclePolicy(
-                    instance.getId() + randomAlphaOfLength(2),
-                    instance.getName(),
-                    instance.getSchedule(),
-                    instance.getRepository(),
-                    instance.getConfig(),
-                    instance.getRetentionPolicy(),
-                    instance.getUnhealthyIfNoSnapshotWithin()
-                );
-            case 1:
-                return new SnapshotLifecyclePolicy(
-                    instance.getId(),
-                    instance.getName() + randomAlphaOfLength(2),
-                    instance.getSchedule(),
-                    instance.getRepository(),
-                    instance.getConfig(),
-                    instance.getRetentionPolicy(),
-                    instance.getUnhealthyIfNoSnapshotWithin()
-                );
-            case 2:
-                return new SnapshotLifecyclePolicy(
-                    instance.getId(),
-                    instance.getName(),
-                    randomValueOtherThan(instance.getSchedule(), SnapshotLifecyclePolicyMetadataTests::randomSchedule),
-                    instance.getRepository(),
-                    instance.getConfig(),
-                    instance.getRetentionPolicy(),
-                    instance.getUnhealthyIfNoSnapshotWithin()
-                );
-            case 3:
-                return new SnapshotLifecyclePolicy(
-                    instance.getId(),
-                    instance.getName(),
-                    instance.getSchedule(),
-                    instance.getRepository() + randomAlphaOfLength(2),
-                    instance.getConfig(),
-                    instance.getRetentionPolicy(),
-                    instance.getUnhealthyIfNoSnapshotWithin()
-                );
-            case 4:
+            case 0 -> id += randomAlphaOfLength(2);
+            case 1 -> name += randomAlphaOfLength(2);
+            case 2 -> schedule = randomValueOtherThan(instance.getSchedule(), SnapshotLifecyclePolicyMetadataTests::randomSchedule);
+            case 3 -> repository += randomAlphaOfLength(2);
+            case 4 -> {
                 Map<String, Object> newConfig = new HashMap<>();
                 for (int i = 0; i < randomIntBetween(2, 5); i++) {
                     newConfig.put(randomAlphaOfLength(3), randomAlphaOfLength(3));
                 }
-                return new SnapshotLifecyclePolicy(
-                    instance.getId(),
-                    instance.getName() + randomAlphaOfLength(2),
-                    instance.getSchedule(),
-                    instance.getRepository(),
-                    newConfig,
-                    instance.getRetentionPolicy(),
-                    instance.getUnhealthyIfNoSnapshotWithin()
-                );
-            case 5:
-                return new SnapshotLifecyclePolicy(
-                    instance.getId(),
-                    instance.getName(),
-                    instance.getSchedule(),
-                    instance.getRepository(),
-                    instance.getConfig(),
-                    randomValueOtherThan(instance.getRetentionPolicy(), SnapshotLifecyclePolicyMetadataTests::randomRetention),
-                    instance.getUnhealthyIfNoSnapshotWithin()
-                );
-            case 6:
-                return new SnapshotLifecyclePolicy(
-                    instance.getId(),
-                    instance.getName(),
-                    instance.getSchedule(),
-                    instance.getRepository(),
-                    instance.getConfig(),
-                    instance.getRetentionPolicy(),
-                    randomValueOtherThan(instance.getUnhealthyIfNoSnapshotWithin(), ESTestCase::randomTimeValue)
-                );
-            default:
+                config = newConfig;
+            }
+            case 5 -> retentionPolicy = randomValueOtherThan(instance.getRetentionPolicy(),
+                SnapshotLifecyclePolicyMetadataTests::randomRetention);
+            case 6 -> unhealthyIfNoSnapshotWithin = randomValueOtherThan(instance.getUnhealthyIfNoSnapshotWithin(),
+                ESTestCase::randomTimeValue);
+            default ->
                 throw new AssertionError("failure, got illegal switch case");
         }
+        return new SnapshotLifecyclePolicy(id, name, schedule, repository, config, retentionPolicy, unhealthyIfNoSnapshotWithin);
     }
 
     @Override

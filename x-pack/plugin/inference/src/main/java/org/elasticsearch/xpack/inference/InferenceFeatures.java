@@ -36,6 +36,7 @@ public class InferenceFeatures implements FeatureSpecification {
             SemanticTextFieldMapper.SEMANTIC_TEXT_DELETE_FIX,
             SemanticTextFieldMapper.SEMANTIC_TEXT_ZERO_SIZE_FIX,
             SemanticTextFieldMapper.SEMANTIC_TEXT_ALWAYS_EMIT_INFERENCE_ID_FIX,
+            SemanticTextFieldMapper.SEMANTIC_TEXT_SKIP_INFERENCE_FIELDS,
             SEMANTIC_TEXT_HIGHLIGHTER,
             SEMANTIC_MATCH_QUERY_REWRITE_INTERCEPTION_SUPPORTED,
             SEMANTIC_SPARSE_VECTOR_QUERY_REWRITE_INTERCEPTION_SUPPORTED,

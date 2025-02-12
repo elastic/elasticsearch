@@ -30,6 +30,13 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class TransportVersionTests extends ESTestCase {
 
+    /**
+     * This test is specific for 8.18, to ensure that transport versions are backported correctly. Do not forward or backport it.
+     */
+    public void testMaximumAllowedTransportVersion() {
+        assertThat(TransportVersions.LATEST_DEFINED.isPatchFrom(TransportVersions.ML_INFERENCE_IBM_WATSONX_RERANK_ADDED), is(true));
+    }
+
     public void testVersionComparison() {
         TransportVersion V_7_2_0 = TransportVersions.V_7_2_0;
         TransportVersion V_8_0_0 = TransportVersions.V_8_0_0;

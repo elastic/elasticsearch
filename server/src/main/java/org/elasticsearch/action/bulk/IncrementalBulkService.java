@@ -103,7 +103,6 @@ public class IncrementalBulkService {
         private boolean incrementalRequestSubmitted = false;
         private boolean bulkInProgress = false;
         private Exception bulkActionLevelFailure = null;
-        private long currentBulkSize = 0L;
         private IndexingPressure.Coordinating coordinatingOperation;
         private BulkRequest bulkRequest = null;
 
@@ -131,7 +130,7 @@ public class IncrementalBulkService {
             } else {
                 assert bulkRequest != null;
                 if (internalAddItems(items, releasable)) {
-                    if (shouldBackOff()) {
+                    if (coordinatingOperation.shouldSplit()) {
                         final boolean isFirstRequest = incrementalRequestSubmitted == false;
                         incrementalRequestSubmitted = true;
                         final ArrayList<Releasable> toRelease = new ArrayList<>(releasables);
@@ -165,10 +164,6 @@ public class IncrementalBulkService {
                     nextItems.run();
                 }
             }
-        }
-
-        private boolean shouldBackOff() {
-            return indexingPressure.shouldSplitBulk(currentBulkSize);
         }
 
         public void lastItems(List<DocWriteRequest<?>> items, Releasable releasable, ActionListener<BulkResponse> listener) {
@@ -237,7 +232,6 @@ public class IncrementalBulkService {
 
         private void handleBulkSuccess(BulkResponse bulkResponse) {
             responses.add(bulkResponse);
-            currentBulkSize = 0L;
             bulkRequest = null;
         }
 
@@ -246,7 +240,6 @@ public class IncrementalBulkService {
             globalFailure = isFirstRequest;
             bulkActionLevelFailure = e;
             addItemLevelFailures(bulkRequest.requests());
-            currentBulkSize = 0;
             bulkRequest = null;
         }
 
@@ -267,7 +260,6 @@ public class IncrementalBulkService {
                 releasables.add(releasable);
                 long size = items.stream().mapToLong(Accountable::ramBytesUsed).sum();
                 coordinatingOperation.increment(items.size(), size);
-                currentBulkSize += size;
                 return true;
             } catch (EsRejectedExecutionException e) {
                 handleBulkFailure(incrementalRequestSubmitted == false, e);
@@ -280,7 +272,6 @@ public class IncrementalBulkService {
         }
 
         private void createNewBulkRequest(BulkRequest.IncrementalState incrementalState) {
-            assert currentBulkSize == 0L;
             assert bulkRequest == null;
             bulkRequest = new BulkRequest();
             bulkRequest.incrementalState(incrementalState);

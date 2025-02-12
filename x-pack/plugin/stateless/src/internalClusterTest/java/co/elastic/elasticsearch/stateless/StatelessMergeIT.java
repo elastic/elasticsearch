@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
+import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.MergeMetrics;
 import co.elastic.elasticsearch.stateless.engine.ThreadPoolMergeScheduler;
 
@@ -61,6 +62,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
 
 public class StatelessMergeIT extends AbstractStatelessIntegTestCase {
 
@@ -340,7 +342,35 @@ public class StatelessMergeIT extends AbstractStatelessIntegTestCase {
         assertThat(totalBytes, equalTo(mergeStats.getTotalSize().getBytes()));
     }
 
-    private static void blockMergePool(ThreadPool threadPool, CountDownLatch finishLatch) {
+    public void testQueuedMergesAreTracked() throws Exception {
+        String indexNode = startMasterAndIndexNode();
+
+        final String indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+
+        var latch = new CountDownLatch(1);
+        var threadPool = internalCluster().getInstance(ThreadPool.class, indexNode);
+        blockMergePool(threadPool, latch);
+
+        for (int i = 0; i < 2; i++) {
+            indexDocs(indexName, randomIntBetween(10, 20));
+            refresh(indexName);
+        }
+
+        var mergeFuture = client().admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).execute();
+
+        var indexShard = findIndexShard(resolveIndex(indexName), 0, indexNode);
+        var indexEngine = (IndexEngine) indexShard.getEngineOrNull();
+        assertBusy(() -> assertThat(indexEngine.hasQueuedOrRunningMerges(), is(true)));
+
+        latch.countDown();
+
+        assertNoFailures(mergeFuture.actionGet());
+
+        assertThat(indexEngine.hasQueuedOrRunningMerges(), is(false));
+    }
+
+    public static void blockMergePool(ThreadPool threadPool, CountDownLatch finishLatch) {
         final var threadCount = threadPool.info(Stateless.MERGE_THREAD_POOL).getMax();
         final var startBarrier = new CyclicBarrier(threadCount + 1);
         final var blockingTask = new AbstractRunnable() {

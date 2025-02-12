@@ -83,6 +83,8 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     private final Consumer<OnGoingMerge> afterMerge;
     private final Consumer<Exception> exceptionHandler;
     private final BooleanSupplier shouldSkipMerges;
+    private final Consumer<OnGoingMerge> onMergeQueued;
+    private final Consumer<OnGoingMerge> onMergeExecutedOrAborted;
     private final MergeTracking mergeTracking;
     private final SameThreadExecutorService sameThreadExecutorService = new SameThreadExecutorService();
 
@@ -96,7 +98,9 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         BiConsumer<String, MergePolicy.OneMerge> warmer,
         BooleanSupplier shouldSkipMerges,
         Consumer<OnGoingMerge> afterMerge,
-        Consumer<Exception> exceptionHandler
+        Consumer<Exception> exceptionHandler,
+        Consumer<OnGoingMerge> onMergeQueued,
+        Consumer<OnGoingMerge> onMergeExecutedOrAborted
     ) {
         this.logger = Loggers.getLogger(getClass(), shardId);
         this.prewarm = prewarm;
@@ -106,6 +110,8 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         this.afterMerge = afterMerge;
         this.exceptionHandler = exceptionHandler;
         this.shouldSkipMerges = shouldSkipMerges;
+        this.onMergeQueued = onMergeQueued;
+        this.onMergeExecutedOrAborted = onMergeExecutedOrAborted;
         this.mergeTracking = new MergeTracking(logger, () -> Double.POSITIVE_INFINITY);
     }
 
@@ -136,6 +142,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         final OnGoingMerge onGoingMerge = new OnGoingMerge(currentMerge);
         mergeMetrics.incrementQueuedMergeBytes(onGoingMerge.getTotalBytesSize());
         logger.trace("merge [{}] scheduling with thread pool", onGoingMerge.getId());
+        onMergeQueued.accept(onGoingMerge);
         return new AbstractRunnable() {
 
             boolean movedToRunning = false;
@@ -146,6 +153,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                     movedToRunning = true;
                     mergeMetrics.moveQueuedMergeBytesToRunning(onGoingMerge.getTotalBytesSize());
                 }
+                onMergeExecutedOrAborted.accept(onGoingMerge);
                 mergeMetrics.decrementRunningMergeBytes(onGoingMerge.getTotalBytesSize());
                 MergePolicy.OneMerge nextMerge;
                 try {
@@ -199,7 +207,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                         warmer.accept(onGoingMerge.getId(), currentMerge);
                     }
                     mergeSource.merge(currentMerge);
-                    success = true;
+                    success = currentMerge.isAborted() == false;
                     afterMerge.accept(onGoingMerge);
                 } finally {
                     long tookMS = TimeValue.nsecToMSec(System.nanoTime() - timeNS);

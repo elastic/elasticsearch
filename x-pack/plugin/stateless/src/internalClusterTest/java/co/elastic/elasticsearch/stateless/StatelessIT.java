@@ -73,6 +73,7 @@ import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthService;
 import org.elasticsearch.health.HealthStatus;
@@ -87,6 +88,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
@@ -927,6 +929,37 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         var exception = expectThrows(ExecutionException.class, mergeCommitBCCUploadListener::get);
         assertThat(exception.getCause(), is(notNullValue()));
         assertThat(exception.getCause(), instanceOf(UnavailableShardsException.class));
+    }
+
+    public void testShardStoreRemovalDoesNotSendActionShardExistMessages() throws Exception {
+        var indexNode = startMasterAndIndexNode();
+        var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+        var nodeEnvironment = internalCluster().getInstance(NodeEnvironment.class, indexNode);
+        var shardId = new ShardId(resolveIndex(indexName), 0);
+        assertThat(shardPathExist(nodeEnvironment, shardId), is(equalTo(true)));
+
+        startIndexNode();
+
+        MockTransportService.getInstance(indexNode).addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(IndicesStore.ACTION_SHARD_EXISTS)) {
+                assert false : "Unexpected request";
+                throw new AssertionError("Unexpected request");
+            } else {
+                connection.sendRequest(requestId, action, request, options);
+            }
+        });
+
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNode), indexName);
+        ensureGreen(indexName);
+        assertBusy(() -> assertThat(shardPathExist(nodeEnvironment, shardId), is(equalTo(false))));
+
+        indexDocs(indexName, 5);
+    }
+
+    private static boolean shardPathExist(NodeEnvironment nodeEnvironment, ShardId shardId) {
+        return Arrays.stream(nodeEnvironment.availableShardPaths(shardId)).anyMatch(Files::exists);
     }
 
     protected static TimeValue getRefreshIntervalSetting(String index, boolean includeDefaults) throws Exception {

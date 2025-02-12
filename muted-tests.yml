@@ -513,3 +513,6 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/rest-api/security/invalidate-tokens/line_216}
   issue: https://github.com/elastic/elasticsearch/issues/122229
+- class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
+  method: testSetEnabled
+  issue: https://github.com/elastic/elasticsearch/issues/121183

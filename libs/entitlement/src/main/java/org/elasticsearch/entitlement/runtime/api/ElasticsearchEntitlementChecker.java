@@ -48,6 +48,7 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
 import java.nio.charset.Charset;
+import java.nio.file.FileStore;
 import java.nio.file.LinkOption;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
@@ -910,5 +911,50 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     @Override
     public void checkNewInputStream(Class<?> callerClass, FileSystemProvider that, Path path, OpenOption... options) {
         // TODO: policyManger.checkFileSystemRead(path);
+    }
+
+    @Override
+    public void checkGetFileStoreAttributeView(Class<?> callerClass, FileStore that, Class<?> type) {
+        policyManager.checkWriteStoreAttributes(callerClass);
+    }
+
+    @Override
+    public void checkGetAttribute(Class<?> callerClass, FileStore that, String attribute) {
+        policyManager.checkReadStoreAttributes(callerClass);
+    }
+
+    @Override
+    public void checkGetBlockSize(Class<?> callerClass, FileStore that) {
+        policyManager.checkReadStoreAttributes(callerClass);
+    }
+
+    @Override
+    public void checkGetTotalSpace(Class<?> callerClass, FileStore that) {
+        policyManager.checkReadStoreAttributes(callerClass);
+    }
+
+    @Override
+    public void checkGetUnallocatedSpace(Class<?> callerClass, FileStore that) {
+        policyManager.checkReadStoreAttributes(callerClass);
+    }
+
+    @Override
+    public void checkGetUsableSpace(Class<?> callerClass, FileStore that) {
+        policyManager.checkReadStoreAttributes(callerClass);
+    }
+
+    @Override
+    public void checkIsReadOnly(Class<?> callerClass, FileStore that) {
+        policyManager.checkReadStoreAttributes(callerClass);
+    }
+
+    @Override
+    public void checkName(Class<?> callerClass, FileStore that) {
+        policyManager.checkReadStoreAttributes(callerClass);
+    }
+
+    @Override
+    public void checkType(Class<?> callerClass, FileStore that) {
+        policyManager.checkReadStoreAttributes(callerClass);
     }
 }

@@ -707,7 +707,8 @@ class NodeConstruction {
 
         // TODO DR - this is a bit of a hack to get the cluster service into the plugins
         var executor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) threadPool.executor(ThreadPool.Names.SEARCH);
-        TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor perIndexEsThreadPoolExecutor = (TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor) executor;
+        TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor perIndexEsThreadPoolExecutor =
+            (TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor) executor;
         searchLoadMetricsReporter(perIndexEsThreadPoolExecutor);
         clusterService.addListener(new SearchIndexTimeTrackingCleanupService(perIndexEsThreadPoolExecutor));
 
@@ -1269,7 +1270,7 @@ class NodeConstruction {
         TimerTask task = new TimerTask() {
             @Override
             public void run() {
-                if(executor.indexExecutionTime.size() > 0) {
+                if (executor.indexExecutionTime.size() > 0) {
                     logger.info("Number of reported indices: {}", executor.indexExecutionTime.size());
                     logger.info("Number of runnables: {}", executor.runnableToIndexName.size());
                     executor.indexExecutionTime.forEach((index, tuple) -> {

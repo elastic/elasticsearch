@@ -241,7 +241,7 @@ public class DesiredBalanceReconciler {
             /*
              * Create some comparators to sort the unassigned shard copies in priority to allocate order.
              * TODO: We could be smarter here and group the shards by index and then
-             * use the sorter to save some iterations. 
+             * use the sorter to save some iterations.
              */
             final PriorityComparator indexPriorityComparator = PriorityComparator.getAllocationComparator(allocation);
             final Comparator<ShardRouting> shardAllocationPriorityComparator = (o1, o2) -> {

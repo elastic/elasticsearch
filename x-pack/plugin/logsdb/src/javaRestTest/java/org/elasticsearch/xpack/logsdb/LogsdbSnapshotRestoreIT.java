@@ -358,7 +358,7 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
             String actualHost = (String) ((Map<?, ?>) actualSource.get("host")).get("name");
             Map<?, ?> expectedSource = null;
             for (String doc : docs) {
-                expectedSource =  XContentHelper.convertToMap(XContentType.JSON.xContent(), doc, false);
+                expectedSource = XContentHelper.convertToMap(XContentType.JSON.xContent(), doc, false);
                 String expectedHost = (String) ((Map<?, ?>) expectedSource.get("host")).get("name");
                 if (expectedHost.equals(actualHost)) {
                     break;

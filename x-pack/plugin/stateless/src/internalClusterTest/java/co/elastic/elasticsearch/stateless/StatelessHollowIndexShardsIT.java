@@ -72,7 +72,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
-import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.IngestTestPlugin;
 import org.elasticsearch.ingest.Processor;
@@ -1190,30 +1189,34 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
                     List<String> docIds = randomSubsetOf(Math.min(8, insertedDocs.size()), insertedDocs);
                     try {
                         if (randomBoolean()) {
-                            var multiGetItemResponse = client().prepareMultiGet().addIds(indexName, docIds).get(TimeValue.THIRTY_SECONDS);
-                            for (MultiGetItemResponse itemResponse : multiGetItemResponse) {
-                                // Benign exceptions on relocations
-                                if (itemResponse.getFailure() != null
-                                    && ExceptionsHelper.unwrap(
-                                        itemResponse.getFailure().getFailure(),
-                                        IllegalIndexShardStateException.class
-                                    ) != null) {
-                                    continue;
-                                }
-                                assertFalse(itemResponse.isFailed());
-                                assertTrue(itemResponse.getResponse().isExists());
-                            }
-                        } else {
-                            for (String docId : docIds) {
+                            assertBusy(() -> {
                                 try {
-                                    assertTrue(client().prepareGet(indexName, docId).get(TimeValue.THIRTY_SECONDS).isExists());
+                                    var multiGetItemResponse = safeGet(client().prepareMultiGet().addIds(indexName, docIds).execute());
+                                    for (MultiGetItemResponse itemResponse : multiGetItemResponse) {
+                                        assertFalse(itemResponse.isFailed());
+                                        assertTrue(itemResponse.getResponse().isExists());
+                                    }
                                 } catch (Exception e) {
-                                    // Benign exceptions on relocations
-                                    if (ExceptionsHelper.unwrap(e, IllegalIndexShardStateException.class) != null) {
-                                        continue;
+                                    // Retry on AlreadyClosedException
+                                    if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class) != null) {
+                                        throw new AssertionError(e);
                                     }
                                     throw e;
                                 }
+                            }, 30, TimeUnit.SECONDS);
+                        } else {
+                            for (String docId : docIds) {
+                                assertBusy(() -> {
+                                    try {
+                                        assertTrue(safeGet(client().prepareGet(indexName, docId).execute()).isExists());
+                                    } catch (Exception e) {
+                                        // Retry on AlreadyClosedException
+                                        if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class) != null) {
+                                            throw new AssertionError(e);
+                                        }
+                                        throw e;
+                                    }
+                                }, 30, TimeUnit.SECONDS);
                             }
                         }
                     } catch (Exception e) {
@@ -1279,9 +1282,12 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         for (int i = 0; i < numOfShards; i++) {
             var indexShard = findIndexShard(index, i);
             assertThat(indexShard.getEngineOrNull(), instanceOf(IndexEngine.class));
-            assertFalse(((IndexEngine) indexShard.getEngineOrNull()).isLastCommitHollow());
+            IndexEngine indexEngine = (IndexEngine) indexShard.getEngineOrNull();
+            assertFalse(indexEngine.isLastCommitHollow());
         }
+
         // Verify that all ingested docs are searchable
+        refresh(indexName);
         assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHits(true), insertedDocsCount.get());
     }
 

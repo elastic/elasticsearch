@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.application.connector.syncjob.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -45,14 +45,6 @@ public class ListConnectorSyncJobsAction {
         private final String connectorId;
         private final ConnectorSyncStatus connectorSyncStatus;
         private final List<ConnectorSyncJobType> connectorSyncJobTypeList;
-
-        public Request(StreamInput in) throws IOException {
-            super(in);
-            this.pageParams = new PageParams(in);
-            this.connectorId = in.readOptionalString();
-            this.connectorSyncStatus = in.readOptionalEnum(ConnectorSyncStatus.class);
-            this.connectorSyncJobTypeList = stringToEnumList(in.readOptionalStringCollectionAsList());
-        }
 
         public Request(
             PageParams pageParams,
@@ -90,11 +82,7 @@ public class ListConnectorSyncJobsAction {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            pageParams.writeTo(out);
-            out.writeOptionalString(connectorId);
-            out.writeOptionalEnum(connectorSyncStatus);
-            out.writeOptionalStringCollection(enumToStringList(connectorSyncJobTypeList));
+            TransportAction.localOnly();
         }
 
         @Override
@@ -170,18 +158,13 @@ public class ListConnectorSyncJobsAction {
 
         final QueryPage<ConnectorSyncJobSearchResult> queryPage;
 
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            this.queryPage = new QueryPage<>(in, ConnectorSyncJobSearchResult::new);
-        }
-
         public Response(List<ConnectorSyncJobSearchResult> items, Long totalResults) {
             this.queryPage = new QueryPage<>(items, totalResults, RESULTS_FIELD);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            queryPage.writeTo(out);
+            TransportAction.localOnly();
         }
 
         @Override

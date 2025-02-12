@@ -12,6 +12,7 @@ package org.elasticsearch.common.util.concurrent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig.DEFAULT_EWMA_ALPHA;
@@ -48,8 +49,7 @@ public class TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutorTests extends 
             assertTrue(executor.getSearchLoadPerIndex(INDEX_NAME) > 0);
         });
 
-        executor.shutdown();
-        executor.awaitTermination(10, TimeUnit.SECONDS);
+       shutdownExecutor(executor);
     }
 
     /** Execute a blank task {@code times} times for the executor */
@@ -58,6 +58,15 @@ public class TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutorTests extends 
             Runnable runnable = () -> {};
             executor.registerIndexNameForRunnable(INDEX_NAME, runnable);
             executor.execute(runnable);
+        }
+    }
+
+    private void shutdownExecutor(EsThreadPoolExecutor executor) {
+        executor.shutdown();
+        try {
+            if (executor.awaitTermination(5, TimeUnit.SECONDS) == false) executor.shutdownNow();
+        } catch(InterruptedException e) {
+            executor.shutdownNow();
         }
     }
 }

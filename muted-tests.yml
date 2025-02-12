@@ -381,15 +381,6 @@ tests:
 - class: org.elasticsearch.search.SearchCancellationIT
   method: testCancelFailedSearchWhenPartialResultDisallowed
   issue: https://github.com/elastic/elasticsearch/issues/121719
-- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
-  method: testChangePoint
-  issue: https://github.com/elastic/elasticsearch/issues/122179
-- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
-  method: testChangePoint_keySortable
-  issue: https://github.com/elastic/elasticsearch/issues/122180
-- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
-  method: testChangePoint_valueNumeric
-  issue: https://github.com/elastic/elasticsearch/issues/122181
 - class: org.elasticsearch.datastreams.TSDBPassthroughIndexingIT
   issue: https://github.com/elastic/elasticsearch/issues/121716
 - class: org.elasticsearch.smoketest.SmokeTestMonitoringWithSecurityIT

@@ -107,9 +107,9 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
                 + "#breaking_90_transform_destination_index",
             "This index was created in version ["
                 + OLD_VERSION.toReleaseVersion()
-                + "] and will be supported as a read-only index in 9.0. "
-                + "The following transforms will not be able to write to this index: [test-transform]. Refer to the "
-                + "migration guide to learn more about how to handle your transforms destination indices.",
+                + "] and requires action before upgrading to 9.0. "
+                + "The following transforms are configured to write to this index: [test-transform]. Refer to the "
+                + "migration guide to learn more about how to prepare transforms destination indices for your upgrade.",
             false,
             Map.of("reindex_required", true, "transform_ids", List.of("test-transform"))
         );
@@ -134,9 +134,9 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
                 + "#breaking_90_transform_destination_index",
             "This index was created in version ["
                 + OLD_VERSION.toReleaseVersion()
-                + "] and will be supported as a read-only index in 9.0. "
-                + "The following transforms will not be able to write to this index: [test-transform1, test-transform2]. Refer to the "
-                + "migration guide to learn more about how to handle your transforms destination indices.",
+                + "] and requires action before upgrading to 9.0. "
+                + "The following transforms are configured to write to this index: [test-transform1, test-transform2]. Refer to the "
+                + "migration guide to learn more about how to prepare transforms destination indices for your upgrade.",
             false,
             Map.of("reindex_required", true, "transform_ids", List.of("test-transform1", "test-transform2"))
         );
@@ -165,9 +165,9 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
                         + "#breaking_90_transform_destination_index",
                     "This index was created in version ["
                         + OLD_VERSION.toReleaseVersion()
-                        + "] and will be supported as a read-only index in 9.0. "
-                        + "The following transforms will not be able to write to this index: [test-transform1]. Refer to the "
-                        + "migration guide to learn more about how to handle your transforms destination indices.",
+                        + "] and requires action before upgrading to 9.0. "
+                        + "The following transforms are configured to write to this index: [test-transform1]. Refer to the "
+                        + "migration guide to learn more about how to prepare transforms destination indices for your upgrade.",
                     false,
                     Map.of("reindex_required", true, "transform_ids", List.of("test-transform1"))
                 )
@@ -181,9 +181,9 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
                         + "#breaking_90_transform_destination_index",
                     "This index was created in version ["
                         + OLD_VERSION.toReleaseVersion()
-                        + "] and will be supported as a read-only index in 9.0. "
-                        + "The following transforms will not be able to write to this index: [test-transform2]. Refer to the "
-                        + "migration guide to learn more about how to handle your transforms destination indices.",
+                        + "] and requires action before upgrading to 9.0. "
+                        + "The following transforms are configured to write to this index: [test-transform2]. Refer to the "
+                        + "migration guide to learn more about how to prepare transforms destination indices for your upgrade.",
                     false,
                     Map.of("reindex_required", true, "transform_ids", List.of("test-transform2"))
                 )

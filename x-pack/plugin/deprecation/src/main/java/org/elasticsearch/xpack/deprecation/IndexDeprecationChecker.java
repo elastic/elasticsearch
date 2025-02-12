@@ -104,9 +104,9 @@ public class IndexDeprecationChecker implements ResourceDeprecationChecker {
                     "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-9.0.html"
                         + "#breaking_90_transform_destination_index",
                     Strings.format(
-                        "This index was created in version [%s] and will be supported as a read-only index in 9.0. The following "
-                            + "transforms will not be able to write to this index: [%s]. Refer to the migration guide to learn more "
-                            + "about how to handle your transforms destination indices.",
+                        "This index was created in version [%s] and requires action before upgrading to 9.0. The following transforms are "
+                            + "configured to write to this index: [%s]. Refer to the migration guide to learn more about how to prepare "
+                            + "transforms destination indices for your upgrade.",
                         currentCompatibilityVersion.toReleaseVersion(),
                         String.join(", ", transforms)
                     ),

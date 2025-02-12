@@ -25,6 +25,7 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoad
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ExitVMEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.FileData;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.InboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetworkEntitlement;
@@ -46,6 +47,7 @@ import java.nio.file.Path;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.spi.FileSystemProvider;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -124,6 +126,7 @@ public class EntitlementInitialization {
 
     private static PolicyManager createPolicyManager() {
         Map<String, Policy> pluginPolicies = EntitlementBootstrap.bootstrapArgs().pluginPolicies();
+        Path[] dataDirs = EntitlementBootstrap.bootstrapArgs().dataDirs();
 
         // TODO(ES-10031): Decide what goes in the elasticsearch default policy and extend it
         var serverPolicy = new Policy(
@@ -148,7 +151,13 @@ public class EntitlementInitialization {
                 new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),
                 new Scope("io.netty.transport", List.of(new InboundNetworkEntitlement(), new OutboundNetworkEntitlement())),
                 new Scope("org.apache.lucene.core", List.of(new LoadNativeLibrariesEntitlement())),
-                new Scope("org.elasticsearch.nativeaccess", List.of(new LoadNativeLibrariesEntitlement()))
+                new Scope(
+                    "org.elasticsearch.nativeaccess",
+                    List.of(
+                        new LoadNativeLibrariesEntitlement(),
+                        new FilesEntitlement(Arrays.stream(dataDirs).map(d -> new FileData(d.toString(), READ_WRITE)).toList())
+                    )
+                )
             )
         );
         // agents run without a module, so this is a special hack for the apm agent

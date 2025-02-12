@@ -374,8 +374,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authz.IndexAliasesTests
   method: testRemoveIndex
   issue: https://github.com/elastic/elasticsearch/issues/122221
-- class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
-  issue: https://github.com/elastic/elasticsearch/issues/121737
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   method: testGroupingMultiValueByOrdinals
   issue: https://github.com/elastic/elasticsearch/issues/122228
@@ -399,6 +397,13 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/alias/line_260}
   issue: https://github.com/elastic/elasticsearch/issues/122343
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/snapshot-restore/apis/get-snapshot-api/line_488}
+  issue: https://github.com/elastic/elasticsearch/issues/121611
+- class: org.elasticsearch.repositories.blobstore.testkit.analyze.SecureHdfsRepositoryAnalysisRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/122377
+- class: org.elasticsearch.repositories.blobstore.testkit.analyze.HdfsRepositoryAnalysisRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/122378
 
 # Examples:
 #

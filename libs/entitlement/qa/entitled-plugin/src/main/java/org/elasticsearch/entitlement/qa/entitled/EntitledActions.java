@@ -42,6 +42,10 @@ public final class EntitledActions {
         return Files.getOwner(path);
     }
 
+    public static void createFile(Path path) throws IOException {
+        Files.createFile(path);
+    }
+
     public static Path createTempFileForRead() throws IOException {
         return Files.createFile(readDir().resolve("entitlements-" + random.nextLong() + ".tmp"));
     }

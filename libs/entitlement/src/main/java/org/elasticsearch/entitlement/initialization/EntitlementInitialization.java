@@ -24,24 +24,33 @@ import org.elasticsearch.entitlement.runtime.policy.Scope;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoaderEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ExitVMEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.FileData;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.InboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetworkEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.ReadStoreAttributesEntitlement;
 
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.channels.spi.SelectorProvider;
+import java.nio.file.FileStore;
 import java.nio.file.FileSystems;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.spi.FileSystemProvider;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
+
+import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ_WRITE;
 
 /**
  * Called by the agent during {@code agentmain} to configure the entitlement system,
@@ -57,6 +66,11 @@ public class EntitlementInitialization {
 
     private static ElasticsearchEntitlementChecker manager;
 
+    interface InstrumentationInfoFunction {
+        InstrumentationService.InstrumentationInfo of(String methodName, Class<?>... parameterTypes) throws ClassNotFoundException,
+            NoSuchMethodException;
+    }
+
     // Note: referenced by bridge reflectively
     public static EntitlementChecker checker() {
         return manager;
@@ -70,15 +84,26 @@ public class EntitlementInitialization {
 
         Map<MethodKey, CheckMethod> checkMethods = new HashMap<>(INSTRUMENTATION_SERVICE.lookupMethods(latestCheckerInterface));
         var fileSystemProviderClass = FileSystems.getDefault().provider().getClass();
-        Stream.of(
-            INSTRUMENTATION_SERVICE.lookupImplementationMethod(
-                FileSystemProvider.class,
-                "newInputStream",
-                fileSystemProviderClass,
-                EntitlementChecker.class,
-                "checkNewInputStream",
-                Path.class,
-                OpenOption[].class
+
+        Stream.concat(
+            fileStoreChecks(),
+            Stream.of(
+                INSTRUMENTATION_SERVICE.lookupImplementationMethod(
+                    FileSystemProvider.class,
+                    "newInputStream",
+                    fileSystemProviderClass,
+                    EntitlementChecker.class,
+                    "checkNewInputStream",
+                    Path.class,
+                    OpenOption[].class
+                ),
+                INSTRUMENTATION_SERVICE.lookupImplementationMethod(
+                    SelectorProvider.class,
+                    "inheritedChannel",
+                    SelectorProvider.provider().getClass(),
+                    EntitlementChecker.class,
+                    "checkSelectorProviderInheritedChannel"
+                )
             )
         ).forEach(instrumentation -> checkMethods.put(instrumentation.targetMethod(), instrumentation.checkMethod()));
 
@@ -101,6 +126,7 @@ public class EntitlementInitialization {
 
     private static PolicyManager createPolicyManager() {
         Map<String, Policy> pluginPolicies = EntitlementBootstrap.bootstrapArgs().pluginPolicies();
+        Path[] dataDirs = EntitlementBootstrap.bootstrapArgs().dataDirs();
 
         // TODO(ES-10031): Decide what goes in the elasticsearch default policy and extend it
         var serverPolicy = new Policy(
@@ -112,6 +138,7 @@ public class EntitlementInitialization {
                     "org.elasticsearch.server",
                     List.of(
                         new ExitVMEntitlement(),
+                        new ReadStoreAttributesEntitlement(),
                         new CreateClassLoaderEntitlement(),
                         new InboundNetworkEntitlement(),
                         new OutboundNetworkEntitlement(),
@@ -121,7 +148,13 @@ public class EntitlementInitialization {
                 new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),
                 new Scope("io.netty.transport", List.of(new InboundNetworkEntitlement(), new OutboundNetworkEntitlement())),
                 new Scope("org.apache.lucene.core", List.of(new LoadNativeLibrariesEntitlement())),
-                new Scope("org.elasticsearch.nativeaccess", List.of(new LoadNativeLibrariesEntitlement()))
+                new Scope(
+                    "org.elasticsearch.nativeaccess",
+                    List.of(
+                        new LoadNativeLibrariesEntitlement(),
+                        new FilesEntitlement(Arrays.stream(dataDirs).map(d -> new FileData(d.toString(), READ_WRITE)).toList())
+                    )
+                )
             )
         );
         // agents run without a module, so this is a special hack for the apm agent
@@ -129,6 +162,45 @@ public class EntitlementInitialization {
         List<Entitlement> agentEntitlements = List.of(new CreateClassLoaderEntitlement());
         var resolver = EntitlementBootstrap.bootstrapArgs().pluginResolver();
         return new PolicyManager(serverPolicy, agentEntitlements, pluginPolicies, resolver, AGENTS_PACKAGE_NAME, ENTITLEMENTS_MODULE);
+    }
+
+    private static Stream<InstrumentationService.InstrumentationInfo> fileStoreChecks() {
+        var fileStoreClasses = StreamSupport.stream(FileSystems.getDefault().getFileStores().spliterator(), false)
+            .map(FileStore::getClass)
+            .distinct();
+        return fileStoreClasses.flatMap(fileStoreClass -> {
+            var instrumentation = new InstrumentationInfoFunction() {
+                @Override
+                public InstrumentationService.InstrumentationInfo of(String methodName, Class<?>... parameterTypes)
+                    throws ClassNotFoundException, NoSuchMethodException {
+                    return INSTRUMENTATION_SERVICE.lookupImplementationMethod(
+                        FileStore.class,
+                        methodName,
+                        fileStoreClass,
+                        EntitlementChecker.class,
+                        "check" + Character.toUpperCase(methodName.charAt(0)) + methodName.substring(1),
+                        parameterTypes
+                    );
+                }
+            };
+
+            try {
+                return Stream.of(
+                    instrumentation.of("getFileStoreAttributeView", Class.class),
+                    instrumentation.of("getAttribute", String.class),
+                    instrumentation.of("getBlockSize"),
+                    instrumentation.of("getTotalSpace"),
+                    instrumentation.of("getUnallocatedSpace"),
+                    instrumentation.of("getUsableSpace"),
+                    instrumentation.of("isReadOnly"),
+                    instrumentation.of("name"),
+                    instrumentation.of("type")
+
+                );
+            } catch (NoSuchMethodException | ClassNotFoundException e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     /**

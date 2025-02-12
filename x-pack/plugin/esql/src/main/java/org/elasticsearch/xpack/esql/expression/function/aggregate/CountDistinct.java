@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
@@ -40,7 +41,7 @@ import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -56,9 +57,9 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         CountDistinct::new
     );
 
-    private static final Map<DataType, BiFunction<List<Integer>, Integer, AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
+    private static final Map<DataType, Function<Integer, AggregatorFunctionSupplier>> SUPPLIERS = Map.ofEntries(
         // Booleans ignore the precision because there are only two possible values anyway
-        Map.entry(DataType.BOOLEAN, (inputChannels, precision) -> new CountDistinctBooleanAggregatorFunctionSupplier(inputChannels)),
+        Map.entry(DataType.BOOLEAN, (precision) -> new CountDistinctBooleanAggregatorFunctionSupplier()),
         Map.entry(DataType.LONG, CountDistinctLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.DATETIME, CountDistinctLongAggregatorFunctionSupplier::new),
         Map.entry(DataType.DATE_NANOS, CountDistinctLongAggregatorFunctionSupplier::new),
@@ -101,7 +102,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
             maximum supported value is 40000, thresholds above this number will have the
             same effect as a threshold of 40000. The default value is `3000`.
             """,
-        isAggregation = true,
+        type = FunctionType.AGGREGATE,
         examples = {
             @Example(file = "stats_count_distinct", tag = "count-distinct"),
             @Example(
@@ -209,7 +210,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
     }
 
     @Override
-    public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
+    public AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
         int precision = this.precision == null
             ? DEFAULT_PRECISION
@@ -218,7 +219,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
             // If the type checking did its job, this should never happen
             throw EsqlIllegalArgumentException.illegalDataType(type);
         }
-        return SUPPLIERS.get(type).apply(inputChannels, precision);
+        return SUPPLIERS.get(type).apply(precision);
     }
 
     @Override

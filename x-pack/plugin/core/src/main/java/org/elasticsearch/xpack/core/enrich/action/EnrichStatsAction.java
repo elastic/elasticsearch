@@ -46,12 +46,13 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
         }
 
         /**
-         * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to read these requests until
+         * NB prior to 9.0 this was a TransportMasterNodeAction so for BwC we must remain able to read these requests until
          * we no longer need to support calling this action remotely.
          */
         @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
         public Request(StreamInput in) throws IOException {
-            super(in);
+            // This request extended MasterNodeRequest instead of MasterNodeReadRequest, meaning that it didn't serialize the `local` field.
+            super(in, false);
         }
 
         @Override
@@ -90,7 +91,7 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
         }
 
         /**
-         * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
+         * NB prior to 9.0 this was a TransportMasterNodeAction so for BwC we must remain able to write these responses until
          * we no longer need to support calling this action remotely.
          */
         @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
@@ -181,7 +182,7 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
         public record ExecutingPolicy(String name, TaskInfo taskInfo) implements Writeable, ToXContentFragment {
 
             /**
-             * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
+             * NB prior to 9.0 this was a TransportMasterNodeAction so for BwC we must remain able to write these responses until
              * we no longer need to support calling this action remotely.
              */
             @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)

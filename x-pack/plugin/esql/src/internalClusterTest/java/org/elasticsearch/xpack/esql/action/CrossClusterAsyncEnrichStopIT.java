@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -94,10 +95,12 @@ public class CrossClusterAsyncEnrichStopIT extends AbstractEnrichBasedCrossClust
         // Run the stop request
         var stopRequest = new AsyncStopRequest(asyncExecutionId);
         var stopAction = client().execute(EsqlAsyncStopAction.INSTANCE, stopRequest);
-        // wait until reduce tasks are gone
+        // wait until remote reduce tasks are gone
         assertBusy(() -> {
             List<TaskInfo> tasks = getDriverTasks(client(REMOTE_CLUSTER_2));
-            List<TaskInfo> reduceTasks = tasks.stream().filter(t -> t.description().contains("_LuceneSourceOperator") == false).toList();
+            List<TaskInfo> reduceTasks = tasks.stream()
+                .filter(t -> t.status() instanceof DriverStatus ds && ds.taskDescription().equals("remote_reduce"))
+                .toList();
             assertThat(reduceTasks, empty());
         });
 

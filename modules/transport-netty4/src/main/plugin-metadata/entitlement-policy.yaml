@@ -4,3 +4,6 @@ io.netty.transport:
 io.netty.common:
   - inbound_network
   - outbound_network
+  - files:
+      - path: "/etc/os-release"
+        mode: "read"

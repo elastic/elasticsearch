@@ -76,8 +76,30 @@ setup:
               retriever:
                 standard:
                   query:
-                    term:
-                      topic: "science"
+                    bool: {
+                      should: [
+                        {
+                          constant_score: {
+                            filter: {
+                              term: {
+                                subtopic: "technology"
+                              }
+                            },
+                            boost: 10
+                          }
+                        },
+                        {
+                          constant_score: {
+                            filter: {
+                              term: {
+                                subtopic: "astronomy"
+                              }
+                            },
+                            boost: 1
+                          }
+                        }
+                      ]
+                    }
               rank_window_size: 10
               inference_id: my-rerank-model
               inference_text: "How often does the moon hide the sun?"
@@ -187,8 +209,29 @@ setup:
                 {
                   standard: {
                     query: {
-                      term: {
-                        topic: "science"
+                      bool: {
+                        should: [
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  subtopic: "technology"
+                                }
+                              },
+                              boost: 10
+                            }
+                          },
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  subtopic: "astronomy"
+                                }
+                              },
+                              boost: 1
+                            }
+                          }
+                        ]
                       }
                     }
                   }
@@ -206,7 +249,7 @@ setup:
   - match: { hits.hits.1._id: "doc_1" }
 
   - match: {hits.hits.0._explanation.description: "/text_similarity_reranker.match.using.inference.endpoint:.\\[my-rerank-model\\].on.document.field:.\\[text\\].*/" }
-  - match: {hits.hits.0._explanation.details.0.description: "/weight.*science.*/" }
+  - match: {hits.hits.0._explanation.details.0.details.0.description: "/subtopic.*astronomy.*/" }
 
 ---
 "text similarity reranker properly handles aliases":

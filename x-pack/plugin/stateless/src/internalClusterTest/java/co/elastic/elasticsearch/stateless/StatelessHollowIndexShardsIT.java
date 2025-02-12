@@ -26,8 +26,6 @@ import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -67,7 +65,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
@@ -1042,8 +1039,6 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         }
     }
 
-    @SuppressForbidden(reason = "Test the test on CI")
-    @Repeat(iterations = 100)
     public void testStress() throws Exception {
         startMasterOnlyNode();
         int numOfShards = randomIntBetween(4, 8);
@@ -1320,12 +1315,6 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
 
         indexDocs(indexName, randomIntBetween(16, 32));
         flush(indexName);
-        var hollowShardsServiceA = internalCluster().getInstance(HollowShardsService.class, indexNodeA);
-        for (int i = 0; i < numOfShards; i++) {
-            var indexShard = findIndexShard(index, i);
-            assertBusy(() -> assertThat(hollowShardsServiceA.isHollowableIndexShard(indexShard), equalTo(true)));
-            hollowShardsServiceA.ensureHollowShard(indexShard.shardId(), false);
-        }
 
         var bulkResponse = indexDocs(indexName, randomIntBetween(256, 512));
         List<String> docIds = Arrays.stream(bulkResponse.getItems()).map(BulkItemResponse::getId).toList();

@@ -770,7 +770,10 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                         useLegacyFormat,
                         b -> b.startObject("field")
                             .startObject(INFERENCE_FIELD)
-                            .field(MODEL_SETTINGS_FIELD, new MinimalServiceSettings("my-service", TaskType.SPARSE_EMBEDDING, null, null, null))
+                            .field(
+                                MODEL_SETTINGS_FIELD,
+                                new MinimalServiceSettings("my-service", TaskType.SPARSE_EMBEDDING, null, null, null)
+                            )
                             .field(CHUNKS_FIELD, useLegacyFormat ? List.of() : Map.of())
                             .endObject()
                             .endObject()
@@ -958,7 +961,13 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         MapperService mapperService = mapperServiceForFieldWithModelSettings(
             fieldName,
             inferenceId,
-            new MinimalServiceSettings("my-service", TaskType.TEXT_EMBEDDING, 1024, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT)
+            new MinimalServiceSettings(
+                "my-service",
+                TaskType.TEXT_EMBEDDING,
+                1024,
+                SimilarityMeasure.COSINE,
+                DenseVectorFieldMapper.ElementType.FLOAT
+            )
         );
 
         Mapper mapper = mapperService.mappingLookup().getMapper(fieldName);

@@ -185,7 +185,8 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         getTestEntries(FileCheckActions.class),
         getTestEntries(SpiActions.class),
         getTestEntries(SystemActions.class),
-        getTestEntries(NativeActions.class)
+        getTestEntries(NativeActions.class),
+        getTestEntries(FileStoreActions.class)
     )
         .flatMap(Function.identity())
         .filter(entry -> entry.getValue().fromJavaVersion() == null || Runtime.version().feature() >= entry.getValue().fromJavaVersion())

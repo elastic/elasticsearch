@@ -468,19 +468,6 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         }
     }
 
-    // ActionListener<BulkByScrollResponse> innerListener = ActionListener.wrap(listener::accept, this::markAsFailed);
-    private <T> void retryAfterFailureHandler(
-        ActionListener<T> listener,
-        Consumer<ActionListener<T>> retryableAction,
-        Consumer<Exception> failureHandler
-    ) {
-        retryableAction.accept(ActionListener.wrap(listener::onResponse, e -> {
-            logger.error("error occurred while executing retryable action", e);
-            failureHandler.accept(e);
-            listener.onFailure(e);
-        }));
-    }
-
     private void createIndex(SystemIndexMigrationInfo migrationInfo, ActionListener<ShardsAcknowledgedResponse> listener) {
         logger.info("creating new system index [{}] from feature [{}]", migrationInfo.getNextIndexName(), migrationInfo.getFeatureName());
 

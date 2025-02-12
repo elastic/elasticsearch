@@ -65,7 +65,6 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
      * The purpose of this test is to ensure that when a job is open through a rolling upgrade we upgrade the results
      * index mappings when it is assigned to an upgraded node even if no other ML endpoint is called after the upgrade
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/98560")
     public void testSnapshotUpgrader() throws Exception {
         Request adjustLoggingLevels = new Request("PUT", "/_cluster/settings");
         adjustLoggingLevels.setJsonEntity("""
@@ -98,6 +97,13 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
 
     @SuppressWarnings("unchecked")
     private void testSnapshotUpgradeFailsOnMixedCluster() throws Exception {
+        // TODO the mixed cluster assertions sometimes fail because the code that
+        // detects the mixed cluster relies on the transport versions being different.
+        // This assumption does not hold immediately after a version bump and new
+        // branch being cut as the new branch will have the same transport version
+        // See https://github.com/elastic/elasticsearch/issues/98560
+
+        assumeTrue("The mixed cluster is not always detected correctly, see https://github.com/elastic/elasticsearch/issues/98560", false);
         Map<String, Object> jobs = entityAsMap(getJob(JOB_ID));
 
         String currentSnapshot = ((List<String>) XContentMapValues.extractValue("jobs.model_snapshot_id", jobs)).get(0);
@@ -154,7 +160,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
 
         List<Map<String, Object>> upgradedSnapshot = (List<Map<String, Object>>) entityAsMap(getModelSnapshots(JOB_ID, snapshotToUpgradeId))
             .get("model_snapshots");
-        assertThat(upgradedSnapshot, hasSize(1));
+        assertThat(upgradedSnapshot.toString(), upgradedSnapshot, hasSize(1));
         assertThat(upgradedSnapshot.get(0).get("latest_record_time_stamp"), equalTo(snapshotToUpgrade.get("latest_record_time_stamp")));
 
         // Does the snapshot still work?

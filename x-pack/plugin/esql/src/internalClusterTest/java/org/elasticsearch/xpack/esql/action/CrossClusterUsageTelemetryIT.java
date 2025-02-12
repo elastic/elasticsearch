@@ -34,7 +34,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
 import static org.elasticsearch.xpack.esql.action.EsqlAsyncTestUtils.deleteAsyncId;
 import static org.hamcrest.Matchers.equalTo;
 
-public class CrossClustersUsageTelemetryIT extends AbstractCrossClustersUsageTelemetryIT {
+public class CrossClusterUsageTelemetryIT extends AbstractCrossClusterUsageTelemetryIT {
     private static final String INDEX_WITH_RUNTIME_MAPPING = "blocking";
 
     @Override

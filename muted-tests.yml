@@ -492,9 +492,6 @@ tests:
 - class: org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilderTests
   method: testInvalidMaxAnalyzedOffset
   issue: https://github.com/elastic/elasticsearch/issues/121361
-- class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
-  method: testTimestamp0AddedIfMissing
-  issue: https://github.com/elastic/elasticsearch/issues/121745
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testGetUsersWithProfileUid
   issue: https://github.com/elastic/elasticsearch/issues/121483

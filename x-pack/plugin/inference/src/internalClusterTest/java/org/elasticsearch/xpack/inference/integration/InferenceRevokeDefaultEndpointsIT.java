@@ -97,7 +97,11 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                 service.defaultConfigIds(),
                 is(
                     List.of(
-                        new InferenceService.DefaultConfigId(".rainbow-sprinkles-elastic", MinimalServiceSettings.chatCompletion(), service)
+                        new InferenceService.DefaultConfigId(
+                            ".rainbow-sprinkles-elastic",
+                            MinimalServiceSettings.chatCompletion(ElasticInferenceService.NAME),
+                            service
+                        )
                     )
                 )
             );
@@ -133,7 +137,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                         List.of(
                             new InferenceService.DefaultConfigId(
                                 ".rainbow-sprinkles-elastic",
-                                MinimalServiceSettings.chatCompletion(),
+                                MinimalServiceSettings.chatCompletion(ElasticInferenceService.NAME),
                                 service
                             )
                         )
@@ -206,7 +210,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                         List.of(
                             new InferenceService.DefaultConfigId(
                                 ".rainbow-sprinkles-elastic",
-                                MinimalServiceSettings.chatCompletion(),
+                                MinimalServiceSettings.chatCompletion(ElasticInferenceService.NAME),
                                 service
                             )
                         )

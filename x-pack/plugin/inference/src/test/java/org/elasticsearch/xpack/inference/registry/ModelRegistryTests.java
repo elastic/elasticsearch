@@ -21,9 +21,9 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.junit.Before;
 
@@ -164,10 +164,10 @@ public class ModelRegistryTests extends ESSingleNodeTestCase {
     public void testIdMatchedDefault() {
         var defaultConfigIds = new ArrayList<InferenceService.DefaultConfigId>();
         defaultConfigIds.add(
-            new InferenceService.DefaultConfigId("foo", MinimalServiceSettings.sparseEmbedding(), mock(InferenceService.class))
+            new InferenceService.DefaultConfigId("foo", MinimalServiceSettings.sparseEmbedding("my_service"), mock(InferenceService.class))
         );
         defaultConfigIds.add(
-            new InferenceService.DefaultConfigId("bar", MinimalServiceSettings.sparseEmbedding(), mock(InferenceService.class))
+            new InferenceService.DefaultConfigId("bar", MinimalServiceSettings.sparseEmbedding("my_service"), mock(InferenceService.class))
         );
 
         var matched = ModelRegistry.idMatchedDefault("bar", defaultConfigIds);
@@ -178,10 +178,10 @@ public class ModelRegistryTests extends ESSingleNodeTestCase {
 
     public void testContainsDefaultConfigId() {
         registry.addDefaultIds(
-            new InferenceService.DefaultConfigId("foo", MinimalServiceSettings.sparseEmbedding(), mock(InferenceService.class))
+            new InferenceService.DefaultConfigId("foo", MinimalServiceSettings.sparseEmbedding("my_service"), mock(InferenceService.class))
         );
         registry.addDefaultIds(
-            new InferenceService.DefaultConfigId("bar", MinimalServiceSettings.sparseEmbedding(), mock(InferenceService.class))
+            new InferenceService.DefaultConfigId("bar", MinimalServiceSettings.sparseEmbedding("my_service"), mock(InferenceService.class))
         );
         assertTrue(registry.containsDefaultConfigId("foo"));
         assertFalse(registry.containsDefaultConfigId("baz"));
@@ -190,19 +190,21 @@ public class ModelRegistryTests extends ESSingleNodeTestCase {
     public void testTaskTypeMatchedDefaults() {
         var defaultConfigIds = new ArrayList<InferenceService.DefaultConfigId>();
         defaultConfigIds.add(
-            new InferenceService.DefaultConfigId("s1", MinimalServiceSettings.sparseEmbedding(), mock(InferenceService.class))
+            new InferenceService.DefaultConfigId("s1", MinimalServiceSettings.sparseEmbedding("my_service"), mock(InferenceService.class))
         );
         defaultConfigIds.add(
-            new InferenceService.DefaultConfigId("s2", MinimalServiceSettings.sparseEmbedding(), mock(InferenceService.class))
+            new InferenceService.DefaultConfigId("s2", MinimalServiceSettings.sparseEmbedding("my_service"), mock(InferenceService.class))
         );
         defaultConfigIds.add(
             new InferenceService.DefaultConfigId(
                 "d1",
-                MinimalServiceSettings.textEmbedding(384, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
+                MinimalServiceSettings.textEmbedding("my_service", 384, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
                 mock(InferenceService.class)
             )
         );
-        defaultConfigIds.add(new InferenceService.DefaultConfigId("c1", MinimalServiceSettings.completion(), mock(InferenceService.class)));
+        defaultConfigIds.add(
+            new InferenceService.DefaultConfigId("c1", MinimalServiceSettings.completion("my_service"), mock(InferenceService.class))
+        );
 
         var matched = ModelRegistry.taskTypeMatchedDefaults(TaskType.SPARSE_EMBEDDING, defaultConfigIds);
         assertThat(matched, contains(defaultConfigIds.get(0), defaultConfigIds.get(1)));

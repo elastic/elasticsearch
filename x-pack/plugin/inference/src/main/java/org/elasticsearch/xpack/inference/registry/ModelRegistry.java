@@ -224,6 +224,26 @@ public class ModelRegistry implements ClusterStateListener {
     }
 
     /**
+     * Retrieves all the {@link MinimalServiceSettings} associated with the provided {@code taskType}.
+     */
+    public List<ModelConfigurations> getAllMinimalServiceSettings(TaskType taskType) {
+        Set<String> duplicates = new HashSet<>();
+        List<ModelConfigurations> result = new ArrayList<>();
+        for (var entry : defaultConfigIds.entrySet()) {
+            if (duplicates.add(entry.getKey()) && taskType.isAnyOrSame(entry.getValue().settings().taskType())) {
+                result.add(entry.getValue().settings().toModelConfigurations(entry.getKey()));
+            }
+        }
+        var state = ModelRegistryMetadata.fromState(clusterService.state());
+        for (var entry : state.getModelMap().entrySet()) {
+            if (duplicates.add(entry.getKey()) && taskType.isAnyOrSame(entry.getValue().taskType())) {
+                result.add(entry.getValue().toModelConfigurations(entry.getKey()));
+            }
+        }
+        return result;
+    }
+
+    /**
      * Get a model with its secret settings
      * @param inferenceEntityId Model to get
      * @param listener Model listener
@@ -898,6 +918,7 @@ public class ModelRegistry implements ClusterStateListener {
                         map.put(
                             model.getInferenceEntityId(),
                             new MinimalServiceSettings(
+                                model.getService(),
                                 model.getTaskType(),
                                 model.getServiceSettings().dimensions(),
                                 model.getServiceSettings().similarity(),
@@ -906,7 +927,7 @@ public class ModelRegistry implements ClusterStateListener {
                         );
                     }
                     metadataTaskQueue.submitTask(
-                        "auto upgrade",
+                        "model registry auto upgrade",
                         new UpgradeModelsMetadataTask(map, ActionListener.running(() -> upgradeMetadataInProgress.set(false))),
                         null
                     );

@@ -90,7 +90,7 @@ public class ElasticInferenceService extends SenderService {
     private static final Logger logger = LogManager.getLogger(ElasticInferenceService.class);
     private static final EnumSet<TaskType> IMPLEMENTED_TASK_TYPES = EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION);
     private static final String SERVICE_NAME = "Elastic";
-    static final String DEFAULT_CHAT_COMPLETION_MODEL_ID_V1 = "rainbow-sprinkles";
+    public static final String DEFAULT_CHAT_COMPLETION_MODEL_ID_V1 = "rainbow-sprinkles";
     static final String DEFAULT_CHAT_COMPLETION_ENDPOINT_ID_V1 = Strings.format(".%s-elastic", DEFAULT_CHAT_COMPLETION_MODEL_ID_V1);
 
     /**
@@ -141,7 +141,7 @@ public class ElasticInferenceService extends SenderService {
                     EmptySecretSettings.INSTANCE,
                     elasticInferenceServiceComponents
                 ),
-                MinimalServiceSettings.chatCompletion()
+                MinimalServiceSettings.chatCompletion(NAME)
             )
         );
     }

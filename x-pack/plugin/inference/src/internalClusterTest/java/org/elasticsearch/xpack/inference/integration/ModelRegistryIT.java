@@ -471,11 +471,13 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
         defaultConfigs.add(createModel("default-sparse", TaskType.SPARSE_EMBEDDING, serviceName));
         defaultConfigs.add(createModel("default-text", TaskType.TEXT_EMBEDDING, serviceName));
-        defaultIds.add(new InferenceService.DefaultConfigId("default-sparse", MinimalServiceSettings.sparseEmbedding(), service));
+        defaultIds.add(
+            new InferenceService.DefaultConfigId("default-sparse", MinimalServiceSettings.sparseEmbedding(serviceName), service)
+        );
         defaultIds.add(
             new InferenceService.DefaultConfigId(
                 "default-text",
-                MinimalServiceSettings.textEmbedding(384, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
+                MinimalServiceSettings.textEmbedding(serviceName, 384, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
                 service
             )
         );
@@ -518,15 +520,17 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
         var service = mock(InferenceService.class);
         var defaultIds = new ArrayList<InferenceService.DefaultConfigId>();
-        defaultIds.add(new InferenceService.DefaultConfigId("default-sparse", MinimalServiceSettings.sparseEmbedding(), service));
+        defaultIds.add(
+            new InferenceService.DefaultConfigId("default-sparse", MinimalServiceSettings.sparseEmbedding(serviceName), service)
+        );
         defaultIds.add(
             new InferenceService.DefaultConfigId(
                 "default-text",
-                MinimalServiceSettings.textEmbedding(384, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
+                MinimalServiceSettings.textEmbedding(serviceName, 384, SimilarityMeasure.COSINE, DenseVectorFieldMapper.ElementType.FLOAT),
                 service
             )
         );
-        defaultIds.add(new InferenceService.DefaultConfigId("default-chat", MinimalServiceSettings.completion(), service));
+        defaultIds.add(new InferenceService.DefaultConfigId("default-chat", MinimalServiceSettings.completion(serviceName), service));
 
         doAnswer(invocation -> {
             ActionListener<List<Model>> listener = invocation.getArgument(0);

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.inference;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -50,12 +52,16 @@ import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
  * @param elementType the type of elements in the embeddings, applicable only for {@link TaskType#TEXT_EMBEDDING} (nullable).
  */
 public record MinimalServiceSettings(
+    @Nullable String service,
     TaskType taskType,
     @Nullable Integer dimensions,
     @Nullable SimilarityMeasure similarity,
     @Nullable ElementType elementType
-) implements ToXContentObject, SimpleDiffable<MinimalServiceSettings> {
+) implements ServiceSettings, SimpleDiffable<MinimalServiceSettings> {
 
+    public static final String NAME = "minimal_service_settings";
+
+    public static final String SERVICE_FIELD = "service";
     public static final String TASK_TYPE_FIELD = "task_type";
     static final String DIMENSIONS_FIELD = "dimensions";
     static final String SIMILARITY_FIELD = "similarity";
@@ -65,17 +71,20 @@ public record MinimalServiceSettings(
         "model_settings",
         true,
         args -> {
-            TaskType taskType = TaskType.fromString((String) args[0]);
-            Integer dimensions = (Integer) args[1];
-            SimilarityMeasure similarity = args[2] == null ? null : SimilarityMeasure.fromString((String) args[2]);
-            DenseVectorFieldMapper.ElementType elementType = args[3] == null
+            String service = (String) args[0];
+            TaskType taskType = TaskType.fromString((String) args[1]);
+            Integer dimensions = (Integer) args[2];
+            SimilarityMeasure similarity = args[3] == null ? null : SimilarityMeasure.fromString((String) args[3]);
+            DenseVectorFieldMapper.ElementType elementType = args[4] == null
                 ? null
-                : DenseVectorFieldMapper.ElementType.fromString((String) args[3]);
-            return new MinimalServiceSettings(taskType, dimensions, similarity, elementType);
+                : DenseVectorFieldMapper.ElementType.fromString((String) args[4]);
+            return new MinimalServiceSettings(service, taskType, dimensions, similarity, elementType);
         }
     );
+    private static final String UNKNOWN_SERVICE = "_unknown_";
 
     static {
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(SERVICE_FIELD));
         PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(TASK_TYPE_FIELD));
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(DIMENSIONS_FIELD));
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField(SIMILARITY_FIELD));
@@ -86,24 +95,29 @@ public record MinimalServiceSettings(
         return PARSER.parse(parser, null);
     }
 
-    public static MinimalServiceSettings textEmbedding(int dimensions, SimilarityMeasure similarity, ElementType elementType) {
-        return new MinimalServiceSettings(TEXT_EMBEDDING, dimensions, similarity, elementType);
+    public static MinimalServiceSettings textEmbedding(
+        String serviceName,
+        int dimensions,
+        SimilarityMeasure similarity,
+        ElementType elementType
+    ) {
+        return new MinimalServiceSettings(serviceName, TEXT_EMBEDDING, dimensions, similarity, elementType);
     }
 
-    public static MinimalServiceSettings sparseEmbedding() {
-        return new MinimalServiceSettings(SPARSE_EMBEDDING, null, null, null);
+    public static MinimalServiceSettings sparseEmbedding(String serviceName) {
+        return new MinimalServiceSettings(serviceName, SPARSE_EMBEDDING, null, null, null);
     }
 
-    public static MinimalServiceSettings rerank() {
-        return new MinimalServiceSettings(RERANK, null, null, null);
+    public static MinimalServiceSettings rerank(String serviceName) {
+        return new MinimalServiceSettings(serviceName, RERANK, null, null, null);
     }
 
-    public static MinimalServiceSettings completion() {
-        return new MinimalServiceSettings(COMPLETION, null, null, null);
+    public static MinimalServiceSettings completion(String serviceName) {
+        return new MinimalServiceSettings(serviceName, COMPLETION, null, null, null);
     }
 
-    public static MinimalServiceSettings chatCompletion() {
-        return new MinimalServiceSettings(CHAT_COMPLETION, null, null, null);
+    public static MinimalServiceSettings chatCompletion(String serviceName) {
+        return new MinimalServiceSettings(serviceName, CHAT_COMPLETION, null, null, null);
     }
 
     public MinimalServiceSettings {
@@ -113,6 +127,7 @@ public record MinimalServiceSettings(
 
     public MinimalServiceSettings(Model model) {
         this(
+            model.getConfigurations().getService(),
             model.getTaskType(),
             model.getServiceSettings().dimensions(),
             model.getServiceSettings().similarity(),
@@ -122,6 +137,7 @@ public record MinimalServiceSettings(
 
     public MinimalServiceSettings(StreamInput in) throws IOException {
         this(
+            in.readOptionalString(),
             TaskType.fromStream(in),
             in.readOptionalInt(),
             in.readOptionalEnum(SimilarityMeasure.class),
@@ -131,10 +147,31 @@ public record MinimalServiceSettings(
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalString(service);
         taskType.writeTo(out);
         out.writeOptionalInt(dimensions);
         out.writeOptionalEnum(similarity);
         out.writeOptionalEnum(elementType);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.INFERENCE_MODEL_REGISTRY_METADATA;
+    }
+
+    @Override
+    public ToXContentObject getFilteredXContentObject() {
+        return this::toXContent;
+    }
+
+    @Override
+    public String modelId() {
+        return null;
     }
 
     public static Diff<MinimalServiceSettings> readDiffFrom(StreamInput in) throws IOException {
@@ -144,6 +181,9 @@ public record MinimalServiceSettings(
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        if (service != null) {
+            builder.field(SERVICE_FIELD, service);
+        }
         builder.field(TASK_TYPE_FIELD, taskType.toString());
         if (dimensions != null) {
             builder.field(DIMENSIONS_FIELD, dimensions);
@@ -160,6 +200,7 @@ public record MinimalServiceSettings(
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder();
+        sb.append("service=").append(service);
         sb.append("task_type=").append(taskType);
         if (dimensions != null) {
             sb.append(", dimensions=").append(dimensions);
@@ -199,5 +240,9 @@ public record MinimalServiceSettings(
         if (fieldValue != null) {
             throw new IllegalArgumentException("[" + field + "] is not allowed for task_type [" + taskType.name() + "]");
         }
+    }
+
+    public ModelConfigurations toModelConfigurations(String inferenceEntityId) {
+        return new ModelConfigurations(inferenceEntityId, taskType, service == null ? UNKNOWN_SERVICE : service, this);
     }
 }

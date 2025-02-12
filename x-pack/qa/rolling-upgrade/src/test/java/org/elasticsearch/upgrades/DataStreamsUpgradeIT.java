@@ -217,13 +217,12 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                 Map<String, Object> upgradedIndexMetadata = upgradedIndexEntry.getValue();
                 compareSettings(oldIndexMetadata, upgradedIndexMetadata);
                 assertThat("Mappings did not match", upgradedIndexMetadata.get("mappings"), equalTo(oldIndexMetadata.get("mappings")));
-                // TODO: Uncomment the following two checks once we are correctly copying this state over:
-                // assertThat("ILM states did not match", upgradedIndexMetadata.get("ilm"), equalTo(oldIndexMetadata.get("ilm")));
-                // assertThat(
-                // "Rollover info did not match",
-                // upgradedIndexMetadata.get("rollover_info"),
-                // equalTo(oldIndexMetadata.get("rollover_info"))
-                // );
+                 assertThat("ILM states did not match", upgradedIndexMetadata.get("ilm"), equalTo(oldIndexMetadata.get("ilm")));
+                 assertThat(
+                 "Rollover info did not match",
+                 upgradedIndexMetadata.get("rollover_info"),
+                 equalTo(oldIndexMetadata.get("rollover_info"))
+                 );
                 assertThat(upgradedIndexMetadata.get("system"), equalTo(oldIndexMetadata.get("system")));
             }
         }

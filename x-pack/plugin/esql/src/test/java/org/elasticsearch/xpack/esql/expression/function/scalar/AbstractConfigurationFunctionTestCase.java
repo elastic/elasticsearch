@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
@@ -27,24 +26,7 @@ public abstract class AbstractConfigurationFunctionTestCase extends AbstractScal
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return buildWithConfiguration(source, args, EsqlTestUtils.TEST_CFG);
-    }
-
-    static Configuration randomConfiguration() {
-        // TODO: Randomize the query and maybe the pragmas.
-        return new Configuration(
-            randomZone(),
-            randomLocale(random()),
-            randomBoolean() ? null : randomAlphaOfLength(randomInt(64)),
-            randomBoolean() ? null : randomAlphaOfLength(randomInt(64)),
-            QueryPragmas.EMPTY,
-            EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
-            EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
-            StringUtils.EMPTY,
-            randomBoolean(),
-            Map.of(),
-            System.nanoTime()
-        );
+        return buildWithConfiguration(source, args, testCase.getConfiguration());
     }
 
     public void testSerializationWithConfiguration() {
@@ -60,5 +42,22 @@ public abstract class AbstractConfigurationFunctionTestCase extends AbstractScal
 
         Expression differentExpr = buildWithConfiguration(testCase.getSource(), testCase.getDataAsFields(), differentConfig);
         assertFalse(expr.equals(differentExpr));
+    }
+
+    private static Configuration randomConfiguration() {
+        // TODO: Randomize the query and maybe the pragmas.
+        return new Configuration(
+            randomZone(),
+            randomLocale(random()),
+            randomBoolean() ? null : randomAlphaOfLength(randomInt(64)),
+            randomBoolean() ? null : randomAlphaOfLength(randomInt(64)),
+            QueryPragmas.EMPTY,
+            EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY),
+            EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
+            StringUtils.EMPTY,
+            randomBoolean(),
+            Map.of(),
+            System.nanoTime()
+        );
     }
 }

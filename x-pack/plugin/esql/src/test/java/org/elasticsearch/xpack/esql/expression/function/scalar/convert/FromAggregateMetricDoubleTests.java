@@ -75,4 +75,10 @@ public class FromAggregateMetricDoubleTests extends AbstractScalarFunctionTestCa
             )
         );
     }
+
+    @Override
+    protected Expression randomSerializeDeserialize(Expression expression) {
+        // AggregateMetricDoubleLiteral can't be serialized when it's a literal
+        return expression;
+    }
 }

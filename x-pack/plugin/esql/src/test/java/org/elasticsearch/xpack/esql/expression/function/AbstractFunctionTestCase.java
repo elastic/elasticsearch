@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
 import org.elasticsearch.xpack.esql.parser.ExpressionBuilder;
 import org.elasticsearch.xpack.esql.planner.Layout;
@@ -102,6 +103,7 @@ import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
+import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
 import static org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry.mapParam;
 import static org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry.param;
 import static org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry.paramWithoutAnnotation;
@@ -522,7 +524,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * <strong>except</strong> those that have been marked with {@link TestCaseSupplier.TypedData#forceLiteral()}.
      */
     protected final Expression buildFieldExpression(TestCaseSupplier.TestCase testCase) {
-        return build(testCase.getSource(), testCase.getDataAsFields());
+        return randomSerializeDeserialize(build(testCase.getSource(), testCase.getDataAsFields()));
     }
 
     /**
@@ -531,12 +533,28 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * those that have been marked with {@link TestCaseSupplier.TypedData#forceLiteral()}.
      */
     protected final Expression buildDeepCopyOfFieldExpression(TestCaseSupplier.TestCase testCase) {
+        // We don't use `randomSerializeDeserialize()` here as the deep copied fields aren't deserializable right now
         return build(testCase.getSource(), testCase.getDataAsDeepCopiedFields());
+    }
+
+    protected Expression randomSerializeDeserialize(Expression expression) {
+        if (false && randomBoolean()) {
+            return expression;
+        }
+
+        Expression newExpression = serializeDeserialize(
+            expression,
+            PlanStreamOutput::writeNamedWriteable,
+            in -> in.readNamedWriteable(Expression.class),
+            testCase.getConfiguration() // The configuration query should be == to the source text of the function for this to work
+        );
+        // Fields use synthetic sources, which can't be serialized. So we use the originals instead.
+        return newExpression.replaceChildrenSameSize(expression.children());
     }
 
     protected final Expression buildLiteralExpression(TestCaseSupplier.TestCase testCase) {
         assumeTrue("Data can't be converted to literals", testCase.canGetDataAsLiterals());
-        return build(testCase.getSource(), testCase.getDataAsLiterals());
+        return randomSerializeDeserialize(build(testCase.getSource(), testCase.getDataAsLiterals()));
     }
 
     public static EvaluatorMapper.ToEvaluator toEvaluator() {
@@ -711,7 +729,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public void testSerializationOfSimple() {
-        assertSerialization(buildFieldExpression(testCase));
+        assertSerialization(buildFieldExpression(testCase), testCase.getConfiguration());
     }
 
     /**

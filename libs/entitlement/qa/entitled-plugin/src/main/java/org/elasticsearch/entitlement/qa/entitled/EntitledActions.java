@@ -17,10 +17,6 @@ import java.nio.file.attribute.UserPrincipal;
 public final class EntitledActions {
     private EntitledActions() {}
 
-    public static Thread newThread(Runnable runnable, String name) {
-        return new Thread(runnable, name);
-    }
-
     public static UserPrincipal getFileOwner(Path path) throws IOException {
         return Files.getOwner(path);
     }

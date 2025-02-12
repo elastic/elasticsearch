@@ -17,8 +17,6 @@ import org.elasticsearch.plugins.Plugin;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.entitlement.qa.entitled.EntitledActions.newThread;
-
 public class EntitledPlugin extends Plugin implements ExtensiblePlugin {
 
     /**
@@ -34,7 +32,7 @@ public class EntitledPlugin extends Plugin implements ExtensiblePlugin {
         logger.debug("selfTestEntitled");
         AtomicBoolean threadRan = new AtomicBoolean(false);
         try {
-            Thread testThread = newThread(() -> threadRan.set(true), "testThread");
+            Thread testThread = new Thread(() -> threadRan.set(true), "testThread");
             testThread.start();
             testThread.join();
         } catch (InterruptedException e) {

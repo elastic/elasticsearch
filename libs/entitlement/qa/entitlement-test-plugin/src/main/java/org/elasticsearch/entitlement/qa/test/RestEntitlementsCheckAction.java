@@ -13,7 +13,6 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.entitlement.qa.entitled.EntitledActions;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -452,7 +451,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
 
     static void java_lang_Thread$start() throws InterruptedException {
         AtomicBoolean threadRan = new AtomicBoolean(false);
-        Thread thread = EntitledActions.newThread(() -> threadRan.set(true), "test");
+        Thread thread = new Thread(() -> threadRan.set(true), "test");
         thread.start();
         thread.join();
         assert threadRan.get();

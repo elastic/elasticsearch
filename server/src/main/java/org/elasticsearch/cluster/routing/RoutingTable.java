@@ -449,6 +449,29 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                 .addShard(shardRoutingEntry);
         }
 
+        public Builder updateNumberOfShards(final int numberOfShards, final String index) {
+            if (indicesRouting == null) {
+                throw new IllegalStateException("once build is called the builder cannot be reused");
+            }
+            IndexRoutingTable indexRoutingTable = indicesRouting.get(index);
+            if (indexRoutingTable == null) {
+                // ignore index missing failure, its closed...
+                return this;
+            }
+            int currentNumberOfReplicas = indexRoutingTable.shard(0).size() - 1; // remove the required primary
+            int numberOfOldShards = indexRoutingTable.size();
+            IndexRoutingTable.Builder builder = new IndexRoutingTable.Builder(shardRoutingRoleStrategy, indexRoutingTable.getIndex());
+            // re-add existing shards
+            builder.ensureShardArray(numberOfOldShards);
+            for (int i = 0; i < numberOfOldShards; i++) {
+                builder.addIndexShard(new IndexShardRoutingTable.Builder(indexRoutingTable.shard(i)));
+            }
+            // See addReplica and addIndexShard to create the new shards
+            indicesRouting.put(index, builder.build());
+            return this;
+        }
+
+
         /**
          * Update the number of replicas for the specified indices.
          *

@@ -58,7 +58,6 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -307,24 +306,26 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 return;
             }
             int currentBatchSize = Math.min(requests.size(), batchSize);
-            final List<FieldInferenceRequest> currentBatch = requests.subList(0, currentBatchSize);
-            final List<FieldInferenceRequest> nextBatch = requests.subList(currentBatchSize, requests.size());
-            //
-            // List<ChunkedInputs> chunkedInputs = currentBatch.stream()
-            // .map(request -> new ChunkedInputs(request.chunkingSettings(), List.of(request.input())))
-            // .toList();
+            ChunkingSettings chunkingSettings = requests.get(0).chunkingSettings;
+            List<FieldInferenceRequest> currentBatch = new ArrayList<>();
+            List<FieldInferenceRequest> others = new ArrayList<>();
+            for (int i = 0; i < currentBatchSize; i++) {
+                FieldInferenceRequest request = requests.get(i);
+                if ((chunkingSettings == null && request.chunkingSettings == null) || request.chunkingSettings.equals(chunkingSettings)) {
+                    currentBatch.add(request);
+                } else {
+                    others.add(request);
+                }
+            }
 
-            List<ChunkedInputs> chunkedInputs = currentBatch.stream()
-                .collect(Collectors.groupingBy(request -> Optional.ofNullable(request.chunkingSettings())))
-                .entrySet()
-                .stream()
-                .map(
-                    entry -> new ChunkedInputs(
-                        entry.getKey().orElse(null),
-                        entry.getValue().stream().map(FieldInferenceRequest::input).collect(Collectors.toList())
-                    )
-                )
-                .toList();
+            final List<FieldInferenceRequest> nextBatch = requests.subList(currentBatchSize, requests.size());
+            nextBatch.addAll(others);
+
+            // We can assume current batch has all the same chunking settings
+            ChunkedInputs chunkedInputs = new ChunkedInputs(
+                chunkingSettings,
+                currentBatch.stream().map(r -> r.input).collect(Collectors.toList())
+            );
 
             ActionListener<List<ChunkedInference>> completionListener = new ActionListener<>() {
                 @Override
@@ -390,19 +391,17 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 }
             };
 
-            for (ChunkedInputs chunkedInput : chunkedInputs) {
-                inferenceProvider.service()
-                    .chunkedInfer(
-                        inferenceProvider.model(),
-                        null,
-                        chunkedInput.inputs(),
-                        Map.of(),
-                        chunkedInput.chunkingSettings(),
-                        InputType.INGEST,
-                        TimeValue.MAX_VALUE,
-                        completionListener
-                    );
-            }
+            inferenceProvider.service()
+                .chunkedInfer(
+                    inferenceProvider.model(),
+                    null,
+                    chunkedInputs.inputs(),
+                    Map.of(),
+                    chunkedInputs.chunkingSettings(),
+                    InputType.INGEST,
+                    TimeValue.MAX_VALUE,
+                    completionListener
+                );
         }
 
         private FieldInferenceResponseAccumulator ensureResponseAccumulatorSlot(int id) {

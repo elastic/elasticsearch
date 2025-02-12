@@ -240,13 +240,14 @@ public class SearchTimeoutIT extends ESIntegTestCase {
                                             for (int doc = min; doc < max; ++doc) {
                                                 if (acceptDocs == null || acceptDocs.get(doc)) {
                                                     collector.collect(doc);
-                                                    // collect one doc, then throw a timeout, this ensures partial results will be returned
+                                                    // collect one doc per segment, only then throw a timeout: this ensures partial
+                                                    // results are returned
                                                     ((ContextIndexSearcher) searcher).throwTimeExceededException();
                                                 }
                                             }
-                                            throw new AssertionError(
-                                                "Should have thrown a time exceeded exception: [min: " + min + " - max: " + max + "]"
-                                            );
+                                            // there is a slight chance that no docs are scored for a specific segment.
+                                            // other shards / slices will throw the timeout anyway, one is enough.
+                                            return max == maxDoc ? DocIdSetIterator.NO_MORE_DOCS : max;
                                         }
 
                                         @Override

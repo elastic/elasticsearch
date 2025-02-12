@@ -117,11 +117,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         addDoc(sourceIndex, "{\"foo\":\"baz\"}");
 
         // wait until doc is written to all shards before adding mapping
-        if (cluster().numDataNodes() > 1) {
-            ensureGreen(sourceIndex);
-        } else {
-            ensureYellow(sourceIndex);
-        }
+        ensureHealth(sourceIndex);
 
         // add timestamp to source mapping
         indicesAdmin().preparePutMapping(sourceIndex).setSource(DATA_STREAM_MAPPING, XContentType.JSON).get();
@@ -146,6 +142,9 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         String time = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
         var doc = String.format(Locale.ROOT, "{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, time);
         addDoc(sourceIndex, doc);
+
+        // wait until doc is written to all shards before adding mapping
+        ensureHealth(sourceIndex);
 
         // add timestamp to source mapping
         indicesAdmin().preparePutMapping(sourceIndex).setSource(DATA_STREAM_MAPPING, XContentType.JSON).get();
@@ -193,6 +192,9 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         String time = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
         var doc = String.format(Locale.ROOT, "{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, time);
         addDoc(sourceIndex, doc);
+
+        // wait until doc is written to all shards before adding mapping
+        ensureHealth(sourceIndex);
 
         // add timestamp to source mapping
         indicesAdmin().preparePutMapping(sourceIndex).setSource(DATA_STREAM_MAPPING, XContentType.JSON).get();
@@ -613,5 +615,13 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest(index).opType(DocWriteRequest.OpType.CREATE).source(doc, XContentType.JSON));
         safeGet(client().bulk(bulkRequest));
+    }
+
+    private void ensureHealth(String index) {
+        if (cluster().numDataNodes() > 1) {
+            ensureGreen(index);
+        } else {
+            ensureYellow(index);
+        }
     }
 }

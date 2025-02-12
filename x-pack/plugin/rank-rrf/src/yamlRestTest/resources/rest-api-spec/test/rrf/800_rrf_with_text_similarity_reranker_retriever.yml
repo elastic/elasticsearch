@@ -2,6 +2,7 @@ setup:
   - skip:
       features:
         - close_to
+        - contains
 
   - requires:
       test_runner_features: "close_to"
@@ -126,7 +127,7 @@ setup:
                           standard: {
                             query: {
                               term: {
-                                topic: "science"
+                                subtopic: "astronomy"
                               }
                             }
                           }
@@ -149,16 +150,13 @@ setup:
                 field: topic
                 size: 10
 
-  - match: { hits.total.value: 3 }
-  - length: { hits.hits: 2 }
+  - match: { hits.total.value: 2 }
+  - length: { hits.hits: 1 }
 
   - match: { hits.hits.0._id: "doc_1" }
-  - match: { hits.hits.1._id: "doc_3" }
 
-  - match: { aggregations.topics.buckets.0.key: "science" }
-  - match: { aggregations.topics.buckets.0.doc_count: 2 }
-  - match: { aggregations.topics.buckets.1.key: "geography" }
-  - match: { aggregations.topics.buckets.1.doc_count: 1 }
+  - contains:  { aggregations.topics.buckets: { key: "geography", doc_count: 1 } }
+  - contains:  { aggregations.topics.buckets: { key: "science", doc_count: 1 } }
 
 ---
 "Text similarity reranker on top of an RRF retriever":

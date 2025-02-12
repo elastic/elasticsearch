@@ -185,6 +185,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_DRIVER_TASK_DESCRIPTION = def(9_005_0_00);
     public static final TransportVersion ESQL_RETRY_ON_SHARD_LEVEL_FAILURE = def(9_006_0_00);
     public static final TransportVersion ESQL_PROFILE_ASYNC_NANOS = def(9_007_00_0);
+    public static final TransportVersion ESQL_LOOKUP_JOIN_SOURCE_TEXT = def(9_008_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -196,6 +197,8 @@ public class TransportVersions {
      *
      * A new transport version should be added EVERY TIME a change is made to the serialization protocol of one or more classes. Each
      * transport version should only be used in a single merged commit (apart from the BwC versions copied from o.e.Version, ≤V_8_8_1).
+     *
+     * More information about versions and backporting at docs/internal/Versioning.md
      *
      * ADDING A TRANSPORT VERSION
      * To add a new transport version, add a new constant at the bottom of the list, above this comment. Don't add other lines,

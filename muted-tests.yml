@@ -510,9 +510,6 @@ tests:
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testProfileAPIsWhenIndexNotCreated
   issue: https://github.com/elastic/elasticsearch/issues/121096
-- class: org.elasticsearch.xpack.transform.checkpoint.TransformCCSCanMatchIT
-  method: testTransformLifecycle_RangeQueryThatMatchesNoShards
-  issue: https://github.com/elastic/elasticsearch/issues/121480
 - class: org.elasticsearch.xpack.security.authc.service.ServiceAccountSingleNodeTests
   method: testAuthenticateWithServiceFileToken
   issue: https://github.com/elastic/elasticsearch/issues/120988

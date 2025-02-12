@@ -193,6 +193,11 @@ public enum SearchResponseUtils {
             return this;
         }
 
+        public SearchResponseBuilder shardFailures(List<ShardSearchFailure> failures) {
+            shardFailures = List.copyOf(failures);
+            return this;
+        }
+
         public SearchResponseBuilder clusters(Clusters clusters) {
             this.clusters = clusters;
             return this;

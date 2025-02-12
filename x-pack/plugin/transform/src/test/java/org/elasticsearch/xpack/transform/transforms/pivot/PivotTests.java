@@ -385,7 +385,7 @@ public class PivotTests extends ESTestCase {
                     listener,
                     (Response) SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS)
                         .shards(10, searchFailures.isEmpty() ? 5 : 0, 0)
-                        .shardFailures(searchFailures.toArray(ShardSearchFailure[]::new))
+                        .shardFailures(searchFailures)
                         .build()
                 );
                 return;

@@ -167,11 +167,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
             new TotalHits(0, TotalHits.Relation.EQUAL_TO),
             0
         );
-        return SearchResponseUtils.response(hits)
-            .scrollId(randomSimpleString(random(), 1, 10))
-            .shards(5, 4, 0)
-            .tookInMillis(randomLong())
-            .build();
+        return SearchResponseUtils.response(hits).scrollId(randomSimpleString(random(), 1, 10)).shards(5, 4, 0).build();
     }
 
     private void assertSameHits(List<? extends ScrollableHitSource.Hit> actual, SearchHit[] expected) {

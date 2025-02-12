@@ -55,6 +55,8 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
 
     @Before
     public void disableBatchedExecution() {
+        // TODO: it's practically impossible to get a 100% deterministic test with batched execution unfortunately, adjust this test to
+        // still do something useful with batched execution (i.e. use somewhat relaxed assertions)
         updateClusterSettings(Settings.builder().put(SearchService.BATCHED_QUERY_PHASE.getKey(), false));
     }
 
@@ -922,7 +924,6 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
      * 3 one-shard indices.
      */
     public void testFixedDocs() throws Exception {
-        updateClusterSettings(Settings.builder().put(SearchService.BATCHED_QUERY_PHASE.getKey(), false));
         assertNoFailuresAndResponse(
             prepareSearch("idx_fixed_docs_0", "idx_fixed_docs_1", "idx_fixed_docs_2").addAggregation(
                 terms("terms").executionHint(randomExecutionHint())
@@ -971,7 +972,6 @@ public class TermsDocCountErrorIT extends ESIntegTestCase {
                 assertThat(bucket.getDocCountError(), equalTo(29L));
             }
         );
-        updateClusterSettings(Settings.builder().putNull(SearchService.BATCHED_QUERY_PHASE.getKey()));
     }
 
     /**

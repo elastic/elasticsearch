@@ -269,8 +269,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         public boolean decRef() {
             if (refCounted.decRef()) {
                 for (int i = 0; i < results.length; i++) {
-                    Object result = results[i];
-                    if (result instanceof RefCounted r) {
+                    if (results[i] instanceof RefCounted r) {
                         r.decRef();
                     }
                     results[i] = null;
@@ -530,7 +529,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
 
     private static final CircuitBreaker NOOP_CIRCUIT_BREAKER = new NoopCircuitBreaker("request");
 
-    public static void registerNodeSearchAction(
+    static void registerNodeSearchAction(
         SearchTransportService searchTransportService,
         SearchService searchService,
         SearchPhaseController searchPhaseController
@@ -817,6 +816,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         void consumeResult(QuerySearchResult queryResult) {
             // no need for any cache effects when we're already flipped to ture => plain read + set-release
             hasResponse.compareAndExchangeRelease(false, true);
+            // TODO: dry up the bottom sort collector with the coordinator side logic in the top-level class here
             if (queryResult.isNull() == false
                 // disable sort optims for scroll requests because they keep track of the last bottom doc locally (per shard)
                 && searchRequest.searchRequest.scroll() == null

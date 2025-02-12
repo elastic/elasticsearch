@@ -26,7 +26,6 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.TransportIndexAction;
-import org.elasticsearch.action.search.SearchQueryThenFetchAsyncAction;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.WriteRequest;
@@ -354,6 +353,7 @@ public class TasksIT extends ESIntegTestCase {
     }
 
     public void testSearchTaskDescriptions() {
+        // TODO: enhance this test to also check the tasks created by batched query execution
         updateClusterSettings(Settings.builder().put(SearchService.BATCHED_QUERY_PHASE.getKey(), false));
         registerTaskManagerListeners(TransportSearchAction.TYPE.name());  // main task
         registerTaskManagerListeners(TransportSearchAction.TYPE.name() + "[*]");  // shard task
@@ -396,7 +396,6 @@ public class TasksIT extends ESIntegTestCase {
                     taskInfo.description(),
                     Regex.simpleMatch("id[*], size[1], lastEmittedDoc[null]", taskInfo.description())
                 );
-                case SearchQueryThenFetchAsyncAction.NODE_SEARCH_ACTION_NAME -> assertThat(taskInfo.description(), notNullValue());
                 default -> fail("Unexpected action [" + taskInfo.action() + "] with description [" + taskInfo.description() + "]");
             }
             // assert that all task descriptions have non-zero length

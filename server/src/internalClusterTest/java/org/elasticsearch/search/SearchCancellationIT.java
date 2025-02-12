@@ -240,6 +240,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
     }
 
     public void testCancelFailedSearchWhenPartialResultDisallowed() throws Exception {
+        // TODO: make this test compatible with batched execution, currently the exceptions are slightly different with batched
         updateClusterSettings(Settings.builder().put(SearchService.BATCHED_QUERY_PHASE.getKey(), false));
         // Have at least two nodes so that we have parallel execution of two request guaranteed even if max concurrent requests per node
         // are limited to 1

@@ -140,10 +140,14 @@ public class PolicyParserTests extends ESTestCase {
             List.of(
                 new Scope(
                     "entitlement-module-name",
-                    List.of(FilesEntitlement.build(List.of(
-                        Map.of("path", "test/path/to/file", "mode", "read_write"),
-                        Map.of("path", "test/path/to/read-dir/", "mode", "read")
-                    )))
+                    List.of(
+                        FilesEntitlement.build(
+                            List.of(
+                                Map.of("path", "test/path/to/file", "mode", "read_write"),
+                                Map.of("path", "test/path/to/read-dir/", "mode", "read")
+                            )
+                        )
+                    )
                 )
             )
         );
@@ -166,11 +170,15 @@ public class PolicyParserTests extends ESTestCase {
             List.of(
                 new Scope(
                     "entitlement-module-name",
-                    List.of(FilesEntitlement.build(List.of(
-                        Map.of("path", "test/path/to/file", "mode", "read_write", "base_dir", "temp"),
-                        Map.of("path", "test/path/to/read-dir/", "mode", "read", "base_dir", "config"),
-                        Map.of("path", "/path/to/file", "mode", "read_write")
-                    )))
+                    List.of(
+                        FilesEntitlement.build(
+                            List.of(
+                                Map.of("path", "test/path/to/file", "mode", "read_write", "base_dir", "temp"),
+                                Map.of("path", "test/path/to/read-dir/", "mode", "read", "base_dir", "config"),
+                                Map.of("path", "/path/to/file", "mode", "read_write")
+                            )
+                        )
+                    )
                 )
             )
         );

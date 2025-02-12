@@ -91,10 +91,7 @@ public class FileAccessTreeTests extends ESTestCase {
     public void testReadWithBaseDir() {
         var resolver = Mockito.mock(DirectoryResolver.class);
         when(resolver.resolveTemp(any(Path.class))).thenReturn(Path.of("/tmp/foo"));
-        var tree = FileAccessTree.of(
-            entitlement(Map.of("path", "foo", "mode", "read", "base_dir", "temp")),
-            resolver
-        );
+        var tree = FileAccessTree.of(entitlement(Map.of("path", "foo", "mode", "read", "base_dir", "temp")), resolver);
         assertThat(tree.canRead(path("foo")), is(false));
 
         assertThat(tree.canRead(path("/tmp/foo")), is(true));
@@ -111,10 +108,7 @@ public class FileAccessTreeTests extends ESTestCase {
     public void testWriteWithBaseDir() {
         var resolver = Mockito.mock(DirectoryResolver.class);
         when(resolver.resolveConfig(any(Path.class))).thenReturn(Path.of("/config/foo"));
-        var tree = FileAccessTree.of(
-            entitlement(Map.of("path", "foo", "mode", "read_write", "base_dir", "config")),
-            resolver
-        );
+        var tree = FileAccessTree.of(entitlement(Map.of("path", "foo", "mode", "read_write", "base_dir", "config")), resolver);
         assertThat(tree.canWrite(path("/config/foo")), is(true));
         assertThat(tree.canWrite(path("/config/foo/subdir")), is(true));
         assertThat(tree.canWrite(path("foo")), is(false));
@@ -130,10 +124,7 @@ public class FileAccessTreeTests extends ESTestCase {
     public void testMultipleDataBaseDir() {
         var resolver = Mockito.mock(DirectoryResolver.class);
         when(resolver.resolveData(any(Path.class))).thenReturn(Stream.of(Path.of("/data1/foo"), Path.of("/data2/foo")));
-        var tree = FileAccessTree.of(
-            entitlement(Map.of("path", "foo", "mode", "read_write", "base_dir", "data")),
-            resolver
-        );
+        var tree = FileAccessTree.of(entitlement(Map.of("path", "foo", "mode", "read_write", "base_dir", "data")), resolver);
         assertThat(tree.canWrite(path("/data1/foo")), is(true));
         assertThat(tree.canWrite(path("/data2/foo")), is(true));
         assertThat(tree.canWrite(path("/data3/foo")), is(false));

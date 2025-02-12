@@ -1,7 +1,11 @@
 org.apache.httpcomponents.httpclient:
   - outbound_network # For SamlRealm
+  - manage_threads
 org.apache.httpcomponents.httpcore.nio:
   - outbound_network
+  - manage_threads
+org.apache.httpcomponents.httpasyncclient:
+  - manage_threads
 unboundid.ldapsdk:
   - write_system_properties:
       properties:

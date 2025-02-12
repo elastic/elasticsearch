@@ -1,4 +1,5 @@
 ALL-UNNAMED:
+  - manage_threads
   - outbound_network
   - write_system_properties:
       properties:

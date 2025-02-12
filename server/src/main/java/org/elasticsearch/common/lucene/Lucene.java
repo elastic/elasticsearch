@@ -192,6 +192,8 @@ public class Lucene {
                 throw new IllegalStateException("no commit found in the directory");
             }
         }
+        // Need to figure out what the parent field is that, so that validation in IndexWriter doesn't fail
+        // if no parent field is configured, but FieldInfo says there is a parent field.
         String parentField = null;
         final IndexCommit cp = getIndexCommit(si, directory);
         try (var reader = DirectoryReader.open(cp)) {

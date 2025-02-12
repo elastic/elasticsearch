@@ -380,10 +380,12 @@ public class HealthPeriodicLogger extends AbstractLifecycleComponent implements 
                         .stream()
                         .filter(impact -> SLM_HEALTH_INDICATOR_SERVICE_IMPACT_ID_MISSING_SNAPSHOT.equals(impact.id()))
                         .findFirst();
-                    impactMissingSnapshot.ifPresent(impact -> result.put(
-                        String.format(Locale.ROOT, "%s.%s.%s", HEALTH_FIELD_PREFIX, indicatorResult.name(), impact.id()),
-                        true
-                    ));
+                    impactMissingSnapshot.ifPresent(
+                        impact -> result.put(
+                            String.format(Locale.ROOT, "%s.%s.%s", HEALTH_FIELD_PREFIX, indicatorResult.name(), impact.id()),
+                            true
+                        )
+                    );
                 }
             }
         });

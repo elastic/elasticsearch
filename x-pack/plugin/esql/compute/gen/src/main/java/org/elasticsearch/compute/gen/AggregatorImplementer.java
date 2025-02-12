@@ -108,7 +108,7 @@ public class AggregatorImplementer {
             combineArgs(aggState, includeTimestampVector)
         );
         // TODO support multiple parameters
-        this.aggParam = AggregationParameter.create(combine.getParameters().getLast().asType());
+        this.aggParam = AggregationParameter.create(combine.getParameters().get(combine.getParameters().size() - 1).asType());
 
         this.createParameters = init.getParameters()
             .stream()

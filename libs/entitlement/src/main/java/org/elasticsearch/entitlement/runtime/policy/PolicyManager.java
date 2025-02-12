@@ -72,7 +72,7 @@ public class PolicyManager {
             return new ModuleEntitlements(componentName, Map.of(), FileAccessTree.EMPTY);
         }
 
-        public static ModuleEntitlements from(String componentName, List<Entitlement> entitlements, Path configPath) {
+        public static ModuleEntitlements from(String componentName, List<Entitlement> entitlements, DirectoryResolver directoryResolver) {
             FilesEntitlement filesEntitlement = FilesEntitlement.EMPTY;
             for (Entitlement entitlement : entitlements) {
                 if (entitlement instanceof FilesEntitlement) {
@@ -82,7 +82,7 @@ public class PolicyManager {
             return new ModuleEntitlements(
                 componentName,
                 entitlements.stream().collect(groupingBy(Entitlement::getClass)),
-                FileAccessTree.of(filesEntitlement, configPath)
+                FileAccessTree.of(filesEntitlement, directoryResolver)
             );
         }
 
@@ -105,6 +105,7 @@ public class PolicyManager {
     protected final List<Entitlement> apmAgentEntitlements;
     protected final Map<String, Map<String, List<Entitlement>>> pluginsEntitlements;
     private final Function<Class<?>, String> pluginResolver;
+    private final DirectoryResolver directoryResolver;
 
     public static final String ALL_UNNAMED = "ALL-UNNAMED";
 
@@ -133,8 +134,6 @@ public class PolicyManager {
      */
     private final Module entitlementsModule;
 
-    private final Path configDir;
-
     public PolicyManager(
         Policy serverPolicy,
         List<Entitlement> apmAgentEntitlements,
@@ -142,7 +141,7 @@ public class PolicyManager {
         Function<Class<?>, String> pluginResolver,
         String apmAgentPackageName,
         Module entitlementsModule,
-        Path configDir
+        DirectoryResolver directoryResolver
     ) {
         this.serverEntitlements = buildScopeEntitlementsMap(requireNonNull(serverPolicy));
         this.apmAgentEntitlements = apmAgentEntitlements;
@@ -152,7 +151,7 @@ public class PolicyManager {
         this.pluginResolver = pluginResolver;
         this.apmAgentPackageName = apmAgentPackageName;
         this.entitlementsModule = entitlementsModule;
-        this.configDir = configDir;
+        this.directoryResolver = directoryResolver;
 
         for (var e : serverEntitlements.entrySet()) {
             validateEntitlementsPerModule(SERVER_COMPONENT_NAME, e.getKey(), e.getValue());
@@ -414,7 +413,7 @@ public class PolicyManager {
 
         if (requestingModule.isNamed() == false && requestingClass.getPackageName().startsWith(apmAgentPackageName)) {
             // The APM agent is the only thing running non-modular in the system classloader
-            return ModuleEntitlements.from(APM_AGENT_COMPONENT_NAME, apmAgentEntitlements, configDir);
+            return ModuleEntitlements.from(APM_AGENT_COMPONENT_NAME, apmAgentEntitlements, directoryResolver);
         }
 
         return ModuleEntitlements.none(UNKNOWN_COMPONENT_NAME);
@@ -429,7 +428,7 @@ public class PolicyManager {
         if (entitlements == null) {
             return ModuleEntitlements.none(componentName);
         }
-        return ModuleEntitlements.from(componentName, entitlements, configDir);
+        return ModuleEntitlements.from(componentName, entitlements, directoryResolver);
     }
 
     private static boolean isServerModule(Module requestingModule) {

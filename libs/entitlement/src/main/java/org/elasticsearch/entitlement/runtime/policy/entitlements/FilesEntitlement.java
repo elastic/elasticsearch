@@ -31,7 +31,9 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
 
     public enum BaseDir {
         NONE,
-        CONFIG
+        CONFIG,
+        DATA,
+        TEMP
     }
 
     public record FileData(String path, Mode mode, BaseDir baseDir) {

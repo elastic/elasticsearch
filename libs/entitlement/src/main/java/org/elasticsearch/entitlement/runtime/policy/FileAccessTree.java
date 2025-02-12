@@ -16,30 +16,73 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
 
 public final class FileAccessTree {
-    public static final FileAccessTree EMPTY = new FileAccessTree(FilesEntitlement.EMPTY, null);
+
+    private static final DirectoryResolver NULL_DIRECTORY_RESOLVER = new DirectoryResolver() {
+        @Override
+        public Path resolveConfig(Path path) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Stream<Path> resolveData(Path path) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Path resolveTemp(Path path) {
+            throw new UnsupportedOperationException();
+        }
+    };
+
+    public static final FileAccessTree EMPTY = new FileAccessTree(FilesEntitlement.EMPTY, NULL_DIRECTORY_RESOLVER);
     private static final String FILE_SEPARATOR = getDefaultFileSystem().getSeparator();
 
     private final String[] readPaths;
     private final String[] writePaths;
 
-    private FileAccessTree(FilesEntitlement filesEntitlement, Path configFile) {
+    private static void resolvePath(
+        FilesEntitlement.FileData fileData,
+        DirectoryResolver directoryResolver,
+        Consumer<String> resolvedPathReceiver
+    ) {
+        Path path = Path.of(fileData.path());
+        switch (fileData.baseDir()) {
+            case NONE:
+                resolvedPathReceiver.accept(normalizePath(path));
+                break;
+            case CONFIG:
+                resolvedPathReceiver.accept(normalizePath(directoryResolver.resolveConfig(path)));
+                break;
+            case DATA:
+                directoryResolver.resolveData(path).forEach(p -> resolvedPathReceiver.accept(normalizePath(p)));
+                break;
+            case TEMP:
+                resolvedPathReceiver.accept(normalizePath(directoryResolver.resolveTemp(path)));
+                break;
+            default:
+                throw new IllegalArgumentException();
+        }
+    }
+
+    private FileAccessTree(FilesEntitlement filesEntitlement, DirectoryResolver directoryResolver) {
+        Objects.requireNonNull(directoryResolver);
+
         List<String> readPaths = new ArrayList<>();
         List<String> writePaths = new ArrayList<>();
         for (FilesEntitlement.FileData fileData : filesEntitlement.filesData()) {
-            Path path = Path.of(fileData.path());
-            if (fileData.baseDir() == FilesEntitlement.BaseDir.CONFIG) {
-                path = configFile.resolve(path);
-            }
-            String pathStr = normalizePath(path);
             var mode = fileData.mode();
-            if (mode == FilesEntitlement.Mode.READ_WRITE) {
-                writePaths.add(pathStr);
-            }
-            readPaths.add(pathStr);
+            resolvePath(fileData, directoryResolver, pathStr -> {
+                if (mode == FilesEntitlement.Mode.READ_WRITE) {
+                    writePaths.add(pathStr);
+                }
+                readPaths.add(pathStr);
+            });
         }
 
         readPaths.sort(String::compareTo);
@@ -49,8 +92,8 @@ public final class FileAccessTree {
         this.writePaths = writePaths.toArray(new String[0]);
     }
 
-    public static FileAccessTree of(FilesEntitlement filesEntitlement, Path configFile) {
-        return new FileAccessTree(filesEntitlement, configFile);
+    public static FileAccessTree of(FilesEntitlement filesEntitlement, DirectoryResolver directoryResolver) {
+        return new FileAccessTree(filesEntitlement, directoryResolver);
     }
 
     boolean canRead(Path path) {

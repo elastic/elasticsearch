@@ -791,7 +791,30 @@ public class EsqlCapabilities {
         /**
          * Support for aggregate_metric_double type
          */
-        AGGREGATE_METRIC_DOUBLE(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG.isEnabled());
+        AGGREGATE_METRIC_DOUBLE(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
+         * Support for partial subset of metrics in aggregate_metric_double type
+         */
+        AGGREGATE_METRIC_DOUBLE_PARTIAL_SUBMETRICS(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
+         * Support change point detection "CHANGE_POINT".
+         */
+        CHANGE_POINT(Build.current().isSnapshot()),
+
+        /**
+         * Fix for https://github.com/elastic/elasticsearch/issues/120817
+         * and https://github.com/elastic/elasticsearch/issues/120803
+         * Support for queries that have multiple SORTs that cannot become TopN
+         */
+        REMOVE_REDUNDANT_SORT,
+
+        /**
+         * Fixes a series of issues with inlinestats which had an incomplete implementation after lookup and inlinestats
+         * were refactored.
+         */
+        INLINESTATS_V3;
 
         private final boolean enabled;
 

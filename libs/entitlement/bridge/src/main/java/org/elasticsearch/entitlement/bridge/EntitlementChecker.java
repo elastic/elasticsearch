@@ -48,7 +48,10 @@ import java.nio.channels.CompletionHandler;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.nio.channels.spi.SelectorProvider;
 import java.nio.charset.Charset;
+import java.nio.file.FileStore;
+import java.nio.file.LinkOption;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.attribute.UserPrincipal;
@@ -213,6 +216,8 @@ public interface EntitlementChecker {
     void check$jdk_vm_ci_services_Services$$load(Class<?> callerClass, Class<?> service);
 
     void check$jdk_vm_ci_services_Services$$loadSingle(Class<?> callerClass, Class<?> service, boolean required);
+
+    void check$java_nio_charset_spi_CharsetProvider$(Class<?> callerClass);
 
     /// /////////////////
     //
@@ -411,6 +416,16 @@ public interface EntitlementChecker {
 
     void check$sun_nio_ch_DatagramChannelImpl$receive(Class<?> callerClass, DatagramChannel that, ByteBuffer dst);
 
+    // providers (SPI)
+
+    // protected constructors
+    void check$java_nio_channels_spi_SelectorProvider$(Class<?> callerClass);
+
+    void check$java_nio_channels_spi_AsynchronousChannelProvider$(Class<?> callerClass);
+
+    // provider methods (dynamic)
+    void checkSelectorProviderInheritedChannel(Class<?> callerClass, SelectorProvider that);
+
     /// /////////////////
     //
     // Load native libraries
@@ -501,10 +516,31 @@ public interface EntitlementChecker {
     void check$java_util_Scanner$(Class<?> callerClass, File source, Charset charset);
 
     // nio
+    void check$java_nio_file_Files$$getOwner(Class<?> callerClass, Path path, LinkOption... options);
+
     void check$java_nio_file_Files$$probeContentType(Class<?> callerClass, Path path);
 
     void check$java_nio_file_Files$$setOwner(Class<?> callerClass, Path path, UserPrincipal principal);
 
     // file system providers
     void checkNewInputStream(Class<?> callerClass, FileSystemProvider that, Path path, OpenOption... options);
+
+    // file store
+    void checkGetFileStoreAttributeView(Class<?> callerClass, FileStore that, Class<?> type);
+
+    void checkGetAttribute(Class<?> callerClass, FileStore that, String attribute);
+
+    void checkGetBlockSize(Class<?> callerClass, FileStore that);
+
+    void checkGetTotalSpace(Class<?> callerClass, FileStore that);
+
+    void checkGetUnallocatedSpace(Class<?> callerClass, FileStore that);
+
+    void checkGetUsableSpace(Class<?> callerClass, FileStore that);
+
+    void checkIsReadOnly(Class<?> callerClass, FileStore that);
+
+    void checkName(Class<?> callerClass, FileStore that);
+
+    void checkType(Class<?> callerClass, FileStore that);
 }

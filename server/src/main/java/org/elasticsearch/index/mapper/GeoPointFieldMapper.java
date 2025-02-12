@@ -27,7 +27,6 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SimpleVectorTileFormatter;
 import org.elasticsearch.common.unit.DistanceUnit;

@@ -379,7 +379,7 @@ public class DriverTests extends ESTestCase {
         private final ThreadPool threadPool;
 
         SwitchContextOperator(DriverContext driverContext, ThreadPool threadPool) {
-            super(driverContext, between(1, 3));
+            super(driverContext, threadPool.getThreadContext(), between(1, 3));
             this.threadPool = threadPool;
         }
 

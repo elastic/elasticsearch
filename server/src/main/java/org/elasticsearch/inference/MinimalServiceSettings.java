@@ -201,7 +201,7 @@ public record MinimalServiceSettings(
     public String toString() {
         final StringBuilder sb = new StringBuilder();
         sb.append("service=").append(service);
-        sb.append("task_type=").append(taskType);
+        sb.append(", task_type=").append(taskType);
         if (dimensions != null) {
             sb.append(", dimensions=").append(dimensions);
         }
@@ -244,5 +244,16 @@ public record MinimalServiceSettings(
 
     public ModelConfigurations toModelConfigurations(String inferenceEntityId) {
         return new ModelConfigurations(inferenceEntityId, taskType, service == null ? UNKNOWN_SERVICE : service, this);
+    }
+
+    /**
+     * Checks if the given {@link MinimalServiceSettings} is equivalent to the current definition.
+     */
+    public boolean canMergeWith(MinimalServiceSettings other) {
+        return taskType == other.taskType
+            && dimensions == other.dimensions
+            && similarity == other.similarity
+            && elementType == other.elementType
+            && (service == null || service == other.service);
     }
 }

@@ -509,8 +509,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
                     exc.getMessage(),
                     containsString(
                         "Cannot update parameter [model_settings] "
-                            + "from [task_type=sparse_embedding] "
-                            + "to [task_type=text_embedding, dimensions=10, similarity=cosine, element_type=float]"
+                            + "from [service=null, task_type=sparse_embedding] "
+                            + "to [service=null, task_type=text_embedding, dimensions=10, similarity=cosine, element_type=float]"
                     )
                 );
             }

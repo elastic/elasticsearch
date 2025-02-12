@@ -548,7 +548,11 @@ public class ModelRegistry implements ClusterStateListener {
                 // Since none of our updates succeeded at this point, we can simply return.
                 finalListener.onFailure(
                     new ElasticsearchStatusException(
-                        format("Failed to update inference endpoint [%s] due to [%s]", inferenceEntityId),
+                        format(
+                            "Failed to update inference endpoint [%s] due to [%s]",
+                            inferenceEntityId,
+                            configResponse.buildFailureMessage()
+                        ),
                         RestStatus.INTERNAL_SERVER_ERROR,
                         configResponse.buildFailureMessage()
                     )

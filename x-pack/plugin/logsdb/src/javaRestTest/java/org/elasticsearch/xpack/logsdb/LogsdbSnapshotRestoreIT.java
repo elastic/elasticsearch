@@ -223,13 +223,8 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
     static void snapshotAndFail(String arrayType) throws IOException {
         String dataStreamName = "logs-my-test";
         String repositoryName = "my-repository";
-        if (true) {
-            var repositorySettings = Settings.builder().put("delegate_type", "fs").put("location", getRepoPath()).build();
-            registerRepository(repositoryName, "source", true, repositorySettings);
-        } else {
-            var repositorySettings = Settings.builder().put("location", getRepoPath()).build();
-            registerRepository(repositoryName, FsRepository.TYPE, true, repositorySettings);
-        }
+        var repositorySettings = Settings.builder().put("delegate_type", "fs").put("location", getRepoPath()).build();
+        registerRepository(repositoryName, "source", true, repositorySettings);
 
         putTemplate("my-template", LOGS_TEMPLATE.replace("{{source_mode}}", "synthetic").replace("{{array_type}}", arrayType));
         for (int i = 0; i < 100; i++) {

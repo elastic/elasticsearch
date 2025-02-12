@@ -27,7 +27,7 @@ public class MinimalServiceSettingsTests extends AbstractXContentTestCase<Minima
             similarity = randomFrom(SimilarityMeasure.values());
             elementType = randomFrom(DenseVectorFieldMapper.ElementType.values());
         }
-        return new MinimalServiceSettings(taskType, dimensions, similarity, elementType);
+        return new MinimalServiceSettings(randomAlphaOfLength(10), taskType, dimensions, similarity, elementType);
     }
 
     @Override

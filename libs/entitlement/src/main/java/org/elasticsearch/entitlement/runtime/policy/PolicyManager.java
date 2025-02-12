@@ -20,6 +20,7 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlemen
 import org.elasticsearch.entitlement.runtime.policy.entitlements.InboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetworkEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.ReadStoreAttributesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.SetHttpsConnectionPropertiesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.WriteSystemPropertiesEntitlement;
 import org.elasticsearch.logging.LogManager;
@@ -181,6 +182,14 @@ public class PolicyManager {
         neverEntitled(callerClass, () -> "start process");
     }
 
+    public void checkWriteStoreAttributes(Class<?> callerClass) {
+        neverEntitled(callerClass, () -> "change file store attributes");
+    }
+
+    public void checkReadStoreAttributes(Class<?> callerClass) {
+        checkEntitlementPresent(callerClass, ReadStoreAttributesEntitlement.class);
+    }
+
     /**
      * @param operationDescription is only called when the operation is not trivially allowed, meaning the check is about to fail;
      *                            therefore, its performance is not a major concern.
@@ -283,6 +292,15 @@ public class PolicyManager {
                 )
             );
         }
+    }
+
+    /**
+     * Invoked when we try to get an arbitrary {@code FileAttributeView} class. Such a class can modify attributes, like owner etc.;
+     * we could think about introducing checks for each of the operations, but for now we over-approximate this and simply deny when it is
+     * used directly.
+     */
+    public void checkGetFileAttributeView(Class<?> callerClass) {
+        neverEntitled(callerClass, () -> "get file attribute view");
     }
 
     /**

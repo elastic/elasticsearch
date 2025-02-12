@@ -401,7 +401,7 @@ public final class DateFieldMapper extends FieldMapper {
             final String fullFieldName = context.buildFullName(leafName());
             boolean hasDocValuesSkipper = useDocValuesSkipper
                 && indexCreatedVersion.onOrAfter(IndexVersions.TIMESTAMP_DOC_VALUES_SPARSE_INDEX)
-                && hasDocValuesSkipper(docValues.getValue(), indexMode, indexSortConfig, fullFieldName);
+                && shouldUseDocValuesSkipper(docValues.getValue(), indexMode, indexSortConfig, fullFieldName);
             boolean hasInvertedIndex = hasDocValuesSkipper == false
                 && index.getValue()
                 && indexCreatedVersion.isLegacyIndexVersion() == false;
@@ -1023,7 +1023,7 @@ public final class DateFieldMapper extends FieldMapper {
         this.hasDocValuesSkipper = hasDocValuesSkipper;
     }
 
-    private static boolean hasDocValuesSkipper(
+    private static boolean shouldUseDocValuesSkipper(
         boolean hasDocValues,
         final IndexMode indexMode,
         final IndexSortConfig indexSortConfig,

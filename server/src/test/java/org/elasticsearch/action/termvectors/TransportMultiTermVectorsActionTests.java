@@ -38,7 +38,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.EmptySystemIndices;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
@@ -51,6 +50,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -73,7 +73,6 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
     private static ClusterService clusterService;
     private static ProjectResolver projectResolver;
     private static TransportMultiTermVectorsAction transportAction;
-    private static TransportShardMultiTermsVectorAction shardAction;
 
     @BeforeClass
     public static void beforeClass() throws Exception {
@@ -144,12 +143,8 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
             .metadata(new Metadata.Builder().put(project).build())
             .build();
 
-        final ShardIterator index1ShardIterator = mock(ShardIterator.class);
-        when(index1ShardIterator.shardId()).thenReturn(new ShardId(index1, randomInt()));
-
-        final ShardIterator index2ShardIterator = mock(ShardIterator.class);
-        when(index2ShardIterator.shardId()).thenReturn(new ShardId(index2, randomInt()));
-
+        final ShardIterator index1ShardIterator = new ShardIterator(new ShardId(index1, randomInt()), Collections.emptyList());
+        final ShardIterator index2ShardIterator = new ShardIterator(new ShardId(index2, randomInt()), Collections.emptyList());
         final OperationRouting operationRouting = mock(OperationRouting.class);
         when(
             operationRouting.getShards(
@@ -174,23 +169,6 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
         when(clusterService.localNode()).thenReturn(transportService.getLocalNode());
         when(clusterService.state()).thenReturn(clusterState);
         when(clusterService.operationRouting()).thenReturn(operationRouting);
-
-        shardAction = new TransportShardMultiTermsVectorAction(
-            clusterService,
-            transportService,
-            mock(IndicesService.class),
-            threadPool,
-            new ActionFilters(emptySet()),
-            projectResolver,
-            new Resolver()
-        ) {
-            @Override
-            protected void doExecute(
-                Task task,
-                MultiTermVectorsShardRequest request,
-                ActionListener<MultiTermVectorsShardResponse> listener
-            ) {}
-        };
     }
 
     @AfterClass
@@ -200,7 +178,6 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
         transportService = null;
         clusterService = null;
         transportAction = null;
-        shardAction = null;
     }
 
     public void testTransportMultiGetAction() {

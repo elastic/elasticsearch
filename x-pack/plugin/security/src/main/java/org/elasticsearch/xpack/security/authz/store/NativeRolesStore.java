@@ -37,7 +37,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseUtils;
@@ -142,8 +141,6 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
     private final ClusterService clusterService;
 
-    private final FeatureService featureService;
-
     private final ReservedRoleNameChecker reservedRoleNameChecker;
 
     private final NamedXContentRegistry xContentRegistry;
@@ -154,7 +151,6 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         XPackLicenseState licenseState,
         SecurityIndexManager securityIndex,
         ClusterService clusterService,
-        FeatureService featureService,
         ReservedRoleNameChecker reservedRoleNameChecker,
         NamedXContentRegistry xContentRegistry
     ) {
@@ -163,7 +159,6 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         this.licenseState = licenseState;
         this.securityIndex = securityIndex;
         this.clusterService = clusterService;
-        this.featureService = featureService;
         this.reservedRoleNameChecker = reservedRoleNameChecker;
         this.xContentRegistry = xContentRegistry;
         this.enabled = settings.getAsBoolean(NATIVE_ROLES_ENABLED, true);

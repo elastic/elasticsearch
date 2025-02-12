@@ -294,6 +294,14 @@ public class PolicyManager {
         }
     }
 
+    public void checkFileDescriptorRead(Class<?> callerClass) {
+        neverEntitled(callerClass, () -> "read file descriptor");
+    }
+
+    public void checkFileDescriptorWrite(Class<?> callerClass) {
+        neverEntitled(callerClass, () -> "write file descriptor");
+    }
+
     /**
      * Check for operations that can access sensitive network information, e.g. secrets, tokens or SSL sessions
      */

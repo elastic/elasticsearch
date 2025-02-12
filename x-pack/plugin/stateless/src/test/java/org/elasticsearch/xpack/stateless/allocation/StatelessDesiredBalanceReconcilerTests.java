@@ -26,20 +26,15 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsAndWeightsCalculator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
-import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceReconciler;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardAssignment;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
@@ -129,22 +124,6 @@ public class StatelessDesiredBalanceReconcilerTests extends ESAllocationTestCase
     private static void reconcile(RoutingAllocation routingAllocation, DesiredBalance desiredBalance) {
         final var threadPool = mock(ThreadPool.class);
         when(threadPool.relativeTimeInMillisSupplier()).thenReturn(new AtomicLong()::incrementAndGet);
-        new DesiredBalanceReconciler(createBuiltInClusterSettings(), threadPool, DesiredBalanceMetrics.NOOP, EMPTY_NODE_ALLOCATION_STATS)
-            .reconcile(desiredBalance, routingAllocation);
+        new DesiredBalanceReconciler(createBuiltInClusterSettings(), threadPool).reconcile(desiredBalance, routingAllocation);
     }
-
-    private static final NodeAllocationStatsAndWeightsCalculator EMPTY_NODE_ALLOCATION_STATS = new NodeAllocationStatsAndWeightsCalculator(
-        WriteLoadForecaster.DEFAULT,
-        createBuiltInClusterSettings()
-    ) {
-        @Override
-        public Map<String, NodeAllocationStatsAndWeight> nodesAllocationStatsAndWeights(
-            Metadata metadata,
-            RoutingNodes routingNodes,
-            ClusterInfo clusterInfo,
-            @Nullable DesiredBalance desiredBalance
-        ) {
-            return Map.of();
-        }
-    };
 }

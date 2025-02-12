@@ -961,8 +961,16 @@ public class ElasticInferenceServiceTests extends ESSingleNodeTestCase {
                 service.defaultConfigIds(),
                 is(
                     List.of(
-                        new InferenceService.DefaultConfigId(".elser-v2-elastic", MinimalServiceSettings.sparseEmbedding(ElasticInferenceService.NAME), service),
-                        new InferenceService.DefaultConfigId(".rainbow-sprinkles-elastic", MinimalServiceSettings.chatCompletion(ElasticInferenceService.NAME), service)
+                        new InferenceService.DefaultConfigId(
+                            ".elser-v2-elastic",
+                            MinimalServiceSettings.sparseEmbedding(ElasticInferenceService.NAME),
+                            service
+                        ),
+                        new InferenceService.DefaultConfigId(
+                            ".rainbow-sprinkles-elastic",
+                            MinimalServiceSettings.chatCompletion(ElasticInferenceService.NAME),
+                            service
+                        )
                     )
                 )
             );

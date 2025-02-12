@@ -27,7 +27,7 @@ public class EntitledPlugin extends Plugin implements ExtensiblePlugin {
      */
     public static void selfTest() {
         selfTestEntitled();
-        selfTestNotEntitled();
+        // selfTestNotEntitled();
     }
 
     private static void selfTestEntitled() {

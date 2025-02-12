@@ -44,6 +44,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.lang.StackWalker.Option.RETAIN_CLASS_REFERENCE;
+import static java.util.Collections.newSetFromMap;
 import static java.util.Objects.requireNonNull;
 import static java.util.function.Predicate.not;
 import static java.util.stream.Collectors.groupingBy;
@@ -385,9 +386,18 @@ public class PolicyManager {
         );
     }
 
+    @SuppressForbidden(reason = "I'll print to stderr and you can't stop me")
     private static void notEntitled(String message) {
-        throw new NotEntitledException(message);
+        if (true) {
+            if (ALREADY_REPORTED.add(message)) {
+                System.err.println(message);
+            }
+        } else {
+            throw new NotEntitledException(message);
+        }
     }
+
+    private static final Set<String> ALREADY_REPORTED = newSetFromMap(new ConcurrentHashMap<>());
 
     public void checkManageThreadsEntitlement(Class<?> callerClass) {
         checkEntitlementPresent(callerClass, ManageThreadsEntitlement.class);

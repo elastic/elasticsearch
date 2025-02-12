@@ -33,6 +33,8 @@ public final class MemoryAccountingBytesRefCounted extends AbstractRefCounted {
 
     @Override
     protected void closeInternal() {
-        breaker.addWithoutBreaking(-bytes);
+        if (bytes != 0L) {
+            breaker.addWithoutBreaking(-bytes);
+        }
     }
 }

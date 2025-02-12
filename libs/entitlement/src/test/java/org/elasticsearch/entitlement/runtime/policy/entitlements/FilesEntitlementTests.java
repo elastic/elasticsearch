@@ -13,13 +13,24 @@ import org.elasticsearch.entitlement.runtime.policy.PolicyValidationException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
+import java.util.Map;
+
+import static org.hamcrest.Matchers.is;
 
 public class FilesEntitlementTests extends ESTestCase {
 
     public void testEmptyBuild() {
         PolicyValidationException pve = expectThrows(PolicyValidationException.class, () -> FilesEntitlement.build(List.of()));
-        assertEquals(pve.getMessage(), "must specify at least one path");
+        assertEquals("must specify at least one path", pve.getMessage());
         pve = expectThrows(PolicyValidationException.class, () -> FilesEntitlement.build(null));
-        assertEquals(pve.getMessage(), "must specify at least one path");
+        assertEquals("must specify at least one path", pve.getMessage());
+    }
+
+    public void testNotABaseDir() {
+        var ex = expectThrows(
+            PolicyValidationException.class,
+            () -> FilesEntitlement.build(List.of((Map.of("path", "foo", "mode", "read", "base_dir", "bar"))))
+        );
+        assertThat(ex.getMessage(), is("invalid base_dir: bar, valid values: [config, data, temp]"));
     }
 }

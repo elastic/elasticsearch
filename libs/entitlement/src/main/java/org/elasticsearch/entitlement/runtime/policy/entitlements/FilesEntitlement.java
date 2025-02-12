@@ -13,9 +13,12 @@ import org.elasticsearch.entitlement.runtime.policy.ExternalEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.PolicyValidationException;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Describes a file entitlement with a path and mode.
@@ -50,6 +53,15 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         }
     }
 
+    private static BaseDir parseBaseDir(String baseDir) {
+        return switch (baseDir) {
+            case "config" -> BaseDir.CONFIG;
+            case "data" -> BaseDir.DATA;
+            case "temp" -> BaseDir.TEMP;
+            default -> throw new PolicyValidationException("invalid base_dir: " + baseDir + ", valid values: [config, data, temp]");
+        };
+    }
+
     @ExternalEntitlement(parameterNames = { "paths" }, esModulesOnly = false)
     @SuppressWarnings("unchecked")
     public static FilesEntitlement build(List<Object> paths) {
@@ -68,16 +80,8 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
                 throw new PolicyValidationException("files entitlement must contain mode for every listed file");
             }
             String baseDirString = file.remove("base_dir");
-            BaseDir baseDir = BaseDir.NONE;
-            if (baseDirString != null) {
-                if ("config".equals(baseDirString)) {
-                    baseDir = BaseDir.CONFIG;
-                } else {
-                    throw new PolicyValidationException(
-                        "unexpected basedir [" + baseDirString + "] for in a listed file for files entitlement"
-                    );
-                }
-            }
+            final BaseDir baseDir = baseDirString == null ? BaseDir.NONE : parseBaseDir(baseDirString);
+
             if (file.isEmpty() == false) {
                 throw new PolicyValidationException("unknown key(s) " + file + " in a listed file for files entitlement");
             }

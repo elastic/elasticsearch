@@ -1,5 +1,0 @@
-pr: 121120
-summary: Revert "Reduce Data Loss in System Indices Migration 8x"
-area: Infra/Core
-type: bug
-issues: []

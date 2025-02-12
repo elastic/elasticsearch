@@ -854,6 +854,82 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     // old io (ie File)
 
     @Override
+    public void check$java_io_File$createNewFile(Class<?> callerClass, File file) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$$createTempFile(Class<?> callerClass, String prefix, String suffix, File directory) {
+        policyManager.checkFileWrite(callerClass, directory);
+    }
+
+    @Override
+    public void check$java_io_File$delete(Class<?> callerClass, File file) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$deleteOnExit(Class<?> callerClass, File file) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$mkdir(Class<?> callerClass, File file) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$mkdirs(Class<?> callerClass, File file) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$renameTo(Class<?> callerClass, File file, File dest) {
+        policyManager.checkFileRead(callerClass, file);
+        policyManager.checkFileWrite(callerClass, dest);
+    }
+
+    @Override
+    public void check$java_io_File$setExecutable(Class<?> callerClass, File file, boolean executable) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$setExecutable(Class<?> callerClass, File file, boolean executable, boolean ownerOnly) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$setLastModified(Class<?> callerClass, File file, long time) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$setReadable(Class<?> callerClass, File file, boolean readable) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$setReadable(Class<?> callerClass, File file, boolean readable, boolean ownerOnly) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$setReadOnly(Class<?> callerClass, File file) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$setWritable(Class<?> callerClass, File file, boolean writable) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$setWritable(Class<?> callerClass, File file, boolean writable, boolean ownerOnly) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
     public void check$java_io_FileOutputStream$(Class<?> callerClass, String name) {
         policyManager.checkFileWrite(callerClass, new File(name));
     }

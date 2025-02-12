@@ -201,7 +201,7 @@ public class PolicyManager {
             return;
         }
 
-        throw new NotEntitledException(
+        notEntitled(
             Strings.format(
                 "Not entitled: component [%s], module [%s], class [%s], operation [%s]",
                 getEntitlements(requestingClass).componentName(),
@@ -260,7 +260,7 @@ public class PolicyManager {
 
         ModuleEntitlements entitlements = getEntitlements(requestingClass);
         if (entitlements.fileAccess().canRead(path) == false) {
-            throw new NotEntitledException(
+            notEntitled(
                 Strings.format(
                     "Not entitled: component [%s], module [%s], class [%s], entitlement [file], operation [read], path [%s]",
                     entitlements.componentName(),
@@ -285,7 +285,7 @@ public class PolicyManager {
 
         ModuleEntitlements entitlements = getEntitlements(requestingClass);
         if (entitlements.fileAccess().canWrite(path) == false) {
-            throw new NotEntitledException(
+            notEntitled(
                 Strings.format(
                     "Not entitled: component [%s], module [%s], class [%s], entitlement [file], operation [write], path [%s]",
                     entitlements.componentName(),
@@ -334,7 +334,7 @@ public class PolicyManager {
         Class<?> requestingClass
     ) {
         if (classEntitlements.hasEntitlement(entitlementClass) == false) {
-            throw new NotEntitledException(
+            notEntitled(
                 Strings.format(
                     "Not entitled: component [%s], module [%s], class [%s], entitlement [%s]",
                     classEntitlements.componentName(),
@@ -374,7 +374,7 @@ public class PolicyManager {
             );
             return;
         }
-        throw new NotEntitledException(
+        notEntitled(
             Strings.format(
                 "Not entitled: component [%s], module [%s], class [%s], entitlement [write_system_properties], property [%s]",
                 entitlements.componentName(),
@@ -383,6 +383,10 @@ public class PolicyManager {
                 property
             )
         );
+    }
+
+    private static void notEntitled(String message) {
+        throw new NotEntitledException(message);
     }
 
     public void checkManageThreadsEntitlement(Class<?> callerClass) {

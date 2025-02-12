@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -95,9 +94,7 @@ public class CrossClusterAsyncEnrichStopIT extends AbstractEnrichBasedCrossClust
         // wait until remote reduce task starts on c2
         assertBusy(() -> {
             List<TaskInfo> tasks = getDriverTasks(client(REMOTE_CLUSTER_2));
-            List<TaskInfo> reduceTasks = tasks.stream()
-                .filter(t -> t.status() instanceof DriverStatus ds && ds.taskDescription().equals("remote_reduce"))
-                .toList();
+            List<TaskInfo> reduceTasks = tasks.stream().filter(t -> t.description().contains("_LuceneSourceOperator") == false).toList();
             assertThat(reduceTasks, not(empty()));
         });
 
@@ -107,9 +104,7 @@ public class CrossClusterAsyncEnrichStopIT extends AbstractEnrichBasedCrossClust
         // wait until remote reduce tasks are gone
         assertBusy(() -> {
             List<TaskInfo> tasks = getDriverTasks(client(REMOTE_CLUSTER_2));
-            List<TaskInfo> reduceTasks = tasks.stream()
-                .filter(t -> t.status() instanceof DriverStatus ds && ds.taskDescription().equals("remote_reduce"))
-                .toList();
+            List<TaskInfo> reduceTasks = tasks.stream().filter(t -> t.description().contains("_LuceneSourceOperator") == false).toList();
             assertThat(reduceTasks, empty());
         });
 

@@ -84,7 +84,7 @@ public class EntitlementBootstrap {
         EntitlementBootstrap.bootstrapArgs = new BootstrapArgs(pluginPolicies, pluginResolver, dataDirs, configDir, tempDir);
         exportInitializationToAgent();
         loadAgent(findAgentJar());
-        // selfTest();
+        selfTest();
     }
 
     @SuppressForbidden(reason = "The VirtualMachine API is the only way to attach a java agent dynamically")

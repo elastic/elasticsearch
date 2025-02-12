@@ -14,9 +14,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.entitlement.qa.test.RestEntitlementsCheckAction;
 import org.junit.ClassRule;
-import org.junit.Ignore;
 
-@Ignore
 public class EntitlementsDeniedNonModularIT extends AbstractEntitlementsIT {
 
     @ClassRule

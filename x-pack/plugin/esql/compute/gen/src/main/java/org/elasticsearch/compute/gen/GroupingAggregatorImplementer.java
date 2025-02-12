@@ -99,8 +99,7 @@ public class GroupingAggregatorImplementer {
 
         this.init = requireStaticMethod(
             declarationType,
-            // This should be more restrictive and require org.elasticsearch.compute.aggregation.GroupingAggregatorState
-            requirePrimitiveOrImplements(elements, Types.RELEASABLE),
+            requirePrimitiveOrImplements(elements, Types.GROUPING_AGGREGATOR_STATE),
             requireName("init", "initGrouping"),
             requireAnyArgs("<arbitrary init arguments>")
         );
@@ -112,7 +111,8 @@ public class GroupingAggregatorImplementer {
             requireName("combine"),
             combineArgs(aggState, includeTimestampVector)
         );
-        this.aggParam = AggregationParameter.create(combine.getParameters().get(combine.getParameters().size() - 1).asType());
+        // TODO support multiple parameters
+        this.aggParam = AggregationParameter.create(combine.getParameters().getLast().asType());
 
         this.createParameters = init.getParameters()
             .stream()
@@ -125,7 +125,7 @@ public class GroupingAggregatorImplementer {
             (declarationType.getSimpleName() + "GroupingAggregatorFunction").replace("AggregatorGroupingAggregator", "GroupingAggregator")
         );
 
-        intermediateState = Arrays.stream(interStateAnno)
+        this.intermediateState = Arrays.stream(interStateAnno)
             .map(AggregatorImplementer.IntermediateStateDesc::newIntermediateStateDesc)
             .toList();
         this.includeTimestampVector = includeTimestampVector;
@@ -370,8 +370,7 @@ public class GroupingAggregatorImplementer {
     private MethodSpec addRawInputLoop(TypeName groupsType, TypeName valuesType) {
         boolean groupsIsBlock = groupsType.toString().endsWith("Block");
         boolean valuesIsBlock = valuesType.toString().endsWith("Block");
-        String methodName = "addRawInput";
-        MethodSpec.Builder builder = MethodSpec.methodBuilder(methodName);
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("addRawInput");
         builder.addModifiers(Modifier.PRIVATE);
         builder.addParameter(TypeName.INT, "positionOffset").addParameter(groupsType, "groups").addParameter(valuesType, "values");
         if (includeTimestampVector) {
@@ -443,8 +442,6 @@ public class GroupingAggregatorImplementer {
         warningsBlock(builder, () -> {
             if (aggParam.isBytesRef()) {
                 combineRawInputForBytesRef(builder, blockVariable, offsetVariable);
-            } else if (includeTimestampVector) {
-                combineRawInputWithTimestamp(builder, offsetVariable);
             } else if (valueType.isPrimitive() == false) {
                 throw new IllegalArgumentException("second parameter to combine must be a primitive, array or BytesRef: " + valueType);
             } else if (returnType.isPrimitive()) {
@@ -457,48 +454,75 @@ public class GroupingAggregatorImplementer {
         });
     }
 
+    private void combineRawInputForBytesRef(MethodSpec.Builder builder, String blockVariable, String offsetVariable) {
+        // scratch is a BytesRef var that must have been defined before the iteration starts
+        if (includeTimestampVector) {
+            if (offsetVariable.contains(" + ")) {
+                builder.addStatement("var valuePosition = $L", offsetVariable);
+                offsetVariable = "valuePosition";
+            }
+            builder.addStatement(
+                "$T.combine(state, groupId, timestamps.getLong($L), $L.getBytesRef($L, scratch))",
+                declarationType,
+                offsetVariable,
+                blockVariable,
+                offsetVariable
+            );
+        } else {
+            builder.addStatement("$T.combine(state, groupId, $L.getBytesRef($L, scratch))", declarationType, blockVariable, offsetVariable);
+        }
+    }
+
     private void combineRawInputForPrimitive(MethodSpec.Builder builder, String blockVariable, String offsetVariable) {
-        builder.addStatement(
-            "state.set(groupId, $T.combine(state.getOrDefault(groupId), $L.get$L($L)))",
-            declarationType,
-            blockVariable,
-            capitalize(aggParam.type().toString()),
-            offsetVariable
-        );
+        if (includeTimestampVector) {
+            if (offsetVariable.contains(" + ")) {
+                builder.addStatement("var valuePosition = $L", offsetVariable);
+                offsetVariable = "valuePosition";
+            }
+            builder.addStatement(
+                "$T.combine(state, groupId, timestamps.getLong($L), values.get$L($L))",
+                declarationType,
+                offsetVariable,
+                capitalize(aggParam.type().toString()),
+                offsetVariable
+            );
+        } else {
+            builder.addStatement(
+                "state.set(groupId, $T.combine(state.getOrDefault(groupId), $L.get$L($L)))",
+                declarationType,
+                blockVariable,
+                capitalize(aggParam.type().toString()),
+                offsetVariable
+            );
+        }
+    }
+
+    private void combineRawInputForVoid(MethodSpec.Builder builder, String blockVariable, String offsetVariable) {
+        if (includeTimestampVector) {
+            if (offsetVariable.contains(" + ")) {
+                builder.addStatement("var valuePosition = $L", offsetVariable);
+                offsetVariable = "valuePosition";
+            }
+            builder.addStatement(
+                "$T.combine(state, groupId, timestamps.getLong($L), values.get$L($L))",
+                declarationType,
+                offsetVariable,
+                capitalize(aggParam.type().toString()),
+                offsetVariable
+            );
+        } else {
+            builder.addStatement(
+                "$T.combine(state, groupId, $L.get$L($L))",
+                declarationType,
+                blockVariable,
+                capitalize(aggParam.type().toString()),
+                offsetVariable
+            );
+        }
     }
 
     private void combineRawInputForArray(MethodSpec.Builder builder, String arrayVariable) {
         warningsBlock(builder, () -> builder.addStatement("$T.combine(state, groupId, $L)", declarationType, arrayVariable));
-    }
-
-    private void combineRawInputForVoid(MethodSpec.Builder builder, String blockVariable, String offsetVariable) {
-        builder.addStatement(
-            "$T.combine(state, groupId, $L.get$L($L))",
-            declarationType,
-            blockVariable,
-            capitalize(aggParam.type().toString()),
-            offsetVariable
-        );
-    }
-
-    private void combineRawInputWithTimestamp(MethodSpec.Builder builder, String offsetVariable) {
-        String blockType = capitalize(aggParam.type().toString());
-        if (offsetVariable.contains(" + ")) {
-            builder.addStatement("var valuePosition = $L", offsetVariable);
-            offsetVariable = "valuePosition";
-        }
-        builder.addStatement(
-            "$T.combine(state, groupId, timestamps.getLong($L), values.get$L($L))",
-            declarationType,
-            offsetVariable,
-            blockType,
-            offsetVariable
-        );
-    }
-
-    private void combineRawInputForBytesRef(MethodSpec.Builder builder, String blockVariable, String offsetVariable) {
-        // scratch is a BytesRef var that must have been defined before the iteration starts
-        builder.addStatement("$T.combine(state, groupId, $L.getBytesRef($L, scratch))", declarationType, blockVariable, offsetVariable);
     }
 
     private void warningsBlock(MethodSpec.Builder builder, Runnable block) {

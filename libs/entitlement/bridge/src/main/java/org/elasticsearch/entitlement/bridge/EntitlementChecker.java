@@ -54,6 +54,7 @@ import java.nio.charset.Charset;
 import java.nio.file.AccessMode;
 import java.nio.file.CopyOption;
 import java.nio.file.DirectoryStream;
+import java.nio.file.FileStore;
 import java.nio.file.LinkOption;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
@@ -602,4 +603,23 @@ public interface EntitlementChecker {
     void checkSetAttribute(Class<?> callerClass, FileSystemProvider that, Path path, String attribute, Object value, LinkOption... options);
 
     void checkExists(Class<?> callerClass, FileSystemProvider that, Path path, LinkOption... options);
+
+    // file store
+    void checkGetFileStoreAttributeView(Class<?> callerClass, FileStore that, Class<?> type);
+
+    void checkGetAttribute(Class<?> callerClass, FileStore that, String attribute);
+
+    void checkGetBlockSize(Class<?> callerClass, FileStore that);
+
+    void checkGetTotalSpace(Class<?> callerClass, FileStore that);
+
+    void checkGetUnallocatedSpace(Class<?> callerClass, FileStore that);
+
+    void checkGetUsableSpace(Class<?> callerClass, FileStore that);
+
+    void checkIsReadOnly(Class<?> callerClass, FileStore that);
+
+    void checkName(Class<?> callerClass, FileStore that);
+
+    void checkType(Class<?> callerClass, FileStore that);
 }

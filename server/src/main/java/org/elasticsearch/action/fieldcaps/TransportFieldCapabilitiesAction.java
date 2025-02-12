@@ -606,6 +606,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                                 (CancellableTask) task,
                                 shardId,
                                 fieldNameFilter,
+                                request.fields(),
                                 request.filters(),
                                 request.allowedTypes(),
                                 request.indexFilter(),

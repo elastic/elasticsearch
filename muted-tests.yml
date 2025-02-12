@@ -404,6 +404,8 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/121611
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.SecureHdfsRepositoryAnalysisRestIT
   issue: https://github.com/elastic/elasticsearch/issues/122377
+- class: org.elasticsearch.repositories.blobstore.testkit.analyze.HdfsRepositoryAnalysisRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/122378
 
 # Examples:
 #

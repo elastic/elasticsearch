@@ -137,7 +137,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
         context.doc().add(new SortedDocValuesField(fieldType().name(), timeSeriesId));
 
-        TsidExtractingIdFieldMapper.createField(
+        BytesRef uidEncoded = TsidExtractingIdFieldMapper.createField(
             context,
             getIndexVersionCreated(context).before(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)
                 ? routingPathFields.routingBuilder()
@@ -148,10 +148,9 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         // We need to add the uid or id to nested Lucene documents so that when a document gets deleted, the nested documents are
         // also deleted. Usually this happens when the nested document is created (in DocumentParserContext#createNestedContext), but
         // for time-series indices the _id isn't available at that point.
-        var binaryId = context.doc().getField(IdFieldMapper.NAME).binaryValue();
         for (LuceneDocument doc : context.nonRootDocuments()) {
             assert doc.getField(IdFieldMapper.NAME) == null;
-            doc.add(new StringField(IdFieldMapper.NAME, binaryId, Field.Store.NO));
+            doc.add(new StringField(IdFieldMapper.NAME, uidEncoded, Field.Store.NO));
         }
     }
 

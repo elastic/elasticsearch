@@ -10,17 +10,18 @@ package org.elasticsearch.xpack.logsdb;
 import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -34,6 +35,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -78,11 +81,15 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
                 "@timestamp" : {
                   "type": "date"
                 },
-                "host.name": {
-                  "type": "keyword"
+                "host": {
+                  "properties": {
+                     "name": {
+                        "type": "keyword"
+                     }
+                  }
                 },
                 "pid": {
-                  "type": "long"
+                  "type": "integer"
                 },
                 "method": {
                   "type": "keyword"
@@ -104,8 +111,8 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
     static final String DOC_TEMPLATE = """
         {
             "@timestamp": "%s",
-            "host.name": "%s",
-            "pid": "%d",
+            "host": { "name": "%s"},
+            "pid": %d,
             "method": "%s",
             "message": "%s",
             "ip_address": "%s",
@@ -179,22 +186,22 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
         }
 
         putTemplate("my-template", LOGS_TEMPLATE.replace("{{source_mode}}", sourceMode).replace("{{array_type}}", arrayType));
+        String[] docs = new String[100];
         for (int i = 0; i < 100; i++) {
-            indexDocument(
-                dataStreamName,
-                document(
-                    Instant.now(),
-                    randomAlphaOfLength(10),
-                    randomNonNegativeLong(),
-                    randomFrom("PUT", "POST", "GET"),
-                    randomAlphaOfLength(32),
-                    randomIp(randomBoolean()),
-                    randomLongBetween(1_000_000L, 2_000_000L)
-                )
+            docs[i] = document(
+                Instant.now(),
+                String.format(Locale.ROOT, "host-%03d", i),
+                randomNonNegativeInt(),
+                randomFrom("PUT", "POST", "GET"),
+                randomAlphaOfLength(32),
+                randomIp(randomBoolean()),
+                randomLongBetween(1_000_000L, 2_000_000L)
             );
+            indexDocument(dataStreamName, docs[i]);
         }
         refresh(dataStreamName);
         assertDocCount(client(), dataStreamName, 100);
+        assertSource(dataStreamName, docs);
         assertDataStream(dataStreamName, sourceMode);
 
         String snapshotName = "my-snapshot";
@@ -205,11 +212,12 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
         List<?> failures = (List<?>) snapshotItem.get("failures");
         assertThat(failures, empty());
         deleteDataStream(dataStreamName);
-        assertDocCount(client(), dataStreamName, 0);
+        assertDocCount(dataStreamName, 0);
 
         restoreSnapshot(repositoryName, snapshotName, true);
         assertDataStream(dataStreamName, sourceMode);
-        assertDocCount(client(), dataStreamName, 100);
+        assertDocCount(dataStreamName, 100);
+        assertSource(dataStreamName, docs);
     }
 
     static void snapshotAndFail(String arrayType) throws IOException {
@@ -234,7 +242,7 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
                     randomFrom("PUT", "POST", "GET"),
                     randomAlphaOfLength(32),
                     randomIp(randomBoolean()),
-                    randomLongBetween(1_000_000L, 2_000_000L)
+                    randomIntBetween(1_000_000, 2_000_000)
                 )
             );
         }
@@ -326,15 +334,39 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
         return (String) ((Map<?, ?>) backingIndices.get(backingIndex)).get("index_name");
     }
 
-    public static void assertDocCount(RestClient client, String indexName, long docCount) throws IOException {
+    static void assertDocCount(String indexName, long docCount) throws IOException {
         Request countReq = new Request("GET", "/" + indexName + "/_count");
         countReq.addParameter("ignore_unavailable", "true");
-        ObjectPath resp = ObjectPath.createFromResponse(client.performRequest(countReq));
+        ObjectPath resp = ObjectPath.createFromResponse(client().performRequest(countReq));
         assertEquals(
             "expected " + docCount + " documents but it was a different number",
             docCount,
             Long.parseLong(resp.evaluate("count").toString())
         );
+    }
+
+    static void assertSource(String indexName, String[] docs) throws IOException {
+        Request searchReq = new Request("GET", "/" + indexName + "/_search");
+        searchReq.addParameter("size", String.valueOf(docs.length));
+        var response = client().performRequest(searchReq);
+        assertOK(response);
+        var responseBody = entityAsMap(response);
+        List<?> hits = (List<?>) ((Map<?, ?>) responseBody.get("hits")).get("hits");
+        assertThat(hits, hasSize(docs.length));
+        for (Object hit : hits) {
+            Map<?, ?> actualSource = (Map<?, ?>) ((Map<?, ?>) hit).get("_source");
+            String actualHost = (String) ((Map<?, ?>) actualSource.get("host")).get("name");
+            Map<?, ?> expectedSource = null;
+            for (String doc : docs) {
+                expectedSource =  XContentHelper.convertToMap(XContentType.JSON.xContent(), doc, false);
+                String expectedHost = (String) ((Map<?, ?>) expectedSource.get("host")).get("name");
+                if (expectedHost.equals(actualHost)) {
+                    break;
+                }
+            }
+
+            assertMap(actualSource, matchesMap(expectedSource));
+        }
     }
 
     @SuppressForbidden(reason = "TemporaryFolder only has io.File methods, not nio.File")

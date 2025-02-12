@@ -331,6 +331,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/121497
 - class: org.elasticsearch.ingest.geoip.FullClusterRestartIT
   issue: https://github.com/elastic/elasticsearch/issues/121935
+- class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
+  method: testExchangeSourceContinueOnFailure
+  issue: https://github.com/elastic/elasticsearch/issues/122408
 
 # Examples:
 #

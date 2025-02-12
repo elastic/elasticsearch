@@ -44,7 +44,7 @@ public class TransportDeleteInferenceEndpointActionTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        modelRegistry = new ModelRegistry(mock(Client.class));
+        modelRegistry = new ModelRegistry(mock(ClusterService.class), mock(Client.class));
         threadPool = createThreadPool(inferenceUtilityPool());
         action = new TransportDeleteInferenceEndpointAction(
             mock(TransportService.class),

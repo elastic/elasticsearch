@@ -16,6 +16,7 @@ import org.elasticsearch.inference.MinimalServiceSettingsTests;
 import org.elasticsearch.test.SimpleDiffableWireSerializationTestCase;
 
 import java.util.Map;
+import java.util.Set;
 
 public class ModelRegistryMetadataDiffTests extends SimpleDiffableWireSerializationTestCase<Metadata.Custom> {
     @Override
@@ -55,7 +56,7 @@ public class ModelRegistryMetadataDiffTests extends SimpleDiffableWireSerializat
         if (randomBoolean() || instance.getModelMap().isEmpty()) {
             return instance.withAddedModel(randomAlphaOfLength(10), MinimalServiceSettingsTests.randomInstance());
         } else {
-            return instance.withRemovedModel(randomFrom(instance.getModelMap().keySet()));
+            return instance.withRemovedModel(Set.of(randomFrom(instance.getModelMap().keySet())));
         }
     }
 }

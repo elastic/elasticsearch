@@ -54,6 +54,7 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
 
     private static final String SYSTEM_DATA_STREAM_NAME = ".my-ds";
     private static final String SYSTEM_DATA_STREAM_INDEX_NAME = DataStream.BACKING_INDEX_PREFIX + SYSTEM_DATA_STREAM_NAME + "-1";
+    private static final String SYSTEM_DATA_STREAM_FAILSTORE_NAME = DataStream.FAILURE_STORE_PREFIX + SYSTEM_DATA_STREAM_NAME;
     private static final SystemDataStreamDescriptor SYSTEM_DATA_STREAM_DESCRIPTOR = new SystemDataStreamDescriptor(
         SYSTEM_DATA_STREAM_NAME,
         "System datastream for test",
@@ -105,17 +106,26 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
             .system(false)
             .settings(getSettingsBuilder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true))
             .build();
+        IndexMetadata fsIndexMetadata = IndexMetadata.builder(SYSTEM_DATA_STREAM_FAILSTORE_NAME)
+            .system(false)
+            .settings(getSettingsBuilder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true))
+            .build();
+        DataStream.DataStreamIndices failureIndices = DataStream.DataStreamIndices
+            .failureIndicesBuilder(Collections.singletonList(fsIndexMetadata.getIndex()))
+            .build();
         DataStream dataStream = DataStream.builder(SYSTEM_DATA_STREAM_NAME, Collections.singletonList(dsIndexMetadata.getIndex()))
+            .setFailureIndices(failureIndices)
             .setHidden(false)
             .setSystem(false)
             .build();
 
         assertTrue(dataStream.containsIndex(dsIndexMetadata.getIndex().getName()));
-        assertTrue("Metadata should require update but does not", service.requiresUpdate(dsIndexMetadata));
+        assertTrue(dataStream.containsIndex(fsIndexMetadata.getIndex().getName()));
 
         Metadata.Builder clusterMetadata = new Metadata.Builder();
         clusterMetadata.put(dataStream);
         clusterMetadata.put(dsIndexMetadata, true);
+        clusterMetadata.put(fsIndexMetadata, true);
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("system-index-metadata-upgrade-service-tests"))
             .metadata(clusterMetadata.build())
@@ -132,6 +142,10 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
         IndexMetadata updatedIndexMetadata = newState.metadata().index(dsIndexMetadata.getIndex().getName());
         assertThat(updatedIndexMetadata.isSystem(), equalTo(true));
         assertThat(updatedIndexMetadata.isHidden(), equalTo(true));
+
+        IndexMetadata updatedFailstoreMetadata = newState.metadata().index(fsIndexMetadata.getIndex().getName());
+        assertThat(updatedFailstoreMetadata.isSystem(), equalTo(true));
+        assertThat(updatedFailstoreMetadata.isHidden(), equalTo(true));
     }
 
     /**

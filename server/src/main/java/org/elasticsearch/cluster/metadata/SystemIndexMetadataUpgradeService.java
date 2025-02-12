@@ -24,8 +24,11 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Stream;
 
 /**
  * A service responsible for updating the metadata used by system indices.
@@ -41,8 +44,6 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
 
     private volatile boolean updateTaskPending = false;
 
-    private volatile long triggeredVersion = -1L;
-
     public SystemIndexMetadataUpgradeService(SystemIndices systemIndices, ClusterService clusterService) {
         this.systemIndices = systemIndices;
         this.clusterService = clusterService;
@@ -50,36 +51,48 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        Metadata currentMetadata = event.state().metadata();
+        Metadata previousMetadata = event.previousState().metadata();
         if (updateTaskPending == false
             && event.localNodeMaster()
             && (event.previousState().nodes().isLocalNodeElectedMaster() == false
-                || event.state().metadata().indices() != event.previousState().metadata().indices())) {
-            final Map<String, IndexMetadata> indexMetadataMap = event.state().metadata().indices();
-            final var previousIndices = event.previousState().metadata().indices();
-            final long triggerV = event.state().version();
-            triggeredVersion = triggerV;
+                || currentMetadata.indices() != previousMetadata.indices()
+                || currentMetadata.dataStreams() != previousMetadata.dataStreams())) {
+            final Map<String, IndexMetadata> indexMetadataMap = currentMetadata.indices();
+            final var previousIndices = previousMetadata.indices();
+            Map<String, DataStream> dataStreams = currentMetadata.dataStreams();
+            Map<String, DataStream> previousDataStreams = previousMetadata.dataStreams();
             // Fork to the management pool to avoid blocking the cluster applier thread unnecessarily for very large index counts
             // TODO: we should have a more efficient way of getting just the changed indices so that we don't have to fork here
             clusterService.threadPool().executor(ThreadPool.Names.MANAGEMENT).execute(new AbstractRunnable() {
                 @Override
                 protected void doRun() {
-                    if (triggeredVersion != triggerV) {
-                        // don't run if another newer check task was triggered already
-                        return;
-                    }
                     for (Map.Entry<String, IndexMetadata> cursor : indexMetadataMap.entrySet()) {
                         if (cursor.getValue() != previousIndices.get(cursor.getKey())) {
                             IndexMetadata indexMetadata = cursor.getValue();
                             if (requiresUpdate(indexMetadata)) {
-                                updateTaskPending = true;
-                                submitUnbatchedTask(
-                                    "system_index_metadata_upgrade_service {system metadata change}",
-                                    new SystemIndexMetadataUpdateTask()
-                                );
+                                submitUpdateTask();
                                 break;
                             }
                         }
                     }
+                    for (Map.Entry<String, DataStream> cursor : dataStreams.entrySet()) {
+                        if (cursor.getValue() != previousDataStreams.get(cursor.getKey())) {
+                            DataStream dataStream = cursor.getValue();
+                            if (requiresUpdate(dataStream)) {
+                                submitUpdateTask();
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                private void submitUpdateTask() {
+                    updateTaskPending = true;
+                    submitUnbatchedTask(
+                        "system_index_metadata_upgrade_service {system metadata change}",
+                        new SystemIndexMetadataUpdateTask()
+                    );
                 }
 
                 @Override
@@ -108,14 +121,33 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
     }
 
     // package-private for testing
+    boolean requiresUpdate(DataStream dataStream) {
+        final boolean shouldBeSystem = shouldBeSystem(dataStream);
+
+        // should toggle system index status
+        if (shouldBeSystem != dataStream.isSystem()) {
+            return true;
+        }
+
+        if (shouldBeSystem) {
+            return dataStream.isHidden() == false;
+        }
+
+        return false;
+    }
+
+    private boolean shouldBeSystem(DataStream dataStream) {
+        return systemIndices.isSystemDataStream(dataStream.getName());
+    }
+
+    // package-private for testing
     static boolean isVisible(IndexMetadata indexMetadata) {
         return indexMetadata.getSettings().getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, false) == false;
     }
 
     // package-private for testing
     boolean shouldBeSystem(IndexMetadata indexMetadata) {
-        return systemIndices.isSystemIndex(indexMetadata.getIndex())
-            || systemIndices.isSystemIndexBackingDataStream(indexMetadata.getIndex().getName());
+        return systemIndices.isSystemIndex(indexMetadata.getIndex());
     }
 
     // package-private for testing
@@ -139,11 +171,13 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
         public ClusterState execute(ClusterState currentState) {
             List<IndexMetadata> updatedMetadata = updateIndices(currentState);
             List<DataStream> updatedDataStreams = updateDataStreams(currentState);
+            List<IndexMetadata> updatedBackingIndices = updateIndicesBackingDataStreams(currentState, updatedDataStreams);
 
             if (updatedMetadata.isEmpty() == false || updatedDataStreams.isEmpty() == false) {
                 Metadata.Builder builder = Metadata.builder(currentState.metadata());
                 updatedMetadata.forEach(idxMeta -> builder.put(idxMeta, true));
                 updatedDataStreams.forEach(builder::put);
+                updatedBackingIndices.forEach(idxMeta -> builder.put(idxMeta, true));
 
                 return ClusterState.builder(currentState).metadata(builder).build();
             }
@@ -156,43 +190,49 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
             for (Map.Entry<String, IndexMetadata> entry : indexMetadataMap.entrySet()) {
                 final IndexMetadata indexMetadata = entry.getValue();
                 final boolean shouldBeSystem = shouldBeSystem(indexMetadata);
-                IndexMetadata.Builder builder = IndexMetadata.builder(indexMetadata);
-                boolean updated = false;
-                if (shouldBeSystem != indexMetadata.isSystem()) {
-                    builder.system(indexMetadata.isSystem() == false);
-                    updated = true;
-                }
-                if (shouldBeSystem && isVisible(indexMetadata)) {
-                    builder.settings(Settings.builder().put(indexMetadata.getSettings()).put(IndexMetadata.SETTING_INDEX_HIDDEN, true));
-                    builder.settingsVersion(builder.settingsVersion() + 1);
-                    updated = true;
-                }
-                if (shouldBeSystem && hasVisibleAlias(indexMetadata)) {
-                    for (AliasMetadata aliasMetadata : indexMetadata.getAliases().values()) {
-                        if (Boolean.FALSE.equals(aliasMetadata.isHidden())) {
-                            builder.removeAlias(aliasMetadata.alias());
-                            builder.putAlias(
-                                AliasMetadata.builder(aliasMetadata.alias())
-                                    .filter(aliasMetadata.filter())
-                                    .indexRouting(aliasMetadata.indexRouting())
-                                    .isHidden(true)
-                                    .searchRouting(aliasMetadata.searchRouting())
-                                    .writeIndex(aliasMetadata.writeIndex())
-                            );
-                        }
-                    }
-                }
-                if (updated) {
-                    updatedMetadata.add(builder.build());
+                IndexMetadata updatedIndexMetadata = updateIndexIfNecessary(indexMetadata, shouldBeSystem);
+                if (updatedIndexMetadata != null) {
+                    updatedMetadata.add(updatedIndexMetadata);
                 }
             }
             return updatedMetadata;
         }
 
+        private IndexMetadata updateIndexIfNecessary(IndexMetadata indexMetadata, boolean shouldBeSystem) {
+            IndexMetadata.Builder builder = IndexMetadata.builder(indexMetadata);
+            boolean updated = false;
+            if (shouldBeSystem != indexMetadata.isSystem()) {
+                builder.system(indexMetadata.isSystem() == false);
+                updated = true;
+            }
+            if (shouldBeSystem && isVisible(indexMetadata)) {
+                builder.settings(Settings.builder().put(indexMetadata.getSettings()).put(IndexMetadata.SETTING_INDEX_HIDDEN, true));
+                builder.settingsVersion(builder.settingsVersion() + 1);
+                updated = true;
+            }
+            if (shouldBeSystem && hasVisibleAlias(indexMetadata)) {
+                for (AliasMetadata aliasMetadata : indexMetadata.getAliases().values()) {
+                    if (Boolean.FALSE.equals(aliasMetadata.isHidden())) {
+                        builder.removeAlias(aliasMetadata.alias());
+                        builder.putAlias(
+                            AliasMetadata.builder(aliasMetadata.alias())
+                                .filter(aliasMetadata.filter())
+                                .indexRouting(aliasMetadata.indexRouting())
+                                .isHidden(true)
+                                .searchRouting(aliasMetadata.searchRouting())
+                                .writeIndex(aliasMetadata.writeIndex())
+                        );
+                        updated = true;
+                    }
+                }
+            }
+            return updated ? builder.build() : null;
+        }
+
         private List<DataStream> updateDataStreams(ClusterState currentState) {
             List<DataStream> updatedDataStreams = new ArrayList<>();
             for (DataStream dataStream : currentState.getMetadata().dataStreams().values()) {
-                boolean shouldBeSystem = systemIndices.isSystemDataStream(dataStream.getName());
+                boolean shouldBeSystem = shouldBeSystem(dataStream);
                 if (dataStream.isSystem() != shouldBeSystem) {
                     DataStream.Builder dataStreamBuilder = dataStream.copy().setSystem(shouldBeSystem);
                     if (shouldBeSystem) {
@@ -203,6 +243,30 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
                 }
             }
             return updatedDataStreams;
+        }
+
+        private List<IndexMetadata> updateIndicesBackingDataStreams(ClusterState currentState, List<DataStream> updatedDataStreams) {
+            if (updatedDataStreams.isEmpty()) {
+                return Collections.emptyList();
+            }
+            Metadata metadata = currentState.metadata();
+            final List<IndexMetadata> updatedMetadata = new ArrayList<>();
+
+            for (DataStream updatedDataStream : updatedDataStreams) {
+                boolean shouldBeSystem = updatedDataStream.isSystem();
+                List<IndexMetadata> updatedIndicesMetadata = getIndicesBackingDataStreamMetadata(metadata, updatedDataStream)
+                    .map(idx -> updateIndexIfNecessary(idx, shouldBeSystem))
+                    .filter(Objects::nonNull)
+                    .toList();
+
+                updatedMetadata.addAll(updatedIndicesMetadata);
+            }
+            return updatedMetadata;
+        }
+
+        private Stream<IndexMetadata> getIndicesBackingDataStreamMetadata(Metadata metadata, DataStream dataStream) {
+            return Stream.concat(dataStream.getIndices().stream(), dataStream.getFailureIndices().stream())
+                .map(metadata::index);
         }
 
         @Override

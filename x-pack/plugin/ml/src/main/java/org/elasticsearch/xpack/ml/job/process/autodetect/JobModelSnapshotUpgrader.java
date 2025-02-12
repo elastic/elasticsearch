@@ -185,7 +185,7 @@ public final class JobModelSnapshotUpgrader {
             .setId(firstHit.getId())
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .execute(ActionListener.runAfter(ActionListener.wrap(deleteResponse -> {
-                if (deleteResponse.getResult() == DocWriteResponse.Result.DELETED == false) {
+                if ((deleteResponse.getResult() == DocWriteResponse.Result.DELETED) == false) {
                     logger.warn(
                         () -> format(
                             "[%s] [%s] failed to delete old snapshot [%s] result document, document not found",

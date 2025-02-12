@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
+import co.elastic.elasticsearch.stateless.commits.HollowShardsService;
 import co.elastic.elasticsearch.stateless.engine.HollowIndexEngine;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.MergeMetrics;
@@ -38,6 +39,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPoolStats;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -256,27 +258,72 @@ public class HollowIndexShardsMergesIT extends AbstractStatelessIntegTestCase {
             flush(indexName);
         }
 
-        var numberOfForceMerges = randomIntBetween(5, 10);
-        for (int i = 0; i < numberOfForceMerges; i++) {
-            assertNoFailures(safeGet(client().admin().indices().prepareForceMerge(indexName).execute()));
-        }
-
         var indicesStats = client().admin().indices().prepareStats(indexName).setMerge(true).get();
         var mergeCount = indicesStats.getIndices().get(indexName).getPrimaries().merge.getTotal();
         assertThat(mergeCount, is(equalTo(0L)));
 
-        var nodesStatsResponse = client().admin().cluster().prepareNodesStats(indexNodeB).setThreadPool(true).get();
-        assertThat(nodesStatsResponse.getNodes().size(), equalTo(1));
-        var nodeStats = nodesStatsResponse.getNodes().get(0);
-        var mergeThreadPoolStats = nodeStats.getThreadPool()
-            .stats()
-            .stream()
-            .filter(s -> Stateless.MERGE_THREAD_POOL.equals(s.name()))
-            .findAny()
-            .get();
+        var mergeThreadPoolStats = getMergeThreadPoolStats(indexNodeB);
 
         assertThat(mergeThreadPoolStats.completed(), is(equalTo(0L)));
         assertThat(mergeThreadPoolStats.active(), is(equalTo(0)));
+    }
+
+    public void testForceMergesUnHollowShards() throws Exception {
+        var indexNodeA = startMasterAndIndexNode(
+            Settings.builder()
+                .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1))
+                .put(SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(1))
+                .build()
+        );
+        var indexNodeB = startMasterAndIndexNode(
+            Settings.builder()
+                // Just to ensure that the shard is not hollowed during the test
+                .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueDays(1))
+                .put(SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(1))
+                .build()
+        );
+
+        var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.exclude._name", indexNodeB).build());
+        ensureGreen(indexName);
+
+        int numberOfSegments = randomIntBetween(2, 5);
+        for (int i = 0; i < numberOfSegments; i++) {
+            indexDocs(indexName, between(50, 100));
+            flush(indexName);
+        }
+
+        // Ensure that the shard becomes hollow
+        var hollowShardsService = internalCluster().getInstance(HollowShardsService.class, indexNodeA);
+        assertBusy(() -> assertThat(hollowShardsService.isHollowableIndexShard(findIndexShard(indexName)), equalTo(true)));
+
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
+        ensureGreen(indexName);
+
+        assertShardEngineIsInstanceOf(indexName, 0, indexNodeB, HollowIndexEngine.class);
+
+        var numberOfForceMerges = randomIntBetween(5, 10);
+        for (int i = 0; i < numberOfForceMerges; i++) {
+            assertNoFailures(safeGet(client().admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).execute()));
+        }
+
+        assertShardEngineIsInstanceOf(indexName, 0, indexNodeB, IndexEngine.class);
+
+        var indicesStats = client().admin().indices().prepareStats(indexName).setMerge(true).get();
+        var mergeCount = indicesStats.getIndices().get(indexName).getPrimaries().merge.getTotal();
+        assertThat(mergeCount, is(equalTo(1L)));
+
+        var mergeThreadPoolStats = getMergeThreadPoolStats(indexNodeB);
+
+        assertThat(mergeThreadPoolStats.completed(), is(equalTo(1L)));
+        assertThat(mergeThreadPoolStats.active(), is(equalTo(0)));
+    }
+
+    private static ThreadPoolStats.Stats getMergeThreadPoolStats(String node) {
+        var nodesStatsResponse = client().admin().cluster().prepareNodesStats(node).setThreadPool(true).get();
+        assertThat(nodesStatsResponse.getNodes().size(), equalTo(1));
+        var nodeStats = nodesStatsResponse.getNodes().get(0);
+        return nodeStats.getThreadPool().stats().stream().filter(s -> Stateless.MERGE_THREAD_POOL.equals(s.name())).findAny().get();
     }
 
     private static void assertShardEngineIsInstanceOf(String indexName, int shardId, String node, Class<?> engineType) {

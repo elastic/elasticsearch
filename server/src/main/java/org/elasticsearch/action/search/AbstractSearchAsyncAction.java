@@ -82,13 +82,13 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     protected final SearchTask task;
     protected final SearchPhaseResults<Result> results;
     private final long clusterStateVersion;
-    protected final TransportVersion minTransportVersion;
+    private final TransportVersion minTransportVersion;
     protected final Map<String, AliasFilter> aliasFilter;
     protected final Map<String, Float> concreteIndexBoosts;
-    protected final SetOnce<AtomicArray<ShardSearchFailure>> shardFailures = new SetOnce<>();
+    private final SetOnce<AtomicArray<ShardSearchFailure>> shardFailures = new SetOnce<>();
     private final Object shardFailuresMutex = new Object();
-    protected final AtomicBoolean hasShardResponse = new AtomicBoolean(false);
-    protected final AtomicInteger successfulOps = new AtomicInteger();
+    private final AtomicBoolean hasShardResponse = new AtomicBoolean(false);
+    private final AtomicInteger successfulOps = new AtomicInteger();
     protected final SearchTimeProvider timeProvider;
     private final SearchResponse.Clusters clusters;
 

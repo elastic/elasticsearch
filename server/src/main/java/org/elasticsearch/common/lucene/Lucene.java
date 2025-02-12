@@ -421,9 +421,7 @@ public class Lucene {
             writeTotalHits(out, topDocs.totalHits);
             out.writeArray(Lucene::writeSortField, topFieldDocs.fields);
             out.writeArray((o, doc) -> {
-                o.writeArray(Lucene::writeSortValue, ((FieldDoc) doc).fields);
-                o.writeVInt(doc.doc);
-                o.writeFloat(doc.score);
+                writeFieldDoc(o, (FieldDoc) doc);
                 o.writeVInt(doc.shardIndex);
             }, topFieldDocs.scoreDocs);
         } else {

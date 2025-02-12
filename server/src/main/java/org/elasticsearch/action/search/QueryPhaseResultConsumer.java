@@ -219,8 +219,8 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         }
         for (int i = 0; i < batchedResults.size(); i++) {
             Tuple<TopDocsStats, MergeResult> batchedResult = batchedResults.set(i, null);
-            consumePartialMergeResult(batchedResult.v2(), topDocsList, aggsList);
             topDocsStats.add(batchedResult.v1());
+            consumePartialMergeResult(batchedResult.v2(), topDocsList, aggsList);
         }
         for (QuerySearchResult result : buffer) {
             if (result.isReduced()) {

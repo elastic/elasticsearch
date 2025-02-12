@@ -368,6 +368,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         final Scope currentClusterScope = getCurrentClusterScope();
         Callable<Void> setup = () -> {
             cluster().beforeTest(random());
+            ensureNoInitializingShardsBeforeWipingCluster();
             cluster().wipe(excludeTemplates());
             randomIndexTemplate();
             return null;
@@ -384,6 +385,16 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
         }
 
+    }
+
+    protected void ensureNoInitializingShardsBeforeWipingCluster() {
+        logger.info("--> waiting for all initializing shards to complete within a reasonable time before wiping the cluster");
+        assertNoTimeout(
+            client().admin()
+                .cluster()
+                .health(new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, "_all").waitForNoInitializingShards(true))
+                .actionGet()
+        );
     }
 
     private void printTestMessage(String message) {

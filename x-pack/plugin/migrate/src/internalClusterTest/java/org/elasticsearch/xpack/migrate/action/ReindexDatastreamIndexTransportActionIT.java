@@ -677,7 +677,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         bulkRequest.add(new IndexRequest(index).opType(DocWriteRequest.OpType.CREATE).source(doc, XContentType.JSON));
         safeGet(client().bulk(bulkRequest));
     }
-  
+
     private void ensureHealth(String index) {
         if (cluster().numDataNodes() > 1) {
             ensureGreen(index);
@@ -702,4 +702,5 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
             actions.add(new ActionPlugin.ActionHandler<>(FreezeIndexAction.INSTANCE, TransportFreezeIndexAction.class));
             return actions;
         }
+    }
 }

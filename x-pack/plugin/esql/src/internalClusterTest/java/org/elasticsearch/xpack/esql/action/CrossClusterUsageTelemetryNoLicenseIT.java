@@ -17,7 +17,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class CrossClustersUsageTelemetryNoLicenseIT extends AbstractCrossClustersUsageTelemetryIT {
+public class CrossClusterUsageTelemetryNoLicenseIT extends AbstractCrossClusterUsageTelemetryIT {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {

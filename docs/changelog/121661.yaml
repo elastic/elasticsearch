@@ -1,0 +1,5 @@
+pr: 121661
+summary: Delete obsolete snapshot stats after upgrade
+area: Machine Learning
+type: upgrade
+issues: []

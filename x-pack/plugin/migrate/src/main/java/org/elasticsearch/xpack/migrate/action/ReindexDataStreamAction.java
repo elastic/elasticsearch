@@ -151,7 +151,12 @@ public class ReindexDataStreamAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, "reindexing data stream " + sourceDataStream, parentTaskId, headers);
+            return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
+        }
+
+        @Override
+        public String getDescription() {
+            return "reindexing data stream " + sourceDataStream;
         }
     }
 }

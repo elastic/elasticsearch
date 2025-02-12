@@ -599,32 +599,35 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public void executeQueryPhase(ShardSearchRequest request, CancellableTask task, ActionListener<SearchPhaseResult> listener) {
-        ActionListener<SearchPhaseResult> finalListener = maybeWrapListenerForStackTrace(listener, request.getChannelVersion(), threadPool);
         assert request.canReturnNullResponseIfMatchNoDocs() == false || request.numberOfShards() > 1
             : "empty responses require more than one shard";
         final IndexShard shard = getShard(request);
-        rewriteAndFetchShardRequest(shard, request, finalListener.delegateFailure((l, orig) -> {
-            // check if we can shortcut the query phase entirely.
-            if (orig.canReturnNullResponseIfMatchNoDocs()) {
-                assert orig.scroll() == null;
-                ShardSearchRequest clone = new ShardSearchRequest(orig);
-                CanMatchContext canMatchContext = new CanMatchContext(
-                    clone,
-                    indicesService::indexServiceSafe,
-                    this::findReaderContext,
-                    defaultKeepAlive,
-                    maxKeepAlive
-                );
-                CanMatchShardResponse canMatchResp = canMatch(canMatchContext, false);
-                if (canMatchResp.canMatch() == false) {
-                    finalListener.onResponse(QuerySearchResult.nullInstance());
-                    return;
+        rewriteAndFetchShardRequest(
+            shard,
+            request,
+            maybeWrapListenerForStackTrace(listener, request.getChannelVersion(), threadPool).delegateFailure((l, orig) -> {
+                // check if we can shortcut the query phase entirely.
+                if (orig.canReturnNullResponseIfMatchNoDocs()) {
+                    assert orig.scroll() == null;
+                    ShardSearchRequest clone = new ShardSearchRequest(orig);
+                    CanMatchContext canMatchContext = new CanMatchContext(
+                        clone,
+                        indicesService::indexServiceSafe,
+                        this::findReaderContext,
+                        defaultKeepAlive,
+                        maxKeepAlive
+                    );
+                    CanMatchShardResponse canMatchResp = canMatch(canMatchContext, false);
+                    if (canMatchResp.canMatch() == false) {
+                        l.onResponse(QuerySearchResult.nullInstance());
+                        return;
+                    }
                 }
-            }
-            // TODO: i think it makes sense to always do a canMatch here and
-            // return an empty response (not null response) in case canMatch is false?
-            ensureAfterSeqNoRefreshed(shard, orig, () -> executeQueryPhase(orig, task), l);
-        }));
+                // TODO: i think it makes sense to always do a canMatch here and
+                // return an empty response (not null response) in case canMatch is false?
+                ensureAfterSeqNoRefreshed(shard, orig, () -> executeQueryPhase(orig, task), l);
+            })
+        );
     }
 
     private <T extends RefCounted> void ensureAfterSeqNoRefreshed(

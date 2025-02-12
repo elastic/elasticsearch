@@ -26,8 +26,12 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
+import org.elasticsearch.index.mapper.DocumentParser;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.translog.TranslogStats;
 
 import java.io.IOException;
@@ -46,7 +50,8 @@ public class HollowIndexEngine extends ReadOnlyEngine {
     private final HollowShardsService hollowShardsService;
 
     public HollowIndexEngine(EngineConfig config, StatelessCommitService statelessCommitService, HollowShardsService hollowShardsService) {
-        super(config, null, new TranslogStats(), true, Function.identity(), true, true);
+        // no index writer lock allows opening an HollowIndexEngine on top of an IndexEngine
+        super(config, null, new TranslogStats(), false, Function.identity(), true, true);
         this.statelessCommitService = statelessCommitService;
         this.hollowShardsService = hollowShardsService;
     }
@@ -116,5 +121,31 @@ public class HollowIndexEngine extends ReadOnlyEngine {
     public void prepareForEngineReset() throws IOException {
         hollowShardsService.ensureHollowShard(shardId, true, "hollow index engine requires the shard to be hollow");
         logger.debug(() -> "preparing to reset hollow index engine for shard " + shardId);
+    }
+
+    @Override
+    public RefreshResult refresh(String source) {
+        // The reader is opened at hollowing time once and is never refreshed internally.
+        return new RefreshResult(false, config().getPrimaryTermSupplier().getAsLong(), getLastCommittedSegmentInfos().getGeneration());
+    }
+
+    @Override
+    public void maybeRefresh(String source, ActionListener<RefreshResult> listener) throws EngineException {
+        ActionListener.completeWith(listener, () -> refresh(source));
+    }
+
+    @Override
+    public GetResult getFromTranslog(
+        Get get,
+        MappingLookup mappingLookup,
+        DocumentParser documentParser,
+        Function<Searcher, Searcher> searcherWrapper
+    ) {
+        return null;
+    }
+
+    @Override
+    public long getLastUnsafeSegmentGenerationForGets() {
+        return getLastCommittedSegmentInfos().getGeneration();
     }
 }

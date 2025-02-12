@@ -272,7 +272,7 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
      * For settings between those values, we rank indices and give part of them two replicas.
      */
     Map<Integer, Set<String>> getRecommendedReplicaChanges(ReplicaRankingContext rankingContext) {
-        assert rankingContext.getSearchPowerMin() >= 100 : "we should not have to call this method for SP < 100";
+        assert rankingContext.getSearchPowerMin() > 100 : "we should not have to call this method for SP <= 100";
         Map<Integer, Set<String>> numReplicaChanges = new HashMap<>(2);
         LOGGER.debug("Calculating index replica recommendations for " + rankingContext.indices());
         if (rankingContext.getSearchPowerMin() >= SEARCH_POWER_MIN_FULL_REPLICATION) {
@@ -388,7 +388,7 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
                 int indicesScaledUp = 0;
                 ReplicaRankingContext rankingContext = searchMetricsService.createRankingContext();
                 LOGGER.debug("Ranking context: " + rankingContext);
-                if (rankingContext.getSearchPowerMin() < SEARCH_POWER_MIN_NO_REPLICATION) {
+                if (rankingContext.getSearchPowerMin() <= SEARCH_POWER_MIN_NO_REPLICATION) {
                     // we can scale everything down immediately
                     Set<String> indicesToScaleDown = resetReplicasForAllIndices();
                     publishUpdateReplicaSetting(1, indicesToScaleDown);

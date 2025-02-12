@@ -1031,13 +1031,13 @@ public final class DateFieldMapper extends FieldMapper {
     /**
      * Determines whether the doc values skipper (sparse index) should be used for the {@code @timestamp} field.
      * <p>
-     * The skipper is enabled only if {@code index.mapping.use_doc_values_skipper} is set to {@code true},
+     * The doc values skipper is enabled only if {@code index.mapping.use_doc_values_skipper} is set to {@code true},
      * the index was created on or after {@link IndexVersions#TIMESTAMP_DOC_VALUES_SPARSE_INDEX}, and the
      * field has doc values enabled. Additionally, the index mode must be {@link IndexMode#LOGSDB}, and
      * the index sorting configuration must include the {@code @timestamp} field.
      *
      * @param indexCreatedVersion  The version of the index when it was created.
-     * @param useDocValuesSkipper  Whether the skipper feature is enabled via the {@code index.mapping.use_doc_values_skipper} setting.
+     * @param useDocValuesSkipper  Whether the doc values skipper feature is enabled via the {@code index.mapping.use_doc_values_skipper} setting.
      * @param hasDocValues         Whether the field has doc values enabled.
      * @param indexMode            The index mode, which must be {@link IndexMode#LOGSDB}.
      * @param indexSortConfig      The index sorting configuration, which must include the {@code @timestamp} field.
@@ -1053,8 +1053,8 @@ public final class DateFieldMapper extends FieldMapper {
         final IndexSortConfig indexSortConfig,
         final String fullFieldName
     ) {
-        return useDocValuesSkipper // setting `index.mapper.use_doc_values_skipper`
-            && indexCreatedVersion.onOrAfter(IndexVersions.TIMESTAMP_DOC_VALUES_SPARSE_INDEX)
+        return indexCreatedVersion.onOrAfter(IndexVersions.TIMESTAMP_DOC_VALUES_SPARSE_INDEX)
+            && useDocValuesSkipper
             && hasDocValues
             && IndexMode.LOGSDB.equals(indexMode)
             && indexSortConfig != null

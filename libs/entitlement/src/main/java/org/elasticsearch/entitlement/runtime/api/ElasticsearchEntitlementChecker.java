@@ -835,7 +835,7 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void check$java_lang_Runtime$load(Class<?> callerClass, Runtime that, String filename) {
-        // TODO: check filesystem entitlement READ
+        policyManager.checkFileRead(callerClass, Path.of(filename));
         policyManager.checkLoadingNativeLibraries(callerClass);
     }
 
@@ -846,7 +846,7 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void check$java_lang_System$$load(Class<?> callerClass, String filename) {
-        // TODO: check filesystem entitlement READ
+        policyManager.checkFileRead(callerClass, Path.of(filename));
         policyManager.checkLoadingNativeLibraries(callerClass);
     }
 
@@ -930,7 +930,7 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void check$java_lang_foreign_SymbolLookup$$libraryLookup(Class<?> callerClass, Path path, Arena arena) {
-        // TODO: check filesystem entitlement READ
+        policyManager.checkFileRead(callerClass, path);
         policyManager.checkLoadingNativeLibraries(callerClass);
     }
 

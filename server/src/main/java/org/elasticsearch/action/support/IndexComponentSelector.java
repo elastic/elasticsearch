@@ -74,7 +74,7 @@ public enum IndexComponentSelector implements Writeable {
 
     public static IndexComponentSelector read(StreamInput in) throws IOException {
         byte id = in.readByte();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.REMOVE_ALL_APPLICABLE_SELECTOR)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.REMOVE_ALL_APPLICABLE_SELECTOR_BACKPORT_8_X)) {
             return getById(id);
         } else {
             // Legacy value ::*, converted to ::data

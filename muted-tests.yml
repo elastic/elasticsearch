@@ -395,6 +395,9 @@ tests:
 - class: org.elasticsearch.lucene.RollingUpgradeLuceneIndexCompatibilityTestCase
   method: testRestoreIndex {p0=[9.1.0, 9.1.0, 8.19.0]}
   issue: https://github.com/elastic/elasticsearch/issues/122482
+- class: org.elasticsearch.lucene.RollingUpgradeLuceneIndexCompatibilityTestCase
+  method: testRestoreIndex {p0=[9.1.0, 8.19.0, 8.19.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/122483
 
 # Examples:
 #

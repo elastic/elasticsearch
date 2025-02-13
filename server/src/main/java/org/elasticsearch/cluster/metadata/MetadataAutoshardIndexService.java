@@ -166,7 +166,9 @@ public class MetadataAutoshardIndexService {
 
         ClusterState updated = ClusterState.builder(currentState)
             .incrementVersion()
-            .metadata(newMetadata).routingTable(routingTableBuilder).build();
+            .metadata(newMetadata)
+            .routingTable(routingTableBuilder)
+            .build();
         updated = allocationService.reroute(updated, "index [" + indexName + "] autosharded", rerouteListener);
         return updated;
     }

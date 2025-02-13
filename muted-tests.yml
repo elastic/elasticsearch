@@ -513,3 +513,6 @@ tests:
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testSetEnabled
   issue: https://github.com/elastic/elasticsearch/issues/121183
+- class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
+  method: testProfileAPIsWhenIndexNotCreated
+  issue: https://github.com/elastic/elasticsearch/issues/121096

@@ -2,8 +2,8 @@
 // TODO: re-enable the commented tests once the Join functionality stabilizes
 //
 
-maxOfInt-Ignore
-required_capability: join_planning_v1
+maxOfInt
+required_capability: inlinestats_v3
 // tag::max-languages[]
 FROM employees
 | KEEP emp_no, languages
@@ -25,7 +25,7 @@ emp_no:integer | languages:integer | max_lang:integer
 ;
 
 maxOfIntByKeyword
-required_capability: join_planning_v1
+required_capability: inlinestats_v3
 
 FROM employees
 | KEEP emp_no, languages, gender
@@ -43,7 +43,7 @@ emp_no:integer | languages:integer | gender:keyword | max_lang:integer
 ;
 
 maxOfLongByKeyword
-required_capability: join_planning_v1
+required_capability: inlinestats_v3
 
 FROM employees
 | KEEP emp_no, avg_worked_seconds, gender
@@ -57,8 +57,8 @@ emp_no:integer | avg_worked_seconds:long | gender:keyword | max_avg_worked_secon
          10030 |               394597613 | M              | 394597613
 ;
 
-maxOfLong-Ignore
-required_capability: join_planning_v1
+maxOfLong
+required_capability: inlinestats_v3
 
 FROM employees
 | KEEP emp_no, avg_worked_seconds, gender
@@ -71,7 +71,7 @@ emp_no:integer | avg_worked_seconds:long | gender:keyword | max_avg_worked_secon
 ;
 
 maxOfLongByCalculatedKeyword
-required_capability: join_planning_v1
+required_capability: inlinestats_v3
 
 // tag::longest-tenured-by-first[]
 FROM employees
@@ -94,7 +94,7 @@ emp_no:integer | avg_worked_seconds:long | last_name:keyword | SUBSTRING(last_na
 ;
 
 maxOfLongByCalculatedNamedKeyword
-required_capability: join_planning_v1
+required_capability: inlinestats_v3
 
 FROM employees
 | KEEP emp_no, avg_worked_seconds, last_name
@@ -112,7 +112,7 @@ emp_no:integer | avg_worked_seconds:long | last_name:keyword | l:keyword | max_a
          10087 |               305782871 | Eugenio           | E         | 305782871
 ;
 
-maxOfLongByCalculatedDroppedKeyword
+maxOfLongByCalculatedDroppedKeyword-Ignore
 required_capability: join_planning_v1
 
 FROM employees
@@ -132,7 +132,7 @@ emp_no:integer | avg_worked_seconds:long | last_name:keyword | max_avg_worked_se
 ;
 
 maxOfLongByEvaledKeyword
-required_capability: join_planning_v1
+required_capability: inlinestats_v3
 
 FROM employees
 | EVAL l = SUBSTRING(last_name, 0, 1)
@@ -152,7 +152,7 @@ emp_no:integer | avg_worked_seconds:long | l:keyword | max_avg_worked_seconds:lo
 ;
 
 maxOfLongByInt
-required_capability: join_planning_v1
+required_capability: inlinestats_v3
 
 FROM employees
 | KEEP emp_no, avg_worked_seconds, languages
@@ -170,7 +170,7 @@ emp_no:integer | avg_worked_seconds:long | languages:integer | max_avg_worked_se
 ;
 
 maxOfLongByIntDouble
-required_capability: join_planning_v1
+required_capability: inlinestats_v3
 
 FROM employees
 | KEEP emp_no, avg_worked_seconds, languages, height
@@ -205,7 +205,7 @@ emp_no:integer | languages:integer | avg_worked_seconds:long | gender:keyword | 
          10007 |                 4 |               393084805 | F              | 2.863684210555556E8           | 5
 ;
 
-byMultivaluedSimple
+byMultivaluedSimple-Ignore
 required_capability: join_planning_v1
 
 // tag::mv-group[]
@@ -223,7 +223,7 @@ abbrev:keyword |  type:keyword   | scalerank:integer | min_scalerank:integer
 // end::mv-group-result[]
 ;
 
-byMultivaluedMvExpand
+byMultivaluedMvExpand-Ignore
 required_capability: join_planning_v1
 
 // tag::mv-expand[]
@@ -243,7 +243,7 @@ abbrev:keyword | type:keyword | scalerank:integer | min_scalerank:integer
 // end::mv-expand-result[]
 ;
 
-byMvExpand
+byMvExpand-Ignore
 required_capability: join_planning_v1
 
 // tag::extreme-airports[]
@@ -307,7 +307,7 @@ count:long | country:keyword | avg:double
         17 |  United Kingdom | 4.455
 ;
 
-afterWhere
+afterWhere-Ignore
 required_capability: join_planning_v1
 
 FROM airports
@@ -366,8 +366,8 @@ abbrev:keyword | city:keyword |       region:text | "COUNT(*)":long
            FUK |      Fukuoka |             中央区 | 2
 ;
 
-beforeStats-Ignore
-required_capability: join_planning_v1
+beforeStats
+required_capability: inlinestats_v3
 
 FROM airports
 | EVAL lat = ST_Y(location)
@@ -379,7 +379,7 @@ northern:long | southern:long
           520 | 371
 ;
 
-beforeKeepSort
+beforeKeepSort-Ignore
 required_capability: join_planning_v1
 
 FROM employees
@@ -394,7 +394,7 @@ emp_no:integer | languages:integer | max_salary:integer
          10003 |                 4 | 74572
 ;
 
-beforeKeepWhere
+beforeKeepWhere-Ignore
 required_capability: join_planning_v1
 
 FROM employees
@@ -537,8 +537,8 @@ emp_no:integer | one:integer
          10005 | 1
 ;
 
-percentile-Ignore
-required_capability: join_planning_v1
+percentile
+required_capability: inlinestats_v3
 
 FROM employees
 | KEEP emp_no, salary

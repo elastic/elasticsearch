@@ -171,7 +171,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             originalIndices,
             PlannerUtils.requestTimestampFilter(dataNodePlan),
             runOnTaskFailure,
-            ActionListener.runAfter(outListener, exchangeSource.addEmptySink()::close)
+            ActionListener.releaseAfter(outListener, exchangeSource.addEmptySink())
         );
     }
 
@@ -391,7 +391,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 task.addListener(
                     () -> exchangeService.finishSinkHandler(externalId, new TaskCancelledException(task.getReasonCancelled()))
                 );
-                var exchangeSource = new ExchangeSourceHandler(1, esqlExecutor, computeListener.acquireAvoid());
+                var exchangeSource = new ExchangeSourceHandler(1, esqlExecutor);
                 exchangeSource.addRemoteSink(internalSink::fetchPageAsync, true, () -> {}, 1, ActionListener.noop());
                 var reductionListener = computeListener.acquireCompute();
                 computeService.runCompute(

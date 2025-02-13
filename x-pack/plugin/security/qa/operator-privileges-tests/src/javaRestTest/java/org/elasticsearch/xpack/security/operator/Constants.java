@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.operator;
 
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.common.util.FeatureFlag;
 
 import java.util.Objects;
 import java.util.Set;

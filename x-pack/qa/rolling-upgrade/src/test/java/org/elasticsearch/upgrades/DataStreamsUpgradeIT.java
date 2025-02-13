@@ -256,7 +256,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             "routing",
             "hidden",
             "number_of_shards",
-             "creation_date",
+            "creation_date",
             "number_of_replicas"
         );
         for (String setting : SETTINGS_TO_CHECK) {

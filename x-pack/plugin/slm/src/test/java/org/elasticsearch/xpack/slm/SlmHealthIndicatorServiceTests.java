@@ -375,7 +375,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                         .setModifiedDate(System.currentTimeMillis())
                         .setLastSuccess(snapshotInvocation(null, fiveMinutesAgo))
                         .build()
-                    // SX TODO: first snapshot
+                    // TODO: first snapshot
                 ),
                 RUNNING,
                 null
@@ -535,7 +535,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                 .setPolicy(new SnapshotLifecyclePolicy("id", "test-policy", "", "test-repository", null, null, TimeValue.MAX_VALUE))
                 .setVersion(1L)
                 .setModifiedDate(System.currentTimeMillis())
-                // SX TODO: set first trigger time
+                // TODO: set first trigger time
                 .build();
             assertThat(SlmHealthIndicatorService.missingSnapshotTimeExceeded(slmPolicyMetadata), is(false));
         }
@@ -545,7 +545,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                 .setPolicy(new SnapshotLifecyclePolicy("id", "test-policy", "", "test-repository", null, null, TimeValue.ONE_MINUTE))
                 .setVersion(1L)
                 .setModifiedDate(System.currentTimeMillis())
-                // SX TODO: set first trigger time
+                // TODO: set first trigger time
                 .build();
             assertThat(SlmHealthIndicatorService.missingSnapshotTimeExceeded(slmPolicyMetadata), is(false));
         }

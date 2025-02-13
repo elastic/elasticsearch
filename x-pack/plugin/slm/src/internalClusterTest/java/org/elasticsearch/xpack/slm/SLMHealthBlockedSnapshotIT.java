@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.slm;
 
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -20,6 +19,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.GetHealthAction;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
@@ -33,9 +33,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
-import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
-import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -62,10 +60,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SLMHealthBlockedSnapshotIT extends AbstractSnapshotIntegTestCase {
 
+    // never auto-trigger, instead we will manually trigger in test for better control
     private static final String NEVER_EXECUTE_CRON_SCHEDULE = "* * * 31 FEB ? *";
 
     @Override
@@ -174,9 +174,11 @@ public class SLMHealthBlockedSnapshotIT extends AbstractSnapshotIntegTestCase {
         List<String> policyNames = List.of(policyHealthy, policyHealthyBelowThreshold, policyUnhealthy);
         List<String> policyNamesUnhealthy = List.of(policyUnhealthy);
 
-        createRandomIndex(idxName, dataNode);
+        createRandomIndex(idxName);
         putSnapshotPolicy(policyHealthy, "snap", NEVER_EXECUTE_CRON_SCHEDULE, repoName, idxName, null);
+        // 1hr unhealthyIfNoSnapshotWithin should not be exceeded during test period, so policy is healthy
         putSnapshotPolicy(policyHealthyBelowThreshold, "snap", NEVER_EXECUTE_CRON_SCHEDULE, repoName, idxName, TimeValue.ONE_HOUR);
+        // zero unhealthyIfNoSnapshotWithin will always be exceeded, so policy is always unhealthy
         putSnapshotPolicy(policyUnhealthy, "snap", NEVER_EXECUTE_CRON_SCHEDULE, repoName, idxName, TimeValue.ZERO);
 
         ensureGreen();
@@ -191,13 +193,13 @@ public class SLMHealthBlockedSnapshotIT extends AbstractSnapshotIntegTestCase {
         // block snapshot execution, create second set of snapshots, assert YELLOW health
         TestDelayedRepoPlugin.enable();
         List<String> secondSnapshots = executePolicies(masterNode, policyNames);
-        assertSlmYellowMissingSnapshot(policyNamesUnhealthy.size());
+        assertSlmYellowMissingSnapshot(policyNamesUnhealthy);
 
         // resume snapshot execution
         TestDelayedRepoPlugin.removeDelay();
         waitForSnapshotsAndClusterState(repoName, secondSnapshots);
 
-        // increase policy threshold, assert GREEN health
+        // increase policy unhealthy threshold, assert GREEN health
         putSnapshotPolicy(policyUnhealthy, "snap", NEVER_EXECUTE_CRON_SCHEDULE, repoName, idxName, TimeValue.ONE_HOUR);
         assertBusy(() -> {
             GetHealthAction.Request getHealthRequest = new GetHealthAction.Request(true, 1000);
@@ -206,10 +208,8 @@ public class SLMHealthBlockedSnapshotIT extends AbstractSnapshotIntegTestCase {
         });
     }
 
-    private void createRandomIndex(String idxName, String dataNodeName) throws InterruptedException {
-        // allocate index to the specified data node
-        Settings settings = indexSettings(1, 0).put("index.routing.allocation.require._name", dataNodeName).build();
-        createIndex(idxName, settings);
+    private void createRandomIndex(String idxName) throws InterruptedException {
+        createIndex(idxName);
 
         logger.info("--> indexing some data");
         final int numdocs = randomIntBetween(10, 100);
@@ -228,7 +228,7 @@ public class SLMHealthBlockedSnapshotIT extends AbstractSnapshotIntegTestCase {
         String repoId,
         String indexPattern,
         TimeValue unhealthyIfNoSnapshotWithin
-    ) {
+    ) throws ExecutionException, InterruptedException {
         Map<String, Object> snapConfig = new HashMap<>();
         snapConfig.put("indices", Collections.singletonList(indexPattern));
         snapConfig.put("ignore_unavailable", false);
@@ -250,15 +250,11 @@ public class SLMHealthBlockedSnapshotIT extends AbstractSnapshotIntegTestCase {
             policyName,
             policy
         );
-        try {
-            client().execute(PutSnapshotLifecycleAction.INSTANCE, putLifecycle).get();
-        } catch (Exception e) {
-            logger.error("failed to create slm policy", e);
-            fail("failed to create policy " + policy + " got: " + e);
-        }
+
+        client().execute(PutSnapshotLifecycleAction.INSTANCE, putLifecycle).get();
     }
 
-    private void assertSlmYellowMissingSnapshot(int numUnhealthyPolicy) throws Exception {
+    private void assertSlmYellowMissingSnapshot(List<String> unhealthyPolicies) throws Exception {
         assertBusy(() -> {
             GetHealthAction.Request getHealthRequest = new GetHealthAction.Request(true, 1000);
             GetHealthAction.Response health = admin().cluster().execute(GetHealthAction.INSTANCE, getHealthRequest).get();
@@ -266,11 +262,20 @@ public class SLMHealthBlockedSnapshotIT extends AbstractSnapshotIntegTestCase {
             HealthIndicatorResult slmIndicator = health.findIndicator(SlmHealthIndicatorService.NAME);
             assertThat(slmIndicator.status(), equalTo(HealthStatus.YELLOW));
             assertThat(slmIndicator.impacts().size(), equalTo(1));
+            assertThat(slmIndicator.impacts().getFirst().id(), equalTo(SlmHealthIndicatorService.MISSING_SNAPSHOT_IMPACT_ID));
             List<HealthIndicatorImpact> missingSnapshotPolicies = slmIndicator.impacts()
                 .stream()
                 .filter(impact -> SlmHealthIndicatorService.MISSING_SNAPSHOT_IMPACT_ID.equals(impact.id()))
                 .toList();
-            assertThat(missingSnapshotPolicies.size(), equalTo(numUnhealthyPolicy));
+            assertThat(missingSnapshotPolicies.size(), equalTo(unhealthyPolicies.size()));
+
+            // validate affected policy names
+            assertThat(slmIndicator.diagnosisList().size(), equalTo(1));
+            Diagnosis diagnosis = slmIndicator.diagnosisList().getFirst();
+            List<Diagnosis.Resource> resources = diagnosis.affectedResources();
+            assertThat(resources, notNullValue());
+            assertThat(resources.size(), equalTo(1));
+            assertThat(resources.getFirst().getValues(), equalTo(unhealthyPolicies));
         });
     }
 
@@ -311,29 +316,9 @@ public class SLMHealthBlockedSnapshotIT extends AbstractSnapshotIntegTestCase {
                 logger.info("--> waiting for snapshot {} to be completed, got: {}", snapshotName, status.getState());
                 assertThat(status.getState(), equalTo(SnapshotsInProgress.State.SUCCESS));
             } catch (SnapshotMissingException e) {
-                logger.error("expected a snapshot but it was missing", e);
                 fail("expected a snapshot with name " + snapshotName + " but it does not exist");
             }
         });
-    }
-
-    private void assertSnapshotSuccess(String repository, String snapshot) {
-        try {
-            SnapshotInfo snapshotInfo = getSnapshotInfo(repository, snapshot);
-            assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
-            assertEquals(1, snapshotInfo.successfulShards());
-            assertEquals(0, snapshotInfo.failedShards());
-            logger.info("Checked snapshot exists and is state SUCCESS");
-        } catch (SnapshotMissingException e) {
-            fail("expected a snapshot with name " + snapshot + " but it does yet not exist");
-        }
-    }
-
-    private SnapshotInfo getSnapshotInfo(String repository, String snapshot) {
-        GetSnapshotsResponse snapshotsStatusResponse = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repository)
-            .setSnapshots(snapshot)
-            .get();
-        return snapshotsStatusResponse.getSnapshots().get(0);
     }
 
     private SnapshotsStatusResponse getSnapshotStatus(String repo, String snapshotName) {

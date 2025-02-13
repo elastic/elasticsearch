@@ -390,7 +390,7 @@ public final class SlmHealthIndicatorService implements HealthIndicatorService {
                 ? lastSuccess.getSnapshotStartTimestamp()
                 : lastSuccess.getSnapshotFinishTimestamp();
         }
-        // SX TODO: handle first snapshot (i.e. no prior success of failure), maybe record the policy first trigger timestamp
+        // TODO: handle first snapshot (i.e. no prior success of failure), maybe record the policy first trigger timestamp
 
         // SLM has not been triggered yet
         return null;

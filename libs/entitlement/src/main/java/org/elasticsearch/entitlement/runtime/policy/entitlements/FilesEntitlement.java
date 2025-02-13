@@ -10,14 +10,17 @@
 package org.elasticsearch.entitlement.runtime.policy.entitlements;
 
 import org.elasticsearch.entitlement.runtime.policy.ExternalEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.PolicyValidationException;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Stream;
 
 /**
  * Describes a file entitlement with a path and mode.
@@ -36,60 +39,99 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         DATA
     }
 
-    public static final class FileData {
-        private final Path path;
-        private final Mode mode;
-        private final Path relativePath;
-        private final BaseDir baseDir;
+    public interface FileData {
 
-        private FileData(Path path, Mode mode, Path relativePath, BaseDir baseDir) {
-            this.path = path;
-            this.mode = mode;
-            this.relativePath = relativePath;
-            this.baseDir = baseDir;
+        final class AbsolutePathFileData implements FileData {
+            private final Path path;
+            private final Mode mode;
+
+            private AbsolutePathFileData(Path path, Mode mode) {
+                this.path = path;
+                this.mode = mode;
+            }
+
+            @Override
+            public Stream<Path> resolvePaths(PathLookup pathLookup) {
+                return Stream.of(path);
+            }
+
+            @Override
+            public Mode mode() {
+                return mode;
+            }
+
+            @Override
+            public boolean equals(Object obj) {
+                if (obj == this) return true;
+                if (obj == null || obj.getClass() != this.getClass()) return false;
+                var that = (AbsolutePathFileData) obj;
+                return Objects.equals(this.path, that.path) && Objects.equals(this.mode, that.mode);
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(path, mode);
+            }
         }
 
-        public static FileData ofPath(Path path, Mode mode) {
+        final class RelativePathFileData implements FileData {
+            private final Path relativePath;
+            private final BaseDir baseDir;
+            private final Mode mode;
+
+            private RelativePathFileData(Path relativePath, BaseDir baseDir, Mode mode) {
+                this.relativePath = relativePath;
+                this.baseDir = baseDir;
+                this.mode = mode;
+            }
+
+            @Override
+            public Stream<Path> resolvePaths(PathLookup pathLookup) {
+                Objects.requireNonNull(pathLookup);
+                switch (baseDir) {
+                    case CONFIG:
+                        return Stream.of(pathLookup.configDir().resolve(relativePath));
+                    case DATA:
+                        return Arrays.stream(pathLookup.dataDirs()).map(d -> d.resolve(relativePath));
+                    default:
+                        throw new IllegalArgumentException();
+                }
+            }
+
+            @Override
+            public Mode mode() {
+                return mode;
+            }
+
+            @Override
+            public boolean equals(Object obj) {
+                if (obj == this) return true;
+                if (obj == null || obj.getClass() != this.getClass()) return false;
+                var that = (RelativePathFileData) obj;
+                return Objects.equals(this.mode, that.mode)
+                    && Objects.equals(this.relativePath, that.relativePath)
+                    && Objects.equals(this.baseDir, that.baseDir);
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(relativePath, baseDir, mode);
+            }
+        }
+
+        static FileData ofPath(Path path, Mode mode) {
             assert path.isAbsolute();
-            return new FileData(path, mode, null, null);
+            return new AbsolutePathFileData(path, mode);
         }
 
-        public static FileData ofRelativePath(Path relativePath, BaseDir baseDir, Mode mode) {
+        static FileData ofRelativePath(Path relativePath, BaseDir baseDir, Mode mode) {
             assert relativePath.isAbsolute() == false;
-            return new FileData(null, mode, relativePath, baseDir);
+            return new RelativePathFileData(relativePath, baseDir, mode);
         }
 
-        public Path path() {
-            return path;
-        }
+        Stream<Path> resolvePaths(PathLookup pathLookup);
 
-        public Mode mode() {
-            return mode;
-        }
-
-        public Path relativePath() {
-            return relativePath;
-        }
-
-        public BaseDir baseDir() {
-            return baseDir;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == this) return true;
-            if (obj == null || obj.getClass() != this.getClass()) return false;
-            var that = (FileData) obj;
-            return Objects.equals(this.path, that.path)
-                && Objects.equals(this.mode, that.mode)
-                && Objects.equals(this.relativePath, that.relativePath)
-                && Objects.equals(this.baseDir, that.baseDir);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(path, mode, relativePath, baseDir);
-        }
+        Mode mode();
     }
 
     private static Mode parseMode(String mode) {

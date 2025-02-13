@@ -16,7 +16,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
 
@@ -28,31 +27,13 @@ public final class FileAccessTree {
     private final String[] readPaths;
     private final String[] writePaths;
 
-    private static void resolvePath(FilesEntitlement.FileData fileData, PathLookup pathLookup, Consumer<Path> resolvedPathReceiver) {
-        if (fileData.path() != null) {
-            resolvedPathReceiver.accept(fileData.path());
-        } else if (fileData.relativePath() != null && fileData.baseDir() != null && pathLookup != null) {
-            switch (fileData.baseDir()) {
-                case CONFIG:
-                    resolvedPathReceiver.accept(pathLookup.configDir().resolve(fileData.relativePath()));
-                    break;
-                case DATA:
-                    Arrays.stream(pathLookup.dataDirs()).map(d -> d.resolve(fileData.relativePath())).forEach(resolvedPathReceiver::accept);
-                    break;
-                default:
-                    throw new IllegalArgumentException();
-            }
-        } else {
-            throw new IllegalArgumentException();
-        }
-    }
-
     private FileAccessTree(FilesEntitlement filesEntitlement, PathLookup pathLookup) {
         List<String> readPaths = new ArrayList<>();
         List<String> writePaths = new ArrayList<>();
         for (FilesEntitlement.FileData fileData : filesEntitlement.filesData()) {
             var mode = fileData.mode();
-            resolvePath(fileData, pathLookup, path -> {
+            var paths = fileData.resolvePaths(pathLookup);
+            paths.forEach(path -> {
                 var normalized = normalizePath(path);
                 if (mode == FilesEntitlement.Mode.READ_WRITE) {
                     writePaths.add(normalized);

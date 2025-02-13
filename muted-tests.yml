@@ -401,6 +401,18 @@ tests:
 - class: org.elasticsearch.lucene.RollingUpgradeLuceneIndexCompatibilityTestCase
   method: testIndexUpgrade {p0=[9.1.0, 8.19.0, 8.19.0]}
   issue: https://github.com/elastic/elasticsearch/issues/122484
+- class: org.elasticsearch.lucene.RollingUpgradeLuceneIndexCompatibilityTestCase
+  method: testIndexUpgrade {p0=[9.1.0, 9.1.0, 9.1.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/122487
+- class: org.elasticsearch.lucene.RollingUpgradeLuceneIndexCompatibilityTestCase
+  method: testClosedIndexUpgrade {p0=[9.1.0, 9.1.0, 8.19.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/122488
+- class: org.elasticsearch.lucene.RollingUpgradeLuceneIndexCompatibilityTestCase
+  method: testIndexUpgrade {p0=[9.1.0, 9.1.0, 8.19.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/122489
+- class: org.elasticsearch.lucene.RollingUpgradeLuceneIndexCompatibilityTestCase
+  method: testRestoreIndex {p0=[9.1.0, 9.1.0, 9.1.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/122490
 
 # Examples:
 #

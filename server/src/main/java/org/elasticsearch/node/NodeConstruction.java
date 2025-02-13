@@ -707,7 +707,7 @@ class NodeConstruction {
 
         var executor = (TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor) threadPool.executor(ThreadPool.Names.SEARCH);
         clusterService.addListener(new SearchIndexTimeTrackingCleanupService(executor));
-        if(logger.isDebugEnabled()) searchLoadMetricsReporter(executor);
+        searchLoadMetricsReporter(executor);
 
         modules.bindToInstance(DocumentParsingProvider.class, documentParsingProvider);
 
@@ -1268,13 +1268,13 @@ class NodeConstruction {
             @Override
             public void run() {
                 if (executor.getIndexExecutionTime().size() > 0) {
-                    logger.debug("Number of reported indices: {}", executor.getIndexExecutionTime().size());
-                    logger.debug("Number of runnables: {}", executor.getRunnableToIndexName().size());
+                    logger.info("Number of reported indices: {}", executor.getIndexExecutionTime().size());
+                    logger.info("Number of runnables: {}", executor.getRunnableToIndexName().size());
                     executor.getIndexExecutionTime().forEach((index, tuple) -> {
-                        logger.debug("Index: {}, Total execution time: {}, EWMA: {}", index, tuple.v1().sum(), tuple.v2().getAverage());
+                        logger.info("Index: {}, Total execution time: {}, EWMA: {}", index, tuple.v1().sum(), tuple.v2().getAverage());
                     });
-                    logger.debug("Total task execution time: {}", executor.getTotalTaskExecutionTime());
-                    logger.debug("----------------------------------------------------------------------------------");
+                    logger.info("Total task execution time: {}", executor.getTotalTaskExecutionTime());
+                    logger.info("----------------------------------------------------------------------------------");
                 }
             }
         };

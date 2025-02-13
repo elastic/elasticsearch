@@ -247,7 +247,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
     private void registerExtractedConfig(Provider<RegularFile> pluginProvider) {
         Dependency pluginDependency = this.project.getDependencies().create(project.files(pluginProvider));
-        Configuration extractedConfig = project.getConfigurations().detachedConfiguration(pluginDependency);
+        Configuration extractedConfig = project.getConfigurations().detachedConfiguration();
+        extractedConfig.getDependencies().add(pluginDependency);
         extractedConfig.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
         extractedConfig.getAttributes().attribute(BUNDLE_ATTRIBUTE, true);
         pluginAndModuleConfiguration.from(extractedConfig);
@@ -296,7 +297,9 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     private Provider<RegularFile> maybeCreatePluginOrModuleDependency(String path, String consumingConfiguration) {
         var configuration = pluginAndModuleConfigurations.computeIfAbsent(path, key -> {
             var bundleDependency = this.project.getDependencies().project(Map.of("path", path, "configuration", consumingConfiguration));
-            return project.getConfigurations().detachedConfiguration(bundleDependency);
+            Configuration detachedConfiguration = project.getConfigurations().detachedConfiguration();
+            detachedConfiguration.getDependencies().add(bundleDependency);
+            return detachedConfiguration;
         });
 
         Provider<File> fileProvider = configuration.getElements()

@@ -153,12 +153,7 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
             try {
                 List<RankedDocsResults.RankedDoc> results = new ArrayList<>();
                 for (int i = 0; i < totalResults; i++) {
-                    results.add(
-                        new RankedDocsResults.RankedDoc(
-                            i,
-                            Float.parseFloat(input.get(i)),
-                            input.get(i))
-                    );
+                    results.add(new RankedDocsResults.RankedDoc(i, Float.parseFloat(input.get(i)), input.get(i)));
                 }
                 return new RankedDocsResults(results.stream().sorted(Comparator.reverseOrder()).toList());
             } catch (NumberFormatException ex) {

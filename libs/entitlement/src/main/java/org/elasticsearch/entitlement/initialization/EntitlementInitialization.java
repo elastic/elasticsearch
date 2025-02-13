@@ -28,17 +28,24 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlemen
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.FileData;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.InboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.ManageThreadsEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ReadStoreAttributesEntitlement;
 
 import java.lang.instrument.Instrumentation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.net.URI;
 import java.nio.channels.spi.SelectorProvider;
+import java.nio.file.AccessMode;
+import java.nio.file.CopyOption;
+import java.nio.file.DirectoryStream;
 import java.nio.file.FileStore;
 import java.nio.file.FileSystems;
+import java.nio.file.LinkOption;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileAttribute;
 import java.nio.file.spi.FileSystemProvider;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -46,6 +53,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -66,7 +75,7 @@ public class EntitlementInitialization {
 
     private static ElasticsearchEntitlementChecker manager;
 
-    interface InstrumentationInfoFunction {
+    interface InstrumentationInfoFactory {
         InstrumentationService.InstrumentationInfo of(String methodName, Class<?>... parameterTypes) throws ClassNotFoundException,
             NoSuchMethodException;
     }
@@ -83,20 +92,10 @@ public class EntitlementInitialization {
         var latestCheckerInterface = getVersionSpecificCheckerClass(EntitlementChecker.class);
 
         Map<MethodKey, CheckMethod> checkMethods = new HashMap<>(INSTRUMENTATION_SERVICE.lookupMethods(latestCheckerInterface));
-        var fileSystemProviderClass = FileSystems.getDefault().provider().getClass();
-
-        Stream.concat(
+        Stream.of(
+            fileSystemProviderChecks(),
             fileStoreChecks(),
             Stream.of(
-                INSTRUMENTATION_SERVICE.lookupImplementationMethod(
-                    FileSystemProvider.class,
-                    "newInputStream",
-                    fileSystemProviderClass,
-                    EntitlementChecker.class,
-                    "checkNewInputStream",
-                    Path.class,
-                    OpenOption[].class
-                ),
                 INSTRUMENTATION_SERVICE.lookupImplementationMethod(
                     SelectorProvider.class,
                     "inheritedChannel",
@@ -105,7 +104,9 @@ public class EntitlementInitialization {
                     "checkSelectorProviderInheritedChannel"
                 )
             )
-        ).forEach(instrumentation -> checkMethods.put(instrumentation.targetMethod(), instrumentation.checkMethod()));
+        )
+            .flatMap(Function.identity())
+            .forEach(instrumentation -> checkMethods.put(instrumentation.targetMethod(), instrumentation.checkMethod()));
 
         var classesToTransform = checkMethods.keySet().stream().map(MethodKey::className).collect(Collectors.toSet());
 
@@ -143,12 +144,17 @@ public class EntitlementInitialization {
                         new CreateClassLoaderEntitlement(),
                         new InboundNetworkEntitlement(),
                         new OutboundNetworkEntitlement(),
-                        new LoadNativeLibrariesEntitlement()
+                        new LoadNativeLibrariesEntitlement(),
+                        new ManageThreadsEntitlement(),
+                        new FilesEntitlement(
+                            List.of(new FilesEntitlement.FileData(EntitlementBootstrap.bootstrapArgs().tempDir().toString(), READ_WRITE))
+                        )
                     )
                 ),
                 new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),
                 new Scope("io.netty.transport", List.of(new InboundNetworkEntitlement(), new OutboundNetworkEntitlement())),
-                new Scope("org.apache.lucene.core", List.of(new LoadNativeLibrariesEntitlement())),
+                new Scope("org.apache.lucene.core", List.of(new LoadNativeLibrariesEntitlement(), new ManageThreadsEntitlement())),
+                new Scope("org.apache.logging.log4j.core", List.of(new ManageThreadsEntitlement())),
                 new Scope(
                     "org.elasticsearch.nativeaccess",
                     List.of(
@@ -160,7 +166,7 @@ public class EntitlementInitialization {
         );
         // agents run without a module, so this is a special hack for the apm agent
         // this should be removed once https://github.com/elastic/elasticsearch/issues/109335 is completed
-        List<Entitlement> agentEntitlements = List.of(new CreateClassLoaderEntitlement());
+        List<Entitlement> agentEntitlements = List.of(new CreateClassLoaderEntitlement(), new ManageThreadsEntitlement());
         var resolver = EntitlementBootstrap.bootstrapArgs().pluginResolver();
         return new PolicyManager(
             serverPolicy,
@@ -173,12 +179,61 @@ public class EntitlementInitialization {
         );
     }
 
+    private static Stream<InstrumentationService.InstrumentationInfo> fileSystemProviderChecks() throws ClassNotFoundException,
+        NoSuchMethodException {
+        var fileSystemProviderClass = FileSystems.getDefault().provider().getClass();
+
+        var instrumentation = new InstrumentationInfoFactory() {
+            @Override
+            public InstrumentationService.InstrumentationInfo of(String methodName, Class<?>... parameterTypes)
+                throws ClassNotFoundException, NoSuchMethodException {
+                return INSTRUMENTATION_SERVICE.lookupImplementationMethod(
+                    FileSystemProvider.class,
+                    methodName,
+                    fileSystemProviderClass,
+                    EntitlementChecker.class,
+                    "check" + Character.toUpperCase(methodName.charAt(0)) + methodName.substring(1),
+                    parameterTypes
+                );
+            }
+        };
+
+        return Stream.of(
+            instrumentation.of("newFileSystem", URI.class, Map.class),
+            instrumentation.of("newFileSystem", Path.class, Map.class),
+            instrumentation.of("newInputStream", Path.class, OpenOption[].class),
+            instrumentation.of("newOutputStream", Path.class, OpenOption[].class),
+            instrumentation.of("newFileChannel", Path.class, Set.class, FileAttribute[].class),
+            instrumentation.of("newAsynchronousFileChannel", Path.class, Set.class, ExecutorService.class, FileAttribute[].class),
+            instrumentation.of("newByteChannel", Path.class, Set.class, FileAttribute[].class),
+            instrumentation.of("newDirectoryStream", Path.class, DirectoryStream.Filter.class),
+            instrumentation.of("createDirectory", Path.class, FileAttribute[].class),
+            instrumentation.of("createSymbolicLink", Path.class, Path.class, FileAttribute[].class),
+            instrumentation.of("createLink", Path.class, Path.class),
+            instrumentation.of("delete", Path.class),
+            instrumentation.of("deleteIfExists", Path.class),
+            instrumentation.of("readSymbolicLink", Path.class),
+            instrumentation.of("copy", Path.class, Path.class, CopyOption[].class),
+            instrumentation.of("move", Path.class, Path.class, CopyOption[].class),
+            instrumentation.of("isSameFile", Path.class, Path.class),
+            instrumentation.of("isHidden", Path.class),
+            instrumentation.of("getFileStore", Path.class),
+            instrumentation.of("checkAccess", Path.class, AccessMode[].class),
+            instrumentation.of("getFileAttributeView", Path.class, Class.class, LinkOption[].class),
+            instrumentation.of("readAttributes", Path.class, Class.class, LinkOption[].class),
+            instrumentation.of("readAttributes", Path.class, String.class, LinkOption[].class),
+            instrumentation.of("readAttributesIfExists", Path.class, Class.class, LinkOption[].class),
+            instrumentation.of("setAttribute", Path.class, String.class, Object.class, LinkOption[].class),
+            instrumentation.of("exists", Path.class, LinkOption[].class)
+        );
+    }
+
     private static Stream<InstrumentationService.InstrumentationInfo> fileStoreChecks() {
         var fileStoreClasses = StreamSupport.stream(FileSystems.getDefault().getFileStores().spliterator(), false)
             .map(FileStore::getClass)
             .distinct();
         return fileStoreClasses.flatMap(fileStoreClass -> {
-            var instrumentation = new InstrumentationInfoFunction() {
+            var instrumentation = new InstrumentationInfoFactory() {
                 @Override
                 public InstrumentationService.InstrumentationInfo of(String methodName, Class<?>... parameterTypes)
                     throws ClassNotFoundException, NoSuchMethodException {

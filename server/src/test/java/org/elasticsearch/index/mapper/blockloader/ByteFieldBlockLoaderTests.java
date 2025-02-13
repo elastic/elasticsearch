@@ -7,8 +7,18 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.common.util;
+package org.elasticsearch.index.mapper.blockloader;
 
-public interface Countable {
-    int size();
+import org.elasticsearch.logsdb.datageneration.FieldType;
+
+public class ByteFieldBlockLoaderTests extends NumberFieldBlockLoaderTestCase<Integer> {
+    public ByteFieldBlockLoaderTests() {
+        super(FieldType.BYTE);
+    }
+
+    @Override
+    protected Integer convert(Number value) {
+        // All values that fit into int are represented as ints
+        return value.intValue();
+    }
 }

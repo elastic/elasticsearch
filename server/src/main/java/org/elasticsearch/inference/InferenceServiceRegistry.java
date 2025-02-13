@@ -46,6 +46,7 @@ public class InferenceServiceRegistry implements Closeable {
     }
 
     public Optional<InferenceService> getService(String serviceName) {
+
         if ("elser".equals(serviceName)) { // ElserService.NAME before removal
             // here we are aliasing the elser service to use the elasticsearch service instead
             return Optional.ofNullable(services.get("elasticsearch")); // ElasticsearchInternalService.NAME

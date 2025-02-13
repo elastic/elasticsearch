@@ -55,12 +55,12 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
             this(inferenceEntityId, taskType, persistDefaultConfig, false);
         }
 
-        public Request(String inferenceEntityId, TaskType taskType, boolean persistDefaultConfig, boolean isMinimal) {
+        public Request(String inferenceEntityId, TaskType taskType, boolean persistDefaultConfig, boolean returnMinimalConfig) {
             super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
             this.taskType = Objects.requireNonNull(taskType);
             this.persistDefaultConfig = persistDefaultConfig;
-            this.returnMinimalConfig = isMinimal;
+            this.returnMinimalConfig = returnMinimalConfig;
         }
 
         public Request(StreamInput in) throws IOException {

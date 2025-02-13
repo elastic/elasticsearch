@@ -416,6 +416,24 @@ tests:
 - class: org.elasticsearch.lucene.RollingUpgradeLuceneIndexCompatibilityTestCase
   method: testClosedIndexUpgrade {p0=[9.1.0, 9.1.0, 9.1.0]}
   issue: https://github.com/elastic/elasticsearch/issues/122495
+- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
+  method: testSearchableSnapshotUpgrade {p0=[9.1.0, 8.19.0, 8.19.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/122500
+- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
+  method: testMountSearchableSnapshot {p0=[9.1.0, 9.1.0, 8.19.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/122501
+- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
+  method: testMountSearchableSnapshot {p0=[9.1.0, 8.19.0, 8.19.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/122502
+- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
+  method: testSearchableSnapshotUpgrade {p0=[9.1.0, 9.1.0, 8.19.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/122503
+- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
+  method: testMountSearchableSnapshot {p0=[9.1.0, 9.1.0, 9.1.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/122504
+- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
+  method: testSearchableSnapshotUpgrade {p0=[9.1.0, 9.1.0, 9.1.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/122505
 
 # Examples:
 #

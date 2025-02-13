@@ -10,6 +10,7 @@
 package org.elasticsearch.lucene;
 
 import io.netty.handler.codec.http.HttpMethod;
+
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
@@ -54,7 +55,6 @@ public class RollingUpgradeDeprecatedSettingsIT extends RollingUpgradeIndexCompa
     public void testIndexUpgrade() throws Exception {
         final String index = suffix("index-rolling-upgraded");
         final int numDocs = 2543;
-
 
         // setup index with deprecated index settings on N-2
         if (isFullyUpgradedTo(VERSION_MINUS_2)) {

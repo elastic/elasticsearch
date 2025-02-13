@@ -9,7 +9,9 @@
 
 package org.elasticsearch.lucene;
 
+import io.netty.handler.codec.http.HttpMethod;
 import org.apache.http.HttpHost;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -48,18 +50,21 @@ public class RollingUpgradeDeprecatedSettingsIT extends RollingUpgradeIndexCompa
     /**
      * Creates an index on N-2, upgrades to N -1 and marks as read-only, then remains searchable during rolling upgrades.
      */
+    @SuppressWarnings("deprecation")
     public void testIndexUpgrade() throws Exception {
         final String index = suffix("index-rolling-upgraded");
         final int numDocs = 2543;
 
+
+        // setup index with deprecated index settings on N-2
         if (isFullyUpgradedTo(VERSION_MINUS_2)) {
-            createIndex(
+            createIndexLenient(
                 client(),
                 index,
                 Settings.builder()
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        // add some index settings deprecated in v7
+                    // add some index settings deprecated in v7
                     .put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey(), true)
                     .put(IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey(), 100)
                     .put(Store.FORCE_RAM_TERM_DICT.getKey(), false)
@@ -69,7 +74,6 @@ public class RollingUpgradeDeprecatedSettingsIT extends RollingUpgradeIndexCompa
             indexDocs(index, numDocs);
             return;
         }
-
         assertThat(indexVersion(index), equalTo(VERSION_MINUS_2));
         ensureGreen(index);
 
@@ -185,6 +189,16 @@ public class RollingUpgradeDeprecatedSettingsIT extends RollingUpgradeIndexCompa
                 ensureGreen(index);
             }
         }
+    }
+
+    private static void createIndexLenient(RestClient client, String name, Settings settings) throws IOException {
+        final Request request = newXContentRequest(HttpMethod.PUT, "/" + name, (builder, params) -> {
+            builder.startObject("settings");
+            settings.toXContent(builder, params);
+            builder.endObject();
+            return builder;
+        });
+        client.performRequest(request);
     }
 
     /**

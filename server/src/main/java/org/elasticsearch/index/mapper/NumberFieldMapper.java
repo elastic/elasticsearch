@@ -1808,8 +1808,6 @@ public class NumberFieldMapper extends FieldMapper {
             }
             if (this.scriptValues != null) {
 
-
-
                 return new DocValueFetcher(
                     docValueFormat(format, null),
                     context.getForField(this, FielddataOperation.SEARCH),

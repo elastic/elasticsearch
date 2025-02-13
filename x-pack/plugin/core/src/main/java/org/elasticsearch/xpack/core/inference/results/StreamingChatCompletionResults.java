@@ -20,7 +20,6 @@ import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Iterator;
-import java.util.Objects;
 import java.util.concurrent.Flow;
 
 import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResults.COMPLETION;

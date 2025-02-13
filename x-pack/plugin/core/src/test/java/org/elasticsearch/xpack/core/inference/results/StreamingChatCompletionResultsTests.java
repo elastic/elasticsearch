@@ -13,8 +13,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import java.io.IOException;
 import java.util.ArrayDeque;
 
-public class StreamingChatCompletionResultsTests extends AbstractWireSerializingTestCase<
-    StreamingChatCompletionResults.Results> {
+public class StreamingChatCompletionResultsTests extends AbstractWireSerializingTestCase<StreamingChatCompletionResults.Results> {
     @Override
     protected Writeable.Reader<StreamingChatCompletionResults.Results> instanceReader() {
         return StreamingChatCompletionResults.Results::new;
@@ -23,7 +22,7 @@ public class StreamingChatCompletionResultsTests extends AbstractWireSerializing
     @Override
     protected StreamingChatCompletionResults.Results createTestInstance() {
         var results = new ArrayDeque<StreamingChatCompletionResults.Result>();
-        for(int i = 0; i < randomIntBetween(1, 10) ; i++) {
+        for (int i = 0; i < randomIntBetween(1, 10); i++) {
             results.offer(new StreamingChatCompletionResults.Result(randomAlphanumericOfLength(5)));
         }
         return new StreamingChatCompletionResults.Results(results);
@@ -32,7 +31,7 @@ public class StreamingChatCompletionResultsTests extends AbstractWireSerializing
     @Override
     protected StreamingChatCompletionResults.Results mutateInstance(StreamingChatCompletionResults.Results instance) throws IOException {
         var results = new ArrayDeque<>(instance.results());
-        if(randomBoolean()) {
+        if (randomBoolean()) {
             results.pop();
         } else {
             results.offer(new StreamingChatCompletionResults.Result(randomAlphanumericOfLength(5)));

@@ -81,32 +81,7 @@ public class PolicyParser {
     }
 
     public PolicyParser(InputStream inputStream, String policyName, boolean isExternalPlugin) throws IOException {
-        this(inputStream, policyName, isExternalPlugin, validateExternalEntitlements(EXTERNAL_ENTITLEMENTS));
-    }
-
-    private static Map<String, Class<? extends Entitlement>> validateExternalEntitlements(
-        Map<String, Class<? extends Entitlement>> externalEntitlements
-    ) {
-        externalEntitlements.forEach((name, type) -> {
-            assert name.equals(getEntitlementTypeName(type))
-                : "Map key for " + type + " must be [" + getEntitlementTypeName(type) + "] but was [" + name + "]";
-            for (var c : type.getConstructors()) {
-                if (c.isAnnotationPresent(ExternalEntitlement.class)) {
-                    // All is well
-                    return;
-                }
-            }
-            for (var m : type.getMethods()) {
-                if (Modifier.isStatic(m.getModifiers()) && m.isAnnotationPresent(ExternalEntitlement.class)) {
-                    // All is well
-                    return;
-                }
-            }
-            throw new AssertionError(
-                "External entitlement class must have a constructor or factory method with @ExternalEntitlement annotation: " + type
-            );
-        });
-        return externalEntitlements;
+        this(inputStream, policyName, isExternalPlugin, EXTERNAL_ENTITLEMENTS);
     }
 
     // package private for tests

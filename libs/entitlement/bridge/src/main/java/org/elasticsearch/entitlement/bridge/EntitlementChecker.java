@@ -561,27 +561,6 @@ public interface EntitlementChecker {
 
     void check$java_nio_file_Files$$setOwner(Class<?> callerClass, Path path, UserPrincipal principal);
 
-    ////////////////////
-    //
-    // Thread management
-    //
-
-    void check$java_lang_Thread$start(Class<?> callerClass, Thread thread);
-
-    void check$java_lang_Thread$setDaemon(Class<?> callerClass, Thread thread, boolean on);
-
-    void check$java_lang_ThreadGroup$setDaemon(Class<?> callerClass, ThreadGroup threadGroup, boolean daemon);
-
-    void check$java_util_concurrent_ForkJoinPool$setParallelism(Class<?> callerClass, ForkJoinPool forkJoinPool, int size);
-
-    void check$java_lang_Thread$setName(Class<?> callerClass, Thread thread, String name);
-
-    void check$java_lang_Thread$setPriority(Class<?> callerClass, Thread thread, int newPriority);
-
-    void check$java_lang_Thread$setUncaughtExceptionHandler(Class<?> callerClass, Thread thread, Thread.UncaughtExceptionHandler ueh);
-
-    void check$java_lang_ThreadGroup$setMaxPriority(Class<?> callerClass, ThreadGroup threadGroup, int pri);
-
     // file system providers
     void check$java_nio_file_spi_FileSystemProvider$(Class<?> callerClass);
 
@@ -674,5 +653,26 @@ public interface EntitlementChecker {
     void checkName(Class<?> callerClass, FileStore that);
 
     void checkType(Class<?> callerClass, FileStore that);
+
+    ////////////////////
+    //
+    // Thread management
+    //
+
+    void check$java_lang_Thread$start(Class<?> callerClass, Thread thread);
+
+    void check$java_lang_Thread$setDaemon(Class<?> callerClass, Thread thread, boolean on);
+
+    void check$java_lang_ThreadGroup$setDaemon(Class<?> callerClass, ThreadGroup threadGroup, boolean daemon);
+
+    void check$java_util_concurrent_ForkJoinPool$setParallelism(Class<?> callerClass, ForkJoinPool forkJoinPool, int size);
+
+    void check$java_lang_Thread$setName(Class<?> callerClass, Thread thread, String name);
+
+    void check$java_lang_Thread$setPriority(Class<?> callerClass, Thread thread, int newPriority);
+
+    void check$java_lang_Thread$setUncaughtExceptionHandler(Class<?> callerClass, Thread thread, Thread.UncaughtExceptionHandler ueh);
+
+    void check$java_lang_ThreadGroup$setMaxPriority(Class<?> callerClass, ThreadGroup threadGroup, int pri);
 
 }

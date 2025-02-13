@@ -496,24 +496,18 @@ public class PolicyManager {
      * @return true if permission is granted regardless of the entitlement
      */
     private static boolean isTriviallyAllowed(Class<?> requestingClass) {
+        if (logger.isTraceEnabled()) {
+            logger.trace("Stack trace for upcoming trivially-allowed check", new Exception());
+        }
         if (requestingClass == null) {
-            // This is unexpected and unusual; we probably want to log at the info level
-            logger.info("Entitlement trivially allowed: no caller frames outside the entitlement library", new Exception("STACK TRACE"));
+            logger.debug("Entitlement trivially allowed: no caller frames outside the entitlement library");
             return true;
         }
         if (systemModules.contains(requestingClass.getModule())) {
-            if (logger.isTraceEnabled()) {
-                logger.trace(
-                    "Entitlement trivially allowed from system module [{}]",
-                    requestingClass.getModule().getName(),
-                    new Exception("STACK TRACE")
-                );
-            }
+            logger.debug("Entitlement trivially allowed from system module [{}]", requestingClass.getModule().getName());
             return true;
         }
-        if (logger.isTraceEnabled()) {
-            logger.trace("Entitlement not trivially allowed", new Exception("STACK TRACE"));
-        }
+        logger.trace("Entitlement not trivially allowed");
         return false;
     }
 

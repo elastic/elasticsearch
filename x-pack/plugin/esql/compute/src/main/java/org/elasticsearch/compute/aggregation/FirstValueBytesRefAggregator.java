@@ -134,7 +134,7 @@ public class FirstValueBytesRefAggregator {
         public FirstValueLongGroupingState(BigArrays bigArrays, CircuitBreaker breaker) {
             this.bigArrays = bigArrays;
             this.breaker = breaker;
-            valueState = bigArrays.newObjectArray(0);
+            valueState = bigArrays.newObjectArray(1);
             timestampState = bigArrays.newLongArray(1, false);
             seen = null;
         }
@@ -170,8 +170,10 @@ public class FirstValueBytesRefAggregator {
         }
 
         private void ensureCapacity(int groupId) {
-            if (groupId >= timestampState.size()) {
+            if (groupId >= valueState.size()) {
                 valueState = bigArrays.grow(valueState, groupId + 1);
+            }
+            if (groupId >= timestampState.size()) {
                 long prevSize = timestampState.size();
                 timestampState = bigArrays.grow(timestampState, groupId + 1);
                 timestampState.fill(prevSize, timestampState.size(), Long.MAX_VALUE);

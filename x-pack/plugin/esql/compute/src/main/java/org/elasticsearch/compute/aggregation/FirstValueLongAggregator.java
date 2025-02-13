@@ -129,8 +129,6 @@ public class FirstValueLongAggregator {
         }
 
         public void add(int groupId, long value, long timestamp) {
-            long currentValue = groupId < valueState.size() ? valueState.get(groupId) : Long.MAX_VALUE;
-            long currentTimestamp = groupId < timestampState.size() ? timestampState.get(groupId) : Long.MAX_VALUE;
             if (hasValue(groupId) == false || timestamp < getTimestamp(groupId)) {
                 ensureCapacity(groupId);
                 valueState.set(groupId, value);
@@ -156,10 +154,12 @@ public class FirstValueLongAggregator {
         }
 
         private void ensureCapacity(int groupId) {
-            if (groupId >= timestampState.size()) {
+            if (groupId >= valueState.size()) {
                 long prevSize1 = valueState.size();
                 valueState = bigArrays.grow(valueState, groupId + 1);
                 valueState.fill(prevSize1, valueState.size(), Long.MAX_VALUE);
+            }
+            if (groupId >= timestampState.size()) {
                 long prevSize2 = timestampState.size();
                 timestampState = bigArrays.grow(timestampState, groupId + 1);
                 timestampState.fill(prevSize2, timestampState.size(), Long.MAX_VALUE);

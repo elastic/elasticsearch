@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.FirstValueBytesRefAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.FirstValueLongAggregatorFunctionSupplier;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -47,8 +48,22 @@ public class FirstValue extends AggregateFunction implements OptionalArgument, T
         Map.entry(DataType.VERSION, FirstValueBytesRefAggregatorFunctionSupplier::new)
     );
 
-    @FunctionInfo(returnType = "keyword", description = "TBD", type = FunctionType.AGGREGATE, examples = {})
-    public FirstValue(Source source, @Param(name = "field", type = "keyword", description = "TBD") Expression field, Expression timestamp) {
+    @FunctionInfo(
+        returnType = { "long", "keyword" },
+        description = "Picks the first value (by the timestamp) of the series.",
+        type = FunctionType.AGGREGATE,
+        examples = {}
+    )
+    public FirstValue(
+        Source source,
+        @Param(name = "field", type = { "long", "keyword" }) Expression field,
+        @Nullable @Param(
+            optional = true,
+            name = "timestamp",
+            type = "long",
+            description = "Timestamp field to determine values order."
+        ) Expression timestamp
+    ) {
         this(source, field, Literal.TRUE, timestamp != null ? List.of(timestamp) : List.of(new UnresolvedAttribute(source, "@timestamp")));
     }
 

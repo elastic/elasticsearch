@@ -257,7 +257,7 @@ public class ElasticsearchAssertions {
             assertThat(
                 "Request should have been blocked by [" + expectedBlockId + "] instead of " + e.blocks(),
                 e.blocks(),
-                hasItem(transformedMatch(ClusterBlock::id, equalTo(expectedBlockId)))
+                hasItem(transformedMatch("ClusterBlock id", ClusterBlock::id, equalTo(expectedBlockId)))
             );
         }
     }
@@ -764,33 +764,39 @@ public class ElasticsearchAssertions {
      * Assert that an index template is missing
      */
     public static void assertIndexTemplateMissing(GetIndexTemplatesResponse templatesResponse, String name) {
-        assertThat(templatesResponse.getIndexTemplates(), not(hasItem(transformedMatch(IndexTemplateMetadata::name, equalTo(name)))));
+        assertThat(
+            templatesResponse.getIndexTemplates(),
+            not(hasItem(transformedMatch("IndexTemplateMetadata name", IndexTemplateMetadata::name, equalTo(name))))
+        );
     }
 
     /**
      * Assert that an index template exists
      */
     public static void assertIndexTemplateExists(GetIndexTemplatesResponse templatesResponse, String name) {
-        assertThat(templatesResponse.getIndexTemplates(), hasItem(transformedMatch(IndexTemplateMetadata::name, equalTo(name))));
+        assertThat(
+            templatesResponse.getIndexTemplates(),
+            hasItem(transformedMatch("IndexTemplateMetadata name", IndexTemplateMetadata::name, equalTo(name)))
+        );
     }
 
     /*
      * matchers
      */
     public static Matcher<SearchHit> hasId(final String id) {
-        return transformedMatch(SearchHit::getId, equalTo(id));
+        return transformedMatch("SearchHit id", SearchHit::getId, equalTo(id));
     }
 
     public static Matcher<SearchHit> hasIndex(final String index) {
-        return transformedMatch(SearchHit::getIndex, equalTo(index));
+        return transformedMatch("SearchHit index", SearchHit::getIndex, equalTo(index));
     }
 
     public static Matcher<SearchHit> hasScore(final float score) {
-        return transformedMatch(SearchHit::getScore, equalTo(score));
+        return transformedMatch("SearchHit score", SearchHit::getScore, equalTo(score));
     }
 
     public static Matcher<SearchHit> hasRank(final int rank) {
-        return transformedMatch(SearchHit::getRank, equalTo(rank));
+        return transformedMatch("SearchHit rank", SearchHit::getRank, equalTo(rank));
     }
 
     public static <T extends Query> T assertBooleanSubQuery(Query query, Class<T> subqueryType, int i) {

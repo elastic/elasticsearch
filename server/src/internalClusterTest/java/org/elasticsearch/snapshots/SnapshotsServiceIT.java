@@ -17,10 +17,12 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -223,4 +225,30 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         safeAwait(shardMovedListener);
         ensureGreen(indexName);
     }
+
+    @TestLogging(reason = "testing task description, logged at DEBUG", value = "org.elasticsearch.cluster.service.MasterService:DEBUG")
+    public void testCreateSnapshotTaskDescription() {
+        createIndexWithRandomDocs(randomIdentifier(), randomIntBetween(1, 5));
+        final var repositoryName = randomIdentifier();
+        createRepository(repositoryName, "mock");
+
+        final var snapshotName = randomIdentifier();
+        MockLog.assertThatLogger(
+            () -> createFullSnapshot(repositoryName, snapshotName),
+            MasterService.class,
+            new MockLog.SeenEventExpectation(
+                "executing cluster state update debug message",
+                MasterService.class.getCanonicalName(),
+                Level.DEBUG,
+                "executing cluster state update for [create_snapshot ["
+                    + snapshotName
+                    + "][CreateSnapshotTask{repository="
+                    + repositoryName
+                    + ", snapshot=*"
+                    + snapshotName
+                    + "*}]]"
+            )
+        );
+    }
+
 }

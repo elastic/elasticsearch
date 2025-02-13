@@ -169,14 +169,16 @@ public abstract class ESRestTestCase extends ESTestCase {
     private static final String EXPECTED_ROLLUP_WARNING_MESSAGE =
         "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information.";
     public static final RequestOptions.Builder ROLLUP_REQUESTS_OPTIONS = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
-        // Either no warning, because of bwc integration test OR
-        // the expected warning, because on current version
         if (warnings.isEmpty()) {
             return false;
-        } else if (warnings.size() == 1 && EXPECTED_ROLLUP_WARNING_MESSAGE.equals(warnings.get(0))) {
-            return false;
         } else {
-            return true;
+            // Sometimes multiple rollup deprecation warnings. Transport actions can be invoked multiple time on different nodes.
+            for (String warning : warnings) {
+                if (EXPECTED_ROLLUP_WARNING_MESSAGE.equals(warning) == false) {
+                    return true;
+                }
+            }
+            return false;
         }
     });
 
@@ -1012,14 +1014,21 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     private void waitForClusterUpdates() throws Exception {
         logger.info("Waiting for all cluster updates up to this moment to be processed");
+
         try {
             assertOK(adminClient().performRequest(new Request("GET", "_cluster/health?wait_for_events=languid")));
         } catch (ResponseException e) {
             if (e.getResponse().getStatusLine().getStatusCode() == HttpStatus.SC_REQUEST_TIMEOUT) {
+                StringBuilder logMessage = new StringBuilder("Timed out waiting for cluster updates to be processed.");
                 final var pendingTasks = getPendingClusterStateTasks();
                 if (pendingTasks != null) {
-                    logger.error("Timed out waiting for cluster updates to be processed, {}", pendingTasks);
+                    logMessage.append('\n').append(pendingTasks);
                 }
+                final var hotThreads = getHotThreads();
+                if (hotThreads != null) {
+                    logMessage.append("\nHot threads: ").append(hotThreads);
+                }
+                logger.error(logMessage.toString());
             }
             throw e;
         }
@@ -1029,8 +1038,8 @@ public abstract class ESRestTestCase extends ESTestCase {
         try {
             Response response = adminClient().performRequest(new Request("GET", "/_cluster/pending_tasks"));
             List<?> tasks = (List<?>) entityAsMap(response).get("tasks");
-            if (false == tasks.isEmpty()) {
-                StringBuilder message = new StringBuilder("there are still running tasks:");
+            if (tasks.isEmpty() == false) {
+                StringBuilder message = new StringBuilder("There are still running tasks:");
                 for (Object task : tasks) {
                     message.append('\n').append(task.toString());
                 }
@@ -1038,6 +1047,18 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
         } catch (IOException e) {
             fail(e, "Failed to retrieve pending tasks in the cluster during cleanup");
+        }
+        return null;
+    }
+
+    private String getHotThreads() {
+        try {
+            Response response = adminClient().performRequest(
+                new Request("GET", "/_nodes/hot_threads?ignore_idle_threads=false&threads=9999")
+            );
+            return EntityUtils.toString(response.getEntity());
+        } catch (IOException e) {
+            logger.error("Failed to retrieve hot threads in the cluster during cleanup", e);
         }
         return null;
     }

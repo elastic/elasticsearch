@@ -1,2 +1,7 @@
 io.netty.common:
   - outbound_network
+  - files:
+      - path: "/etc/os-release"
+        mode: "read"
+      - path: "/usr/lib/os-release"
+        mode: "read"

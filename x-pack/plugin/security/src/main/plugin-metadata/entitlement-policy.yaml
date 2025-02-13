@@ -6,6 +6,11 @@ io.netty.transport:
 io.netty.common:
   - inbound_network
   - outbound_network
+  - files:
+      - path: "/etc/os-release"
+        mode: "read"
+      - path: "/usr/lib/os-release"
+        mode: "read"
 org.opensaml.xmlsec.impl:
   - write_system_properties:
       properties:

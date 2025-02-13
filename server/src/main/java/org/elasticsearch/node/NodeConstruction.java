@@ -80,7 +80,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
@@ -707,7 +706,7 @@ class NodeConstruction {
 
         var executor = (TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor) threadPool.executor(ThreadPool.Names.SEARCH);
         clusterService.addListener(new SearchIndexTimeTrackingCleanupService(executor));
-        if(logger.isDebugEnabled()) searchLoadMetricsReporter(executor);
+        if (logger.isDebugEnabled()) searchLoadMetricsReporter(executor);
 
         modules.bindToInstance(DocumentParsingProvider.class, documentParsingProvider);
 
@@ -1278,7 +1277,6 @@ class NodeConstruction {
                 }
             }
         };
-
 
         timer.scheduleAtFixedRate(task, 0, 4000);
     }

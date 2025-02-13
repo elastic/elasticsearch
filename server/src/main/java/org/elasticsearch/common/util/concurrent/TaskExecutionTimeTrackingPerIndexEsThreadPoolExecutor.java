@@ -119,7 +119,7 @@ public class TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor extends TaskE
         }
     }
 
-    //TODO Remove these methods once the NodeConstruction#searchLoadMetricsReporter is deleted
+    // TODO Remove these methods once the NodeConstruction#searchLoadMetricsReporter is deleted
     /**
      * Gets the map of index execution times.
      *

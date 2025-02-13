@@ -343,9 +343,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/121625
 - class: org.elasticsearch.xpack.searchablesnapshots.hdfs.SecureHdfsSearchableSnapshotsIT
   issue: https://github.com/elastic/elasticsearch/issues/121967
-- class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
-  method: testBottomFieldSort
-  issue: https://github.com/elastic/elasticsearch/issues/121503
 - class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
   issue: https://github.com/elastic/elasticsearch/issues/121537
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT

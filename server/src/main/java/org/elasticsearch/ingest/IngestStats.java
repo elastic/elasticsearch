@@ -57,7 +57,7 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
      * Read from a stream.
      */
     public static IngestStats read(StreamInput in) throws IOException {
-        var stats = readFrom(in);
+        var stats = readStats(in);
         var size = in.readVInt();
         if (stats == Stats.IDENTITY && size == 0) {
             return IDENTITY;
@@ -67,7 +67,7 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
 
         for (var i = 0; i < size; i++) {
             var pipelineId = in.readString();
-            var pipelineStat = readFrom(in);
+            var pipelineStat = readStats(in);
             var byteStat = in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? new ByteStats(in) : new ByteStats(0, 0);
             pipelineStats.add(new PipelineStat(pipelineId, pipelineStat, byteStat));
             int processorsSize = in.readVInt();
@@ -75,7 +75,7 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
             for (var j = 0; j < processorsSize; j++) {
                 var processorName = in.readString();
                 var processorType = in.readString();
-                var processorStat = readFrom(in);
+                var processorStat = readStats(in);
                 processorStatsPerPipeline.add(new ProcessorStat(processorName, processorType, processorStat));
             }
             processorStats.put(pipelineId, Collections.unmodifiableList(processorStatsPerPipeline));
@@ -171,9 +171,9 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
     }
 
     /**
-     * Read from a stream.
+     * Read {@link Stats} from a stream.
      */
-    private static Stats readFrom(StreamInput in) throws IOException {
+    private static Stats readStats(StreamInput in) throws IOException {
         long ingestCount = in.readVLong();
         long ingestTimeInMillis = in.readVLong();
         long ingestCurrent = in.readVLong();

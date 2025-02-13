@@ -707,7 +707,7 @@ class NodeConstruction {
 
         var executor = (TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor) threadPool.executor(ThreadPool.Names.SEARCH);
         clusterService.addListener(new SearchIndexTimeTrackingCleanupService(executor));
-        if(logger.isDebugEnabled()) searchLoadMetricsReporter(executor);
+        searchLoadMetricsReporter(executor);
 
         modules.bindToInstance(DocumentParsingProvider.class, documentParsingProvider);
 

@@ -12,8 +12,8 @@ package org.elasticsearch.index.mapper.blockloader;
 import org.elasticsearch.logsdb.datageneration.FieldType;
 
 public class ShortFieldBlockLoaderTests extends NumberFieldBlockLoaderTestCase<Integer> {
-    public ShortFieldBlockLoaderTests() {
-        super(FieldType.SHORT);
+    public ShortFieldBlockLoaderTests(Params params) {
+        super(FieldType.SHORT, params);
     }
 
     @Override

@@ -12,8 +12,8 @@ package org.elasticsearch.index.mapper.blockloader;
 import org.elasticsearch.logsdb.datageneration.FieldType;
 
 public class ByteFieldBlockLoaderTests extends NumberFieldBlockLoaderTestCase<Integer> {
-    public ByteFieldBlockLoaderTests() {
-        super(FieldType.BYTE);
+    public ByteFieldBlockLoaderTests(Params params) {
+        super(FieldType.BYTE, params);
     }
 
     @Override

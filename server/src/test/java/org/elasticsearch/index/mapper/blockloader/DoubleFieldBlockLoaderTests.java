@@ -12,8 +12,8 @@ package org.elasticsearch.index.mapper.blockloader;
 import org.elasticsearch.logsdb.datageneration.FieldType;
 
 public class DoubleFieldBlockLoaderTests extends NumberFieldBlockLoaderTestCase<Double> {
-    public DoubleFieldBlockLoaderTests() {
-        super(FieldType.DOUBLE);
+    public DoubleFieldBlockLoaderTests(Params params) {
+        super(FieldType.DOUBLE, params);
     }
 
     @Override

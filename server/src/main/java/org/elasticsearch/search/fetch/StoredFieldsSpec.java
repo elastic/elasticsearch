@@ -42,8 +42,13 @@ public record StoredFieldsSpec(boolean requiresSource, boolean requiresMetadata,
         if (this == other) {
             return this;
         }
-        Set<String> mergedFields = new HashSet<>(this.requiredStoredFields);
-        mergedFields.addAll(other.requiredStoredFields);
+        Set<String> mergedFields;
+        if (other.requiredStoredFields.isEmpty()) {
+            mergedFields = this.requiredStoredFields;
+        } else {
+            mergedFields = new HashSet<>(this.requiredStoredFields);
+            mergedFields.addAll(other.requiredStoredFields);
+        }
         return new StoredFieldsSpec(
             this.requiresSource || other.requiresSource,
             this.requiresMetadata || other.requiresMetadata,

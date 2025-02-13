@@ -13,8 +13,8 @@ import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.elasticsearch.logsdb.datageneration.FieldType;
 
 public class HalfFloatFieldBlockLoaderTests extends NumberFieldBlockLoaderTestCase<Double> {
-    public HalfFloatFieldBlockLoaderTests() {
-        super(FieldType.HALF_FLOAT);
+    public HalfFloatFieldBlockLoaderTests(Params params) {
+        super(FieldType.HALF_FLOAT, params);
     }
 
     @Override

@@ -70,6 +70,10 @@ setup:
 ---
 "Simple text similarity rank retriever":
 
+  - requires:
+      cluster_features: "test_reranking_service.parse_text_as_score"
+      reason: test_reranking_service can now parse provided input as score to provide deterministic ranks
+
   - do:
       search:
         index: test-index
@@ -120,6 +124,10 @@ setup:
 
 ---
 "Simple text similarity rank retriever and filtering":
+
+  - requires:
+      cluster_features: "test_reranking_service.parse_text_as_score"
+      reason: test_reranking_service can now parse provided input as score to provide deterministic ranks
 
   - do:
       search:
@@ -203,6 +211,10 @@ setup:
 
 ---
 "text similarity reranking with explain":
+
+  - requires:
+      cluster_features: "test_reranking_service.parse_text_as_score"
+      reason: test_reranking_service can now parse provided input as score to provide deterministic ranks
 
   - do:
       search:

@@ -1,5 +1,5 @@
 pr: 121392
-summary: Converting an Existing Data Stream to a System `DataStream` is Broken
+summary: Include data streams when converting an existing resource to a system resource
 area: Infra/Core
 type: bug
 issues: []

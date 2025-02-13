@@ -39,7 +39,7 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         DATA
     }
 
-    public interface FileData {
+    public sealed interface FileData {
 
         final class AbsolutePathFileData implements FileData {
             private final Path path;

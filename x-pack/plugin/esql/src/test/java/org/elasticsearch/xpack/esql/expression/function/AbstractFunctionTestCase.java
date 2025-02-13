@@ -545,15 +545,15 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return serializeDeserializeExpression(expression);
     }
 
-     /**
-      * Returns the expression after being serialized and deserialized.
-      * <p>
-      *     Tests randomly go through this method to ensure that the function retains the same logic after serialization and deserialization.
-      * </p>
-      * <p>
-      *     Can be overridden to provide custom serialization and deserialization logic, or disable it if needed.
-      * </p>
-     */
+    /**
+     * Returns the expression after being serialized and deserialized.
+     * <p>
+     *     Tests randomly go through this method to ensure that the function retains the same logic after serialization and deserialization.
+     * </p>
+     * <p>
+     *     Can be overridden to provide custom serialization and deserialization logic, or disable it if needed.
+     * </p>
+    */
     protected Expression serializeDeserializeExpression(Expression expression) {
         Expression newExpression = serializeDeserialize(
             expression,

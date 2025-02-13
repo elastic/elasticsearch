@@ -15,9 +15,12 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.qa.rest.RequestIndexFilteringTestCase;
+import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
+import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -27,6 +30,12 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.util.Map;
+
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
@@ -51,6 +60,8 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
         }
     }
 
+    private boolean isCCSRequest;
+
     @BeforeClass
     public static void checkVersion() {
         assumeTrue("skip if version before 8.18", Clusters.localClusterVersion().onOrAfter(Version.V_8_18_0));
@@ -73,11 +84,18 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
 
     @Override
     protected String from(String... indexName) {
-        if (randomBoolean()) {
+        isCCSRequest = randomBoolean();
+        if (isCCSRequest) {
             return "FROM *:" + String.join(",*:", indexName);
         } else {
             return "FROM " + String.join(",", indexName);
         }
+    }
+
+    @Override
+    public Map<String, Object> runEsql(RestEsqlTestCase.RequestObjectBuilder requestObject) throws IOException {
+        requestObject.includeCCSMetadata(true);
+        return super.runEsql(requestObject);
     }
 
     @After
@@ -89,4 +107,35 @@ public class RequestIndexFilteringIT extends RequestIndexFilteringTestCase {
             assertEquals(404, re.getResponse().getStatusLine().getStatusCode());
         }
     }
+
+    private MapMatcher getClustersMetadataMatcher() {
+        MapMatcher mapMatcher = matchesMap();
+        mapMatcher = mapMatcher.entry("running", 0);
+        mapMatcher = mapMatcher.entry("total", 1);
+        mapMatcher = mapMatcher.entry("failed", 0);
+        mapMatcher = mapMatcher.entry("partial", 0);
+        mapMatcher = mapMatcher.entry("successful", 1);
+        mapMatcher = mapMatcher.entry("skipped", 0);
+        mapMatcher = mapMatcher.entry(
+            "details",
+            matchesMap().entry(
+                Clusters.REMOTE_CLUSTER_NAME,
+                matchesMap().entry("_shards", matchesMap().extraOk())
+                    .entry("took", greaterThanOrEqualTo(0))
+                    .entry("indices", instanceOf(String.class))
+                    .entry("status", "successful")
+            )
+        );
+        return mapMatcher;
+    }
+
+    @Override
+    protected void assertQueryResult(Map<String, Object> result, Matcher<?> columnMatcher, Matcher<?> valuesMatcher) {
+        var matcher = getResultMatcher(result).entry("columns", columnMatcher).entry("values", valuesMatcher);
+        if (isCCSRequest) {
+            matcher = matcher.entry("_clusters", getClustersMetadataMatcher());
+        }
+        assertMap(result, matcher);
+    }
+
 }

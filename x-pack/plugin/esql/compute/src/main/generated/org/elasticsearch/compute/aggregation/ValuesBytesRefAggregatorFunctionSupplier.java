@@ -15,19 +15,28 @@ import org.elasticsearch.compute.operator.DriverContext;
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
 public final class ValuesBytesRefAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final List<Integer> channels;
-
-  public ValuesBytesRefAggregatorFunctionSupplier(List<Integer> channels) {
-    this.channels = channels;
+  public ValuesBytesRefAggregatorFunctionSupplier() {
   }
 
   @Override
-  public ValuesBytesRefAggregatorFunction aggregator(DriverContext driverContext) {
+  public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+    return ValuesBytesRefAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+    return ValuesBytesRefGroupingAggregatorFunction.intermediateStateDesc();
+  }
+
+  @Override
+  public ValuesBytesRefAggregatorFunction aggregator(DriverContext driverContext,
+      List<Integer> channels) {
     return ValuesBytesRefAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
-  public ValuesBytesRefGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
+  public ValuesBytesRefGroupingAggregatorFunction groupingAggregator(DriverContext driverContext,
+      List<Integer> channels) {
     return ValuesBytesRefGroupingAggregatorFunction.create(channels, driverContext);
   }
 

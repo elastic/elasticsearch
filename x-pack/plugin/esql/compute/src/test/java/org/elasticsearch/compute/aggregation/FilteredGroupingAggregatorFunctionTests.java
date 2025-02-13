@@ -34,10 +34,10 @@ public class FilteredGroupingAggregatorFunctionTests extends GroupingAggregatorF
     private final List<Exception> unclosed = Collections.synchronizedList(new ArrayList<>());
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
+    protected AggregatorFunctionSupplier aggregatorFunction() {
         return new FilteredAggregatorFunctionSupplier(
-            new SumIntAggregatorFunctionSupplier(inputChannels),
-            new AnyGreaterThanFactory(unclosed, inputChannels)
+            new SumIntAggregatorFunctionSupplier(),
+            new AnyGreaterThanFactory(unclosed, List.of(1))
         );
     }
 
@@ -112,11 +112,12 @@ public class FilteredGroupingAggregatorFunctionTests extends GroupingAggregatorF
      */
     public void testAddIntermediateRowInput() {
         DriverContext ctx = driverContext();
-        AggregatorFunctionSupplier supplier = aggregatorFunction(channels(AggregatorMode.SINGLE));
+        AggregatorFunctionSupplier supplier = aggregatorFunction();
+        List<Integer> channels = channels(AggregatorMode.SINGLE);
         Block[] results = new Block[2];
         try (
-            GroupingAggregatorFunction main = supplier.groupingAggregator(ctx);
-            GroupingAggregatorFunction leaf = supplier.groupingAggregator(ctx);
+            GroupingAggregatorFunction main = supplier.groupingAggregator(ctx, channels);
+            GroupingAggregatorFunction leaf = supplier.groupingAggregator(ctx, channels);
             SourceOperator source = simpleInput(ctx.blockFactory(), 10);
         ) {
             Page p;

@@ -86,7 +86,8 @@ public class TokenCountFieldMapper extends FieldMapper {
                 store.getValue(),
                 hasDocValues.getValue(),
                 nullValue.getValue(),
-                meta.getValue()
+                meta.getValue(),
+                context.isSourceSynthetic()
             );
             return new TokenCountFieldMapper(leafName(), ft, builderParams(this, context), this);
         }
@@ -100,7 +101,8 @@ public class TokenCountFieldMapper extends FieldMapper {
             boolean isStored,
             boolean hasDocValues,
             Number nullValue,
-            Map<String, String> meta
+            Map<String, String> meta,
+            boolean isSyntheticSource
         ) {
             super(
                 name,
@@ -114,7 +116,8 @@ public class TokenCountFieldMapper extends FieldMapper {
                 null,
                 false,
                 null,
-                null
+                null,
+                isSyntheticSource
             );
         }
 

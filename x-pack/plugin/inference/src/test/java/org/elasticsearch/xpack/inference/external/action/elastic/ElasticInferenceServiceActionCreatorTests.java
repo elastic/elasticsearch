@@ -124,7 +124,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             assertThat(requestMap.get("input"), instanceOf(List.class));
             var inputList = (List<String>) requestMap.get("input");
             assertThat(inputList, contains("hello world"));
-            assertThat(requestMap.get("model_id"), is("my-model-id"));
+            assertThat(requestMap.get("model"), is("my-model-id"));
         }
     }
 
@@ -179,7 +179,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             assertThat(requestMap.get("input"), instanceOf(List.class));
             var inputList = (List<String>) requestMap.get("input");
             assertThat(inputList, contains("hello world"));
-            assertThat(requestMap.get("model_id"), is("my-model-id"));
+            assertThat(requestMap.get("model"), is("my-model-id"));
         }
     }
 

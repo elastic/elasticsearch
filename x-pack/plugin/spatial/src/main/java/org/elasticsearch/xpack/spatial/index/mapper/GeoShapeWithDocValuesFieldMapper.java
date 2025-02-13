@@ -33,6 +33,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
@@ -300,14 +301,17 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         }
 
         @Override
-        protected boolean isBoundsExtractionSupported() {
-            // Extracting bounds for geo shapes is not implemented yet.
-            return false;
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            return blContext.fieldExtractPreference() == FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS
+                ? new GeoBoundsBlockLoader(name())
+                : blockLoaderFromSource(blContext);
         }
 
-        @Override
-        protected CoordinateEncoder coordinateEncoder() {
-            return CoordinateEncoder.GEO;
+        static class GeoBoundsBlockLoader extends AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType.BoundsBlockLoader {
+
+            GeoBoundsBlockLoader(String fieldName) {
+                super(fieldName);
+            }
         }
     }
 

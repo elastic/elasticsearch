@@ -17,6 +17,7 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Assert;
 
@@ -62,7 +63,7 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
 
         // filter includes both indices in the result (all columns, all rows)
         RestEsqlTestCase.RequestObjectBuilder builder = timestampFilter("gte", "2023-01-01").query(from("test*"));
-        assertResultMap(
+        assertQueryResult(
             runEsql(builder),
             matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
                 .item(matchesMap().entry("name", "id1").entry("type", "integer"))
@@ -73,7 +74,7 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
 
         // filter includes only test1. Columns from test2 are filtered out, as well (not only rows)!
         builder = timestampFilter("gte", "2024-01-01").query(from("test*"));
-        assertResultMap(
+        assertQueryResult(
             runEsql(builder),
             matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
                 .item(matchesMap().entry("name", "id1").entry("type", "integer"))
@@ -84,7 +85,7 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         // filter excludes both indices (no rows); the first analysis step fails because there are no columns, a second attempt succeeds
         // after eliminating the index filter. All columns are returned.
         builder = timestampFilter("gte", "2025-01-01").query(from("test*"));
-        assertResultMap(
+        assertQueryResult(
             runEsql(builder),
             matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
                 .item(matchesMap().entry("name", "id1").entry("type", "integer"))
@@ -102,7 +103,7 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
 
         // filter includes only test1. Columns and rows of test2 are filtered out
         RestEsqlTestCase.RequestObjectBuilder builder = existsFilter("id1").query(from("test*"));
-        assertResultMap(
+        assertQueryResult(
             runEsql(builder),
             matchesList().item(matchesMap().entry("name", "@timestamp").entry("type", "date"))
                 .item(matchesMap().entry("name", "id1").entry("type", "integer"))
@@ -113,7 +114,7 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
         // filter includes only test1. Columns from test2 are filtered out, as well (not only rows)!
         builder = existsFilter("id1").query(from("test*") + " METADATA _index | KEEP _index, id*");
         Map<String, Object> result = runEsql(builder);
-        assertResultMap(
+        assertQueryResult(
             result,
             matchesList().item(matchesMap().entry("name", "_index").entry("type", "keyword"))
                 .item(matchesMap().entry("name", "id1").entry("type", "integer")),
@@ -138,7 +139,7 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
             from("test*") + " METADATA _index | SORT id2 | KEEP _index, id*"
         );
         Map<String, Object> result = runEsql(builder);
-        assertResultMap(
+        assertQueryResult(
             result,
             matchesList().item(matchesMap().entry("name", "_index").entry("type", "keyword"))
                 .item(matchesMap().entry("name", "id1").entry("type", "integer"))
@@ -298,4 +299,9 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
             Assert.assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
         }
     }
+
+    protected void assertQueryResult(Map<String, Object> result, Matcher<?> columnMatcher, Matcher<?> valuesMatcher) {
+        assertResultMap(result, columnMatcher, valuesMatcher);
+    }
+
 }

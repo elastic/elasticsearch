@@ -26,8 +26,8 @@ public class CountDistinctBooleanAggregatorFunctionTests extends AggregatorFunct
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new CountDistinctBooleanAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new CountDistinctBooleanAggregatorFunctionSupplier();
     }
 
     @Override

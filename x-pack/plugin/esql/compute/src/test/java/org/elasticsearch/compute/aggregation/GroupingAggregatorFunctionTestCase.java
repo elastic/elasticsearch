@@ -59,10 +59,10 @@ import static org.hamcrest.Matchers.hasSize;
  * Shared tests for testing grouped aggregations.
  */
 public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperatorTestCase {
-    protected abstract AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels);
+    protected abstract AggregatorFunctionSupplier aggregatorFunction();
 
     protected final int aggregatorIntermediateBlockCount() {
-        try (var agg = aggregatorFunction(List.of()).groupingAggregator(driverContext())) {
+        try (var agg = aggregatorFunction().groupingAggregator(driverContext(), List.of())) {
             return agg.intermediateBlockCount();
         }
     }
@@ -98,14 +98,14 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     ) {
         int emitChunkSize = between(100, 200);
 
-        AggregatorFunctionSupplier supplier = wrap.apply(aggregatorFunction(channels(mode)));
+        AggregatorFunctionSupplier supplier = wrap.apply(aggregatorFunction());
         if (randomBoolean()) {
             supplier = chunkGroups(emitChunkSize, supplier);
         }
         return new HashAggregationOperator.HashAggregationOperatorFactory(
             List.of(new BlockHash.GroupSpec(0, ElementType.LONG)),
             mode,
-            List.of(supplier.groupingAggregatorFactory(mode)),
+            List.of(supplier.groupingAggregatorFactory(mode, channels(mode))),
             randomPageSize(),
             null
         );
@@ -619,14 +619,24 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
     private AggregatorFunctionSupplier chunkGroups(int emitChunkSize, AggregatorFunctionSupplier supplier) {
         return new AggregatorFunctionSupplier() {
             @Override
-            public AggregatorFunction aggregator(DriverContext driverContext) {
-                return supplier.aggregator(driverContext);
+            public List<IntermediateStateDesc> nonGroupingIntermediateStateDesc() {
+                return supplier.nonGroupingIntermediateStateDesc();
             }
 
             @Override
-            public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
+            public List<IntermediateStateDesc> groupingIntermediateStateDesc() {
+                return supplier.groupingIntermediateStateDesc();
+            }
+
+            @Override
+            public AggregatorFunction aggregator(DriverContext driverContext, List<Integer> channels) {
+                return supplier.aggregator(driverContext, channels);
+            }
+
+            @Override
+            public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
                 return new GroupingAggregatorFunction() {
-                    GroupingAggregatorFunction delegate = supplier.groupingAggregator(driverContext);
+                    GroupingAggregatorFunction delegate = supplier.groupingAggregator(driverContext, channels);
                     BitArray seenGroupIds = new BitArray(0, nonBreakingBigArrays());
 
                     @Override

@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.VersionInformation;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -165,7 +164,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             }
         };
         CountDownLatch latch = new CountDownLatch(1);
-        GroupShardsIterator<SearchShardIterator> shardsIter = SearchAsyncActionTests.getShardsIter(
+        List<SearchShardIterator> shardsIter = SearchAsyncActionTests.getShardsIter(
             "idx",
             new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
             numShards,
@@ -332,7 +331,6 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         routingOldVersionShard.started();
         list.add(new SearchShardIterator(null, new ShardId(new Index("idx", "_na_"), 1), singletonList(routingOldVersionShard), idx));
 
-        GroupShardsIterator<SearchShardIterator> shardsIter = new GroupShardsIterator<>(list);
         final SearchRequest searchRequest = new SearchRequest(minVersion);
         searchRequest.setMaxConcurrentShardRequests(numConcurrent);
         searchRequest.setBatchedReduceSize(2);
@@ -350,7 +348,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 controller,
                 task::isCancelled,
                 task.getProgressListener(),
-                shardsIter.size(),
+                list.size(),
                 exc -> {}
             )
         ) {
@@ -376,7 +374,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                     }
 
                 },
-                shardsIter,
+                list,
                 timeProvider,
                 new ClusterState.Builder(new ClusterName("test")).build(),
                 task,
@@ -446,7 +444,6 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         routingOldVersionShard.started();
         list.add(new SearchShardIterator(null, new ShardId(new Index("idx", "_na_"), 1), singletonList(routingOldVersionShard), idx));
 
-        GroupShardsIterator<SearchShardIterator> shardsIter = new GroupShardsIterator<>(list);
         final SearchRequest searchRequest = new SearchRequest(minVersion);
         searchRequest.allowPartialSearchResults(false);
         searchRequest.source(new SearchSourceBuilder().size(1).sort(SortBuilders.fieldSort("timestamp")));
@@ -512,7 +509,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 controller,
                 task::isCancelled,
                 task.getProgressListener(),
-                shardsIter.size(),
+                list.size(),
                 exc -> {}
             )
         ) {
@@ -528,7 +525,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 resultConsumer,
                 searchRequest,
                 null,
-                shardsIter,
+                list,
                 timeProvider,
                 new ClusterState.Builder(new ClusterName("test")).build(),
                 task,
@@ -609,7 +606,6 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         routingNewVersionShard2.started();
         list.add(new SearchShardIterator(null, new ShardId(new Index("idx", "_na_"), 1), singletonList(routingNewVersionShard2), idx));
 
-        GroupShardsIterator<SearchShardIterator> shardsIter = new GroupShardsIterator<>(list);
         final SearchRequest searchRequest = new SearchRequest(minVersion);
         searchRequest.allowPartialSearchResults(false);
         searchRequest.source(new SearchSourceBuilder().size(1).sort(SortBuilders.fieldSort("timestamp")));
@@ -677,7 +673,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 controller,
                 task::isCancelled,
                 task.getProgressListener(),
-                shardsIter.size(),
+                list.size(),
                 exc -> {}
             )
         ) {
@@ -692,7 +688,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 resultConsumer,
                 searchRequest,
                 null,
-                shardsIter,
+                list,
                 timeProvider,
                 new ClusterState.Builder(new ClusterName("test")).build(),
                 task,

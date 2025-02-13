@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
@@ -25,7 +26,12 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
-public class OrderBy extends UnaryPlan implements PostAnalysisVerificationAware, TelemetryAware {
+public class OrderBy extends UnaryPlan
+    implements
+        PostAnalysisVerificationAware,
+        PostOptimizationVerificationAware,
+        TelemetryAware,
+        SortAgnostic {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "OrderBy", OrderBy::new);
 
     private final List<Order> order;
@@ -108,5 +114,10 @@ public class OrderBy extends UnaryPlan implements PostAnalysisVerificationAware,
                 failures.add(fail(order, "cannot sort on " + order.dataType().typeName()));
             }
         });
+    }
+
+    @Override
+    public void postOptimizationVerification(Failures failures) {
+        failures.add(fail(this, "Unbounded sort not supported yet [{}] please add a limit", this.sourceText()));
     }
 }

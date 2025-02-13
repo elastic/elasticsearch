@@ -28,8 +28,8 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class ValuesBytesRefGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new ValuesBytesRefAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new ValuesBytesRefAggregatorFunctionSupplier();
     }
 
     @Override

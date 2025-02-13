@@ -59,18 +59,6 @@ public class KeywordFieldBlockLoaderTests extends BlockLoaderTestCase {
         return maybeFoldList(resultList);
     }
 
-    private Object maybeFoldList(List<?> list) {
-        if (list.isEmpty()) {
-            return null;
-        }
-
-        if (list.size() == 1) {
-            return list.get(0);
-        }
-
-        return list;
-    }
-
     private BytesRef convert(String value, String nullValue, int ignoreAbove) {
         if (value == null) {
             if (nullValue != null) {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -84,7 +85,9 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
                             // We need to both mark the field to load differently, and change the spatial function to know to use it
                             foundAttributes.add(fieldAttribute);
                             changedAggregates = true;
-                            orderedAggregates.add(as.replaceChild(af.withDocValues()));
+                            orderedAggregates.add(
+                                as.replaceChild(af.withFieldExtractPreference(MappedFieldType.FieldExtractPreference.DOC_VALUES))
+                            );
                         } else {
                             orderedAggregates.add(aggExpr);
                         }

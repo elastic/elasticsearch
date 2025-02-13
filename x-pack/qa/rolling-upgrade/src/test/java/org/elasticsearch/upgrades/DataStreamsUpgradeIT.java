@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.upgrades;
 
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersions;
@@ -342,9 +343,26 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         for (int i = 0; i < numRollovers; i++) {
             String oldIndexName = rollover(dataStreamName);
             if (randomBoolean()) {
-                closeIndex(oldIndexName);
+                closeOrFreezeIndex(oldIndexName);
             }
             bulkLoadData(dataStreamName);
+        }
+    }
+
+    // Randomly either closes or freezes the index. If the cluster does not support the _freeze API, then this always closes the index.
+    private void closeOrFreezeIndex(String indexName) throws IOException {
+        boolean canFreeze = minimumTransportVersion().before(TransportVersions.V_8_0_0);
+        if (canFreeze && randomBoolean()) {
+            final Request freezeRequest = new Request(HttpPost.METHOD_NAME, "/" + indexName + "/_freeze");
+            freezeRequest.setOptions(
+                expectWarnings(
+                    "Frozen indices are deprecated because they provide no benefit given improvements in heap memory utilization. "
+                        + "They will be removed in a future release."
+                )
+            );
+            assertOK(client().performRequest(freezeRequest));
+        } else {
+            closeIndex(indexName);
         }
     }
 

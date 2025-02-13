@@ -48,6 +48,7 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
 import java.nio.charset.Charset;
+import java.nio.file.FileStore;
 import java.nio.file.LinkOption;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
@@ -854,6 +855,82 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     // old io (ie File)
 
     @Override
+    public void check$java_io_File$createNewFile(Class<?> callerClass, File file) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$$createTempFile(Class<?> callerClass, String prefix, String suffix, File directory) {
+        policyManager.checkFileWrite(callerClass, directory);
+    }
+
+    @Override
+    public void check$java_io_File$delete(Class<?> callerClass, File file) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$deleteOnExit(Class<?> callerClass, File file) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$mkdir(Class<?> callerClass, File file) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$mkdirs(Class<?> callerClass, File file) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$renameTo(Class<?> callerClass, File file, File dest) {
+        policyManager.checkFileRead(callerClass, file);
+        policyManager.checkFileWrite(callerClass, dest);
+    }
+
+    @Override
+    public void check$java_io_File$setExecutable(Class<?> callerClass, File file, boolean executable) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$setExecutable(Class<?> callerClass, File file, boolean executable, boolean ownerOnly) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$setLastModified(Class<?> callerClass, File file, long time) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$setReadable(Class<?> callerClass, File file, boolean readable) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$setReadable(Class<?> callerClass, File file, boolean readable, boolean ownerOnly) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$setReadOnly(Class<?> callerClass, File file) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$setWritable(Class<?> callerClass, File file, boolean writable) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$setWritable(Class<?> callerClass, File file, boolean writable, boolean ownerOnly) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
     public void check$java_io_FileOutputStream$(Class<?> callerClass, String name) {
         policyManager.checkFileWrite(callerClass, new File(name));
     }
@@ -910,5 +987,50 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     @Override
     public void checkNewInputStream(Class<?> callerClass, FileSystemProvider that, Path path, OpenOption... options) {
         // TODO: policyManger.checkFileSystemRead(path);
+    }
+
+    @Override
+    public void checkGetFileStoreAttributeView(Class<?> callerClass, FileStore that, Class<?> type) {
+        policyManager.checkWriteStoreAttributes(callerClass);
+    }
+
+    @Override
+    public void checkGetAttribute(Class<?> callerClass, FileStore that, String attribute) {
+        policyManager.checkReadStoreAttributes(callerClass);
+    }
+
+    @Override
+    public void checkGetBlockSize(Class<?> callerClass, FileStore that) {
+        policyManager.checkReadStoreAttributes(callerClass);
+    }
+
+    @Override
+    public void checkGetTotalSpace(Class<?> callerClass, FileStore that) {
+        policyManager.checkReadStoreAttributes(callerClass);
+    }
+
+    @Override
+    public void checkGetUnallocatedSpace(Class<?> callerClass, FileStore that) {
+        policyManager.checkReadStoreAttributes(callerClass);
+    }
+
+    @Override
+    public void checkGetUsableSpace(Class<?> callerClass, FileStore that) {
+        policyManager.checkReadStoreAttributes(callerClass);
+    }
+
+    @Override
+    public void checkIsReadOnly(Class<?> callerClass, FileStore that) {
+        policyManager.checkReadStoreAttributes(callerClass);
+    }
+
+    @Override
+    public void checkName(Class<?> callerClass, FileStore that) {
+        policyManager.checkReadStoreAttributes(callerClass);
+    }
+
+    @Override
+    public void checkType(Class<?> callerClass, FileStore that) {
+        policyManager.checkReadStoreAttributes(callerClass);
     }
 }

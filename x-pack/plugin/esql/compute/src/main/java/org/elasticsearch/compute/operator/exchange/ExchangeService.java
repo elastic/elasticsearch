@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -366,7 +367,13 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             final long reservedBytes = allSourcesFinished ? 0 : estimatedPageSizeInBytes.get();
             if (reservedBytes > 0) {
                 // This doesn't fully protect ESQL from OOM, but reduces the likelihood.
-                blockFactory.breaker().addEstimateBytesAndMaybeBreak(reservedBytes, "fetch page");
+                try {
+                    blockFactory.breaker().addEstimateBytesAndMaybeBreak(reservedBytes, "fetch page");
+                } catch (Exception e) {
+                    assert e instanceof CircuitBreakingException : new AssertionError(e);
+                    listener.onFailure(e);
+                    return;
+                }
                 listener = ActionListener.runAfter(listener, () -> blockFactory.breaker().addWithoutBreaking(-reservedBytes));
             }
             transportService.sendChildRequest(

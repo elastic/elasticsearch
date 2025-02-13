@@ -149,7 +149,10 @@ public class EntitlementInitialization {
                         new LoadNativeLibrariesEntitlement(),
                         new FilesEntitlement(
                             Stream.concat(
-                                Stream.of(new FileData(EntitlementBootstrap.bootstrapArgs().tempDir().toString(), READ_WRITE)),
+                                Stream.of(
+                                    new FileData(EntitlementBootstrap.bootstrapArgs().tempDir().toString(), READ_WRITE),
+                                    new FileData(EntitlementBootstrap.bootstrapArgs().configDir().toString(), READ)
+                                ),
                                 Arrays.stream(dataDirs).map(d -> new FileData(d.toString(), READ))
                             ).toList()
                         )

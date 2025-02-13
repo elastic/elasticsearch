@@ -19,7 +19,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
 import org.junit.BeforeClass;
-import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.lang.module.Configuration;
@@ -73,7 +72,7 @@ public class PolicyManagerTests extends ESTestCase {
             c -> "plugin1",
             TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
-            Mockito.mock(DirectoryResolver.class)
+            null
         );
 
         // Any class from the current module (unnamed) will do
@@ -93,7 +92,7 @@ public class PolicyManagerTests extends ESTestCase {
             c -> "plugin1",
             TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
-            Mockito.mock(DirectoryResolver.class)
+            null
         );
 
         // Any class from the current module (unnamed) will do
@@ -113,7 +112,7 @@ public class PolicyManagerTests extends ESTestCase {
             c -> "plugin1",
             TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
-            Mockito.mock(DirectoryResolver.class)
+            null
         );
 
         // Any class from the current module (unnamed) will do
@@ -138,7 +137,7 @@ public class PolicyManagerTests extends ESTestCase {
             c -> "plugin2",
             TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
-            Mockito.mock(DirectoryResolver.class)
+            null
         );
 
         // Any class from the current module (unnamed) will do
@@ -156,7 +155,7 @@ public class PolicyManagerTests extends ESTestCase {
             c -> null,
             TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
-            Mockito.mock(DirectoryResolver.class)
+            null
         );
 
         // Tests do not run modular, so we cannot use a server class.
@@ -183,7 +182,7 @@ public class PolicyManagerTests extends ESTestCase {
             c -> null,
             TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
-            Mockito.mock(DirectoryResolver.class)
+            null
         );
 
         // Tests do not run modular, so we cannot use a server class.
@@ -209,7 +208,7 @@ public class PolicyManagerTests extends ESTestCase {
             c -> "mock-plugin",
             TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
-            Mockito.mock(DirectoryResolver.class)
+            null
         );
 
         var layer = createLayerForJar(jar, "org.example.plugin");
@@ -229,7 +228,7 @@ public class PolicyManagerTests extends ESTestCase {
             c -> "plugin2",
             TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
-            Mockito.mock(DirectoryResolver.class)
+            null
         );
 
         // Any class from the current module (unnamed) will do
@@ -288,7 +287,7 @@ public class PolicyManagerTests extends ESTestCase {
             c -> c.getPackageName().startsWith(TEST_AGENTS_PACKAGE_NAME) ? null : "test",
             TEST_AGENTS_PACKAGE_NAME,
             NO_ENTITLEMENTS_MODULE,
-            Mockito.mock(DirectoryResolver.class)
+            null
         );
         ModuleEntitlements agentsEntitlements = policyManager.getEntitlements(TestAgent.class);
         assertThat(agentsEntitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(true));
@@ -316,7 +315,7 @@ public class PolicyManagerTests extends ESTestCase {
                 c -> "test",
                 TEST_AGENTS_PACKAGE_NAME,
                 NO_ENTITLEMENTS_MODULE,
-                Mockito.mock(DirectoryResolver.class)
+                null
             )
         );
         assertEquals(
@@ -333,7 +332,7 @@ public class PolicyManagerTests extends ESTestCase {
                 c -> "test",
                 TEST_AGENTS_PACKAGE_NAME,
                 NO_ENTITLEMENTS_MODULE,
-                Mockito.mock(DirectoryResolver.class)
+                null
             )
         );
         assertEquals(
@@ -367,7 +366,7 @@ public class PolicyManagerTests extends ESTestCase {
                 c -> "plugin1",
                 TEST_AGENTS_PACKAGE_NAME,
                 NO_ENTITLEMENTS_MODULE,
-                Mockito.mock(DirectoryResolver.class)
+                null
             )
         );
         assertEquals(
@@ -408,7 +407,7 @@ public class PolicyManagerTests extends ESTestCase {
             c -> "test",
             agentsPackageName,
             entitlementsModule,
-            Mockito.mock(DirectoryResolver.class)
+            null
         );
     }
 

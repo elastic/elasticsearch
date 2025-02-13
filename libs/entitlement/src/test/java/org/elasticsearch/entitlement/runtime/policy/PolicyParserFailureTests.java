@@ -103,6 +103,19 @@ public class PolicyParserFailureTests extends ESTestCase {
             """.getBytes(StandardCharsets.UTF_8)), "test-failure-policy.yaml", false).parsePolicy());
         assertEquals(
             "[2:5] policy parsing error for [test-failure-policy.yaml] in scope [entitlement-module-name] "
+                + "for entitlement type [files]: a files entitlement entry cannot contain both 'path' and 'relative_path'",
+            ppe.getMessage()
+        );
+    }
+
+    public void testEntitlementAtLeastOneParameter() {
+        PolicyParserException ppe = expectThrows(PolicyParserException.class, () -> new PolicyParser(new ByteArrayInputStream("""
+            entitlement-module-name:
+              - files:
+                  - mode: read
+            """.getBytes(StandardCharsets.UTF_8)), "test-failure-policy.yaml", false).parsePolicy());
+        assertEquals(
+            "[2:5] policy parsing error for [test-failure-policy.yaml] in scope [entitlement-module-name] "
                 + "for entitlement type [files]: files entitlement must contain either 'path' or 'relative_path' for every entry",
             ppe.getMessage()
         );

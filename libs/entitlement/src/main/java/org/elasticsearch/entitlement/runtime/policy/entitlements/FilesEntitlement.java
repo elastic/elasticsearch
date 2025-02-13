@@ -131,26 +131,29 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
             if (mode == null) {
                 throw new PolicyValidationException("files entitlement must contain 'mode' for every listed file");
             }
-            if ((pathAsString == null && relativePathAsString == null) || (pathAsString != null && relativePathAsString != null)) {
-                throw new PolicyValidationException("files entitlement must contain either 'path' or 'relative_path' for every entry");
+            if (pathAsString != null && relativePathAsString != null) {
+                throw new PolicyValidationException("a files entitlement entry cannot contain both 'path' and 'relative_path'");
             }
+
             if (relativePathAsString != null) {
                 if (relativeTo == null) {
                     throw new PolicyValidationException("files entitlement with a 'relative_path' must specify 'relative_to'");
                 }
-                final var baseDir = parseBaseDir(relativeTo);
+                final BaseDir baseDir = parseBaseDir(relativeTo);
 
                 Path relativePath = Path.of(relativePathAsString);
                 if (relativePath.isAbsolute()) {
                     throw new PolicyValidationException("'relative_path' must be relative");
                 }
                 filesData.add(FileData.ofRelativePath(relativePath, baseDir, parseMode(mode)));
-            } else {
+            } else if (pathAsString != null) {
                 Path path = Path.of(pathAsString);
                 if (path.isAbsolute() == false) {
                     throw new PolicyValidationException("'path' must be absolute");
                 }
                 filesData.add(FileData.ofPath(path, parseMode(mode)));
+            } else {
+                throw new PolicyValidationException("files entitlement must contain either 'path' or 'relative_path' for every entry");
             }
         }
         return new FilesEntitlement(filesData);

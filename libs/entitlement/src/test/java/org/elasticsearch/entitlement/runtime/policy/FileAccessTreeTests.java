@@ -12,19 +12,15 @@ package org.elasticsearch.entitlement.runtime.policy;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
-import org.mockito.Mockito;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
 import static org.hamcrest.Matchers.is;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
 
 public class FileAccessTreeTests extends ESTestCase {
 
@@ -39,14 +35,18 @@ public class FileAccessTreeTests extends ESTestCase {
         return root.resolve(s);
     }
 
+    private static PathLookup createTestPathLookup() {
+        return new PathLookup(Path.of("/config"), new Path[] { Path.of("/data1"), Path.of("/data2") }, Path.of("/tmp"));
+    }
+
     public void testEmpty() {
-        var tree = FileAccessTree.of(FilesEntitlement.EMPTY, Mockito.mock(DirectoryResolver.class));
+        var tree = FileAccessTree.of(FilesEntitlement.EMPTY, createTestPathLookup());
         assertThat(tree.canRead(path("path")), is(false));
         assertThat(tree.canWrite(path("path")), is(false));
     }
 
     public void testRead() {
-        var tree = FileAccessTree.of(entitlement("foo", "read"), Mockito.mock(DirectoryResolver.class));
+        var tree = FileAccessTree.of(entitlement("foo", "read"), createTestPathLookup());
         assertThat(tree.canRead(path("foo")), is(true));
         assertThat(tree.canRead(path("foo/subdir")), is(true));
         assertThat(tree.canRead(path("food")), is(false));
@@ -58,7 +58,7 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testWrite() {
-        var tree = FileAccessTree.of(entitlement("foo", "read_write"), Mockito.mock(DirectoryResolver.class));
+        var tree = FileAccessTree.of(entitlement("foo", "read_write"), createTestPathLookup());
         assertThat(tree.canWrite(path("foo")), is(true));
         assertThat(tree.canWrite(path("foo/subdir")), is(true));
         assertThat(tree.canWrite(path("food")), is(false));
@@ -70,7 +70,7 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testTwoPaths() {
-        var tree = FileAccessTree.of(entitlement("foo", "read", "bar", "read"), Mockito.mock(DirectoryResolver.class));
+        var tree = FileAccessTree.of(entitlement("foo", "read", "bar", "read"), createTestPathLookup());
         assertThat(tree.canRead(path("a")), is(false));
         assertThat(tree.canRead(path("bar")), is(true));
         assertThat(tree.canRead(path("bar/subdir")), is(true));
@@ -81,7 +81,7 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testReadWriteUnderRead() {
-        var tree = FileAccessTree.of(entitlement("foo", "read", "foo/bar", "read_write"), Mockito.mock(DirectoryResolver.class));
+        var tree = FileAccessTree.of(entitlement("foo", "read", "foo/bar", "read_write"), createTestPathLookup());
         assertThat(tree.canRead(path("foo")), is(true));
         assertThat(tree.canWrite(path("foo")), is(false));
         assertThat(tree.canRead(path("foo/bar")), is(true));
@@ -89,8 +89,7 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testReadWithRelativePath() {
-        var resolver = Mockito.mock(DirectoryResolver.class);
-        when(resolver.resolveConfig(any(Path.class))).thenReturn(Path.of("/config/foo"));
+        var resolver = createTestPathLookup();
         var tree = FileAccessTree.of(entitlement(Map.of("relative_path", "foo", "mode", "read", "relative_to", "config")), resolver);
         assertThat(tree.canRead(path("foo")), is(false));
 
@@ -106,8 +105,7 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testWriteWithRelativePath() {
-        var resolver = Mockito.mock(DirectoryResolver.class);
-        when(resolver.resolveConfig(any(Path.class))).thenReturn(Path.of("/config/foo"));
+        var resolver = createTestPathLookup();
         var tree = FileAccessTree.of(entitlement(Map.of("relative_path", "foo", "mode", "read_write", "relative_to", "config")), resolver);
         assertThat(tree.canWrite(path("/config/foo")), is(true));
         assertThat(tree.canWrite(path("/config/foo/subdir")), is(true));
@@ -122,8 +120,7 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testMultipleDataDirs() {
-        var resolver = Mockito.mock(DirectoryResolver.class);
-        when(resolver.resolveData(any(Path.class))).thenReturn(Stream.of(Path.of("/data1/foo"), Path.of("/data2/foo")));
+        var resolver = createTestPathLookup();
         var tree = FileAccessTree.of(entitlement(Map.of("relative_path", "foo", "mode", "read_write", "relative_to", "data")), resolver);
         assertThat(tree.canWrite(path("/data1/foo")), is(true));
         assertThat(tree.canWrite(path("/data2/foo")), is(true));
@@ -142,7 +139,7 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testNormalizePath() {
-        var tree = FileAccessTree.of(entitlement("foo/../bar", "read"), Mockito.mock(DirectoryResolver.class));
+        var tree = FileAccessTree.of(entitlement("foo/../bar", "read"), createTestPathLookup());
         assertThat(tree.canRead(path("foo/../bar")), is(true));
         assertThat(tree.canRead(path("foo")), is(false));
         assertThat(tree.canRead(path("")), is(false));
@@ -150,7 +147,7 @@ public class FileAccessTreeTests extends ESTestCase {
 
     public void testForwardSlashes() {
         String sep = getDefaultFileSystem().getSeparator();
-        var tree = FileAccessTree.of(entitlement("a/b", "read", "m" + sep + "n", "read"), Mockito.mock(DirectoryResolver.class));
+        var tree = FileAccessTree.of(entitlement("a/b", "read", "m" + sep + "n", "read"), createTestPathLookup());
 
         // Native separators work
         assertThat(tree.canRead(path("a" + sep + "b")), is(true));

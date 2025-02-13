@@ -10,12 +10,5 @@
 package org.elasticsearch.entitlement.runtime.policy;
 
 import java.nio.file.Path;
-import java.util.stream.Stream;
 
-public interface DirectoryResolver {
-    Path resolveConfig(Path path);
-
-    Stream<Path> resolveData(Path path);
-
-    Path resolveTemp(Path path);
-}
+public record PathLookup(Path configDir, Path[] dataDirs, Path tempDir) {}

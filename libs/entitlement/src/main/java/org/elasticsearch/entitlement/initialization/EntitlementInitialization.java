@@ -18,7 +18,7 @@ import org.elasticsearch.entitlement.instrumentation.Instrumenter;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.instrumentation.Transformer;
 import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
-import org.elasticsearch.entitlement.runtime.policy.DirectoryResolver;
+import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import org.elasticsearch.entitlement.runtime.policy.Scope;
@@ -130,7 +130,7 @@ public class EntitlementInitialization {
         Map<String, Policy> pluginPolicies = bootstrapArgs.pluginPolicies();
         Path[] dataDirs = EntitlementBootstrap.bootstrapArgs().dataDirs();
 
-        var directoryResolver = new EnvironmentDirectoryResolver(bootstrapArgs);
+        var pathLookup = new PathLookup(bootstrapArgs.configDir(), bootstrapArgs.dataDirs(), bootstrapArgs.configDir());
 
         // TODO(ES-10031): Decide what goes in the elasticsearch default policy and extend it
         var serverPolicy = new Policy(
@@ -175,7 +175,7 @@ public class EntitlementInitialization {
             resolver,
             AGENTS_PACKAGE_NAME,
             ENTITLEMENTS_MODULE,
-            directoryResolver
+            pathLookup
         );
     }
 
@@ -320,27 +320,4 @@ public class EntitlementInitialization {
         "org.elasticsearch.entitlement.instrumentation",
         Set.of()
     ).get();
-
-    static class EnvironmentDirectoryResolver implements DirectoryResolver {
-        private final EntitlementBootstrap.BootstrapArgs bootstrapArgs;
-
-        EnvironmentDirectoryResolver(EntitlementBootstrap.BootstrapArgs bootstrapArgs) {
-            this.bootstrapArgs = bootstrapArgs;
-        }
-
-        @Override
-        public Path resolveConfig(Path path) {
-            return bootstrapArgs.configDir().resolve(path);
-        }
-
-        @Override
-        public Stream<Path> resolveData(Path path) {
-            return Arrays.stream(bootstrapArgs.dataDirs()).map(dir -> dir.resolve(path));
-        }
-
-        @Override
-        public Path resolveTemp(Path path) {
-            return bootstrapArgs.tempDir().resolve(path);
-        }
-    }
 }

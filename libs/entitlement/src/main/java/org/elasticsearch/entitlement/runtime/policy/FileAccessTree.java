@@ -17,49 +17,27 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
 
 public final class FileAccessTree {
 
-    private static final DirectoryResolver NULL_DIRECTORY_RESOLVER = new DirectoryResolver() {
-        @Override
-        public Path resolveConfig(Path path) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Stream<Path> resolveData(Path path) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public Path resolveTemp(Path path) {
-            throw new UnsupportedOperationException();
-        }
-    };
-
-    public static final FileAccessTree EMPTY = new FileAccessTree(FilesEntitlement.EMPTY, NULL_DIRECTORY_RESOLVER);
+    public static final FileAccessTree EMPTY = new FileAccessTree(FilesEntitlement.EMPTY, null);
     private static final String FILE_SEPARATOR = getDefaultFileSystem().getSeparator();
 
     private final String[] readPaths;
     private final String[] writePaths;
 
-    private static void resolvePath(
-        FilesEntitlement.FileData fileData,
-        DirectoryResolver directoryResolver,
-        Consumer<String> resolvedPathReceiver
-    ) {
+    private static void resolvePath(FilesEntitlement.FileData fileData, PathLookup pathLookup, Consumer<Path> resolvedPathReceiver) {
         if (fileData.path() != null) {
-            resolvedPathReceiver.accept(normalizePath(fileData.path()));
-        } else if (fileData.relativePath() != null && fileData.baseDir() != null) {
+            resolvedPathReceiver.accept(fileData.path());
+        } else if (fileData.relativePath() != null && fileData.baseDir() != null && pathLookup != null) {
             switch (fileData.baseDir()) {
                 case CONFIG:
-                    resolvedPathReceiver.accept(normalizePath(directoryResolver.resolveConfig(fileData.relativePath())));
+                    resolvedPathReceiver.accept(pathLookup.configDir().resolve(fileData.relativePath()));
                     break;
                 case DATA:
-                    directoryResolver.resolveData(fileData.relativePath()).forEach(p -> resolvedPathReceiver.accept(normalizePath(p)));
+                    Arrays.stream(pathLookup.dataDirs()).map(d -> d.resolve(fileData.relativePath())).forEach(resolvedPathReceiver::accept);
                     break;
                 default:
                     throw new IllegalArgumentException();
@@ -69,18 +47,17 @@ public final class FileAccessTree {
         }
     }
 
-    private FileAccessTree(FilesEntitlement filesEntitlement, DirectoryResolver directoryResolver) {
-        Objects.requireNonNull(directoryResolver);
-
+    private FileAccessTree(FilesEntitlement filesEntitlement, PathLookup pathLookup) {
         List<String> readPaths = new ArrayList<>();
         List<String> writePaths = new ArrayList<>();
         for (FilesEntitlement.FileData fileData : filesEntitlement.filesData()) {
             var mode = fileData.mode();
-            resolvePath(fileData, directoryResolver, pathStr -> {
+            resolvePath(fileData, pathLookup, path -> {
+                var normalized = normalizePath(path);
                 if (mode == FilesEntitlement.Mode.READ_WRITE) {
-                    writePaths.add(pathStr);
+                    writePaths.add(normalized);
                 }
-                readPaths.add(pathStr);
+                readPaths.add(normalized);
             });
         }
 
@@ -91,8 +68,8 @@ public final class FileAccessTree {
         this.writePaths = writePaths.toArray(new String[0]);
     }
 
-    public static FileAccessTree of(FilesEntitlement filesEntitlement, DirectoryResolver directoryResolver) {
-        return new FileAccessTree(filesEntitlement, directoryResolver);
+    public static FileAccessTree of(FilesEntitlement filesEntitlement, PathLookup pathLookup) {
+        return new FileAccessTree(filesEntitlement, pathLookup);
     }
 
     boolean canRead(Path path) {

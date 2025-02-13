@@ -7,8 +7,11 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.common.util;
+package org.elasticsearch.entitlement.runtime.policy.entitlements;
 
-public interface Countable {
-    int size();
+import org.elasticsearch.entitlement.runtime.policy.ExternalEntitlement;
+
+public record ManageThreadsEntitlement() implements Entitlement {
+    @ExternalEntitlement(esModulesOnly = false)
+    public ManageThreadsEntitlement {}
 }

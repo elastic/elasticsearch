@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
-public class CrossClustersQueriesWithInvalidLicenseIT extends AbstractEnrichBasedCrossClusterTestCase {
+public class CrossClusterQueriesWithInvalidLicenseIT extends AbstractEnrichBasedCrossClusterTestCase {
 
     private static final String LICENSE_ERROR_MESSAGE = "A valid Enterprise license is required to run ES|QL cross-cluster searches.";
 

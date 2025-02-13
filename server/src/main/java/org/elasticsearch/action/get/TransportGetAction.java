@@ -11,6 +11,7 @@ package org.elasticsearch.action.get;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -230,7 +231,10 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         final var retryingListener = listener.delegateResponse((l, e) -> {
             final var cause = ExceptionsHelper.unwrapCause(e);
             logger.debug("get_from_translog failed", cause);
-            if (cause instanceof ShardNotFoundException || cause instanceof IndexNotFoundException) {
+            if (cause instanceof ShardNotFoundException
+                || cause instanceof IndexNotFoundException
+                || cause instanceof AlreadyClosedException) {
+                // TODO AlreadyClosedException the engine reset should be fixed by ES-10826
                 logger.debug("retrying get_from_translog");
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
@@ -245,7 +249,13 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
 
                     @Override
                     public void onTimeout(TimeValue timeout) {
-                        l.onFailure(new ElasticsearchException("Timed out retrying get_from_translog", cause));
+                        // TODO AlreadyClosedException the engine reset should be fixed by ES-10826
+                        if (cause instanceof AlreadyClosedException) {
+                            // Do an additional retry just in case AlreadyClosedException didn't generate a cluster update
+                            tryGetFromTranslog(request, indexShard, node, l);
+                        } else {
+                            l.onFailure(new ElasticsearchException("Timed out retrying get_from_translog", cause));
+                        }
                     }
                 });
             } else {

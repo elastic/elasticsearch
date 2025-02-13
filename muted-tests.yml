@@ -329,15 +329,9 @@ tests:
 - class: org.elasticsearch.ingest.geoip.FullClusterRestartIT
   method: testGeoIpSystemFeaturesMigration {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/121115
-- class: org.elasticsearch.xpack.core.ilm.SetSingleNodeAllocateStepTests
-  method: testPerformActionSomeShardsOnlyOnNewNodesButNewNodesInvalidAttrs
-  issue: https://github.com/elastic/elasticsearch/issues/121495
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.vectors/42_knn_search_int4_flat/Vector similarity with filter only}
   issue: https://github.com/elastic/elasticsearch/issues/121412
-- class: org.elasticsearch.search.CrossClusterSearchUnavailableClusterIT
-  method: testSearchSkipUnavailable
-  issue: https://github.com/elastic/elasticsearch/issues/121497
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/cat/health/cat-health-no-timestamp-example}
   issue: https://github.com/elastic/elasticsearch/issues/121867
@@ -346,9 +340,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/121625
 - class: org.elasticsearch.xpack.searchablesnapshots.hdfs.SecureHdfsSearchableSnapshotsIT
   issue: https://github.com/elastic/elasticsearch/issues/121967
-- class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
-  method: testBottomFieldSort
-  issue: https://github.com/elastic/elasticsearch/issues/121503
 - class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
   issue: https://github.com/elastic/elasticsearch/issues/121537
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
@@ -371,12 +362,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authz.IndexAliasesTests
   method: testRemoveIndex
   issue: https://github.com/elastic/elasticsearch/issues/122221
-- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
-  method: testGroupingMultiValueByOrdinals
-  issue: https://github.com/elastic/elasticsearch/issues/122228
-- class: org.elasticsearch.xpack.esql.action.EsqlNodeFailureIT
-  method: testFailureLoadingFields
-  issue: https://github.com/elastic/elasticsearch/issues/122132
 - class: org.elasticsearch.blocks.SimpleBlocksIT
   method: testConcurrentAddBlock
   issue: https://github.com/elastic/elasticsearch/issues/122324
@@ -388,9 +373,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterCancellationIT
   method: testCloseSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/122336
-- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
-  method: testUnsupportedTypesOrdinalGrouping
-  issue: https://github.com/elastic/elasticsearch/issues/122342
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/alias/line_260}
   issue: https://github.com/elastic/elasticsearch/issues/122343
@@ -401,11 +383,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/122377
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.HdfsRepositoryAnalysisRestIT
   issue: https://github.com/elastic/elasticsearch/issues/122378
-- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
-  method: testStatsMissingFieldWithStats
-  issue: https://github.com/elastic/elasticsearch/issues/122327
-- class: org.elasticsearch.xpack.esql.CsvTests
-  issue: https://github.com/elastic/elasticsearch/issues/122440
 
 # Examples:
 #

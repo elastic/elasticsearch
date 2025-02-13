@@ -11,7 +11,6 @@ package org.elasticsearch.entitlement.qa.test;
 
 import org.elasticsearch.core.SuppressForbidden;
 
-import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.lang.Thread.currentThread;

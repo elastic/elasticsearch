@@ -12,6 +12,7 @@ package org.elasticsearch.gradle.internal;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.file.Directory;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
@@ -37,7 +38,9 @@ public class EmbeddedProviderExtension {
         String projectName = implProject.getName();
         String capitalName = capitalize(projectName);
 
-        Configuration implConfig = project.getConfigurations().detachedConfiguration(project.getDependencies().create(implProject));
+        Dependency implDependency = project.getDependencies().create(implProject);
+        Configuration implConfig = project.getConfigurations().detachedConfiguration();
+        implConfig.getDependencies().add(implDependency);
         implConfig.attributes(attrs -> {
             attrs.attribute(ARTIFACT_TYPE_ATTRIBUTE, DIRECTORY_TYPE);
             attrs.attribute(EmbeddedProviderPlugin.IMPL_ATTR, true);

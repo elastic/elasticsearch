@@ -1163,17 +1163,6 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
-    public void checkReadAttributesIfExists(
-        Class<?> callerClass,
-        FileSystemProvider that,
-        Path path,
-        Class<?> type,
-        LinkOption... options
-    ) {
-        policyManager.checkFileRead(callerClass, path);
-    }
-
-    @Override
     public void checkSetAttribute(
         Class<?> callerClass,
         FileSystemProvider that,
@@ -1184,11 +1173,6 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     ) {
         policyManager.checkFileWrite(callerClass, path);
 
-    }
-
-    @Override
-    public void checkExists(Class<?> callerClass, FileSystemProvider that, Path path, LinkOption... options) {
-        policyManager.checkFileRead(callerClass, path);
     }
 
     @Override

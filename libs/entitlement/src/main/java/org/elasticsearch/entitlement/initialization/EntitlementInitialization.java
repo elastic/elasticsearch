@@ -88,7 +88,7 @@ public class EntitlementInitialization {
     public static void initialize(Instrumentation inst) throws Exception {
         manager = initChecker();
 
-        var latestCheckerInterface = getVersionSpecificCheckerClass(EntitlementChecker.class);
+        var latestCheckerInterface = getVersionSpecificCheckerClass(EntitlementChecker.class, Runtime.version().feature());
 
         Map<MethodKey, CheckMethod> checkMethods = new HashMap<>(INSTRUMENTATION_SERVICE.lookupMethods(latestCheckerInterface));
         Stream.of(
@@ -186,7 +186,7 @@ public class EntitlementInitialization {
             }
         };
 
-        return Stream.of(
+        var allVersionsMethods = Stream.of(
             instrumentation.of("newFileSystem", URI.class, Map.class),
             instrumentation.of("newFileSystem", Path.class, Map.class),
             instrumentation.of("newInputStream", Path.class, OpenOption[].class),
@@ -210,10 +210,35 @@ public class EntitlementInitialization {
             instrumentation.of("getFileAttributeView", Path.class, Class.class, LinkOption[].class),
             instrumentation.of("readAttributes", Path.class, Class.class, LinkOption[].class),
             instrumentation.of("readAttributes", Path.class, String.class, LinkOption[].class),
-            instrumentation.of("readAttributesIfExists", Path.class, Class.class, LinkOption[].class),
-            instrumentation.of("setAttribute", Path.class, String.class, Object.class, LinkOption[].class),
-            instrumentation.of("exists", Path.class, LinkOption[].class)
+            instrumentation.of("setAttribute", Path.class, String.class, Object.class, LinkOption[].class)
         );
+
+        if (Runtime.version().feature() >= 20) {
+            var java20EntitlementCheckerClass = getVersionSpecificCheckerClass(EntitlementChecker.class, 20);
+            var java20Methods = Stream.of(
+                INSTRUMENTATION_SERVICE.lookupImplementationMethod(
+                    FileSystemProvider.class,
+                    "readAttributesIfExists",
+                    fileSystemProviderClass,
+                    java20EntitlementCheckerClass,
+                    "checkReadAttributesIfExists",
+                    Path.class,
+                    Class.class,
+                    LinkOption[].class
+                ),
+                INSTRUMENTATION_SERVICE.lookupImplementationMethod(
+                    FileSystemProvider.class,
+                    "exists",
+                    fileSystemProviderClass,
+                    java20EntitlementCheckerClass,
+                    "checkExists",
+                    Path.class,
+                    LinkOption[].class
+                )
+            );
+            return Stream.concat(allVersionsMethods, java20Methods);
+        }
+        return allVersionsMethods;
     }
 
     private static Stream<InstrumentationService.InstrumentationInfo> fileStoreChecks() {
@@ -261,10 +286,9 @@ public class EntitlementInitialization {
      * The mapping cannot be automatic, as it depends on the actual presence of these classes in the final Jar (see
      * the various mainXX source sets).
      */
-    private static Class<?> getVersionSpecificCheckerClass(Class<?> baseClass) {
+    private static Class<?> getVersionSpecificCheckerClass(Class<?> baseClass, int javaVersion) {
         String packageName = baseClass.getPackageName();
         String baseClassName = baseClass.getSimpleName();
-        int javaVersion = Runtime.version().feature();
 
         final String classNamePrefix;
         if (javaVersion < 19) {
@@ -290,7 +314,7 @@ public class EntitlementInitialization {
     private static ElasticsearchEntitlementChecker initChecker() {
         final PolicyManager policyManager = createPolicyManager();
 
-        final Class<?> clazz = getVersionSpecificCheckerClass(ElasticsearchEntitlementChecker.class);
+        final Class<?> clazz = getVersionSpecificCheckerClass(ElasticsearchEntitlementChecker.class, Runtime.version().feature());
 
         Constructor<?> constructor;
         try {

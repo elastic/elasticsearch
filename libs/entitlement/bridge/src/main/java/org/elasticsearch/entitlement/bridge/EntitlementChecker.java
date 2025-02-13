@@ -566,11 +566,7 @@ public interface EntitlementChecker {
 
     void checkReadAttributes(Class<?> callerClass, FileSystemProvider that, Path path, String attributes, LinkOption... options);
 
-    void checkReadAttributesIfExists(Class<?> callerClass, FileSystemProvider that, Path path, Class<?> type, LinkOption... options);
-
     void checkSetAttribute(Class<?> callerClass, FileSystemProvider that, Path path, String attribute, Object value, LinkOption... options);
-
-    void checkExists(Class<?> callerClass, FileSystemProvider that, Path path, LinkOption... options);
 
     // file store
     void checkGetFileStoreAttributeView(Class<?> callerClass, FileStore that, Class<?> type);

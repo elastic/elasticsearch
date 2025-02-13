@@ -204,12 +204,6 @@ class NioFileSystemActions {
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void checkReadAttributesIfExists() throws IOException {
-        var fs = FileSystems.getDefault().provider();
-        fs.readAttributesIfExists(FileCheckActions.readFile(), BasicFileAttributes.class);
-    }
-
-    @EntitlementTest(expectedAccess = PLUGINS)
     static void checkSetAttribute() throws IOException {
         var fs = FileSystems.getDefault().provider();
         var file = EntitledActions.createTempFileForWrite();
@@ -218,12 +212,6 @@ class NioFileSystemActions {
         } catch (UnsupportedOperationException | IllegalArgumentException | FileSystemException e) {
             // OK if the file does not have/does not support the attribute
         }
-    }
-
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void checkExists() {
-        var fs = FileSystems.getDefault().provider();
-        fs.exists(FileCheckActions.readFile());
     }
 
     private NioFileSystemActions() {}

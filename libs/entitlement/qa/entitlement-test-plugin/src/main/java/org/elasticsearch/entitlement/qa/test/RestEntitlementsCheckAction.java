@@ -187,6 +187,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         getTestEntries(SystemActions.class),
         getTestEntries(NativeActions.class),
         getTestEntries(NioFileSystemActions.class),
+        getTestEntries(VersionSpecificNioFileSystemActions.class),
         getTestEntries(FileStoreActions.class)
     )
         .flatMap(Function.identity())

@@ -48,7 +48,7 @@ public class ReindexDataStreamTransportActionIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(LocalStateCompositeXPackPlugin.class, DataStreamsPlugin.class, MigratePlugin.class);
+        return List.of(DataStreamsPlugin.class, MigratePlugin.class);
     }
 
     public void testNonExistentDataStream() {

@@ -16,10 +16,12 @@ import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoaderEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ExitVMEntitlement;
-import org.elasticsearch.entitlement.runtime.policy.entitlements.FileEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.InboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.ManageThreadsEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetworkEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.ReadStoreAttributesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.SetHttpsConnectionPropertiesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.WriteSystemPropertiesEntitlement;
 import org.elasticsearch.logging.LogManager;
@@ -73,14 +75,16 @@ public class PolicyManager {
         }
 
         public static ModuleEntitlements from(String componentName, List<Entitlement> entitlements) {
-            var fileEntitlements = entitlements.stream()
-                .filter(e -> e.getClass().equals(FileEntitlement.class))
-                .map(e -> (FileEntitlement) e)
-                .toList();
+            FilesEntitlement filesEntitlement = FilesEntitlement.EMPTY;
+            for (Entitlement entitlement : entitlements) {
+                if (entitlement instanceof FilesEntitlement) {
+                    filesEntitlement = (FilesEntitlement) entitlement;
+                }
+            }
             return new ModuleEntitlements(
                 componentName,
                 entitlements.stream().collect(groupingBy(Entitlement::getClass)),
-                FileAccessTree.of(fileEntitlements)
+                FileAccessTree.of(filesEntitlement)
             );
         }
 
@@ -99,9 +103,9 @@ public class PolicyManager {
 
     final Map<Module, ModuleEntitlements> moduleEntitlementsMap = new ConcurrentHashMap<>();
 
-    protected final Map<String, List<Entitlement>> serverEntitlements;
-    protected final List<Entitlement> apmAgentEntitlements;
-    protected final Map<String, Map<String, List<Entitlement>>> pluginsEntitlements;
+    private final Map<String, List<Entitlement>> serverEntitlements;
+    private final List<Entitlement> apmAgentEntitlements;
+    private final Map<String, Map<String, List<Entitlement>>> pluginsEntitlements;
     private final Function<Class<?>, String> pluginResolver;
 
     public static final String ALL_UNNAMED = "ALL-UNNAMED";
@@ -164,28 +168,27 @@ public class PolicyManager {
     }
 
     private static void validateEntitlementsPerModule(String componentName, String moduleName, List<Entitlement> entitlements) {
-        Set<Class<? extends Entitlement>> flagEntitlements = new HashSet<>();
+        Set<Class<? extends Entitlement>> found = new HashSet<>();
         for (var e : entitlements) {
-            if (e instanceof FileEntitlement) {
-                continue;
-            }
-            if (flagEntitlements.contains(e.getClass())) {
+            if (found.contains(e.getClass())) {
                 throw new IllegalArgumentException(
-                    "["
-                        + componentName
-                        + "] using module ["
-                        + moduleName
-                        + "] found duplicate flag entitlements ["
-                        + e.getClass().getName()
-                        + "]"
+                    "[" + componentName + "] using module [" + moduleName + "] found duplicate entitlement [" + e.getClass().getName() + "]"
                 );
             }
-            flagEntitlements.add(e.getClass());
+            found.add(e.getClass());
         }
     }
 
     public void checkStartProcess(Class<?> callerClass) {
         neverEntitled(callerClass, () -> "start process");
+    }
+
+    public void checkWriteStoreAttributes(Class<?> callerClass) {
+        neverEntitled(callerClass, () -> "change file store attributes");
+    }
+
+    public void checkReadStoreAttributes(Class<?> callerClass) {
+        checkEntitlementPresent(callerClass, ReadStoreAttributesEntitlement.class);
     }
 
     /**
@@ -198,7 +201,7 @@ public class PolicyManager {
             return;
         }
 
-        throw new NotEntitledException(
+        notEntitled(
             Strings.format(
                 "Not entitled: component [%s], module [%s], class [%s], operation [%s]",
                 getEntitlements(requestingClass).componentName(),
@@ -222,17 +225,19 @@ public class PolicyManager {
     }
 
     public void checkChangeJVMGlobalState(Class<?> callerClass) {
-        neverEntitled(callerClass, () -> {
-            // Look up the check$ method to compose an informative error message.
-            // This way, we don't need to painstakingly describe every individual global-state change.
-            Optional<String> checkMethodName = StackWalker.getInstance()
-                .walk(
-                    frames -> frames.map(StackFrame::getMethodName)
-                        .dropWhile(not(methodName -> methodName.startsWith(InstrumentationService.CHECK_METHOD_PREFIX)))
-                        .findFirst()
-                );
-            return checkMethodName.map(this::operationDescription).orElse("change JVM global state");
-        });
+        neverEntitled(callerClass, () -> walkStackForCheckMethodName().orElse("change JVM global state"));
+    }
+
+    private Optional<String> walkStackForCheckMethodName() {
+        // Look up the check$ method to compose an informative error message.
+        // This way, we don't need to painstakingly describe every individual global-state change.
+        return StackWalker.getInstance()
+            .walk(
+                frames -> frames.map(StackFrame::getMethodName)
+                    .dropWhile(not(methodName -> methodName.startsWith(InstrumentationService.CHECK_METHOD_PREFIX)))
+                    .findFirst()
+            )
+            .map(this::operationDescription);
     }
 
     /**
@@ -255,11 +260,11 @@ public class PolicyManager {
 
         ModuleEntitlements entitlements = getEntitlements(requestingClass);
         if (entitlements.fileAccess().canRead(path) == false) {
-            throw new NotEntitledException(
+            notEntitled(
                 Strings.format(
                     "Not entitled: component [%s], module [%s], class [%s], entitlement [file], operation [read], path [%s]",
                     entitlements.componentName(),
-                    requestingClass.getModule(),
+                    requestingClass.getModule().getName(),
                     requestingClass,
                     path
                 )
@@ -280,16 +285,25 @@ public class PolicyManager {
 
         ModuleEntitlements entitlements = getEntitlements(requestingClass);
         if (entitlements.fileAccess().canWrite(path) == false) {
-            throw new NotEntitledException(
+            notEntitled(
                 Strings.format(
                     "Not entitled: component [%s], module [%s], class [%s], entitlement [file], operation [write], path [%s]",
                     entitlements.componentName(),
-                    requestingClass.getModule(),
+                    requestingClass.getModule().getName(),
                     requestingClass,
                     path
                 )
             );
         }
+    }
+
+    /**
+     * Invoked when we try to get an arbitrary {@code FileAttributeView} class. Such a class can modify attributes, like owner etc.;
+     * we could think about introducing checks for each of the operations, but for now we over-approximate this and simply deny when it is
+     * used directly.
+     */
+    public void checkGetFileAttributeView(Class<?> callerClass) {
+        neverEntitled(callerClass, () -> "get file attribute view");
     }
 
     /**
@@ -329,7 +343,7 @@ public class PolicyManager {
         Class<?> requestingClass
     ) {
         if (classEntitlements.hasEntitlement(entitlementClass) == false) {
-            throw new NotEntitledException(
+            notEntitled(
                 Strings.format(
                     "Not entitled: component [%s], module [%s], class [%s], entitlement [%s]",
                     classEntitlements.componentName(),
@@ -369,7 +383,7 @@ public class PolicyManager {
             );
             return;
         }
-        throw new NotEntitledException(
+        notEntitled(
             Strings.format(
                 "Not entitled: component [%s], module [%s], class [%s], entitlement [write_system_properties], property [%s]",
                 entitlements.componentName(),
@@ -378,6 +392,14 @@ public class PolicyManager {
                 property
             )
         );
+    }
+
+    private static void notEntitled(String message) {
+        throw new NotEntitledException(message);
+    }
+
+    public void checkManageThreadsEntitlement(Class<?> callerClass) {
+        checkEntitlementPresent(callerClass, ManageThreadsEntitlement.class);
     }
 
     private void checkEntitlementPresent(Class<?> callerClass, Class<? extends Entitlement> entitlementClass) {

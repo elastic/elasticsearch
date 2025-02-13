@@ -42,11 +42,6 @@ class ManageThreadsActions {
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void java_util_concurrent_ForkJoinPool$setParallelism() {
-        ForkJoinPool.commonPool().setParallelism(ForkJoinPool.commonPool().getParallelism());
-    }
-
-    @EntitlementTest(expectedAccess = PLUGINS)
     static void java_lang_Thread$setName() {
         currentThread().setName(currentThread().getName());
     }

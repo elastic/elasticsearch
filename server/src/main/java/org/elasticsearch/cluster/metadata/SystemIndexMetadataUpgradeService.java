@@ -53,8 +53,11 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
     public SystemIndexMetadataUpgradeService(SystemIndices systemIndices, ClusterService clusterService) {
         this.systemIndices = systemIndices;
         this.clusterService = clusterService;
-        this.taskQueue = clusterService.createTaskQueue("system-indices-metadata-upgrade", Priority.NORMAL,
-            new SystemIndexMetadataUpgradeExecutor());
+        this.taskQueue = clusterService.createTaskQueue(
+            "system-indices-metadata-upgrade",
+            Priority.NORMAL,
+            new SystemIndexMetadataUpgradeExecutor()
+        );
     }
 
     @Override
@@ -173,8 +176,9 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
         return indexMetadata.getAliases().values().stream().anyMatch(a -> Boolean.FALSE.equals(a.isHidden()));
     }
 
-    private record SystemIndexMetadataUpgradeTask(Collection<Index> changedIndices,
-                                                  Collection<DataStream> changedDataStreams) implements ClusterStateTaskListener {
+    private record SystemIndexMetadataUpgradeTask(Collection<Index> changedIndices, Collection<DataStream> changedDataStreams)
+        implements
+            ClusterStateTaskListener {
 
         @Override
         public void onFailure(Exception e) {

@@ -84,16 +84,14 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
         // set up a system index upgrade service
         ClusterService clusterService = mock(ClusterService.class);
         MasterServiceTaskQueue<ClusterStateTaskListener> queue = mock(MasterServiceTaskQueue.class);
-        when(clusterService.createTaskQueue(eq("system-indices-metadata-upgrade"), eq(Priority.NORMAL), any()))
-            .thenAnswer(invocation -> {
-                executor = invocation.getArgument(2, ClusterStateTaskExecutor.class);
-                return queue;
-            });
+        when(clusterService.createTaskQueue(eq("system-indices-metadata-upgrade"), eq(Priority.NORMAL), any())).thenAnswer(invocation -> {
+            executor = invocation.getArgument(2, ClusterStateTaskExecutor.class);
+            return queue;
+        });
         doAnswer(invocation -> {
             task = invocation.getArgument(1, ClusterStateTaskListener.class);
             return null;
-        }).when(queue)
-            .submitTask(any(), any(), any());
+        }).when(queue).submitTask(any(), any(), any());
 
         this.service = new SystemIndexMetadataUpgradeService(
             new SystemIndices(

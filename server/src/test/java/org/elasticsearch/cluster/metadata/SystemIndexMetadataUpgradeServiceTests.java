@@ -11,7 +11,12 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.ExecutorNames;
@@ -27,7 +32,11 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
 
@@ -66,10 +75,26 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
     );
 
     private SystemIndexMetadataUpgradeService service;
+    private ClusterStateTaskListener task;
+    private ClusterStateTaskExecutor<ClusterStateTaskListener> executor;
 
+    @SuppressWarnings("unchecked")
     @Before
     public void setUpTest() {
         // set up a system index upgrade service
+        ClusterService clusterService = mock(ClusterService.class);
+        MasterServiceTaskQueue<ClusterStateTaskListener> queue = mock(MasterServiceTaskQueue.class);
+        when(clusterService.createTaskQueue(eq("system-indices-metadata-upgrade"), eq(Priority.NORMAL), any()))
+            .thenAnswer(invocation -> {
+                executor = invocation.getArgument(2, ClusterStateTaskExecutor.class);
+                return queue;
+            });
+        doAnswer(invocation -> {
+            task = invocation.getArgument(1, ClusterStateTaskListener.class);
+            return null;
+        }).when(queue)
+            .submitTask(any(), any(), any());
+
         this.service = new SystemIndexMetadataUpgradeService(
             new SystemIndices(
                 List.of(
@@ -82,8 +107,16 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
                     )
                 )
             ),
-            mock(ClusterService.class)
+            clusterService
         );
+    }
+
+    private ClusterState executeTask(ClusterState clusterState) {
+        try {
+            return ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(clusterState, executor, Collections.singletonList(task));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
@@ -132,8 +165,9 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
             .customs(Map.of())
             .build();
 
+        service.submitUpdateTask(Collections.emptyList(), Collections.singletonList(dataStream));
         // Execute a metadata upgrade task on the initial cluster state
-        ClusterState newState = service.executeMetadataUpdateTask(clusterState);
+        ClusterState newState = executeTask(clusterState);
 
         DataStream updatedDataStream = newState.metadata().dataStreams().get(dataStream.getName());
         assertThat(updatedDataStream.isSystem(), equalTo(true));
@@ -292,8 +326,9 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
             .customs(Map.of())
             .build();
 
+        service.submitUpdateTask(Collections.singletonList(hiddenIndexMetadata.getIndex()), Collections.emptyList());
         // Get a metadata upgrade task and execute it on the initial cluster state
-        ClusterState newState = service.executeMetadataUpdateTask(clusterState);
+        ClusterState newState = executeTask(clusterState);
 
         IndexMetadata result = newState.metadata().index(SYSTEM_INDEX_NAME);
         assertThat(result.isSystem(), equalTo(true));
@@ -310,8 +345,9 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
             .customs(Map.of())
             .build();
 
+        service.submitUpdateTask(Collections.singletonList(visibleAliasMetadata.getIndex()), Collections.emptyList());
         // Get a metadata upgrade task and execute it on the initial cluster state
-        ClusterState newState = service.executeMetadataUpdateTask(clusterState);
+        ClusterState newState = executeTask(clusterState);
 
         IndexMetadata result = newState.metadata().index(SYSTEM_INDEX_NAME);
         assertThat(result.isSystem(), equalTo(true));

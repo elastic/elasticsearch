@@ -174,7 +174,8 @@ final class ComputeListener implements Releasable {
      * Acquires a new listener that doesn't collect result
      */
     ActionListener<Void> acquireAvoid() {
-        return refs.acquire().delegateResponse((l, e) -> {
+        var listener = ActionListener.assertAtLeastOnce(refs.acquire());
+        return listener.delegateResponse((l, e) -> {
             try {
                 if (cancelled.compareAndSet(false, true)) {
                     LOGGER.debug("cancelling ESQL task {} on failure", task);

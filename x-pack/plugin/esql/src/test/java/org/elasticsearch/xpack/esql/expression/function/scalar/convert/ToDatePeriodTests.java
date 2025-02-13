@@ -85,7 +85,7 @@ public class ToDatePeriodTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Expression randomSerializeDeserialize(Expression expression) {
+    protected Expression serializeDeserializeExpression(Expression expression) {
         // Can't be serialized
         return expression;
     }

@@ -57,7 +57,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
     implements
         Supplier<TestCaseSupplier.TestCase> {
 
-    public static final Source TEST_SOURCE = new Source(new Location(0, 0), "source");
+    public static final Source TEST_SOURCE = new Source(new Location(1, 0), "source");
     public static final Configuration TEST_CONFIGURATION = EsqlTestUtils.configuration(TEST_SOURCE.text());
 
     private static final Logger logger = LogManager.getLogger(TestCaseSupplier.class);
@@ -1500,8 +1500,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             Object extra,
             boolean canBuildEvaluator
         ) {
-            this.source = Source.EMPTY;
-            // this.source = TEST_SOURCE;
+            this.source = TEST_SOURCE;
             this.configuration = TEST_CONFIGURATION;
             this.data = data;
             this.evaluatorToString = evaluatorToString;

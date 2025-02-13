@@ -290,16 +290,10 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         private final long absoluteStartMillis;
         private final String localClusterAlias;
 
-        private NodeQueryRequest(
-            SearchRequest searchRequest,
-            Map<String, AliasFilter> aliasFilters,
-            int totalShards,
-            long absoluteStartMillis,
-            String localClusterAlias
-        ) {
+        private NodeQueryRequest(SearchRequest searchRequest, int totalShards, long absoluteStartMillis, String localClusterAlias) {
             this.shards = new ArrayList<>();
             this.searchRequest = searchRequest;
-            this.aliasFilters = aliasFilters;
+            this.aliasFilters = new HashMap<>();
             this.totalShards = totalShards;
             this.absoluteStartMillis = absoluteStartMillis;
             this.localClusterAlias = localClusterAlias;
@@ -405,8 +399,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         AbstractSearchAsyncAction.doCheckNoMissingShards(getName(), request, shardsIts, AbstractSearchAsyncAction::makeMissingShardsError);
         final Map<CanMatchPreFilterSearchPhase.SendingTarget, NodeQueryRequest> perNodeQueries = new HashMap<>();
         final String localNodeId = searchTransportService.transportService().getLocalNode().getId();
-        final int shardsToQuery = shardsIts.size();
-        for (int i = 0; i < shardsToQuery; i++) {
+        final int numberOfShardsTotal = shardsIts.size();
+        for (int i = 0; i < numberOfShardsTotal; i++) {
             final SearchShardIterator shardRoutings = shardsIts.get(i);
             assert shardRoutings.skip() == false;
             assert shardIndexMap.containsKey(shardRoutings);
@@ -418,18 +412,24 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 final String nodeId = routing.getNodeId();
                 // local requests don't need batching as there's no network latency
                 if (this.batchQueryPhase && localNodeId.equals(nodeId) == false) {
-                    perNodeQueries.computeIfAbsent(
+                    var perNodeRequest = perNodeQueries.computeIfAbsent(
                         new CanMatchPreFilterSearchPhase.SendingTarget(routing.getClusterAlias(), nodeId),
-                        t -> new NodeQueryRequest(request, aliasFilter, shardsToQuery, timeProvider.absoluteStartMillis(), t.clusterAlias())
-                    ).shards.add(
+                        t -> new NodeQueryRequest(request, numberOfShardsTotal, timeProvider.absoluteStartMillis(), t.clusterAlias())
+                    );
+                    final String indexUUID = routing.getShardId().getIndex().getUUID();
+                    perNodeRequest.shards.add(
                         new ShardToQuery(
-                            concreteIndexBoosts.getOrDefault(routing.getShardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST),
+                            concreteIndexBoosts.getOrDefault(indexUUID, DEFAULT_INDEX_BOOST),
                             getOriginalIndices(shardIndex),
                             shardIndex,
                             routing.getShardId(),
                             shardRoutings.getSearchContextId()
                         )
                     );
+                    var filterForAlias = aliasFilter.getOrDefault(indexUUID, AliasFilter.EMPTY);
+                    if (filterForAlias != AliasFilter.EMPTY) {
+                        perNodeRequest.aliasFilters.putIfAbsent(indexUUID, filterForAlias);
+                    }
                 } else {
                     performPhaseOnShard(shardIndex, shardRoutings, routing);
                 }

@@ -49,9 +49,11 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.LeakTracker;
+import org.elasticsearch.transport.SendRequestTransportException;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportChannel;
@@ -461,14 +463,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             // must check both node and transport versions to correctly deal with BwC on proxy connections
             if (connection.getTransportVersion().before(TransportVersions.BATCHED_QUERY_PHASE_VERSION)
                 || connection.getNode().getVersionInformation().nodeVersion().before(Version.V_9_1_0)) {
-                for (ShardToQuery shard : request.shards) {
-                    final int sidx = shard.shardIndex;
-                    this.performPhaseOnShard(
-                        sidx,
-                        shardIterators[sidx],
-                        new SearchShardTarget(routing.nodeId(), shard.shardId, routing.clusterAlias())
-                    );
-                }
+                executeWithoutBatching(routing, request);
                 return;
             }
             searchTransportService.transportService()
@@ -509,13 +504,43 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     @Override
                     public void handleException(TransportException e) {
                         Exception cause = (Exception) ExceptionsHelper.unwrapCause(e);
-                        if (results instanceof QueryPhaseResultConsumer queryPhaseResultConsumer) {
-                            queryPhaseResultConsumer.failure.compareAndSet(null, cause);
+                        if (e instanceof SendRequestTransportException || cause instanceof TaskCancelledException) {
+                            // two possible special cases here where we do not want to fail the phase:
+                            // failure to send out the request -> handle things the same way a shard would fail with unbatched execution
+                            // as this could be a transient failure and partial results we may have are still valid
+                            // cancellation of the whole batched request on the remote -> maybe we timed out or so, partial results may
+                            // still be valid
+                            for (ShardToQuery shard : request.shards) {
+                                final int shardIndex = shard.shardIndex;
+                                onShardFailure(
+                                    shardIndex,
+                                    new SearchShardTarget(routing.nodeId(), shard.shardId, routing.clusterAlias()),
+                                    shardIterators[shardIndex],
+                                    e
+                                );
+                            }
+                        } else {
+                            // Remote failure that wasn't due to networking or cancellation means that the data node was unable to reduce
+                            // its local results. Failure to reduce always fails the phase without exception so we fail the phase here.
+                            if (results instanceof QueryPhaseResultConsumer queryPhaseResultConsumer) {
+                                queryPhaseResultConsumer.failure.compareAndSet(null, cause);
+                            }
+                            onPhaseFailure(getName(), "", cause);
                         }
-                        onPhaseFailure(getName(), "", cause);
                     }
                 });
         });
+    }
+
+    private void executeWithoutBatching(CanMatchPreFilterSearchPhase.SendingTarget targetNode, NodeQueryRequest request) {
+        for (ShardToQuery shard : request.shards) {
+            final int sidx = shard.shardIndex;
+            this.performPhaseOnShard(
+                sidx,
+                shardIterators[sidx],
+                new SearchShardTarget(targetNode.nodeId(), shard.shardId, targetNode.clusterAlias())
+            );
+        }
     }
 
     private void onNodeQueryFailure(Exception e, NodeQueryRequest request, CanMatchPreFilterSearchPhase.SendingTarget target) {
@@ -762,16 +787,14 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             try (queryPhaseResultConsumer) {
                 var failure = queryPhaseResultConsumer.failure.get();
                 if (failure != null) {
-                    queryPhaseResultConsumer.getSuccessfulResults()
-                        .forEach(searchPhaseResult -> releaseLocalContext(dependencies.searchService, searchRequest, searchPhaseResult));
-                    channelListener.onFailure(failure);
+                    handleMergeFailure(failure, channelListener);
                     return;
                 }
                 final QueryPhaseResultConsumer.MergeResult mergeResult;
                 try {
                     mergeResult = Objects.requireNonNullElse(queryPhaseResultConsumer.consumePartialResult(), EMPTY_PARTIAL_MERGE_RESULT);
                 } catch (Exception e) {
-                    channelListener.onFailure(e);
+                    handleMergeFailure(e, channelListener);
                     return;
                 }
                 // translate shard indices to those on the coordinator so that it can interpret the merge result without adjustments,
@@ -811,6 +834,12 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                     new NodeQueryResponse(mergeResult, results, queryPhaseResultConsumer.topDocsStats)
                 );
             }
+        }
+
+        private void handleMergeFailure(Exception e, ChannelActionListener<TransportResponse> channelListener) {
+            queryPhaseResultConsumer.getSuccessfulResults()
+                .forEach(searchPhaseResult -> releaseLocalContext(dependencies.searchService, searchRequest, searchPhaseResult));
+            channelListener.onFailure(e);
         }
 
         void consumeResult(QuerySearchResult queryResult) {

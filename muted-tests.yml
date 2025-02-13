@@ -382,6 +382,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/122378
 - class: org.elasticsearch.telemetry.apm.ApmAgentSettingsIT
   issue: https://github.com/elastic/elasticsearch/issues/122546
+- class: org.elasticsearch.search.SearchTimeoutIT
+  method: testSuggestTimeoutWithPartialResults
+  issue: https://github.com/elastic/elasticsearch/issues/122548
 
 # Examples:
 #

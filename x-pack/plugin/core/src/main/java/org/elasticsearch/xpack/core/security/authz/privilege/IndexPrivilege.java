@@ -31,6 +31,7 @@ import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.PromoteDataStreamAction;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.search.TransportSearchShardsAction;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
@@ -243,8 +244,8 @@ public final class IndexPrivilege extends Privilege {
             entry("auto_configure", AUTO_CONFIGURE),
             entry("cross_cluster_replication", CROSS_CLUSTER_REPLICATION),
             entry("cross_cluster_replication_internal", CROSS_CLUSTER_REPLICATION_INTERNAL),
-            entry("read_failure_store", READ_FAILURE_STORE),
-            entry("manage_failure_store_internal", MANAGE_FAILURE_STORE_INTERNAL)
+            DataStream.isFailureStoreFeatureFlagEnabled() ? entry("read_failure_store", READ_FAILURE_STORE) : null,
+            DataStream.isFailureStoreFeatureFlagEnabled() ? entry("manage_failure_store_internal", MANAGE_FAILURE_STORE_INTERNAL) : null
         ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue))
     );
 

@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
@@ -538,6 +539,7 @@ public class CompositeRolesStore {
         final Role.Builder builder = Role.builder(restrictedIndices, roleNames.toArray(Strings.EMPTY_ARRAY))
             .cluster(clusterPrivileges, configurableClusterPrivileges)
             .runAs(runAsPrivilege);
+
         indicesPrivilegesMap.forEach(
             (key, privilege) -> builder.add(
                 fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
@@ -602,6 +604,12 @@ public class CompositeRolesStore {
                 })
             );
         }
+    }
+
+    private Map<Set<IndexComponentSelector>, Map<Set<String>, MergeableIndicesPrivilege>> splitBySelectorAccess(
+        Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegeMap
+    ) {
+        return Map.of();
     }
 
     public void invalidateAll() {

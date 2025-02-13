@@ -638,12 +638,12 @@ public class Constants {
         "internal:gateway/local/started_shards",
         "internal:admin/indices/prevalidate_shard_path",
         "internal:index/metadata/migration_version/update",
-        new FeatureFlag("reindex_data_stream").isEnabled() ? "indices:admin/migration/reindex_status" : null,
-        new FeatureFlag("reindex_data_stream").isEnabled() ? "indices:admin/data_stream/index/reindex" : null,
-        new FeatureFlag("reindex_data_stream").isEnabled() ? "indices:admin/data_stream/reindex" : null,
-        new FeatureFlag("reindex_data_stream").isEnabled() ? "indices:admin/data_stream/reindex_cancel" : null,
-        new FeatureFlag("reindex_data_stream").isEnabled() ? "indices:admin/index/create_from_source" : null,
-        new FeatureFlag("reindex_data_stream").isEnabled() ? "indices:admin/index/copy_lifecycle_index_metadata" : null,
+        "indices:admin/migration/reindex_status",
+        "indices:admin/data_stream/index/reindex",
+        "indices:admin/data_stream/reindex",
+        "indices:admin/data_stream/reindex_cancel",
+        "indices:admin/index/create_from_source",
+        "indices:admin/index/copy_lifecycle_index_metadata",
         "internal:admin/repository/verify",
         "internal:admin/repository/verify/coordinate"
     ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());

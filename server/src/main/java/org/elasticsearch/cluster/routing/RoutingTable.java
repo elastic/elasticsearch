@@ -483,7 +483,8 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                     true,
                     RecoverySource.EmptyStoreRecoverySource.INSTANCE,
                     new UnassignedInfo(UnassignedInfo.Reason.SHARD_ADDED, null), // A new Reason needed in UnassignedInfo
-                    ShardRouting.Role.INDEX_ONLY); // A new role API similar to newReplicaRole() needed in shardRoutingRoleStrategy ?
+                    ShardRouting.Role.INDEX_ONLY
+                ); // A new role API similar to newReplicaRole() needed in shardRoutingRoleStrategy ?
                 IndexShardRoutingTable.Builder indexShardRoutingBuilder = IndexShardRoutingTable.builder(shardId);
                 indexShardRoutingBuilder.addShard(shardRouting);
                 builder.addIndexShard(indexShardRoutingBuilder);
@@ -492,7 +493,6 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             indicesRouting.put(index, builder.build());
             return this;
         }
-
 
         /**
          * Update the number of replicas for the specified indices.

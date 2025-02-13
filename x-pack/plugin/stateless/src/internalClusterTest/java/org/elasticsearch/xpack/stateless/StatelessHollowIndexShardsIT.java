@@ -26,6 +26,7 @@ import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -42,6 +43,10 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetItemResponse;
+import org.elasticsearch.action.get.TransportGetFromTranslogAction;
+import org.elasticsearch.action.get.TransportShardMultiGetFomTranslogAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Requests;
@@ -63,6 +68,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
@@ -93,9 +99,11 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL;
 import static co.elastic.elasticsearch.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
@@ -1039,9 +1047,10 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
             .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1))
             .build();
         List<String> indexNodes = startIndexNodes(randomIntBetween(2, 4), indexNodeSettings);
+        String searchNode = startSearchNode();
 
         var indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(numOfShards, 0).build());
+        createIndex(indexName, indexSettings(numOfShards, 1).build());
         ensureGreen(indexName);
         var index = resolveIndex(indexName);
 
@@ -1168,6 +1177,55 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
             }));
         }
 
+        var stopReading = new AtomicBoolean(false);
+        int numReadingThreads = randomIntBetween(2, 4);
+        for (int i = 0; i < numReadingThreads; i++) {
+            threads.add(new Thread(() -> {
+                while (stopReading.get() == false) {
+                    safeSleep(randomLongBetween(0, 100));
+                    if (insertedDocs.isEmpty()) {
+                        continue;
+                    }
+                    List<String> docIds = randomSubsetOf(Math.min(8, insertedDocs.size()), insertedDocs);
+                    try {
+                        if (randomBoolean()) {
+                            assertBusy(() -> {
+                                try {
+                                    var multiGetItemResponse = safeGet(client().prepareMultiGet().addIds(indexName, docIds).execute());
+                                    for (MultiGetItemResponse itemResponse : multiGetItemResponse) {
+                                        assertFalse(itemResponse.isFailed());
+                                        assertTrue(itemResponse.getResponse().isExists());
+                                    }
+                                } catch (Exception e) {
+                                    // Retry on AlreadyClosedException
+                                    if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class) != null) {
+                                        throw new AssertionError(e);
+                                    }
+                                    throw e;
+                                }
+                            }, 30, TimeUnit.SECONDS);
+                        } else {
+                            for (String docId : docIds) {
+                                assertBusy(() -> {
+                                    try {
+                                        assertTrue(safeGet(client().prepareGet(indexName, docId).execute()).isExists());
+                                    } catch (Exception e) {
+                                        // Retry on AlreadyClosedException
+                                        if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class) != null) {
+                                            throw new AssertionError(e);
+                                        }
+                                        throw e;
+                                    }
+                                }, 30, TimeUnit.SECONDS);
+                            }
+                        }
+                    } catch (Exception e) {
+                        throw new RuntimeException("Unable to get docs in real-time", e);
+                    }
+                }
+            }));
+        }
+
         var stopUpdating = new AtomicBoolean(false);
         // TODO Support updates in https://elasticco.atlassian.net/browse/ES-10708
         /*threads.add(new Thread(() -> {
@@ -1207,6 +1265,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         stopHollowing.set(true);
         stopIndexing.set(true);
         stopUpdating.set(true);
+        stopReading.set(true);
         for (Thread thread : threads) {
             thread.join();
         }
@@ -1223,19 +1282,148 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         for (int i = 0; i < numOfShards; i++) {
             var indexShard = findIndexShard(index, i);
             assertThat(indexShard.getEngineOrNull(), instanceOf(IndexEngine.class));
-            assertFalse(((IndexEngine) indexShard.getEngineOrNull()).isLastCommitHollow());
+            IndexEngine indexEngine = (IndexEngine) indexShard.getEngineOrNull();
+            assertFalse(indexEngine.isLastCommitHollow());
         }
-        assertThat(
-            indicesAdmin().prepareStats(indexName).setDocs(true).get().getTotal().getDocs().getCount(),
-            equalTo(insertedDocsCount.get())
-        );
 
         // Verify that all ingested docs are searchable
-        logger.info("--> starting a search node");
-        startSearchNode();
-        updateIndexSettings(Settings.builder().put("index.number_of_replicas", 1), indexName);
-        ensureGreen(indexName);
+        refresh(indexName);
         assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHits(true), insertedDocsCount.get());
+    }
+
+    public void testRealTimeGet() throws Exception {
+        startMasterOnlyNode();
+        int numOfShards = randomIntBetween(2, 4);
+        int numOfReplicas = 1;
+        var indexNodeSettings = Settings.builder()
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1))
+            .build();
+        var indexNodeA = startIndexNode(indexNodeSettings);
+        var indexNodeB = startIndexNode(indexNodeSettings);
+        startSearchNodes(numOfReplicas);
+
+        var indexName = randomIdentifier();
+        createIndex(
+            indexName,
+            indexSettings(numOfShards, numOfReplicas).put("index.routing.allocation.exclude._name", indexNodeB)
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+                .build()
+        );
+        ensureGreen(indexName);
+        var index = resolveIndex(indexName);
+
+        indexDocs(indexName, randomIntBetween(16, 32));
+        flush(indexName);
+
+        var bulkResponse = indexDocs(indexName, randomIntBetween(256, 512));
+        List<String> docIds = Arrays.stream(bulkResponse.getItems()).map(BulkItemResponse::getId).toList();
+
+        var hollowShardsServiceA = internalCluster().getInstance(HollowShardsService.class, indexNodeA);
+        for (int i = 0; i < numOfShards; i++) {
+            var indexShard = findIndexShard(index, i);
+            assertBusy(() -> assertThat(hollowShardsServiceA.isHollowableIndexShard(indexShard), equalTo(true)));
+            hollowShardsServiceA.ensureHollowShard(indexShard.shardId(), false);
+        }
+        logger.info("--> relocating {} hollowable shards from {} to {}", numOfShards, indexNodeA, indexNodeB);
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
+        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
+        ensureGreen(indexName);
+        logger.info("--> relocated");
+        var hollowShardsServiceB = internalCluster().getInstance(HollowShardsService.class, indexNodeB);
+        for (int i = 0; i < numOfShards; i++) {
+            hollowShardsServiceB.ensureHollowShard(new ShardId(index, i), true);
+        }
+
+        var id = randomFrom(docIds);
+        // A real-time get should see the doc
+        assertThat(client().prepareGet(indexName, id).get().isExists(), is(true));
+
+        // Refreshes are always visible
+        assertThat(client().prepareGet(indexName, id).setRefresh(true).setRealtime(randomBoolean()).get().isExists(), is(true));
+
+        // A non-real time get shouldn't read from the translog
+        assertThat(client().prepareGet(indexName, id).setRealtime(false).get().isExists(), is(true));
+
+        var ids = Set.copyOf(randomSubsetOf(docIds));
+        var multiGetResponse = client().prepareMultiGet().addIds(indexName, ids).get();
+        assertTrue(Stream.of(multiGetResponse.getResponses()).noneMatch(MultiGetItemResponse::isFailed));
+        assertTrue(Stream.of(multiGetResponse.getResponses()).map(e -> e.getResponse()).allMatch(GetResponse::isExists));
+        assertThat(Stream.of(multiGetResponse.getResponses()).map(e -> e.getResponse().getId()).collect(Collectors.toSet()), equalTo(ids));
+
+        // Refreshes are always visible
+        var multiGetResponseRefresh = client().prepareMultiGet().addIds(indexName, ids).setRefresh(true).setRealtime(randomBoolean()).get();
+        assertTrue(Stream.of(multiGetResponseRefresh.getResponses()).noneMatch(MultiGetItemResponse::isFailed));
+        assertTrue(Stream.of(multiGetResponseRefresh.getResponses()).map(e -> e.getResponse()).allMatch(GetResponse::isExists));
+
+        // A non-real time mget shouldn't cause any translog reads or refreshes
+        var nonRealTimeMultiGetResponse = client().prepareMultiGet().addIds(indexName, ids).setRealtime(false).get();
+        assertTrue(Stream.of(nonRealTimeMultiGetResponse.getResponses()).noneMatch(MultiGetItemResponse::isFailed));
+        assertTrue(Stream.of(nonRealTimeMultiGetResponse.getResponses()).map(e -> e.getResponse()).allMatch(GetResponse::isExists));
+    }
+
+    public void testGetFromTranslogRetriesOnAlreadyClosedException() throws Exception {
+        startMasterOnlyNode();
+        int numOfShards = randomIntBetween(2, 4);
+        int numOfReplicas = 1;
+        var indexNodeSettings = Settings.builder()
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .put(SETTING_HOLLOW_INGESTION_TTL.getKey(), TimeValue.timeValueMillis(1))
+            .build();
+        var indexNodeA = startIndexNode(indexNodeSettings);
+        var indexNodeB = startIndexNode(indexNodeSettings);
+        startSearchNodes(numOfReplicas);
+
+        var indexName = randomIdentifier();
+        createIndex(
+            indexName,
+            indexSettings(numOfShards, numOfReplicas).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build()
+        );
+        ensureGreen(indexName);
+        var index = resolveIndex(indexName);
+
+        indexDocs(indexName, randomIntBetween(16, 32));
+        flush(indexName);
+        var bulkResponse = indexDocs(indexName, randomIntBetween(256, 512));
+        List<String> docIds = Arrays.stream(bulkResponse.getItems()).map(BulkItemResponse::getId).toList();
+
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
+        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
+        ensureGreen(indexName);
+
+        var failCount = randomIntBetween(1, 3);
+        var getFromTranslogCounter = new AtomicInteger();
+        var multiGetFromTranslogCounter = new AtomicInteger();
+        var mockTransportService = MockTransportService.getInstance(indexNodeB);
+        mockTransportService.addRequestHandlingBehavior(TransportGetFromTranslogAction.NAME, (handler, request, channel, task) -> {
+            if (getFromTranslogCounter.incrementAndGet() <= failCount) {
+                channel.sendResponse(new AlreadyClosedException(indexName));
+            } else {
+                handler.messageReceived(request, channel, task);
+            }
+        });
+        mockTransportService.addRequestHandlingBehavior(TransportShardMultiGetFomTranslogAction.NAME, (handler, request, channel, task) -> {
+            if (multiGetFromTranslogCounter.incrementAndGet() <= failCount) {
+                channel.sendResponse(new AlreadyClosedException(indexName));
+            } else {
+                handler.messageReceived(request, channel, task);
+            }
+        });
+
+        var getResponseFuture = client().prepareGet(indexName, randomFrom(docIds)).setRealtime(true).execute();
+        triggetClusterUpdates(indexName, failCount);
+        assertThat(getResponseFuture.get().isExists(), is(true));
+
+        var multiGetResponseFuture = client().prepareMultiGet().addIds(indexName, randomSubsetOf(docIds)).setRealtime(true).execute();
+        triggetClusterUpdates(indexName, failCount);
+        assertTrue(Stream.of(safeGet(multiGetResponseFuture).getResponses()).map(e -> e.getResponse()).allMatch(GetResponse::isExists));
+    }
+
+    private static void triggetClusterUpdates(String indexName, int amount) {
+        // Trigger cluster state updates for retries
+        for (int i = 0; i < amount; i++) {
+            safeGet(indicesAdmin().preparePutMapping(indexName).setSource(randomIdentifier(), "type=keyword").execute());
+        }
     }
 
     private static void ensureGreenViaMasterNode(String index) {

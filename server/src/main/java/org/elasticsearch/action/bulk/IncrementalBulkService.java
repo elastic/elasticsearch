@@ -203,10 +203,12 @@ public class IncrementalBulkService {
 
         @Override
         public void close() {
-            closed = true;
-            coordinatingOperation.close();
-            releasables.forEach(Releasable::close);
-            releasables.clear();
+            if (closed == false) {
+                closed = true;
+                coordinatingOperation.close();
+                releasables.forEach(Releasable::close);
+                releasables.clear();
+            }
         }
 
         private void shortCircuitDueToTopLevelFailure(List<DocWriteRequest<?>> items, Releasable releasable) {

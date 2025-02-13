@@ -247,7 +247,9 @@ public class RestBulkAction extends BaseRestHandler {
         @Override
         public void streamClose() {
             assert Transports.assertTransportThread();
-            shortCircuit();
+            if (shortCircuited == false) {
+                shortCircuit();
+            }
         }
 
         private void shortCircuit() {

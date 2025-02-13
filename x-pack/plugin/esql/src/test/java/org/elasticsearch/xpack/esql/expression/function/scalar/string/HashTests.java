@@ -55,7 +55,10 @@ public class HashTests extends AbstractScalarFunctionTestCase {
                 is(nullValue())
             ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
                 .withWarning("Line 1:1: java.security.NoSuchAlgorithmException: invalid MessageDigest not available")
-                .withFoldingException(InvalidArgumentException.class, "invalid algorithm for [source]: invalid MessageDigest not available");
+                .withFoldingException(
+                    InvalidArgumentException.class,
+                    "invalid algorithm for [source]: invalid MessageDigest not available"
+                );
         }));
         return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, cases);
     }

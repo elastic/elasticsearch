@@ -78,12 +78,14 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         ctx.forEach(c -> {
             String indexPattern = visitIndexString(c.indexString());
             String clusterString = visitClusterString(c.clusterString());
-            String assembledName = clusterString != null ? clusterString + REMOTE_CLUSTER_INDEX_SEPARATOR + indexPattern : indexPattern;
             // At this point, we run 2 kinds of checks. The first check is to ensure that this string adheres to the valid
             // pattern format. The second check is to ensure that the parts of this string, i.e. the remote name, cluster name, and
             // other aspects of them are valid. There's no point in running the second check if the first one fails.
-            if (assembledName.codePoints().filter(ch -> ch == REMOTE_CLUSTER_INDEX_SEPARATOR).count() > 1) {
-                throw new ParsingException(source(c), "More than 1 occurrence of index separator found in index pattern");
+            // Should clusterString be non-null, validateClusterString() handles the required validation. So for now, look only at
+            // the indexPattern.
+            var maxSeparators = clusterString == null ? 1 : 0;
+            if (patternExceedsMaxIndexSeparators(indexPattern, maxSeparators)) {
+                throw new ParsingException(source(c), "Unexpected index separator in index pattern");
             }
             // skip validating index on remote cluster, because the behavior of remote cluster is not consistent with local cluster
             // For example, invalid#index is an invalid index name, however FROM *:invalid#index does not return an error
@@ -93,7 +95,7 @@ abstract class IdentifierBuilder extends AbstractBuilder {
             } else {
                 validateClusterString(clusterString, c);
             }
-            patterns.add(assembledName);
+            patterns.add(clusterString != null ? clusterString + REMOTE_CLUSTER_INDEX_SEPARATOR + indexPattern : indexPattern);
         });
         return Strings.collectionToDelimitedString(patterns, ",");
     }
@@ -144,5 +146,21 @@ abstract class IdentifierBuilder extends AbstractBuilder {
 
     private static String removeExclusion(String indexPattern) {
         return indexPattern.charAt(0) == EXCLUSION.charAt(0) ? indexPattern.substring(1) : indexPattern;
+    }
+
+    private static boolean patternExceedsMaxIndexSeparators(String pattern, int maxAllowedSeparators) {
+        int seperatorsCount = 0;
+        boolean inDateTime = false;
+        for (char ch : pattern.toCharArray()) {
+            if (ch == '<') {
+                inDateTime = true;
+            } else if (ch == '>') {
+                inDateTime = false;
+            } else if (ch == REMOTE_CLUSTER_INDEX_SEPARATOR && inDateTime == false) {
+                seperatorsCount++;
+            }
+        }
+
+        return seperatorsCount > maxAllowedSeparators;
     }
 }

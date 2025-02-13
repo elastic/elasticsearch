@@ -181,13 +181,17 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
             entry("runtime_load_library", forPlugins(LoadNativeLibrariesCheckActions::runtimeLoadLibrary)),
             entry("system_load", forPlugins(LoadNativeLibrariesCheckActions::systemLoad)),
             entry("system_load_library", forPlugins(LoadNativeLibrariesCheckActions::systemLoadLibrary))
+
+            // MAINTENANCE NOTE: Please don't add any more entries to this map.
+            // Put new tests into their own "Actions" class using the @EntitlementTest annotation.
         ),
         getTestEntries(FileCheckActions.class),
-        getTestEntries(SpiActions.class),
-        getTestEntries(SystemActions.class),
+        getTestEntries(FileStoreActions.class),
+        getTestEntries(ManageThreadsActions.class),
         getTestEntries(NativeActions.class),
         getTestEntries(NioFileSystemActions.class),
-        getTestEntries(FileStoreActions.class)
+        getTestEntries(SpiActions.class),
+        getTestEntries(SystemActions.class)
     )
         .flatMap(Function.identity())
         .filter(entry -> entry.getValue().fromJavaVersion() == null || Runtime.version().feature() >= entry.getValue().fromJavaVersion())
@@ -424,7 +428,9 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         return channel -> {
             logger.info("Calling check action [{}]", actionName);
             checkAction.action().run();
+            logger.debug("Check action [{}] returned", actionName);
             channel.sendResponse(new RestResponse(RestStatus.OK, Strings.format("Succesfully executed action [%s]", actionName)));
         };
     }
+
 }

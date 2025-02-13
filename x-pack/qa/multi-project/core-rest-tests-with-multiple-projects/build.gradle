@@ -47,7 +47,6 @@ tasks.named("yamlRestTest").configure {
     '^indices.resolve_cluster/*/*',
     '^indices.resolve_cluster/*/*/*',
     '^indices.shard_stores/*/*',
-    '^reindex/30_search/Sorting deprecated wait_for_completion false',
     '^test/ingest/15_info_ingest/*', // uses cluster info API
     '^test/ingest/70_bulk/Test bulk request with default pipeline', // uses stats API
     '^test/ingest/70_bulk/Test bulk request without default pipeline', // uses stats API
@@ -72,6 +71,10 @@ tasks.named("yamlRestTest").configure {
 
     // The node removal prevalidation is only available for a Stateful deployment.
     '^cluster.prevalidate_node_removal/*/*',
+
+
+    // This behaviour doesn't work with security: https://github.com/elastic/elasticsearch/issues/120252
+    '^reindex/30_search/Sorting deprecated wait_for_completion false',
 
     // These tests assume we are running on a single node
     '^delete_by_query/50_wait_for_active_shards/can override wait_for_active_shards',

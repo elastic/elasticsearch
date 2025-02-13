@@ -29,6 +29,7 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlemen
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.FileData;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.InboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.ManageThreadsEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ReadStoreAttributesEntitlement;
 
@@ -147,6 +148,7 @@ public class EntitlementInitialization {
                         new InboundNetworkEntitlement(),
                         new OutboundNetworkEntitlement(),
                         new LoadNativeLibrariesEntitlement(),
+                        new ManageThreadsEntitlement(),
                         new FilesEntitlement(
                             List.of(FilesEntitlement.FileData.ofPath(EntitlementBootstrap.bootstrapArgs().tempDir(), READ_WRITE))
                         )
@@ -154,7 +156,8 @@ public class EntitlementInitialization {
                 ),
                 new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),
                 new Scope("io.netty.transport", List.of(new InboundNetworkEntitlement(), new OutboundNetworkEntitlement())),
-                new Scope("org.apache.lucene.core", List.of(new LoadNativeLibrariesEntitlement())),
+                new Scope("org.apache.lucene.core", List.of(new LoadNativeLibrariesEntitlement(), new ManageThreadsEntitlement())),
+                new Scope("org.apache.logging.log4j.core", List.of(new ManageThreadsEntitlement())),
                 new Scope(
                     "org.elasticsearch.nativeaccess",
                     List.of(
@@ -166,7 +169,7 @@ public class EntitlementInitialization {
         );
         // agents run without a module, so this is a special hack for the apm agent
         // this should be removed once https://github.com/elastic/elasticsearch/issues/109335 is completed
-        List<Entitlement> agentEntitlements = List.of(new CreateClassLoaderEntitlement());
+        List<Entitlement> agentEntitlements = List.of(new CreateClassLoaderEntitlement(), new ManageThreadsEntitlement());
         var resolver = EntitlementBootstrap.bootstrapArgs().pluginResolver();
         return new PolicyManager(
             serverPolicy,

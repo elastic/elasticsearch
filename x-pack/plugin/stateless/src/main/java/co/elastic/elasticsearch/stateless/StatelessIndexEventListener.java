@@ -370,4 +370,8 @@ class StatelessIndexEventListener implements IndexEventListener {
         });
     }
 
+    @Override
+    public void beforeIndexShardMutableOperation(IndexShard indexShard, ActionListener<Void> listener) {
+        hollowShardsService.onMutableOperation(indexShard.shardId(), listener);
+    }
 }

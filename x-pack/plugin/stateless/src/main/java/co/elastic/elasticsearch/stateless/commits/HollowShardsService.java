@@ -46,7 +46,6 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 
 /**
  * Functionality around the hollowing of inactive shards to reduce their memory footprint.
@@ -247,19 +246,21 @@ public class HollowShardsService extends AbstractLifecycleComponent {
     }
 
     /**
-     * Processes an ingestion operation. If the shard is hollow, the operation will be blocked until the shard is unhollowed and the
-     * ingestion blocker is uninstalled.
+     * Processes a mutable operations (e.g., ingestion, force merges) operation.
+     * If the shard is hollow, the operation will be blocked until the shard is
+     * unhollowed and the ingestion blocker is uninstalled.
      *
-     * @param shardId the shard for which the ingestion operation is being processed
-     * @param listenerSupplier supplies the listener to be notified when the ingestion operation can proceed. In case the operation can
-     *                         proceed immediately, the supplier is not called at all.
+     * @param shardId the shard for which the mutable operation is being processed
+     * @param listener the listener to be notified when the mutable operation can proceed
      */
-    public void onIngestion(ShardId shardId, Supplier<ActionListener<Void>> listenerSupplier) {
+    public void onMutableOperation(ShardId shardId, ActionListener<Void> listener) {
         var ingestionBlocker = hollowShards.get(shardId);
         if (ingestionBlocker != null) {
             logger.debug(() -> "adding ingestion operation for shard " + shardId + " to the ingestion blocker");
-            ingestionBlocker.listener.addListener(listenerSupplier.get());
+            ingestionBlocker.listener.addListener(listener);
             unhollow(shardId);
+        } else {
+            listener.onResponse(null);
         }
     }
 

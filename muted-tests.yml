@@ -320,9 +320,6 @@ tests:
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testGetUsersWithProfileUid
   issue: https://github.com/elastic/elasticsearch/issues/121483
-- class: org.elasticsearch.xpack.transform.checkpoint.TransformCCSCanMatchIT
-  method: testTransformLifecycle_RangeQueryThatMatchesNoShards
-  issue: https://github.com/elastic/elasticsearch/issues/121480
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testSuggestProfilesWithHint
   issue: https://github.com/elastic/elasticsearch/issues/121116
@@ -332,9 +329,6 @@ tests:
 - class: org.elasticsearch.ingest.geoip.FullClusterRestartIT
   method: testGeoIpSystemFeaturesMigration {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/121115
-- class: org.elasticsearch.xpack.core.ilm.SetSingleNodeAllocateStepTests
-  method: testPerformActionSomeShardsOnlyOnNewNodesButNewNodesInvalidAttrs
-  issue: https://github.com/elastic/elasticsearch/issues/121495
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.vectors/42_knn_search_int4_flat/Vector similarity with filter only}
   issue: https://github.com/elastic/elasticsearch/issues/121412
@@ -360,9 +354,6 @@ tests:
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   method: test {yaml=snapshot.delete/10_basic/Delete a snapshot asynchronously}
   issue: https://github.com/elastic/elasticsearch/issues/122102
-- class: org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests
-  method: testDuplicateDownsampleRequest
-  issue: https://github.com/elastic/elasticsearch/issues/122158
 - class: org.elasticsearch.search.SearchCancellationIT
   method: testCancelFailedSearchWhenPartialResultDisallowed
   issue: https://github.com/elastic/elasticsearch/issues/121719
@@ -377,14 +368,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authz.IndexAliasesTests
   method: testRemoveIndex
   issue: https://github.com/elastic/elasticsearch/issues/122221
-- class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
-  issue: https://github.com/elastic/elasticsearch/issues/121737
-- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
-  method: testGroupingMultiValueByOrdinals
-  issue: https://github.com/elastic/elasticsearch/issues/122228
-- class: org.elasticsearch.xpack.esql.action.EsqlNodeFailureIT
-  method: testFailureLoadingFields
-  issue: https://github.com/elastic/elasticsearch/issues/122132
 - class: org.elasticsearch.blocks.SimpleBlocksIT
   method: testConcurrentAddBlock
   issue: https://github.com/elastic/elasticsearch/issues/122324
@@ -396,12 +379,43 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterCancellationIT
   method: testCloseSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/122336
-- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
-  method: testUnsupportedTypesOrdinalGrouping
-  issue: https://github.com/elastic/elasticsearch/issues/122342
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/alias/line_260}
   issue: https://github.com/elastic/elasticsearch/issues/122343
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/snapshot-restore/apis/get-snapshot-api/line_488}
+  issue: https://github.com/elastic/elasticsearch/issues/121611
+- class: org.elasticsearch.repositories.blobstore.testkit.analyze.SecureHdfsRepositoryAnalysisRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/122377
+- class: org.elasticsearch.repositories.blobstore.testkit.analyze.HdfsRepositoryAnalysisRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/122378
+- class: org.elasticsearch.lucene.RollingUpgradeLuceneIndexCompatibilityTestCase
+  method: testClosedIndexUpgrade {p0=[9.1.0, 8.19.0, 8.19.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/122481
+- class: org.elasticsearch.lucene.RollingUpgradeLuceneIndexCompatibilityTestCase
+  method: testRestoreIndex {p0=[9.1.0, 9.1.0, 8.19.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/122482
+- class: org.elasticsearch.lucene.RollingUpgradeLuceneIndexCompatibilityTestCase
+  method: testRestoreIndex {p0=[9.1.0, 8.19.0, 8.19.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/122483
+- class: org.elasticsearch.lucene.RollingUpgradeLuceneIndexCompatibilityTestCase
+  method: testIndexUpgrade {p0=[9.1.0, 8.19.0, 8.19.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/122484
+- class: org.elasticsearch.lucene.RollingUpgradeLuceneIndexCompatibilityTestCase
+  method: testIndexUpgrade {p0=[9.1.0, 9.1.0, 9.1.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/122487
+- class: org.elasticsearch.lucene.RollingUpgradeLuceneIndexCompatibilityTestCase
+  method: testClosedIndexUpgrade {p0=[9.1.0, 9.1.0, 8.19.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/122488
+- class: org.elasticsearch.lucene.RollingUpgradeLuceneIndexCompatibilityTestCase
+  method: testIndexUpgrade {p0=[9.1.0, 9.1.0, 8.19.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/122489
+- class: org.elasticsearch.lucene.RollingUpgradeLuceneIndexCompatibilityTestCase
+  method: testRestoreIndex {p0=[9.1.0, 9.1.0, 9.1.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/122490
+- class: org.elasticsearch.lucene.RollingUpgradeLuceneIndexCompatibilityTestCase
+  method: testClosedIndexUpgrade {p0=[9.1.0, 9.1.0, 9.1.0]}
+  issue: https://github.com/elastic/elasticsearch/issues/122495
 
 # Examples:
 #

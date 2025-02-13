@@ -147,6 +147,14 @@ create logs index without doc values sparse index:
   - is_true: test
   - match: { test.settings.index.mode: "logsdb" }
 
+  - do:
+      indices.disk_usage:
+        index: test
+        run_expensive_tasks: true
+
+  - gt: { test.fields.@timestamp.points_in_bytes: 0 }
+  - gt: { test.fields.@timestamp.doc_values_in_bytes: 0 }
+
 ---
 create logs index with doc values sparse index:
   - requires:
@@ -225,6 +233,14 @@ create logs index with doc values sparse index:
 
   - is_true: test
   - match: { test.settings.index.mode: "logsdb" }
+
+  - do:
+      indices.disk_usage:
+        index: test
+        run_expensive_tasks: true
+
+  - match: { test.fields.@timestamp.points_in_bytes: 0 }
+  - gt: { test.fields.@timestamp.doc_values_in_bytes: 0 }
 
 ---
 using default timestamp field mapping:

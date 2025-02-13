@@ -501,13 +501,12 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             logger.warn("createIndex failed, retrying after removing index [{}] from previous attempt", migrationInfo.getNextIndexName());
             deleteIndex(migrationInfo, ActionListener.wrap(cleanupResponse -> createIndex(migrationInfo, l.delegateResponse((l3, e3) -> {
                 logger.error(
-                    "createIndex failed after retrying, aborting; index [{}] will be left in an inconsistent state",
-                    migrationInfo.getNextIndexName(),
+                    "createIndex failed after retrying, aborting system index migration. index: " + migrationInfo.getNextIndexName(),
                     e3
                 );
                 l.onFailure(e3);
             })), e2 -> {
-                logger.error("deleteIndex failed after retrying, aborting", e2);
+                logger.error("deleteIndex failed, aborting system index migration. index: " + migrationInfo.getNextIndexName(), e2);
                 l.onFailure(e2);
             }));
         }));

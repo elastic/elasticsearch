@@ -146,9 +146,9 @@ public class IndexingPressure {
 
     public class Coordinating implements Releasable {
 
-        private final AtomicBoolean called = new AtomicBoolean();
+        private final AtomicBoolean closed = new AtomicBoolean();
         private final boolean forceExecution;
-        private int coordinatingOperations = 0;
+        private int currentOperations = 0;
         private long currentSize = 0;
 
         public Coordinating(boolean forceExecution) {
@@ -156,6 +156,7 @@ public class IndexingPressure {
         }
 
         public void increment(int operations, long bytes) {
+            assert closed.get() == false;
             long combinedBytes = currentCombinedCoordinatingAndPrimaryBytes.addAndGet(bytes);
             long replicaWriteBytes = currentReplicaBytes.get();
             long totalBytes = combinedBytes + replicaWriteBytes;
@@ -184,7 +185,7 @@ public class IndexingPressure {
                     false
                 );
             }
-            coordinatingOperations += operations;
+            currentOperations += operations;
             currentSize += bytes;
             logger.trace(() -> Strings.format("adding [%d] coordinating operations and [%d] bytes", operations, bytes));
             currentCoordinatingBytes.getAndAdd(bytes);
@@ -193,6 +194,18 @@ public class IndexingPressure {
             totalCoordinatingBytes.getAndAdd(bytes);
             totalCoordinatingOps.getAndAdd(operations);
             totalCoordinatingRequests.getAndIncrement();
+        }
+
+        public long currentSize() {
+            return currentSize;
+        }
+
+        public void releaseCurrent() {
+            currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-currentSize);
+            currentCoordinatingBytes.getAndAdd(-currentSize);
+            currentCoordinatingOps.getAndAdd(-currentOperations);
+            currentSize = 0;
+            currentOperations = 0;
         }
 
         public boolean shouldSplit() {
@@ -217,13 +230,9 @@ public class IndexingPressure {
 
         @Override
         public void close() {
-            if (called.compareAndSet(false, true)) {
-                logger.trace(
-                    () -> Strings.format("removing [%d] coordinating operations and [%d] bytes", coordinatingOperations, currentSize)
-                );
-                currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-currentSize);
-                currentCoordinatingBytes.getAndAdd(-currentSize);
-                currentCoordinatingOps.getAndAdd(-coordinatingOperations);
+            if (closed.compareAndSet(false, true)) {
+                logger.trace(() -> Strings.format("removing [%d] coordinating operations and [%d] bytes", currentOperations, currentSize));
+                releaseCurrent();
             } else {
                 logger.error("IndexingPressure memory is adjusted twice", new IllegalStateException("Releasable is called twice"));
                 assert false : "IndexingPressure is adjusted twice";

@@ -91,19 +91,18 @@ public class IncrementalBulkService {
         public static final BulkRequest.IncrementalState EMPTY_STATE = new BulkRequest.IncrementalState(Collections.emptyMap(), true);
 
         private final Client client;
-        private final IndexingPressure indexingPressure;
         private final ActiveShardCount waitForActiveShards;
         private final TimeValue timeout;
         private final String refresh;
 
         private final ArrayList<Releasable> releasables = new ArrayList<>(4);
         private final ArrayList<BulkResponse> responses = new ArrayList<>(2);
+        private final IndexingPressure.Coordinating coordinatingOperation;
         private boolean closed = false;
         private boolean globalFailure = false;
         private boolean incrementalRequestSubmitted = false;
         private boolean bulkInProgress = false;
         private Exception bulkActionLevelFailure = null;
-        private IndexingPressure.Coordinating coordinatingOperation;
         private BulkRequest bulkRequest = null;
 
         protected Handler(
@@ -114,10 +113,10 @@ public class IncrementalBulkService {
             @Nullable String refresh
         ) {
             this.client = client;
-            this.indexingPressure = indexingPressure;
             this.waitForActiveShards = waitForActiveShards != null ? ActiveShardCount.parseString(waitForActiveShards) : null;
             this.timeout = timeout;
             this.refresh = refresh;
+            this.coordinatingOperation = indexingPressure.markCoordinatingOperationStarted(0, 0, false);
             createNewBulkRequest(EMPTY_STATE);
         }
 
@@ -152,8 +151,7 @@ public class IncrementalBulkService {
                             }
                         }, () -> {
                             bulkInProgress = false;
-                            coordinatingOperation.close();
-                            coordinatingOperation = null;
+                            coordinatingOperation.releaseCurrent();
                             toRelease.forEach(Releasable::close);
                             nextItems.run();
                         }));
@@ -194,8 +192,7 @@ public class IncrementalBulkService {
                             errorResponse(listener);
                         }
                     }, () -> {
-                        coordinatingOperation.close();
-                        coordinatingOperation = null;
+                        coordinatingOperation.releaseCurrent();
                         toRelease.forEach(Releasable::close);
                     }));
                 } else {
@@ -208,13 +205,13 @@ public class IncrementalBulkService {
         public void close() {
             closed = true;
             coordinatingOperation.close();
-            coordinatingOperation = null;
             releasables.forEach(Releasable::close);
             releasables.clear();
         }
 
         private void shortCircuitDueToTopLevelFailure(List<DocWriteRequest<?>> items, Releasable releasable) {
             assert releasables.isEmpty();
+            assert coordinatingOperation.currentSize() == 0;
             assert bulkRequest == null;
             if (globalFailure == false) {
                 addItemLevelFailures(items);
@@ -263,8 +260,7 @@ public class IncrementalBulkService {
                 return true;
             } catch (EsRejectedExecutionException e) {
                 handleBulkFailure(incrementalRequestSubmitted == false, e);
-                coordinatingOperation.close();
-                coordinatingOperation = null;
+                coordinatingOperation.releaseCurrent();
                 releasables.forEach(Releasable::close);
                 releasables.clear();
                 return false;
@@ -275,7 +271,6 @@ public class IncrementalBulkService {
             assert bulkRequest == null;
             bulkRequest = new BulkRequest();
             bulkRequest.incrementalState(incrementalState);
-            coordinatingOperation = indexingPressure.markCoordinatingOperationStarted(0, 0, false);
 
             if (waitForActiveShards != null) {
                 bulkRequest.waitForActiveShards(waitForActiveShards);

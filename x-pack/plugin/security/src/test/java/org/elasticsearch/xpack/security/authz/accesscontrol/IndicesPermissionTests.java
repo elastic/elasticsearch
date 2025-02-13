@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCa
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexComponentSelectorPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
@@ -69,9 +70,17 @@ public class IndicesPermissionTests extends ESTestCase {
         // basics:
         Set<BytesReference> query = Collections.singleton(new BytesArray("{}"));
         String[] fields = new String[] { "_field" };
-        Role role = Role.builder(RESTRICTED_INDICES, "_role")
-            .add(new FieldPermissions(fieldPermissionDef(fields, null)), query, IndexPrivilege.ALL, randomBoolean(), "_index")
-            .build();
+        Role.Builder builder6 = Role.builder(RESTRICTED_INDICES, "_role");
+        FieldPermissions fieldPermissions5 = new FieldPermissions(fieldPermissionDef(fields, null));
+        boolean allowRestrictedIndices6 = randomBoolean();
+        Role role = builder6.add(
+            fieldPermissions5,
+            query,
+            IndexPrivilege.ALL,
+            allowRestrictedIndices6,
+            IndexComponentSelectorPrivilege.DATA,
+            "_index"
+        ).build();
         IndicesAccessControl permissions = role.authorize(
             TransportSearchAction.TYPE.name(),
             Sets.newHashSet("_index"),
@@ -86,9 +95,17 @@ public class IndicesPermissionTests extends ESTestCase {
         assertThat(permissions.getIndexPermissions("_index").getDocumentPermissions().getSingleSetOfQueries(), equalTo(query));
 
         // no document level security:
-        role = Role.builder(RESTRICTED_INDICES, "_role")
-            .add(new FieldPermissions(fieldPermissionDef(fields, null)), null, IndexPrivilege.ALL, randomBoolean(), "_index")
-            .build();
+        Role.Builder builder5 = Role.builder(RESTRICTED_INDICES, "_role");
+        FieldPermissions fieldPermissions4 = new FieldPermissions(fieldPermissionDef(fields, null));
+        boolean allowRestrictedIndices5 = randomBoolean();
+        role = builder5.add(
+            fieldPermissions4,
+            null,
+            IndexPrivilege.ALL,
+            allowRestrictedIndices5,
+            IndexComponentSelectorPrivilege.DATA,
+            "_index"
+        ).build();
         permissions = role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("_index"), md, fieldPermissionsCache);
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertTrue(permissions.getIndexPermissions("_index").getFieldPermissions().grantsAccessTo("_field"));
@@ -97,9 +114,16 @@ public class IndicesPermissionTests extends ESTestCase {
         assertThat(permissions.getIndexPermissions("_index").getDocumentPermissions().getListOfQueries(), nullValue());
 
         // no field level security:
-        role = Role.builder(RESTRICTED_INDICES, "_role")
-            .add(FieldPermissions.DEFAULT, query, IndexPrivilege.ALL, randomBoolean(), "_index")
-            .build();
+        Role.Builder builder4 = Role.builder(RESTRICTED_INDICES, "_role");
+        boolean allowRestrictedIndices4 = randomBoolean();
+        role = builder4.add(
+            FieldPermissions.DEFAULT,
+            query,
+            IndexPrivilege.ALL,
+            allowRestrictedIndices4,
+            IndexComponentSelectorPrivilege.DATA,
+            "_index"
+        ).build();
         permissions = role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("_index"), md, fieldPermissionsCache);
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertFalse(permissions.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity());
@@ -108,9 +132,17 @@ public class IndicesPermissionTests extends ESTestCase {
         assertThat(permissions.getIndexPermissions("_index").getDocumentPermissions().getSingleSetOfQueries(), equalTo(query));
 
         // index group associated with an alias:
-        role = Role.builder(RESTRICTED_INDICES, "_role")
-            .add(new FieldPermissions(fieldPermissionDef(fields, null)), query, IndexPrivilege.ALL, randomBoolean(), "_alias")
-            .build();
+        Role.Builder builder3 = Role.builder(RESTRICTED_INDICES, "_role");
+        FieldPermissions fieldPermissions3 = new FieldPermissions(fieldPermissionDef(fields, null));
+        boolean allowRestrictedIndices3 = randomBoolean();
+        role = builder3.add(
+            fieldPermissions3,
+            query,
+            IndexPrivilege.ALL,
+            allowRestrictedIndices3,
+            IndexComponentSelectorPrivilege.DATA,
+            "_alias"
+        ).build();
         permissions = role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("_alias"), md, fieldPermissionsCache);
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertTrue(permissions.getIndexPermissions("_index").getFieldPermissions().grantsAccessTo("_field"));
@@ -132,9 +164,17 @@ public class IndicesPermissionTests extends ESTestCase {
             new String[] { "foo", "*" },
             new String[] { randomAlphaOfLengthBetween(1, 10), "*" }
         );
-        role = Role.builder(RESTRICTED_INDICES, "_role")
-            .add(new FieldPermissions(fieldPermissionDef(allFields, null)), query, IndexPrivilege.ALL, randomBoolean(), "_alias")
-            .build();
+        Role.Builder builder2 = Role.builder(RESTRICTED_INDICES, "_role");
+        FieldPermissions fieldPermissions2 = new FieldPermissions(fieldPermissionDef(allFields, null));
+        boolean allowRestrictedIndices2 = randomBoolean();
+        role = builder2.add(
+            fieldPermissions2,
+            query,
+            IndexPrivilege.ALL,
+            allowRestrictedIndices2,
+            IndexComponentSelectorPrivilege.DATA,
+            "_alias"
+        ).build();
         permissions = role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("_alias"), md, fieldPermissionsCache);
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
         assertFalse(permissions.getIndexPermissions("_index").getFieldPermissions().hasFieldLevelSecurity());
@@ -156,10 +196,27 @@ public class IndicesPermissionTests extends ESTestCase {
         // match all fields with more than one permission
         Set<BytesReference> fooQuery = Collections.singleton(new BytesArray("{foo}"));
         allFields = randomFrom(new String[] { "*" }, new String[] { "foo", "*" }, new String[] { randomAlphaOfLengthBetween(1, 10), "*" });
-        role = Role.builder(RESTRICTED_INDICES, "_role")
-            .add(new FieldPermissions(fieldPermissionDef(allFields, null)), fooQuery, IndexPrivilege.ALL, randomBoolean(), "_alias")
-            .add(new FieldPermissions(fieldPermissionDef(allFields, null)), query, IndexPrivilege.ALL, randomBoolean(), "_alias")
-            .build();
+        Role.Builder builder = Role.builder(RESTRICTED_INDICES, "_role");
+        FieldPermissions fieldPermissions = new FieldPermissions(fieldPermissionDef(allFields, null));
+        boolean allowRestrictedIndices = randomBoolean();
+        Role.Builder builder1 = builder.add(
+            fieldPermissions,
+            fooQuery,
+            IndexPrivilege.ALL,
+            allowRestrictedIndices,
+            IndexComponentSelectorPrivilege.DATA,
+            "_alias"
+        );
+        FieldPermissions fieldPermissions1 = new FieldPermissions(fieldPermissionDef(allFields, null));
+        boolean allowRestrictedIndices1 = randomBoolean();
+        role = builder1.add(
+            fieldPermissions1,
+            query,
+            IndexPrivilege.ALL,
+            allowRestrictedIndices1,
+            IndexComponentSelectorPrivilege.DATA,
+            "_alias"
+        ).build();
         permissions = role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("_alias"), md, fieldPermissionsCache);
         Set<BytesReference> bothQueries = Sets.union(fooQuery, query);
         assertThat(permissions.getIndexPermissions("_index"), notNullValue());
@@ -191,10 +248,27 @@ public class IndicesPermissionTests extends ESTestCase {
 
         Set<BytesReference> query = Collections.singleton(new BytesArray("{}"));
         String[] fields = new String[] { "_field" };
-        Role role = Role.builder(RESTRICTED_INDICES, "_role")
-            .add(new FieldPermissions(fieldPermissionDef(fields, null)), query, IndexPrivilege.ALL, randomBoolean(), "_index")
-            .add(new FieldPermissions(fieldPermissionDef(null, null)), null, IndexPrivilege.ALL, randomBoolean(), "*")
-            .build();
+        Role.Builder builder = Role.builder(RESTRICTED_INDICES, "_role");
+        FieldPermissions fieldPermissions = new FieldPermissions(fieldPermissionDef(fields, null));
+        boolean allowRestrictedIndices = randomBoolean();
+        Role.Builder builder1 = builder.add(
+            fieldPermissions,
+            query,
+            IndexPrivilege.ALL,
+            allowRestrictedIndices,
+            IndexComponentSelectorPrivilege.DATA,
+            "_index"
+        );
+        FieldPermissions fieldPermissions1 = new FieldPermissions(fieldPermissionDef(null, null));
+        boolean allowRestrictedIndices1 = randomBoolean();
+        Role role = builder1.add(
+            fieldPermissions1,
+            null,
+            IndexPrivilege.ALL,
+            allowRestrictedIndices1,
+            IndexComponentSelectorPrivilege.DATA,
+            "*"
+        ).build();
         IndicesAccessControl permissions = role.authorize(
             TransportSearchAction.TYPE.name(),
             Sets.newHashSet("_index"),

@@ -419,6 +419,8 @@ public final class ConfigurableClusterPrivileges {
                         FieldPermissions.DEFAULT,
                         null,
                         false,
+                        // TODO
+                        IndexComponentSelectorPrivilege.DATA,
                         indexPatternPrivilege.indexPatterns()
                     );
                 }

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexComponentSelectorPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
@@ -66,6 +67,8 @@ public record RemoteIndicesPermission(List<RemoteIndicesGroup> remoteIndicesGrou
                         // Deliberately passing EMPTY here since *which* indices are restricted is determined not on the querying cluster
                         // but rather on the fulfilling cluster
                         new RestrictedIndices(Automatons.EMPTY),
+                        // TODO
+                        IndexComponentSelectorPrivilege.DATA,
                         indices
                     )
                 );

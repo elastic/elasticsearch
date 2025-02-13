@@ -32,11 +32,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
-import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
-import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeTests;
-import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
-import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.*;
 import org.elasticsearch.xpack.core.security.authz.restriction.Workflow;
 import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
 import org.elasticsearch.xpack.core.security.support.Automatons;
@@ -760,9 +756,16 @@ public class LimitedRoleTests extends ESTestCase {
             );
         }
         {
-            fromRole = Role.builder(EMPTY_RESTRICTED_INDICES, "a-role")
-                .add(FieldPermissions.DEFAULT, Collections.emptySet(), IndexPrivilege.READ, true, "ind-1*", ".security")
-                .build();
+            Role.Builder builder = Role.builder(EMPTY_RESTRICTED_INDICES, "a-role");
+            fromRole = builder.add(
+                FieldPermissions.DEFAULT,
+                Collections.emptySet(),
+                IndexPrivilege.READ,
+                true,
+                IndexComponentSelectorPrivilege.DATA,
+                "ind-1*",
+                ".security"
+            ).build();
 
             verifyResourcesPrivileges(
                 fromRole,

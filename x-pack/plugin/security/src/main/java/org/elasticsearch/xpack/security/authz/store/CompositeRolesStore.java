@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
@@ -32,6 +31,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.RemoteIndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
+import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition.FieldGrantExcludeGroup;
@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermi
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexComponentSelectorPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
@@ -540,24 +541,38 @@ public class CompositeRolesStore {
             .cluster(clusterPrivileges, configurableClusterPrivileges)
             .runAs(runAsPrivilege);
 
-        indicesPrivilegesMap.forEach(
-            (key, privilege) -> builder.add(
-                fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
-                privilege.query,
-                IndexPrivilege.get(privilege.privileges),
-                false,
-                privilege.indices.toArray(Strings.EMPTY_ARRAY)
-            )
-        );
-        restrictedIndicesPrivilegesMap.forEach(
-            (key, privilege) -> builder.add(
-                fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
-                privilege.query,
-                IndexPrivilege.get(privilege.privileges),
-                true,
-                privilege.indices.toArray(Strings.EMPTY_ARRAY)
-            )
-        );
+        for (Map.Entry<Set<String>, MergeableIndicesPrivilege> entry : indicesPrivilegesMap.entrySet()) {
+            MergeableIndicesPrivilege indicesPrivilege = entry.getValue();
+            Map<IndexComponentSelectorPrivilege, Set<String>> split = IndexComponentSelectorPrivilege.split(indicesPrivilege.privileges);
+            FieldPermissions fieldPermissions = fieldPermissionsCache.getFieldPermissions(indicesPrivilege.fieldPermissionsDefinition);
+            String[] indices = indicesPrivilege.indices.toArray(Strings.EMPTY_ARRAY);
+            for (Map.Entry<IndexComponentSelectorPrivilege, Set<String>> privilegesBySelector : split.entrySet()) {
+                builder.add(
+                    fieldPermissions,
+                    indicesPrivilege.query,
+                    IndexPrivilege.get(privilegesBySelector.getValue()),
+                    false,
+                    privilegesBySelector.getKey(),
+                    indices
+                );
+            }
+        }
+        for (Map.Entry<Set<String>, MergeableIndicesPrivilege> entry : restrictedIndicesPrivilegesMap.entrySet()) {
+            MergeableIndicesPrivilege indicesPrivilege = entry.getValue();
+            Map<IndexComponentSelectorPrivilege, Set<String>> split = IndexComponentSelectorPrivilege.split(indicesPrivilege.privileges);
+            FieldPermissions fieldPermissions = fieldPermissionsCache.getFieldPermissions(indicesPrivilege.fieldPermissionsDefinition);
+            String[] indices = indicesPrivilege.indices.toArray(Strings.EMPTY_ARRAY);
+            for (Map.Entry<IndexComponentSelectorPrivilege, Set<String>> privilegesBySelector : split.entrySet()) {
+                builder.add(
+                    fieldPermissions,
+                    indicesPrivilege.query,
+                    IndexPrivilege.get(privilegesBySelector.getValue()),
+                    true,
+                    privilegesBySelector.getKey(),
+                    indices
+                );
+            }
+        }
 
         remoteIndicesPrivilegesByCluster.forEach((clusterAliasKey, remoteIndicesPrivilegesForCluster) -> {
             remoteIndicesPrivilegesForCluster.forEach(
@@ -604,12 +619,6 @@ public class CompositeRolesStore {
                 })
             );
         }
-    }
-
-    private Map<Set<IndexComponentSelector>, Map<Set<String>, MergeableIndicesPrivilege>> splitBySelectorAccess(
-        Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegeMap
-    ) {
-        return Map.of();
     }
 
     public void invalidateAll() {
@@ -734,6 +743,7 @@ public class CompositeRolesStore {
                 final Set<String> key = newHashSet(indicesPrivilege.getIndices());
                 indicesPrivilegesMap.compute(key, (k, value) -> {
                     if (value == null) {
+                        // TODO do we need to worry about FLS and DLS combining incorrectly for different selectors?
                         return new MergeableIndicesPrivilege(
                             indicesPrivilege.getIndices(),
                             indicesPrivilege.getPrivileges(),

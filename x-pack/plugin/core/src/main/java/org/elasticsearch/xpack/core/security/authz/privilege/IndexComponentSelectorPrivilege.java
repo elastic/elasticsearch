@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.elasticsearch.action.support.IndexComponentSelector;
 
+import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -34,8 +36,37 @@ public enum IndexComponentSelectorPrivilege {
         return grants.test(selector);
     }
 
+    public boolean isTotal() {
+        return this == ALL;
+    }
+
     public static Set<IndexComponentSelectorPrivilege> get(Set<String> indexPrivileges) {
         return indexPrivileges.stream().map(IndexComponentSelectorPrivilege::get).collect(Collectors.toSet());
+    }
+
+    public static Map<IndexComponentSelectorPrivilege, Set<String>> split(Set<String> indexPrivileges) {
+        final var data = new HashSet<String>();
+        final var failures = new HashSet<String>();
+
+        for (String indexPrivilege : indexPrivileges) {
+            final var privilege = get(indexPrivilege);
+            switch (privilege) {
+                case DATA -> data.add(indexPrivilege);
+                case FAILURES -> failures.add(indexPrivilege);
+                // If we ever hit all, we can return early since we don't need to split
+                case ALL -> {
+                    return Map.of(ALL, indexPrivileges);
+                }
+            }
+        }
+
+        if (data.isEmpty()) {
+            return Map.of(FAILURES, failures);
+        } else if (failures.isEmpty()) {
+            return Map.of(DATA, data);
+        } else {
+            return Map.of(DATA, data, FAILURES, failures);
+        }
     }
 
     private static IndexComponentSelectorPrivilege get(String indexPrivilegeName) {

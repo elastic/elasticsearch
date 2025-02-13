@@ -27,6 +27,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexComponentSelectorPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
@@ -80,9 +81,12 @@ public final class IndicesPermission {
             FieldPermissions fieldPermissions,
             @Nullable Set<BytesReference> query,
             boolean allowRestrictedIndices,
+            IndexComponentSelectorPrivilege selectorPrivilege,
             String... indices
         ) {
-            groups.add(new Group(privilege, fieldPermissions, query, allowRestrictedIndices, restrictedIndices, indices));
+            groups.add(
+                new Group(privilege, fieldPermissions, query, allowRestrictedIndices, restrictedIndices, selectorPrivilege, indices)
+            );
             return this;
         }
 
@@ -803,6 +807,7 @@ public final class IndicesPermission {
         // users. Setting this flag true eliminates the special status for the purpose of this permission - restricted indices still have
         // to be covered by the "indices"
         private final boolean allowRestrictedIndices;
+        private final IndexComponentSelectorPrivilege selectorPrivilege;
 
         public Group(
             IndexPrivilege privilege,
@@ -810,6 +815,26 @@ public final class IndicesPermission {
             @Nullable Set<BytesReference> query,
             boolean allowRestrictedIndices,
             RestrictedIndices restrictedIndices,
+            String... indices
+        ) {
+            this(
+                privilege,
+                fieldPermissions,
+                query,
+                allowRestrictedIndices,
+                restrictedIndices,
+                IndexComponentSelectorPrivilege.DATA,
+                indices
+            );
+        }
+
+        public Group(
+            IndexPrivilege privilege,
+            FieldPermissions fieldPermissions,
+            @Nullable Set<BytesReference> query,
+            boolean allowRestrictedIndices,
+            RestrictedIndices restrictedIndices,
+            IndexComponentSelectorPrivilege selectorPrivilege,
             String... indices
         ) {
             assert indices.length != 0;
@@ -830,6 +855,7 @@ public final class IndicesPermission {
             }
             this.fieldPermissions = Objects.requireNonNull(fieldPermissions);
             this.query = query;
+            this.selectorPrivilege = selectorPrivilege;
         }
 
         public IndexPrivilege privilege() {
@@ -875,7 +901,9 @@ public final class IndicesPermission {
                 && indexNameMatcher.isTotal()
                 && privilege == IndexPrivilege.ALL
                 && query == null
-                && false == fieldPermissions.hasFieldLevelSecurity();
+                && false == fieldPermissions.hasFieldLevelSecurity()
+                // TODO do we want this?
+                && selectorPrivilege.isTotal();
         }
 
         @Override
@@ -891,6 +919,8 @@ public final class IndicesPermission {
                 + query
                 + ", allowRestrictedIndices="
                 + allowRestrictedIndices
+                + ", selectorPrivilege="
+                + selectorPrivilege
                 + '}';
         }
     }

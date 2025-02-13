@@ -475,11 +475,13 @@ public final class SearchPhaseController {
             }
 
             if (hasSuggest) {
-                assert result.suggest() != null;
-                for (Suggestion<? extends Suggestion.Entry<? extends Suggestion.Entry.Option>> suggestion : result.suggest()) {
-                    groupedSuggestions.computeIfAbsent(suggestion.getName(), s -> new ArrayList<>()).add(suggestion);
-                    if (suggestion instanceof CompletionSuggestion completionSuggestion) {
-                        completionSuggestion.setShardIndex(result.getShardIndex());
+                assert result.suggest() != null || result.searchTimedOut();
+                if (result.suggest() != null) {
+                    for (Suggestion<? extends Suggestion.Entry<? extends Suggestion.Entry.Option>> suggestion : result.suggest()) {
+                        groupedSuggestions.computeIfAbsent(suggestion.getName(), s -> new ArrayList<>()).add(suggestion);
+                        if (suggestion instanceof CompletionSuggestion completionSuggestion) {
+                            completionSuggestion.setShardIndex(result.getShardIndex());
+                        }
                     }
                 }
             }

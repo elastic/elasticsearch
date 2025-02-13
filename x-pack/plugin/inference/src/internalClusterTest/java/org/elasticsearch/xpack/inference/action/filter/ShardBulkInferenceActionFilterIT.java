@@ -209,7 +209,7 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
         ).get();
 
         BulkRequestBuilder bulkReqBuilder = client().prepareBulk();
-        int totalBulkSize = randomIntBetween(100, 200);
+        int totalBulkSize = randomIntBetween(100, 200);  // Use a bulk request size large enough to require batching
         for (int bulkSize = 0; bulkSize < totalBulkSize; bulkSize++) {
             String id = Integer.toString(bulkSize);
 

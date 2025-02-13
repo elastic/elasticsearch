@@ -64,12 +64,24 @@ setup:
   - match: {hits.total.value: 6}
   - match: {hits.hits.0.fields.location.0.type: "Point" }
   - match: {hits.hits.0.fields.location.0.coordinates: [34.89, 13.5] }
-  # calculated from scripts adds annoying extra precision
-  - match: { hits.hits.0.fields.location_from_doc_value.0.type: "Point" }
-  - match: { hits.hits.0.fields.location_from_doc_value.0.coordinates: [ 34.889999935403466, 13.499999991618097 ] }
-  - match: { hits.hits.0.fields.location_from_source.0.type: "Point" }
-  - match: { hits.hits.0.fields.location_from_source.0.coordinates: [ 34.89, 13.5 ] }
+  - match: { hits.hits.0.fields.location_from_doc_value.0: "13.499999991618097, 34.889999935403466" }
+  - match: { hits.hits.0.fields.location_from_source.0: "13.499999991618097, 34.889999935403466" }
 
+---
+"docvalue_fields":
+  - do:
+      search:
+        index: locations
+        body:
+          sort: timestamp
+          docvalue_fields:
+            - location
+            - location_from_doc_value
+            - location_from_source
+  - match: {hits.total.value: 6}
+  - match: { hits.hits.0.fields.location.0: "13.499999991618097, 34.889999935403466" }
+  - match: { hits.hits.0.fields.location_from_doc_value.0: "13.499999991618097, 34.889999935403466" }
+  - match: { hits.hits.0.fields.location_from_source.0: "13.499999991618097, 34.889999935403466" }
 ---
 "exists query":
   - do:

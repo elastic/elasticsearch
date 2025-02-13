@@ -1807,6 +1807,9 @@ public class NumberFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
             if (this.scriptValues != null) {
+
+
+
                 return new DocValueFetcher(
                     docValueFormat(format, null),
                     context.getForField(this, FielddataOperation.SEARCH),

@@ -368,12 +368,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authz.IndexAliasesTests
   method: testRemoveIndex
   issue: https://github.com/elastic/elasticsearch/issues/122221
-- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
-  method: testGroupingMultiValueByOrdinals
-  issue: https://github.com/elastic/elasticsearch/issues/122228
-- class: org.elasticsearch.xpack.esql.action.EsqlNodeFailureIT
-  method: testFailureLoadingFields
-  issue: https://github.com/elastic/elasticsearch/issues/122132
 - class: org.elasticsearch.blocks.SimpleBlocksIT
   method: testConcurrentAddBlock
   issue: https://github.com/elastic/elasticsearch/issues/122324
@@ -385,9 +379,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterCancellationIT
   method: testCloseSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/122336
-- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
-  method: testUnsupportedTypesOrdinalGrouping
-  issue: https://github.com/elastic/elasticsearch/issues/122342
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/alias/line_260}
   issue: https://github.com/elastic/elasticsearch/issues/122343
@@ -398,11 +389,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/122377
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.HdfsRepositoryAnalysisRestIT
   issue: https://github.com/elastic/elasticsearch/issues/122378
-- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
-  method: testStatsMissingFieldWithStats
-  issue: https://github.com/elastic/elasticsearch/issues/122327
-- class: org.elasticsearch.xpack.esql.CsvTests
-  issue: https://github.com/elastic/elasticsearch/issues/122440
 
 # Examples:
 #

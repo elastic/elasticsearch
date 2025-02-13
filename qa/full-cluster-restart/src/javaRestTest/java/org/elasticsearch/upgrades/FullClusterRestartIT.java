@@ -634,7 +634,8 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
                 // the cat APIs can sometimes 404, erroneously
                 // see https://github.com/elastic/elasticsearch/issues/104371
                 setIgnoredErrorResponseCodes(catIndices, RestStatus.NOT_FOUND);
-                assertThat(EntityUtils.toString(client().performRequest(catIndices).getEntity()), containsString("testrollover-000002"));
+                Response response = assertOK(client().performRequest(catIndices));
+                assertThat(EntityUtils.toString(response.getEntity()), containsString("testrollover-000002"));
             });
         }
 

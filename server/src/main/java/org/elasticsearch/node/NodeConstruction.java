@@ -705,12 +705,9 @@ class NodeConstruction {
         ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager);
         clusterService.addStateApplier(scriptService);
 
-        // TODO DR - this is a bit of a hack to get the cluster service into the plugins
-        var executor = (TaskExecutionTimeTrackingEsThreadPoolExecutor) threadPool.executor(ThreadPool.Names.SEARCH);
-        TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor perIndexEsThreadPoolExecutor =
-            (TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor) executor;
-        searchLoadMetricsReporter(perIndexEsThreadPoolExecutor);
-        clusterService.addListener(new SearchIndexTimeTrackingCleanupService(perIndexEsThreadPoolExecutor));
+        var executor = (TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor) threadPool.executor(ThreadPool.Names.SEARCH);
+        clusterService.addListener(new SearchIndexTimeTrackingCleanupService(executor));
+        if(logger.isDebugEnabled()) searchLoadMetricsReporter(executor);
 
         modules.bindToInstance(DocumentParsingProvider.class, documentParsingProvider);
 
@@ -1270,17 +1267,18 @@ class NodeConstruction {
         TimerTask task = new TimerTask() {
             @Override
             public void run() {
-                if (executor.indexExecutionTime.size() > 0) {
-                    logger.info("Number of reported indices: {}", executor.indexExecutionTime.size());
-                    logger.info("Number of runnables: {}", executor.runnableToIndexName.size());
-                    executor.indexExecutionTime.forEach((index, tuple) -> {
-                        logger.info("Index: {}, Total execution time: {}, EWMA: {}", index, tuple.v1().sum(), tuple.v2().getAverage());
+                if (executor.getIndexExecutionTime().size() > 0) {
+                    logger.debug("Number of reported indices: {}", executor.getIndexExecutionTime().size());
+                    logger.debug("Number of runnables: {}", executor.getRunnableToIndexName().size());
+                    executor.getIndexExecutionTime().forEach((index, tuple) -> {
+                        logger.debug("Index: {}, Total execution time: {}, EWMA: {}", index, tuple.v1().sum(), tuple.v2().getAverage());
                     });
-                    logger.info("Total task execution time: {}", executor.getTotalTaskExecutionTime());
-                    logger.info("----------------------------------------------------------------------------------");
+                    logger.debug("Total task execution time: {}", executor.getTotalTaskExecutionTime());
+                    logger.debug("----------------------------------------------------------------------------------");
                 }
             }
         };
+
 
         timer.scheduleAtFixedRate(task, 0, 4000);
     }

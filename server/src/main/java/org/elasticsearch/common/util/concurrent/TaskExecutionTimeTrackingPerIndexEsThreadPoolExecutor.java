@@ -28,8 +28,8 @@ import java.util.function.Function;
  */
 public class TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor extends TaskExecutionTimeTrackingEsThreadPoolExecutor {
     private static final Logger logger = LogManager.getLogger(TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor.class);
-    public final ConcurrentHashMap<String, Tuple<LongAdder, ExponentiallyWeightedMovingAverage>> indexExecutionTime;
-    public final ConcurrentHashMap<Runnable, String> runnableToIndexName;
+    private final ConcurrentHashMap<String, Tuple<LongAdder, ExponentiallyWeightedMovingAverage>> indexExecutionTime;
+    private final ConcurrentHashMap<Runnable, String> runnableToIndexName;
 
     TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor(
         String name,
@@ -117,5 +117,24 @@ public class TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor extends TaskE
         } finally {
             runnableToIndexName.remove(r);
         }
+    }
+
+    //TODO Remove these methods once the NodeConstruction#searchLoadMetricsReporter is deleted
+    /**
+     * Gets the map of index execution times.
+     *
+     * @return the map of index execution times
+     */
+    public ConcurrentHashMap<String, Tuple<LongAdder, ExponentiallyWeightedMovingAverage>> getIndexExecutionTime() {
+        return indexExecutionTime;
+    }
+
+    /**
+     * Gets the map of runnable tasks to index names.
+     *
+     * @return the map of runnable tasks to index names
+     */
+    public ConcurrentHashMap<Runnable, String> getRunnableToIndexName() {
+        return runnableToIndexName;
     }
 }

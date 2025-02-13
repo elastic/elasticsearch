@@ -14,13 +14,27 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor;
 import org.elasticsearch.index.Index;
 
+/**
+ * Service responsible for cleaning up task execution time tracking for deleted indices.
+ * Implements the ClusterStateListener interface to listen for cluster state changes.
+ */
 public class SearchIndexTimeTrackingCleanupService implements ClusterStateListener {
     private TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor executor;
 
+    /**
+     * Constructs a new SearchIndexTimeTrackingCleanupService.
+     *
+     * @param executor the executor that tracks task execution times per index
+     */
     public SearchIndexTimeTrackingCleanupService(TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor executor) {
         this.executor = executor;
     }
 
+    /**
+     * Called when the cluster state changes. Stops tracking execution time for deleted indices.
+     *
+     * @param event the cluster changed event
+     */
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         for (Index index : event.indicesDeleted()) {

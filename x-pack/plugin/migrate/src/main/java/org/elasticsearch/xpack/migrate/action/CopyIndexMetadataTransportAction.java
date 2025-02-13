@@ -34,7 +34,6 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersAction;
 
 import java.util.HashMap;
 
@@ -51,7 +50,7 @@ public class CopyIndexMetadataTransportAction extends TransportMasterNodeAction<
         ActionFilters actionFilters
     ) {
         super(
-            MigrateToDataTiersAction.NAME,
+            CopyIndexMetadataAction.NAME,
             transportService,
             clusterService,
             threadPool,

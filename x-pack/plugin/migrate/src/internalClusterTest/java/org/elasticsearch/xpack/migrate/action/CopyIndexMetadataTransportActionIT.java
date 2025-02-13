@@ -16,30 +16,31 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
-import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.json.JsonXContent;
-//import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.StartILMRequest;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
-//import org.elasticsearch.xpack.ilm.IndexLifecycle;
+import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.migrate.MigratePlugin;
+import org.junit.After;
 
 import java.util.Collection;
 import java.util.List;
@@ -50,15 +51,19 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class CopyIndexMetadataTransportActionIT extends ESIntegTestCase {
+    @After
+    public void cleanup() {
+        updateClusterSettings(Settings.builder().putNull("*"));
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(
-//            LocalStateCompositeXPackPlugin.class,
+            LocalStateCompositeXPackPlugin.class,
             MigratePlugin.class,
-            ReindexPlugin.class,
-            MockTransportService.TestPlugin.class,
-            DataStreamsPlugin.class
+            DataStreamsPlugin.class,
+            IngestCommonPlugin.class,
+            IndexLifecycle.class
         );
     }
 
@@ -96,12 +101,17 @@ public class CopyIndexMetadataTransportActionIT extends ESIntegTestCase {
 
     public void testILMState() throws Exception {
 
+        updateClusterSettings(Settings.builder().put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s"));
+
         Map<String, Phase> phases = Map.of(
-            "warm",
+            "hot",
             new Phase(
-                "warm",
+                "hot",
                 TimeValue.ZERO,
-                Map.of("rollover", new org.elasticsearch.xpack.core.ilm.RolloverAction(null, null, null, 1L, null, null, null, null, null, null))
+                Map.of(
+                    "rollover",
+                    new org.elasticsearch.xpack.core.ilm.RolloverAction(null, null, null, 1L, null, null, null, null, null, null)
+                )
             )
         );
 
@@ -110,60 +120,36 @@ public class CopyIndexMetadataTransportActionIT extends ESIntegTestCase {
         PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, policy);
         assertAcked(client().execute(ILMActions.PUT, putLifecycleRequest).actionGet());
 
+        // create data stream with a document and wait for ILM to roll it over
         var dataStream = createDataStream(policyName);
-
+        createDocument(dataStream);
         assertAcked(safeGet(client().execute(ILMActions.START, new StartILMRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))));
-
-        // rollover a few times
-        createDocument(dataStream);
-        createDocument(dataStream);
-        createDocument(dataStream);
-
-        var writeIndex = safeGet(
-            indicesAdmin().execute(
-                GetDataStreamAction.INSTANCE,
-                new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStream })
-            )
-        ).getDataStreams().get(0).getDataStream().getWriteIndex().getName();
+        assertBusy(() -> {
+            var getIndexResponse = indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(dataStream)).get();
+            assertTrue(getIndexResponse.indices().length > 1);
+        });
+        // stop ILM so source does not change after copying metadata
+        assertAcked(safeGet(client().execute(ILMActions.STOP, new StartILMRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))));
 
         var getIndexResponse = indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(dataStream)).get();
         for (var backingIndex : getIndexResponse.indices()) {
-
             var destIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
             indicesAdmin().create(new CreateIndexRequest(destIndex)).get();
 
-            var metadataBefore = safeGet(
-                clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT).indices(backingIndex, destIndex))
-            ).getState().metadata();
+            var metadataBefore = getClusterMetadata(backingIndex, destIndex);
             IndexMetadata source = metadataBefore.index(backingIndex);
             IndexMetadata destBefore = metadataBefore.index(destIndex);
 
+            // sanity check
             assertNotEquals(
                 source.getCustomData(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY),
                 destBefore.getCustomData(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY)
             );
 
-            // sanity check not equal before the copy
-            if (backingIndex.equals(writeIndex)) {
-                assertTrue(source.getRolloverInfos().isEmpty());
-                assertTrue(destBefore.getRolloverInfos().isEmpty());
-            } else {
-                assertNotEquals(source.getRolloverInfos(), destBefore.getRolloverInfos());
-            }
-
             // copy over the metadata
             copyMetadata(backingIndex, destIndex);
 
-            var metadataAfter = safeGet(clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT).indices(destIndex)))
-                .getState()
-                .metadata();
-            IndexMetadata destAfter = metadataAfter.index(destIndex);
-
-            // now rollover info should be equal
-            assertEquals(source.getRolloverInfos(), destAfter.getRolloverInfos());
-
-            Map<String, String> customData = source.getCustomData(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY);
-            //
+            IndexMetadata destAfter = getClusterMetadata(destIndex).index(destIndex);
             assertEquals(
                 source.getCustomData(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY),
                 destAfter.getCustomData(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY)
@@ -172,42 +158,16 @@ public class CopyIndexMetadataTransportActionIT extends ESIntegTestCase {
         }
     }
 
-
-
-
     public void testRolloverInfos() throws Exception {
-
         var dataStream = createDataStream(null);
-        Map<String, Phase> phases = Map.of(
-            "warm",
-            new Phase(
-                "warm",
-                TimeValue.ZERO,
-                Map.of("rollover", new org.elasticsearch.xpack.core.ilm.RolloverAction(null, null, null, 1L, null, null, null, null, null, null))
-            )
-        );
-
-        var policyName = "my-policy";
-        LifecyclePolicy policy = new LifecyclePolicy(policyName, phases);
-        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, policy);
-        assertAcked(client().execute(ILMActions.PUT, putLifecycleRequest).actionGet());
-
-
 
         // rollover a few times
         createDocument(dataStream);
-        assertTrue(indicesAdmin().rolloverIndex(new RolloverRequest(dataStream, null)).get().isAcknowledged());
+        rollover(dataStream);
         createDocument(dataStream);
-        assertTrue(indicesAdmin().rolloverIndex(new RolloverRequest(dataStream, null)).get().isAcknowledged());
+        rollover(dataStream);
         createDocument(dataStream);
-        assertTrue(indicesAdmin().rolloverIndex(new RolloverRequest(dataStream, null)).get().isAcknowledged());
-
-        var writeIndex = safeGet(
-            indicesAdmin().execute(
-                GetDataStreamAction.INSTANCE,
-                new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { dataStream })
-            )
-        ).getDataStreams().get(0).getDataStream().getWriteIndex().getName();
+        var writeIndex = rollover(dataStream);
 
         var getIndexResponse = indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(dataStream)).get();
         for (var backingIndex : getIndexResponse.indices()) {
@@ -215,16 +175,9 @@ public class CopyIndexMetadataTransportActionIT extends ESIntegTestCase {
             var destIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
             indicesAdmin().create(new CreateIndexRequest(destIndex)).get();
 
-            var metadataBefore = safeGet(
-                clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT).indices(backingIndex, destIndex))
-            ).getState().metadata();
+            var metadataBefore = getClusterMetadata(backingIndex, destIndex);
             IndexMetadata source = metadataBefore.index(backingIndex);
             IndexMetadata destBefore = metadataBefore.index(destIndex);
-
-//            assertNotEquals(
-//                source.getCustomData(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY),
-//                destBefore.getCustomData(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY)
-//            );
 
             // sanity check not equal before the copy
             if (backingIndex.equals(writeIndex)) {
@@ -237,30 +190,16 @@ public class CopyIndexMetadataTransportActionIT extends ESIntegTestCase {
             // copy over the metadata
             copyMetadata(backingIndex, destIndex);
 
-            var metadataAfter = safeGet(clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT).indices(destIndex)))
-                .getState()
-                .metadata();
-            IndexMetadata destAfter = metadataAfter.index(destIndex);
-
             // now rollover info should be equal
+            IndexMetadata destAfter = getClusterMetadata(destIndex).index(destIndex);
             assertEquals(source.getRolloverInfos(), destAfter.getRolloverInfos());
-
-            Map<String, String> customData = source.getCustomData(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY);
-            //
-            assertEquals(
-                source.getCustomData(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY),
-                destAfter.getCustomData(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY)
-            );
-
         }
     }
 
     private String createDataStream(String ilmPolicy) throws Exception {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.getDefault());
 
-        Settings settings = ilmPolicy != null ?
-            Settings.builder().put(IndexMetadata.LIFECYCLE_NAME, ilmPolicy).build()
-            : null;
+        Settings settings = ilmPolicy != null ? Settings.builder().put(IndexMetadata.LIFECYCLE_NAME, ilmPolicy).build() : null;
 
         String mapping = """
                 {
@@ -323,5 +262,15 @@ public class CopyIndexMetadataTransportActionIT extends ESIntegTestCase {
                 new CopyIndexMetadataAction.Request(TEST_REQUEST_TIMEOUT, sourceIndex, destIndex)
             )
         );
+    }
+
+    private String rollover(String dataStream) {
+        var rolloverResponse = safeGet(indicesAdmin().rolloverIndex(new RolloverRequest(dataStream, null)));
+        assertTrue(rolloverResponse.isAcknowledged());
+        return rolloverResponse.getNewIndex();
+    }
+
+    private Metadata getClusterMetadata(String... indices) {
+        return safeGet(clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT).indices(indices))).getState().metadata();
     }
 }

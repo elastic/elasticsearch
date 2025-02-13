@@ -26,6 +26,7 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.migrate.MigratePlugin;
 import org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.ReindexDataStreamRequest;
 import org.elasticsearch.xpack.migrate.task.ReindexDataStreamEnrichedStatus;
@@ -47,7 +48,7 @@ public class ReindexDataStreamTransportActionIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(DataStreamsPlugin.class, MigratePlugin.class);
+        return List.of(LocalStateCompositeXPackPlugin.class, DataStreamsPlugin.class, MigratePlugin.class);
     }
 
     public void testNonExistentDataStream() {

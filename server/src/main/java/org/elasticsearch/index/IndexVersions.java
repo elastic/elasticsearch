@@ -134,6 +134,7 @@ public class IndexVersions {
     public static final IndexVersion UPGRADE_TO_LUCENE_9_12_1 = def(8_523_00_0, parseUnchecked("9.12.1"));
     public static final IndexVersion INFERENCE_METADATA_FIELDS_BACKPORT = def(8_524_00_0, parseUnchecked("9.12.1"));
     public static final IndexVersion LOGSB_OPTIONAL_SORTING_ON_HOST_NAME_BACKPORT = def(8_525_00_0, parseUnchecked("9.12.1"));
+    public static final IndexVersion USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT_BACKPORT = def(8_526_0_00, parseUnchecked("9.12.1"));
     public static final IndexVersion UPGRADE_TO_LUCENE_10_0_0 = def(9_000_00_0, Version.LUCENE_10_0_0);
     public static final IndexVersion LOGSDB_DEFAULT_IGNORE_DYNAMIC_BEYOND_LIMIT = def(9_001_00_0, Version.LUCENE_10_0_0);
     public static final IndexVersion TIME_BASED_K_ORDERED_DOC_ID = def(9_002_00_0, Version.LUCENE_10_0_0);

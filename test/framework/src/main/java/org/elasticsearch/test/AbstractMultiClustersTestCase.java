@@ -264,6 +264,15 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
         }
     }
 
+    protected void removeClusterFromGroup(String clusterAlias) {
+        clusterGroup = new ClusterGroup(
+            clusterGroup.clusters.entrySet()
+                .stream()
+                .filter(e -> e.getKey().equals(clusterAlias) == false)
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+        );
+    }
+
     static NodeConfigurationSource nodeConfigurationSource(Settings nodeSettings, Collection<Class<? extends Plugin>> nodePlugins) {
         final Settings.Builder builder = Settings.builder();
         builder.putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()); // empty list disables a port scan for other nodes

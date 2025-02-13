@@ -306,6 +306,7 @@ public class CrossClusterCancellationIT extends AbstractMultiClustersTestCase {
         assertTrue(SimplePauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS));
         SimplePauseFieldPlugin.allowEmitting.countDown();
         cluster(REMOTE_CLUSTER).close();
+        removeClusterFromGroup(REMOTE_CLUSTER);
         try (var resp = requestFuture.actionGet()) {
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
             assertNotNull(executionInfo);

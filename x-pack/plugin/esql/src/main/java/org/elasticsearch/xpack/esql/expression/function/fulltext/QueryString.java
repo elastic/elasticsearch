@@ -392,4 +392,18 @@ public class QueryString extends FullTextFunction implements OptionalArgument {
     public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
         return new QueryString(source(), query(), options(), queryBuilder);
     }
+
+    @Override
+    public boolean equals(Object o) {
+        // QueryString does not serialize options, as they get included in the query builder. We need to override equals and hashcode to
+        // ignore options when comparing.
+        if (o == null || getClass() != o.getClass()) return false;
+        var qstr = (QueryString) o;
+        return Objects.equals(query(), qstr.query()) && Objects.equals(queryBuilder(), qstr.queryBuilder());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(query(), queryBuilder());
+    }
 }

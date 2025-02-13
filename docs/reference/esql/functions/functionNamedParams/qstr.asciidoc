@@ -5,12 +5,12 @@
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
 name | types | description
+max_determinized_states | [integer] | Maximum number of automaton states required for the query. Default is 10000.
 fuzziness | [keyword] | Maximum edit distance allowed for matching.
 auto_generate_synonyms_phrase_query | [boolean] | If true, match phrase queries are automatically created for multi-term synonyms.
 phrase_slop | [integer] | Maximum number of positions allowed between matching tokens for phrases.
 default_field | [keyword] | Default field to search if no field is provided in the query string. Supports wildcards (*).
 allow_leading_wildcard | [boolean] | If true, the wildcard characters * and ? are allowed as the first character of the query string.
-max_determined_states | [integer] | Maximum number of automaton states required for the query. Default is 10000.
 minimum_should_match | [string] | Minimum number of clauses that must match for a document to be returned.
 fuzzy_transpositions | [boolean] | If true, edits for fuzzy matching include transpositions of two adjacent characters (ab → ba).
 fuzzy_prefix_length | [integer] | Number of beginning characters left unchanged for fuzzy matching. Defaults to 0.

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -29,9 +28,9 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.tasks.Task;
@@ -47,6 +46,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
@@ -55,33 +55,13 @@ import static org.mockito.Mockito.when;
 
 public class TransportGetTaskActionTests extends ESTestCase {
 
-    protected ThreadPool threadPool;
-
-    private final ProjectResolver projectResolver = new ProjectResolver() {
-        volatile ProjectId projectId;
-
-        @Override
-        public ProjectId getProjectId() {
-            return projectId;
-        }
-
-        @Override
-        public <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E {
-            this.projectId = projectId;
-            body.run();
-            this.projectId = null;
-        }
-
-        @Override
-        public boolean supportsMultipleProjects() {
-            return true;
-        }
-
-    };
+    private ThreadPool threadPool;
+    private ProjectResolver projectResolver;
 
     @Before
     public void setupThreadPool() {
         threadPool = new TestThreadPool(TransportGetTaskActionTests.class.getSimpleName());
+        projectResolver = TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext());
     }
 
     @After
@@ -135,8 +115,8 @@ public class TransportGetTaskActionTests extends ESTestCase {
             projectResolver
         );
 
-        var project1 = new ProjectId(randomUUID());
-        var project2 = new ProjectId(randomUUID());
+        var project1 = randomUniqueProjectId();
+        var project2 = randomUniqueProjectId();
         var project1Task = registerRandomTaskWithProjectId(taskManager, project1);
         var project2Task = registerRandomTaskWithProjectId(taskManager, project2);
         var taskWithNoProjectIdHeader = registerRandomTaskWithProjectId(taskManager, null);
@@ -182,25 +162,17 @@ public class TransportGetTaskActionTests extends ESTestCase {
             var exception = ExceptionsHelper.unwrap(result.exception, ResourceNotFoundException.class);
             assertNotNull(result.exception.toString(), exception);
         }
-        {
-            var taskToGet = randomFrom(project1Task, project2Task, taskWithNoProjectIdHeader);
-            var result = executeGetTaskWithProjectId(taskManager, getTaskAction, new TaskId(nodeId, taskToGet.getId()), null);
-            assertNull(result.response);
-            assertNotNull(result.exception);
-            var exception = ExceptionsHelper.unwrap(result.exception, ElasticsearchStatusException.class);
-            assertNotNull(result.exception.toString(), exception);
-            assertEquals("No Project ID specified", exception.getMessage());
-        }
     }
 
     private Task registerRandomTaskWithProjectId(TaskManager taskManager, ProjectId projectId) {
-        var threadContext = threadPool.getThreadContext();
-        try (var ignore = threadContext.newStoredContext()) {
-            if (projectId != null) {
-                threadContext.putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId.id());
+        if (projectId == null) {
+            try (var ignore = threadPool.getThreadContext().newStoredContext()) {
+                return taskManager.register("task", "action", new BulkRequest());
             }
-            return taskManager.register("task", "action", new BulkRequest());
         }
+        AtomicReference<Task> task = new AtomicReference<>();
+        projectResolver.executeOnProject(projectId, () -> task.set(taskManager.register("task", "action", new BulkRequest())));
+        return task.get();
     }
 
     record GetTaskResult(GetTaskResponse response, Exception exception) {}

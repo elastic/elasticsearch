@@ -10,7 +10,6 @@
 package org.elasticsearch.action.admin.cluster.node.tasks.get;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -33,7 +32,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -148,12 +146,12 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         } else {
             if (projectResolver.supportsMultipleProjects()) {
                 var requestProjectId = projectResolver.getProjectId();
-                var taskProjectId = runningTask.getProjectId();
+                assert requestProjectId != null : "project ID cannot be null";
                 if (requestProjectId == null) {
-                    listener.onFailure(new ElasticsearchStatusException("No Project ID specified", RestStatus.BAD_REQUEST));
+                    listener.onFailure(new IllegalStateException("No Project ID specified"));
                     return;
                 }
-                if (requestProjectId.id().equals(taskProjectId) == false) {
+                if (requestProjectId.id().equals(runningTask.getProjectId()) == false) {
                     listener.onFailure(
                         new ResourceNotFoundException("task [{}] isn't running and hasn't stored its results", request.getTaskId())
                     );

@@ -390,6 +390,7 @@ tests:
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.HdfsRepositoryAnalysisRestIT
   issue: https://github.com/elastic/elasticsearch/issues/122378
 - class: org.elasticsearch.xpack.esql.CsvTests
+  method: test {inlinestats.MaxOfLongByEvaledKeyword}
   issue: https://github.com/elastic/elasticsearch/issues/122440
 
 # Examples:

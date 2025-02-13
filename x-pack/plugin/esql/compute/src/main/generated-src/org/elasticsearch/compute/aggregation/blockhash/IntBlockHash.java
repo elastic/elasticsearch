@@ -26,7 +26,7 @@ import java.util.BitSet;
 
 /**
  * Maps a {@link IntBlock} column to group ids.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-BlockHash.java.st} instead.
  */
 final class IntBlockHash extends BlockHash {
     private final int channel;

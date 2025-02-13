@@ -1297,19 +1297,28 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                     }
                 ]
             }""");
+        createRollupRequest.setOptions(ROLLUP_REQUESTS_OPTIONS);
         client().performRequest(createRollupRequest);
-        client().performRequest(new Request("POST", "/_rollup/job/" + rollupJobId + "/_start"));
+        var startRequest = new Request("POST", "/_rollup/job/" + rollupJobId + "/_start");
+        startRequest.setOptions(ROLLUP_REQUESTS_OPTIONS);
+        client().performRequest(startRequest);
 
         assertBusy(() -> {
-            Response getRollup = client().performRequest(new Request("GET", "/_rollup/job/" + rollupJobId));
+            var getRequest = new Request("GET", "/_rollup/job/" + rollupJobId);
+            getRequest.setOptions(ROLLUP_REQUESTS_OPTIONS);
+            Response getRollup = client().performRequest(getRequest);
             String body = EntityUtils.toString(getRollup.getEntity());
             assertThat(body, containsString("\"job_state\":\"started\""));
             assertThat(body, containsString("\"rollups_indexed\":4"));
         }, 60, TimeUnit.SECONDS);
 
-        client().performRequest(new Request("POST", "/_rollup/job/" + rollupJobId + "/_stop"));
+        var stopRequest = new Request("POST", "/_rollup/job/" + rollupJobId + "/_stop");
+        stopRequest.setOptions(ROLLUP_REQUESTS_OPTIONS);
+        client().performRequest(stopRequest);
         assertBusy(() -> {
-            Response getRollup = client().performRequest(new Request("GET", "/_rollup/job/" + rollupJobId));
+            var getRequest = new Request("GET", "/_rollup/job/" + rollupJobId);
+            getRequest.setOptions(ROLLUP_REQUESTS_OPTIONS);
+            Response getRollup = client().performRequest(getRequest);
             assertThat(EntityUtils.toString(getRollup.getEntity()), containsString("\"job_state\":\"stopped\""));
         }, 60, TimeUnit.SECONDS);
 
@@ -1826,6 +1835,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
         String rollupJobId = "rollup-" + jobId;
         Request createRollupRequest = new Request("PUT", "/_rollup/job/" + rollupJobId);
+        createRollupRequest.setOptions(ROLLUP_REQUESTS_OPTIONS);
         createRollupRequest.setJsonEntity("""
             {
             "index_pattern": "airline-data-aggs",

@@ -146,6 +146,15 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     @Override
+    protected void shardOperationOnPrimary(
+        BulkShardRequest request,
+        IndexShard primary,
+        ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener
+    ) {
+        primary.ensureMutable(listener.delegateFailure((l, ignored) -> super.shardOperationOnPrimary(request, primary, l)));
+    }
+
+    @Override
     protected void dispatchedShardOperationOnPrimary(
         BulkShardRequest request,
         IndexShard primary,

@@ -69,29 +69,21 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
         );
 
         // We know that the data stream checks ignore the request.
-        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState, null);
+        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState);
         assertThat(issuesByDataStream.size(), equalTo(1));
         assertThat(issuesByDataStream.containsKey(dataStream.getName()), equalTo(true));
         assertThat(issuesByDataStream.get(dataStream.getName()), equalTo(List.of(expected)));
     }
 
-    public void testOldIndicesCheckWithOnlyClosedOrNewIndices() {
+    public void testOldIndicesCheckWithOnlyNewIndices() {
         // This tests what happens when any old indices that we have are closed. We expect no deprecation warning.
-        int oldClosedIndexCount = randomIntBetween(1, 100);
         int newOpenIndexCount = randomIntBetween(0, 100);
         int newClosedIndexCount = randomIntBetween(0, 100);
 
         Map<String, IndexMetadata> nameToIndexMetadata = new HashMap<>();
         Set<String> expectedIndices = new HashSet<>();
 
-        DataStream dataStream = createTestDataStream(
-            0,
-            oldClosedIndexCount,
-            newOpenIndexCount,
-            newClosedIndexCount,
-            nameToIndexMetadata,
-            expectedIndices
-        );
+        DataStream dataStream = createTestDataStream(0, 0, newOpenIndexCount, newClosedIndexCount, nameToIndexMetadata, expectedIndices);
 
         Metadata metadata = Metadata.builder()
             .indices(nameToIndexMetadata)
@@ -99,7 +91,7 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
 
-        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState, null);
+        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState);
         assertThat(issuesByDataStream.size(), equalTo(0));
     }
 
@@ -145,7 +137,7 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
             )
         );
 
-        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState, null);
+        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState);
         assertThat(issuesByDataStream.containsKey(dataStream.getName()), equalTo(true));
         assertThat(issuesByDataStream.get(dataStream.getName()), equalTo(List.of(expected)));
     }
@@ -168,7 +160,7 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
             allIndices.add(createOldIndex(i, false, nameToIndexMetadata, expectedIndices));
         }
         for (int i = 0; i < oldClosedIndexCount; i++) {
-            allIndices.add(createOldIndex(i, true, nameToIndexMetadata, null));
+            allIndices.add(createOldIndex(i, true, nameToIndexMetadata, expectedIndices));
         }
         for (int i = 0; i < newOpenIndexCount; i++) {
             allIndices.add(createNewIndex(i, false, nameToIndexMetadata));
@@ -218,7 +210,7 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
     ) {
         Settings.Builder settingsBuilder = isOld ? settings(IndexVersion.fromId(7170099)) : settings(IndexVersion.current());
         String indexName = (isOld ? "old-" : "new-") + (isClosed ? "closed-" : "") + "data-stream-index-" + suffix;
-        if (isOld && isClosed == false) { // we only expect warnings on open old indices
+        if (isOld) {
             if (expectedIndices.isEmpty() == false && randomIntBetween(0, 2) == 0) {
                 settingsBuilder.put(INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE);
             } else {
@@ -298,14 +290,14 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
                 + "OK to remain read-only after upgrade",
             false,
             ofEntries(
-                entry("reindex_required", true),
+                entry("reindex_required", false),
                 entry("total_backing_indices", oldIndexCount + newIndexCount),
                 entry("ignored_indices_requiring_upgrade_count", expectedIndices.size()),
                 entry("ignored_indices_requiring_upgrade", expectedIndices)
             )
         );
 
-        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState, null);
+        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState);
         assertThat(issuesByDataStream.containsKey(dataStream.getName()), equalTo(true));
         assertThat(issuesByDataStream.get(dataStream.getName()), equalTo(List.of(expected)));
     }

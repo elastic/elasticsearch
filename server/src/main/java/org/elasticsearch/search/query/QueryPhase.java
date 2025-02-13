@@ -126,7 +126,15 @@ public class QueryPhase {
 
     static void executeQuery(SearchContext searchContext) throws QueryPhaseExecutionException {
         if (searchContext.hasOnlySuggest()) {
-            SuggestPhase.execute(searchContext);
+            try {
+                SuggestPhase.execute(searchContext);
+            } catch (ContextIndexSearcher.TimeExceededException timeExceededException) {
+                SearchTimeoutException.handleTimeout(
+                    searchContext.request().allowPartialSearchResults(),
+                    searchContext.shardTarget(),
+                    searchContext.queryResult()
+                );
+            }
             searchContext.queryResult().topDocs(new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN), new DocValueFormat[0]);
             return;
         }
@@ -142,11 +150,18 @@ public class QueryPhase {
 
         addCollectorsAndSearch(searchContext);
 
-        RescorePhase.execute(searchContext);
-        SuggestPhase.execute(searchContext);
-
-        if (searchContext.getProfilers() != null) {
-            searchContext.queryResult().profileResults(searchContext.getProfilers().buildQueryPhaseResults());
+        try {
+            RescorePhase.execute(searchContext);
+            SuggestPhase.execute(searchContext);
+            if (searchContext.getProfilers() != null) {
+                searchContext.queryResult().profileResults(searchContext.getProfilers().buildQueryPhaseResults());
+            }
+        } catch (ContextIndexSearcher.TimeExceededException timeExceededException) {
+            SearchTimeoutException.handleTimeout(
+                searchContext.request().allowPartialSearchResults(),
+                searchContext.shardTarget(),
+                searchContext.queryResult()
+            );
         }
     }
 

@@ -37,8 +37,8 @@ GET /_search
 // TEST[setup:my_index]
 
 {es} supports three highlighters: `unified`, `plain`, and `fvh` (fast vector
-highlighter). You can specify the highlighter `type` you want to use
-for each field.
+highlighter) for `text` and `keyword` fields and the `semantic` highlighter for `semantic_text` fields.
+You can specify the highlighter `type` you want to use for each field or rely on the field type's default highlighter.
 
 [discrete]
 [[unified-highlighter]]
@@ -48,7 +48,19 @@ highlighter breaks the text into sentences and uses the BM25 algorithm to score
 individual sentences as if they were documents in the corpus. It also supports
 accurate phrase and multi-term (fuzzy, prefix, regex) highlighting. The `unified`
 highlighter can combine matches from multiple fields into one result (see
-`matched_fields`). This is the default highlighter.
+`matched_fields`).
+
+This is the default highlighter for all `text` and `keyword` fields.
+
+[discrete]
+[[semantic-highlighter]]
+==== Semantic Highlighter
+
+The `semantic` highlighter is specifically designed for use with the <<semantic-text, `semantic_text`>> field.
+It identifies and extracts the most relevant fragments from the field based on semantic
+similarity between the query and each fragment.
+
+By default, <<semantic-text, `semantic_text`>> fields use the semantic highlighter.
 
 [discrete]
 [[plain-highlighter]]

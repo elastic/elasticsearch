@@ -293,7 +293,7 @@ POST /books/_doc
 // TEST[continued]
 <1> The new field.
 
-View the mapping for the `books` index with the <<indices-get-mapping, Get mapping API>>. The new field `new_field` has been added to the mapping with a `text` data type.
+View the mapping for the `books` index with the <<indices-get-mapping, Get mapping API>>. The new field `language` has been added to the mapping with a `text` data type.
 
 [source,console]
 ----
@@ -328,7 +328,7 @@ GET /books/_mapping
             }
           }
         },
-        "new_field": {
+        "language": {
           "type": "text",
           "fields": {
             "keyword": {

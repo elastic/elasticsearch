@@ -90,7 +90,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer));
+            var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer), "my-model-id");
             var actionCreator = new ElasticInferenceServiceActionCreator(
                 sender,
                 createWithEmptySettings(threadPool),
@@ -120,10 +120,11 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), is(1));
+            assertThat(requestMap.size(), is(2));
             assertThat(requestMap.get("input"), instanceOf(List.class));
             var inputList = (List<String>) requestMap.get("input");
             assertThat(inputList, contains("hello world"));
+            assertThat(requestMap.get("model"), is("my-model-id"));
         }
     }
 
@@ -151,7 +152,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer));
+            var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer), "my-model-id");
             var actionCreator = new ElasticInferenceServiceActionCreator(
                 sender,
                 createWithEmptySettings(threadPool),
@@ -174,10 +175,11 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap.size(), is(1));
+            assertThat(requestMap.size(), is(2));
             assertThat(requestMap.get("input"), instanceOf(List.class));
             var inputList = (List<String>) requestMap.get("input");
             assertThat(inputList, contains("hello world"));
+            assertThat(requestMap.get("model"), is("my-model-id"));
         }
     }
 
@@ -208,7 +210,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(413).setBody(responseJsonContentTooLarge));
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer));
+            var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer), "my-model-id");
             var actionCreator = new ElasticInferenceServiceActionCreator(
                 sender,
                 createWithEmptySettings(threadPool),
@@ -273,7 +275,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             // truncated to 1 token = 3 characters
-            var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer), 1);
+            var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer), "my-model-id", 1);
             var actionCreator = new ElasticInferenceServiceActionCreator(
                 sender,
                 createWithEmptySettings(threadPool),

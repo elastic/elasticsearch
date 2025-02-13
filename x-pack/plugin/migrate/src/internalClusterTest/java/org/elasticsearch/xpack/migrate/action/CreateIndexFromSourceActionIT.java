@@ -32,6 +32,8 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 
 public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
 
@@ -206,7 +208,7 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
         assertTrue(destSettings.getAsBoolean(IndexMetadata.SETTING_BLOCKS_READ, false));
 
         // override null removed
-        assertNull(destSettings.get(IndexMetadata.SETTING_BLOCKS_WRITE));
+        assertThat(destSettings.keySet(), not(hasItem(IndexMetadata.SETTING_BLOCKS_WRITE)));
     }
 
     public void testRemoveIndexBlocksByDefault() throws Exception {
@@ -236,9 +238,9 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
         var destSettings = settingsResponse.getIndexToSettings().get(destIndex);
 
         // remove block settings override both source settings and override settings
-        assertNull(destSettings.get(IndexMetadata.SETTING_BLOCKS_WRITE));
-        assertNull(destSettings.get(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE));
-        assertNull(destSettings.get(IndexMetadata.SETTING_BLOCKS_READ));
+        assertThat(destSettings.keySet(), not(hasItem(IndexMetadata.SETTING_BLOCKS_WRITE)));
+        assertThat(destSettings.keySet(), not(hasItem(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE)));
+        assertThat(destSettings.keySet(), not(hasItem(IndexMetadata.SETTING_BLOCKS_READ)));
     }
 
     public void testMappingsOverridden() {

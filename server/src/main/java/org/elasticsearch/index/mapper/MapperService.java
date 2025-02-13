@@ -801,7 +801,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * this method considers all mapper plugins
      */
     public boolean isMetadataField(String field) {
-        return mapperRegistry.getMetadataMapperParsers(indexVersionCreated).containsKey(field);
+        var mapper = mappingLookup().getMapper(field);
+        return mapper instanceof MetadataFieldMapper;
     }
 
     /**

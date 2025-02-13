@@ -344,13 +344,24 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         return otherUser;
     }
 
+    private void performRequestWithAdminUserIgnoreNotFound(RestClient targetFulfillingClusterClient, Request request) throws IOException {
+        try {
+            performRequestWithAdminUser(targetFulfillingClusterClient, request);
+        } catch (ResponseException e) {
+            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
+                throw e;
+            }
+            logger.info("Ignored \"not found\" exception", e);
+        }
+    }
+
     @After
     public void wipeData() throws Exception {
         CheckedConsumer<RestClient, IOException> wipe = client -> {
-            performRequestWithAdminUser(client, new Request("DELETE", "/employees"));
-            performRequestWithAdminUser(client, new Request("DELETE", "/employees2"));
-            performRequestWithAdminUser(client, new Request("DELETE", "/employees3"));
-            performRequestWithAdminUser(client, new Request("DELETE", "/_enrich/policy/countries"));
+            performRequestWithAdminUserIgnoreNotFound(client, new Request("DELETE", "/employees"));
+            performRequestWithAdminUserIgnoreNotFound(client, new Request("DELETE", "/employees2"));
+            performRequestWithAdminUserIgnoreNotFound(client, new Request("DELETE", "/employees3"));
+            performRequestWithAdminUserIgnoreNotFound(client, new Request("DELETE", "/_enrich/policy/countries"));
         };
         wipe.accept(fulfillingClusterClient);
         wipe.accept(client());

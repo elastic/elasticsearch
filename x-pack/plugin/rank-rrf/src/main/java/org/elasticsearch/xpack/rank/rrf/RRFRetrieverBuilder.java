@@ -101,6 +101,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
     protected RRFRetrieverBuilder clone(List<RetrieverSource> newRetrievers, List<QueryBuilder> newPreFilterQueryBuilders) {
         RRFRetrieverBuilder clone = new RRFRetrieverBuilder(newRetrievers, this.rankWindowSize, this.rankConstant);
         clone.preFilterQueryBuilders = newPreFilterQueryBuilders;
+        clone.retrieverName = retrieverName;
         return clone;
     }
 

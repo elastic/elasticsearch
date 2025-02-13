@@ -237,3 +237,9 @@ The `logsdb` index mode uses the following settings:
 * **`index.mapping.ignore_above`**: `8191`
 
 * **`index.mapping.total_fields.ignore_dynamic_beyond_limit`**: `true`
+
+[discrete]
+[[upgrade-to-logsdb-notes]]
+=== Notes about upgrading to Logsdb
+
+TODO: add notes.

@@ -43,7 +43,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     @ClassRule
     public static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .version(getOldClusterTestVersion())
+        .version(org.elasticsearch.test.cluster.util.Version.fromString(OLD_CLUSTER_VERSION))
         .nodes(2)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")

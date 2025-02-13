@@ -36,7 +36,7 @@ public class ElasticInferenceServiceCompletionServiceSettings extends FilteredXC
     public static final String NAME = "elastic_inference_service_completion_service_settings";
 
     // TODO what value do we put here?
-    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(240L);
+    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(720L);
 
     public static ElasticInferenceServiceCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();

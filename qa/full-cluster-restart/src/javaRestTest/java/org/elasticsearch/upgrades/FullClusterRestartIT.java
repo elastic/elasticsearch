@@ -629,11 +629,13 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
                 )
             );
 
-            Request catIndices = new Request("GET", "/_cat/indices?v&error_trace");
-            // the cat APIs can sometimes 404, erroneously
-            // see https://github.com/elastic/elasticsearch/issues/104371
-            setIgnoredErrorResponseCodes(catIndices, RestStatus.NOT_FOUND);
-            assertThat(EntityUtils.toString(client().performRequest(catIndices).getEntity()), containsString("testrollover-000002"));
+            assertBusy(() -> {
+                Request catIndices = new Request("GET", "/_cat/indices?v&error_trace");
+                // the cat APIs can sometimes 404, erroneously
+                // see https://github.com/elastic/elasticsearch/issues/104371
+                setIgnoredErrorResponseCodes(catIndices, RestStatus.NOT_FOUND);
+                assertThat(EntityUtils.toString(client().performRequest(catIndices).getEntity()), containsString("testrollover-000002"));
+            });
         }
 
         Request countRequest = new Request("POST", "/" + index + "-*/_search");

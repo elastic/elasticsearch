@@ -2419,10 +2419,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             byteVectorValues = leafReader.getByteVectorValues(fullPath());
             if (byteVectorValues != null) {
                 return docId -> {
-                    if (values.docID() > docId) {
+                    if (byteVectorValues.docID() > docId) {
                         return hasValue = false;
                     }
-                    if (values.docID() == docId) {
+                    if (byteVectorValues.docID() == docId) {
                         return hasValue = true;
                     }
                     hasValue = docId == byteVectorValues.advance(docId);

@@ -1051,12 +1051,14 @@ public abstract class ESRestTestCase extends ESTestCase {
         return null;
     }
 
-    private static String getHotThreads() {
+    private String getHotThreads() {
         try {
-            Response response = adminClient().performRequest(new Request("GET", "/_nodes/hot_threads"));
+            Response response = adminClient().performRequest(
+                new Request("GET", "/_nodes/hot_threads?ignore_idle_threads=false&threads=9999")
+            );
             return EntityUtils.toString(response.getEntity());
         } catch (IOException e) {
-            fail(e, "Failed to retrieve hot threads in the cluster during cleanup");
+            logger.error("Failed to retrieve hot threads in the cluster during cleanup", e);
         }
         return null;
     }

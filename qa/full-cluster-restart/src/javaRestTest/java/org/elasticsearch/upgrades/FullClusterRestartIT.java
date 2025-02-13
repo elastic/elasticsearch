@@ -31,6 +31,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.search.SearchFeatures;
 import org.elasticsearch.test.NotEqualMessageBuilder;
@@ -628,13 +629,11 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
                 )
             );
 
-            // assertBusy to work around https://github.com/elastic/elasticsearch/issues/104371
-            assertBusy(
-                () -> assertThat(
-                    EntityUtils.toString(client().performRequest(new Request("GET", "/_cat/indices?v&error_trace")).getEntity()),
-                    containsString("testrollover-000002")
-                )
-            );
+            Request catIndices = new Request("GET", "/_cat/indices?v&error_trace");
+            // the cat APIs can sometimes 404, erroneously
+            // see https://github.com/elastic/elasticsearch/issues/104371
+            setIgnoredErrorResponseCodes(catIndices, RestStatus.NOT_FOUND);
+            assertThat(EntityUtils.toString(client().performRequest(catIndices).getEntity()), containsString("testrollover-000002"));
         }
 
         Request countRequest = new Request("POST", "/" + index + "-*/_search");

@@ -145,6 +145,18 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         }
     }
 
+    protected static Object maybeFoldList(List<?> list) {
+        if (list.isEmpty()) {
+            return null;
+        }
+
+        if (list.size() == 1) {
+            return list.get(0);
+        }
+
+        return list;
+    }
+
     private Object setupAndInvokeBlockLoader(MapperService mapperService, XContentBuilder document, String fieldName) throws IOException {
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory);

@@ -291,14 +291,13 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         private final String localClusterAlias;
 
         private NodeQueryRequest(
-            List<ShardToQuery> shards,
             SearchRequest searchRequest,
             Map<String, AliasFilter> aliasFilters,
             int totalShards,
             long absoluteStartMillis,
             String localClusterAlias
         ) {
-            this.shards = shards;
+            this.shards = new ArrayList<>();
             this.searchRequest = searchRequest;
             this.aliasFilters = aliasFilters;
             this.totalShards = totalShards;
@@ -406,7 +405,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         AbstractSearchAsyncAction.doCheckNoMissingShards(getName(), request, shardsIts, AbstractSearchAsyncAction::makeMissingShardsError);
         final Map<CanMatchPreFilterSearchPhase.SendingTarget, NodeQueryRequest> perNodeQueries = new HashMap<>();
         final String localNodeId = searchTransportService.transportService().getLocalNode().getId();
-        for (int i = 0; i < shardsIts.size(); i++) {
+        final int shardsToQuery = shardsIts.size();
+        for (int i = 0; i < shardsToQuery; i++) {
             final SearchShardIterator shardRoutings = shardsIts.get(i);
             assert shardRoutings.skip() == false;
             assert shardIndexMap.containsKey(shardRoutings);
@@ -419,15 +419,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 // local requests don't need batching as there's no network latency
                 if (this.batchQueryPhase && localNodeId.equals(nodeId) == false) {
                     perNodeQueries.computeIfAbsent(
-                        new CanMatchPreFilterSearchPhase.SendingTarget(routing.getClusterAlias(), routing.getNodeId()),
-                        ignored -> new NodeQueryRequest(
-                            new ArrayList<>(),
-                            request,
-                            aliasFilter,
-                            shardsIts.size(),
-                            timeProvider.absoluteStartMillis(),
-                            routing.getClusterAlias()
-                        )
+                        new CanMatchPreFilterSearchPhase.SendingTarget(routing.getClusterAlias(), nodeId),
+                        t -> new NodeQueryRequest(request, aliasFilter, shardsToQuery, timeProvider.absoluteStartMillis(), t.clusterAlias())
                     ).shards.add(
                         new ShardToQuery(
                             concreteIndexBoosts.getOrDefault(routing.getShardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST),
@@ -444,13 +437,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         }
         perNodeQueries.forEach((routing, request) -> {
             if (request.shards.size() == 1) {
-                var shard = request.shards.getFirst();
-                final int sidx = shard.shardIndex;
-                this.performPhaseOnShard(
-                    sidx,
-                    shardIterators[sidx],
-                    new SearchShardTarget(routing.nodeId(), shard.shardId, routing.clusterAlias())
-                );
+                executeAsSingleRequest(routing, request.shards.getFirst());
                 return;
             }
             final Transport.Connection connection;
@@ -534,13 +521,17 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
 
     private void executeWithoutBatching(CanMatchPreFilterSearchPhase.SendingTarget targetNode, NodeQueryRequest request) {
         for (ShardToQuery shard : request.shards) {
-            final int sidx = shard.shardIndex;
-            this.performPhaseOnShard(
-                sidx,
-                shardIterators[sidx],
-                new SearchShardTarget(targetNode.nodeId(), shard.shardId, targetNode.clusterAlias())
-            );
+            executeAsSingleRequest(targetNode, shard);
         }
+    }
+
+    private void executeAsSingleRequest(CanMatchPreFilterSearchPhase.SendingTarget targetNode, ShardToQuery shard) {
+        final int sidx = shard.shardIndex;
+        this.performPhaseOnShard(
+            sidx,
+            shardIterators[sidx],
+            new SearchShardTarget(targetNode.nodeId(), shard.shardId, targetNode.clusterAlias())
+        );
     }
 
     private void onNodeQueryFailure(Exception e, NodeQueryRequest request, CanMatchPreFilterSearchPhase.SendingTarget target) {

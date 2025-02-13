@@ -178,6 +178,12 @@ public final class IndexPrivilege extends Privilege {
 
     public static final IndexPrivilege NONE = new IndexPrivilege("none", Automatons.EMPTY);
     public static final IndexPrivilege ALL = new IndexPrivilege("all", ALL_AUTOMATON);
+    // TODO explain
+    public static final IndexPrivilege READ_FAILURE_STORE = new IndexPrivilege("read_failure_store", READ_AUTOMATON);
+    public static final IndexPrivilege MANAGE_FAILURE_STORE_INTERNAL = new IndexPrivilege(
+        "manage_failure_store_internal",
+        MANAGE_AUTOMATON
+    );
     public static final IndexPrivilege READ = new IndexPrivilege("read", READ_AUTOMATON);
     public static final IndexPrivilege READ_CROSS_CLUSTER = new IndexPrivilege("read_cross_cluster", READ_CROSS_CLUSTER_AUTOMATON);
     public static final IndexPrivilege CREATE = new IndexPrivilege("create", CREATE_AUTOMATON);
@@ -236,7 +242,9 @@ public final class IndexPrivilege extends Privilege {
             entry("maintenance", MAINTENANCE),
             entry("auto_configure", AUTO_CONFIGURE),
             entry("cross_cluster_replication", CROSS_CLUSTER_REPLICATION),
-            entry("cross_cluster_replication_internal", CROSS_CLUSTER_REPLICATION_INTERNAL)
+            entry("cross_cluster_replication_internal", CROSS_CLUSTER_REPLICATION_INTERNAL),
+            entry("read_failure_store", READ_FAILURE_STORE),
+            entry("manage_failure_store_internal", MANAGE_FAILURE_STORE_INTERNAL)
         ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue))
     );
 

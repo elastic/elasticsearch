@@ -31,6 +31,11 @@ public class IngestStatsTests extends ESTestCase {
         assertIngestStats(ingestStats, serializedStats);
     }
 
+    public void testIdentitySerialization() throws IOException {
+        IngestStats serializedStats = serialize(IngestStats.IDENTITY);
+        assertEquals(IngestStats.IDENTITY, serializedStats);
+    }
+
     public void testStatsMerge() {
         var first = randomStats();
         var second = randomStats();

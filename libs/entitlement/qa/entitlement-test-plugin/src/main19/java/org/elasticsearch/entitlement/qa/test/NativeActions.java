@@ -18,7 +18,6 @@ import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
-import java.nio.file.Path;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
@@ -73,7 +72,7 @@ class NativeActions {
     @EntitlementTest(expectedAccess = PLUGINS)
     static void symbolLookupWithPath() {
         try {
-            SymbolLookup.libraryLookup(Path.of("/foo/bar/libFoo.so"), MemorySession.openImplicit());
+            SymbolLookup.libraryLookup(FileCheckActions.readDir().resolve("libFoo.so"), MemorySession.openImplicit());
         } catch (IllegalArgumentException e) {
             // IllegalArgumentException is thrown if path does not point to a valid library (and it does not)
         }

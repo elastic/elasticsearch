@@ -15,7 +15,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
+import org.elasticsearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -32,7 +34,6 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -59,6 +60,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_INDEX_VERSION;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.State.CLOSE;
 import static org.elasticsearch.core.Strings.format;
 
@@ -448,12 +450,33 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
                                     logAndThrowExceptionForFailures(bulkByScrollResponse)
                                 );
                             } else {
-                                // Successful completion of reindexing - remove read only and delete old index
-                                setWriteBlock(
-                                    oldIndex,
-                                    false,
-                                    delegate2.delegateFailureAndWrap(setAliasAndRemoveOldIndex(migrationInfo, bulkByScrollResponse))
-                                );
+                                // Successful completion of reindexing. Now we need to set the alias and remove the old index.
+                                setAliasAndRemoveOldIndex(migrationInfo, ActionListener.wrap(aliasesResponse -> {
+                                    if (aliasesResponse.hasErrors()) {
+                                        var e = new ElasticsearchException("Aliases request had errors");
+                                        for (var error : aliasesResponse.getErrors()) {
+                                            e.addSuppressed(error);
+                                        }
+                                        throw e;
+                                    }
+                                    logger.info(
+                                        "Successfully migrated old index [{}] to new index [{}] from feature [{}]",
+                                        oldIndexName,
+                                        migrationInfo.getNextIndexName(),
+                                        migrationInfo.getFeatureName()
+                                    );
+                                    delegate2.onResponse(bulkByScrollResponse);
+                                }, e -> {
+                                    logger.error(
+                                        () -> format(
+                                            "An error occurred while changing aliases and removing the old index [%s] from feature [%s]",
+                                            oldIndexName,
+                                            migrationInfo.getFeatureName()
+                                        ),
+                                        e
+                                    );
+                                    removeReadOnlyBlockOnReindexFailure(oldIndex, delegate2, e);
+                                }));
                             }
                         }, e -> {
                             logger.error(
@@ -511,10 +534,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         );
     }
 
-    private CheckedBiConsumer<ActionListener<BulkByScrollResponse>, AcknowledgedResponse, Exception> setAliasAndRemoveOldIndex(
-        SystemIndexMigrationInfo migrationInfo,
-        BulkByScrollResponse bulkByScrollResponse
-    ) {
+    private void setAliasAndRemoveOldIndex(SystemIndexMigrationInfo migrationInfo, ActionListener<IndicesAliasesResponse> listener) {
         final IndicesAliasesRequestBuilder aliasesRequest = migrationInfo.createClient(baseClient).admin().indices().prepareAliases();
         aliasesRequest.removeIndex(migrationInfo.getCurrentIndexName());
         aliasesRequest.addAlias(migrationInfo.getNextIndexName(), migrationInfo.getCurrentIndexName());
@@ -533,30 +553,42 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             );
         });
 
-        // Technically this callback might have a different cluster state, but it shouldn't matter - these indices shouldn't be changing
-        // while we're trying to migrate them.
-        return (listener, unsetReadOnlyResponse) -> aliasesRequest.execute(
-            listener.delegateFailureAndWrap((l, deleteIndexResponse) -> l.onResponse(bulkByScrollResponse))
-        );
+        aliasesRequest.execute(listener);
     }
 
     /**
-     * Makes the index readonly if it's not set as a readonly yet
+     * Sets the write block on the index to the given value.
      */
     private void setWriteBlock(Index index, boolean readOnlyValue, ActionListener<AcknowledgedResponse> listener) {
-        final Settings readOnlySettings = Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), readOnlyValue).build();
-
-        metadataUpdateSettingsService.updateSettings(
-            new UpdateSettingsClusterStateUpdateRequest(
-                MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
-                TimeValue.ZERO,
-                readOnlySettings,
-                UpdateSettingsClusterStateUpdateRequest.OnExisting.OVERWRITE,
-                UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REJECT,
-                index
-            ),
-            listener
-        );
+        if (readOnlyValue) {
+            // Setting the Block with an AddIndexBlockRequest ensures all shards have accounted for the block and all
+            // in-flight writes are completed before returning.
+            baseClient.admin()
+                .indices()
+                .addBlock(
+                    new AddIndexBlockRequest(WRITE, index.getName()).masterNodeTimeout(MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT),
+                    listener.delegateFailureAndWrap((l, response) -> {
+                        if (response.isAcknowledged() == false) {
+                            throw new ElasticsearchException("Failed to acknowledge read-only block index request");
+                        }
+                        l.onResponse(response);
+                    })
+                );
+        } else {
+            // The only way to remove a Block is via a settings update.
+            final Settings readOnlySettings = Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), false).build();
+            metadataUpdateSettingsService.updateSettings(
+                new UpdateSettingsClusterStateUpdateRequest(
+                    MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
+                    TimeValue.ZERO,
+                    readOnlySettings,
+                    UpdateSettingsClusterStateUpdateRequest.OnExisting.OVERWRITE,
+                    UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REJECT,
+                    index
+                ),
+                listener
+            );
+        }
     }
 
     private void reindex(SystemIndexMigrationInfo migrationInfo, ActionListener<BulkByScrollResponse> listener) {

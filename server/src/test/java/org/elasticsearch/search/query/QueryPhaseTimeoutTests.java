@@ -309,7 +309,6 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
             context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
             assertFalse(context.hasOnlySuggest());
             QueryPhase.execute(context);
-            assertNotNull(context.queryResult().topDocs());
             assertThat(context.queryResult().topDocs().topDocs.totalHits.value(), Matchers.greaterThan(0L));
             assertTrue(context.queryResult().searchTimedOut());
             assertNull(context.queryResult().suggest());
@@ -363,8 +362,7 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
             CharsRefBuilder spare
         ) {
             contextIndexSearcher.throwTimeExceededException();
-            assert false;
-            return new TestSuggestion();
+            throw new AssertionError("should have thrown TimeExceededException");
         }
 
         @Override

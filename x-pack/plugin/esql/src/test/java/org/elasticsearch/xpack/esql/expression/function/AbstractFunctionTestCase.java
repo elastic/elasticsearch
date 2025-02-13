@@ -333,7 +333,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         String ordinal = includeOrdinal ? TypeResolutions.ParamOrdinal.fromIndex(badArgPosition).name().toLowerCase(Locale.ROOT) + " " : "";
         String expectedTypeString = expectedTypeSupplier.apply(validPerPosition.get(badArgPosition), badArgPosition);
         String name = types.get(badArgPosition).typeName();
-        return ordinal + "argument of [] must be [" + expectedTypeString + "], found value [" + name + "] type [" + name + "]";
+        return ordinal + "argument of [source] must be [" + expectedTypeString + "], found value [" + name + "] type [" + name + "]";
     }
 
     @FunctionalInterface

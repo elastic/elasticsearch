@@ -49,6 +49,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingSparse;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.inference.InferencePlugin;
@@ -140,16 +141,26 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    public void testLicenseInvalidForInference() {
+    public void testLicenseInvalidForInference() throws InterruptedException {
         StaticModel model = StaticModel.createRandomInstance();
         ShardBulkInferenceActionFilter filter = createFilter(threadPool, Map.of(), DEFAULT_BATCH_SIZE, useLegacyFormat, false);
+        CountDownLatch chainExecuted = new CountDownLatch(1);
         ActionFilterChain actionFilterChain = (task, action, request, listener) -> {
-            BulkShardRequest bulkShardRequest = (BulkShardRequest) request;
-            assertThat(bulkShardRequest.items().length, equalTo(1));
+            try {
+                BulkShardRequest bulkShardRequest = (BulkShardRequest) request;
+                assertThat(bulkShardRequest.items().length, equalTo(1));
 
-            BulkItemResponse.Failure failure = bulkShardRequest.items()[0].getPrimaryResponse().getFailure();
-            assertNotNull(failure);
-            assertThat(failure.getCause(), instanceOf(ElasticsearchSecurityException.class));
+                BulkItemResponse.Failure failure = bulkShardRequest.items()[0].getPrimaryResponse().getFailure();
+                assertNotNull(failure);
+                assertThat(failure.getCause(), instanceOf(ElasticsearchSecurityException.class));
+                assertThat(
+                    failure.getMessage(),
+                    containsString(org.elasticsearch.core.Strings.format("current license is non-compliant for [%s]", XPackField.INFERENCE))
+                );
+            } finally {
+                chainExecuted.countDown();
+            }
+
         };
         ActionListener actionListener = mock(ActionListener.class);
         Task task = mock(Task.class);
@@ -164,6 +175,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         request.setInferenceFieldMap(inferenceFieldMap);
 
         filter.apply(task, TransportShardBulkAction.ACTION_NAME, request, actionListener, actionFilterChain);
+        awaitLatch(chainExecuted, 10, TimeUnit.SECONDS);
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })

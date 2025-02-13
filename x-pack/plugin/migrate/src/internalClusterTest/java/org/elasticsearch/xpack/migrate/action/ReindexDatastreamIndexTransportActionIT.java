@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.migrate.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
@@ -26,6 +28,8 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.DeletePipelineTransportAction;
+import org.elasticsearch.action.ingest.GetPipelineAction;
+import org.elasticsearch.action.ingest.GetPipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -36,25 +40,34 @@ import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.frozen.FrozenEngine;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.protocol.xpack.frozen.FreezeRequest;
+import org.elasticsearch.protocol.xpack.frozen.FreezeResponse;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
+import org.elasticsearch.xpack.frozen.action.TransportFreezeIndexAction;
 import org.elasticsearch.xpack.migrate.MigratePlugin;
 import org.elasticsearch.xpack.migrate.MigrateTemplateRegistry;
-import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -67,16 +80,29 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
-    @After
-    private void cleanup() {
+
+    @Before
+    private void setup() throws Exception {
         safeGet(
             clusterAdmin().execute(
                 DeletePipelineTransportAction.TYPE,
                 new DeletePipelineRequest(MigrateTemplateRegistry.REINDEX_DATA_STREAM_PIPELINE_NAME)
             )
         );
+
+        assertBusy(() -> {
+            assertTrue(
+                safeGet(
+                    clusterAdmin().execute(
+                        GetPipelineAction.INSTANCE,
+                        new GetPipelineRequest(MigrateTemplateRegistry.REINDEX_DATA_STREAM_PIPELINE_NAME)
+                    )
+                ).isFound()
+            );
+        });
     }
 
     private static final String MAPPING = """
@@ -98,7 +124,8 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
             ReindexPlugin.class,
             MockTransportService.TestPlugin.class,
             DataStreamsPlugin.class,
-            IngestCommonPlugin.class
+            IngestCommonPlugin.class,
+            TestFrozenIndicesPlugin.class
         );
     }
 
@@ -121,6 +148,9 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         // add doc without timestamp
         addDoc(sourceIndex, "{\"foo\":\"baz\"}");
 
+        // wait until doc is written to all shards before adding mapping
+        ensureHealth(sourceIndex);
+
         // add timestamp to source mapping
         indicesAdmin().preparePutMapping(sourceIndex).setSource(DATA_STREAM_MAPPING, XContentType.JSON).get();
 
@@ -136,6 +166,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     }
 
     public void testTimestampNotAddedIfExists() {
+
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         safeGet(indicesAdmin().create(new CreateIndexRequest(sourceIndex)));
 
@@ -143,6 +174,9 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         String time = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
         var doc = String.format(Locale.ROOT, "{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, time);
         addDoc(sourceIndex, doc);
+
+        // wait until doc is written to all shards before adding mapping
+        ensureHealth(sourceIndex);
 
         // add timestamp to source mapping
         indicesAdmin().preparePutMapping(sourceIndex).setSource(DATA_STREAM_MAPPING, XContentType.JSON).get();
@@ -188,6 +222,9 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         String time = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
         var doc = String.format(Locale.ROOT, "{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, time);
         addDoc(sourceIndex, doc);
+
+        // wait until doc is written to all shards before adding mapping
+        ensureHealth(sourceIndex);
 
         // add timestamp to source mapping
         indicesAdmin().preparePutMapping(sourceIndex).setSource(DATA_STREAM_MAPPING, XContentType.JSON).get();
@@ -298,7 +335,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         );
     }
 
-    public void testSettingsAddedBeforeReindex() throws Exception {
+    public void testSettingsAddedBeforeReindex() {
         // start with a static setting
         var numShards = randomIntBetween(1, 10);
         var staticSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
@@ -571,6 +608,43 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         assertHitCount(prepareSearch(destIndex).setSize(0), 1);
     }
 
+    public void testIndexUnfrozen() {
+        var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
+        safeGet(indicesAdmin().create(new CreateIndexRequest(sourceIndex)));
+
+        // add doc with timestamp
+        String time = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
+        var doc = String.format(Locale.ROOT, "{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, time);
+        addDoc(sourceIndex, doc);
+        FreezeRequest freezeRequest = new FreezeRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, sourceIndex);
+        freezeRequest.setFreeze(true);
+        FreezeResponse freezeResponse = safeGet(client().execute(FreezeIndexAction.INSTANCE, freezeRequest));
+        assertAcked(freezeResponse);
+        assertThat(
+            safeGet(admin().indices().getSettings(new GetSettingsRequest().indices(sourceIndex))).getIndexToSettings()
+                .get(sourceIndex)
+                .get(FrozenEngine.INDEX_FROZEN.getKey()),
+            not(equalTo(null))
+        );
+
+        String destIndex = safeGet(
+            client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
+        ).getDestIndex();
+
+        assertThat(
+            safeGet(admin().indices().getSettings(new GetSettingsRequest().indices(sourceIndex))).getIndexToSettings()
+                .get(sourceIndex)
+                .get(FrozenEngine.INDEX_FROZEN.getKey()),
+            equalTo(null)
+        );
+        assertThat(
+            safeGet(admin().indices().getSettings(new GetSettingsRequest().indices(destIndex))).getIndexToSettings()
+                .get(destIndex)
+                .get(FrozenEngine.INDEX_FROZEN.getKey()),
+            equalTo(null)
+        );
+    }
+
     private static void cleanupMetadataBlocks(String index) {
         var settings = Settings.builder()
             .putNull(IndexMetadata.SETTING_READ_ONLY)
@@ -602,5 +676,31 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(new IndexRequest(index).opType(DocWriteRequest.OpType.CREATE).source(doc, XContentType.JSON));
         safeGet(client().bulk(bulkRequest));
+    }
+
+    private void ensureHealth(String index) {
+        if (cluster().numDataNodes() > 1) {
+            ensureGreen(index);
+        } else {
+            ensureYellow(index);
+        }
+    }
+
+    /*
+     * This takes the place of the real FrozenIndices plugin. We can't use that one because its EngineFactory conflicts with the one used
+     * by this test. We only need the settings and the mapping of the FreezeIndexAction though.
+     */
+    public static class TestFrozenIndicesPlugin extends Plugin implements ActionPlugin {
+        @Override
+        public List<Setting<?>> getSettings() {
+            return Arrays.asList(FrozenEngine.INDEX_FROZEN);
+        }
+
+        @Override
+        public List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+            List<ActionPlugin.ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
+            actions.add(new ActionPlugin.ActionHandler<>(FreezeIndexAction.INSTANCE, TransportFreezeIndexAction.class));
+            return actions;
+        }
     }
 }

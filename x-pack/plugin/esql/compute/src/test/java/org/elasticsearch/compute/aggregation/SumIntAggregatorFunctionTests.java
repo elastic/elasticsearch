@@ -32,8 +32,8 @@ public class SumIntAggregatorFunctionTests extends AggregatorFunctionTestCase {
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new SumIntAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new SumIntAggregatorFunctionSupplier();
     }
 
     @Override

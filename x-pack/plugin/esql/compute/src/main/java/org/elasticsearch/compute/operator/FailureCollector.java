@@ -10,7 +10,6 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.TransportActions;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.TransportException;
 
@@ -18,7 +17,7 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
-import java.util.concurrent.Semaphore;
+import java.util.concurrent.ArrayBlockingQueue;
 
 /**
  * {@code FailureCollector} is responsible for collecting exceptions that occur in the compute engine.
@@ -37,22 +36,7 @@ public final class FailureCollector {
         CANCELLATION
     }
 
-    private static final class CategorizedErrors {
-        final Queue<Exception> exceptions = ConcurrentCollections.newQueue();
-        final Semaphore permits;
-
-        CategorizedErrors(int permits) {
-            this.permits = new Semaphore(permits);
-        }
-
-        void maybeCollect(Exception e) {
-            if (permits.tryAcquire()) {
-                exceptions.add(e);
-            }
-        }
-    }
-
-    private final Map<Category, CategorizedErrors> categories;
+    private final Map<Category, Queue<Exception>> categories;
     private final int maxExceptions;
 
     private volatile boolean hasFailure = false;
@@ -69,7 +53,7 @@ public final class FailureCollector {
         this.maxExceptions = maxExceptions;
         this.categories = new EnumMap<>(Category.class);
         for (Category c : Category.values()) {
-            this.categories.put(c, new CategorizedErrors(maxExceptions));
+            this.categories.put(c, new ArrayBlockingQueue<>(maxExceptions));
         }
     }
 
@@ -101,7 +85,7 @@ public final class FailureCollector {
 
     public void unwrapAndCollect(Exception e) {
         e = e instanceof TransportException te ? unwrapTransportException(te) : e;
-        categories.get(getErrorCategory(e)).maybeCollect(e);
+        categories.get(getErrorCategory(e)).offer(e);
         hasFailure = true;
     }
 
@@ -139,7 +123,7 @@ public final class FailureCollector {
             if (first != null && category == Category.CANCELLATION) {
                 continue; // do not add cancellation errors if other errors present
             }
-            for (Exception e : categories.get(category).exceptions) {
+            for (Exception e : categories.get(category)) {
                 if (++collected <= maxExceptions) {
                     if (first == null) {
                         first = e;

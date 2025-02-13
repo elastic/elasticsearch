@@ -210,7 +210,6 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         }))
             // Proceed with a single item bulk request
             .<UpdateResponse>andThen((l, result) -> {
-                logger.fatal("switch " + result.getResponseResult().getLowercase());
                 switch (result.getResponseResult()) {
                     case CREATED -> {
                         IndexRequest upsertRequest = result.action();

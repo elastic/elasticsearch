@@ -47,8 +47,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -56,7 +54,6 @@ import java.util.stream.Stream;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 
-import static java.lang.Thread.currentThread;
 import static java.util.Map.entry;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
 import static org.elasticsearch.entitlement.qa.test.RestEntitlementsCheckAction.CheckAction.alwaysDenied;
@@ -183,32 +180,18 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
             entry("runtime_load", forPlugins(LoadNativeLibrariesCheckActions::runtimeLoad)),
             entry("runtime_load_library", forPlugins(LoadNativeLibrariesCheckActions::runtimeLoadLibrary)),
             entry("system_load", forPlugins(LoadNativeLibrariesCheckActions::systemLoad)),
-            entry("system_load_library", forPlugins(LoadNativeLibrariesCheckActions::systemLoadLibrary)),
+            entry("system_load_library", forPlugins(LoadNativeLibrariesCheckActions::systemLoadLibrary))
 
-            entry("java_lang_Thread$start", forPlugins(RestEntitlementsCheckAction::java_lang_Thread$start)),
-            entry("java_lang_Thread$setDaemon", deniedToPlugins(RestEntitlementsCheckAction::java_lang_Thread$setDaemon)),
-            entry("java_lang_ThreadGroup$setDaemon", deniedToPlugins(RestEntitlementsCheckAction::java_lang_ThreadGroup$setDaemon)),
-            entry(
-                "java_util_concurrent_ForkJoinPool$setParallelism",
-                deniedToPlugins(RestEntitlementsCheckAction::java_util_concurrent_ForkJoinPool$setParallelism)
-            ),
-            entry("java_lang_Thread$setName", deniedToPlugins(RestEntitlementsCheckAction::java_lang_Thread$setName)),
-            entry("java_lang_Thread$setPriority", deniedToPlugins(RestEntitlementsCheckAction::java_lang_Thread$setPriority)),
-            entry(
-                "java_lang_Thread$setUncaughtExceptionHandler",
-                deniedToPlugins(RestEntitlementsCheckAction::java_lang_Thread$setUncaughtExceptionHandler)
-            ),
-            entry(
-                "java_lang_ThreadGroup$setMaxPriority",
-                deniedToPlugins(RestEntitlementsCheckAction::java_lang_ThreadGroup$setMaxPriority)
-            )
+            // MAINTENANCE NOTE: Please don't add any more entries to this map.
+            // Put new tests into their own "Actions" class using the @EntitlementTest annotation.
         ),
         getTestEntries(FileCheckActions.class),
-        getTestEntries(SpiActions.class),
-        getTestEntries(SystemActions.class),
+        getTestEntries(FileStoreActions.class),
+        getTestEntries(ManageThreadsActions.class),
         getTestEntries(NativeActions.class),
         getTestEntries(NioFileSystemActions.class),
-        getTestEntries(FileStoreActions.class)
+        getTestEntries(SpiActions.class),
+        getTestEntries(SystemActions.class)
     )
         .flatMap(Function.identity())
         .filter(entry -> entry.getValue().fromJavaVersion() == null || Runtime.version().feature() >= entry.getValue().fromJavaVersion())
@@ -448,42 +431,6 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
             logger.debug("Check action [{}] returned", actionName);
             channel.sendResponse(new RestResponse(RestStatus.OK, Strings.format("Succesfully executed action [%s]", actionName)));
         };
-    }
-
-    static void java_lang_Thread$start() throws InterruptedException {
-        AtomicBoolean threadRan = new AtomicBoolean(false);
-        Thread thread = new Thread(() -> threadRan.set(true), "test");
-        thread.start();
-        thread.join();
-        assert threadRan.get();
-    }
-
-    static void java_lang_Thread$setDaemon() {
-        currentThread().setDaemon(currentThread().isDaemon());
-    }
-
-    static void java_lang_ThreadGroup$setDaemon() {
-        currentThread().getThreadGroup().setDaemon(currentThread().getThreadGroup().isDaemon());
-    }
-
-    static void java_util_concurrent_ForkJoinPool$setParallelism() {
-        ForkJoinPool.commonPool().setParallelism(ForkJoinPool.commonPool().getParallelism());
-    }
-
-    static void java_lang_Thread$setName() {
-        currentThread().setName(currentThread().getName());
-    }
-
-    static void java_lang_Thread$setPriority() {
-        currentThread().setPriority(currentThread().getPriority());
-    }
-
-    static void java_lang_Thread$setUncaughtExceptionHandler() {
-        currentThread().setUncaughtExceptionHandler(currentThread().getUncaughtExceptionHandler());
-    }
-
-    static void java_lang_ThreadGroup$setMaxPriority() {
-        currentThread().getThreadGroup().setMaxPriority(currentThread().getThreadGroup().getMaxPriority());
     }
 
 }

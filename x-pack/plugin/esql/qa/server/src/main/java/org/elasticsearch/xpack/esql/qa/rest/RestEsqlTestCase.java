@@ -803,6 +803,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         );
         bulkLoadTestData(10);
         // positive
+        // named double parameters
         var query = requestObjectBuilder().query(
             format(
                 null,
@@ -814,13 +815,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 "[{\"n1\" : \"integer\"}, {\"n2\" : \"short\"}, {\"n3\" : \"double\"}, {\"n4\" : \"boolean\"}, "
                     + "{\"n5\" : \"xx2\"}, {\"fn1\" : \"max\"}]"
             );
-        Map<String, Object> result = runEsql(query);
-        Map<String, String> colA = Map.of("name", "boolean", "type", "boolean");
-        Map<String, String> colB = Map.of("name", "xx2", "type", "double");
-        assertEquals(List.of(colA, colB), result.get("columns"));
-        assertEquals(List.of(List.of(false, 9.1), List.of(true, 8.1)), result.get("values"));
+        validateResultsOfDoubleParametersForIdentifiers(query);
 
-        // positional
+        // positional double parameters
         query = requestObjectBuilder().query(
             format(
                 null,
@@ -832,11 +829,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 "[{\"n1\" : \"integer\"}, {\"n2\" : \"short\"}, {\"n3\" : \"double\"}, {\"n4\" : \"boolean\"}, "
                     + "{\"n5\" : \"xx2\"}, {\"fn1\" : \"max\"}]"
             );
-        result = runEsql(query);
-        colA = Map.of("name", "boolean", "type", "boolean");
-        colB = Map.of("name", "xx2", "type", "double");
-        assertEquals(List.of(colA, colB), result.get("columns"));
-        assertEquals(List.of(List.of(false, 9.1), List.of(true, 8.1)), result.get("values"));
+        validateResultsOfDoubleParametersForIdentifiers(query);
 
         query = requestObjectBuilder().query(
             format(
@@ -845,13 +838,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 testIndexName()
             )
         ).params("[\"integer\", \"short\", \"double\", \"boolean\", \"xx2\", \"max\"]");
-        result = runEsql(query);
-        colA = Map.of("name", "boolean", "type", "boolean");
-        colB = Map.of("name", "xx2", "type", "double");
-        assertEquals(List.of(colA, colB), result.get("columns"));
-        assertEquals(List.of(List.of(false, 9.1), List.of(true, 8.1)), result.get("values"));
+        validateResultsOfDoubleParametersForIdentifiers(query);
 
-        // anonymous
+        // anonymous double parameters
         query = requestObjectBuilder().query(
             format(null, "from {} | eval x1 = ?? | where ?? == x1 | stats xx2 = ??(??) by ?? | keep ??, ?? | sort ??", testIndexName())
         )
@@ -859,20 +848,12 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 "[{\"n1\" : \"integer\"}, {\"n2\" : \"short\"}, {\"fn1\" : \"max\"}, {\"n3\" : \"double\"}, {\"n4\" : \"boolean\"}, "
                     + "{\"n4\" : \"boolean\"}, {\"n5\" : \"xx2\"}, {\"n4\" : \"boolean\"}]"
             );
-        result = runEsql(query);
-        colA = Map.of("name", "boolean", "type", "boolean");
-        colB = Map.of("name", "xx2", "type", "double");
-        assertEquals(List.of(colA, colB), result.get("columns"));
-        assertEquals(List.of(List.of(false, 9.1), List.of(true, 8.1)), result.get("values"));
+        validateResultsOfDoubleParametersForIdentifiers(query);
 
         query = requestObjectBuilder().query(
             format(null, "from {} | eval x1 = ?? | where ?? == x1 | stats xx2 = ??(??) by ?? | keep ??, ?? | sort ??", testIndexName())
         ).params("[\"integer\", \"short\", \"max\", \"double\", \"boolean\", \"boolean\", \"xx2\", \"boolean\"]");
-        result = runEsql(query);
-        colA = Map.of("name", "boolean", "type", "boolean");
-        colB = Map.of("name", "xx2", "type", "double");
-        assertEquals(List.of(colA, colB), result.get("columns"));
-        assertEquals(List.of(List.of(false, 9.1), List.of(true, 8.1)), result.get("values"));
+        validateResultsOfDoubleParametersForIdentifiers(query);
 
         // missing params
         ResponseException re = expectThrows(
@@ -958,6 +939,14 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             assertThat(error, containsString("ParsingException"));
             assertThat(error, containsString("line 1:23: mismatched input '??cmd' expecting {'dissect', 'drop'"));
         }
+    }
+
+    private void validateResultsOfDoubleParametersForIdentifiers(RequestObjectBuilder query) throws IOException {
+        Map<String, Object> result = runEsql(query);
+        Map<String, String> colA = Map.of("name", "boolean", "type", "boolean");
+        Map<String, String> colB = Map.of("name", "xx2", "type", "double");
+        assertEquals(List.of(colA, colB), result.get("columns"));
+        assertEquals(List.of(List.of(false, 9.1), List.of(true, 8.1)), result.get("values"));
     }
 
     public void testErrorMessageForLiteralDateMathOverflow() throws IOException {

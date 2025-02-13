@@ -1,0 +1,5 @@
+pr: 121224
+summary: Reenable "Reduce Data Loss in System Indices Migration" with fix
+area: Infra/Core
+type: bug
+issues: []

@@ -56,8 +56,8 @@ public class RepeatStaticTests extends ESTestCase {
         String repeated = process(str, number);
         assertNull(repeated);
         assertWarnings(
-            "Line 1:1: java.lang.IllegalArgumentException: Creating repeated strings with more than [1048576] bytes is not supported",
-            "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
+            "Line -1:-1: java.lang.IllegalArgumentException: Creating repeated strings with more than [1048576] bytes is not supported",
+            "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded."
         );
     }
 

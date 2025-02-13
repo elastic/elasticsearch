@@ -148,7 +148,7 @@ public class EntitlementInitialization {
                         new OutboundNetworkEntitlement(),
                         new LoadNativeLibrariesEntitlement(),
                         new FilesEntitlement(
-                            List.of(new FilesEntitlement.FileData(EntitlementBootstrap.bootstrapArgs().tempDir().toString(), READ_WRITE))
+                            List.of(FilesEntitlement.FileData.ofPath(EntitlementBootstrap.bootstrapArgs().tempDir(), READ_WRITE))
                         )
                     )
                 ),
@@ -159,7 +159,7 @@ public class EntitlementInitialization {
                     "org.elasticsearch.nativeaccess",
                     List.of(
                         new LoadNativeLibrariesEntitlement(),
-                        new FilesEntitlement(Arrays.stream(dataDirs).map(d -> FileData.ofPath(Path.of(d.toString()), READ_WRITE)).toList())
+                        new FilesEntitlement(Arrays.stream(dataDirs).map(d -> FileData.ofPath(d, READ_WRITE)).toList())
                     )
                 )
             )

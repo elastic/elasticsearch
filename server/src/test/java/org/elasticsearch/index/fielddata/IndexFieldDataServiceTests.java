@@ -333,7 +333,8 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
                 null,
                 false,
                 null,
-                null
+                null,
+                false
             )
         );
     }
@@ -353,7 +354,8 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
                 null,
                 false,
                 null,
-                null
+                null,
+                false
             )
         );
     }

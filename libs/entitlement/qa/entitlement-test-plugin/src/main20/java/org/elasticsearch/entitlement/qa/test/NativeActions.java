@@ -149,7 +149,7 @@ class NativeActions {
     @EntitlementTest(expectedAccess = PLUGINS)
     static void symbolLookupWithPath() {
         try {
-            SymbolLookup.libraryLookup(Path.of("/foo/bar/libFoo.so"), SegmentScope.auto());
+            SymbolLookup.libraryLookup(FileCheckActions.readDir().resolve("libFoo.so"), SegmentScope.auto());
         } catch (IllegalArgumentException e) {
             // IllegalArgumentException is thrown if path does not point to a valid library (and it does not)
         }

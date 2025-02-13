@@ -28,6 +28,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketAddress;
 import java.net.SocketImplFactory;
+import java.net.URI;
 import java.net.URL;
 import java.net.URLStreamHandler;
 import java.net.URLStreamHandlerFactory;
@@ -43,17 +44,24 @@ import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.nio.channels.spi.SelectorProvider;
 import java.nio.charset.Charset;
+import java.nio.file.AccessMode;
+import java.nio.file.CopyOption;
+import java.nio.file.DirectoryStream;
 import java.nio.file.FileStore;
 import java.nio.file.LinkOption;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.UserPrincipal;
 import java.nio.file.spi.FileSystemProvider;
 import java.security.cert.CertStoreParameters;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.TimeZone;
+import java.util.concurrent.ExecutorService;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
@@ -491,7 +499,74 @@ public interface EntitlementChecker {
     void check$java_nio_file_Files$$setOwner(Class<?> callerClass, Path path, UserPrincipal principal);
 
     // file system providers
+    void check$java_nio_file_spi_FileSystemProvider$(Class<?> callerClass);
+
+    void checkNewFileSystem(Class<?> callerClass, FileSystemProvider that, URI uri, Map<String, ?> env);
+
+    void checkNewFileSystem(Class<?> callerClass, FileSystemProvider that, Path path, Map<String, ?> env);
+
     void checkNewInputStream(Class<?> callerClass, FileSystemProvider that, Path path, OpenOption... options);
+
+    void checkNewOutputStream(Class<?> callerClass, FileSystemProvider that, Path path, OpenOption... options);
+
+    void checkNewFileChannel(
+        Class<?> callerClass,
+        FileSystemProvider that,
+        Path path,
+        Set<? extends OpenOption> options,
+        FileAttribute<?>... attrs
+    );
+
+    void checkNewAsynchronousFileChannel(
+        Class<?> callerClass,
+        FileSystemProvider that,
+        Path path,
+        Set<? extends OpenOption> options,
+        ExecutorService executor,
+        FileAttribute<?>... attrs
+    );
+
+    void checkNewByteChannel(
+        Class<?> callerClass,
+        FileSystemProvider that,
+        Path path,
+        Set<? extends OpenOption> options,
+        FileAttribute<?>... attrs
+    );
+
+    void checkNewDirectoryStream(Class<?> callerClass, FileSystemProvider that, Path dir, DirectoryStream.Filter<? super Path> filter);
+
+    void checkCreateDirectory(Class<?> callerClass, FileSystemProvider that, Path dir, FileAttribute<?>... attrs);
+
+    void checkCreateSymbolicLink(Class<?> callerClass, FileSystemProvider that, Path link, Path target, FileAttribute<?>... attrs);
+
+    void checkCreateLink(Class<?> callerClass, FileSystemProvider that, Path link, Path existing);
+
+    void checkDelete(Class<?> callerClass, FileSystemProvider that, Path path);
+
+    void checkDeleteIfExists(Class<?> callerClass, FileSystemProvider that, Path path);
+
+    void checkReadSymbolicLink(Class<?> callerClass, FileSystemProvider that, Path link);
+
+    void checkCopy(Class<?> callerClass, FileSystemProvider that, Path source, Path target, CopyOption... options);
+
+    void checkMove(Class<?> callerClass, FileSystemProvider that, Path source, Path target, CopyOption... options);
+
+    void checkIsSameFile(Class<?> callerClass, FileSystemProvider that, Path path, Path path2);
+
+    void checkIsHidden(Class<?> callerClass, FileSystemProvider that, Path path);
+
+    void checkGetFileStore(Class<?> callerClass, FileSystemProvider that, Path path);
+
+    void checkCheckAccess(Class<?> callerClass, FileSystemProvider that, Path path, AccessMode... modes);
+
+    void checkGetFileAttributeView(Class<?> callerClass, FileSystemProvider that, Path path, Class<?> type, LinkOption... options);
+
+    void checkReadAttributes(Class<?> callerClass, FileSystemProvider that, Path path, Class<?> type, LinkOption... options);
+
+    void checkReadAttributes(Class<?> callerClass, FileSystemProvider that, Path path, String attributes, LinkOption... options);
+
+    void checkSetAttribute(Class<?> callerClass, FileSystemProvider that, Path path, String attribute, Object value, LinkOption... options);
 
     // file store
     void checkGetFileStoreAttributeView(Class<?> callerClass, FileStore that, Class<?> type);

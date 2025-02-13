@@ -643,6 +643,7 @@ public class Constants {
         new FeatureFlag("reindex_data_stream").isEnabled() ? "indices:admin/data_stream/reindex" : null,
         new FeatureFlag("reindex_data_stream").isEnabled() ? "indices:admin/data_stream/reindex_cancel" : null,
         new FeatureFlag("reindex_data_stream").isEnabled() ? "indices:admin/index/create_from_source" : null,
+        new FeatureFlag("reindex_data_stream").isEnabled() ? "indices:admin/index/copy_lifecycle_index_metadata" : null,
         "internal:admin/repository/verify",
         "internal:admin/repository/verify/coordinate"
     ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());

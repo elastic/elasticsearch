@@ -94,7 +94,7 @@ public class CopyLifecycleIndexMetadataAction extends ActionType<AcknowledgedRes
 
         @Override
         public String[] indices() {
-            return new String[] { sourceIndex };
+            return new String[] { sourceIndex, destIndex };
         }
 
         @Override

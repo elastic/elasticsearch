@@ -47,7 +47,6 @@ import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.migrate.MigratePlugin;
 import org.elasticsearch.xpack.migrate.MigrateTemplateRegistry;
 import org.junit.Before;
@@ -90,7 +89,6 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(
-            LocalStateCompositeXPackPlugin.class,
             MigratePlugin.class,
             ReindexPlugin.class,
             MockTransportService.TestPlugin.class,

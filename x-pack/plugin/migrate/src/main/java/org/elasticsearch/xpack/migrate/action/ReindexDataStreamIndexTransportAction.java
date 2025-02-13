@@ -341,7 +341,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         ActionListener<AcknowledgedResponse> listener,
         TaskId parentTaskId
     ) {
-        logger.debug("Updating settings on destination index after reindex completes");
+        logger.debug("Copying index metadata to destination index [{}] from source index [{}]", destIndexName, sourceIndexName);
         var request = new CopyIndexMetadataAction.Request(TimeValue.MAX_VALUE, sourceIndexName, destIndexName);
         request.setParentTask(parentTaskId);
         var errorMessage = String.format(

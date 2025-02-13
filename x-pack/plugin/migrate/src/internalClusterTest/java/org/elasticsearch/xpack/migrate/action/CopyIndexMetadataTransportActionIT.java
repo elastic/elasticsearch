@@ -36,11 +36,11 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.StartILMRequest;
+import org.elasticsearch.xpack.core.ilm.StopILMRequest;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.migrate.MigratePlugin;
-import org.junit.After;
 
 import java.util.Collection;
 import java.util.List;
@@ -51,10 +51,6 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class CopyIndexMetadataTransportActionIT extends ESIntegTestCase {
-    @After
-    public void cleanup() {
-        updateClusterSettings(Settings.builder().putNull("*"));
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -67,15 +63,25 @@ public class CopyIndexMetadataTransportActionIT extends ESIntegTestCase {
         );
     }
 
-    public void testCreationDate() throws Exception {
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s")
+            // This just generates less churn and makes it easier to read the log file if needed
+            .put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED, false)
+            .build();
+    }
+
+    public void testCreationDate() {
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        indicesAdmin().create(new CreateIndexRequest(sourceIndex)).get();
+        safeGet(indicesAdmin().create(new CreateIndexRequest(sourceIndex)));
 
         // so creation date is different
         safeSleep(2);
 
         var destIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        indicesAdmin().create(new CreateIndexRequest(destIndex)).get();
+        safeGet(indicesAdmin().create(new CreateIndexRequest(destIndex)));
 
         // verify source and dest date are actually different before copying
         var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(sourceIndex, destIndex)).actionGet();
@@ -101,8 +107,6 @@ public class CopyIndexMetadataTransportActionIT extends ESIntegTestCase {
 
     public void testILMState() throws Exception {
 
-        updateClusterSettings(Settings.builder().put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s"));
-
         Map<String, Phase> phases = Map.of(
             "hot",
             new Phase(
@@ -125,16 +129,16 @@ public class CopyIndexMetadataTransportActionIT extends ESIntegTestCase {
         createDocument(dataStream);
         assertAcked(safeGet(client().execute(ILMActions.START, new StartILMRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))));
         assertBusy(() -> {
-            var getIndexResponse = indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(dataStream)).get();
+            var getIndexResponse = safeGet(indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(dataStream)));
             assertTrue(getIndexResponse.indices().length > 1);
         });
         // stop ILM so source does not change after copying metadata
-        assertAcked(safeGet(client().execute(ILMActions.STOP, new StartILMRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))));
+        assertAcked(safeGet(client().execute(ILMActions.STOP, new StopILMRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))));
 
-        var getIndexResponse = indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(dataStream)).get();
+        var getIndexResponse = safeGet(indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(dataStream)));
         for (var backingIndex : getIndexResponse.indices()) {
             var destIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-            indicesAdmin().create(new CreateIndexRequest(destIndex)).get();
+            safeGet(indicesAdmin().create(new CreateIndexRequest(destIndex)));
 
             var metadataBefore = getClusterMetadata(backingIndex, destIndex);
             IndexMetadata source = metadataBefore.index(backingIndex);
@@ -169,11 +173,11 @@ public class CopyIndexMetadataTransportActionIT extends ESIntegTestCase {
         createDocument(dataStream);
         var writeIndex = rollover(dataStream);
 
-        var getIndexResponse = indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(dataStream)).get();
+        var getIndexResponse = safeGet(indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(dataStream)));
         for (var backingIndex : getIndexResponse.indices()) {
 
             var destIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-            indicesAdmin().create(new CreateIndexRequest(destIndex)).get();
+            safeGet(indicesAdmin().create(new CreateIndexRequest(destIndex)));
 
             var metadataBefore = getClusterMetadata(backingIndex, destIndex);
             IndexMetadata source = metadataBefore.index(backingIndex);
@@ -240,18 +244,23 @@ public class CopyIndexMetadataTransportActionIT extends ESIntegTestCase {
         // Get some randomized but reasonable timestamps on the data since not all of it is guaranteed to arrive in order.
         long timeSeed = System.currentTimeMillis();
         long timestamp = randomLongBetween(timeSeed - TimeUnit.HOURS.toMillis(5), timeSeed);
-        client().index(
-            new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE)
-                .source(
-                    JsonXContent.contentBuilder()
-                        .startObject()
-                        .field("@timestamp", timestamp)
-                        .field("data", randomAlphaOfLength(25))
-                        .endObject()
-                )
-        ).get();
-        indicesAdmin().refresh(new RefreshRequest(".ds-" + dataStreamName + "*").indicesOptions(IndicesOptions.lenientExpandOpenHidden()))
-            .get();
+        safeGet(
+            client().index(
+                new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE)
+                    .source(
+                        JsonXContent.contentBuilder()
+                            .startObject()
+                            .field("@timestamp", timestamp)
+                            .field("data", randomAlphaOfLength(25))
+                            .endObject()
+                    )
+            )
+        );
+        safeGet(
+            indicesAdmin().refresh(
+                new RefreshRequest(".ds-" + dataStreamName + "*").indicesOptions(IndicesOptions.lenientExpandOpenHidden())
+            )
+        );
         return timestamp;
     }
 

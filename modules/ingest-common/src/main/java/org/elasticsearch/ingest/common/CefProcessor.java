@@ -42,13 +42,7 @@ public final class CefProcessor extends AbstractProcessor {
     final boolean ignoreMissing;
     final boolean removeEmptyValue;
 
-    CefProcessor(
-            String tag,
-            String description,
-            String field,
-            String targetField,
-            boolean ignoreMissing,
-            boolean removeEmptyValue) {
+    CefProcessor(String tag, String description, String field, String targetField, boolean ignoreMissing, boolean removeEmptyValue) {
         super(tag, description);
         this.field = field;
         this.ignoreMissing = ignoreMissing;
@@ -75,17 +69,16 @@ public final class CefProcessor extends AbstractProcessor {
     public static final class Factory implements org.elasticsearch.ingest.Processor.Factory {
         @Override
         public CefProcessor create(
-                Map<String, Processor.Factory> registry,
-                String processorTag,
-                String description,
-                Map<String, Object> config) {
+            Map<String, Processor.Factory> registry,
+            String processorTag,
+            String description,
+            Map<String, Object> config
+        ) {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
 
-            boolean removeEmptyValue = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config,
-                    "ignore_empty_value", true);
+            boolean removeEmptyValue = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_empty_value", true);
 
-            boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing",
-                    false);
+            boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field");
             return new CefProcessor(processorTag, description, field, targetField, ignoreMissing, removeEmptyValue);
         }

@@ -8,14 +8,14 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.ingest.IngestDocument;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
 import java.util.regex.Matcher;
-
-import org.elasticsearch.ingest.IngestDocument;
+import java.util.regex.Pattern;
 
 final class CefParser {
 
@@ -36,8 +36,9 @@ final class CefParser {
     private static final String EXTENSION_KEY_PATTERN = "(?:\\w+(?:\\.[^\\.=\\s\\|\\\\\\[\\]]+)*(?:\\[[0-9]+\\])?(?==))";
     private static final Pattern EXTENSION_KEY_ARRAY_CAPTURE = Pattern.compile("^([^\\[\\]]+)((?:\\[[0-9]+\\])+)$");
     private static final String EXTENSION_VALUE_PATTERN = "(?:\\S|\\s(?!" + EXTENSION_KEY_PATTERN + "=))*";
-    private static final Pattern EXTENSION_NEXT_KEY_VALUE_PATTERN = Pattern
-            .compile("(" + EXTENSION_KEY_PATTERN + ")=(" + EXTENSION_VALUE_PATTERN + ")(?:\\s+|$)");
+    private static final Pattern EXTENSION_NEXT_KEY_VALUE_PATTERN = Pattern.compile(
+        "(" + EXTENSION_KEY_PATTERN + ")=(" + EXTENSION_VALUE_PATTERN + ")(?:\\s+|$)"
+    );
 
     private static final Map<String, String> HEADER_FIELD_SANITIZER_MAPPING = new HashMap<>();
     private static final Map<String, String> EXTENSION_VALUE_SANITIZER_MAPPING = new HashMap<>();
@@ -142,8 +143,7 @@ final class CefParser {
         }
         // If there's any remaining unparsed content, throw an exception
         if (lastEnd < extensionString.length()) {
-            throw new IllegalArgumentException("Invalid extensions; keyless value present: " +
-                    extensionString.substring(lastEnd));
+            throw new IllegalArgumentException("Invalid extensions; keyless value present: " + extensionString.substring(lastEnd));
         }
         return extensions;
     }

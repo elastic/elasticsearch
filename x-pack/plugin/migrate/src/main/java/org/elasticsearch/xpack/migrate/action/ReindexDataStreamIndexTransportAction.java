@@ -42,17 +42,21 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.frozen.FrozenEngine;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.protocol.xpack.frozen.FreezeRequest;
+import org.elasticsearch.protocol.xpack.frozen.FreezeResponse;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate;
+import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 import org.elasticsearch.xpack.migrate.MigrateTemplateRegistry;
 
 import java.util.Locale;
@@ -156,7 +160,8 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
             return;
         }
         final boolean wasClosed = isClosed(sourceIndex);
-        SubscribableListener.<AcknowledgedResponse>newForked(l -> setBlockWrites(sourceIndexName, l, taskId))
+        SubscribableListener.<FreezeResponse>newForked(l -> unfreezeIfFrozen(sourceIndexName, sourceIndex, l, taskId))
+            .<AcknowledgedResponse>andThen(l -> setBlockWrites(sourceIndexName, l, taskId))
             .<OpenIndexResponse>andThen(l -> openIndexIfClosed(sourceIndexName, wasClosed, l, taskId))
             .<BroadcastResponse>andThen(l -> refresh(sourceIndexName, l, taskId))
             .<AcknowledgedResponse>andThen(l -> deleteDestIfExists(destIndexName, l, taskId))
@@ -198,6 +203,22 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
 
     private static boolean isClosed(IndexMetadata indexMetadata) {
         return indexMetadata.getState().equals(IndexMetadata.State.CLOSE);
+    }
+
+    private void unfreezeIfFrozen(
+        String sourceIndexName,
+        IndexMetadata indexMetadata,
+        ActionListener<FreezeResponse> listener,
+        TaskId parentTaskId
+    ) {
+        if (FrozenEngine.INDEX_FROZEN.get(indexMetadata.getSettings()).equals(Boolean.TRUE)) {
+            logger.debug("Unfreezing source index [{}]", sourceIndexName);
+            FreezeRequest freezeRequest = new FreezeRequest(TimeValue.MAX_VALUE, TimeValue.MAX_VALUE, sourceIndexName).setFreeze(false);
+            freezeRequest.setParentTask(parentTaskId);
+            client.execute(FreezeIndexAction.INSTANCE, freezeRequest, listener);
+        } else {
+            listener.onResponse(null);
+        }
     }
 
     private void setBlockWrites(String sourceIndexName, ActionListener<AcknowledgedResponse> listener, TaskId parentTaskId) {

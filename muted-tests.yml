@@ -199,12 +199,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search/380_sort_segments_on_timestamp/Test that index segments are NOT sorted on timestamp field when @timestamp field is dynamically added}
   issue: https://github.com/elastic/elasticsearch/issues/116221
-- class: org.elasticsearch.ingest.common.IngestCommonClientYamlTestSuiteIT
-  method: test {yaml=ingest/310_reroute_processor/Test remove then add reroute processor with and without lazy rollover}
-  issue: https://github.com/elastic/elasticsearch/issues/116158
-- class: org.elasticsearch.ingest.common.IngestCommonClientYamlTestSuiteIT
-  method: test {yaml=ingest/310_reroute_processor/Test data stream with lazy rollover obtains pipeline from template}
-  issue: https://github.com/elastic/elasticsearch/issues/116157
 - class: org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderIT
   method: testEnterpriseDownloaderTask
   issue: https://github.com/elastic/elasticsearch/issues/115163
@@ -510,11 +504,6 @@ tests:
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testProfileAPIsWhenIndexNotCreated
   issue: https://github.com/elastic/elasticsearch/issues/121096
-- class: org.elasticsearch.xpack.transform.checkpoint.TransformCCSCanMatchIT
-  method: testTransformLifecycle_RangeQueryThatMatchesNoShards
-  issue: https://github.com/elastic/elasticsearch/issues/121480
-- class: org.elasticsearch.xpack.migrate.action.ReindexDatastreamIndexTransportActionIT
-  issue: https://github.com/elastic/elasticsearch/issues/121737
 - class: org.elasticsearch.xpack.security.authc.service.ServiceAccountSingleNodeTests
   method: testAuthenticateWithServiceFileToken
   issue: https://github.com/elastic/elasticsearch/issues/120988
@@ -536,9 +525,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/121483
 - class: org.elasticsearch.xpack.application.FullClusterRestartIT
   issue: https://github.com/elastic/elasticsearch/issues/121935
-- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncEnrichStopIT
-  method: testEnrichAfterStop
-  issue: https://github.com/elastic/elasticsearch/issues/121994
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {date_nanos.Bucket Date nanos by 10 minutes SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/122273
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=mtermvectors/10_basic/Tests catching other exceptions per item}
+  issue: https://github.com/elastic/elasticsearch/issues/122414

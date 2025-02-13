@@ -1,5 +1,5 @@
 pr: 122538
 summary: Fix `ArrayIndexOutOfBoundsException` in `ShardBulkInferenceActionFilter`
-area: Relevance
+area: Ingest
 type: bug
 issues: []

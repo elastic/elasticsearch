@@ -10,6 +10,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.Transport;
 
 import java.util.List;
@@ -90,7 +91,7 @@ abstract class SearchPhase {
             ? searchPhaseResult.queryResult()
             : searchPhaseResult.rankFeatureResult();
         if (phaseResult != null
-            && phaseResult.hasSearchContext()
+            && (phaseResult.hasSearchContext() || (phaseResult instanceof QuerySearchResult q && q.isReduced() && q.getContextId() != null))
             && context.getRequest().scroll() == null
             && (context.isPartOfPointInTime(phaseResult.getContextId()) == false)) {
             try {

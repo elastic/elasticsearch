@@ -131,6 +131,7 @@ setup:
                 field: random_long
   - match: {hits.total.value: 1}
   - match: {aggregations.random_value.buckets.0.key: $random_value}
+  - match: {aggregations.random_value.buckets.0.doc_count: 1}
 
 ---
 "fetch fields no doc_values":

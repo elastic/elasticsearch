@@ -214,11 +214,15 @@ Facello
 Simmel
 ;
 
-swappingName
-row  foo = 10, bar = null 
-| rename bar AS foo, foo AS bar
+swappingNames
+FROM employees
+| SORT emp_no ASC
+| KEEP first_name, last_name
+| RENAME first_name AS last_name, last_name AS first_name
+| LIMIT 2
 ;
 
-bar:INTEGER | foo:NULL
-10          | null
+last_name:keyword   | first_name:keyword
+Georgi              | Facello
+Bezalel             | Simmel
 ;

@@ -2,4 +2,5 @@ pr: 122417
 summary: Fix listener leak in exchange service
 area: ES|QL
 type: bug
-issues: []
+issues:
+ - 122271

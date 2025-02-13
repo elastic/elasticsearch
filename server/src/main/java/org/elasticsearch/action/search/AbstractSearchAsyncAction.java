@@ -744,7 +744,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      */
     protected abstract SearchPhase getNextPhase();
 
-    private static final class PendingExecutions {
+    protected static final class PendingExecutions {
         private final Semaphore semaphore;
         private final ConcurrentLinkedQueue<Consumer<Releasable>> queue = new ConcurrentLinkedQueue<>();
 

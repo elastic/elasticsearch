@@ -30,9 +30,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.core.TimeValue;
@@ -563,7 +563,6 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 final int shardCount = request.shards.size();
                 int workers = Math.min(request.searchRequest.getMaxConcurrentShardRequests(), Math.min(shardCount, searchPoolMax));
                 final var state = new QueryPerNodeState(
-                    new AtomicInteger(workers - 1),
                     new QueryPhaseResultConsumer(
                         request.searchRequest,
                         dependencies.executor,
@@ -581,7 +580,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                 );
                 // TODO: log activating or otherwise limiting parallelism might be helpful here
                 for (int i = 0; i < workers; i++) {
-                    dependencies.executor.execute(shardTask(state, i));
+                    executeShardTasks(state);
                 }
             }
         );
@@ -639,10 +638,13 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         return shardRequest;
     }
 
-    private static AbstractRunnable shardTask(QueryPerNodeState state, int dataNodeLocalIdx) {
-        return new AbstractRunnable() {
-            @Override
-            protected void doRun() {
+    private static void executeShardTasks(QueryPerNodeState state) {
+        int idx;
+        final int totalShardCount = state.searchRequest.shards.size();
+        while ((idx = state.currentShardIndex.getAndIncrement()) < totalShardCount) {
+            final int dataNodeLocalIdx = idx;
+            final ListenableFuture<Void> doneFuture = new ListenableFuture<>();
+            try {
                 var request = state.searchRequest;
                 var searchRequest = request.searchRequest;
                 var pitBuilder = searchRequest.pointInTimeBuilder();
@@ -680,7 +682,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                             } catch (Exception e) {
                                 setFailure(state, dataNodeLocalIdx, e);
                             } finally {
-                                maybeNext();
+                                doneFuture.onResponse(null);
                             }
                         }
 
@@ -694,37 +696,32 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                             // TODO: count down fully and just respond with an exception if partial results aren't allowed as an
                             // optimization
                             setFailure(state, dataNodeLocalIdx, e);
-                            maybeNext();
+                            doneFuture.onResponse(null);
                         }
                     }
                 );
-            }
-
-            @Override
-            public void onFailure(Exception e) {
+            } catch (Exception e) {
                 // TODO this could be done better now, we probably should only make sure to have a single loop running at
                 // minimum and ignore + requeue rejections in that case
                 state.failures.put(dataNodeLocalIdx, e);
                 state.onDone();
-                // TODO SO risk in case of rejections
-                maybeNext();
+                continue;
             }
+            if (doneFuture.isDone() == false && state.currentShardIndex.get() < totalShardCount) {
+                doneFuture.addListener(new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void unused) {
+                        executeShardTasks(state);
+                    }
 
-            @Override
-            public void onRejection(Exception e) {
-                // TODO this could be done better now, we probably should only make sure to have a single loop running per search
-                onFailure(e);
+                    @Override
+                    public void onFailure(Exception e) {
+                        throw new AssertionError("impossible");
+                    }
+                });
+                break;
             }
-
-            private void maybeNext() {
-                final int shardToQuery = state.currentShardIndex.incrementAndGet();
-                if (shardToQuery < state.searchRequest.shards.size()) {
-                    // TODO: this approach of repeatedly submitting tasks gives us fairness at the cost of throughput, we could
-                    // also go for throughput by looping in tasks
-                    state.dependencies.executor.execute(shardTask(state, shardToQuery));
-                }
-            }
-        };
+        }
     }
 
     private record Dependencies(SearchService searchService, Executor executor) {}
@@ -738,7 +735,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             0L
         );
 
-        private final AtomicInteger currentShardIndex;
+        private final AtomicInteger currentShardIndex = new AtomicInteger();
         private final QueryPhaseResultConsumer queryPhaseResultConsumer;
         private final NodeQueryRequest searchRequest;
         private final CancellableTask task;
@@ -752,14 +749,12 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         private volatile BottomSortValuesCollector bottomSortCollector;
 
         private QueryPerNodeState(
-            AtomicInteger currentShardIndex,
             QueryPhaseResultConsumer queryPhaseResultConsumer,
             NodeQueryRequest searchRequest,
             CancellableTask task,
             TransportChannel channel,
             Dependencies dependencies
         ) {
-            this.currentShardIndex = currentShardIndex;
             this.queryPhaseResultConsumer = queryPhaseResultConsumer;
             this.searchRequest = searchRequest;
             this.trackTotalHitsUpTo = searchRequest.searchRequest.resolveTrackTotalHitsUpTo();

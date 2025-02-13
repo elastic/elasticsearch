@@ -819,7 +819,7 @@ public class EsqlCapabilities {
          * Fixes a series of issues with inlinestats which had an incomplete implementation after lookup and inlinestats
          * were refactored.
          */
-        INLINESTATS_V3;
+        INLINESTATS_V3(EsqlPlugin.INLINESTATS_FEATURE_FLAG);
 
         private final boolean enabled;
 

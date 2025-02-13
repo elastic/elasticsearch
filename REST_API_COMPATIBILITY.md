@@ -174,7 +174,7 @@ In some cases the prior version of the YAML REST tests are not sufficient to ful
 
 #### Breaking Changes
 
-It is possible to be in a state where you have intentionally made a breaking change and the compatibility tests will fail irrespective of checks for `skip` or `requires` cluster or test features in the current version. In this state, assuming the breaking changes are reasonable and agreed upon by the breaking change committee, the correct behavior is to skip the test in the `build.gradle`. For example, if you make a breaking change that causes the `range/20_synthetic_source/Date range` to break then this test can be disabled temporarily in this file `rest-api-spec/build.gradle` like within this snippet:
+It is possible to be in a state where you have intentionally made a breaking change and the compatibility tests will fail irrespective of checks for `skip` or `requires` cluster or test features in the current version such as 9.0.0. In this state, assuming the breaking changes are reasonable and agreed upon by the breaking change committee, the correct behavior is to skip the test in the `build.gradle` in 9.0.0. For example, if you make a breaking change that causes the `range/20_synthetic_source/Date range` to break then this test can be disabled temporarily in this file `rest-api-spec/build.gradle` like within this snippet:
 
 ```groovy
 tasks.named("yamlRestCompatTestTransform").configure({task ->
@@ -185,11 +185,11 @@ tasks.named("yamlRestCompatTestTransform").configure({task ->
 })
 ```
 
-Minimally once this skip test is in place, the correct `skip` and `requires` checks will need to be backported. Once backported the yaml compatibility tests should now work without the skip in the `build.gradle` file, and it should be removed.  Consideration for whether tests should be cleaned up and changed based on how the breaking changes were backported is at the discretion of the team making the changes.
+Minimally once this skip test is in place, the correct `skip` and `requires` checks will need to be backported to say 8.latest. Once backported the yaml compatibility tests should now work without the skip in the `build.gradle` file in 9.0.0, and it should be removed.  Consideration for whether tests should be cleaned up and changed based on how the breaking changes were backported is at the discretion of the team making the changes.  As an example in 9.0.0 a `requires` should be added for new tests to validate the changed api or output and `skip` added for the old tests which break in 9.0.0.  Then in backport say to 8.latest the `requires` check should be added to the existing tests with the old behavior so they no longer break when running bwc or upgrade tests from 9.0.0 to 8.latest.
 
 #### Test Features
 
-Both cluster and test features exist. Cluster features are meant for new capability and test features can specifically be used to gate and manage `skip` and `requires` yaml test operations. Specifically in the context of backward compatibility and backporting, cluster and test features must be used consistently. When backporting and using these features they can not overlap in name and must be consistent when backported so that clusters built with these features are compatible.
+Both cluster and test features exist. Cluster features are meant for new capability and test features can specifically be used to gate and manage `skip` and `requires` yaml test operations.  A cluster feature is typically used when behavior is different based on how a cluster is setup or migrated whereas a test feature is used when the old code was invalid and is replaced but breaks api compatibility. Specifically in the context of backward compatibility and backporting, cluster and test features must be used consistently. When backporting and using these features they can not overlap in name and must be consistent when backported so that clusters built with these features are compatible.
 
 ### Developer's workflow
 

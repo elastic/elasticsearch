@@ -1,0 +1,233 @@
+setup:
+  - requires:
+      cluster_features: ["mapper.tsdb_nested_field_support"]
+      reason: "tsdb index with nested field support enabled"
+
+---
+"Create TSDB index with field of nested type":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mode: time_series
+              number_of_replicas: 1
+              number_of_shards: 1
+              routing_path: [department]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              department:
+                type: keyword
+                time_series_dimension: true
+              staff:
+                type: integer
+              courses:
+                type: nested
+                properties:
+                  name:
+                    type: keyword
+                  credits:
+                    type: integer
+
+  - do:
+      index:
+        index: test
+        body: { "@timestamp": "2021-04-28T01:00:00Z", "department": "compsci", "staff": 12, "courses": [ { "name": "Object Oriented Programming", "credits": 3 }, { "name": "Theory of Computation", "credits": 4 } ] }
+
+  - do:
+      index:
+        index: test
+        body: { "@timestamp": "2021-04-28T02:00:00Z", "department": "math", "staff": 20, "courses": [ { "name": "Precalculus", "credits": 1 }, { "name": "Linear Algebra", "credits": 3 } ] }
+
+  - do:
+      indices.refresh:
+        index: [ test ]
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          query:
+            nested:
+              path: "courses"
+              query:
+                bool:
+                  must:
+                    - term:
+                        courses.name: Precalculus
+                    - term:
+                        courses.credits: 3
+
+  - match: { hits.total.value: 0 }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            nested:
+              path: "courses"
+              query:
+                bool:
+                  must:
+                    - term:
+                        courses.name: "Object Oriented Programming"
+                    - term:
+                        courses.credits: 3
+
+  - match: { hits.total.value: 1 }
+  - match: { "hits.hits.0._source.@timestamp": "2021-04-28T01:00:00.000Z" }
+  - match: { hits.hits.0._source.department: "compsci" }
+  - match: { hits.hits.0._source.courses:  [ { "name": "Object Oriented Programming", "credits": 3 }, { "name": "Theory of Computation", "credits": 4, } ] }
+
+---
+
+"TSDB index with multi-level nested fields":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mode: time_series
+              number_of_replicas: 1
+              number_of_shards: 1
+              routing_path: [department]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              department:
+                type: keyword
+                time_series_dimension: true
+              staff:
+                type: integer
+              courses:
+                type: nested
+                properties:
+                  name:
+                    type: keyword
+                  credits:
+                    type: integer
+                  students:
+                    type: nested
+                    properties:
+                      name:
+                        type: text
+                      major:
+                        type: keyword
+
+  - do:
+      index:
+        index: test
+        body:
+          "@timestamp": "2021-04-28T01:00:00Z"
+          department: "compsci"
+          staff: 12
+          courses:
+            - name: "Object Oriented Programming"
+              credits: 3
+              students:
+                - name: "Kimora Tanner"
+                  major: "Computer Science"
+                - name: "Bruno Garrett"
+                  major: "Software Engineering"
+            - name: "Theory of Computation"
+              credits: 4
+              students:
+                - name: "Elliott Booker"
+                  major: "Computer Engineering"
+                - name: "Kimora Tanner"
+                  major: "Software Engineering"
+
+  - do:
+     index:
+       index: test
+       body:
+         "@timestamp": "2021-04-28T02:00:00Z"
+         department: "math"
+         staff: 20
+         courses:
+           - name: "Precalculus"
+             credits: 4
+             students:
+               - name: "Elliott Ayers"
+                 major: "Software Engineering"
+               - name: "Sylvie Howe"
+                 major: "Computer Engineering"
+           - name: "Linear Algebra"
+             credits: 3
+             students:
+               - name: "Kimora Tanner"
+                 major: "Computer Science"
+               - name: "Bruno Garett"
+                 major: "Software Engineering"
+               - name: "Amelia Booker"
+                 major: "Psychology"
+
+  - do:
+      index:
+        index: test
+        body:
+          "@timestamp": "2021-04-28T03:00:00Z"
+          department: "compsci"
+          staff: 12
+          courses:
+            - name: "Object Oriented Programming"
+              credits: 3
+              students:
+                - name: "Kimora Tanner"
+                  major: "Computer Science"
+                - name: "Bruno Garrett"
+                  major: "Software Engineering"
+                - name: "Elliott Booker"
+                  major: "Computer Engineering"
+            - name: "Theory of Computation"
+              credits: 4
+              students:
+                - name: "Kimora Tanner"
+                  major: "Software Engineering"
+                - name: "Elliott Ayers"
+                  major: "Software Engineering"
+                - name: "Apollo Pittman"
+                  major: "Computer Engineering"
+
+  - do:
+      indices.refresh:
+        index: [ test ]
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            nested:
+              path: "courses"
+              query:
+                bool:
+                  must:
+                    - nested:
+                        path: "courses.students"
+                        query:
+                          bool:
+                            must:
+                              - match:
+                                  courses.students.name: "Elliott"
+                              - term:
+                                  courses.students.major: "Computer Engineering"
+                    - term:
+                        courses.name: "Theory of Computation"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.department: "compsci" }
+  - match: { "hits.hits.0._source.@timestamp": "2021-04-28T01:00:00.000Z" }

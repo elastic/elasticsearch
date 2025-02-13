@@ -164,7 +164,12 @@ public class EntitlementInitialization {
                     "org.apache.lucene.core",
                     List.of(
                         new LoadNativeLibrariesEntitlement(),
-                        new FilesEntitlement(Arrays.stream(dataDirs).map(d -> new FileData(d.toString(), READ_WRITE)).toList())
+                        new FilesEntitlement(
+                            Stream.concat(
+                                Stream.of(new FileData(EntitlementBootstrap.bootstrapArgs().configDir().toString(), READ)),
+                                Arrays.stream(dataDirs).map(d -> new FileData(d.toString(), READ_WRITE))
+                            ).toList()
+                        )
                     )
                 ),
                 new Scope(

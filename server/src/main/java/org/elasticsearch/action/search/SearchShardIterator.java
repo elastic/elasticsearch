@@ -12,7 +12,6 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
-import org.elasticsearch.common.util.Countable;
 import org.elasticsearch.common.util.PlainIterator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -29,7 +28,7 @@ import java.util.Objects;
  * the cluster alias.
  * @see OriginalIndices
  */
-public final class SearchShardIterator implements Comparable<SearchShardIterator>, Countable {
+public final class SearchShardIterator implements Comparable<SearchShardIterator> {
 
     private final OriginalIndices originalIndices;
     private final String clusterAlias;
@@ -171,7 +170,6 @@ public final class SearchShardIterator implements Comparable<SearchShardIterator
      *
      * @return number of shard routing instances in this iterator
      */
-    @Override
     public int size() {
         return targetNodesIterator.size();
     }

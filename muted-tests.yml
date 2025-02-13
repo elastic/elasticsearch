@@ -332,9 +332,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.vectors/42_knn_search_int4_flat/Vector similarity with filter only}
   issue: https://github.com/elastic/elasticsearch/issues/121412
-- class: org.elasticsearch.search.CrossClusterSearchUnavailableClusterIT
-  method: testSearchSkipUnavailable
-  issue: https://github.com/elastic/elasticsearch/issues/121497
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/cat/health/cat-health-no-timestamp-example}
   issue: https://github.com/elastic/elasticsearch/issues/121867
@@ -343,9 +340,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/121625
 - class: org.elasticsearch.xpack.searchablesnapshots.hdfs.SecureHdfsSearchableSnapshotsIT
   issue: https://github.com/elastic/elasticsearch/issues/121967
-- class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
-  method: testBottomFieldSort
-  issue: https://github.com/elastic/elasticsearch/issues/121503
 - class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
   issue: https://github.com/elastic/elasticsearch/issues/121537
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT

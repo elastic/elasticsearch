@@ -146,18 +146,23 @@ public class MetadataAutoshardIndexService {
         final String indexName = request.index();
         final IndexMetadata sourceMetadata = currentState.metadata().index(indexName);
         int sourceNumShards = sourceMetadata.getNumberOfShards();
+        int targetNumShards = sourceNumShards * 2;
 
         Settings.Builder settingsBuilder = Settings.builder().put(sourceMetadata.getSettings());
         settingsBuilder.remove(IndexMetadata.SETTING_NUMBER_OF_SHARDS);
-        settingsBuilder.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, sourceNumShards * 2);
+        settingsBuilder.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, targetNumShards);
 
         final Map<Index, Settings> updates = Maps.newHashMapWithExpectedSize(1);
         updates.put(sourceMetadata.getIndex(), settingsBuilder.build());
         final Metadata newMetadata = currentState.metadata().withIndexSettingsUpdates(updates);
 
+        /*
         var routingTableBuilder = RoutingTable.builder(allocationService.getShardRoutingRoleStrategy(), currentState.routingTable())
             .remove(indexName)
             .addAsNew(newMetadata.index(indexName));
+        */
+
+        var routingTableBuilder = RoutingTable.builder().updateNumberOfShards(targetNumShards, indexName);
 
         ClusterState updated = ClusterState.builder(currentState)
             .incrementVersion()

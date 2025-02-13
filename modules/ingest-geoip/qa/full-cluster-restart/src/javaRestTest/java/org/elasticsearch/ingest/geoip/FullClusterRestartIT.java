@@ -20,6 +20,7 @@ import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -196,6 +197,9 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
 
     private void testCatIndices(List<String> indexNames, @Nullable List<String> additionalIndexNames) throws IOException {
         Request catIndices = new Request("GET", "_cat/indices/*?s=index&h=index&expand_wildcards=all");
+        // the cat APIs can sometimes 404, erroneously
+        // see https://github.com/elastic/elasticsearch/issues/104371
+        setIgnoredErrorResponseCodes(catIndices, RestStatus.NOT_FOUND);
         String response = EntityUtils.toString(client().performRequest(catIndices).getEntity());
         List<String> indices = List.of(response.trim().split("\\s+"));
 

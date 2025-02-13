@@ -87,7 +87,7 @@ public class PolicyParserTests extends ESTestCase {
             List.of(
                 new Scope(
                     "entitlement-module-name",
-                    List.of(FilesEntitlement.build(List.of(Map.of("path", "test/path/to/file", "mode", "read_write"))))
+                    List.of(FilesEntitlement.build(List.of(Map.of("path", "/test/path/to/file", "mode", "read_write"))))
                 )
             )
         );
@@ -102,7 +102,7 @@ public class PolicyParserTests extends ESTestCase {
             List.of(
                 new Scope(
                     "entitlement-module-name",
-                    List.of(FilesEntitlement.build(List.of(Map.of("path", "test/path/to/file", "mode", "read_write"))))
+                    List.of(FilesEntitlement.build(List.of(Map.of("path", "/test/path/to/file", "mode", "read_write"))))
                 )
             )
         );
@@ -113,7 +113,7 @@ public class PolicyParserTests extends ESTestCase {
         Policy policyWithOnePath = new PolicyParser(new ByteArrayInputStream("""
             entitlement-module-name:
               - files:
-                - path: "test/path/to/file"
+                - path: "/test/path/to/file"
                   mode: "read_write"
             """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", false).parsePolicy();
         Policy expected = new Policy(
@@ -121,7 +121,7 @@ public class PolicyParserTests extends ESTestCase {
             List.of(
                 new Scope(
                     "entitlement-module-name",
-                    List.of(FilesEntitlement.build(List.of(Map.of("path", "test/path/to/file", "mode", "read_write"))))
+                    List.of(FilesEntitlement.build(List.of(Map.of("path", "/test/path/to/file", "mode", "read_write"))))
                 )
             )
         );
@@ -130,9 +130,9 @@ public class PolicyParserTests extends ESTestCase {
         Policy policyWithTwoPaths = new PolicyParser(new ByteArrayInputStream("""
             entitlement-module-name:
               - files:
-                - path: "test/path/to/file"
+                - path: "/test/path/to/file"
                   mode: "read_write"
-                - path: "test/path/to/read-dir/"
+                - path: "/test/path/to/read-dir/"
                   mode: "read"
             """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", false).parsePolicy();
         expected = new Policy(
@@ -143,8 +143,8 @@ public class PolicyParserTests extends ESTestCase {
                     List.of(
                         FilesEntitlement.build(
                             List.of(
-                                Map.of("path", "test/path/to/file", "mode", "read_write"),
-                                Map.of("path", "test/path/to/read-dir/", "mode", "read")
+                                Map.of("path", "/test/path/to/file", "mode", "read_write"),
+                                Map.of("path", "/test/path/to/read-dir/", "mode", "read")
                             )
                         )
                     )
@@ -156,12 +156,12 @@ public class PolicyParserTests extends ESTestCase {
         Policy policyWithMultiplePathsAndBaseDir = new PolicyParser(new ByteArrayInputStream("""
             entitlement-module-name:
               - files:
-                - path: "test/path/to/file"
+                - relative_path: "test/path/to/file"
+                  relative_to: "data"
                   mode: "read_write"
-                  base_dir: "temp"
-                - path: "test/path/to/read-dir/"
+                - relative_path: "test/path/to/read-dir/"
+                  relative_to: "config"
                   mode: "read"
-                  base_dir: "config"
                 - path: "/path/to/file"
                   mode: "read_write"
             """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", false).parsePolicy();
@@ -173,8 +173,8 @@ public class PolicyParserTests extends ESTestCase {
                     List.of(
                         FilesEntitlement.build(
                             List.of(
-                                Map.of("path", "test/path/to/file", "mode", "read_write", "base_dir", "temp"),
-                                Map.of("path", "test/path/to/read-dir/", "mode", "read", "base_dir", "config"),
+                                Map.of("relative_path", "test/path/to/file", "mode", "read_write", "relative_to", "data"),
+                                Map.of("relative_path", "test/path/to/read-dir/", "mode", "read", "relative_to", "config"),
                                 Map.of("path", "/path/to/file", "mode", "read_write")
                             )
                         )

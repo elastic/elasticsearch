@@ -12,10 +12,12 @@ package org.elasticsearch.entitlement.runtime.policy.entitlements;
 import org.elasticsearch.entitlement.runtime.policy.ExternalEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.PolicyValidationException;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Describes a file entitlement with a path and mode.
@@ -30,14 +32,64 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
     }
 
     public enum BaseDir {
-        NONE,
         CONFIG,
-        DATA,
-        TEMP
+        DATA
     }
 
-    public record FileData(String path, Mode mode, BaseDir baseDir) {
+    public static final class FileData {
+        private final Path path;
+        private final Mode mode;
+        private final Path relativePath;
+        private final BaseDir baseDir;
 
+        private FileData(Path path, Mode mode, Path relativePath, BaseDir baseDir) {
+            this.path = path;
+            this.mode = mode;
+            this.relativePath = relativePath;
+            this.baseDir = baseDir;
+        }
+
+        public static FileData ofPath(Path path, Mode mode) {
+            assert path.isAbsolute();
+            return new FileData(path, mode, null, null);
+        }
+
+        public static FileData ofRelativePath(Path relativePath, BaseDir baseDir, Mode mode) {
+            assert relativePath.isAbsolute() == false;
+            return new FileData(null, mode, relativePath, baseDir);
+        }
+
+        public Path path() {
+            return path;
+        }
+
+        public Mode mode() {
+            return mode;
+        }
+
+        public Path relativePath() {
+            return relativePath;
+        }
+
+        public BaseDir baseDir() {
+            return baseDir;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == this) return true;
+            if (obj == null || obj.getClass() != this.getClass()) return false;
+            var that = (FileData) obj;
+            return Objects.equals(this.path, that.path)
+                && Objects.equals(this.mode, that.mode)
+                && Objects.equals(this.relativePath, that.relativePath)
+                && Objects.equals(this.baseDir, that.baseDir);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(path, mode, relativePath, baseDir);
+        }
     }
 
     private static Mode parseMode(String mode) {
@@ -51,12 +103,12 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
     }
 
     private static BaseDir parseBaseDir(String baseDir) {
-        return switch (baseDir) {
-            case "config" -> BaseDir.CONFIG;
-            case "data" -> BaseDir.DATA;
-            case "temp" -> BaseDir.TEMP;
-            default -> throw new PolicyValidationException("invalid base_dir: " + baseDir + ", valid values: [config, data, temp]");
-        };
+        if (baseDir.equals("config")) {
+            return BaseDir.CONFIG;
+        } else if (baseDir.equals("data")) {
+            return BaseDir.DATA;
+        }
+        throw new PolicyValidationException("invalid relative directory: " + baseDir + ", valid values: [config, data]");
     }
 
     @ExternalEntitlement(parameterNames = { "paths" }, esModulesOnly = false)
@@ -68,21 +120,38 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         List<FileData> filesData = new ArrayList<>();
         for (Object object : paths) {
             Map<String, String> file = new HashMap<>((Map<String, String>) object);
-            String path = file.remove("path");
-            if (path == null) {
-                throw new PolicyValidationException("files entitlement must contain path for every listed file");
-            }
+            String pathAsString = file.remove("path");
+            String relativePathAsString = file.remove("relative_path");
+            String relativeTo = file.remove("relative_to");
             String mode = file.remove("mode");
-            if (mode == null) {
-                throw new PolicyValidationException("files entitlement must contain mode for every listed file");
-            }
-            String baseDirString = file.remove("base_dir");
-            final BaseDir baseDir = baseDirString == null ? BaseDir.NONE : parseBaseDir(baseDirString);
 
             if (file.isEmpty() == false) {
-                throw new PolicyValidationException("unknown key(s) " + file + " in a listed file for files entitlement");
+                throw new PolicyValidationException("unknown key(s) [" + file + "] in a listed file for files entitlement");
             }
-            filesData.add(new FileData(path, parseMode(mode), baseDir));
+            if (mode == null) {
+                throw new PolicyValidationException("files entitlement must contain 'mode' for every listed file");
+            }
+            if ((pathAsString == null && relativePathAsString == null) || (pathAsString != null && relativePathAsString != null)) {
+                throw new PolicyValidationException("files entitlement must contain either 'path' or 'relative_path' for every entry");
+            }
+            if (relativePathAsString != null) {
+                if (relativeTo == null) {
+                    throw new PolicyValidationException("files entitlement with a 'relative_path' must specify 'relative_to'");
+                }
+                final var baseDir = parseBaseDir(relativeTo);
+
+                Path relativePath = Path.of(relativePathAsString);
+                if (relativePath.isAbsolute()) {
+                    throw new PolicyValidationException("'relative_path' must be relative");
+                }
+                filesData.add(FileData.ofRelativePath(relativePath, baseDir, parseMode(mode)));
+            } else {
+                Path path = Path.of(pathAsString);
+                if (path.isAbsolute() == false) {
+                    throw new PolicyValidationException("'path' must be absolute");
+                }
+                filesData.add(FileData.ofPath(path, parseMode(mode)));
+            }
         }
         return new FilesEntitlement(filesData);
     }

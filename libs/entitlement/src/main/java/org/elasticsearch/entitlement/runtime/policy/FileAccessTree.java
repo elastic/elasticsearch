@@ -51,22 +51,21 @@ public final class FileAccessTree {
         DirectoryResolver directoryResolver,
         Consumer<String> resolvedPathReceiver
     ) {
-        Path path = Path.of(fileData.path());
-        switch (fileData.baseDir()) {
-            case NONE:
-                resolvedPathReceiver.accept(normalizePath(path));
-                break;
-            case CONFIG:
-                resolvedPathReceiver.accept(normalizePath(directoryResolver.resolveConfig(path)));
-                break;
-            case DATA:
-                directoryResolver.resolveData(path).forEach(p -> resolvedPathReceiver.accept(normalizePath(p)));
-                break;
-            case TEMP:
-                resolvedPathReceiver.accept(normalizePath(directoryResolver.resolveTemp(path)));
-                break;
-            default:
-                throw new IllegalArgumentException();
+        if (fileData.path() != null) {
+            resolvedPathReceiver.accept(normalizePath(fileData.path()));
+        } else if (fileData.relativePath() != null && fileData.baseDir() != null) {
+            switch (fileData.baseDir()) {
+                case CONFIG:
+                    resolvedPathReceiver.accept(normalizePath(directoryResolver.resolveConfig(fileData.relativePath())));
+                    break;
+                case DATA:
+                    directoryResolver.resolveData(fileData.relativePath()).forEach(p -> resolvedPathReceiver.accept(normalizePath(p)));
+                    break;
+                default:
+                    throw new IllegalArgumentException();
+            }
+        } else {
+            throw new IllegalArgumentException();
         }
     }
 

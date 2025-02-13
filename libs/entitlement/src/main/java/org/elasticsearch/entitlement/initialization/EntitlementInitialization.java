@@ -130,22 +130,7 @@ public class EntitlementInitialization {
         Map<String, Policy> pluginPolicies = bootstrapArgs.pluginPolicies();
         Path[] dataDirs = EntitlementBootstrap.bootstrapArgs().dataDirs();
 
-        var directoryResolver = new DirectoryResolver() {
-            @Override
-            public Path resolveConfig(Path path) {
-                return bootstrapArgs.configDir().resolve(path);
-            }
-
-            @Override
-            public Stream<Path> resolveData(Path path) {
-                return Arrays.stream(bootstrapArgs.dataDirs());
-            }
-
-            @Override
-            public Path resolveTemp(Path path) {
-                return bootstrapArgs.tempDir();
-            }
-        };
+        var directoryResolver = new EnvironmentDirectoryResolver(bootstrapArgs);
 
         // TODO(ES-10031): Decide what goes in the elasticsearch default policy and extend it
         var serverPolicy = new Policy(
@@ -171,9 +156,7 @@ public class EntitlementInitialization {
                     "org.elasticsearch.nativeaccess",
                     List.of(
                         new LoadNativeLibrariesEntitlement(),
-                        new FilesEntitlement(
-                            Arrays.stream(dataDirs).map(d -> new FileData(d.toString(), READ_WRITE, FilesEntitlement.BaseDir.NONE)).toList()
-                        )
+                        new FilesEntitlement(Arrays.stream(dataDirs).map(d -> FileData.ofPath(Path.of(d.toString()), READ_WRITE)).toList())
                     )
                 )
             )
@@ -285,4 +268,27 @@ public class EntitlementInitialization {
         "org.elasticsearch.entitlement.instrumentation",
         Set.of()
     ).get();
+
+    static class EnvironmentDirectoryResolver implements DirectoryResolver {
+        private final EntitlementBootstrap.BootstrapArgs bootstrapArgs;
+
+        EnvironmentDirectoryResolver(EntitlementBootstrap.BootstrapArgs bootstrapArgs) {
+            this.bootstrapArgs = bootstrapArgs;
+        }
+
+        @Override
+        public Path resolveConfig(Path path) {
+            return bootstrapArgs.configDir().resolve(path);
+        }
+
+        @Override
+        public Stream<Path> resolveData(Path path) {
+            return Arrays.stream(bootstrapArgs.dataDirs()).map(dir -> dir.resolve(path));
+        }
+
+        @Override
+        public Path resolveTemp(Path path) {
+            return bootstrapArgs.tempDir().resolve(path);
+        }
+    }
 }

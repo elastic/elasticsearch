@@ -26,11 +26,11 @@ public class FilesEntitlementTests extends ESTestCase {
         assertEquals("must specify at least one path", pve.getMessage());
     }
 
-    public void testNotABaseDir() {
+    public void testInvalidRelativeDirectory() {
         var ex = expectThrows(
             PolicyValidationException.class,
-            () -> FilesEntitlement.build(List.of((Map.of("path", "foo", "mode", "read", "base_dir", "bar"))))
+            () -> FilesEntitlement.build(List.of((Map.of("relative_path", "foo", "mode", "read", "relative_to", "bar"))))
         );
-        assertThat(ex.getMessage(), is("invalid base_dir: bar, valid values: [config, data, temp]"));
+        assertThat(ex.getMessage(), is("invalid relative directory: bar, valid values: [config, data]"));
     }
 }

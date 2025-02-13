@@ -32,6 +32,8 @@ setup:
                 type: keyword
               subtopic:
                 type: keyword
+              inference_text_field:
+                type: text
 
   - do:
       index:
@@ -41,6 +43,7 @@ setup:
           text: "The phases of the Moon come from the position of the Moon relative to the Earth and Sun."
           topic: [ "science" ]
           subtopic: [ "astronomy" ]
+          inference_text_field: "0"
         refresh: true
 
   - do:
@@ -50,6 +53,7 @@ setup:
         body:
           text: "Sun Moon Lake is a lake in Nantou County, Taiwan. It is the largest lake in Taiwan."
           topic: [ "geography" ]
+          inference_text_field: "1"
         refresh: true
 
   - do:
@@ -60,6 +64,7 @@ setup:
           text: "As seen from Earth, a solar eclipse happens when the Moon is directly between the Earth and the Sun."
           topic: [ "science" ]
           subtopic: [ "technology" ]
+          inference_text_field: "-1"
         refresh: true
 
 ---
@@ -74,6 +79,7 @@ setup:
           retriever:
             text_similarity_reranker:
               retriever:
+                # this one returns docs 1 and 2
                 standard:
                   query:
                     bool: {
@@ -103,7 +109,7 @@ setup:
               rank_window_size: 10
               inference_id: my-rerank-model
               inference_text: "How often does the moon hide the sun?"
-              field: text
+              field: inference_text_field
           size: 10
 
   - match: { hits.total.value: 2 }
@@ -124,6 +130,7 @@ setup:
           retriever:
             text_similarity_reranker:
               retriever:
+                # this one returns doc 1
                 standard:
                   query:
                     term:
@@ -134,7 +141,7 @@ setup:
               rank_window_size: 10
               inference_id: my-rerank-model
               inference_text: "How often does the moon hide the sun?"
-              field: text
+              field: inference_text_field
           size: 10
 
   - match: { hits.total.value: 1 }
@@ -164,7 +171,7 @@ setup:
               rank_window_size: 10
               inference_id: i-dont-exist
               inference_text: "How often does the moon hide the sun?"
-              field: text
+              field: inference_text_field
           size: 10
 
 ---
@@ -190,7 +197,7 @@ setup:
               rank_window_size: 10
               inference_id: i-dont-exist
               inference_text: "asdfasdf"
-              field: text
+              field: inference_text_field
           size: 10
 
 
@@ -207,6 +214,7 @@ setup:
             text_similarity_reranker: {
               retriever:
                 {
+                  # this one returns doc 1 and 2
                   standard: {
                     query: {
                       bool: {
@@ -239,7 +247,7 @@ setup:
               rank_window_size: 10,
               inference_id: my-rerank-model,
               inference_text: "How often does the moon hide the sun?",
-              field: text
+              field: inference_text_field
             }
           }
           size: 10
@@ -248,7 +256,7 @@ setup:
   - match: { hits.hits.0._id: "doc_2" }
   - match: { hits.hits.1._id: "doc_1" }
 
-  - match: {hits.hits.0._explanation.description: "/text_similarity_reranker.match.using.inference.endpoint:.\\[my-rerank-model\\].on.document.field:.\\[text\\].*/" }
+  - match: {hits.hits.0._explanation.description: "/text_similarity_reranker.match.using.inference.endpoint:.\\[my-rerank-model\\].on.document.field:.\\[inference_text_field\\].*/" }
   - match: {hits.hits.0._explanation.details.0.details.0.description: "/subtopic.*astronomy.*/" }
 
 ---
@@ -323,7 +331,7 @@ setup:
               rank_window_size: 10
               inference_id: my-rerank-model
               inference_text: "How often does the moon hide the sun?"
-              field: text
+              field: inference_text_field
           size: 10
 
   - match: { hits.total.value: 1 }

@@ -342,7 +342,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         TaskId parentTaskId
     ) {
         logger.debug("Copying index metadata to destination index [{}] from source index [{}]", destIndexName, sourceIndexName);
-        var request = new CopyIndexMetadataAction.Request(TimeValue.MAX_VALUE, sourceIndexName, destIndexName);
+        var request = new CopyLifecycleIndexMetadataAction.Request(TimeValue.MAX_VALUE, sourceIndexName, destIndexName);
         request.setParentTask(parentTaskId);
         var errorMessage = String.format(
             Locale.ROOT,
@@ -350,7 +350,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
             sourceIndexName,
             destIndexName
         );
-        client.execute(CopyIndexMetadataAction.INSTANCE, request, failIfNotAcknowledged(listener, errorMessage));
+        client.execute(CopyLifecycleIndexMetadataAction.INSTANCE, request, failIfNotAcknowledged(listener, errorMessage));
     }
 
     private static void copySettingOrUnset(Settings settingsBefore, Settings.Builder builder, String setting) {

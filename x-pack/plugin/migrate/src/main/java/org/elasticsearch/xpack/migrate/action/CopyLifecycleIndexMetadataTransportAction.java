@@ -37,25 +37,27 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.HashMap;
 
-public class CopyIndexMetadataTransportAction extends TransportMasterNodeAction<CopyIndexMetadataAction.Request, AcknowledgedResponse> {
-    private static final Logger logger = LogManager.getLogger(CopyIndexMetadataTransportAction.class);
+public class CopyLifecycleIndexMetadataTransportAction extends TransportMasterNodeAction<
+    CopyLifecycleIndexMetadataAction.Request,
+    AcknowledgedResponse> {
+    private static final Logger logger = LogManager.getLogger(CopyLifecycleIndexMetadataTransportAction.class);
     private final ClusterStateTaskExecutor<UpdateIndexMetadataTask> executor;
     private final MasterServiceTaskQueue<UpdateIndexMetadataTask> taskQueue;
 
     @Inject
-    public CopyIndexMetadataTransportAction(
+    public CopyLifecycleIndexMetadataTransportAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters
     ) {
         super(
-            CopyIndexMetadataAction.NAME,
+            CopyLifecycleIndexMetadataAction.NAME,
             transportService,
             clusterService,
             threadPool,
             actionFilters,
-            CopyIndexMetadataAction.Request::new,
+            CopyLifecycleIndexMetadataAction.Request::new,
             AcknowledgedResponse::readFrom,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -71,7 +73,7 @@ public class CopyIndexMetadataTransportAction extends TransportMasterNodeAction<
     @Override
     protected void masterOperation(
         Task task,
-        CopyIndexMetadataAction.Request request,
+        CopyLifecycleIndexMetadataAction.Request request,
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
@@ -83,7 +85,7 @@ public class CopyIndexMetadataTransportAction extends TransportMasterNodeAction<
     }
 
     @Override
-    protected ClusterBlockException checkBlock(CopyIndexMetadataAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(CopyLifecycleIndexMetadataAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
@@ -102,10 +104,7 @@ public class CopyIndexMetadataTransportAction extends TransportMasterNodeAction<
 
         var sourceILM = sourceMetadata.getCustomData(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY);
         if (sourceILM != null) {
-            newDestMetadata.putCustom(
-                LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY,
-                sourceMetadata.getCustomData(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY)
-            );
+            newDestMetadata.putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, sourceILM);
         }
 
         newDestMetadata.putRolloverInfos(sourceMetadata.getRolloverInfos())

@@ -18,6 +18,7 @@ import org.elasticsearch.action.admin.indices.template.put.TransportPutComposabl
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
@@ -34,9 +35,11 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
+import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.StartILMRequest;
 import org.elasticsearch.xpack.core.ilm.StopILMRequest;
+import org.elasticsearch.xpack.core.ilm.action.GetStatusAction;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
@@ -50,7 +53,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
-public class CopyIndexMetadataTransportActionIT extends ESIntegTestCase {
+public class CopyLifecycleIndexMetadataTransportActionIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -134,28 +137,30 @@ public class CopyIndexMetadataTransportActionIT extends ESIntegTestCase {
         });
         // stop ILM so source does not change after copying metadata
         assertAcked(safeGet(client().execute(ILMActions.STOP, new StopILMRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))));
+        assertBusy(() -> {
+            var statusResponse = safeGet(
+                client().execute(GetStatusAction.INSTANCE, new AcknowledgedRequest.Plain(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))
+            );
+            assertEquals(OperationMode.STOPPED, statusResponse.getMode());
+        });
 
         var getIndexResponse = safeGet(indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(dataStream)));
         for (var backingIndex : getIndexResponse.indices()) {
             var destIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
             safeGet(indicesAdmin().create(new CreateIndexRequest(destIndex)));
 
-            var metadataBefore = getClusterMetadata(backingIndex, destIndex);
-            IndexMetadata source = metadataBefore.index(backingIndex);
-            IndexMetadata destBefore = metadataBefore.index(destIndex);
-
-            // sanity check
-            assertNotEquals(
-                source.getCustomData(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY),
-                destBefore.getCustomData(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY)
-            );
+            IndexMetadata destBefore = getClusterMetadata(destIndex).index(destIndex);
+            assertNull(destBefore.getCustomData(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY));
 
             // copy over the metadata
             copyMetadata(backingIndex, destIndex);
 
-            IndexMetadata destAfter = getClusterMetadata(destIndex).index(destIndex);
+            var metadataAfter = getClusterMetadata(backingIndex, destIndex);
+            IndexMetadata sourceAfter = metadataAfter.index(backingIndex);
+            IndexMetadata destAfter = metadataAfter.index(destIndex);
+            assertNotNull(destAfter.getCustomData(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY));
             assertEquals(
-                source.getCustomData(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY),
+                sourceAfter.getCustomData(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY),
                 destAfter.getCustomData(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY)
             );
 
@@ -267,8 +272,8 @@ public class CopyIndexMetadataTransportActionIT extends ESIntegTestCase {
     private void copyMetadata(String sourceIndex, String destIndex) {
         assertAcked(
             client().execute(
-                CopyIndexMetadataAction.INSTANCE,
-                new CopyIndexMetadataAction.Request(TEST_REQUEST_TIMEOUT, sourceIndex, destIndex)
+                CopyLifecycleIndexMetadataAction.INSTANCE,
+                new CopyLifecycleIndexMetadataAction.Request(TEST_REQUEST_TIMEOUT, sourceIndex, destIndex)
             )
         );
     }

@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.migrate.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -21,17 +23,17 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class CopyIndexMetadataAction extends ActionType<AcknowledgedResponse> {
+public class CopyLifecycleIndexMetadataAction extends ActionType<AcknowledgedResponse> {
 
-    public static final String NAME = "indices:admin/index/copy_index_metadata";
+    public static final String NAME = "indices:admin/index/copy_lifecycle_index_metadata";
 
-    public static final ActionType<AcknowledgedResponse> INSTANCE = new CopyIndexMetadataAction();
+    public static final ActionType<AcknowledgedResponse> INSTANCE = new CopyLifecycleIndexMetadataAction();
 
-    private CopyIndexMetadataAction() {
+    private CopyLifecycleIndexMetadataAction() {
         super(NAME);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> {
+    public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest {
         private final String sourceIndex;
         private final String destIndex;
 
@@ -88,6 +90,16 @@ public class CopyIndexMetadataAction extends ActionType<AcknowledgedResponse> {
         @Override
         public String getDescription() {
             return "copying lifecycle metadata for index " + sourceIndex;
+        }
+
+        @Override
+        public String[] indices() {
+            return new String[] { sourceIndex };
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
         }
     }
 }

@@ -9,8 +9,6 @@ package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.BytesRef;
 
-import java.util.List;
-
 public class TopBytesRefAggregatorFunctionTests extends AbstractTopBytesRefAggregatorFunctionTests {
     @Override
     protected BytesRef randomValue() {
@@ -18,8 +16,8 @@ public class TopBytesRefAggregatorFunctionTests extends AbstractTopBytesRefAggre
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new TopBytesRefAggregatorFunctionSupplier(inputChannels, LIMIT, true);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new TopBytesRefAggregatorFunctionSupplier(LIMIT, true);
     }
 
     @Override

@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.inference.external.request.amazonbedrock.complet
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseRequest;
 import software.amazon.awssdk.services.bedrockruntime.model.ConverseStreamRequest;
 
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockBaseClient;
@@ -82,7 +82,9 @@ public class AmazonBedrockChatCompletionRequest extends AmazonBedrockRequest {
         this.executeRequest(awsBedrockClient);
     }
 
-    public Flow.Publisher<? extends ChunkedToXContent> executeStreamChatCompletionRequest(AmazonBedrockBaseClient awsBedrockClient) {
+    public Flow.Publisher<? extends InferenceServiceResults.Result> executeStreamChatCompletionRequest(
+        AmazonBedrockBaseClient awsBedrockClient
+    ) {
         var converseStreamRequest = ConverseStreamRequest.builder()
             .modelId(amazonBedrockModel.model())
             .messages(getConverseMessageList(requestEntity.messages()));

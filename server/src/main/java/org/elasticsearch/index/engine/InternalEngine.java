@@ -70,7 +70,6 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
@@ -3467,18 +3466,10 @@ public class InternalEngine extends Engine {
 
     DirectoryReaderSupplier acquireDirectoryReaderSupplier(SearcherScope scope) throws EngineException {
         assert scope == SearcherScope.INTERNAL : "acquireDirectoryReaderSupplier(...) isn't prepared for external usage";
-
-        /* Acquire order here is store -> manager since we need
-         * to make sure that the store is not closed before
-         * the searcher is acquired. */
-        if (store.tryIncRef() == false) {
-            throw new AlreadyClosedException(shardId + " store is closed", failedEngine.get());
-        }
-        Releasable releasable = store::decRef;
+        assert store.hasReferences();
         try {
             ReferenceManager<ElasticsearchDirectoryReader> referenceManager = getReferenceManager(scope);
             ElasticsearchDirectoryReader acquire = referenceManager.acquire();
-            releasable = null; // success - hand over the reference to the engine reader
             return new DirectoryReaderSupplier(acquire) {
 
                 @Override
@@ -3490,20 +3481,16 @@ public class InternalEngine extends Engine {
                     } catch (AlreadyClosedException e) {
                         // This means there's a bug somewhere: don't suppress it
                         throw new AssertionError(e);
-                    } finally {
-                        store.decRef();
                     }
                 }
             };
         } catch (AlreadyClosedException ex) {
             throw ex;
         } catch (Exception ex) {
-            maybeFailEngine("acquire_reader", ex);
+            maybeFailEngine("acquire_directory_reader", ex);
             ensureOpen(ex); // throw EngineCloseException here if we are already closed
-            logger.error("failed to acquire reader", ex);
-            throw new EngineException(shardId, "failed to acquire reader", ex);
-        } finally {
-            Releasables.close(releasable);
+            logger.error("failed to acquire directory reader", ex);
+            throw new EngineException(shardId, "failed to acquire directory reader", ex);
         }
     }
 

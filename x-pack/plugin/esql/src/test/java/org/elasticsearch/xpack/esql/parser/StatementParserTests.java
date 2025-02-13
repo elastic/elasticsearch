@@ -1087,15 +1087,28 @@ public class StatementParserTests extends AbstractStatementParserTests {
             processingCommand("enrich _" + mode.name() + ":countries ON country_code")
         );
 
-        expectError("from a | enrich countries on foo* ", "Using wildcards [*] in ENRICH WITH projections is not allowed [foo*]");
-        expectError("from a | enrich countries on foo with bar*", "Using wildcards [*] in ENRICH WITH projections is not allowed [bar*]");
+        expectError("from a | enrich countries on foo* ", "Using wildcards [*] in ENRICH WITH projections is not allowed, found [foo*]");
+        expectError("from a | enrich countries on * ", "Using wildcards [*] in ENRICH WITH projections is not allowed, found [*]");
+        expectError(
+            "from a | enrich countries on foo with bar*",
+            "Using wildcards [*] in ENRICH WITH projections is not allowed, found [bar*]"
+        );
+        expectError("from a | enrich countries on foo with *", "Using wildcards [*] in ENRICH WITH projections is not allowed, found [*]");
         expectError(
             "from a | enrich countries on foo with x = bar* ",
-            "Using wildcards [*] in ENRICH WITH projections is not allowed [bar*]"
+            "Using wildcards [*] in ENRICH WITH projections is not allowed, found [bar*]"
+        );
+        expectError(
+            "from a | enrich countries on foo with x = * ",
+            "Using wildcards [*] in ENRICH WITH projections is not allowed, found [*]"
         );
         expectError(
             "from a | enrich countries on foo with x* = bar ",
-            "Using wildcards [*] in ENRICH WITH projections is not allowed [x*]"
+            "Using wildcards [*] in ENRICH WITH projections is not allowed, found [x*]"
+        );
+        expectError(
+            "from a | enrich countries on foo with * = bar ",
+            "Using wildcards [*] in ENRICH WITH projections is not allowed, found [*]"
         );
         expectError(
             "from a | enrich typo:countries on foo",
@@ -1593,10 +1606,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testParamForIdentifier() {
-        assumeTrue(
-            "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
-        );
         // field names can appear in eval/where/stats/sort/keep/drop/rename/dissect/grok/enrich/mvexpand
         // eval, where
         assertEquals(
@@ -1854,10 +1863,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testParamForIdentifierPattern() {
-        assumeTrue(
-            "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
-        );
         // name patterns can appear in keep and drop
         // all patterns
         LogicalPlan plan = statement(
@@ -1947,10 +1952,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testParamInInvalidPosition() {
-        assumeTrue(
-            "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
-        );
         // param for pattern is not supported in eval/where/stats/sort/rename/dissect/grok/enrich/mvexpand
         // where/stats/sort/dissect/grok are covered in RestEsqlTestCase
         List<String> invalidParamPositions = List.of("eval ?f1 = 1", "stats x = ?f1(*)", "mv_expand ?f1", "rename ?f1 as ?f2");
@@ -1991,7 +1992,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             expectError(
                 "from idx1 | " + enrich,
                 List.of(paramAsPattern("f1", pattern), paramAsIdentifier("f2", "f.2"), paramAsIdentifier("f3", "f.3*")),
-                "Using wildcards [*] in ENRICH WITH projections is not allowed [" + pattern + "]"
+                "Using wildcards [*] in ENRICH WITH projections is not allowed, found [" + pattern + "]"
             );
             expectError(
                 "from idx1 | " + enrich,
@@ -2002,10 +2003,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testMissingParam() {
-        assumeTrue(
-            "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
-        );
         // cover all processing commands eval/where/stats/sort/rename/dissect/grok/enrich/mvexpand/keep/drop
         String error = "Unknown query parameter [f1], did you mean [f4]?";
         String errorMvExpandFunctionNameCommandOption = "Query parameter [?f1] is null or undefined, cannot be used as an identifier";
@@ -2300,6 +2297,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("from test | eval A = coalesce(\"Å\", Å)", "line 1:36: token recognition error at: 'Å'");
     }
 
+    public void testInvalidRemoteClusterPattern() {
+        expectError("from \"rem:ote\":index", "cluster string [rem:ote] must not contain ':'");
+    }
+
     private LogicalPlan unresolvedRelation(String index) {
         return new UnresolvedRelation(EMPTY, new IndexPattern(EMPTY, index), false, List.of(), IndexMode.STANDARD, null, "FROM");
     }
@@ -2480,10 +2481,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testNamedFunctionArgumentInMapWithNamedParameters() {
         // map entry values provided in named parameter, arrays are not supported by named parameters yet
-        assumeTrue(
-            "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
-        );
         LinkedHashMap<String, Object> expectedMap1 = new LinkedHashMap<>(4);
         expectedMap1.put("option1", "string");
         expectedMap1.put("option2", 1);
@@ -2891,10 +2888,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testNamedFunctionArgumentWithUnsupportedNamedParameterTypes() {
-        assumeTrue(
-            "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
-        );
         Map<String, String> commands = Map.ofEntries(
             Map.entry("eval x = {}", "29"),
             Map.entry("where {}", "26"),

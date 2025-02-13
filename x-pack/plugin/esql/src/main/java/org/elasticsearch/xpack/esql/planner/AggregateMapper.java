@@ -180,10 +180,8 @@ final class AggregateMapper {
             types = List.of("GeoPoint", "CartesianPoint");
             extraConfigs = SPATIAL_EXTRA_CONFIGS;
         } else if (clazz == SpatialExtent.class) {
-            return Stream.concat(
-                combine(clazz, List.of("GeoPoint", "CartesianPoint"), SPATIAL_EXTRA_CONFIGS),
-                combine(clazz, List.of("GeoShape", "CartesianShape"), List.of(""))
-            );
+            types = List.of("GeoPoint", "CartesianPoint", "GeoShape", "CartesianShape");
+            extraConfigs = SPATIAL_EXTRA_CONFIGS;
         } else if (Values.class.isAssignableFrom(clazz)) {
             // TODO can't we figure this out from the function itself?
             types = List.of("Int", "Long", "Double", "Boolean", "BytesRef");

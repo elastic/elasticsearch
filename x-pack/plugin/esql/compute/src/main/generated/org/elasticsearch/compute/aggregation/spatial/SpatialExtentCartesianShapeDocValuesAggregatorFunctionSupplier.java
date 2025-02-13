@@ -12,29 +12,30 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunctionSupplier} implementation for {@link SpatialExtentGeoShapeAggregator}.
+ * {@link AggregatorFunctionSupplier} implementation for {@link SpatialExtentCartesianShapeDocValuesAggregator}.
  * This class is generated. Edit {@code AggregatorFunctionSupplierImplementer} instead.
  */
-public final class SpatialExtentGeoShapeAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+public final class SpatialExtentCartesianShapeDocValuesAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
   private final List<Integer> channels;
 
-  public SpatialExtentGeoShapeAggregatorFunctionSupplier(List<Integer> channels) {
+  public SpatialExtentCartesianShapeDocValuesAggregatorFunctionSupplier(List<Integer> channels) {
     this.channels = channels;
   }
 
   @Override
-  public SpatialExtentGeoShapeAggregatorFunction aggregator(DriverContext driverContext) {
-    return SpatialExtentGeoShapeAggregatorFunction.create(driverContext, channels);
+  public SpatialExtentCartesianShapeDocValuesAggregatorFunction aggregator(
+      DriverContext driverContext) {
+    return SpatialExtentCartesianShapeDocValuesAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
-  public SpatialExtentGeoShapeGroupingAggregatorFunction groupingAggregator(
+  public SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunction groupingAggregator(
       DriverContext driverContext) {
-    return SpatialExtentGeoShapeGroupingAggregatorFunction.create(channels, driverContext);
+    return SpatialExtentCartesianShapeDocValuesGroupingAggregatorFunction.create(channels, driverContext);
   }
 
   @Override
   public String describe() {
-    return "spatial_extent_geo of shapes";
+    return "spatial_extent_cartesian_shape_doc of valuess";
   }
 }

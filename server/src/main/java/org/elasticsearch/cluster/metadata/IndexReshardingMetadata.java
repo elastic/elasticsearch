@@ -38,8 +38,8 @@ import java.util.Objects;
  * shard or the target shards are responsible for documents being indexed or searched while this handoff
  * is occurring, to ensure that we don't lose or double-count documents during the process. We prevent this
  * by maintaining the state of the split on the source and target shards, and making an atomic (from the point
- * of view of indexing and search requests) transition from handling requests that route to the target shard
- * on the source shard, to letting the target shard handle them.
+ * of view of indexing and search requests) transition from having the source shard handle requests for documents
+ * that belong to the target shard, to having the target shard handle them itself.
  *
  * Before the handoff, the source shard has the entire document collection for both the source and target, and handles
  * indexing and search requests. After the handoff, documents that route to the target are handled by the target,
@@ -61,22 +61,22 @@ import java.util.Objects;
  * * The old and new shard counts for a resize operation, so that we can always identify which shards are sources
  *   and which are targets during resharding. For example, old:2 new:6 implies that shard 1 is the source shard for
  *   shards 3 and 5, and shard 2 is the source for shards 4 and 6.
- * * For each source shard, its current source state, either `SOURCE` or `DONE`.
+ * * For each source shard, its current source state, which is either `SOURCE` or `DONE`.
  *   - If a source shard may still contain data for any target shard then it is in state `SOURCE`.
  *   - When all targets for a source have moved to `SPLIT` (see below), then the source deletes all documents from
  *     its store that are now the responsibility of the target shards and transitions to `DONE`.
  *   This isn't strictly required to be persistent for correctness, but it can save time on recovery
  *   by allowing a DONE shard to skip interrogating targets and repeating cleanup.
- * * For each target shard, its current target state, one of `CLONE`, `HANDOFF`, `SPLIT`, or `DONE`.
+ * * For each target shard, its current target state, which is one of `CLONE`, `HANDOFF`, `SPLIT`, or `DONE`.
  *   - If the target has not yet copied all data from the source shard, then it is in `CLONE`.
  *   - It moves to `HANDOFF` when it has copied all of its data from the source to indicate that it is now ready to
  *     receive indexing actions, and starts RUNNING. After this point, the source may no longer contain the entire contents
  *     of the target and must not index documents belonging to the target. But since search shards can't start up until
- *     their corresponding index nodes are RUNNING, search requests would fail if they routed to the target shard immediately
+ *     their corresponding index shards are active, search requests would fail if they routed to the target shard immediately
  *     after handoff. So at HANDOFF, the source shards continue to service searches, but block refresh since they cannot
  *     be guaranteed to have seen documents indexed after HANDOFF.
  *   - When the target shard's corresponding search replica has started running, the target requests that the source filter
- *     search results belonging to the target, and moves the target shard's state moves to `SPLIT`. The target's search replica
+ *     search results belonging to the target, and moves the target shard's state to `SPLIT`. The target's search replica
  *     likewise filters documents not belonging to the target, which may be present due to the target bootstrapping by copying
  *     the source's lucene files.
  *   - Upon entering `SPLIT`, the target starts deleting all documents from its lucene store that do not belong to it. When that

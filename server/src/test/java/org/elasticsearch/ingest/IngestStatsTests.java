@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class IngestStatsTests extends ESTestCase {
 
@@ -33,7 +34,7 @@ public class IngestStatsTests extends ESTestCase {
 
     public void testIdentitySerialization() throws IOException {
         IngestStats serializedStats = serialize(IngestStats.IDENTITY);
-        assertEquals(IngestStats.IDENTITY, serializedStats);
+        assertThat(serializedStats, sameInstance(IngestStats.IDENTITY));
     }
 
     public void testStatsMerge() {

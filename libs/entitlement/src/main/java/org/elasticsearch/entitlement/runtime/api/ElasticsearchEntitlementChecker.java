@@ -14,6 +14,7 @@ import org.elasticsearch.entitlement.bridge.EntitlementChecker;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 
 import java.io.File;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
@@ -64,6 +65,8 @@ import java.nio.file.LinkOption;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.WatchEvent;
+import java.nio.file.WatchService;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.UserPrincipal;
 import java.nio.file.spi.FileSystemProvider;
@@ -1321,5 +1324,41 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     @Override
     public void checkType(Class<?> callerClass, FileStore that) {
         policyManager.checkReadStoreAttributes(callerClass);
+    }
+
+    @Override
+    public void checkPathToRealPath(Class<?> callerClass, Path that, LinkOption... options) {
+        if (EntitlementChecker.class.isAssignableFrom(callerClass)) {
+            return;
+        }
+
+        boolean followLinks = true;
+        for (LinkOption option : options) {
+            if (option == LinkOption.NOFOLLOW_LINKS) {
+                followLinks = false;
+            }
+        }
+        if (followLinks) {
+            try {
+                policyManager.checkFileRead(callerClass, that.toRealPath());
+            } catch (IOException e) {}
+        }
+        policyManager.checkFileRead(callerClass, that);
+    }
+
+    @Override
+    public void checkPathRegister(Class<?> callerClass, Path that, WatchService watcher, WatchEvent.Kind<?>... events) {
+        policyManager.checkFileRead(callerClass, that);
+    }
+
+    @Override
+    public void checkPathRegister(
+        Class<?> callerClass,
+        Path that,
+        WatchService watcher,
+        WatchEvent.Kind<?>[] events,
+        WatchEvent.Modifier... modifiers
+    ) {
+        policyManager.checkFileRead(callerClass, that);
     }
 }

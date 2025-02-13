@@ -155,7 +155,8 @@ public class FirstValueBytesRefAggregator {
             }
         }
 
-        void enableGroupIdTracking(SeenGroupIds seen) {
+        @Override
+        public void enableGroupIdTracking(SeenGroupIds seen) {
             if (this.seen == null) {
                 this.seen = seen.seenGroupIds(bigArrays);
             }

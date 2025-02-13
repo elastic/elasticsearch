@@ -20,6 +20,8 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FilterCodecReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
@@ -190,7 +192,18 @@ public class Lucene {
                 throw new IllegalStateException("no commit found in the directory");
             }
         }
+        // Need to figure out what the parent field is that, so that validation in IndexWriter doesn't fail
+        // if no parent field is configured, but FieldInfo says there is a parent field.
+        String parentField = null;
         final IndexCommit cp = getIndexCommit(si, directory);
+        try (var reader = DirectoryReader.open(cp)) {
+            var topLevelFieldInfos = FieldInfos.getMergedFieldInfos(reader);
+            for (FieldInfo fieldInfo : topLevelFieldInfos) {
+                if (fieldInfo.isParentField()) {
+                    parentField = fieldInfo.getName();
+                }
+            }
+        }
         try (
             IndexWriter writer = new IndexWriter(
                 directory,
@@ -198,6 +211,7 @@ public class Lucene {
                     .setIndexCommit(cp)
                     .setCommitOnClose(false)
                     .setOpenMode(IndexWriterConfig.OpenMode.APPEND)
+                    .setParentField(parentField)
             )
         ) {
             // do nothing and close this will kick off IndexFileDeleter which will remove all pending files

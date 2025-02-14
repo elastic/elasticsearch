@@ -306,7 +306,11 @@ public class JobResultsProvider {
         String readAliasName = AnomalyDetectorsIndex.jobResultsAliasedName(job.getId());
         String writeAliasName = AnomalyDetectorsIndex.resultsWriteAlias(job.getId());
         String tempIndexName = job.getInitialResultsIndexName();
+        // Find all indices starting with this name and pick the latest one
         String[] concreteIndices = resolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpen(), tempIndexName + "*");
+        if (concreteIndices.length > 0) {
+            tempIndexName = MlIndexAndAlias.latestIndex(concreteIndices);
+        }
 
         // Our read/write aliases should point to the concrete index
         // If the initial index is NOT an alias, either it is already a concrete index, or it does not exist yet
@@ -324,10 +328,8 @@ public class JobResultsProvider {
                 );
                 return;
             }
-            tempIndexName = MlIndexAndAlias.latestIndex(concreteIndices);
-        } else {
-            tempIndexName = MlIndexAndAlias.latestIndex(concreteIndices);
         }
+
         final String indexName = tempIndexName;
 
         ActionListener<Boolean> indexAndMappingsListener = ActionListener.wrap(success -> {

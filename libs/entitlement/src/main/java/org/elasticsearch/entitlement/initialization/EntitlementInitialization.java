@@ -150,13 +150,17 @@ public class EntitlementInitialization {
                         new LoadNativeLibrariesEntitlement(),
                         new ManageThreadsEntitlement(),
                         new FilesEntitlement(
-                            Stream.of(
-                                Stream.of(new FilesEntitlement.FileData(tempDir.toString(), READ_WRITE)),
-                                Stream.of(new FilesEntitlement.FileData(configDir.toString(), READ_WRITE)),
-                                Stream.of(new FilesEntitlement.FileData(logsDir.toString(), READ_WRITE)),
-                                Stream.of(new FilesEntitlement.FileData("/etc/os-release", READ)), // for OsProbe
+                            Stream.concat(
+                                Stream.of(
+                                    new FilesEntitlement.FileData(tempDir.toString(), READ_WRITE),
+                                    new FilesEntitlement.FileData(configDir.toString(), READ_WRITE),
+                                    new FilesEntitlement.FileData(logsDir.toString(), READ_WRITE),
+                                    new FilesEntitlement.FileData("/etc/os-release", READ), // for OsProbe
+                                    new FilesEntitlement.FileData("/usr/lib/os-release", READ), // for OsProbe
+                                    new FilesEntitlement.FileData("/proc/sys/vm/max_map_count", READ)
+                                ),
                                 Arrays.stream(dataDirs).map(d -> new FileData(d.toString(), READ_WRITE))
-                            ).flatMap(Function.identity()).toList()
+                            ).toList()
                         )
                     )
                 ),

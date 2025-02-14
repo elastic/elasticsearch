@@ -97,6 +97,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
         // Use a single thread pool for writes so we can enforce a consistent ordering
         internalCluster().startDataOnlyNode(Settings.builder().put("thread_pool.write.size", 1).build());
         internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        ensureStableCluster(3);
     }
 
     public void testUpdateByQuery() throws Exception {

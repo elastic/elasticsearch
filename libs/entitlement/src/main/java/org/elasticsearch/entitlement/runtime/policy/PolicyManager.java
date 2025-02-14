@@ -304,6 +304,14 @@ public class PolicyManager {
         }
     }
 
+    public void checkFileDescriptorRead(Class<?> callerClass) {
+        neverEntitled(callerClass, () -> "read file descriptor");
+    }
+
+    public void checkFileDescriptorWrite(Class<?> callerClass) {
+        neverEntitled(callerClass, () -> "write file descriptor");
+    }
+
     /**
      * Invoked when we try to get an arbitrary {@code FileAttributeView} class. Such a class can modify attributes, like owner etc.;
      * we could think about introducing checks for each of the operations, but for now we over-approximate this and simply deny when it is

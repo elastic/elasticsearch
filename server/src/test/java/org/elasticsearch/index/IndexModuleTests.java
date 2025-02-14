@@ -59,6 +59,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.engine.ThreadPoolMergeQueue;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
@@ -158,6 +159,7 @@ public class IndexModuleTests extends ESTestCase {
     };
     private MapperRegistry mapperRegistry;
     private ThreadPool threadPool;
+    private ThreadPoolMergeQueue threadPoolMergeQueue;
     private CircuitBreakerService circuitBreakerService;
     private BigArrays bigArrays;
     private ScriptService scriptService;
@@ -188,6 +190,7 @@ public class IndexModuleTests extends ESTestCase {
             emptyMap()
         );
         threadPool = new TestThreadPool("test");
+        threadPoolMergeQueue = ThreadPoolMergeQueue.maybeCreateThreadPoolMergeQueue(threadPool, settings);
         circuitBreakerService = new NoneCircuitBreakerService();
         PageCacheRecycler pageCacheRecycler = new PageCacheRecycler(settings);
         bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.REQUEST);
@@ -214,6 +217,7 @@ public class IndexModuleTests extends ESTestCase {
             circuitBreakerService,
             bigArrays,
             threadPool,
+            threadPoolMergeQueue,
             scriptService,
             clusterService,
             null,

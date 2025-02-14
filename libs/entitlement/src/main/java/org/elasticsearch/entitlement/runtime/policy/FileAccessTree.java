@@ -20,13 +20,12 @@ import java.util.Objects;
 import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
 
 public final class FileAccessTree {
-    public static final FileAccessTree EMPTY = new FileAccessTree(FilesEntitlement.EMPTY);
     private static final String FILE_SEPARATOR = getDefaultFileSystem().getSeparator();
 
     private final String[] readPaths;
     private final String[] writePaths;
 
-    private FileAccessTree(FilesEntitlement filesEntitlement) {
+    private FileAccessTree(FilesEntitlement filesEntitlement, Path tempDir) {
         List<String> readPaths = new ArrayList<>();
         List<String> writePaths = new ArrayList<>();
         for (FilesEntitlement.FileData fileData : filesEntitlement.filesData()) {
@@ -38,6 +37,10 @@ public final class FileAccessTree {
             readPaths.add(path);
         }
 
+        // everything has access to the temp dir
+        readPaths.add(tempDir.toString());
+        writePaths.add(tempDir.toString());
+
         readPaths.sort(String::compareTo);
         writePaths.sort(String::compareTo);
 
@@ -45,8 +48,8 @@ public final class FileAccessTree {
         this.writePaths = writePaths.toArray(new String[0]);
     }
 
-    public static FileAccessTree of(FilesEntitlement filesEntitlement) {
-        return new FileAccessTree(filesEntitlement);
+    public static FileAccessTree of(FilesEntitlement filesEntitlement, Path tempDir) {
+        return new FileAccessTree(filesEntitlement, tempDir);
     }
 
     boolean canRead(Path path) {

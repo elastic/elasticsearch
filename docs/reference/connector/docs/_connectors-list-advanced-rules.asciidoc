@@ -1,0 +1,14 @@
+* <<es-connectors-confluence,Confluence Online & Server>>
+* <<es-connectors-dropbox,Dropbox>>
+* <<es-connectors-gmail,Gmail>>
+* <<es-connectors-github,GitHub>>
+* <<es-connectors-jira,Jira Online & Server>>
+* <<es-connectors-mongodb,MongoDB>>
+* <<es-connectors-ms-sql,MS SQL Server>>
+* <<es-connectors-mysql,MySQL>>
+* <<es-connectors-network-drive,Network Drive>>
+* <<es-connectors-postgresql,PostgreSQL>>
+* <<es-connectors-s3,S3>>
+* <<es-connectors-salesforce,Salesforce>>
+* <<es-connectors-servicenow,ServiceNow>>
+* <<es-connectors-sharepoint-online,SharePoint Online>>

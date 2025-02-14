@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.function.LongSupplier;
 
@@ -21,15 +21,12 @@ public class FrequencyCappedAction {
     private final LongSupplier currentTimeMillisSupplier;
     private TimeValue minInterval;
 
-    private long next = -1;
+    private long next;
 
-    public FrequencyCappedAction(ThreadPool threadPool) {
-        this(threadPool::relativeTimeInMillis);
-    }
-
-    public FrequencyCappedAction(LongSupplier currentTimeMillisSupplier) {
+    public FrequencyCappedAction(LongSupplier currentTimeMillisSupplier, TimeValue initialDelay) {
         this.currentTimeMillisSupplier = currentTimeMillisSupplier;
         this.minInterval = TimeValue.MAX_VALUE;
+        this.next = currentTimeMillisSupplier.getAsLong() + initialDelay.getMillis();
     }
 
     public void setMinInterval(TimeValue minInterval) {

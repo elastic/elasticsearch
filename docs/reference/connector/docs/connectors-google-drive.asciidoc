@@ -1,0 +1,409 @@
+[#es-connectors-google-drive]
+=== Elastic Google Drive connector reference
+++++
+<titleabbrev>Google Drive</titleabbrev>
+++++
+// Attributes used in this file
+:service-name: Google Drive
+:service-name-stub: google_drive
+
+The _Elastic Google Drive connector_ is a <<es-connectors,connector>> for https://www.google.com/drive[Google Drive^].
+This connector is written in Python using the {connectors-python}[Elastic connector framework^]. 
+
+View the {connectors-python}/connectors/sources/{service-name-stub}.py[*source code* for this connector^] (branch _{connectors-branch}_, compatible with Elastic _{minor-version}_).
+
+.Choose your connector reference
+*******************************
+Are you using a managed connector on Elastic Cloud or a self-managed connector? Expand the documentation based on your deployment method.
+*******************************
+
+// //////// //// //// //// //// //// //// ////////
+// ////////   NATIVE CONNECTOR REFERENCE   ///////
+// //////// //// //// //// //// //// //// ////////
+
+[discrete#es-connectors-google-drive-native-connector-reference]
+==== *Elastic managed connector reference*
+
+.View *Elastic managed connector* reference
+
+[%collapsible]
+===============
+
+[discrete#es-connectors-google-drive-availability-and-prerequisites]
+===== Availability and prerequisites
+
+This connector is available as a *managed connector* as of Elastic version *8.11.0*.
+
+To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors-prerequisites,managed connector requirements>>.
+
+[discrete#es-connectors-google-drive-usage]
+===== Usage
+
+To use this connector natively in Elastic Cloud, see <<es-native-connectors>>.
+
+For additional operations, see <<es-connectors-usage>>.
+
+[discrete#es-connectors-google-drive-connector-authentication-prerequisites]
+===== Connector authentication prerequisites
+
+Before syncing any data from Google Drive, you need to create a https://cloud.google.com/iam/docs/service-account-overview[service account^] with appropriate access to Google Drive API.
+
+To get started, log into https://cloud.google.com[Google Cloud Platform^] and go to the `Console`.
+
+. *Create a Google Cloud Project.* Give your project a name, change the project ID and click the Create button.
+
+. *Enable Google APIs.* Choose APIs & Services from the left menu and click on `Enable APIs and Services`. You need to enable the *Drive API*.
+
+. *Create a Service Account.* In the `APIs & Services` section, click on `Credentials` and click on `Create credentials` to create a service account. Give your service account a name and a service account ID. This is like an email address and will be used to identify your service account in the future. Click `Done` to finish creating the service account. Your service account needs to have access to at least the following scope:
+- `https://www.googleapis.com/auth/drive.readonly`
+
+. *Create a Key File*.
+  - In the Cloud Console, go to `IAM and Admin` > `Service accounts` page.
+  - Click the email address of the service account that you want to create a key for.
+  - Click the `Keys` tab. Click the `Add key` drop-down menu, then select `Create new key`.
+  - Select JSON as the Key type and then click `Create`. This will download a JSON file that will contain the service account credentials.
+
+. *[Optional] Share Google Drive Folders.* If you use domain-wide delegation for syncing data you can skip this step. Go to your Google Drive. Right-click the folder or shared drive, choose `Share` and add the email address of the service account you created in step 3. as a viewer to this folder.
+
+[NOTE]
+====
+When you grant a service account access to a specific folder or shared drive in Google Drive, it's important to note that the permissions extend to all the children within that folder or drive.
+This means that any folders or files contained within the granted folder or drive inherit the same access privileges as the parent.
+====
+
+[discrete#es-connectors-google-drive-additional-prerequisites-for-domain-wide-delegation]
+====== Additional authentication prerequisites for domain-wide delegation
+
+This step is *required* when *Use domain-wide delegation for data sync* or *Enable document level security* configuration option is enabled.
+
+. *Enable Google APIs*.
++
+Choose APIs & Services from the left menu and click on `Enable APIs and Services`. You need to enable the *Admin SDK API* and *Drive API*.
+
+. *Google Workspace domain-wide delegation of authority*.
++
+To access drive and user data in a Google Workspace domain, the service account that you created needs to be granted access by a super administrator for the domain. You can follow https://developers.google.com/cloud-search/docs/guides/delegation[the official documentation^] to perform Google Workspace domain-wide delegation of authority.
++
+You need to grant the following *OAuth Scopes* to your service account:
++
+--
+* `https://www.googleapis.com/auth/admin.directory.group.readonly`
+* `https://www.googleapis.com/auth/admin.directory.user.readonly`
+* `https://www.googleapis.com/auth/drive.readonly`
+* `https://www.googleapis.com/auth/drive.metadata.readonly`
+--
++
+This step allows the connector to:
+
+* access user data and their group memberships in a Google Workspace organization
+* access Google Drive data in drives associated to Google Workspace members
+
+[discrete#es-connectors-google-drive-configuration]
+===== Configuration
+
+The following configuration fields are required:
+
+Google Drive service account JSON::
+The service account credentials generated from Google Cloud Platform (JSON string).
+Refer to the https://developers.google.com/workspace/guides/create-credentials#create_credentials_for_a_service_account[Google Cloud documentation^] for more information.
+
+Enable document level security::
+Toggle to enable <<es-dls,document level security (DLS>>.
+DLS is supported for the Google Drive connector.
+When enabled:
++
+* Full syncs will fetch access control lists for each document and store them in the `_allow_access_control` field.
+* Access control syncs will fetch users' access control lists and store them in a separate index.
+
+Google Workspace admin email::
+Google Workspace admin email.
+Required to enable document level security (DLS) or domain-wide delegation for data sync.
+A service account with delegated authority can impersonate an admin user with permissions to access Google Workspace user data and their group memberships.
+Refer to the https://support.google.com/a/answer/162106?hl=en[Google Cloud documentation^] for more information.
+
+[discrete#es-connectors-google-drive-documents-and-syncs]
+===== Documents and syncs
+
+The connector will fetch all files and folders the service account has access to.
+
+It will attempt to extract the content from Google Suite documents (Google Docs, Google Sheets and Google Slides) and regular files.
+
+[NOTE]
+====
+* Content from files bigger than 10 MB won't be extracted. (Self-managed connectors can use the <<es-connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.)
+* Permissions are not synced by default.
+You must first enable <<es-connectors-google-drive-document-level-security,DLS>>.
+Otherwise, *all documents* indexed to an Elastic deployment will be visible to *all users with access* to that Elastic Deployment.
+====
+
+[discrete#es-connectors-google-drive-sync-types]
+====== Sync types
+
+<<es-connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
+
+This connector also supports <<es-connectors-sync-types-incremental,incremental syncs>>.
+
+[discrete#es-connectors-google-drive-sync-rules]
+===== Sync rules
+
+<<es-sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
+
+Advanced sync rules are not available for this connector in the present version.
+Currently filtering is controlled via ingest pipelines.
+
+[discrete#es-connectors-google-drive-document-level-security]
+===== Document level security
+
+Document level security (DLS) enables you to restrict access to documents based on a user’s permissions.
+Refer to <<es-connectors-google-drive-configuration,configuration>> on this page for how to enable DLS for this connector.
+
+[NOTE]
+====
+Refer to <<es-dls-e2e-guide, DLS in Search Applications>> to learn how to ingest data from a connector with DLS enabled, when building a search application.
+The example uses SharePoint Online as the data source, but the same steps apply to every connector.
+====
+
+[discrete#es-connectors-google-drive-content-extraction]
+===== Content extraction
+
+See <<es-connectors-content-extraction>> for more information.
+
+[discrete#es-connectors-google-drive-known-issues]
+===== Known issues
+
+There are currently no known issues for this connector.
+
+[discrete#es-connectors-google-drive-troubleshooting]
+===== Troubleshooting
+
+See <<es-connectors-troubleshooting>>.
+
+[discrete#es-connectors-google-drive-security]
+===== Security
+
+See <<es-connectors-security>>.
+
+// Closing the collapsible section 
+===============
+
+
+// //////// //// //// //// //// //// //// ////////
+// //////// CONNECTOR CLIENT REFERENCE     ///////
+// //////// //// //// //// //// //// //// ////////
+
+[discrete#es-connectors-google-drive-connector-client-reference]
+==== *Self-managed connector*
+
+.View *self-managed connector* reference
+
+[%collapsible]
+===============
+
+[discrete#es-connectors-google-drive-client-availability-and-prerequisites]
+===== Availability and prerequisites
+
+This connector is available as a self-managed *self-managed connector*. To use this connector, satisfy all <<es-build-connector,self-managed connector requirements>>.
+
+[discrete#es-connectors-google-drive-client-usage]
+===== Usage
+
+To use this connector as a *self-managed connector*, see <<es-build-connector>>
+For additional usage operations, see <<es-connectors-usage>>.
+
+[discrete#es-connectors-google-drive-client-connector-authentication-prerequisites]
+===== Connector authentication prerequisites
+
+Before syncing any data from Google Drive, you need to create a https://cloud.google.com/iam/docs/service-account-overview[service account^] with appropriate access to Google Drive API.
+
+To get started, log into https://cloud.google.com[Google Cloud Platform^] and go to the `Console`.
+
+. *Create a Google Cloud Project.* Give your project a name, change the project ID and click the Create button.
+
+. *Enable Google APIs.* Choose APIs & Services from the left menu and click on `Enable APIs and Services`. You need to enable the *Drive API*.
+
+. *Create a Service Account.* In the `APIs & Services` section, click on `Credentials` and click on `Create credentials` to create a service account. Give your service account a name and a service account ID. This is like an email address and will be used to identify your service account in the future. Click `Done` to finish creating the service account. Your service account needs to have access to at least the following scope:
+- `https://www.googleapis.com/auth/drive.readonly`
+
+. *Create a Key File*.
+  - In the Cloud Console, go to `IAM and Admin` > `Service accounts` page.
+  - Click the email address of the service account that you want to create a key for.
+  - Click the `Keys` tab. Click the `Add key` drop-down menu, then select `Create new key`.
+  - Select JSON as the Key type and then click `Create`. This will download a JSON file that will contain the service account credentials.
+
+. *[Optional] Share Google Drive Folders.* If you use domain-wide delegation for syncing data you can skip this step. Go to your Google Drive. Right-click the folder or shared drive, choose `Share` and add the email address of the service account you created in step 3. as a viewer to this folder.
+
+[NOTE]
+====
+When you grant a service account access to a specific folder or shared drive in Google Drive, it's important to note that the permissions extend to all the children within that folder or drive.
+This means that any folders or files contained within the granted folder or drive inherit the same access privileges as the parent.
+====
+
+[discrete#es-connectors-google-drive-client-additional-prerequisites-for-domain-wide-delegation]
+====== Additional authentication prerequisites for domain-wide delegation
+
+This step is *required* when *Use domain-wide delegation for data sync* or *Enable document level security* configuration option is enabled.
+
+. *Enable Google APIs*.
++
+Choose APIs & Services from the left menu and click on `Enable APIs and Services`. You need to enable the *Admin SDK API* and *Drive API*.
+
+. *Google Workspace domain-wide delegation of authority*.
++
+To access drive and user data in a Google Workspace domain, the service account that you created needs to be granted access by a super administrator for the domain. You can follow https://developers.google.com/cloud-search/docs/guides/delegation[the official documentation^] to perform Google Workspace domain-wide delegation of authority.
++
+You need to grant the following *OAuth Scopes* to your service account:
++
+--
+* `https://www.googleapis.com/auth/admin.directory.group.readonly`
+* `https://www.googleapis.com/auth/admin.directory.user.readonly`
+* `https://www.googleapis.com/auth/drive.readonly`
+* `https://www.googleapis.com/auth/drive.metadata.readonly`
+--
++
+This step allows the connector to:
+
+* access user data and their group memberships in a Google Workspace organization
+* access Google Drive data in drives associated to Google Workspace members
+
+[discrete#es-connectors-google-drive-client-configuration]
+===== Configuration
+
+[TIP]
+====
+When using the <<es-build-connector, self-managed connector>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/google_drive.py[connector source code^].
+These are set in the `get_default_configuration` function definition.
+
+These configurable fields will be rendered with their respective *labels* in the Kibana UI.
+Once connected, you'll be able to update these values in Kibana.
+====
+
+The following configuration fields are required:
+
+`service_account_credentials`::
+The service account credentials generated from Google Cloud Platform (JSON string).
+Refer to the https://developers.google.com/workspace/guides/create-credentials#create_credentials_for_a_service_account[Google Cloud documentation^] for more information.
+
+`use_domain_wide_delegation_for_sync`::
+Use https://developers.google.com/cloud-search/docs/guides/delegation[domain-wide delegation] to automatically sync content from all shared and personal drives in the Google workspace.
+This eliminates the need to manually share Google Drive data with your service account, though it may increase the sync time.
+If disabled, only items and folders manually shared with the service account will be synced.
+
+`google_workspace_admin_email_for_data_sync`::
+Required when domain-wide delegation for data sync is enabled.
+This email is used for discovery and syncing of shared drives. Only the shared drives this user has access to are synced.
+
+`google_workspace_email_for_shared_drives_sync`::
+Required when domain-wide delegation for data sync is enabled.
+Provide the Google Workspace user email for discovery and syncing of shared drives. Only the shared drives this user has access to will be synced.
+
+`use_document_level_security`::
+Toggle to enable <<es-dls,document level security (DLS>>.
+DLS is supported for the Google Drive connector.
+When enabled:
++
+* Full syncs will fetch access control lists for each document and store them in the `_allow_access_control` field.
+* Access control syncs will fetch users' access control lists and store them in a separate index.
+
+`google_workspace_admin_email`::
+Google Workspace admin email.
+Required to enable document level security (DLS) or domain-wide delegation for data sync.
+A service account with delegated authority can impersonate an admin user with permissions to access Google Workspace user data and their group memberships.
+Refer to the https://support.google.com/a/answer/162106?hl=en[Google Cloud documentation^] for more information.
+
+`max_concurrency`::
+The maximum number of concurrent HTTP requests to the Google Drive API.
+Increasing this value can improve data retrieval speed, but it may also place higher demands on system resources and network bandwidth.
+
+`use_text_extraction_service`::
+Requires a separate deployment of the <<es-connectors-content-extraction-local,Elastic Text Extraction Service>>.
+Requires that pipeline settings disable text extraction.
+Default value is `False`.
+
+[discrete#es-connectors-google-drive-client-deployment-using-docker]
+===== Deployment using Docker
+
+include::_connectors-docker-instructions.asciidoc[]
+
+[discrete#es-connectors-google-drive-client-documents-and-syncs]
+===== Documents and syncs
+
+The connector will fetch all files and folders the service account has access to.
+
+It will attempt to extract the content from Google Suite documents (Google Docs, Google Sheets and Google Slides) and regular files.
+
+[NOTE]
+====
+* Content from files bigger than 10 MB won't be extracted
+* Permissions are not synced by default.
+You must first enable <<es-connectors-google-drive-client-document-level-security,DLS>>.
+Otherwise, *all documents* indexed to an Elastic deployment will be visible to *all users with access* to that Elastic Deployment.
+====
+
+[discrete#es-connectors-google-drive-client-sync-types]
+====== Sync types
+
+<<es-connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
+
+This connector also supports <<es-connectors-sync-types-incremental,incremental syncs>>.
+
+[discrete#es-connectors-google-drive-client-sync-rules]
+===== Sync rules
+
+<<es-sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
+
+Advanced sync rules are not available for this connector in the present version.
+Currently filtering is controlled via ingest pipelines.
+
+[discrete#es-connectors-google-drive-client-document-level-security]
+===== Document level security
+
+Document level security (DLS) enables you to restrict access to documents based on a user’s permissions.
+Refer to <<es-connectors-google-drive-client-configuration,configuration>> on this page for how to enable DLS for this connector.
+
+[NOTE]
+====
+Refer to <<es-dls-e2e-guide, DLS in Search Applications>> to learn how to ingest data from a connector with DLS enabled, when building a search application.
+The example uses SharePoint Online as the data source, but the same steps apply to every connector.
+====
+
+[discrete#es-connectors-google-drive-client-content-extraction]
+===== Content extraction
+
+See <<es-connectors-content-extraction>> for more information.
+
+[discrete#es-connectors-google-drive-client-end-to-end-testing]
+===== End-to-end testing
+
+The connector framework enables operators to run functional tests against a real data source. Refer to <<es-build-connector-testing>> for more details.
+
+To perform E2E testing for the Google Drive connector, run the following command:
+
+[source,shell]
+----
+make ftest NAME=google_drive
+----
+
+For faster tests, add the `DATA_SIZE=small` flag:
+
+[source,shell]
+----
+make ftest NAME=google_drive DATA_SIZE=small
+----
+
+[discrete#es-connectors-google-drive-client-known-issues]
+===== Known issues
+
+There are currently no known issues for this connector.
+
+[discrete#es-connectors-google-drive-client-troubleshooting]
+===== Troubleshooting
+
+See <<es-connectors-troubleshooting>>.
+
+[discrete#es-connectors-google-drive-client-security]
+===== Security
+
+See <<es-connectors-security>>.
+
+// Closing the collapsible section 
+===============

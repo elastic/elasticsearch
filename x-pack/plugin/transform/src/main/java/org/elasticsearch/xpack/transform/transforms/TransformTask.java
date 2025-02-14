@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo.TransformCheckpointingInfoBuilder;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
@@ -412,6 +413,16 @@ public class TransformTask extends AllocatedPersistentTask implements TransformS
     public void applyNewAuthState(AuthorizationState authState) {
         synchronized (context) {
             context.setAuthState(authState);
+        }
+    }
+
+    public void checkAndResetDestinationIndexBlock(TransformConfig config) {
+        if (context.isWaitingForIndexToUnblock()) {
+            var currentIndex = getIndexer() == null ? null : getIndexer().getConfig().getDestination().getIndex();
+            var updatedIndex = config.getDestination().getIndex();
+            if (updatedIndex.equals(currentIndex) == false) {
+                context.setIsWaitingForIndexToUnblock(false);
+            }
         }
     }
 

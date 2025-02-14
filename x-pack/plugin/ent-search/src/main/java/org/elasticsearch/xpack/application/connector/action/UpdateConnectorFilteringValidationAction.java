@@ -7,20 +7,15 @@
 
 package org.elasticsearch.xpack.application.connector.action;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.filtering.FilteringRules;
 import org.elasticsearch.xpack.application.connector.filtering.FilteringValidationInfo;
 
@@ -32,7 +27,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 
 public class UpdateConnectorFilteringValidationAction {
 
-    public static final String NAME = "indices:data/write/xpack/connector/update_filtering/draft_validation";
+    public static final String NAME = "cluster:admin/xpack/connector/update_filtering/draft_validation";
     public static final ActionType<ConnectorUpdateActionResponse> INSTANCE = new ActionType<>(NAME);
 
     private UpdateConnectorFilteringValidationAction() {/* no instances */}
@@ -89,18 +84,6 @@ public class UpdateConnectorFilteringValidationAction {
 
         static {
             PARSER.declareObject(constructorArg(), (p, c) -> FilteringValidationInfo.fromXContent(p), FilteringRules.VALIDATION_FIELD);
-        }
-
-        public static UpdateConnectorFilteringValidationAction.Request fromXContentBytes(
-            String connectorId,
-            BytesReference source,
-            XContentType xContentType
-        ) {
-            try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, xContentType)) {
-                return UpdateConnectorFilteringValidationAction.Request.fromXContent(parser, connectorId);
-            } catch (IOException e) {
-                throw new ElasticsearchParseException("Failed to parse: " + source.utf8ToString(), e);
-            }
         }
 
         public static UpdateConnectorFilteringValidationAction.Request fromXContent(XContentParser parser, String connectorId)

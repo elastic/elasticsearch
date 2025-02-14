@@ -18,7 +18,7 @@ public class RemoveIndexLifecyclePolicyRequestTests extends AbstractWireSerializ
 
     @Override
     protected Request createTestInstance() {
-        Request request = new Request(generateRandomStringArray(20, 20, false));
+        Request request = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, generateRandomStringArray(20, 20, false));
         if (randomBoolean()) {
             IndicesOptions indicesOptions = IndicesOptions.fromOptions(
                 randomBoolean(),
@@ -67,13 +67,16 @@ public class RemoveIndexLifecyclePolicyRequestTests extends AbstractWireSerializ
             );
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        Request newRequest = new Request(indices);
+        Request newRequest = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, indices);
         newRequest.indicesOptions(indicesOptions);
         return newRequest;
     }
 
     public void testNullIndices() {
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> new Request((String[]) null));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, (String[]) null)
+        );
         assertEquals("indices cannot be null", exception.getMessage());
     }
 

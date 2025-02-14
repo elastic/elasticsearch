@@ -14,7 +14,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -37,6 +38,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -245,19 +247,52 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
         return table;
     }
 
-    private Table buildTable(
+    private record AccumulatedStats(int pipelineCount, IngestStats ingestStats) {
+        public static final AccumulatedStats EMPTY = of(null);
+
+        public static AccumulatedStats of(@Nullable GetTrainedModelsStatsAction.Response.TrainedModelStats stats) {
+            return new AccumulatedStats(stats == null ? 0 : stats.getPipelineCount(), getIngestStats(stats));
+        }
+
+        private static IngestStats getIngestStats(@Nullable GetTrainedModelsStatsAction.Response.TrainedModelStats stats) {
+            if (stats == null) {
+                return IngestStats.IDENTITY;
+            }
+
+            return stats.getIngestStats() == null ? IngestStats.IDENTITY : stats.getIngestStats();
+        }
+
+        public static AccumulatedStats merge(AccumulatedStats first, AccumulatedStats second) {
+            return new AccumulatedStats(
+                first.pipelineCount + second.pipelineCount,
+                IngestStats.merge(first.ingestStats, second.ingestStats)
+            );
+        }
+    }
+
+    // Default for testing
+    Table buildTable(
         RestRequest request,
         List<GetTrainedModelsStatsAction.Response.TrainedModelStats> stats,
         List<TrainedModelConfig> configs,
         List<DataFrameAnalyticsConfig> analyticsConfigs
     ) {
         Table table = getTableWithHeader(request);
-        assert configs.size() == stats.size();
 
         Map<String, DataFrameAnalyticsConfig> analyticsMap = analyticsConfigs.stream()
             .collect(Collectors.toMap(DataFrameAnalyticsConfig::getId, Function.identity()));
-        Map<String, GetTrainedModelsStatsAction.Response.TrainedModelStats> statsMap = stats.stream()
-            .collect(Collectors.toMap(GetTrainedModelsStatsAction.Response.TrainedModelStats::getModelId, Function.identity()));
+        Map<String, AccumulatedStats> accumulatedStatsMap = stats.stream()
+            .filter(Objects::nonNull)
+            .collect(
+                Collectors.toMap(
+                    GetTrainedModelsStatsAction.Response.TrainedModelStats::getModelId,
+                    AccumulatedStats::of,
+                    // If there are multiple deployments of the same model we'll need to total the stats
+                    AccumulatedStats::merge
+                )
+            );
+
+        assert configs.size() == accumulatedStatsMap.size();
 
         configs.forEach(config -> {
             table.startRow();
@@ -272,17 +307,16 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
             table.addCell(config.getDescription());
             table.addCell(config.getModelType());
 
-            GetTrainedModelsStatsAction.Response.TrainedModelStats modelStats = statsMap.get(config.getModelId());
-            table.addCell(modelStats.getPipelineCount());
-            boolean hasIngestStats = modelStats != null && modelStats.getIngestStats() != null;
-            table.addCell(hasIngestStats ? modelStats.getIngestStats().totalStats().ingestCount() : 0);
-            table.addCell(
-                hasIngestStats
-                    ? TimeValue.timeValueMillis(modelStats.getIngestStats().totalStats().ingestTimeInMillis())
-                    : TimeValue.timeValueMillis(0)
+            AccumulatedStats accumulatedStats = Objects.requireNonNullElse(
+                accumulatedStatsMap.get(config.getModelId()),
+                AccumulatedStats.EMPTY
             );
-            table.addCell(hasIngestStats ? modelStats.getIngestStats().totalStats().ingestCurrent() : 0);
-            table.addCell(hasIngestStats ? modelStats.getIngestStats().totalStats().ingestFailedCount() : 0);
+
+            table.addCell(accumulatedStats.pipelineCount);
+            table.addCell(accumulatedStats.ingestStats.totalStats().ingestCount());
+            table.addCell(accumulatedStats.ingestStats.totalStats().ingestTimeInMillis());
+            table.addCell(accumulatedStats.ingestStats.totalStats().ingestCurrent());
+            table.addCell(accumulatedStats.ingestStats.totalStats().ingestFailedCount());
 
             DataFrameAnalyticsConfig dataFrameAnalyticsConfig = config.getTags()
                 .stream()

@@ -6,6 +6,7 @@ In addition to the <<bootstrap-checks,{es} bootstrap checks>>, there are
 checks that are specific to {xpack} features.
 
 [discrete]
+[[bootstrap-checks-xpack-encrypt-sensitive-data]]
 === Encrypt sensitive data check
 //See EncryptSensitiveDAtaBootstrapCheck.java
 
@@ -18,6 +19,7 @@ on each node in the cluster. For more information, see
 <<encrypting-data,Encrypting sensitive data in Watcher>>.
 
 [discrete]
+[[bootstrap-checks-xpack-pki-realm]]
 === PKI realm check
 //See PkiRealmBootstrapCheckTests.java
 
@@ -31,6 +33,7 @@ To pass this bootstrap check, if a PKI realm is enabled, you must configure TLS
 and enable client authentication on at least one network communication layer.
 
 [discrete]
+[[bootstrap-checks-xpack-role-mappings]]
 === Role mappings check
 
 If you authenticate users with realms other than `native` or `file` realms, you
@@ -65,6 +68,7 @@ To pass this bootstrap check, you must
 
 
 [discrete]
+[[bootstrap-checks-xpack-token-ssl]]
 === Token SSL check
 //See TokenSSLBootstrapCheckTests.java
 

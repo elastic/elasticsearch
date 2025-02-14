@@ -14,6 +14,7 @@ Detailed reference documentation for the {esql} language:
 * <<esql-enrich-data>>
 * <<esql-process-data-with-dissect-and-grok>>
 * <<esql-implicit-casting>>
+* <<esql-time-spans>>
 
 include::esql-syntax.asciidoc[]
 include::esql-commands.asciidoc[]
@@ -23,3 +24,4 @@ include::multivalued-fields.asciidoc[]
 include::esql-process-data-with-dissect-grok.asciidoc[]
 include::esql-enrich-data.asciidoc[]
 include::implicit-casting.asciidoc[]
+include::time-spans.asciidoc[]

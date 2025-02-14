@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
+import org.junit.After;
 
 import java.util.Collections;
 import java.util.List;
@@ -35,9 +36,14 @@ import static org.hamcrest.Matchers.hasSize;
  */
 public class PermissionPrecedenceTests extends SecurityIntegTestCase {
 
+    @After
+    public void cleanupSecurityIndex() {
+        super.deleteSecurityIndex();
+    }
+
     @Override
     protected String configRoles() {
-        return """
+        return super.configRoles() + "\n" + """
             admin:
               cluster: [ all ]\s
               indices:
@@ -54,12 +60,22 @@ public class PermissionPrecedenceTests extends SecurityIntegTestCase {
         final String usersPasswdHashed = new String(
             getFastStoredHashAlgoForTests().hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)
         );
-        return "admin:" + usersPasswdHashed + "\n" + "client:" + usersPasswdHashed + "\n" + "user:" + usersPasswdHashed + "\n";
+        return super.configUsers()
+            + "\n"
+            + "admin:"
+            + usersPasswdHashed
+            + "\n"
+            + "client:"
+            + usersPasswdHashed
+            + "\n"
+            + "user:"
+            + usersPasswdHashed
+            + "\n";
     }
 
     @Override
     protected String configUsersRoles() {
-        return """
+        return super.configUsersRoles() + "\n" + """
             admin:admin
             transport_client:client
             user:user
@@ -89,7 +105,7 @@ public class PermissionPrecedenceTests extends SecurityIntegTestCase {
         ).admin().indices().preparePutTemplate("template1").setPatterns(Collections.singletonList("test_*")).get();
         assertAcked(putResponse);
 
-        GetIndexTemplatesResponse getResponse = client.admin().indices().prepareGetTemplates("template1").get();
+        GetIndexTemplatesResponse getResponse = client.admin().indices().prepareGetTemplates(TEST_REQUEST_TIMEOUT, "template1").get();
         List<IndexTemplateMetadata> templates = getResponse.getIndexTemplates();
         assertThat(templates, hasSize(1));
 
@@ -114,7 +130,7 @@ public class PermissionPrecedenceTests extends SecurityIntegTestCase {
             basicAuthHeaderValue("user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)
         );
         assertThrowsAuthorizationException(
-            client.filterWithHeader(headers).admin().indices().prepareGetTemplates("template1")::get,
+            client.filterWithHeader(headers).admin().indices().prepareGetTemplates(TEST_REQUEST_TIMEOUT, "template1")::get,
             GetIndexTemplatesAction.NAME,
             "user"
         );

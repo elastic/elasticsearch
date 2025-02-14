@@ -23,6 +23,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.AbstractBuilderTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ltr.QueryExtractorBuilder;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 
@@ -31,12 +32,14 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.Mockito.mock;
 
 public class QueryFeatureExtractorTests extends AbstractBuilderTestCase {
 
@@ -125,4 +128,29 @@ public class QueryFeatureExtractorTests extends AbstractBuilderTestCase {
         dir.close();
     }
 
+    public void testEmptyDisiPriorityQueue() throws IOException {
+        addDocs(
+            new String[] { "the quick brown fox", "the slow brown fox", "the grey dog", "yet another string" },
+            new int[] { 5, 10, 12, 11 }
+        );
+
+        // Scorers returned by weights are null
+        List<String> featureNames = randomList(1, 10, ESTestCase::randomIdentifier);
+        List<Weight> weights = Stream.generate(() -> mock(Weight.class)).limit(featureNames.size()).toList();
+
+        QueryFeatureExtractor featureExtractor = new QueryFeatureExtractor(featureNames, weights);
+
+        for (LeafReaderContext leafReaderContext : searcher.getLeafContexts()) {
+            int maxDoc = leafReaderContext.reader().maxDoc();
+            featureExtractor.setNextReader(leafReaderContext);
+            for (int i = 0; i < maxDoc; i++) {
+                Map<String, Object> featureMap = new HashMap<>();
+                featureExtractor.addFeatures(featureMap, i);
+                assertThat(featureMap, anEmptyMap());
+            }
+        }
+
+        reader.close();
+        dir.close();
+    }
 }

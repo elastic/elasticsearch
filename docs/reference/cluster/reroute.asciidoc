@@ -4,13 +4,18 @@
 <titleabbrev>Cluster reroute</titleabbrev>
 ++++
 
-Changes the allocation of shards in a cluster.
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-cluster[Cluster APIs].
+--
 
+Changes the allocation of shards in a cluster.
 
 [[cluster-reroute-api-request]]
 ==== {api-request-title}
 
-`POST /_cluster/reroute?metric=none`
+`POST /_cluster/reroute`
 
 [[cluster-reroute-api-prereqs]]
 ==== {api-prereq-title}
@@ -193,7 +198,7 @@ This is a short example of a simple reroute API call:
 
 [source,console]
 --------------------------------------------------
-POST /_cluster/reroute?metric=none
+POST /_cluster/reroute
 {
   "commands": [
     {

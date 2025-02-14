@@ -5,6 +5,12 @@
 <titleabbrev>Start basic</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-license[Licensing APIs].
+--
+
 This API starts an indefinite basic license.
 
 [discrete]

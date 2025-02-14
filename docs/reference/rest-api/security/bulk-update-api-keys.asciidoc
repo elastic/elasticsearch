@@ -6,6 +6,12 @@
 <titleabbrev>Bulk update API keys</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 [[security-api-bulk-update-api-keys-request]]
 ==== {api-request-title}
 

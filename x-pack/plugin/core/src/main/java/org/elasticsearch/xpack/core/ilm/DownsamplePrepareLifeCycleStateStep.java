@@ -20,7 +20,7 @@ import static org.elasticsearch.xpack.core.ilm.DownsampleAction.DOWNSAMPLED_INDE
 
 /**
  * An ILM step that sets the target index to use in the {@link DownsampleStep}.
- * The reason why this is done in a seperate step and stored in {@link LifecycleExecutionState},
+ * The reason why this is done in a separate step and stored in {@link LifecycleExecutionState},
  * is because other steps after downsampling also depend on the target index generated here.
  */
 public class DownsamplePrepareLifeCycleStateStep extends ClusterStateActionStep {

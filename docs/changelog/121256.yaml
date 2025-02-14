@@ -1,0 +1,5 @@
+pr: 121256
+summary: Run `TransportEnrichStatsAction` on local node
+area: Ingest Node
+type: enhancement
+issues: []

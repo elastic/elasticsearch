@@ -93,8 +93,8 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
 
         WaitForIndexColorStep step = new WaitForIndexColorStep(randomStepKey(), randomStepKey(), ClusterHealthStatus.GREEN);
         ClusterStateWaitStep.Result result = step.isConditionMet(indexMetadata.getIndex(), clusterState);
-        assertThat(result.isComplete(), is(true));
-        assertThat(result.getInfomationContext(), nullValue());
+        assertThat(result.complete(), is(true));
+        assertThat(result.informationContext(), nullValue());
     }
 
     public void testConditionNotMetForGreen() {
@@ -119,10 +119,10 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
 
         WaitForIndexColorStep step = new WaitForIndexColorStep(randomStepKey(), randomStepKey(), ClusterHealthStatus.GREEN);
         ClusterStateWaitStep.Result result = step.isConditionMet(indexMetadata.getIndex(), clusterState);
-        assertThat(result.isComplete(), is(false));
-        SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.getInfomationContext();
+        assertThat(result.complete(), is(false));
+        SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.informationContext();
         assertThat(info, notNullValue());
-        assertThat(info.getMessage(), equalTo("index is not green; not all shards are active"));
+        assertThat(info.message(), equalTo("index is not green; not all shards are active"));
     }
 
     public void testConditionNotMetNoIndexRoutingTable() {
@@ -139,10 +139,10 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
 
         WaitForIndexColorStep step = new WaitForIndexColorStep(randomStepKey(), randomStepKey(), ClusterHealthStatus.YELLOW);
         ClusterStateWaitStep.Result result = step.isConditionMet(indexMetadata.getIndex(), clusterState);
-        assertThat(result.isComplete(), is(false));
-        SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.getInfomationContext();
+        assertThat(result.complete(), is(false));
+        SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.informationContext();
         assertThat(info, notNullValue());
-        assertThat(info.getMessage(), equalTo("index is red; no indexRoutingTable"));
+        assertThat(info.message(), equalTo("index is red; no indexRoutingTable"));
     }
 
     public void testConditionMetForYellow() {
@@ -167,8 +167,8 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
 
         WaitForIndexColorStep step = new WaitForIndexColorStep(randomStepKey(), randomStepKey(), ClusterHealthStatus.YELLOW);
         ClusterStateWaitStep.Result result = step.isConditionMet(indexMetadata.getIndex(), clusterState);
-        assertThat(result.isComplete(), is(true));
-        assertThat(result.getInfomationContext(), nullValue());
+        assertThat(result.complete(), is(true));
+        assertThat(result.informationContext(), nullValue());
     }
 
     public void testConditionNotMetForYellow() {
@@ -193,10 +193,10 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
 
         WaitForIndexColorStep step = new WaitForIndexColorStep(randomStepKey(), randomStepKey(), ClusterHealthStatus.YELLOW);
         ClusterStateWaitStep.Result result = step.isConditionMet(indexMetadata.getIndex(), clusterState);
-        assertThat(result.isComplete(), is(false));
-        SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.getInfomationContext();
+        assertThat(result.complete(), is(false));
+        SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.informationContext();
         assertThat(info, notNullValue());
-        assertThat(info.getMessage(), equalTo("index is red; not all primary shards are active"));
+        assertThat(info.message(), equalTo("index is red; not all primary shards are active"));
     }
 
     public void testConditionNotMetNoIndexRoutingTableForYellow() {
@@ -213,10 +213,10 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
 
         WaitForIndexColorStep step = new WaitForIndexColorStep(randomStepKey(), randomStepKey(), ClusterHealthStatus.YELLOW);
         ClusterStateWaitStep.Result result = step.isConditionMet(indexMetadata.getIndex(), clusterState);
-        assertThat(result.isComplete(), is(false));
-        SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.getInfomationContext();
+        assertThat(result.complete(), is(false));
+        SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.informationContext();
         assertThat(info, notNullValue());
-        assertThat(info.getMessage(), equalTo("index is red; no indexRoutingTable"));
+        assertThat(info.message(), equalTo("index is red; no indexRoutingTable"));
     }
 
     public void testStepReturnsFalseIfTargetIndexIsMissing() {
@@ -243,11 +243,11 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
 
         WaitForIndexColorStep step = new WaitForIndexColorStep(randomStepKey(), randomStepKey(), ClusterHealthStatus.GREEN, indexPrefix);
         ClusterStateWaitStep.Result result = step.isConditionMet(originalIndex.getIndex(), clusterState);
-        assertThat(result.isComplete(), is(false));
-        SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.getInfomationContext();
+        assertThat(result.complete(), is(false));
+        SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.informationContext();
         String targetIndex = indexPrefix + originalIndex.getIndex().getName();
         assertThat(
-            info.getMessage(),
+            info.message(),
             is(
                 "["
                     + step.getKey().action()
@@ -303,9 +303,9 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
 
             WaitForIndexColorStep step = new WaitForIndexColorStep(randomStepKey(), randomStepKey(), ClusterHealthStatus.GREEN);
             ClusterStateWaitStep.Result result = step.isConditionMet(originalIndex.getIndex(), clusterTargetInitializing);
-            assertThat(result.isComplete(), is(false));
-            SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.getInfomationContext();
-            assertThat(info.getMessage(), is("index is not green; not all shards are active"));
+            assertThat(result.complete(), is(false));
+            SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.informationContext();
+            assertThat(info.message(), is("index is not green; not all shards are active"));
         }
 
         {
@@ -326,8 +326,8 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
 
             WaitForIndexColorStep step = new WaitForIndexColorStep(randomStepKey(), randomStepKey(), ClusterHealthStatus.GREEN);
             ClusterStateWaitStep.Result result = step.isConditionMet(originalIndex.getIndex(), clusterTargetInitializing);
-            assertThat(result.isComplete(), is(true));
-            assertThat(result.getInfomationContext(), nullValue());
+            assertThat(result.complete(), is(true));
+            assertThat(result.informationContext(), nullValue());
         }
     }
 }

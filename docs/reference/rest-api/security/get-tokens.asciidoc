@@ -5,6 +5,12 @@
 <titleabbrev>Get token</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Creates a bearer token for access without requiring basic authentication.
 
 [[security-api-get-token-request]]

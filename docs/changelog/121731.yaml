@@ -1,0 +1,21 @@
+pr: 121731
+summary: Remove TLSv1.1 from default protocols
+area: TLS
+type: breaking
+issues: []
+breaking:
+  title: Remove TLSv1.1 from default protocols
+  area: Cluster and node setting
+  details: "TLSv1.1 is no longer enabled by default. Prior to version 9.0, Elasticsearch\
+    \ would attempt to enable TLSv1.1 if the JDK supported it. In most cases, including\
+    \ all cases where Elasticsearch 8 was running with the bundled JDK, the JDK would\
+    \ not support TLSv1.1, so that protocol would not be available in Elasticsearch.\
+    \ However, if Elasticsearch was running on an old JDK or a JDK that have been\
+    \ reconfigured to support TLSv1.1, then the protocol would automatically be available\
+    \ within Elasticsearch. As of Elasticsearch 9.0, this is no longer true. If you\
+    \ wish to enable TLSv1.1 then you must enable it within the JDK and also enable\
+    \ it within Elasticsearch by using the `ssl.supported_protocols` setting."
+  impact: "Most users will not be impacted. If your Elastisearch 8 cluster was using\
+    \ a custom JDK and you relied on TLSv1.1, then you will need to explicitly enable\
+    \ TLSv1.1 within Elasticsearch (as well as enabling it within your JDK)"
+  notable: false

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.command;
@@ -140,11 +141,21 @@ public class MoveAllocationCommand implements AllocationCommand {
                 if (explain) {
                     return new RerouteExplanation(
                         this,
-                        allocation.decision(Decision.NO, "move_allocation_command", "shard " + shardId + " has not been started")
+                        allocation.decision(
+                            Decision.NO,
+                            "move_allocation_command",
+                            "shard [" + index + "][" + shardId + "] has not been started"
+                        )
                     );
                 }
                 throw new IllegalArgumentException(
-                    "[move_allocation] can't move " + shardId + ", shard is not started (state = " + shardRouting.state() + "]"
+                    "[move_allocation] can't move ["
+                        + index
+                        + "]["
+                        + shardId
+                        + "], shard is not started (state = "
+                        + shardRouting.state()
+                        + "]"
                 );
             }
 
@@ -154,9 +165,11 @@ public class MoveAllocationCommand implements AllocationCommand {
                     return new RerouteExplanation(this, decision);
                 }
                 throw new IllegalArgumentException(
-                    "[move_allocation] can't move "
+                    "[move_allocation] can't move ["
+                        + index
+                        + "]["
                         + shardId
-                        + ", from "
+                        + "], from "
                         + fromDiscoNode
                         + ", to "
                         + toDiscoNode
@@ -181,10 +194,12 @@ public class MoveAllocationCommand implements AllocationCommand {
             if (explain) {
                 return new RerouteExplanation(
                     this,
-                    allocation.decision(Decision.NO, "move_allocation_command", "shard " + shardId + " not found")
+                    allocation.decision(Decision.NO, "move_allocation_command", "shard [" + index + "][" + shardId + "] not found")
                 );
             }
-            throw new IllegalArgumentException("[move_allocation] can't move " + shardId + ", failed to find it on node " + fromDiscoNode);
+            throw new IllegalArgumentException(
+                "[move_allocation] can't move [" + index + "][" + shardId + "], failed to find it on node " + fromDiscoNode
+            );
         }
         return new RerouteExplanation(this, decision);
     }

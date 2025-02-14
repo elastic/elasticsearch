@@ -359,7 +359,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
     public void testTonsOfBucketsTriggersBreaker() throws IOException {
         // Build a "simple" circuit breaker that trips at 20k
         CircuitBreakerService breaker = mock(CircuitBreakerService.class);
-        ByteSizeValue max = new ByteSizeValue(20, ByteSizeUnit.KB);
+        ByteSizeValue max = ByteSizeValue.of(20, ByteSizeUnit.KB);
         when(breaker.getBreaker(CircuitBreaker.REQUEST)).thenReturn(new MockBigArrays.LimitedBreaker(CircuitBreaker.REQUEST, max));
 
         // Collect some buckets with it

@@ -7,16 +7,15 @@
 
 package org.elasticsearch.upgrades;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.test.rest.RestTestLegacyFeatures;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -69,10 +68,6 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101926")
     public void testMlAssignmentPlannerUpgrade() throws Exception {
-        @UpdateForV9 // upgrade will always be from v8, condition can be removed
-        var originalClusterAtLeastV8 = isOriginalClusterVersionAtLeast(Version.V_8_0_0);
-        // These tests assume the original cluster is v8 - testing for features on the _current_ cluster will break for NEW
-        assumeTrue("NLP model deployments added in 8.0", originalClusterAtLeastV8);
         assumeFalse("This test deploys multiple models which cannot be accommodated on a single processor", IS_SINGLE_PROCESSOR_TEST);
 
         logger.info("Starting testMlAssignmentPlannerUpgrade, model size {}", RAW_MODEL_SIZE);
@@ -87,11 +82,7 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
 
                 // assert correct memory format is used
                 assertOldMemoryFormat("old_memory_format");
-                if (clusterHasFeature(RestTestLegacyFeatures.ML_NEW_MEMORY_FORMAT)) {
-                    assertNewMemoryFormat("new_memory_format");
-                } else {
-                    assertOldMemoryFormat("new_memory_format");
-                }
+                assertNewMemoryFormat("new_memory_format");
             }
             case MIXED -> {
                 ensureHealth(".ml-inference-*,.ml-config*", (request -> {
@@ -103,12 +94,7 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
 
                 // assert correct memory format is used
                 assertOldMemoryFormat("old_memory_format");
-                if (clusterHasFeature(RestTestLegacyFeatures.ML_NEW_MEMORY_FORMAT)) {
-                    assertNewMemoryFormat("new_memory_format");
-                } else {
-                    assertOldMemoryFormat("new_memory_format");
-                }
-
+                assertNewMemoryFormat("new_memory_format");
             }
             case UPGRADED -> {
                 ensureHealth(".ml-inference-*,.ml-config*", (request -> {
@@ -141,14 +127,12 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
 
     @SuppressWarnings("unchecked")
     private void assertOldMemoryFormat(String modelId) throws Exception {
-        // There was a change in the MEMORY_OVERHEAD value in 8.3.0, see #86416
-        long memoryOverheadMb = clusterHasFeature(RestTestLegacyFeatures.ML_MEMORY_OVERHEAD_FIXED) ? 240 : 270;
         var response = getTrainedModelStats(modelId);
         Map<String, Object> map = entityAsMap(response);
         List<Map<String, Object>> stats = (List<Map<String, Object>>) map.get("trained_model_stats");
         assertThat(stats, hasSize(1));
         var stat = stats.get(0);
-        Long expectedMemoryUsage = ByteSizeValue.ofMb(memoryOverheadMb).getBytes() + RAW_MODEL_SIZE * 2;
+        Long expectedMemoryUsage = ByteSizeValue.ofMb(240).getBytes() + RAW_MODEL_SIZE * 2;
         Integer actualMemoryUsage = (Integer) XContentMapValues.extractValue("model_size_stats.required_native_memory_bytes", stat);
         assertThat(
             Strings.format("Memory usage mismatch for the model %s in cluster state %s", modelId, CLUSTER_TYPE.toString()),
@@ -278,14 +262,30 @@ public class MlAssignmentPlannerUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     private Response startDeployment(String modelId, String waitForState) throws IOException {
+        String inferenceThreadParamName = "threads_per_allocation";
+        String modelThreadParamName = "number_of_allocations";
+        String compatibleHeader = null;
+        if (CLUSTER_TYPE.equals(ClusterType.OLD) || CLUSTER_TYPE.equals(ClusterType.MIXED)) {
+            compatibleHeader = compatibleMediaType(XContentType.VND_JSON, RestApiVersion.V_8);
+            inferenceThreadParamName = "inference_threads";
+            modelThreadParamName = "model_threads";
+        }
+
         Request request = new Request(
             "POST",
             "/_ml/trained_models/"
                 + modelId
                 + "/deployment/_start?timeout=40s&wait_for="
                 + waitForState
-                + "&inference_threads=1&model_threads=1"
+                + "&"
+                + inferenceThreadParamName
+                + "=1&"
+                + modelThreadParamName
+                + "=1"
         );
+        if (compatibleHeader != null) {
+            request.setOptions(request.getOptions().toBuilder().addHeader("Accept", compatibleHeader).build());
+        }
         request.setOptions(request.getOptions().toBuilder().setWarningsHandler(PERMISSIVE).build());
         var response = client().performRequest(request);
         assertOK(response);

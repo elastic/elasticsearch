@@ -1,0 +1,18 @@
+pr: 115393
+summary: Remove deprecated local attribute from alias APIs
+area: Indices APIs
+type: breaking
+issues: []
+breaking:
+  title: Remove deprecated local attribute from alias APIs
+  area: REST API
+  details: >-
+    The following APIs no longer accept the `?local` query parameter:
+    `GET /_alias`, `GET /_aliases`, `GET /_alias/{name}`,
+    `HEAD /_alias/{name}`, `GET /{index}/_alias`, `HEAD /{index}/_alias`,
+    `GET /{index}/_alias/{name}`, `HEAD /{index}/_alias/{name}`,
+    `GET /_cat/aliases`, and `GET /_cat/aliases/{alias}`. This parameter
+    has been deprecated and ignored since version 8.12.
+  impact: >-
+    Cease usage of the `?local` query parameter when calling the listed APIs.
+  notable: false

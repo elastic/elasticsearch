@@ -107,6 +107,10 @@ A `skip` section, on the other hand, defines certain conditions that, if met, wi
 - `features`: Only kept for a transition period, please use <<requires_test_runner_features, `test_runner_features`>>
   in the `requires` section instead.
 
+Note that `skip` with `capabilities` or `cluster_features` will skip the test if *any* node in the cluster
+has the feature or capability. `requires` will only run the test if *all* of the nodes in the cluster
+have the feature or capability.
+
 `requires` and `skip` sections must specify at least one of the options mentioned above.
 Unless only `test_runner_features` or legacy test runner `features` are specified, a `reason` must be given.
 
@@ -134,20 +138,13 @@ other test runners to skip tests if they do not support the capabilities API yet
               path: /_api
               parameters: [param1, param2]
               capabilities: [cap1, cap2]
-          test_runner_feature: [capabilities]
+          test_runner_features: [capabilities]
           reason: Capability required to run test
      - do:
        ... test definitions ...
 ....
 
 The `capabilities` field is an array containing one or several capabilities checks.
-
-*NOTE: If planning to `skip` on capabilities, keep in mind this might lead to unexpected results in _mixed cluster_
-tests!* A test is only skipped if *all* nodes support the requested capabilities, in _mixed clusters_ this might not be
-the case: such a cluster can consist of a mix of nodes where some support respective capabilities and others don't,
-additionally there might even be nodes that do not support the capabilities API at all.
-In such cases the capabilities check will *not* succeed, hence the test is *not* skipped and might randomly hit one
-of the nodes that actually support what you intended to skip on. This might then break your assumptions and fail the test.
 
 Capabilities are declared as part of an implementation of `RestHandler`.
 Override the `supportedQueryParameters` and/or the `supportedCapabilities` methods:
@@ -200,7 +197,7 @@ For instance, `gte_v8.12.2` would be available for all release versions greater 
 [[skip_known_issues]]
 === Skip on known issues
 
-Previously, it was possible to skip ranges of broken release versions using <<skip_version,`version`>>.
+Previously, it was possible to skip ranges of broken release versions using `version`.
 `known_issues` provides a more explicit way to express and skip a certain range of buggy releases based on cluster features.
 Each of possibly multiple issues is a pair of `cluster_feature` and `fixed_by`, where an issue was
 introduced by the former feature and eventually fixed by the latter one. For instance:
@@ -239,55 +236,6 @@ For instance:
      - do:
        ... test definitions ...
 ....
-
-[[skip_version]]
-=== Skip for Elasticsearch versions (deprecated)
-
-If a test section should only be run on certain versions of Elasticsearch,
-then the first entry in the section (after the title) should be called
-`skip`, and should contain the range of versions to be
-skipped, and the reason why the tests are skipped. For instance:
-
-....
-    "Parent":
-     - skip:
-          version:     "0.20.1 - 0.90.2"
-          reason:      Delete ignores the parent param
-
-     - do:
-       ... test definitions ...
-....
-
-All tests in the file following the skip statement should be skipped if:
-`min <= current <= max`.
-
-The `version` range can leave either bound empty, which means "open ended".
-For instance:
-....
-    "Parent":
-     - skip:
-          version:     "1.0.0.Beta1 - "
-          reason:      Delete ignores the parent param
-
-     - do:
-       ... test definitions ...
-....
-
-The `version` field can also have multiple ranges. Combining this with empty bounds
-allows, for example, specifying an include-range instead of a skip range:
-....
-Unsupported metric type position:
-  - skip:
-      version: " - 8.0.99, 8.8.0 - "
-      reason: index.mode introduced in 8.1.0 and metric position introduced in 8.8.0
-
-  - do:
-    ... test that 'position' causes expected error for versions 8.1.0-8.7.99 ...
-....
-
-The value for version can also be `all`, to skip in any version of
-Elasticsearch. This can be used for example when a feature is being implemented
-or awaiting a fix.
 
 [[skip_os]]
 === Skip on certain operating systems

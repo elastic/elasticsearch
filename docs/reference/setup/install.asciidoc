@@ -76,27 +76,29 @@ Docker container images may be downloaded from the Elastic Docker Registry.
 [[jvm-version]]
 === Java (JVM) Version
 
-{es} is built using Java, and includes a bundled version of
-https://openjdk.java.net[OpenJDK] from the JDK maintainers (GPLv2+CE) within
-each distribution. The bundled JVM is the recommended JVM.
+{es} is built using Java, and includes a bundled version of https://openjdk.java.net[OpenJDK] within each distribution. We strongly
+recommend using the bundled JVM in all installations of {es}.
 
-To use your own version of Java, set the `ES_JAVA_HOME` environment variable.
-If you must use a version of Java that is different from the bundled JVM, it is
-best to use the latest release of a link:/support/matrix[supported]
-https://www.oracle.com/technetwork/java/eol-135779.html[LTS version of Java].
-{es} is closely coupled to certain OpenJDK-specific features, so it may not
-work correctly with other JVMs. {es} will refuse to start if a known-bad
-version of Java is used.
+The bundled JVM is treated the same as any other dependency of {es} in terms of support and maintenance. This means that Elastic takes
+responsibility for keeping it up to date, and reacts to security issues and bug reports as needed to address vulnerabilities and other bugs
+in {es}. Elastic's support of the bundled JVM is subject to Elastic's https://www.elastic.co/support_policy[support policy] and
+https://www.elastic.co/support/eol[end-of-life schedule] and is independent of the support policy and end-of-life schedule offered by the
+original supplier of the JVM. Elastic does not support using the bundled JVM for purposes other than running {es}.
 
-If you use a JVM other than the bundled one, you are responsible for reacting
-to announcements related to its security issues and bug fixes, and must
-yourself determine whether each update is necessary or not. In contrast, the
-bundled JVM is treated as an integral part of {es}, which means that Elastic
-takes responsibility for keeping it up to date. Security issues and bugs within
-the bundled JVM are treated as if they were within {es} itself.
+TIP: {es} uses only a subset of the features offered by the JVM. Bugs and security issues in the bundled JVM often relate to features that
+{es} does not use. Such issues do not apply to {es}. Elastic analyzes reports of security vulnerabilities in all its dependencies, including
+in the bundled JVM, and will issue an https://www.elastic.co/community/security[Elastic Security Advisory] if such an advisory is needed.
 
-The bundled JVM is located within the `jdk` subdirectory of the {es} home
-directory. You may remove this directory if using your own JVM.
+If you decide to run {es} using a version of Java that is different from the bundled one, prefer to use the latest release of a
+https://www.oracle.com/technetwork/java/eol-135779.html[LTS version of Java] which is link:/support/matrix[listed in the support matrix].
+Although such a configuration is supported, if you encounter a security issue or other bug in your chosen JVM then Elastic may not be able
+to help unless the issue is also present in the bundled JVM. Instead, you must seek assistance directly from the supplier of your chosen
+JVM. You must also take responsibility for reacting to security and bug announcements from the supplier of your chosen JVM. {es} may not
+perform optimally if using a JVM other than the bundled one. {es} is closely coupled to certain OpenJDK-specific features, so it may not
+work correctly with JVMs that are not OpenJDK. {es} will refuse to start if you attempt to use a known-bad JVM version.
+
+To use your own version of Java, set the `ES_JAVA_HOME` environment variable to the path to your own JVM installation. The bundled JVM is
+located within the `jdk` subdirectory of the {es} home directory. You may remove this directory if using your own JVM.
 
 [discrete]
 [[jvm-agents]]

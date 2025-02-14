@@ -1,0 +1,5 @@
+pr: 122365
+summary: Fix handling of auto expand replicas for stateless indices
+area: "Search"
+type: bug
+issues: []

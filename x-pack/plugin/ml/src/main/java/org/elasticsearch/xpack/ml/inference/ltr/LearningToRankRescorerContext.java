@@ -24,6 +24,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static java.util.function.Predicate.not;
+
 public class LearningToRankRescorerContext extends RescoreContext {
 
     final SearchExecutionContext executionContext;
@@ -52,12 +54,9 @@ public class LearningToRankRescorerContext extends RescoreContext {
 
     List<FeatureExtractor> buildFeatureExtractors(IndexSearcher searcher) throws IOException {
         assert this.regressionModelDefinition != null && this.learningToRankConfig != null;
+
         List<FeatureExtractor> featureExtractors = new ArrayList<>();
-        if (this.regressionModelDefinition.inputFields().isEmpty() == false) {
-            featureExtractors.add(
-                new FieldValueFeatureExtractor(new ArrayList<>(this.regressionModelDefinition.inputFields()), this.executionContext)
-            );
-        }
+
         List<Weight> weights = new ArrayList<>();
         List<String> queryFeatureNames = new ArrayList<>();
         for (LearningToRankFeatureExtractorBuilder featureExtractorBuilder : learningToRankConfig.getFeatureExtractorBuilders()) {
@@ -70,6 +69,14 @@ public class LearningToRankRescorerContext extends RescoreContext {
         }
         if (weights.isEmpty() == false) {
             featureExtractors.add(new QueryFeatureExtractor(queryFeatureNames, weights));
+        }
+
+        List<String> fieldValueExtractorFields = this.regressionModelDefinition.inputFields()
+            .stream()
+            .filter(not(queryFeatureNames::contains))
+            .toList();
+        if (fieldValueExtractorFields.isEmpty() == false) {
+            featureExtractors.add(new FieldValueFeatureExtractor(fieldValueExtractorFields, this.executionContext));
         }
 
         return featureExtractors;

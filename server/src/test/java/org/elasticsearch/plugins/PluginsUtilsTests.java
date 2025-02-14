@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugins;
@@ -227,13 +228,9 @@ public class PluginsUtilsTests extends ESTestCase {
         transitiveDeps.put("dep2", Collections.singleton(dupJar.toUri().toURL()));
         PluginDescriptor info1 = newTestDescriptor("myplugin", List.of("dep1", "dep2"));
         PluginBundle bundle = new PluginBundle(info1, pluginDir);
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> PluginsUtils.checkBundleJarHell(JarHell.parseModulesAndClassPath(), bundle, transitiveDeps)
-        );
-        assertEquals("failed to load plugin myplugin due to jar hell", e.getMessage());
-        assertThat(e.getCause().getMessage(), containsString("jar hell!"));
-        assertThat(e.getCause().getMessage(), containsString("duplicate codebases"));
+        PluginsUtils.checkBundleJarHell(JarHell.parseModulesAndClassPath(), bundle, transitiveDeps);
+        Set<URL> transitive = transitiveDeps.get("myplugin");
+        assertThat(transitive, containsInAnyOrder(pluginJar.toUri().toURL(), dupJar.toUri().toURL()));
     }
 
     // Note: testing dup codebase with core is difficult because it requires a symlink, but we have mock filesystems and security manager

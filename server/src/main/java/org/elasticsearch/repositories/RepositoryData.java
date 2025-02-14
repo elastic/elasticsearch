@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories;
@@ -47,8 +48,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
- * A class that represents the data in a repository, as captured in the
- * repository's index blob.
+ * Represents the data in a repository: the snapshots and the indices across all snapshots found in the repository.
  */
 public final class RepositoryData {
 
@@ -280,6 +280,13 @@ public final class RepositoryData {
      */
     public Collection<SnapshotId> getSnapshotIds() {
         return snapshotIds.values();
+    }
+
+    /**
+     * @return the number of index snapshots (i.e. the sum of the index count of each snapshot)
+     */
+    public long getIndexSnapshotCount() {
+        return indexSnapshots.values().stream().mapToLong(List::size).sum();
     }
 
     /**
@@ -596,6 +603,11 @@ public final class RepositoryData {
     @Override
     public int hashCode() {
         return Objects.hash(snapshotIds, snapshotsDetails, indices, indexSnapshots, shardGenerations, indexMetaDataGenerations);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.format("RepositoryData[uuid=%s,gen=%s]", uuid, genId);
     }
 
     /**
@@ -1146,7 +1158,7 @@ public final class RepositoryData {
      */
     public static class SnapshotDetails {
 
-        public static SnapshotDetails EMPTY = new SnapshotDetails(null, null, -1, -1, null);
+        public static final SnapshotDetails EMPTY = new SnapshotDetails(null, null, -1, -1, null);
 
         @Nullable // TODO forbid nulls here, this only applies to very old repositories
         private final SnapshotState snapshotState;

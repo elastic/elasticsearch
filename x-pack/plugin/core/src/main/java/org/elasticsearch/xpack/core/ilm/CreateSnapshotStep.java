@@ -100,13 +100,12 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             );
             return;
         }
-        CreateSnapshotRequest request = new CreateSnapshotRequest(snapshotRepository, snapshotName);
+        CreateSnapshotRequest request = new CreateSnapshotRequest(TimeValue.MAX_VALUE, snapshotRepository, snapshotName);
         request.indices(indexName);
         // this is safe as the snapshot creation will still be async, it's just that the listener will be notified when the snapshot is
         // complete
         request.waitForCompletion(true);
         request.includeGlobalState(false);
-        request.masterNodeTimeout(TimeValue.MAX_VALUE);
 
         getClient().admin().cluster().createSnapshot(request, listener.map(response -> {
             logger.debug(

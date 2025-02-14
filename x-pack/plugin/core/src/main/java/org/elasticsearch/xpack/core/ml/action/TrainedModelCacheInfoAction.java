@@ -33,24 +33,18 @@ public class TrainedModelCacheInfoAction extends ActionType<TrainedModelCacheInf
         super(NAME);
     }
 
-    public static class Request extends BaseNodesRequest<Request> {
+    public static class Request extends BaseNodesRequest {
+
+        private final DiscoveryNode[] concreteNodes;
 
         public Request(DiscoveryNode... concreteNodes) {
             super(concreteNodes);
-        }
-
-        public Request(StreamInput in) throws IOException {
-            super(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
+            this.concreteNodes = concreteNodes;
         }
 
         @Override
         public int hashCode() {
-            return Arrays.hashCode(concreteNodes());
+            return Arrays.hashCode(concreteNodes);
         }
 
         @Override
@@ -62,7 +56,7 @@ public class TrainedModelCacheInfoAction extends ActionType<TrainedModelCacheInf
                 return false;
             }
             Request other = (Request) obj;
-            return Arrays.deepEquals(concreteNodes(), other.concreteNodes());
+            return Arrays.deepEquals(concreteNodes, other.concreteNodes);
         }
     }
 

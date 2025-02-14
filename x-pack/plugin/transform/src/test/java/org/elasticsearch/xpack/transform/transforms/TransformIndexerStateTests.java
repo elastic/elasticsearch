@@ -122,6 +122,7 @@ public class TransformIndexerStateTests extends ESTestCase {
         private CountDownLatch searchLatch;
         private CountDownLatch doProcessLatch;
         private CountDownLatch finishLatch = new CountDownLatch(1);
+        private CountDownLatch afterFinishLatch;
 
         MockedTransformIndexer(
             ThreadPool threadPool,
@@ -306,6 +307,16 @@ public class TransformIndexerStateTests extends ESTestCase {
 
         void finishCheckpoint() {
             searchResponse = null;
+        }
+
+        @Override
+        protected void afterFinishOrFailure() {
+            maybeWaitOnLatch(afterFinishLatch);
+            super.afterFinishOrFailure();
+        }
+
+        public CountDownLatch createAfterFinishLatch(int count) {
+            return afterFinishLatch = new CountDownLatch(count);
         }
     }
 
@@ -957,6 +968,58 @@ public class TransformIndexerStateTests extends ESTestCase {
 
         indexer.stop();
         assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STOPPED)), 5, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Given one indexer thread is finishing its run
+     * And that thread is after finishAndSetState() but before afterFinishOrFailure()
+     * When another thread calls maybeTriggerAsyncJob
+     * Then that other thread should not start another indexer run
+     */
+    public void testRunOneJobAtATime() throws Exception {
+        var indexer = createMockIndexer(
+            createTransformConfig(),
+            new AtomicReference<>(IndexerState.STARTED),
+            null,
+            threadPool,
+            auditor,
+            null,
+            new TransformIndexerStats(),
+            new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class))
+        );
+
+        // stop the indexer thread once it kicks off
+        var startLatch = indexer.createAwaitForStartLatch(1);
+        // stop the indexer thread before afterFinishOrFailure
+        var afterFinishLatch = indexer.createAfterFinishLatch(1);
+
+        // flip IndexerState to INDEXING
+        assertEquals(IndexerState.STARTED, indexer.start());
+        assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+        assertEquals(IndexerState.INDEXING, indexer.getState());
+
+        // now let the indexer thread run
+        indexer.finishCheckpoint();
+        startLatch.countDown();
+
+        // wait until the IndexerState flips back to STARTED
+        assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STARTED)), 5, TimeUnit.SECONDS);
+
+        assertFalse(
+            "Indexer state is STARTED, but the Indexer is not finished cleaning up from the previous run.",
+            indexer.maybeTriggerAsyncJob(System.currentTimeMillis())
+        );
+
+        // let the first job finish
+        afterFinishLatch.countDown();
+        indexer.waitUntilFinished();
+
+        // we should now (eventually) be able to schedule the next job
+        assertBusy(() -> assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis())), 5, TimeUnit.SECONDS);
+
+        // stop the indexer, equivalent to _stop?force=true
+        assertFalse("Transform Indexer thread should still be running", indexer.abort());
+        assertEquals(IndexerState.ABORTING, indexer.getState());
     }
 
     private void setStopAtCheckpoint(

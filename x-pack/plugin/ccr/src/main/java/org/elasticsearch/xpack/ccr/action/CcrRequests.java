@@ -34,7 +34,7 @@ public final class CcrRequests {
     private CcrRequests() {}
 
     public static ClusterStateRequest metadataRequest(String leaderIndex) {
-        ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+        ClusterStateRequest clusterStateRequest = new ClusterStateRequest(TimeValue.MAX_VALUE);
         clusterStateRequest.clear();
         clusterStateRequest.metadata(true);
         clusterStateRequest.indices(leaderIndex);

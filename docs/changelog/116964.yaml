@@ -1,0 +1,6 @@
+pr: 116964
+summary: "Support ST_ENVELOPE and related (ST_XMIN, ST_XMAX, ST_YMIN, ST_YMAX) functions"
+area: ES|QL
+type: feature
+issues:
+ - 104875

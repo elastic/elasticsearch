@@ -1,0 +1,2 @@
+com.google.api.client:
+  - set_https_connection_properties

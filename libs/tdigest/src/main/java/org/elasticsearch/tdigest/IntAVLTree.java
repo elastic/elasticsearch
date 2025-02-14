@@ -21,7 +21,13 @@
 
 package org.elasticsearch.tdigest;
 
-import java.util.Arrays;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.tdigest.arrays.TDigestArrays;
+import org.elasticsearch.tdigest.arrays.TDigestByteArray;
+import org.elasticsearch.tdigest.arrays.TDigestIntArray;
 
 /**
  * An AVL-tree structure stored in parallel arrays.
@@ -29,8 +35,8 @@ import java.util.Arrays;
  * want to add data to the nodes, typically by using arrays and node
  * identifiers as indices.
  */
-abstract class IntAVLTree {
-
+abstract class IntAVLTree implements Releasable, Accountable {
+    static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(IntAVLTree.class);
     /**
      * We use <code>0</code> instead of <code>-1</code> so that left(NIL) works without
      * condition.
@@ -42,24 +48,51 @@ abstract class IntAVLTree {
         return size + (size >>> 3);
     }
 
+    private final TDigestArrays arrays;
+    private boolean closed = false;
+
     private final NodeAllocator nodeAllocator;
     private int root;
-    private int[] parent;
-    private int[] left;
-    private int[] right;
-    private byte[] depth;
+    private final TDigestIntArray parent;
+    private final TDigestIntArray left;
+    private final TDigestIntArray right;
+    private final TDigestByteArray depth;
 
-    IntAVLTree(int initialCapacity) {
-        nodeAllocator = new NodeAllocator();
+    IntAVLTree(TDigestArrays arrays, int initialCapacity) {
+        this.arrays = arrays;
         root = NIL;
-        parent = new int[initialCapacity];
-        left = new int[initialCapacity];
-        right = new int[initialCapacity];
-        depth = new byte[initialCapacity];
+
+        NodeAllocator nodeAllocator = null;
+        TDigestIntArray parent = null;
+        TDigestIntArray left = null;
+        TDigestIntArray right = null;
+        TDigestByteArray depth = null;
+
+        try {
+            this.nodeAllocator = nodeAllocator = NodeAllocator.create(arrays);
+            this.parent = parent = arrays.newIntArray(initialCapacity);
+            this.left = left = arrays.newIntArray(initialCapacity);
+            this.right = right = arrays.newIntArray(initialCapacity);
+            this.depth = depth = arrays.newByteArray(initialCapacity);
+
+            nodeAllocator = null;
+            parent = null;
+            left = null;
+            right = null;
+            depth = null;
+        } finally {
+            Releasables.close(nodeAllocator, parent, left, right, depth);
+        }
     }
 
-    IntAVLTree() {
-        this(16);
+    IntAVLTree(TDigestArrays arrays) {
+        this(arrays, 16);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + nodeAllocator.ramBytesUsed() + parent.ramBytesUsed() + left.ramBytesUsed() + right.ramBytesUsed() + depth
+            .ramBytesUsed();
     }
 
     /**
@@ -74,7 +107,7 @@ abstract class IntAVLTree {
      * can hold.
      */
     public int capacity() {
-        return parent.length;
+        return parent.size();
     }
 
     /**
@@ -82,10 +115,10 @@ abstract class IntAVLTree {
      * <code>newCapacity</code> (excluded).
      */
     protected void resize(int newCapacity) {
-        parent = Arrays.copyOf(parent, newCapacity);
-        left = Arrays.copyOf(left, newCapacity);
-        right = Arrays.copyOf(right, newCapacity);
-        depth = Arrays.copyOf(depth, newCapacity);
+        parent.resize(newCapacity);
+        left.resize(newCapacity);
+        right.resize(newCapacity);
+        depth.resize(newCapacity);
     }
 
     /**
@@ -99,28 +132,28 @@ abstract class IntAVLTree {
      * Return the parent of the provided node.
      */
     public int parent(int node) {
-        return parent[node];
+        return parent.get(node);
     }
 
     /**
      * Return the left child of the provided node.
      */
     public int left(int node) {
-        return left[node];
+        return left.get(node);
     }
 
     /**
      * Return the right child of the provided node.
      */
     public int right(int node) {
-        return right[node];
+        return right.get(node);
     }
 
     /**
      * Return the depth nodes that are stored below <code>node</code> including itself.
      */
     public int depth(int node) {
-        return depth[node];
+        return depth.get(node);
     }
 
     /**
@@ -493,23 +526,23 @@ abstract class IntAVLTree {
 
     private void parent(int node, int parent) {
         assert node != NIL;
-        this.parent[node] = parent;
+        this.parent.set(node, parent);
     }
 
     private void left(int node, int left) {
         assert node != NIL;
-        this.left[node] = left;
+        this.left.set(node, left);
     }
 
     private void right(int node, int right) {
         assert node != NIL;
-        this.right[node] = right;
+        this.right.set(node, right);
     }
 
     private void depth(int node, int depth) {
         assert node != NIL;
         assert depth >= 0 && depth <= Byte.MAX_VALUE;
-        this.depth[node] = (byte) depth;
+        this.depth.set(node, (byte) depth);
     }
 
     void checkBalance(int node) {
@@ -526,14 +559,24 @@ abstract class IntAVLTree {
     /**
      * A stack of int values.
      */
-    private static class IntStack {
+    private static class IntStack implements Releasable, Accountable {
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(IntStack.class);
 
-        private int[] stack;
+        private final TDigestArrays arrays;
+        private boolean closed = false;
+
+        private final TDigestIntArray stack;
         private int size;
 
-        IntStack() {
-            stack = new int[0];
+        IntStack(TDigestArrays arrays) {
+            this.arrays = arrays;
+            stack = arrays.newIntArray(0);
             size = 0;
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return SHALLOW_SIZE + stack.ramBytesUsed();
         }
 
         int size() {
@@ -541,27 +584,60 @@ abstract class IntAVLTree {
         }
 
         int pop() {
-            return stack[--size];
+            int value = stack.get(--size);
+            stack.resize(size);
+            return value;
         }
 
         void push(int v) {
-            if (size >= stack.length) {
-                final int newLength = oversize(size + 1);
-                stack = Arrays.copyOf(stack, newLength);
-            }
-            stack[size++] = v;
+            stack.resize(++size);
+            stack.set(size - 1, v);
         }
 
+        @Override
+        public void close() {
+            if (closed == false) {
+                closed = true;
+                arrays.adjustBreaker(-SHALLOW_SIZE);
+                stack.close();
+            }
+        }
     }
 
-    private static class NodeAllocator {
+    private static class NodeAllocator implements Releasable, Accountable {
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(NodeAllocator.class);
+
+        private final TDigestArrays arrays;
+        private boolean closed = false;
 
         private int nextNode;
         private final IntStack releasedNodes;
 
-        NodeAllocator() {
+        static NodeAllocator create(TDigestArrays arrays) {
+            arrays.adjustBreaker(SHALLOW_SIZE);
+            try {
+                return new NodeAllocator(arrays);
+            } catch (Exception e) {
+                arrays.adjustBreaker(-SHALLOW_SIZE);
+                throw e;
+            }
+        }
+
+        private NodeAllocator(TDigestArrays arrays) {
+            this.arrays = arrays;
             nextNode = NIL + 1;
-            releasedNodes = new IntStack();
+            arrays.adjustBreaker(IntStack.SHALLOW_SIZE);
+            try {
+                releasedNodes = new IntStack(arrays);
+            } catch (Exception e) {
+                arrays.adjustBreaker(-IntStack.SHALLOW_SIZE);
+                throw e;
+            }
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return SHALLOW_SIZE + releasedNodes.ramBytesUsed();
         }
 
         int newNode() {
@@ -581,6 +657,22 @@ abstract class IntAVLTree {
             return nextNode - releasedNodes.size() - 1;
         }
 
+        @Override
+        public void close() {
+            if (closed == false) {
+                closed = true;
+                arrays.adjustBreaker(-SHALLOW_SIZE);
+                releasedNodes.close();
+            }
+        }
     }
 
+    @Override
+    public void close() {
+        if (closed == false) {
+            closed = true;
+            arrays.adjustBreaker(-SHALLOW_SIZE);
+            Releasables.close(nodeAllocator, parent, left, right, depth);
+        }
+    }
 }

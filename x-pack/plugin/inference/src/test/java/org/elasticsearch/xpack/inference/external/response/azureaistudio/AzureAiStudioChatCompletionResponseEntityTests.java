@@ -35,7 +35,7 @@ public class AzureAiStudioChatCompletionResponseEntityTests extends ESTestCase {
             AzureAiStudioEndpointType.TOKEN,
             "apikey"
         );
-        var request = new AzureAiStudioChatCompletionRequest(model, List.of("test input"));
+        var request = new AzureAiStudioChatCompletionRequest(model, List.of("test input"), false);
         var result = (ChatCompletionResults) entity.apply(
             request,
             new HttpResult(mock(HttpResponse.class), testTokenResponseJson.getBytes(StandardCharsets.UTF_8))
@@ -54,7 +54,7 @@ public class AzureAiStudioChatCompletionResponseEntityTests extends ESTestCase {
             AzureAiStudioEndpointType.REALTIME,
             "apikey"
         );
-        var request = new AzureAiStudioChatCompletionRequest(model, List.of("test input"));
+        var request = new AzureAiStudioChatCompletionRequest(model, List.of("test input"), false);
         var result = (ChatCompletionResults) entity.apply(
             request,
             new HttpResult(mock(HttpResponse.class), testRealtimeResponseJson.getBytes(StandardCharsets.UTF_8))

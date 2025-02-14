@@ -17,4 +17,5 @@ public interface GroupingAggregatorState extends Releasable {
     /** Extracts an intermediate view of the contents of this state.  */
     void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext);
 
+    void enableGroupIdTracking(SeenGroupIds seenGroupIds);
 }

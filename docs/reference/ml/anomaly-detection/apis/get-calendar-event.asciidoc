@@ -5,6 +5,12 @@
 <titleabbrev>Get scheduled events</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-anomaly[{ml-cap}  {anomaly-detect} APIs].
+--
+
 Retrieves information about the scheduled events in calendars.
 
 [[ml-get-calendar-event-request]]

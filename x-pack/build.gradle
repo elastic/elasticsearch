@@ -10,8 +10,8 @@ subprojects {
   // see: https://wiki.shibboleth.net/confluence/display/DEV/Use+of+Maven+Central
   repositories {
     maven {
-      name "opensaml"
-      url "https://artifactory.elstc.co/artifactory/shibboleth-releases/"
+      name = "opensaml"
+      url = "https://artifactory.elstc.co/artifactory/shibboleth-releases/"
       content {
         includeGroup "org.opensaml"
         includeGroup "net.shibboleth.utilities"
@@ -36,7 +36,7 @@ subprojects {
   }
 
   project.pluginManager.withPlugin("elasticsearch.licensing") {
-    ext.projectLicenses.set(['Elastic License 2.0': ext.elasticLicenseUrl.get()])
+    ext.projectLicenses.set(['Elastic License 2.0': ext.elasticLicenseUrl])
   }
 
   project.pluginManager.withPlugin("elasticsearch.build") {

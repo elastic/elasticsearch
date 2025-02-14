@@ -1,0 +1,777 @@
+[#es-connectors-mongodb]
+=== Elastic MongoDB connector reference
+++++
+<titleabbrev>MongoDB</titleabbrev>
+++++
+// Attributes used in this file
+:service-name: MongoDB
+:service-name-stub: mongodb
+
+The _Elastic MongoDB connector_ is a <<es-connectors,connector>> for https://www.mongodb.com[MongoDB^] data sources.
+This connector is written in Python using the {connectors-python}[Elastic connector framework^]. 
+
+View the {connectors-python}/connectors/sources/{service-name-stub}.py[*source code* for this connector^] (branch _{connectors-branch}_, compatible with Elastic _{minor-version}_).
+
+.Choose your connector reference
+*******************************
+Are you using a managed connector on Elastic Cloud or a self-managed connector? Expand the documentation based on your deployment method.
+*******************************
+
+// //////// //// //// //// //// //// //// ////////
+// ////////   NATIVE CONNECTOR REFERENCE   ///////
+// //////// //// //// //// //// //// //// ////////
+
+[discrete#es-connectors-mongodb-native-connector-reference]
+==== *Elastic managed connector reference*
+
+.View *Elastic managed connector* reference
+
+[%collapsible]
+===============
+
+[discrete#es-connectors-mongodb-prerequisites]
+===== Availability and prerequisites
+
+This connector is available as a *managed connector* in Elastic versions *8.5.0 and later*.
+
+To use this connector natively in Elastic Cloud, satisfy all <<es-native-connectors-prerequisites,managed connector requirements>>.
+
+[discrete#es-connectors-mongodb-compatibility]
+===== Compatibility
+
+This connector is compatible with *MongoDB Atlas* and *MongoDB 3.6 and later*.
+
+The data source and your Elastic deployment must be able to communicate with each other over a network.
+
+[discrete#es-connectors-mongodb-configuration]
+===== Configuration
+
+Each time you create an index to be managed by this connector, you will create a new connector configuration.
+You will need some or all of the following information about the data source.
+
+Server hostname::
+The URI of the MongoDB host.
+Examples:
++
+* `mongodb+srv://my_username:my_password@cluster0.mongodb.net/mydb?w=majority`
+* `mongodb://127.0.0.1:27017`
+
+Username::
+The MongoDB username the connector will use.
++
+The user must have access to the configured database and collection.
+You may want to create a dedicated, read-only user for each connector.
+
+Password::
+The MongoDB password the connector will use.
+
+Database::
+The MongoDB database to sync.
+The database must be accessible using the configured username and password.
+
+Collection::
+The MongoDB collection to sync.
+The collection must exist within the configured database.
+The collection must be accessible using the configured username and password.
+
+Direct connection::
+Toggle to use the https://www.mongodb.com/docs/ruby-driver/current/reference/create-client/#direct-connection[direct connection option for the MongoDB client^].
+Disabled by default.
+
+SSL/TLS Connection::
+Toggle to establish a secure connection to the MongoDB server using SSL/TLS encryption.
+Ensure that your MongoDB deployment supports SSL/TLS connections.
+*Enable* if your MongoDB cluster uses DNS SRV records (namely MongoDB Atlas users).
++
+Disabled by default.
+
+Certificate Authority (.pem)::
+Specifies the root certificate from the Certificate Authority.
+The value of the certificate is used to validate the certificate presented by the MongoDB instance.
+[TIP]
+====
+Atlas users can leave this blank because https://www.mongodb.com/docs/atlas/reference/faq/security/#which-certificate-authority-signs-mongodb-atlas-tls-certificates-[Atlas uses a widely trusted root CA].
+====
+
+Skip certificate verification::
+Skips various certificate validations (if SSL is enabled).
+Disabled by default.
+[NOTE]
+====
+We strongly recommend leaving this option disabled in production environments.
+====
+
+[discrete#es-connectors-mongodb-create-native-connector]
+===== Create a {service-name} connector
+include::_connectors-create-native.asciidoc[]
+
+[discrete#es-connectors-mongodb-usage]
+===== Usage
+
+To use this connector as a *managed connector*, use the *Connector* workflow.
+See <<es-native-connectors>>.
+
+For additional operations, see <<es-connectors-usage>>.
+
+[discrete#es-connectors-mongodb-example]
+===== Example
+
+An example is available for this connector.
+See <<es-mongodb-start>>.
+
+[discrete#es-connectors-mongodb-known-issues]
+===== Known issues
+
+[discrete#es-connectors-mongodb-known-issues-ssl-tls-812]
+====== SSL must be enabled for MongoDB Atlas
+
+* A bug introduced in *8.12.0* causes the connector to fail to sync Mongo *Atlas* urls (`mongo+srv`) unless SSL/TLS is enabled.
+// https://github.com/elastic/sdh-enterprise-search/issues/1283#issuecomment-1919731668
+
+[discrete#es-connectors-mongodb-known-issues-expressions-and-variables-in-aggregation-pipelines]
+====== Expressions and variables in aggregation pipelines
+
+It's not possible to use expressions like `new Date()` inside an aggregation pipeline.
+These expressions won't be evaluated by the underlying MongoDB client, but will be passed as a string to the MongoDB instance.
+A possible workaround is to use https://www.mongodb.com/docs/manual/reference/aggregation-variables/[aggregation variables].
+
+Incorrect (`new Date()` will be interpreted as string):
+[source,js]
+----
+{
+    "aggregate": {
+        "pipeline": [
+            {
+                "$match": {
+                  "expiresAt": {
+                    "$gte": "new Date()"
+                  }
+                }
+            }
+        ]
+    }
+}
+----
+// NOTCONSOLE
+
+Correct (usage of https://www.mongodb.com/docs/manual/reference/aggregation-variables/#mongodb-variable-variable.NOW[$$NOW]):
+[source,js]
+----
+{
+  "aggregate": {
+    "pipeline": [
+      {
+        "$addFields": {
+          "current_date": {
+            "$toDate": "$$NOW"
+          }
+        }
+      },
+      {
+        "$match": {
+          "$expr": {
+            "$gte": [
+              "$expiresAt",
+              "$current_date"
+            ]
+          }
+        }
+      }
+    ]
+  }
+}
+----
+// NOTCONSOLE
+
+[discrete#es-connectors-mongodb-known-issues-tls-with-invalid-cert]
+====== Connecting with self-signed or custom CA TLS Cert
+
+Currently, the MongoDB connector does not support working with self-signed or custom CA certs when connecting to your self-managed MongoDB host.
+
+[WARNING]
+====
+The following workaround should not be used in production.
+====
+
+This can be worked around in development environments, by appending certain query parameters to the configured host.
+
+For example, if your host is `mongodb+srv://my.mongo.host.com`, appending `?tls=true&tlsAllowInvalidCertificates=true` will allow disabling TLS certificate verification.
+
+The full host in this example will look like this:
+
+`mongodb+srv://my.mongo.host.com/?tls=true&tlsAllowInvalidCertificates=true`
+
+See <<es-connectors-known-issues>> for any issues affecting all connectors.
+
+[discrete#es-connectors-mongodb-troubleshooting]
+===== Troubleshooting
+
+See <<es-connectors-troubleshooting>>.
+
+[discrete#es-connectors-mongodb-security]
+===== Security
+
+See <<es-connectors-security>>.
+
+[discrete#es-connectors-mongodb-syncs]
+===== Documents and syncs
+
+The following describes the default syncing behavior for this connector.
+Use <<es-sync-rules,sync rules>> and {ref}/ingest-pipeline-search.html[ingest pipelines] to customize syncing for specific indices.
+
+All documents in the configured MongoDB database and collection are extracted and transformed into documents in your Elasticsearch index.
+
+* The connector creates one *Elasticsearch document* for each MongoDB document in the configured database and collection.
+* For each document, the connector transforms each MongoDB field into an *Elasticsearch field*.
+* For each field, Elasticsearch {ref}/dynamic-mapping.html[dynamically determines the *data type*^].
+
+This results in Elasticsearch documents that closely match the original MongoDB documents.
+
+The Elasticsearch mapping is created when the first document is created.
+
+Each sync is a "full" sync.
+For each MongoDB document discovered:
+
+* If it does not exist, the document is created in Elasticsearch.
+* If it already exists in Elasticsearch, the Elasticsearch document is replaced and the version is incremented.
+* If an existing Elasticsearch document no longer exists in the MongoDB collection, it is deleted from Elasticsearch.
+* Embedded documents are stored as an `object` field in the parent document.
+
+This is recursive, because embedded documents can themselves contain embedded documents.
+
+[NOTE]
+====
+* Files bigger than 10 MB won't be extracted
+* Permissions are not synced. All documents indexed to an Elastic deployment will be visible to *all users with access* to that Elastic Deployment.
+====
+
+[discrete#es-connectors-mongodb-sync-rules]
+===== Sync rules
+
+The following sections describe <<es-sync-rules>> for this connector.
+
+<<es-sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
+
+<<es-sync-rules-advanced,Advanced rules>> for MongoDB can be used to express either `find` queries or aggregation pipelines.
+They can also be used to tune options available when issuing these queries/pipelines.
+
+[discrete#es-connectors-mongodb-sync-rules-find]
+====== `find` queries
+
+[NOTE]
+====
+You must create a https://www.mongodb.com/docs/current/core/indexes/index-types/index-text/[text index^] on the MongoDB collection in order to perform text searches.
+====
+
+For `find` queries, the structure of this JSON DSL should look like:
+
+[source,js]
+----
+{
+	"find":{
+		"filter": {
+			// find query goes here
+		},
+		"options":{
+			// query options go here
+		}
+	}
+}
+
+----
+// NOTCONSOLE
+
+For example:
+
+[source,js]
+----
+{
+	"find": {
+		"filter": {
+			"$text": {
+				"$search": "garden",
+				"$caseSensitive": false
+			}
+		},
+		"skip": 10,
+		"limit": 1000
+	}
+}
+----
+// NOTCONSOLE
+
+`find` queries also support additional options, for example the `projection` object:
+
+[source,js]
+----
+{
+  "find": {
+    "filter": {
+      "languages": [
+        "English"
+      ],
+      "runtime": {
+        "$gt":90
+      }
+    },
+    "projection":{
+      "tomatoes": 1
+    }
+  }
+}
+----
+// NOTCONSOLE
+Where the available options are:
+
+* `allow_disk_use` (true, false) — When set to true, the server can write temporary data to disk while executing the find operation. This option is only available on MongoDB server versions 4.4 and newer.
+* `allow_partial_results` (true, false) — Allows the query to get partial results if some shards are down.
+* `batch_size` (Integer) — The number of documents returned in each batch of results from MongoDB.
+* `filter` (Object) — The filter criteria for the query.
+* `limit` (Integer) — The max number of docs to return from the query.
+* `max_time_ms` (Integer) — The maximum amount of time to allow the query to run, in milliseconds.
+* `no_cursor_timeout` (true, false) — The server normally times out idle cursors after an inactivity period (10 minutes) to prevent excess memory use. Set this option to prevent that.
+* `projection` (Array, Object) — The fields to include or exclude from each doc in the result set. If an array, it should have at least one item.
+* `return_key` (true, false) — Return index keys rather than the documents.
+* `show_record_id` (true, false) — Return the `$recordId` for each doc in the result set.
+* `skip` (Integer) — The number of docs to skip before returning results.
+
+[discrete#es-connectors-mongodb-sync-rules-aggregation]
+====== Aggregation pipelines
+
+Similarly, for aggregation pipelines, the structure of the JSON DSL should look like:
+
+[source,js]
+----
+{
+	"aggregate":{
+		"pipeline": [
+			// pipeline elements go here
+		],
+		"options": {
+            // pipeline options go here
+		}
+    }
+}
+----
+// NOTCONSOLE
+
+Where the available options are:
+
+* `allowDiskUse` (true, false) — Set to true if disk usage is allowed during the aggregation.
+* `batchSize` (Integer) — The number of documents to return per batch.
+* `bypassDocumentValidation` (true, false) — Whether or not to skip document level validation.
+* `collation` (Object) — The collation to use.
+* `comment` (String) — A user-provided comment to attach to this command.
+* `hint` (String) — The index to use for the aggregation.
+* `let` (Object) — Mapping of variables to use in the pipeline. See the server documentation for details.
+* `maxTimeMs` (Integer) — The maximum amount of time in milliseconds to allow the aggregation to run.
+
+[discrete#es-connectors-mongodb-migration-from-ruby]
+===== Migrating from the Ruby connector framework
+
+As part of the 8.8.0 release the MongoDB connector was moved from the {connectors-python}[Ruby connectors framework^] to the {connectors-python}[Elastic connector framework^].
+
+This change introduces minor formatting modifications to data ingested from MongoDB:
+
+1. Nested object id field name has changed from "_id" to "id". For example, if you had a field "customer._id", this will now be named "customer.id".
+2. Date format has changed from `YYYY-MM-DD'T'HH:mm:ss.fff'Z'` to `YYYY-MM-DD'T'HH:mm:ss`
+
+If your MongoDB connector stopped working after migrating from 8.7.x to 8.8.x, read the workaround outlined in <<es-connectors-known-issues>>.
+If that does not work, we recommend deleting the search index attached to this connector and re-creating a MongoDB connector from scratch.
+
+
+// Closing the collapsible section 
+===============
+
+
+// //////// //// //// //// //// //// //// ////////
+// //////// CONNECTOR CLIENT REFERENCE     ///////
+// //////// //// //// //// //// //// //// ////////
+
+[discrete#es-connectors-mongodb-connector-client-reference]
+==== *Self-managed connector*
+
+.View *self-managed connector* reference
+
+[%collapsible]
+===============
+
+[discrete#es-connectors-mongodb-client-prerequisites]
+===== Availability and prerequisites
+
+This connector is also available as a *self-managed connector* from the *Elastic connector framework*.
+To use this connector as a self-managed connector, satisfy all <<es-build-connector,self-managed connector requirements>>.
+
+[discrete#es-connectors-mongodb-client-compatibility]
+===== Compatibility
+
+This connector is compatible with *MongoDB Atlas* and *MongoDB 3.6 and later*.
+
+The data source and your Elastic deployment must be able to communicate with each other over a network.
+
+[discrete#es-connectors-mongodb-client-configuration]
+===== Configuration
+
+[TIP]
+====
+When using the <<es-build-connector, self-managed connector>> workflow, initially these fields will use the default configuration set in the {connectors-python}/connectors/sources/jira.py[connector source code^].
+These are set in the `get_default_configuration` function definition.
+
+These configurable fields will be rendered with their respective *labels* in the Kibana UI.
+Once connected, you'll be able to update these values in Kibana.
+====
+
+The following configuration fields are required to set up the connector:
+
+`host`::
+The URI of the MongoDB host.
+Examples:
++
+* `mongodb+srv://my_username:my_password@cluster0.mongodb.net/mydb?w=majority`
+* `mongodb://127.0.0.1:27017`
+
+
+`user`::
+The MongoDB username the connector will use.
++
+The user must have access to the configured database and collection.
+You may want to create a dedicated, read-only user for each connector.
+
+`password`::
+The MongoDB password the connector will use.
+
+[NOTE]
+====
+Anonymous authentication is supported for _testing purposes only_, but should not be used in production.
+Omit the username and password, to use default values.
+====
+
+`database`::
+The MongoDB database to sync.
+The database must be accessible using the configured username and password.
+
+`collection`::
+The MongoDB collection to sync.
+The collection must exist within the configured database.
+The collection must be accessible using the configured username and password.
+
+`direct_connection`::
+Whether to use the https://www.mongodb.com/docs/ruby-driver/current/reference/create-client/#direct-connection[direct connection option for the MongoDB client^].
+Default value is `False`.
+
+`ssl_enabled`::
+Whether to establish a secure connection to the MongoDB server using SSL/TLS encryption.
+Ensure that your MongoDB deployment supports SSL/TLS connections.
+*Enable* if your MongoDB cluster uses DNS SRV records (namely MongoDB Atlas users).
++
+Default value is `False`.
+
+`ssl_ca`::
+Specifies the root certificate from the Certificate Authority.
+The value of the certificate is used to validate the certificate presented by the MongoDB instance.
+[TIP]
+====
+Atlas users can leave this blank because https://www.mongodb.com/docs/atlas/reference/faq/security/#which-certificate-authority-signs-mongodb-atlas-tls-certificates-[Atlas uses a widely trusted root CA].
+====
+
+`tls_insecure`::
+Skips various certificate validations (if SSL is enabled).
+Default value is `False`.
+[NOTE]
+====
+We strongly recommend leaving this option disabled in production environments.
+====
+
+[discrete#es-connectors-mongodb-create-connector-client]
+===== Create a {service-name} connector
+include::_connectors-create-client.asciidoc[]
+
+[discrete#es-connectors-mongodb-client-usage]
+===== Usage
+
+To use this connector as a *self-managed connector*, see <<es-build-connector>>
+For additional usage operations, see <<es-connectors-usage>>.
+
+[discrete#es-connectors-mongodb-client-example]
+===== Example
+
+An example is available for this connector.
+See <<es-mongodb-start>>.
+
+[discrete#es-connectors-mongodb-client-known-issues]
+===== Known issues
+
+[discrete#es-connectors-mongodb-client-known-issues-ssl-tls-812]
+====== SSL must be enabled for MongoDB Atlas
+
+* A bug introduced in *8.12.0* causes the connector to fail to sync Mongo *Atlas* urls (`mongo+srv`) unless SSL/TLS is enabled.
+// https://github.com/elastic/sdh-enterprise-search/issues/1283#issuecomment-1919731668
+
+
+[discrete#es-connectors-mongodb-client-known-issues-expressions-and-variables-in-aggregation-pipelines]
+====== Expressions and variables in aggregation pipelines
+
+It's not possible to use expressions like `new Date()` inside an aggregation pipeline.
+These expressions won't be evaluated by the underlying MongoDB client, but will be passed as a string to the MongoDB instance.
+A possible workaround is to use https://www.mongodb.com/docs/manual/reference/aggregation-variables/[aggregation variables].
+
+Incorrect (`new Date()` will be interpreted as string):
+[source,js]
+----
+{
+    "aggregate": {
+        "pipeline": [
+            {
+                "$match": {
+                  "expiresAt": {
+                    "$gte": "new Date()"
+                  }
+                }
+            }
+        ]
+    }
+}
+----
+// NOTCONSOLE
+
+Correct (usage of https://www.mongodb.com/docs/manual/reference/aggregation-variables/#mongodb-variable-variable.NOW[$$NOW]):
+[source,js]
+----
+{
+  "aggregate": {
+    "pipeline": [
+      {
+        "$addFields": {
+          "current_date": {
+            "$toDate": "$$NOW"
+          }
+        }
+      },
+      {
+        "$match": {
+          "$expr": {
+            "$gte": [
+              "$expiresAt",
+              "$current_date"
+            ]
+          }
+        }
+      }
+    ]
+  }
+}
+----
+// NOTCONSOLE
+
+[discrete#es-connectors-mongodb-client-known-issues-tls-with-invalid-cert]
+====== Connecting with self-signed or custom CA TLS Cert
+
+Currently, the MongoDB connector does not support working with self-signed or custom CA certs when connecting to your self-managed MongoDB host.
+
+[WARNING]
+====
+The following workaround should not be used in production.
+====
+
+This can be worked around in development environments, by appending certain query parameters to the configured host.
+
+For example, if your host is `mongodb+srv://my.mongo.host.com`, appending `?tls=true&tlsAllowInvalidCertificates=true` will allow disabling TLS certificate verification.
+
+The full host in this example will look like this:
+
+`mongodb+srv://my.mongo.host.com/?tls=true&tlsAllowInvalidCertificates=true`
+
+[discrete#es-connectors-mongodb-known-issues-docker-image-fails]
+====== Docker image errors out for versions 8.12.0 and 8.12.1
+
+A bug introduced in *8.12.0* causes the Connectors docker image to error out if run using MongoDB as its source.
+The command line will output the error `cannot import name 'coroutine' from 'asyncio'`.
+** This issue is fixed in versions *8.12.2* and *8.13.0*.
+** This bug does not affect Elastic managed connectors.
+
+See <<es-connectors-known-issues>> for any issues affecting all connectors.
+
+[discrete#es-connectors-mongodb-client-troubleshooting]
+===== Troubleshooting
+
+See <<es-connectors-troubleshooting>>.
+
+[discrete#es-connectors-mongodb-client-security]
+===== Security
+
+See <<es-connectors-security>>.
+
+[discrete#es-connectors-mongodb-client-docker]
+===== Deployment using Docker
+
+include::_connectors-docker-instructions.asciidoc[]
+
+[discrete#es-connectors-mongodb-client-syncs]
+===== Documents and syncs
+
+The following describes the default syncing behavior for this connector.
+Use <<es-sync-rules,sync rules>> and {ref}/ingest-pipeline-search.html[ingest pipelines] to customize syncing for specific indices.
+
+All documents in the configured MongoDB database and collection are extracted and transformed into documents in your Elasticsearch index.
+
+* The connector creates one *Elasticsearch document* for each MongoDB document in the configured database and collection.
+* For each document, the connector transforms each MongoDB field into an *Elasticsearch field*.
+* For each field, Elasticsearch {ref}/dynamic-mapping.html[dynamically determines the *data type*^].
+
+This results in Elasticsearch documents that closely match the original MongoDB documents.
+
+The Elasticsearch mapping is created when the first document is created.
+
+Each sync is a "full" sync.
+For each MongoDB document discovered:
+
+* If it does not exist, the document is created in Elasticsearch.
+* If it already exists in Elasticsearch, the Elasticsearch document is replaced and the version is incremented.
+* If an existing Elasticsearch document no longer exists in the MongoDB collection, it is deleted from Elasticsearch.
+* Embedded documents are stored as an `object` field in the parent document.
+
+This is recursive, because embedded documents can themselves contain embedded documents.
+
+[NOTE]
+====
+* Files bigger than 10 MB won't be extracted
+* Permissions are not synced. All documents indexed to an Elastic deployment will be visible to *all users with access* to that Elastic Deployment.
+====
+
+[discrete#es-connectors-mongodb-client-sync-rules]
+===== Sync rules
+
+The following sections describe <<es-sync-rules>> for this connector.
+
+<<es-sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
+
+<<es-sync-rules-advanced,Advanced rules>> for MongoDB can be used to express either `find` queries or aggregation pipelines.
+They can also be used to tune options available when issuing these queries/pipelines.
+
+[discrete#es-connectors-mongodb-client-sync-rules-find]
+====== `find` queries
+
+[NOTE]
+====
+You must create a https://www.mongodb.com/docs/current/core/indexes/index-types/index-text/[text index^] on the MongoDB collection in order to perform text searches.
+====
+
+For `find` queries, the structure of this JSON DSL should look like:
+
+[source,js]
+----
+{
+	"find":{
+		"filter": {
+			// find query goes here
+		},
+		"options":{
+			// query options go here
+		}
+	}
+}
+
+----
+// NOTCONSOLE
+
+For example:
+
+[source,js]
+----
+{
+	"find": {
+		"filter": {
+			"$text": {
+				"$search": "garden",
+				"$caseSensitive": false
+			}
+		},
+		"skip": 10,
+		"limit": 1000
+	}
+}
+----
+// NOTCONSOLE
+
+`find` queries also support additional options, for example the `projection` object:
+
+[source,js]
+----
+{
+  "find": {
+    "filter": {
+      "languages": [
+        "English"
+      ],
+      "runtime": {
+        "$gt":90
+      }
+    },
+    "projection":{
+      "tomatoes": 1
+    }
+  }
+}
+----
+// NOTCONSOLE
+Where the available options are:
+
+* `allow_disk_use` (true, false) — When set to true, the server can write temporary data to disk while executing the find operation. This option is only available on MongoDB server versions 4.4 and newer.
+* `allow_partial_results` (true, false) — Allows the query to get partial results if some shards are down.
+* `batch_size` (Integer) — The number of documents returned in each batch of results from MongoDB.
+* `filter` (Object) — The filter criteria for the query.
+* `limit` (Integer) — The max number of docs to return from the query.
+* `max_time_ms` (Integer) — The maximum amount of time to allow the query to run, in milliseconds.
+* `no_cursor_timeout` (true, false) — The server normally times out idle cursors after an inactivity period (10 minutes) to prevent excess memory use. Set this option to prevent that.
+* `projection` (Array, Object) — The fields to include or exclude from each doc in the result set. If an array, it should have at least one item.
+* `return_key` (true, false) — Return index keys rather than the documents.
+* `show_record_id` (true, false) — Return the `$recordId` for each doc in the result set.
+* `skip` (Integer) — The number of docs to skip before returning results.
+
+[discrete#es-connectors-mongodb-client-sync-rules-aggregation]
+====== Aggregation pipelines
+
+Similarly, for aggregation pipelines, the structure of the JSON DSL should look like:
+
+[source,js]
+----
+{
+	"aggregate":{
+		"pipeline": [
+			// pipeline elements go here
+		],
+		"options": {
+            // pipeline options go here
+		}
+    }
+}
+----
+// NOTCONSOLE
+
+Where the available options are:
+
+* `allowDiskUse` (true, false) — Set to true if disk usage is allowed during the aggregation.
+* `batchSize` (Integer) — The number of documents to return per batch.
+* `bypassDocumentValidation` (true, false) — Whether or not to skip document level validation.
+* `collation` (Object) — The collation to use.
+* `comment` (String) — A user-provided comment to attach to this command.
+* `hint` (String) — The index to use for the aggregation.
+* `let` (Object) — Mapping of variables to use in the pipeline. See the server documentation for details.
+* `maxTimeMs` (Integer) — The maximum amount of time in milliseconds to allow the aggregation to run.
+
+[discrete#es-connectors-mongodb-client-migration-from-ruby]
+===== Migrating from the Ruby connector framework
+
+As part of the 8.8.0 release the MongoDB connector was moved from the {connectors-python}[Ruby connectors framework^] to the {connectors-python}[Elastic connector framework^].
+
+This change introduces minor formatting modifications to data ingested from MongoDB:
+
+1. Nested object id field name has changed from "_id" to "id". For example, if you had a field "customer._id", this will now be named "customer.id".
+2. Date format has changed from `YYYY-MM-DD'T'HH:mm:ss.fff'Z'` to `YYYY-MM-DD'T'HH:mm:ss`
+
+If your MongoDB connector stopped working after migrating from 8.7.x to 8.8.x, read the workaround outlined in <<es-connectors-known-issues>>.
+If that does not work, we recommend deleting the search index attached to this connector and re-creating a MongoDB connector from scratch.
+
+
+// Closing the collapsible section 
+===============

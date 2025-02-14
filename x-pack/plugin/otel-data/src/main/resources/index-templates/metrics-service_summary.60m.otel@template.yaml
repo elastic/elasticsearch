@@ -1,0 +1,40 @@
+---
+version: ${xpack.oteldata.template.version}
+index_patterns: ["metrics-service_summary.60m.otel-*"]
+priority: 130
+data_stream:
+  hidden: true
+allow_auto_create: true
+_meta:
+  description: aggregated APM metrics template installed by x-pack
+  managed: true
+composed_of:
+  - metrics@tsdb-settings
+  - otel@mappings
+  - metrics-otel@mappings
+  - semconv-resource-to-ecs@mappings
+  - metrics@custom
+  - metrics-otel@custom
+  - metrics-60m.otel@custom
+  - ecs-tsdb@mappings
+ignore_missing_component_templates:
+  - metrics@custom
+  - metrics-otel@custom
+  - metrics-60m.otel@custom
+template:
+  settings:
+    index:
+      mode: time_series
+  mappings:
+    properties:
+      data_stream.type:
+        type: constant_keyword
+        value: metrics
+      metricset:
+        properties:
+          interval:
+            type: constant_keyword
+            value: 60m
+          name:
+            type: constant_keyword
+            value: service_summary

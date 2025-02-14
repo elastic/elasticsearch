@@ -1,4 +1,4 @@
-["appendix",role="exclude",id="ml-count-functions"]
+[[ml-count-functions]]
 = Count functions
 
 Count functions detect anomalies when the number of events in a bucket is

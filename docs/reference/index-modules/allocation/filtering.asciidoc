@@ -6,7 +6,7 @@ a particular index. These per-index filters are applied in conjunction with
 <<cluster-shard-allocation-filtering, cluster-wide allocation filtering>> and
 <<shard-allocation-awareness, allocation awareness>>.
 
-Shard allocation filters can be based on custom node attributes or the built-in
+Shard allocation filters can be based on <<custom-node-attributes,custom node attributes>> or the built-in
 `_name`, `_host_ip`, `_publish_ip`, `_ip`, `_host`, `_id`, `_tier` and `_tier_preference`
 attributes. <<index-lifecycle-management, Index lifecycle management>> uses filters based
 on custom node attributes to determine how to reallocate shards when moving
@@ -114,7 +114,7 @@ The index allocation settings support the following built-in attributes:
 
 NOTE: `_tier` filtering is based on <<modules-node, node>> roles. Only
 a subset of roles are <<data-tiers, data tier>> roles, and the generic
-<<data-node, data role>> will match any tier filtering.
+<<data-node-role, data role>> will match any tier filtering.
 
 You can use wildcards when specifying attribute values, for example:
 

@@ -218,7 +218,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             is(
                 Strings.format(
                     "Validation Failed: 1: [service_settings] Invalid value [abc] received. "
-                        + "[embedding_type] must be one of [byte, float, int8];"
+                        + "[embedding_type] must be one of [binary, bit, byte, float, int8];"
                 )
             )
         );
@@ -238,7 +238,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             is(
                 Strings.format(
                     "Validation Failed: 1: [service_settings] Invalid value [abc] received. "
-                        + "[embedding_type] must be one of [byte, float];"
+                        + "[embedding_type] must be one of [bit, byte, float];"
                 )
             )
         );
@@ -289,6 +289,16 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         );
     }
 
+    public void testFromMap_ConvertsBit_ToCohereEmbeddingTypeBit() {
+        assertThat(
+            CohereEmbeddingsServiceSettings.fromMap(
+                new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, CohereEmbeddingType.BIT.toString())),
+                ConfigurationParseContext.REQUEST
+            ),
+            is(new CohereEmbeddingsServiceSettings(new CohereServiceSettings(), CohereEmbeddingType.BIT))
+        );
+    }
+
     public void testFromMap_PreservesEmbeddingTypeFloat() {
         assertThat(
             CohereEmbeddingsServiceSettings.fromMap(
@@ -314,6 +324,8 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         assertEquals(CohereEmbeddingType.BYTE, CohereEmbeddingsServiceSettings.fromCohereOrDenseVectorEnumValues("byte", validation));
         assertEquals(CohereEmbeddingType.INT8, CohereEmbeddingsServiceSettings.fromCohereOrDenseVectorEnumValues("int8", validation));
         assertEquals(CohereEmbeddingType.FLOAT, CohereEmbeddingsServiceSettings.fromCohereOrDenseVectorEnumValues("float", validation));
+        assertEquals(CohereEmbeddingType.BINARY, CohereEmbeddingsServiceSettings.fromCohereOrDenseVectorEnumValues("binary", validation));
+        assertEquals(CohereEmbeddingType.BIT, CohereEmbeddingsServiceSettings.fromCohereOrDenseVectorEnumValues("bit", validation));
         assertTrue(validation.validationErrors().isEmpty());
     }
 
@@ -329,21 +341,6 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         assertThat(xContentResult, is("""
             {"url":"url","similarity":"cosine","dimensions":5,"max_input_tokens":10,"model_id":"model_id",""" + """
             "rate_limit":{"requests_per_minute":3},"embedding_type":"byte"}"""));
-    }
-
-    public void testToXContent_WritesAllValues_Except_RateLimit() throws IOException {
-        var serviceSettings = new CohereEmbeddingsServiceSettings(
-            new CohereServiceSettings("url", SimilarityMeasure.COSINE, 5, 10, "model_id", new RateLimitSettings(3)),
-            CohereEmbeddingType.INT8
-        );
-
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-        var filteredXContent = serviceSettings.getFilteredXContentObject();
-        filteredXContent.toXContent(builder, null);
-        String xContentResult = Strings.toString(builder);
-        assertThat(xContentResult, is("""
-            {"url":"url","similarity":"cosine","dimensions":5,"max_input_tokens":10,"model_id":"model_id",""" + """
-            "embedding_type":"byte"}"""));
     }
 
     @Override

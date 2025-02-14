@@ -1,0 +1,5 @@
+pr: 122011
+summary: Fix JOIN command validation (not supported)
+area: EQL
+type: bug
+issues: []

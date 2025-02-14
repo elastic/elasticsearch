@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http.snapshots;
 
 import org.apache.http.client.methods.HttpGet;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
@@ -36,7 +36,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -96,7 +95,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
 
     private void doTestSortOrder(String repoName, Collection<String> allSnapshotNames, SortOrder order) throws IOException {
         final boolean includeIndexNames = randomBoolean();
-        final List<SnapshotInfo> defaultSorting = clusterAdmin().prepareGetSnapshots(repoName)
+        final List<SnapshotInfo> defaultSorting = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName)
             .setOrder(order)
             .setIncludeIndexNames(includeIndexNames)
             .get()
@@ -239,7 +238,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         final String repoName = "test-repo";
         AbstractSnapshotIntegTestCase.createRepository(logger, repoName, "fs");
         AbstractSnapshotIntegTestCase.createNSnapshots(logger, repoName, randomIntBetween(1, 5));
-        final List<SnapshotInfo> snapshotsWithoutPolicy = clusterAdmin().prepareGetSnapshots("*")
+        final List<SnapshotInfo> snapshotsWithoutPolicy = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, "*")
             .setSnapshots("*")
             .setSort(SnapshotSortKey.NAME)
             .get()
@@ -248,7 +247,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         final String policyName = "some-policy";
         final SnapshotInfo withPolicy = AbstractSnapshotIntegTestCase.assertSuccessful(
             logger,
-            clusterAdmin().prepareCreateSnapshot(repoName, snapshotWithPolicy)
+            clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotWithPolicy)
                 .setUserMetadata(Map.of(SnapshotsService.POLICY_ID_METADATA_FIELD, policyName))
                 .setWaitForCompletion(true)
                 .execute()
@@ -268,7 +267,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         final String otherPolicyName = "other-policy";
         final SnapshotInfo withOtherPolicy = AbstractSnapshotIntegTestCase.assertSuccessful(
             logger,
-            clusterAdmin().prepareCreateSnapshot(repoName, snapshotWithOtherPolicy)
+            clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotWithOtherPolicy)
                 .setUserMetadata(Map.of(SnapshotsService.POLICY_ID_METADATA_FIELD, otherPolicyName))
                 .setWaitForCompletion(true)
                 .execute()
@@ -276,7 +275,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         assertThat(getAllSnapshotsForPolicies("*"), is(List.of(withOtherPolicy, withPolicy)));
         assertThat(getAllSnapshotsForPolicies(policyName, otherPolicyName), is(List.of(withOtherPolicy, withPolicy)));
         assertThat(getAllSnapshotsForPolicies(policyName, otherPolicyName, "no-such-policy*"), is(List.of(withOtherPolicy, withPolicy)));
-        final List<SnapshotInfo> allSnapshots = clusterAdmin().prepareGetSnapshots("*")
+        final List<SnapshotInfo> allSnapshots = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, "*")
             .setSnapshots("*")
             .setSort(SnapshotSortKey.NAME)
             .get()
@@ -293,7 +292,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         final SnapshotInfo snapshot2 = createFullSnapshotWithUniqueStartTime(repoName, "snapshot-2", startTimes);
         final SnapshotInfo snapshot3 = createFullSnapshotWithUniqueStartTime(repoName, "snapshot-3", startTimes);
 
-        final List<SnapshotInfo> allSnapshotInfo = clusterAdmin().prepareGetSnapshots(matchAllPattern())
+        final List<SnapshotInfo> allSnapshotInfo = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, matchAllPattern())
             .setSnapshots(matchAllPattern())
             .setSort(SnapshotSortKey.START_TIME)
             .get()
@@ -310,7 +309,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         assertThat(allAfterStartTimeAscending(startTime3), is(List.of(snapshot3)));
         assertThat(allAfterStartTimeAscending(startTime3 + 1), empty());
 
-        final List<SnapshotInfo> allSnapshotInfoDesc = clusterAdmin().prepareGetSnapshots(matchAllPattern())
+        final List<SnapshotInfo> allSnapshotInfoDesc = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, matchAllPattern())
             .setSnapshots(matchAllPattern())
             .setSort(SnapshotSortKey.START_TIME)
             .setOrder(SortOrder.DESC)
@@ -331,7 +330,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
             final SnapshotInfo snapshotInfo = AbstractSnapshotIntegTestCase.createFullSnapshot(logger, repoName, snapshotName);
             if (forbiddenStartTimes.contains(snapshotInfo.startTime())) {
                 logger.info("--> snapshot start time collided");
-                assertAcked(clusterAdmin().prepareDeleteSnapshot(repoName, snapshotName).get());
+                assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName).get());
             } else {
                 assertTrue(forbiddenStartTimes.add(snapshotInfo.startTime()));
                 return snapshotInfo;
@@ -515,10 +514,9 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         true,
         (args) -> new GetSnapshotsResponse(
             (List<SnapshotInfo>) args[0],
-            (Map<String, ElasticsearchException>) args[1],
-            (String) args[2],
-            args[3] == null ? UNKNOWN_COUNT : (int) args[3],
-            args[4] == null ? UNKNOWN_COUNT : (int) args[4]
+            (String) args[1],
+            args[2] == null ? UNKNOWN_COUNT : (int) args[2],
+            args[3] == null ? UNKNOWN_COUNT : (int) args[3]
         )
     );
 
@@ -527,11 +525,6 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
             ConstructingObjectParser.constructorArg(),
             (p, c) -> SnapshotInfoUtils.snapshotInfoFromXContent(p),
             new ParseField("snapshots")
-        );
-        GET_SNAPSHOT_PARSER.declareObject(
-            ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> p.map(HashMap::new, ElasticsearchException::fromXContent),
-            new ParseField("failures")
         );
         GET_SNAPSHOT_PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField("next"));
         GET_SNAPSHOT_PARSER.declareIntOrNull(ConstructingObjectParser.optionalConstructorArg(), UNKNOWN_COUNT, new ParseField("total"));

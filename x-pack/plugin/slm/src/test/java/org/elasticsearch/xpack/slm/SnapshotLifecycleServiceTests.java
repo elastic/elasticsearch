@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.ilm.OperationModeUpdateTask;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadataTests;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 import org.elasticsearch.xpack.core.slm.SnapshotRetentionConfiguration;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
@@ -108,7 +109,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
     public void testNothingScheduledWhenNotRunning() throws InterruptedException {
         ClockMock clock = new ClockMock();
         SnapshotLifecyclePolicyMetadata initialPolicy = SnapshotLifecyclePolicyMetadata.builder()
-            .setPolicy(createPolicy("initial", "*/1 * * * * ?"))
+            .setPolicy(createPolicy("initial", randomBoolean() ? "*/1 * * * * ?" : "1s"))
             .setHeaders(Collections.emptyMap())
             .setVersion(1)
             .setModifiedDate(1)
@@ -133,7 +134,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             sls.init();
 
             SnapshotLifecyclePolicyMetadata newPolicy = SnapshotLifecyclePolicyMetadata.builder()
-                .setPolicy(createPolicy("foo", "*/1 * * * * ?"))
+                .setPolicy(createPolicy("foo", randomBoolean() ? "*/1 * * * * ?" : "1s"))
                 .setHeaders(Collections.emptyMap())
                 .setVersion(2)
                 .setModifiedDate(2)
@@ -211,7 +212,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             Map<String, SnapshotLifecyclePolicyMetadata> policies = new HashMap<>();
 
             SnapshotLifecyclePolicyMetadata policy = SnapshotLifecyclePolicyMetadata.builder()
-                .setPolicy(createPolicy("foo", "*/1 * * * * ?"))
+                .setPolicy(createPolicy("foo", randomBoolean() ? "*/1 * * * * ?" : "1s"))
                 .setHeaders(Collections.emptyMap())
                 .setModifiedDate(1)
                 .build();
@@ -240,7 +241,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             int currentCount = triggerCount.get();
             previousState = state;
             SnapshotLifecyclePolicyMetadata newPolicy = SnapshotLifecyclePolicyMetadata.builder()
-                .setPolicy(createPolicy("foo", "*/1 * * * * ?"))
+                .setPolicy(createPolicy("foo", randomBoolean() ? "*/1 * * * * ?" : "1s"))
                 .setHeaders(Collections.emptyMap())
                 .setVersion(2)
                 .setModifiedDate(2)
@@ -253,7 +254,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
 
             CopyOnWriteArrayList<String> triggeredJobs = new CopyOnWriteArrayList<>();
             trigger.set(e -> {
-                triggeredJobs.add(e.getJobName());
+                triggeredJobs.add(e.jobName());
                 triggerCount.incrementAndGet();
             });
             clock.fastForwardSeconds(1);
@@ -283,7 +284,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
 
             // When the service is no longer master, all jobs should be automatically cancelled
             policy = SnapshotLifecyclePolicyMetadata.builder()
-                .setPolicy(createPolicy("foo", "*/1 * * * * ?"))
+                .setPolicy(createPolicy("foo", randomBoolean() ? "*/1 * * * * ?" : "1s"))
                 .setHeaders(Collections.emptyMap())
                 .setVersion(3)
                 .setModifiedDate(1)
@@ -343,7 +344,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             Map<String, SnapshotLifecyclePolicyMetadata> policies = new HashMap<>();
 
             SnapshotLifecyclePolicyMetadata policy = SnapshotLifecyclePolicyMetadata.builder()
-                .setPolicy(createPolicy("foo-2", "30 * * * * ?"))
+                .setPolicy(createPolicy("foo-2", randomBoolean() ? "30 * * * * ?" : "30s"))
                 .setHeaders(Collections.emptyMap())
                 .setVersion(1)
                 .setModifiedDate(1)
@@ -358,7 +359,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             assertThat(sls.getScheduler().scheduledJobIds(), equalTo(Collections.singleton("foo-2-1")));
 
             SnapshotLifecyclePolicyMetadata secondPolicy = SnapshotLifecyclePolicyMetadata.builder()
-                .setPolicy(createPolicy("foo-1", "45 * * * * ?"))
+                .setPolicy(createPolicy("foo-1", randomBoolean() ? "45 * * * * ?" : "45s"))
                 .setHeaders(Collections.emptyMap())
                 .setVersion(2)
                 .setModifiedDate(1)
@@ -410,33 +411,70 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             )
             .build();
 
-        for (String schedule : List.of("0 0/15 * * * ?", "0 0 1 * * ?", "0 0 0 1 1 ? 2099" /* once */, "* * * 31 FEB ? *" /* never */)) {
-            SnapshotLifecycleService.validateMinimumInterval(createPolicy("foo-1", schedule), defaultState);
-            SnapshotLifecycleService.validateMinimumInterval(createPolicy("foo-1", schedule), validationOneMinuteState);
-            SnapshotLifecycleService.validateMinimumInterval(createPolicy("foo-1", schedule), validationDisabledState);
+        { // using chron schedule
+            for (String schedule : List.of(
+                "0 0/15 * * * ?",
+                "0 0 1 * * ?",
+                "0 0 0 1 1 ? 2099" /* once */,
+                "* * * 31 FEB ? *" /* never */
+            )) {
+                SnapshotLifecycleService.validateMinimumInterval(createPolicy("foo-1", schedule), defaultState);
+                SnapshotLifecycleService.validateMinimumInterval(createPolicy("foo-1", schedule), validationOneMinuteState);
+                SnapshotLifecycleService.validateMinimumInterval(createPolicy("foo-1", schedule), validationDisabledState);
+            }
+
+            IllegalArgumentException e;
+
+            e = expectThrows(
+                IllegalArgumentException.class,
+                () -> SnapshotLifecycleService.validateMinimumInterval(createPolicy("foo-1", "0 0/1 * * * ?"), defaultState)
+            );
+            assertThat(
+                e.getMessage(),
+                equalTo("invalid schedule [0 0/1 * * * ?]: " + "schedule would be too frequent, executing more than every [15m]")
+            );
+            SnapshotLifecycleService.validateMinimumInterval(createPolicy("foo-1", "0 0/1 * * * ?"), validationOneMinuteState);
+
+            e = expectThrows(
+                IllegalArgumentException.class,
+                () -> SnapshotLifecycleService.validateMinimumInterval(createPolicy("foo-1", "0/30 0/1 * * * ?"), validationOneMinuteState)
+            );
+            assertThat(
+                e.getMessage(),
+                equalTo("invalid schedule [0/30 0/1 * * * ?]: " + "schedule would be too frequent, executing more than every [1m]")
+            );
+            SnapshotLifecycleService.validateMinimumInterval(createPolicy("foo-1", "0/30 0/1 * * * ?"), validationDisabledState);
         }
 
-        IllegalArgumentException e;
+        { // using time value
+            for (String interval : List.of("15m", "1h", "1d")) {
+                SnapshotLifecycleService.validateMinimumInterval(createPolicy("foo-1", interval), defaultState);
+                SnapshotLifecycleService.validateMinimumInterval(createPolicy("foo-1", interval), validationOneMinuteState);
+                SnapshotLifecycleService.validateMinimumInterval(createPolicy("foo-1", interval), validationDisabledState);
+            }
 
-        e = expectThrows(
-            IllegalArgumentException.class,
-            () -> SnapshotLifecycleService.validateMinimumInterval(createPolicy("foo-1", "0 0/1 * * * ?"), defaultState)
-        );
-        assertThat(
-            e.getMessage(),
-            equalTo("invalid schedule [0 0/1 * * * ?]: " + "schedule would be too frequent, executing more than every [15m]")
-        );
-        SnapshotLifecycleService.validateMinimumInterval(createPolicy("foo-1", "0 0/1 * * * ?"), validationOneMinuteState);
+            IllegalArgumentException e;
 
-        e = expectThrows(
-            IllegalArgumentException.class,
-            () -> SnapshotLifecycleService.validateMinimumInterval(createPolicy("foo-1", "0/30 0/1 * * * ?"), validationOneMinuteState)
-        );
-        assertThat(
-            e.getMessage(),
-            equalTo("invalid schedule [0/30 0/1 * * * ?]: " + "schedule would be too frequent, executing more than every [1m]")
-        );
-        SnapshotLifecycleService.validateMinimumInterval(createPolicy("foo-1", "0/30 0/1 * * * ?"), validationDisabledState);
+            e = expectThrows(
+                IllegalArgumentException.class,
+                () -> SnapshotLifecycleService.validateMinimumInterval(createPolicy("foo-1", "1m"), defaultState)
+            );
+            assertThat(
+                e.getMessage(),
+                equalTo("invalid schedule [1m]: " + "schedule would be too frequent, executing more than every [15m]")
+            );
+            SnapshotLifecycleService.validateMinimumInterval(createPolicy("foo-1", "1m"), validationOneMinuteState);
+
+            e = expectThrows(
+                IllegalArgumentException.class,
+                () -> SnapshotLifecycleService.validateMinimumInterval(createPolicy("foo-1", "30s"), validationOneMinuteState)
+            );
+            assertThat(
+                e.getMessage(),
+                equalTo("invalid schedule [30s]: " + "schedule would be too frequent, executing more than every [1m]")
+            );
+            SnapshotLifecycleService.validateMinimumInterval(createPolicy("foo-1", "30s"), validationDisabledState);
+        }
     }
 
     public void testStoppedPriority() {
@@ -515,7 +553,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
     }
 
     public static SnapshotLifecyclePolicy createPolicy(String id) {
-        return createPolicy(id, randomSchedule());
+        return createPolicy(id, SnapshotLifecyclePolicyMetadataTests.randomSchedule());
     }
 
     public static SnapshotLifecyclePolicy createPolicy(String id, String schedule) {
@@ -533,9 +571,5 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             config,
             SnapshotRetentionConfiguration.EMPTY
         );
-    }
-
-    public static String randomSchedule() {
-        return randomIntBetween(0, 59) + " " + randomIntBetween(0, 59) + " " + randomIntBetween(0, 12) + " * * ?";
     }
 }

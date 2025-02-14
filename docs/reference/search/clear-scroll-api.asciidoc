@@ -4,6 +4,12 @@
 <titleabbrev>Clear scroll</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-search[Search APIs].
+--
+
 Clears the search context and results for a
 <<scroll-search-results,scrolling search>>.
 

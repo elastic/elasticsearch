@@ -2,5 +2,5 @@
 
 *Parameters*
 
-`angle`::
-An angle, in radians. If `null`, the function returns `null`.
+`number`::
+Numeric expression. If `null`, the function returns `null`.

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
@@ -272,7 +273,12 @@ public class InboundHandlerTests extends ESTestCase {
             final TransportVersion remoteVersion = TransportVersion.current();
 
             mockLog.addExpectation(
-                new MockLog.SeenEventExpectation("expected slow request", EXPECTED_LOGGER_NAME, Level.WARN, "handling request ")
+                new MockLog.SeenEventExpectation(
+                    "expected slow request",
+                    EXPECTED_LOGGER_NAME,
+                    Level.WARN,
+                    "handling request*modules-network.html#modules-network-threading-model"
+                )
             );
 
             final long requestId = randomNonNegativeLong();
@@ -284,14 +290,17 @@ public class InboundHandlerTests extends ESTestCase {
             );
             BytesStreamOutput byteData = new BytesStreamOutput();
             TaskId.EMPTY_TASK_ID.writeTo(byteData);
-            TransportVersion.writeVersion(remoteVersion, byteData);
-            final InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(byteData.bytes()), () -> {
-                try {
-                    TimeUnit.SECONDS.sleep(1L);
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
-            });
+            // simulate bytes of a transport handshake: vInt transport version then release version string
+            try (var payloadByteData = new BytesStreamOutput()) {
+                TransportVersion.writeVersion(remoteVersion, payloadByteData);
+                payloadByteData.writeString(randomIdentifier());
+                byteData.writeBytesReference(payloadByteData.bytes());
+            }
+            final InboundMessage requestMessage = new InboundMessage(
+                requestHeader,
+                ReleasableBytesReference.wrap(byteData.bytes()),
+                () -> safeSleep(TimeValue.timeValueSeconds(1))
+            );
             requestHeader.actionName = TransportHandshaker.HANDSHAKE_ACTION_NAME;
             requestHeader.headers = Tuple.tuple(Map.of(), Map.of());
             handler.inboundMessage(channel, requestMessage);
@@ -299,7 +308,12 @@ public class InboundHandlerTests extends ESTestCase {
             mockLog.assertAllExpectationsMatched();
 
             mockLog.addExpectation(
-                new MockLog.SeenEventExpectation("expected slow response", EXPECTED_LOGGER_NAME, Level.WARN, "handling response ")
+                new MockLog.SeenEventExpectation(
+                    "expected slow response",
+                    EXPECTED_LOGGER_NAME,
+                    Level.WARN,
+                    "handling response*modules-network.html#modules-network-threading-model"
+                )
             );
 
             final long responseId = randomNonNegativeLong();
@@ -310,11 +324,7 @@ public class InboundHandlerTests extends ESTestCase {
                 @SuppressWarnings("rawtypes")
                 public void onResponseReceived(long requestId, Transport.ResponseContext context) {
                     assertEquals(responseId, requestId);
-                    try {
-                        TimeUnit.SECONDS.sleep(1L);
-                    } catch (InterruptedException e) {
-                        throw new AssertionError(e);
-                    }
+                    safeSleep(TimeValue.timeValueSeconds(1));
                 }
             });
             handler.inboundMessage(channel, new InboundMessage(responseHeader, ReleasableBytesReference.empty(), () -> {}));

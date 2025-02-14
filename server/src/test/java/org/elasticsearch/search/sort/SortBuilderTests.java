@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.sort;
@@ -119,7 +120,7 @@ public class SortBuilderTests extends ESTestCase {
     public void testRandomSortBuilders() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_RUNS; runs++) {
             Set<String> expectedWarningHeaders = new HashSet<>();
-            List<SortBuilder<?>> testBuilders = randomSortBuilderList();
+            List<SortBuilder<?>> testBuilders = randomSortBuilderList(randomBoolean());
             XContentBuilder xContentBuilder = XContentFactory.jsonBuilder();
             xContentBuilder.startObject();
             if (testBuilders.size() > 1) {
@@ -171,7 +172,7 @@ public class SortBuilderTests extends ESTestCase {
         }
     }
 
-    public static List<SortBuilder<?>> randomSortBuilderList() {
+    public static List<SortBuilder<?>> randomSortBuilderList(boolean hasPIT) {
         int size = randomIntBetween(1, 5);
         List<SortBuilder<?>> list = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
@@ -181,7 +182,7 @@ public class SortBuilderTests extends ESTestCase {
                 case 2 -> SortBuilders.fieldSort(FieldSortBuilder.DOC_FIELD_NAME);
                 case 3 -> GeoDistanceSortBuilderTests.randomGeoDistanceSortBuilder();
                 case 4 -> ScriptSortBuilderTests.randomScriptSortBuilder();
-                case 5 -> SortBuilders.pitTiebreaker();
+                case 5 -> hasPIT ? SortBuilders.pitTiebreaker() : ScriptSortBuilderTests.randomScriptSortBuilder();
                 default -> throw new IllegalStateException("unexpected randomization in tests");
             });
         }

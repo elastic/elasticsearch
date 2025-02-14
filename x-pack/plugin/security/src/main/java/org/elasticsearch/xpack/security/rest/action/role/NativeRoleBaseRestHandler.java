@@ -43,6 +43,5 @@ abstract class NativeRoleBaseRestHandler extends SecurityBaseRestHandler {
         } else {
             return null;
         }
-
     }
 }

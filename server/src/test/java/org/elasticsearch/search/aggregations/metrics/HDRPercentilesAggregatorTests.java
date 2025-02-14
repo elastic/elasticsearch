@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -161,6 +162,18 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
                 .field("value");
         });
         assertThat(e.getMessage(), equalTo("Cannot set [compression] because the method has already been configured for HDRHistogram"));
+    }
+
+    public void testInvalidNegativeNumber() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            testCase(new MatchAllDocsQuery(), iw -> {
+                iw.addDocument(singleton(new NumericDocValuesField("number", 60)));
+                iw.addDocument(singleton(new NumericDocValuesField("number", 40)));
+                iw.addDocument(singleton(new NumericDocValuesField("number", -20)));
+                iw.addDocument(singleton(new NumericDocValuesField("number", 10)));
+            }, hdr -> { fail("Aggregation should have failed due to negative value"); });
+        });
+        assertThat(e.getMessage(), equalTo("Negative values are not supported by HDR aggregation"));
     }
 
     private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<InternalHDRPercentiles> verify)

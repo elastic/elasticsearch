@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
@@ -62,7 +63,8 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
             case 2 -> req.setExternalIds(internalCluster().clusterService(nodeName).localNode().getExternalId());
             default -> throw new IllegalStateException("Unexpected value");
         }
-        PrevalidateNodeRemovalResponse resp = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req.build()).get();
+        PrevalidateNodeRemovalResponse resp = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req.build(TEST_REQUEST_TIMEOUT))
+            .get();
         assertTrue(resp.getPrevalidation().isSafe());
         assertThat(resp.getPrevalidation().message(), equalTo("cluster status is not RED"));
         assertThat(resp.getPrevalidation().nodes().size(), equalTo(1));
@@ -75,7 +77,7 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         // Enforce a replica to get unassigned
         updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", node1), indexName);
         ensureYellow();
-        PrevalidateNodeRemovalRequest req2 = PrevalidateNodeRemovalRequest.builder().setNames(node2).build();
+        PrevalidateNodeRemovalRequest req2 = PrevalidateNodeRemovalRequest.builder().setNames(node2).build(TEST_REQUEST_TIMEOUT);
         PrevalidateNodeRemovalResponse resp2 = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req2).get();
         assertTrue(resp2.getPrevalidation().isSafe());
         assertThat(resp2.getPrevalidation().message(), equalTo("cluster status is not RED"));
@@ -107,7 +109,7 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         internalCluster().stopNode(nodeWithIndex);
         ensureRed(indexName);
         String[] otherNodeNames = otherNodes.toArray(new String[otherNodes.size()]);
-        PrevalidateNodeRemovalRequest req = PrevalidateNodeRemovalRequest.builder().setNames(otherNodeNames).build();
+        PrevalidateNodeRemovalRequest req = PrevalidateNodeRemovalRequest.builder().setNames(otherNodeNames).build(TEST_REQUEST_TIMEOUT);
         PrevalidateNodeRemovalResponse resp = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req).get();
         assertTrue(resp.getPrevalidation().isSafe());
         assertThat(resp.getPrevalidation().message(), equalTo(""));
@@ -154,7 +156,7 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
         ShardPath shardPath = ShardPath.loadShardPath(logger, nodeEnv, new ShardId(index, 0), "");
         assertNotNull("local index shards not found", shardPath);
         // Prevalidate removal of node1
-        PrevalidateNodeRemovalRequest req = PrevalidateNodeRemovalRequest.builder().setNames(node1).build();
+        PrevalidateNodeRemovalRequest req = PrevalidateNodeRemovalRequest.builder().setNames(node1).build(TEST_REQUEST_TIMEOUT);
         PrevalidateNodeRemovalResponse resp = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req).get();
         String node1Id = getNodeId(node1);
         assertFalse(resp.getPrevalidation().isSafe());
@@ -183,7 +185,7 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
             });
         PrevalidateNodeRemovalRequest req = PrevalidateNodeRemovalRequest.builder()
             .setNames(node2)
-            .build()
+            .build(TEST_REQUEST_TIMEOUT)
             .masterNodeTimeout(TimeValue.timeValueSeconds(1))
             .timeout(TimeValue.timeValueSeconds(1));
         PrevalidateNodeRemovalResponse resp = client().execute(PrevalidateNodeRemovalAction.INSTANCE, req).get();
@@ -203,7 +205,7 @@ public class PrevalidateNodeRemovalIT extends ESIntegTestCase {
 
     private void ensureRed(String indexName) throws Exception {
         assertBusy(() -> {
-            ClusterHealthResponse healthResponse = clusterAdmin().prepareHealth(indexName)
+            ClusterHealthResponse healthResponse = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName)
                 .setWaitForStatus(ClusterHealthStatus.RED)
                 .setWaitForEvents(Priority.LANGUID)
                 .get();

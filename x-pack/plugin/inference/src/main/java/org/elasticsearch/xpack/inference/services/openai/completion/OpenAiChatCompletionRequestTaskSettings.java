@@ -48,5 +48,4 @@ public record OpenAiChatCompletionRequestTaskSettings(@Nullable String user) {
 
         return new OpenAiChatCompletionRequestTaskSettings(user);
     }
-
 }

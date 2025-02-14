@@ -18,7 +18,7 @@ will refuse to start in the presence of plugins with the incorrect
 [discrete]
 ==== Classic plugin file structure
 
-Classis plugins are ZIP files composed of JAR files and
+Classic plugins are ZIP files composed of JAR files and
 <<plugin-descriptor-file-{plugin-type},a metadata file called
 `plugin-descriptor.properties`>>, a Java properties file that describes the
 plugin.
@@ -32,12 +32,13 @@ for the plugin. If you need other resources, package them into a resources JAR.
 The {es} repository contains {es-repo}tree/main/plugins/examples[examples of plugins]. Some of these include:
 
 * a plugin with {es-repo}tree/main/plugins/examples/custom-settings[custom settings]
+* a plugin with a {es-repo}tree/main/plugins/examples/custom-processor[custom ingest processor]
 * adding {es-repo}tree/main/plugins/examples/rest-handler[custom rest endpoints]
 * adding a {es-repo}tree/main/plugins/examples/rescore[custom rescorer]
 * a script {es-repo}tree/main/plugins/examples/script-expert-scoring[implemented in Java]
 
 These examples provide the bare bones needed to get started. For more
-information about how to write a plugin, we recommend looking at the 
+information about how to write a plugin, we recommend looking at the
 {es-repo}tree/main/plugins/[source code of existing plugins] for inspiration.
 
 [discrete]

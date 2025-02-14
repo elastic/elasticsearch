@@ -5,6 +5,8 @@
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
 datePart | date | result
-keyword | datetime | long
-text | datetime | long
+keyword | date | long
+keyword | date_nanos | long
+text | date | long
+text | date_nanos | long
 |===

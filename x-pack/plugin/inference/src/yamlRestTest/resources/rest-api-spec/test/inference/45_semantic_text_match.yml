@@ -1,0 +1,279 @@
+setup:
+  - requires:
+      cluster_features: "search.semantic_match_query_rewrite_interception_supported"
+      reason: semantic_text match support introduced in 8.18.0
+
+  - do:
+      inference.put:
+        task_type: sparse_embedding
+        inference_id: sparse-inference-id
+        body: >
+          {
+            "service": "test_service",
+            "service_settings": {
+              "model": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      inference.put:
+        task_type: sparse_embedding
+        inference_id: sparse-inference-id-2
+        body: >
+          {
+            "service": "test_service",
+            "service_settings": {
+              "model": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 10,
+              "api_key": "abc64",
+              "similarity": "COSINE"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.create:
+        index: test-sparse-index
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+              non_inference_field:
+                type: text
+
+  - do:
+      indices.create:
+        index: test-dense-index
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+              non_inference_field:
+                type: text
+
+  - do:
+      indices.create:
+        index: test-text-only-index
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: text
+              non_inference_field:
+                type: text
+
+---
+"Query using a sparse embedding model":
+  - skip:
+      features: [ "headers", "close_to" ]
+
+  - do:
+      index:
+        index: test-sparse-index
+        id: doc_1
+        body:
+          inference_field: [ "inference test", "another inference test" ]
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            match:
+              inference_field:
+                query: "inference test"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+
+---
+"Query using a dense embedding model":
+  - skip:
+      features: [ "headers", "close_to" ]
+
+  - do:
+      index:
+        index: test-dense-index
+        id: doc_1
+        body:
+          inference_field: [ "inference test", "another inference test" ]
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-dense-index
+        body:
+          query:
+            match:
+              inference_field:
+                query: "inference test"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+
+---
+"Query an index alias":
+  - skip:
+      features: [ "headers", "close_to" ]
+
+  - do:
+      index:
+        index: test-sparse-index
+        id: doc_1
+        body:
+          inference_field: [ "inference test", "another inference test" ]
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      indices.put_alias:
+        index: test-sparse-index
+        name: my-alias
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: my-alias
+        body:
+          query:
+            match:
+              inference_field:
+                query: "inference test"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "doc_1" }
+
+---
+"Query indices with both semantic_text and regular text content":
+
+  - do:
+      index:
+        index: test-sparse-index
+        id: doc_1
+        body:
+          inference_field: [ "inference test", "another inference test" ]
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      index:
+        index: test-text-only-index
+        id: doc_2
+        body:
+          inference_field: [ "inference test", "not an inference field" ]
+          non_inference_field: "non inference test"
+        refresh: true
+
+  - do:
+      search:
+        index:
+          - test-sparse-index
+          - test-text-only-index
+        body:
+          query:
+            match:
+              inference_field:
+                query: "inference test"
+
+  - match: { hits.total.value: 2 }
+
+  # Test querying multiple indices that either use the same inference ID or combine semantic_text with lexical search
+  - do:
+      indices.create:
+        index: test-sparse-index-2
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+              non_inference_field:
+                type: text
+
+  - do:
+      index:
+        index: test-sparse-index-2
+        id: doc_3
+        body:
+          inference_field: "another inference test"
+        refresh: true
+
+  - do:
+      search:
+        index:
+          - test-sparse-index*
+          - test-text-only-index
+        body:
+          query:
+            match:
+              inference_field:
+                query: "inference test"
+
+  - match: { hits.total.value: 3 }
+
+---
+"Query a field that has no indexed inference results":
+  - skip:
+      features: [ "headers" ]
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-sparse-index
+        body:
+          query:
+            match:
+              inference_field:
+                query: "inference test"
+
+  - match: { hits.total.value: 0 }
+
+  - do:
+      headers:
+        # Force JSON content type so that we use a parser that interprets the floating-point score as a double
+        Content-Type: application/json
+      search:
+        index: test-dense-index
+        body:
+          query:
+            match:
+              inference_field:
+                query: "inference test"
+
+  - match: { hits.total.value: 0 }

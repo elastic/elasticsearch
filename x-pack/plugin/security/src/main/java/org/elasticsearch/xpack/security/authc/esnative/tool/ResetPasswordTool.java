@@ -43,7 +43,7 @@ class ResetPasswordTool extends BaseRunAsSuperuserCommand {
     private final OptionSpec<String> usernameOption;
 
     ResetPasswordTool() {
-        this(CommandLineHttpClient::new, environment -> KeyStoreWrapper.load(environment.configFile()));
+        this(CommandLineHttpClient::new, environment -> KeyStoreWrapper.load(environment.configDir()));
     }
 
     protected ResetPasswordTool(

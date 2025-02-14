@@ -4,6 +4,12 @@
 <titleabbrev>Get snapshot repository</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-snapshot[Snapshot and restore APIs].
+--
+
 Gets information about one or more registered
 <<snapshots-register-repository,snapshot repositories>>.
 

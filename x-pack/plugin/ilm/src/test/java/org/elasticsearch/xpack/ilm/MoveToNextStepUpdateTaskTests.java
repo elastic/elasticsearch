@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -67,10 +66,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         index = indexMetadata.getIndex();
         lifecyclePolicy = LifecyclePolicyTests.randomTestLifecyclePolicy(policy);
         IndexLifecycleMetadata ilmMeta = new IndexLifecycleMetadata(
-            Collections.singletonMap(
-                policy,
-                new LifecyclePolicyMetadata(lifecyclePolicy, Collections.emptyMap(), randomNonNegativeLong(), randomNonNegativeLong())
-            ),
+            Map.of(policy, new LifecyclePolicyMetadata(lifecyclePolicy, Map.of(), randomNonNegativeLong(), randomNonNegativeLong())),
             OperationMode.RUNNING
         );
         Metadata metadata = Metadata.builder()
@@ -95,7 +91,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         AlwaysExistingStepRegistry stepRegistry = new AlwaysExistingStepRegistry(client);
         stepRegistry.update(
             new IndexLifecycleMetadata(
-                Map.of(policy, new LifecyclePolicyMetadata(lifecyclePolicy, Collections.emptyMap(), 2L, 2L)),
+                Map.of(policy, new LifecyclePolicyMetadata(lifecyclePolicy, Map.of(), 2L, 2L)),
                 OperationMode.RUNNING
             )
         );
@@ -169,7 +165,7 @@ public class MoveToNextStepUpdateTaskTests extends ESTestCase {
         AlwaysExistingStepRegistry stepRegistry = new AlwaysExistingStepRegistry(client);
         stepRegistry.update(
             new IndexLifecycleMetadata(
-                Map.of(policy, new LifecyclePolicyMetadata(lifecyclePolicy, Collections.emptyMap(), 2L, 2L)),
+                Map.of(policy, new LifecyclePolicyMetadata(lifecyclePolicy, Map.of(), 2L, 2L)),
                 OperationMode.RUNNING
             )
         );

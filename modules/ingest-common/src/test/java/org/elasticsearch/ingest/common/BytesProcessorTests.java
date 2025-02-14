@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.common;
@@ -76,9 +77,6 @@ public class BytesProcessorTests extends AbstractStringProcessorTestCase<Long> {
         String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, "1.1kb");
         Processor processor = newProcessor(fieldName, randomBoolean(), fieldName);
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.getFieldValue(fieldName, expectedResultType()), equalTo(1126L));
-        assertWarnings(
-            "Fractional bytes values are deprecated. Use non-fractional bytes values instead: [1.1kb] found for setting " + "[Ingest Field]"
-        );
+        assertThat(ingestDocument.getFieldValue(fieldName, expectedResultType()), equalTo(1127L));
     }
 }

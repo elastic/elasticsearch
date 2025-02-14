@@ -79,25 +79,25 @@ public final class ScrollHelper {
                                     }
                                 }
 
-                                if (results.size() > resp.getHits().getTotalHits().value) {
+                                if (results.size() > resp.getHits().getTotalHits().value()) {
                                     clearScroll.accept(lastResponse);
                                     listener.onFailure(
                                         new IllegalStateException(
                                             "scrolling returned more hits ["
                                                 + results.size()
                                                 + "] than expected ["
-                                                + resp.getHits().getTotalHits().value
+                                                + resp.getHits().getTotalHits().value()
                                                 + "] so bailing out to prevent unbounded "
                                                 + "memory consumption."
                                         )
                                     );
-                                } else if (results.size() == resp.getHits().getTotalHits().value) {
+                                } else if (results.size() == resp.getHits().getTotalHits().value()) {
                                     clearScroll.accept(resp);
                                     // Finally, return the list of the entity
                                     listener.onResponse(Collections.unmodifiableList(results));
                                 } else {
                                     SearchScrollRequest scrollRequest = new SearchScrollRequest(resp.getScrollId());
-                                    scrollRequest.scroll(request.scroll().keepAlive());
+                                    scrollRequest.scroll(request.scroll());
                                     client.searchScroll(scrollRequest, this);
                                 }
                             } else {

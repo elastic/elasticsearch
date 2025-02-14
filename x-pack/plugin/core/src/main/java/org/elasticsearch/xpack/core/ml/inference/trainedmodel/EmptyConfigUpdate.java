@@ -71,7 +71,7 @@ public class EmptyConfigUpdate implements InferenceConfigUpdate {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_9_0;
+        return TransportVersions.ZERO;
     }
 
     public static class Builder implements InferenceConfigUpdate.Builder<Builder, EmptyConfigUpdate> {

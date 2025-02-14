@@ -19,7 +19,7 @@ import org.junit.ClassRule;
 
 public class EsqlClientYamlIT extends ESClientYamlSuiteTestCase {
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster();
+    public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> {});
 
     @Override
     protected String getTestRestCluster() {

@@ -2,6 +2,12 @@
 [[ml-df-analytics-apis]]
 = {ml-cap} {dfanalytics} APIs
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-data-frame[{ml-cap}  {dfanalytics} APIs].
+--
+
 You can use the following APIs to perform {ml} {dfanalytics} activities:
 
 * <<put-dfanalytics,Create {dfanalytics-jobs}>>

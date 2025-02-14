@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.template.post;
@@ -11,12 +12,11 @@ package org.elasticsearch.action.admin.indices.template.post;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
+import org.elasticsearch.cluster.metadata.ResettableValue;
 import org.elasticsearch.cluster.metadata.Template;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -46,54 +46,30 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
 
     @Nullable
     private final RolloverConfiguration rolloverConfiguration;
-    @Nullable
-    private final DataStreamGlobalRetention globalRetention;
 
-    public SimulateIndexTemplateResponse(
-        @Nullable Template resolvedTemplate,
-        @Nullable Map<String, List<String>> overlappingTemplates,
-        DataStreamGlobalRetention globalRetention
-    ) {
-        this(resolvedTemplate, overlappingTemplates, null, globalRetention);
+    public SimulateIndexTemplateResponse(@Nullable Template resolvedTemplate, @Nullable Map<String, List<String>> overlappingTemplates) {
+        this(resolvedTemplate, overlappingTemplates, null);
     }
 
     public SimulateIndexTemplateResponse(
         @Nullable Template resolvedTemplate,
         @Nullable Map<String, List<String>> overlappingTemplates,
-        @Nullable RolloverConfiguration rolloverConfiguration,
-        @Nullable DataStreamGlobalRetention globalRetention
+        @Nullable RolloverConfiguration rolloverConfiguration
     ) {
         this.resolvedTemplate = resolvedTemplate;
         this.overlappingTemplates = overlappingTemplates;
         this.rolloverConfiguration = rolloverConfiguration;
-        this.globalRetention = globalRetention;
     }
 
     public RolloverConfiguration getRolloverConfiguration() {
         return rolloverConfiguration;
     }
 
-    public SimulateIndexTemplateResponse(StreamInput in) throws IOException {
-        super(in);
-        resolvedTemplate = in.readOptionalWriteable(Template::new);
-        if (in.readBoolean()) {
-            int overlappingTemplatesCount = in.readInt();
-            overlappingTemplates = Maps.newMapWithExpectedSize(overlappingTemplatesCount);
-            for (int i = 0; i < overlappingTemplatesCount; i++) {
-                String templateName = in.readString();
-                overlappingTemplates.put(templateName, in.readStringCollectionAsList());
-            }
-        } else {
-            this.overlappingTemplates = null;
-        }
-        rolloverConfiguration = in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)
-            ? in.readOptionalWriteable(RolloverConfiguration::new)
-            : null;
-        globalRetention = in.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)
-            ? in.readOptionalWriteable(DataStreamGlobalRetention::read)
-            : null;
-    }
-
+    /**
+     * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
+     * we no longer need to support calling this action remotely.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(resolvedTemplate);
@@ -110,17 +86,17 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             out.writeOptionalWriteable(rolloverConfiguration);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)) {
-            out.writeOptionalWriteable(globalRetention);
+        if (out.getTransportVersion().between(TransportVersions.V_8_14_0, TransportVersions.V_8_16_0)) {
+            out.writeOptionalWriteable(null);
         }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (this.resolvedTemplate != null) {
+        if (resolvedTemplate != null) {
             builder.field(TEMPLATE.getPreferredName());
-            this.resolvedTemplate.toXContent(builder, params, rolloverConfiguration);
+            resolvedTemplate.toXContent(builder, ResettableValue.hideResetValues(params), rolloverConfiguration);
         }
         if (this.overlappingTemplates != null) {
             builder.startArray(OVERLAPPING.getPreferredName());
@@ -147,13 +123,12 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
         SimulateIndexTemplateResponse that = (SimulateIndexTemplateResponse) o;
         return Objects.equals(resolvedTemplate, that.resolvedTemplate)
             && Objects.deepEquals(overlappingTemplates, that.overlappingTemplates)
-            && Objects.equals(rolloverConfiguration, that.rolloverConfiguration)
-            && Objects.equals(globalRetention, that.globalRetention);
+            && Objects.equals(rolloverConfiguration, that.rolloverConfiguration);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(resolvedTemplate, overlappingTemplates, rolloverConfiguration, globalRetention);
+        return Objects.hash(resolvedTemplate, overlappingTemplates, rolloverConfiguration);
     }
 
     @Override

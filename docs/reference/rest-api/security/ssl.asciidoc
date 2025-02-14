@@ -5,6 +5,12 @@
 <titleabbrev>SSL certificate</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 The `certificates` API enables you to retrieve information about the X.509
 certificates that are used to encrypt communications in your {es} cluster.
 

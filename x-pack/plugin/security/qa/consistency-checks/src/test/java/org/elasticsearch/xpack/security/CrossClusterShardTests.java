@@ -11,12 +11,12 @@ import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShard
 import org.elasticsearch.action.search.TransportSearchShardsAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
-import org.elasticsearch.common.inject.Binding;
-import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.rankeval.RankEvalPlugin;
 import org.elasticsearch.ingest.IngestTestPlugin;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
+import org.elasticsearch.injection.guice.Binding;
+import org.elasticsearch.injection.guice.TypeLiteral;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.frozen.FrozenIndices;
 import org.elasticsearch.xpack.graph.Graph;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
-import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.profiling.ProfilingPlugin;
 import org.elasticsearch.xpack.rollup.Rollup;
 import org.elasticsearch.xpack.search.AsyncSearch;
@@ -61,7 +60,10 @@ public class CrossClusterShardTests extends ESSingleNodeTestCase {
         DownsampleShardPersistentTaskExecutor.DelegatingAction.NAME,
 
         // These actions do not have any references to shard IDs in their requests.
-        TransportClusterSearchShardsAction.TYPE.name()
+        TransportClusterSearchShardsAction.TYPE.name(),
+
+        // forked search_shards for ES|QL
+        "indices:data/read/esql/search_shards"
     );
 
     Set<Class<?>> CHECKED_ABSTRACT_CLASSES = Set.of(
@@ -86,7 +88,6 @@ public class CrossClusterShardTests extends ESSingleNodeTestCase {
                 FrozenIndices.class,
                 Graph.class,
                 IndexLifecycle.class,
-                InferencePlugin.class,
                 IngestCommonPlugin.class,
                 IngestTestPlugin.class,
                 MustachePlugin.class,

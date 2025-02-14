@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.block;
@@ -143,6 +144,10 @@ public class ClusterBlocks implements SimpleDiffable<ClusterBlocks> {
 
     public boolean hasIndexBlock(String index, ClusterBlock block) {
         return indicesBlocks.containsKey(index) && indicesBlocks.get(index).contains(block);
+    }
+
+    public boolean hasIndexBlockLevel(String index, ClusterBlockLevel level) {
+        return blocksForIndex(level, index).isEmpty() == false;
     }
 
     public boolean hasIndexBlockWithId(String index, int blockId) {
@@ -395,6 +400,10 @@ public class ClusterBlocks implements SimpleDiffable<ClusterBlocks> {
 
         public boolean hasIndexBlock(String index, ClusterBlock block) {
             return indices.getOrDefault(index, Set.of()).contains(block);
+        }
+
+        public boolean hasIndexBlockLevel(String index, ClusterBlockLevel level) {
+            return indices.getOrDefault(index, Set.of()).stream().anyMatch(clusterBlock -> clusterBlock.contains(level));
         }
 
         public Builder removeIndexBlock(String index, ClusterBlock block) {

@@ -43,6 +43,11 @@ public class DriverStatus implements Task.Status {
     private final String sessionId;
 
     /**
+     * Description of the task this driver is running.
+     */
+    private final String taskDescription;
+
+    /**
      * Milliseconds since epoch when this driver started.
      */
     private final long started;
@@ -79,17 +84,22 @@ public class DriverStatus implements Task.Status {
      */
     private final List<OperatorStatus> activeOperators;
 
+    private final DriverSleeps sleeps;
+
     DriverStatus(
         String sessionId,
+        String taskDescription,
         long started,
         long lastUpdated,
         long cpuTime,
         long iterations,
         Status status,
         List<OperatorStatus> completedOperators,
-        List<OperatorStatus> activeOperators
+        List<OperatorStatus> activeOperators,
+        DriverSleeps sleeps
     ) {
         this.sessionId = sessionId;
+        this.taskDescription = taskDescription;
         this.started = started;
         this.lastUpdated = lastUpdated;
         this.cpuNanos = cpuTime;
@@ -97,39 +107,52 @@ public class DriverStatus implements Task.Status {
         this.status = status;
         this.completedOperators = completedOperators;
         this.activeOperators = activeOperators;
+        this.sleeps = sleeps;
     }
 
     public DriverStatus(StreamInput in) throws IOException {
         this.sessionId = in.readString();
-        this.started = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_TIMINGS) ? in.readLong() : 0;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION)
+            || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_90)) {
+            this.taskDescription = in.readString();
+        } else {
+            this.taskDescription = "";
+        }
+        this.started = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readLong() : 0;
         this.lastUpdated = in.readLong();
-        this.cpuNanos = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_TIMINGS) ? in.readVLong() : 0;
-        this.iterations = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_TIMINGS) ? in.readVLong() : 0;
-        this.status = Status.valueOf(in.readString());
+        this.cpuNanos = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0;
+        this.iterations = in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0;
+        this.status = Status.read(in);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             this.completedOperators = in.readCollectionAsImmutableList(OperatorStatus::new);
         } else {
             this.completedOperators = List.of();
         }
         this.activeOperators = in.readCollectionAsImmutableList(OperatorStatus::new);
+        this.sleeps = DriverSleeps.read(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(sessionId);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_TIMINGS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION)
+            || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_90)) {
+            out.writeString(taskDescription);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             out.writeLong(started);
         }
         out.writeLong(lastUpdated);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_TIMINGS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
             out.writeVLong(cpuNanos);
             out.writeVLong(iterations);
         }
-        out.writeString(status.toString());
+        status.writeTo(out);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeCollection(completedOperators);
         }
         out.writeCollection(activeOperators);
+        sleeps.writeTo(out);
     }
 
     @Override
@@ -142,6 +165,15 @@ public class DriverStatus implements Task.Status {
      */
     public String sessionId() {
         return sessionId;
+    }
+
+    /**
+     * Description of the task this driver is running. This description should be
+     * short and meaningful as a grouping identifier. We use the phase of the
+     * query right now: "data", "node_reduce", "final".
+     */
+    public String taskDescription() {
+        return taskDescription;
     }
 
     /**
@@ -189,6 +221,13 @@ public class DriverStatus implements Task.Status {
     }
 
     /**
+     * Records of the times the driver has slept.
+     */
+    public DriverSleeps sleeps() {
+        return sleeps;
+    }
+
+    /**
      * Status of each active {@link Operator} in the driver.
      */
     public List<OperatorStatus> activeOperators() {
@@ -198,7 +237,8 @@ public class DriverStatus implements Task.Status {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("sessionId", sessionId);
+        builder.field("session_id", sessionId);
+        builder.field("task_description", taskDescription);
         builder.field("started", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(started));
         builder.field("last_updated", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(lastUpdated));
         builder.field("cpu_nanos", cpuNanos);
@@ -206,7 +246,7 @@ public class DriverStatus implements Task.Status {
             builder.field("cpu_time", TimeValue.timeValueNanos(cpuNanos));
         }
         builder.field("iterations", iterations);
-        builder.field("status", status.toString().toLowerCase(Locale.ROOT));
+        builder.field("status", status, params);
         builder.startArray("completed_operators");
         for (OperatorStatus completed : completedOperators) {
             builder.value(completed);
@@ -217,6 +257,7 @@ public class DriverStatus implements Task.Status {
             builder.value(active);
         }
         builder.endArray();
+        builder.field("sleeps", sleeps, params);
         return builder.endObject();
     }
 
@@ -226,18 +267,31 @@ public class DriverStatus implements Task.Status {
         if (o == null || getClass() != o.getClass()) return false;
         DriverStatus that = (DriverStatus) o;
         return sessionId.equals(that.sessionId)
+            && taskDescription.equals(that.taskDescription)
             && started == that.started
             && lastUpdated == that.lastUpdated
             && cpuNanos == that.cpuNanos
             && iterations == that.iterations
             && status == that.status
             && completedOperators.equals(that.completedOperators)
-            && activeOperators.equals(that.activeOperators);
+            && activeOperators.equals(that.activeOperators)
+            && sleeps.equals(that.sleeps);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sessionId, started, lastUpdated, cpuNanos, iterations, status, completedOperators, activeOperators);
+        return Objects.hash(
+            sessionId,
+            taskDescription,
+            started,
+            lastUpdated,
+            cpuNanos,
+            iterations,
+            status,
+            completedOperators,
+            activeOperators,
+            sleeps
+        );
     }
 
     @Override
@@ -313,13 +367,22 @@ public class DriverStatus implements Task.Status {
         }
     }
 
-    public enum Status implements ToXContentFragment {
+    public enum Status implements Writeable, ToXContentFragment {
         QUEUED,
         STARTING,
         RUNNING,
         ASYNC,
         WAITING,
         DONE;
+
+        public static Status read(StreamInput in) throws IOException {
+            return Status.valueOf(in.readString());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(toString());
+        }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

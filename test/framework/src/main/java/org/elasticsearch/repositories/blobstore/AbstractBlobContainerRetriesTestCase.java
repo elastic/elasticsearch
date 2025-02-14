@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.blobstore;
@@ -22,9 +23,9 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.fixture.HttpHeaderParser;
 import org.junit.After;
 import org.junit.Before;
 
@@ -39,10 +40,10 @@ import java.util.Locale;
 import java.util.OptionalInt;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
+import static org.elasticsearch.test.NeverMatcher.never;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
@@ -279,9 +280,12 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         assertThat(exception, readTimeoutExceptionMatcher());
         assertThat(
             exception.getMessage().toLowerCase(Locale.ROOT),
-            either(containsString("read timed out")).or(containsString("premature end of chunk coded message body: closing chunk expected"))
-                .or(containsString("Read timed out"))
-                .or(containsString("unexpected end of file from server"))
+            anyOf(
+                containsString("read timed out"),
+                containsString("premature end of chunk coded message body: closing chunk expected"),
+                containsString("Read timed out"),
+                containsString("unexpected end of file from server")
+            )
         );
         assertThat(exception.getSuppressed().length, getMaxRetriesMatcher(maxRetries));
     }
@@ -322,10 +326,15 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         final int maxRetries = randomInt(20);
         final BlobContainer blobContainer = createBlobContainer(maxRetries, null, null, null);
 
+        final boolean alwaysFlushBody = randomBoolean();
+
         // HTTP server sends a partial response
         final byte[] bytes = randomBlobContent(1);
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_blob_incomplete"), exchange -> {
             sendIncompleteContent(exchange, bytes);
+            if (alwaysFlushBody) {
+                exchange.getResponseBody().flush();
+            }
             exchange.close();
         });
 
@@ -340,9 +349,14 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         });
         assertThat(
             exception.getMessage().toLowerCase(Locale.ROOT),
-            either(containsString("premature end of chunk coded message body: closing chunk expected")).or(
-                containsString("premature end of content-length delimited message body")
-            ).or(containsString("connection closed prematurely"))
+            anyOf(
+                // closing the connection after sending the headers and some incomplete body might yield one of these:
+                containsString("premature end of chunk coded message body: closing chunk expected"),
+                containsString("premature end of content-length delimited message body"),
+                containsString("connection closed prematurely"),
+                // if we didn't call exchange.getResponseBody().flush() then we might not even have sent the response headers:
+                alwaysFlushBody ? never() : containsString("the target server failed to respond")
+            )
         );
         assertThat(exception.getSuppressed().length, getMaxRetriesMatcher(Math.min(10, maxRetries)));
     }
@@ -355,28 +369,24 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         return randomByteArrayOfLength(randomIntBetween(minSize, frequently() ? 512 : 1 << 20)); // rarely up to 1mb
     }
 
-    private static final Pattern RANGE_PATTERN = Pattern.compile("^bytes=([0-9]+)-([0-9]+)$");
-
-    protected static Tuple<Long, Long> getRange(HttpExchange exchange) {
+    protected static HttpHeaderParser.Range getRange(HttpExchange exchange) {
         final String rangeHeader = exchange.getRequestHeaders().getFirst("Range");
         if (rangeHeader == null) {
-            return Tuple.tuple(0L, MAX_RANGE_VAL);
+            return new HttpHeaderParser.Range(0L, MAX_RANGE_VAL);
         }
 
-        final Matcher matcher = RANGE_PATTERN.matcher(rangeHeader);
-        assertTrue(rangeHeader + " matches expected pattern", matcher.matches());
-        long rangeStart = Long.parseLong(matcher.group(1));
-        long rangeEnd = Long.parseLong(matcher.group(2));
-        assertThat(rangeStart, lessThanOrEqualTo(rangeEnd));
-        return Tuple.tuple(rangeStart, rangeEnd);
+        final HttpHeaderParser.Range range = HttpHeaderParser.parseRangeHeader(rangeHeader);
+        assertNotNull(rangeHeader + " matches expected pattern", range);
+        assertThat(range.start(), lessThanOrEqualTo(range.end()));
+        return range;
     }
 
     protected static int getRangeStart(HttpExchange exchange) {
-        return Math.toIntExact(getRange(exchange).v1());
+        return Math.toIntExact(getRange(exchange).start());
     }
 
     protected static OptionalInt getRangeEnd(HttpExchange exchange) {
-        final long rangeEnd = getRange(exchange).v2();
+        final long rangeEnd = getRange(exchange).end();
         if (rangeEnd == MAX_RANGE_VAL) {
             return OptionalInt.empty();
         }
@@ -402,7 +412,9 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         if (bytesToSend > 0) {
             exchange.getResponseBody().write(bytes, rangeStart, bytesToSend);
         }
-        if (randomBoolean()) {
+        if (randomBoolean() || Runtime.version().feature() >= 23) {
+            // For now in JDK23 we need to always flush. See https://bugs.openjdk.org/browse/JDK-8331847.
+            // TODO: remove the JDK version check once that issue is fixed
             exchange.getResponseBody().flush();
         }
         return bytesToSend;

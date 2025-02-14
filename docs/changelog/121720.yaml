@@ -1,0 +1,5 @@
+pr: 121720
+summary: Skip fetching _inference_fields field in legacy semantic_text format
+area: Search
+type: bug
+issues: []

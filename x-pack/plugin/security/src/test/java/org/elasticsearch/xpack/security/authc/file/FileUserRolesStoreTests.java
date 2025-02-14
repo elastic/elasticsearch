@@ -285,7 +285,7 @@ public class FileUserRolesStoreTests extends ESTestCase {
     }
 
     private Path getUsersRolesPath() throws IOException {
-        Path xpackConf = env.configFile();
+        Path xpackConf = env.configDir();
         Files.createDirectories(xpackConf);
         return xpackConf.resolve("users_roles");
     }

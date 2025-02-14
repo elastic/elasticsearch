@@ -290,11 +290,6 @@ final class HexRing {
         { 0, 0, 1, 0, 1, 5, 1 },   // base cell 121
     };
 
-    private static final int E_SUCCESS = 0; // Success (no error)
-    private static final int E_PENTAGON = 9;  // Pentagon distortion was encountered which the algorithm
-    private static final int E_CELL_INVALID = 5; // `H3Index` cell argument was not valid
-    private static final int E_FAILED = 1;  // The operation failed but a more specific error is not available
-
     /**
      * Directions used for traversing a hexagonal ring counterclockwise around
      * {1, 0, 0}

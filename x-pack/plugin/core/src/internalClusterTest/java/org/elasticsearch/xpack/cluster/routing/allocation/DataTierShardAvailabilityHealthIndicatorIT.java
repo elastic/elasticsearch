@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.cluster.routing.allocation;
 
-import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanationUtils;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -110,12 +110,7 @@ public class DataTierShardAvailabilityHealthIndicatorIT extends ESIntegTestCase 
             GetHealthAction.INSTANCE,
             new GetHealthAction.Request(ShardsAvailabilityHealthIndicatorService.NAME, true, 1000)
         ).get();
-        ClusterAllocationExplanation explain = clusterAdmin().prepareAllocationExplain()
-            .setIndex("test")
-            .setShard(0)
-            .setPrimary(false)
-            .get()
-            .getExplanation();
+        final var explain = ClusterAllocationExplanationUtils.getClusterAllocationExplanation(client(), "test", 0, false);
         logger.info(XContentHelper.toXContent(explain, XContentType.JSON, true).utf8ToString());
         HealthIndicatorResult indicatorResult = healthResponse.findIndicator(ShardsAvailabilityHealthIndicatorService.NAME);
         assertThat(indicatorResult.status(), equalTo(HealthStatus.YELLOW));
@@ -188,7 +183,7 @@ public class DataTierShardAvailabilityHealthIndicatorIT extends ESIntegTestCase 
     }
 
     private String findNodeWithShard(final String indexName, final int shard, final boolean primary) {
-        ClusterState state = clusterAdmin().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         List<ShardRouting> startedShards = RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED);
         startedShards = startedShards.stream()
             .filter(shardRouting -> shardRouting.getIndexName().equals(indexName))

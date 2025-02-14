@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
@@ -43,13 +44,13 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
+import static org.elasticsearch.xpack.security.support.FieldNameTranslators.USER_FIELD_NAME_TRANSLATORS;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -72,7 +73,7 @@ public class TransportQueryUserActionTests extends ESTestCase {
         final List<FieldSortBuilder> originals = fieldNames.stream().map(this::randomFieldSortBuilderWithName).toList();
 
         final SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.searchSource();
-        TransportQueryUserAction.translateFieldSortBuilders(originals, searchSourceBuilder);
+        USER_FIELD_NAME_TRANSLATORS.translateFieldSortBuilders(originals, searchSourceBuilder, null);
 
         IntStream.range(0, originals.size()).forEach(i -> {
             final FieldSortBuilder original = originals.get(i);
@@ -93,9 +94,13 @@ public class TransportQueryUserActionTests extends ESTestCase {
         fieldSortBuilder.setNestedSort(new NestedSortBuilder("something"));
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> TransportQueryUserAction.translateFieldSortBuilders(List.of(fieldSortBuilder), SearchSourceBuilder.searchSource())
+            () -> USER_FIELD_NAME_TRANSLATORS.translateFieldSortBuilders(
+                List.of(fieldSortBuilder),
+                SearchSourceBuilder.searchSource(),
+                null
+            )
         );
-        assertThat(e.getMessage(), equalTo("nested sorting is not supported for User query"));
+        assertThat(e.getMessage(), equalTo("nested sorting is not currently supported in this context"));
     }
 
     public void testNestedSortingOnTextFieldsNotAllowed() {
@@ -106,9 +111,9 @@ public class TransportQueryUserActionTests extends ESTestCase {
 
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> TransportQueryUserAction.translateFieldSortBuilders(originals, searchSourceBuilder)
+            () -> USER_FIELD_NAME_TRANSLATORS.translateFieldSortBuilders(originals, searchSourceBuilder, null)
         );
-        assertThat(e.getMessage(), equalTo(String.format(Locale.ROOT, "sorting is not supported for field [%s] in User query", fieldName)));
+        assertThat(e.getMessage(), equalTo(Strings.format("sorting is not supported for field [%s]", fieldName)));
     }
 
     public void testQueryUsers() {

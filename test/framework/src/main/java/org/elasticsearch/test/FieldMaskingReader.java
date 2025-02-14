@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test;
 
@@ -14,16 +15,20 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.tests.index.FieldFilterLeafReader;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.Set;
 
 public class FieldMaskingReader extends FilterDirectoryReader {
-    private final String field;
+    private final Set<String> fields;
 
     public FieldMaskingReader(String field, DirectoryReader in) throws IOException {
+        this(Set.of(field), in);
+    }
+
+    public FieldMaskingReader(Set<String> fields, DirectoryReader in) throws IOException {
         super(in, new FilterDirectoryReader.SubReaderWrapper() {
             @Override
             public LeafReader wrap(LeafReader reader) {
-                return new FilterLeafReader(new FieldFilterLeafReader(reader, Collections.singleton(field), true)) {
+                return new FilterLeafReader(new FieldFilterLeafReader(reader, fields, true)) {
 
                     // FieldFilterLeafReader does not forward cache helpers
                     // since it considers it is illegal because of the fact
@@ -43,13 +48,13 @@ public class FieldMaskingReader extends FilterDirectoryReader {
                 };
             }
         });
-        this.field = field;
+        this.fields = fields;
 
     }
 
     @Override
     protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
-        return new FieldMaskingReader(field, in);
+        return new FieldMaskingReader(fields, in);
     }
 
     @Override

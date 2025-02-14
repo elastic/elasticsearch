@@ -5,6 +5,12 @@
 <titleabbrev>List synonyms sets</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-synonyms[Synonyms APIs].
+--
+
 Retrieves a summary of all defined synonyms sets.
 
 This API allows to retrieve the total number of synonyms sets defined.

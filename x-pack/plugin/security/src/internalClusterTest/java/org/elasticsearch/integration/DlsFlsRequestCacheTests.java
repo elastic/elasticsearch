@@ -8,11 +8,11 @@
 package org.elasticsearch.integration;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.admin.cluster.storedscripts.TransportPutStoredScriptAction;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
@@ -22,7 +22,6 @@ import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
@@ -41,6 +40,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.action.admin.cluster.storedscripts.StoredScriptIntegTestUtils.newPutStoredScriptTestRequest;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
@@ -348,8 +348,8 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
     private void prepareIndices() {
         final Client client = client();
 
-        assertAcked(client.admin().cluster().preparePutStoredScript().setId("my-script").setContent(new BytesArray("""
-            {"script":{"source":"{\\"match\\":{\\"username\\":\\"{{_user.username}}\\"}}","lang":"mustache"}}"""), XContentType.JSON));
+        assertAcked(safeExecute(TransportPutStoredScriptAction.TYPE, newPutStoredScriptTestRequest("my-script", """
+            {"script":{"source":"{\\"match\\":{\\"username\\":\\"{{_user.username}}\\"}}","lang":"mustache"}}""")));
 
         assertAcked(indicesAdmin().prepareCreate(DLS_INDEX).addAlias(new Alias("dls-alias")).get());
         client.prepareIndex(DLS_INDEX).setId("101").setSource("number", 101, "letter", "A").get();
@@ -426,7 +426,7 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
         var searchResponse = requestBuilder.get();
         try {
             assertThat(searchResponse.getFailedShards(), equalTo(0));
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) docIds.size()));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) docIds.size()));
             final SearchHit[] hits = searchResponse.getHits().getHits();
             assertThat(Arrays.stream(hits).map(SearchHit::getId).collect(Collectors.toUnmodifiableSet()), equalTo(docIds));
             if (fieldNames != null) {

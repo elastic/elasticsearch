@@ -120,7 +120,7 @@ public class CoordinatedInferenceActionRequestTests extends AbstractBWCWireSeria
             instance.setPrefixType(TrainedModelPrefixStrings.PrefixType.NONE);
         }
 
-        return new CoordinatedInferenceAction.Request(
+        var newInstance = new CoordinatedInferenceAction.Request(
             instance.getModelId(),
             instance.getInputs(),
             instance.getTaskSettings(),
@@ -131,5 +131,7 @@ public class CoordinatedInferenceActionRequestTests extends AbstractBWCWireSeria
             instance.getHighPriority(),
             instance.getRequestModelType()
         );
+        newInstance.setPrefixType(instance.getPrefixType());
+        return newInstance;
     }
 }

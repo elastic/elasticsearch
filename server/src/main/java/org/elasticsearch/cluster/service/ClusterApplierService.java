@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.service;
@@ -154,6 +155,31 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         @Override
         public void run() {
             runTask(source(), updateFunction, listener);
+        }
+    }
+
+    private record TimedListener(ActionListener<Void> listener, Recorder recorder) implements ActionListener<Void> {
+
+        @Override
+        public void onResponse(Void response) {
+            try (Releasable ignored = recorder.record("listener.onResponse")) {
+                listener.onResponse(null);
+            } catch (Exception e) {
+                assert false : e;
+                logger.error("exception thrown by listener.onResponse", e);
+            }
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            assert e != null;
+            try (Releasable ignored = recorder.record("listener.onFailure")) {
+                listener.onFailure(e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+                assert false : e;
+                logger.error(() -> "exception thrown by listener.onFailure", e);
+            }
         }
     }
 
@@ -333,8 +359,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         final ThreadContext threadContext = threadPool.getThreadContext();
         final Supplier<ThreadContext.StoredContext> storedContextSupplier = threadContext.newRestorableContext(true);
 
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            threadContext.markAsSystemContext();
+        try (var ignore = threadContext.newEmptySystemContext()) {
             threadPoolExecutor.execute(
                 new UpdateTask(
                     priority,
@@ -394,12 +419,14 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
 
         final long startTimeMillis = threadPool.relativeTimeInMillis();
         final Recorder stopWatch = new Recorder(threadPool, slowTaskThreadDumpTimeout);
+        final TimedListener timedListener = new TimedListener(clusterApplyListener, stopWatch);
         final ClusterState newClusterState;
         try {
             try (Releasable ignored = stopWatch.record("running task [" + source + ']')) {
                 newClusterState = updateFunction.apply(previousClusterState);
             }
         } catch (Exception e) {
+            timedListener.onFailure(e);
             TimeValue executionTime = getTimeSince(startTimeMillis);
             logger.trace(
                 () -> format(
@@ -412,15 +439,14 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                 e
             );
             warnAboutSlowTaskIfNeeded(executionTime, source, stopWatch);
-            clusterApplyListener.onFailure(e);
             return;
         }
 
         if (previousClusterState == newClusterState) {
+            timedListener.onResponse(null);
             TimeValue executionTime = getTimeSince(startTimeMillis);
             logger.debug("processing [{}]: took [{}] no change in cluster state", source, executionTime);
             warnAboutSlowTaskIfNeeded(executionTime, source, stopWatch);
-            clusterApplyListener.onResponse(null);
         } else {
             if (logger.isTraceEnabled()) {
                 logger.debug("cluster state updated, version [{}], source [{}]\n{}", newClusterState.version(), source, newClusterState);
@@ -430,6 +456,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
             try {
                 setIsApplyingClusterState();
                 applyChanges(previousClusterState, newClusterState, source, stopWatch);
+                timedListener.onResponse(null);
                 TimeValue executionTime = getTimeSince(startTimeMillis);
                 logger.debug(
                     "processing [{}]: took [{}] done applying updated cluster state (version: {}, uuid: {})",
@@ -439,8 +466,11 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                     newClusterState.stateUUID()
                 );
                 warnAboutSlowTaskIfNeeded(executionTime, source, stopWatch);
-                clusterApplyListener.onResponse(null);
             } catch (Exception e) {
+                // failing to apply a cluster state with an exception indicates a bug in validation or in one of the appliers; if we
+                // continue we will retry with the same cluster state but that might not help.
+                assert applicationMayFail();
+                timedListener.onFailure(e);
                 TimeValue executionTime = getTimeSince(startTimeMillis);
                 if (logger.isTraceEnabled()) {
                     logger.warn(() -> format("""
@@ -460,10 +490,6 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
                         e
                     );
                 }
-                // failing to apply a cluster state with an exception indicates a bug in validation or in one of the appliers; if we
-                // continue we will retry with the same cluster state but that might not help.
-                assert applicationMayFail();
-                clusterApplyListener.onFailure(e);
             } finally {
                 clearIsApplyingClusterState();
             }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.source;
 
@@ -21,12 +22,14 @@ import java.util.Collections;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MetadataFetchingIT extends ESIntegTestCase {
+
     public void testSimple() {
         assertAcked(prepareCreate("test"));
         ensureGreen();
@@ -34,17 +37,14 @@ public class MetadataFetchingIT extends ESIntegTestCase {
         prepareIndex("test").setId("1").setSource("field", "value").get();
         refresh();
 
-        assertResponse(prepareSearch("test").storedFields("_none_").setFetchSource(false).setVersion(true), response -> {
+        assertResponses(response -> {
             assertThat(response.getHits().getAt(0).getId(), nullValue());
-            assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
             assertThat(response.getHits().getAt(0).getVersion(), notNullValue());
-        });
-
-        assertResponse(prepareSearch("test").storedFields("_none_"), response -> {
-            assertThat(response.getHits().getAt(0).getId(), nullValue());
-            assertThat(response.getHits().getAt(0).getId(), nullValue());
             assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
-        });
+        },
+            prepareSearch("test").storedFields("_none_").setFetchSource(false).setVersion(true),
+            prepareSearch("test").storedFields("_none_")
+        );
     }
 
     public void testInnerHits() {
@@ -63,12 +63,12 @@ public class MetadataFetchingIT extends ESIntegTestCase {
                     )
                 ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getAt(0).getId(), nullValue());
                 assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
                 assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
                 SearchHits hits = response.getHits().getAt(0).getInnerHits().get("nested");
-                assertThat(hits.getTotalHits().value, equalTo(1L));
+                assertThat(hits.getTotalHits().value(), equalTo(1L));
                 assertThat(hits.getAt(0).getId(), nullValue());
                 assertThat(hits.getAt(0).getSourceAsString(), nullValue());
             }

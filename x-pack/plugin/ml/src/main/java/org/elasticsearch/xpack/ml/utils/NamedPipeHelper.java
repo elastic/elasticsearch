@@ -78,7 +78,7 @@ public class NamedPipeHelper {
         // All these factors need to align for everything to work in production. If any changes
         // are made here then CNamedPipeFactory::defaultPath() in the C++ code will probably
         // also need to be changed.
-        return env.tmpFile().toString() + PathUtils.getDefaultFileSystem().getSeparator();
+        return env.tmpDir().toString() + PathUtils.getDefaultFileSystem().getSeparator();
     }
 
     /**

@@ -115,7 +115,7 @@ public class RestRequestFilterTests extends ESTestCase {
         }
         RestRequestFilter filter = () -> Collections.singleton("root.second.third");
         RestRequest filtered = filter.getFilteredRequest(restRequest);
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> filtered.content());
+        Exception e = expectThrows(IllegalArgumentException.class, () -> filtered.content());
         assertThat(e.getMessage(), containsString("unknown content type"));
     }
 

@@ -206,9 +206,7 @@ public class DatafeedNodeSelector {
 
         for (String concreteIndex : concreteIndices) {
             IndexRoutingTable routingTable = clusterState.getRoutingTable().index(concreteIndex);
-            if (routingTable == null
-                || routingTable.allPrimaryShardsActive() == false
-                || routingTable.readyForSearch(clusterState) == false) {
+            if (routingTable == null || routingTable.allPrimaryShardsActive() == false || routingTable.readyForSearch() == false) {
                 return new AssignmentFailure(
                     "cannot start datafeed ["
                         + datafeedId

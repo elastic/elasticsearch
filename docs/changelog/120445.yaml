@@ -1,0 +1,5 @@
+pr: 120445
+summary: Run `GetPipelineTransportAction` on local node
+area: Ingest Node
+type: enhancement
+issues: []

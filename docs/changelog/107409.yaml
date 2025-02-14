@@ -1,5 +1,0 @@
-pr: 107409
-summary: "ESQL: Introduce a casting operator, `::`"
-area: ES|QL
-type: feature
-issues: []

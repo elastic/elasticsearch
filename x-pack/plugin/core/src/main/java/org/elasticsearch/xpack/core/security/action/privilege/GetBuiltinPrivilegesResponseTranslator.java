@@ -9,11 +9,10 @@ package org.elasticsearch.xpack.core.security.action.privilege;
 
 public interface GetBuiltinPrivilegesResponseTranslator {
 
-    GetBuiltinPrivilegesResponse translate(GetBuiltinPrivilegesResponse response, boolean restrictResponse);
+    GetBuiltinPrivilegesResponse translate(GetBuiltinPrivilegesResponse response);
 
     class Default implements GetBuiltinPrivilegesResponseTranslator {
-        public GetBuiltinPrivilegesResponse translate(GetBuiltinPrivilegesResponse response, boolean restrictResponse) {
-            assert false == restrictResponse;
+        public GetBuiltinPrivilegesResponse translate(GetBuiltinPrivilegesResponse response) {
             return response;
         }
     }

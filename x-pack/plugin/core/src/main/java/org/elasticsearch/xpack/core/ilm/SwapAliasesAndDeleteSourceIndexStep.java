@@ -15,9 +15,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 
-import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
@@ -83,9 +83,8 @@ public class SwapAliasesAndDeleteSourceIndexStep extends AsyncActionStep {
 
         if (targetIndexMetadata == null) {
             String policyName = indexMetadata.getLifecyclePolicyName();
-            String errorMessage = String.format(
-                Locale.ROOT,
-                "target index [%s] doesn't exist. stopping execution of lifecycle [%s] for" + " index [%s]",
+            String errorMessage = Strings.format(
+                "target index [%s] doesn't exist. stopping execution of lifecycle [%s] for index [%s]",
                 targetIndexName,
                 policyName,
                 originalIndex

@@ -59,7 +59,7 @@ public class CohereRerankModel extends CohereModel {
             new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings),
             new ModelSecrets(secretSettings),
             secretSettings,
-            serviceSettings.getCommonSettings()
+            serviceSettings
         );
     }
 
@@ -100,6 +100,6 @@ public class CohereRerankModel extends CohereModel {
 
     @Override
     public URI uri() {
-        return getServiceSettings().getCommonSettings().uri();
+        return getServiceSettings().uri();
     }
 }

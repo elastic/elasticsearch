@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
@@ -22,8 +23,8 @@ apply plugin: 'elasticsearch.publish'
    * fix the hack in the build framework that copies transport-netty4 into the integ test cluster
  */
 esplugin {
-  description 'Netty 4 based transport implementation'
-  classname 'org.elasticsearch.transport.netty4.Netty4Plugin'
+  description = 'Netty 4 based transport implementation'
+  classname = 'org.elasticsearch.transport.netty4.Netty4Plugin'
 }
 
 // exclude transitively pulled in version via the esplugin plugin to always build from fresh sources and make jar-hell checks pass
@@ -34,7 +35,7 @@ configurations {
 }
 
 dependencies {
-  api project(":libs:elasticsearch-ssl-config")
+  api project(":libs:ssl-config")
 
   // network stack
   api "io.netty:netty-buffer:${versions.netty}"
@@ -176,9 +177,8 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.protobuf.nano.CodedOutputByteBufferNano',
     'com.google.protobuf.nano.MessageNano',
     'com.github.luben.zstd.Zstd',
-    'com.github.luben.zstd.BaseZstdBufferDecompressingStreamNoFinalizer',
-    'com.github.luben.zstd.ZstdBufferDecompressingStreamNoFinalizer',
-    'com.github.luben.zstd.ZstdDirectBufferDecompressingStreamNoFinalizer',
+    'com.github.luben.zstd.ZstdInputStreamNoFinalizer',
+    'com.github.luben.zstd.util.Native',
     'com.jcraft.jzlib.Deflater',
     'com.jcraft.jzlib.Inflater',
     'com.jcraft.jzlib.JZlib$WrapperType',
@@ -230,8 +230,14 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueConsumerIndexField',
     'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerIndexField',
     'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueConsumerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueProducerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueConsumerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerLimitField',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
+    'io.netty.util.internal.shaded.org.jctools.util.UnsafeLongArrayAccess',
     'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator',
     'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$1',
     'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$2',
@@ -239,4 +245,8 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$4',
     'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$5'
   )
+}
+
+tasks.named('forbiddenApisMain').configure {
+  signaturesFiles += files('forbidden/netty-signatures.txt')
 }

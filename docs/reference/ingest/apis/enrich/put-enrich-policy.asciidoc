@@ -5,6 +5,11 @@
 <titleabbrev>Create enrich policy</titleabbrev>
 ++++
 
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-enrich[Enrich APIs].
+--
+
 Creates an enrich policy.
 
 ////

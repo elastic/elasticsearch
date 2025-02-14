@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.toolchain
@@ -40,12 +41,6 @@ class ArchivedOracleJdkToolchainResolverSpec extends AbstractToolchainResolverSp
                 [18, ORACLE, LINUX, X86_64, "https://download.oracle.com/java/18/archive/jdk-18.0.2.1_linux-x64_bin.tar.gz"],
                 [18, ORACLE, LINUX, AARCH64, "https://download.oracle.com/java/18/archive/jdk-18.0.2.1_linux-aarch64_bin.tar.gz"],
                 [18, ORACLE, WINDOWS, X86_64, "https://download.oracle.com/java/18/archive/jdk-18.0.2.1_windows-x64_bin.zip"],
-
-                [17, ORACLE, MAC_OS, X86_64, "https://download.oracle.com/java/17/archive/jdk-17.0.7_macos-x64_bin.tar.gz"],
-                [17, ORACLE, MAC_OS, AARCH64, "https://download.oracle.com/java/17/archive/jdk-17.0.7_macos-aarch64_bin.tar.gz"],
-                [17, ORACLE, LINUX, X86_64, "https://download.oracle.com/java/17/archive/jdk-17.0.7_linux-x64_bin.tar.gz"],
-                [17, ORACLE, LINUX, AARCH64, "https://download.oracle.com/java/17/archive/jdk-17.0.7_linux-aarch64_bin.tar.gz"],
-                [17, ORACLE, WINDOWS, X86_64, "https://download.oracle.com/java/17/archive/jdk-17.0.7_windows-x64_bin.zip"]
         ]
     }
 

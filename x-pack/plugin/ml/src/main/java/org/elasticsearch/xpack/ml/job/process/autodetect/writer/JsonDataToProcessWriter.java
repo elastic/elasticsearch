@@ -91,7 +91,7 @@ public class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
 
     private void writeSmileXContent(CategorizationAnalyzer categorizationAnalyzer, InputStream inputStream) throws IOException {
         while (true) {
-            byte[] nextObject = findNextObject(XContentType.SMILE.xContent().streamSeparator(), inputStream);
+            byte[] nextObject = findNextObject(XContentType.SMILE.xContent().bulkSeparator(), inputStream);
             if (nextObject.length == 0) {
                 break;
             }

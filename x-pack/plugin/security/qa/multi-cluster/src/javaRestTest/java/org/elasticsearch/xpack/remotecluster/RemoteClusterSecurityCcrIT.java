@@ -282,7 +282,7 @@ public class RemoteClusterSecurityCcrIT extends AbstractRemoteClusterSecurityTes
                 searchResponse = SearchResponseUtils.parseSearchResponse(parser);
             }
             try {
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(numberOfDocs));
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(numberOfDocs));
                 assertThat(
                     Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toUnmodifiableSet()),
                     equalTo(Set.of(indices))

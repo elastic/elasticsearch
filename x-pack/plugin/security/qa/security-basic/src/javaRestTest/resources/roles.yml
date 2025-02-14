@@ -18,8 +18,8 @@ api_key_user_role:
   cluster:
     - manage_own_api_key
 
-# Used to perform query user operations
-read_users_user_role:
+# Used to perform query user and role operations
+read_security_user_role:
   cluster:
     - read_security
 

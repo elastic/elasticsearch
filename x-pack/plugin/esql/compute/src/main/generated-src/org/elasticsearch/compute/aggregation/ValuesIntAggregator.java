@@ -17,7 +17,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.core.Releasable;
 
 /**
  * Aggregates field values for int.
@@ -82,14 +81,15 @@ class ValuesIntAggregator {
         return state.toBlock(driverContext.blockFactory(), selected);
     }
 
-    public static class SingleState implements Releasable {
+    public static class SingleState implements AggregatorState {
         private final LongHash values;
 
         private SingleState(BigArrays bigArrays) {
             values = new LongHash(1, bigArrays);
         }
 
-        void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
+        @Override
+        public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
             blocks[offset] = toBlock(driverContext.blockFactory());
         }
 
@@ -123,14 +123,15 @@ class ValuesIntAggregator {
      * an {@code O(n^2)} operation for collection to support a {@code O(1)}
      * collector operation. But at least it's fairly simple.
      */
-    public static class GroupingState implements Releasable {
+    public static class GroupingState implements GroupingAggregatorState {
         private final LongHash values;
 
         private GroupingState(BigArrays bigArrays) {
             values = new LongHash(1, bigArrays);
         }
 
-        void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
+        @Override
+        public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             blocks[offset] = toBlock(driverContext.blockFactory(), selected);
         }
 
@@ -175,7 +176,8 @@ class ValuesIntAggregator {
             }
         }
 
-        void enableGroupIdTracking(SeenGroupIds seen) {
+        @Override
+        public void enableGroupIdTracking(SeenGroupIds seen) {
             // we figure out seen values from nulls on the values block
         }
 

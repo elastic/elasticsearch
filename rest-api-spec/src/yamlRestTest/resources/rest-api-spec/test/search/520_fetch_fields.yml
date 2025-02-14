@@ -128,18 +128,88 @@ fetch _seq_no via stored_fields:
 
 ---
 fetch _seq_no via fields:
+  - requires:
+      cluster_features: ["meta_fetch_fields_error_code_changed"]
+      reason: The fields_api returns a 400 instead a 5xx when _seq_no is requested via fields
 
   - do:
-      catch: "request"
+      catch: bad_request
       search:
         index: test
         body:
           fields: [ _seq_no ]
 
-  # This should be `unauthorized` (401) or `forbidden` (403) or at least `bad request` (400)
-  # while instead it is mapped to an `internal_server_error (500)`
-  - match: { status: 500 }
-  - match: { error.root_cause.0.type: unsupported_operation_exception }
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: illegal_argument_exception }
+  - match: { error.root_cause.0.reason: "error fetching [_seq_no]: Cannot fetch values for internal field [_seq_no]." }
+
+---
+fetch _source via fields:
+  - requires:
+      cluster_features: ["meta_fetch_fields_error_code_changed"]
+      reason: The fields_api returns a 400 instead a 5xx when _seq_no is requested via fields
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          fields: [ _source ]
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: illegal_argument_exception }
+  - match: { error.root_cause.0.reason: "error fetching [_source]: Cannot fetch values for internal field [_source]." }
+
+---
+fetch _feature via fields:
+  - requires:
+      cluster_features: ["meta_fetch_fields_error_code_changed"]
+      reason: The fields_api returns a 400 instead a 5xx when _seq_no is requested via fields
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          fields: [ _feature ]
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: illegal_argument_exception }
+  - match: { error.root_cause.0.reason: "error fetching [_feature]: Cannot fetch values for internal field [_feature]." }
+
+---
+fetch _nested_path via fields:
+  - requires:
+      cluster_features: ["meta_fetch_fields_error_code_changed"]
+      reason: The fields_api returns a 400 instead a 5xx when _seq_no is requested via fields
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          fields: [ _nested_path ]
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: illegal_argument_exception }
+  - match: { error.root_cause.0.reason: "error fetching [_nested_path]: Cannot fetch values for internal field [_nested_path]." }
+
+---
+fetch _field_names via fields:
+  - requires:
+      cluster_features: ["meta_fetch_fields_error_code_changed"]
+      reason: The fields_api returns a 400 instead a 5xx when _seq_no is requested via fields
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          fields: [ _field_names ]
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: illegal_argument_exception }
+  - match: { error.root_cause.0.reason: "error fetching [_field_names]: Cannot fetch values for internal field [_field_names]." }
 
 ---
 fetch fields with none stored_fields:

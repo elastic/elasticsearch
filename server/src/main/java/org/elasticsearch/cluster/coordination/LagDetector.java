@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -23,10 +24,10 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.PrioritizedThrottledTaskRunner;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportService;
@@ -269,12 +270,20 @@ public class LagDetector {
                     @Override
                     public void onResponse(Releasable releasable) {
                         boolean success = false;
-                        final ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
-                        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
-                            threadContext.markAsSystemContext();
+                        try (var ignored = transportService.getThreadPool().getThreadContext().newEmptySystemContext()) {
                             client.execute(
                                 TransportNodesHotThreadsAction.TYPE,
-                                new NodesHotThreadsRequest(discoveryNode).threads(500),
+                                new NodesHotThreadsRequest(
+                                    discoveryNode,
+                                    new HotThreads.RequestOptions(
+                                        500,
+                                        HotThreads.RequestOptions.DEFAULT.reportType(),
+                                        HotThreads.RequestOptions.DEFAULT.sortOrder(),
+                                        HotThreads.RequestOptions.DEFAULT.interval(),
+                                        HotThreads.RequestOptions.DEFAULT.snapshots(),
+                                        HotThreads.RequestOptions.DEFAULT.ignoreIdleThreads()
+                                    )
+                                ),
                                 ActionListener.runBefore(debugListener, () -> Releasables.close(releasable))
                             );
                             success = true;

@@ -15,7 +15,7 @@ This format uses two different definitions:
 ipod, i-pod, i pod
 computer, pc, laptop
 ----
-* Explicit mappings: Matches a group of words to other words. Words on the left hand side of the rule definition are expanded into all the possibilities described on the right hand side. Example:
+* Explicit synonyms: Matches a group of words to other words. Words on the left hand side of the rule definition are expanded into all the possibilities described on the right hand side. Example:
 +
 [source,synonyms]
 ----

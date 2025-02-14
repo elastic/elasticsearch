@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.lucene.bwc.codecs;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.test.ESTestCase;
 
 public class OldCodecsAvailableTests extends ESTestCase {
@@ -16,8 +17,8 @@ public class OldCodecsAvailableTests extends ESTestCase {
      * Reminder to add Lucene BWC codecs under {@link org.elasticsearch.xpack.lucene.bwc.codecs} whenever Elasticsearch is upgraded
      * to the next major Lucene version.
      */
+    @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_FOUNDATIONS)
     public void testLuceneBWCCodecsAvailable() {
-        assertEquals("Add Lucene BWC codecs for Elasticsearch version 7", 8, Version.CURRENT.major);
+        assertEquals("Add Lucene BWC codecs for Elasticsearch version 7", 9, Version.CURRENT.major);
     }
-
 }

@@ -4,6 +4,12 @@
 <titleabbrev>Ranking evaluation</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-search[Search APIs].
+--
+
 Allows you to evaluate the quality of ranked search results over a set of
 typical search queries.
 

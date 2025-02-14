@@ -15,11 +15,11 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
 
-import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
@@ -89,9 +89,8 @@ public class WaitForIndexColorStep extends ClusterStateWaitStep {
         IndexMetadata indexMetadata = clusterState.metadata().index(indexName);
         // check if the (potentially) derived index exists
         if (indexMetadata == null) {
-            String errorMessage = String.format(
-                Locale.ROOT,
-                "[%s] lifecycle action for index [%s] executed but the target index [%s] " + "does not exist",
+            String errorMessage = Strings.format(
+                "[%s] lifecycle action for index [%s] executed but the target index [%s] does not exist",
                 getKey().action(),
                 index.getName(),
                 indexName

@@ -18,7 +18,7 @@ public record ErrorResult(String error) implements ToXContentObject {
 
     public static final ParseField ERROR = new ParseField("error");
 
-    public static ConstructingObjectParser<ErrorResult, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<ErrorResult, Void> PARSER = new ConstructingObjectParser<>(
         "error",
         a -> new ErrorResult((String) a[0])
     );

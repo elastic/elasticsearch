@@ -1,0 +1,10 @@
+---
+version: ${xpack.apmdata.template.version}
+_meta:
+  description: Default settings for logs-apm.* data streams
+  managed: true
+template:
+  settings:
+    index:
+      codec: best_compression
+      mode: standard

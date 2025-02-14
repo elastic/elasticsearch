@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.settings;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -14,6 +15,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -49,7 +51,7 @@ public class RateLimitSettingsTests extends AbstractWireSerializingTestCase<Rate
         Map<String, Object> settings = new HashMap<>(
             Map.of(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100)))
         );
-        var res = RateLimitSettings.of(settings, new RateLimitSettings(1), validation);
+        var res = RateLimitSettings.of(settings, new RateLimitSettings(1), validation, "test", ConfigurationParseContext.PERSISTENT);
 
         assertThat(res, is(new RateLimitSettings(100)));
         assertTrue(validation.validationErrors().isEmpty());
@@ -60,7 +62,7 @@ public class RateLimitSettingsTests extends AbstractWireSerializingTestCase<Rate
         Map<String, Object> settings = new HashMap<>(
             Map.of("abc", new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 100)))
         );
-        var res = RateLimitSettings.of(settings, new RateLimitSettings(1), validation);
+        var res = RateLimitSettings.of(settings, new RateLimitSettings(1), validation, "test", ConfigurationParseContext.PERSISTENT);
 
         assertThat(res, is(new RateLimitSettings(1)));
         assertTrue(validation.validationErrors().isEmpty());
@@ -69,10 +71,22 @@ public class RateLimitSettingsTests extends AbstractWireSerializingTestCase<Rate
     public void testOf_UsesDefaultValue_WhenRequestsPerMinute_IsAbsent() {
         var validation = new ValidationException();
         Map<String, Object> settings = new HashMap<>(Map.of(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of("abc", 100))));
-        var res = RateLimitSettings.of(settings, new RateLimitSettings(1), validation);
+        var res = RateLimitSettings.of(settings, new RateLimitSettings(1), validation, "test", ConfigurationParseContext.PERSISTENT);
 
         assertThat(res, is(new RateLimitSettings(1)));
         assertTrue(validation.validationErrors().isEmpty());
+    }
+
+    public void testOf_ThrowsException_WithUnknownField_InRequestContext() {
+        var validation = new ValidationException();
+        Map<String, Object> settings = new HashMap<>(Map.of(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of("abc", 100))));
+
+        var exception = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> RateLimitSettings.of(settings, new RateLimitSettings(1), validation, "test", ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(exception.getMessage(), is("Model configuration contains settings [{abc=100}] unknown to the [test] service"));
     }
 
     public void testToXContent() throws IOException {

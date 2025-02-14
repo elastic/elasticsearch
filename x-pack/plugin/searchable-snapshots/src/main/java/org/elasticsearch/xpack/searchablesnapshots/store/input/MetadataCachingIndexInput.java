@@ -221,7 +221,6 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
             ThreadPool.Names.SNAPSHOT,
             ThreadPool.Names.GENERIC,
             ThreadPool.Names.SEARCH,
-            ThreadPool.Names.SEARCH_WORKER,
             ThreadPool.Names.SEARCH_THROTTLED,
 
             // Cache asynchronous fetching runs on a dedicated thread pool.
@@ -538,14 +537,6 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
     private SlicedInputStream openInputStreamMultipleParts(long position, long readLength) {
         final int startPart = getPartNumberForPosition(position);
         final int endPart = getPartNumberForPosition(position + readLength - 1);
-
-        for (int currentPart = startPart; currentPart <= endPart; currentPart++) {
-            final long startInPart = (currentPart == startPart) ? getRelativePositionInPart(position) : 0L;
-            final long endInPart;
-            endInPart = currentPart == endPart ? getRelativePositionInPart(position + readLength - 1) + 1 : fileInfo.partBytes(currentPart);
-            stats.addBlobStoreBytesRequested(endInPart - startInPart);
-        }
-
         return new SlicedInputStream(endPart - startPart + 1) {
             @Override
             protected InputStream openSlice(int slice) throws IOException {
@@ -555,8 +546,15 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
                 endInPart = currentPart == endPart
                     ? getRelativePositionInPart(position + readLength - 1) + 1
                     : fileInfo.partBytes(currentPart);
+                final long length = endInPart - startInPart;
+                stats.addBlobStoreBytesRequested(length);
                 return directory.blobContainer()
-                    .readBlob(OperationPurpose.SNAPSHOT_DATA, fileInfo.partName(currentPart), startInPart, endInPart - startInPart);
+                    .readBlob(OperationPurpose.SNAPSHOT_DATA, fileInfo.partName(currentPart), startInPart, length);
+            }
+
+            @Override
+            public boolean markSupported() {
+                return false;
             }
         };
     }

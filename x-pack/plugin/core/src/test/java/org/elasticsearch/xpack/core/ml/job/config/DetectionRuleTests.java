@@ -38,7 +38,7 @@ public class DetectionRuleTests extends AbstractXContentSerializingTestCase<Dete
     @Override
     protected DetectionRule createTestInstance() {
         DetectionRule.Builder builder = new DetectionRule.Builder();
-
+        boolean hasForceTimeShiftAction = false;
         if (randomBoolean()) {
             EnumSet<RuleAction> actions = EnumSet.noneOf(RuleAction.class);
             int actionsCount = randomIntBetween(1, RuleAction.values().length);
@@ -46,10 +46,12 @@ public class DetectionRuleTests extends AbstractXContentSerializingTestCase<Dete
                 actions.add(randomFrom(RuleAction.values()));
             }
             builder.setActions(actions);
+            hasForceTimeShiftAction = actions.contains(RuleAction.FORCE_TIME_SHIFT);
         }
 
         boolean hasScope = randomBoolean();
         boolean hasConditions = randomBoolean();
+        boolean hasParams = randomBoolean() || hasForceTimeShiftAction;
 
         if (hasScope == false && hasConditions == false) {
             // at least one of the two should be present
@@ -79,6 +81,15 @@ public class DetectionRuleTests extends AbstractXContentSerializingTestCase<Dete
             builder.setConditions(ruleConditions);
         }
 
+        if (hasParams) {
+            if (hasForceTimeShiftAction) {
+                long timeShiftAmount = randomLong();
+                builder.setParams(new RuleParams(new RuleParamsForForceTimeShift(timeShiftAmount)));
+            } else {
+                builder.setParams(new RuleParams());
+            }
+        }
+
         return builder.build();
     }
 
@@ -97,8 +108,9 @@ public class DetectionRuleTests extends AbstractXContentSerializingTestCase<Dete
         List<RuleCondition> conditions = instance.getConditions();
         RuleScope scope = instance.getScope();
         EnumSet<RuleAction> actions = instance.getActions();
+        RuleParams params = instance.getParams();
 
-        switch (between(0, 2)) {
+        switch (between(0, 3)) {
             case 0:
                 if (actions.size() == RuleAction.values().length) {
                     actions = EnumSet.of(randomFrom(RuleAction.values()));
@@ -113,11 +125,25 @@ public class DetectionRuleTests extends AbstractXContentSerializingTestCase<Dete
             case 2:
                 scope = new RuleScope.Builder(scope).include("another_field", "another_filter").build();
                 break;
+            case 3:
+                if (params.getForceTimeShift() != null) {
+                    params = new RuleParams(new RuleParamsForForceTimeShift(randomLong()));
+                } else {
+                    params = new RuleParams(new RuleParamsForForceTimeShift(randomLong()));
+                    actions.add(RuleAction.FORCE_TIME_SHIFT);
+                }
+                break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new DetectionRule.Builder(conditions).setActions(actions).setScope(scope).build();
+        if (actions.contains(RuleAction.FORCE_TIME_SHIFT) && params.getForceTimeShift() == null) {
+            params = new RuleParams(new RuleParamsForForceTimeShift(randomLong()));
+        } else if (actions.contains(RuleAction.FORCE_TIME_SHIFT) == false && params.getForceTimeShift() != null) {
+            params = new RuleParams();
+        }
+
+        return new DetectionRule.Builder(conditions).setActions(actions).setScope(scope).setParams(params).build();
     }
 
     private static List<RuleCondition> createCondition(double value) {

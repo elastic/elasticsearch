@@ -1,0 +1,5 @@
+pr: 120551
+summary: Set default reranker for text similarity reranker to Elastic reranker
+area: Ranking
+type: enhancement
+issues: []

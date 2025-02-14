@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.query;
@@ -119,7 +120,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             );
             Result<TopDocs, Void> result = searcher.search(new MatchAllDocsQuery(), manager);
             assertFalse(result.terminatedAfter);
-            assertEquals(numDocs, result.topDocs.totalHits.value);
+            assertEquals(numDocs, result.topDocs.totalHits.value());
         }
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topScoreDocManager = new TopScoreDocCollectorManager(1, null, 1000);
@@ -132,7 +133,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             );
             Result<TopDocs, Void> result = searcher.search(new TermQuery(new Term("field2", "value")), manager);
             assertFalse(result.terminatedAfter);
-            assertEquals(numField2Docs, result.topDocs.totalHits.value);
+            assertEquals(numField2Docs, result.topDocs.totalHits.value());
         }
     }
 
@@ -149,7 +150,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             );
             Result<TopDocs, Integer> result = searcher.search(new MatchAllDocsQuery(), manager);
             assertFalse(result.terminatedAfter);
-            assertEquals(numDocs, result.topDocs.totalHits.value);
+            assertEquals(numDocs, result.topDocs.totalHits.value());
             assertEquals(numDocs, result.aggs.intValue());
         }
         {
@@ -164,7 +165,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             );
             Result<TopDocs, Integer> result = searcher.search(new TermQuery(new Term("field2", "value")), manager);
             assertFalse(result.terminatedAfter);
-            assertEquals(numField2Docs, result.topDocs.totalHits.value);
+            assertEquals(numField2Docs, result.topDocs.totalHits.value());
             assertEquals(numField2Docs, result.aggs.intValue());
         }
     }
@@ -183,7 +184,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             );
             Result<TopDocs, Void> result = searcher.search(new MatchAllDocsQuery(), manager);
             assertFalse(result.terminatedAfter);
-            assertEquals(numField2Docs, result.topDocs.totalHits.value);
+            assertEquals(numField2Docs, result.topDocs.totalHits.value());
         }
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(1, null, 1000);
@@ -198,7 +199,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             );
             Result<TopDocs, Void> result = searcher.search(new MatchAllDocsQuery(), manager);
             assertFalse(result.terminatedAfter);
-            assertEquals(numDocs, result.topDocs.totalHits.value);
+            assertEquals(numDocs, result.topDocs.totalHits.value());
         }
     }
 
@@ -217,7 +218,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             );
             Result<TopDocs, Integer> result = searcher.search(new MatchAllDocsQuery(), manager);
             assertFalse(result.terminatedAfter);
-            assertEquals(numDocs, result.topDocs.totalHits.value);
+            assertEquals(numDocs, result.topDocs.totalHits.value());
             assertEquals(numDocs, result.aggs.intValue());
         }
         {
@@ -234,7 +235,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             );
             Result<TopDocs, Integer> result = searcher.search(new MatchAllDocsQuery(), manager);
             assertFalse(result.terminatedAfter);
-            assertEquals(numField2Docs, result.topDocs.totalHits.value);
+            assertEquals(numField2Docs, result.topDocs.totalHits.value());
             // post_filter is not applied to aggs
             assertEquals(reader.maxDoc(), result.aggs.intValue());
         }
@@ -250,7 +251,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(numField2Docs + 1, null, 1000);
             TopDocs topDocs = searcher.search(booleanQuery, topDocsManager);
-            assertEquals(numDocs, topDocs.totalHits.value);
+            assertEquals(numDocs, topDocs.totalHits.value());
             maxScore = topDocs.scoreDocs[0].score;
             thresholdScore = topDocs.scoreDocs[numField2Docs].score;
         }
@@ -265,7 +266,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             );
             Result<TopDocs, Void> result = searcher.search(booleanQuery, manager);
             assertFalse(result.terminatedAfter);
-            assertEquals(numField2Docs, result.topDocs.totalHits.value);
+            assertEquals(numField2Docs, result.topDocs.totalHits.value());
         }
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(1, null, 1000);
@@ -278,7 +279,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             );
             Result<TopDocs, Void> result = searcher.search(booleanQuery, manager);
             assertFalse(result.terminatedAfter);
-            assertEquals(numDocs, result.topDocs.totalHits.value);
+            assertEquals(numDocs, result.topDocs.totalHits.value());
         }
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(1, null, 1000);
@@ -291,7 +292,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             );
             Result<TopDocs, Void> result = searcher.search(booleanQuery, manager);
             assertFalse(result.terminatedAfter);
-            assertEquals(0, result.topDocs.totalHits.value);
+            assertEquals(0, result.topDocs.totalHits.value());
         }
     }
 
@@ -305,7 +306,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(numField2Docs + 1, null, 1000);
             TopDocs topDocs = searcher.search(booleanQuery, topDocsManager);
-            assertEquals(numDocs, topDocs.totalHits.value);
+            assertEquals(numDocs, topDocs.totalHits.value());
             maxScore = topDocs.scoreDocs[0].score;
             thresholdScore = topDocs.scoreDocs[numField2Docs].score;
         }
@@ -321,7 +322,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             );
             Result<TopDocs, Integer> result = searcher.search(booleanQuery, manager);
             assertFalse(result.terminatedAfter);
-            assertEquals(numField2Docs, result.topDocs.totalHits.value);
+            assertEquals(numField2Docs, result.topDocs.totalHits.value());
             // min_score is applied to aggs as well as top docs
             assertEquals(numField2Docs, result.aggs.intValue());
         }
@@ -337,7 +338,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             );
             Result<TopDocs, Integer> result = searcher.search(booleanQuery, manager);
             assertFalse(result.terminatedAfter);
-            assertEquals(numDocs, result.topDocs.totalHits.value);
+            assertEquals(numDocs, result.topDocs.totalHits.value());
             assertEquals(numDocs, result.aggs.intValue());
         }
         {
@@ -352,7 +353,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             );
             Result<TopDocs, Integer> result = searcher.search(booleanQuery, manager);
             assertFalse(result.terminatedAfter);
-            assertEquals(0, result.topDocs.totalHits.value);
+            assertEquals(0, result.topDocs.totalHits.value());
             assertEquals(0, result.aggs.intValue());
         }
     }
@@ -369,7 +370,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(numField3Docs + 1, null, 1000);
             TopDocs topDocs = searcher.search(booleanQuery, topDocsManager);
-            assertEquals(numDocs, topDocs.totalHits.value);
+            assertEquals(numDocs, topDocs.totalHits.value());
             maxScore = topDocs.scoreDocs[0].score;
             thresholdScore = topDocs.scoreDocs[numField3Docs].score;
         }
@@ -384,7 +385,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             );
             Result<TopDocs, Void> result = searcher.search(booleanQuery, manager);
             assertFalse(result.terminatedAfter);
-            assertEquals(numField2AndField3Docs, result.topDocs.totalHits.value);
+            assertEquals(numField2AndField3Docs, result.topDocs.totalHits.value());
         }
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(1, null, 1000);
@@ -397,7 +398,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             );
             Result<TopDocs, Void> result = searcher.search(booleanQuery, manager);
             assertFalse(result.terminatedAfter);
-            assertEquals(numField2Docs, result.topDocs.totalHits.value);
+            assertEquals(numField2Docs, result.topDocs.totalHits.value());
         }
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(1, null, 1000);
@@ -410,7 +411,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             );
             Result<TopDocs, Void> result = searcher.search(booleanQuery, manager);
             assertFalse(result.terminatedAfter);
-            assertEquals(0, result.topDocs.totalHits.value);
+            assertEquals(0, result.topDocs.totalHits.value());
         }
     }
 
@@ -426,7 +427,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(numField3Docs + 1, null, 1000);
             TopDocs topDocs = searcher.search(booleanQuery, topDocsManager);
-            assertEquals(numDocs, topDocs.totalHits.value);
+            assertEquals(numDocs, topDocs.totalHits.value());
             maxScore = topDocs.scoreDocs[0].score;
             thresholdScore = topDocs.scoreDocs[numField3Docs].score;
         }
@@ -442,7 +443,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             );
             Result<TopDocs, Integer> result = searcher.search(booleanQuery, manager);
             assertFalse(result.terminatedAfter);
-            assertEquals(numField2AndField3Docs, result.topDocs.totalHits.value);
+            assertEquals(numField2AndField3Docs, result.topDocs.totalHits.value());
             assertEquals(numField3Docs, result.aggs.intValue());
         }
         {
@@ -457,7 +458,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             );
             Result<TopDocs, Integer> result = searcher.search(booleanQuery, manager);
             assertFalse(result.terminatedAfter);
-            assertEquals(numField2Docs, result.topDocs.totalHits.value);
+            assertEquals(numField2Docs, result.topDocs.totalHits.value());
             assertEquals(numDocs, result.aggs.intValue());
         }
         {
@@ -472,7 +473,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             );
             Result<TopDocs, Integer> result = searcher.search(booleanQuery, manager);
             assertFalse(result.terminatedAfter);
-            assertEquals(0, result.topDocs.totalHits.value);
+            assertEquals(0, result.topDocs.totalHits.value());
             assertEquals(0, result.aggs.intValue());
         }
     }
@@ -622,7 +623,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(numField2Docs + 1, null, 1000);
             TopDocs topDocs = searcher.search(booleanQuery, topDocsManager);
-            assertEquals(numDocs, topDocs.totalHits.value);
+            assertEquals(numDocs, topDocs.totalHits.value());
             maxScore = topDocs.scoreDocs[0].score;
         }
         {
@@ -637,7 +638,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             );
             Result<TopDocs, Void> result = searcher.search(booleanQuery, manager);
             assertTrue(result.terminatedAfter);
-            assertEquals(terminateAfter, result.topDocs.totalHits.value);
+            assertEquals(terminateAfter, result.topDocs.totalHits.value());
         }
     }
 
@@ -650,7 +651,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(numField2Docs + 1, null, 1000);
             TopDocs topDocs = searcher.search(booleanQuery, topDocsManager);
-            assertEquals(numDocs, topDocs.totalHits.value);
+            assertEquals(numDocs, topDocs.totalHits.value());
             maxScore = topDocs.scoreDocs[0].score;
         }
         {
@@ -666,7 +667,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             );
             Result<TopDocs, Integer> result = searcher.search(booleanQuery, manager);
             assertTrue(result.terminatedAfter);
-            assertEquals(terminateAfter, result.topDocs.totalHits.value);
+            assertEquals(terminateAfter, result.topDocs.totalHits.value());
             assertEquals(terminateAfter, result.aggs.intValue());
         }
     }
@@ -682,7 +683,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(numField3Docs + 1, null, 1000);
             TopDocs topDocs = searcher.search(booleanQuery, topDocsManager);
-            assertEquals(numDocs, topDocs.totalHits.value);
+            assertEquals(numDocs, topDocs.totalHits.value());
             maxScore = topDocs.scoreDocs[0].score;
         }
         {
@@ -697,7 +698,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             );
             Result<TopDocs, Void> result = searcher.search(booleanQuery, manager);
             assertTrue(result.terminatedAfter);
-            assertEquals(terminateAfter, result.topDocs.totalHits.value);
+            assertEquals(terminateAfter, result.topDocs.totalHits.value());
         }
     }
 
@@ -712,7 +713,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(numField3Docs + 1, null, 1000);
             TopDocs topDocs = searcher.search(booleanQuery, topDocsManager);
-            assertEquals(numDocs, topDocs.totalHits.value);
+            assertEquals(numDocs, topDocs.totalHits.value());
             maxScore = topDocs.scoreDocs[0].score;
         }
         {
@@ -728,7 +729,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             );
             Result<TopDocs, Integer> result = searcher.search(booleanQuery, manager);
             assertTrue(result.terminatedAfter);
-            assertEquals(terminateAfter, result.topDocs.totalHits.value);
+            assertEquals(terminateAfter, result.topDocs.totalHits.value());
             // aggs see more documents because the filter is not applied to them
             assertThat(result.aggs, Matchers.greaterThanOrEqualTo(terminateAfter));
         }
@@ -1138,11 +1139,6 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             public float score() {
                 return 0;
             }
-
-            @Override
-            public int docID() {
-                return 0;
-            }
         };
 
         QueryPhaseCollector queryPhaseCollector = new QueryPhaseCollector(
@@ -1473,11 +1469,6 @@ public class QueryPhaseCollectorTests extends ESTestCase {
         }
 
         @Override
-        public int docID() {
-            return 0;
-        }
-
-        @Override
         public void setMinCompetitiveScore(float minScore) {
             setMinCompetitiveScoreCalled = true;
         }
@@ -1520,7 +1511,7 @@ public class QueryPhaseCollectorTests extends ESTestCase {
             setScorerCalled = true;
             if (expectedScorable != null) {
                 while (expectedScorable.equals(scorer.getClass()) == false && scorer instanceof FilterScorable) {
-                    scorer = scorer.getChildren().iterator().next().child;
+                    scorer = scorer.getChildren().iterator().next().child();
                 }
                 assertEquals(expectedScorable, scorer.getClass());
             }

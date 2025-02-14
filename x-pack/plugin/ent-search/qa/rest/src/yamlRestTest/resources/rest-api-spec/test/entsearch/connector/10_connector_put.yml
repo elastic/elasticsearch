@@ -58,7 +58,7 @@ setup:
       connector.put:
         connector_id: test-connector-native
         body:
-          index_name: search-test
+          index_name: content-search-test
           is_native: true
 
   - match: { result: 'created' }
@@ -68,13 +68,49 @@ setup:
         connector_id: test-connector-native
 
   - match: { id: test-connector-native }
-  - match: { index_name: search-test }
+  - match: { index_name: content-search-test }
   - match: { is_native: true }
   - match: { sync_now: false }
   - match: { status: needs_configuration }
   - match: { configuration: {} }
   - match: { custom_scheduling: {} }
   - match: { filtering.0.domain: DEFAULT }
+
+
+---
+'Create Connector - Check for missing keys':
+  - do:
+      connector.put:
+        connector_id: test-connector
+        body:
+          index_name: search-test
+          name: my-connector
+          language: pl
+          is_native: false
+          service_type: super-connector
+
+  - match: { result: 'created' }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - match: { id: test-connector }
+  - match: { index_name: search-test }
+  - match: { name: my-connector }
+  - match: { language: pl }
+  - match: { is_native: false }
+  - match: { service_type: super-connector }
+
+  # check keys that are not populated upon connector creation
+  - is_false: api_key_id
+  - is_false: api_key_secret_id
+  - is_false: description
+  - is_false: error
+  - is_false: features
+  - is_false: last_seen
+  - is_false: sync_cursor
+
 
 ---
 'Create Connector - Resource already exists':
@@ -113,6 +149,20 @@ setup:
           name: my-connector
           language: pl
           is_native: false
+          service_type: super-connector
+
+
+---
+'Create Connector - Invalid Managed Connector Index Prefix':
+  - do:
+      catch: "bad_request"
+      connector.put:
+        connector_id: test-connector-test-managed
+        body:
+          index_name: wrong-prefix-index
+          name: my-connector
+          language: pl
+          is_native: true
           service_type: super-connector
 
 ---
@@ -167,6 +217,30 @@ setup:
         connector_id: test-connector-2
         body:
           index_name: search-test
+
+---
+'Create Connector - Index name used by deleted connector':
+  - do:
+      connector.put:
+        connector_id: test-connector-1
+        body:
+          index_name: search-test
+
+  - match: { result: 'created' }
+
+  - do:
+      connector.delete:
+        connector_id: test-connector-1
+
+  - match: { acknowledged: true }
+
+  - do:
+      connector.put:
+        connector_id: test-connector-2
+        body:
+          index_name: search-test
+
+  - match: { result: 'created' }
 
 ---
 'Create Connector - Without index attached':

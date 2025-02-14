@@ -26,7 +26,9 @@ import org.elasticsearch.xpack.watcher.notification.NotificationService;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -56,9 +58,72 @@ public class EmailService extends NotificationService<Account> {
         (key) -> Setting.simpleString(key, Property.Dynamic, Property.NodeScope)
     );
 
+    private static final List<String> ALLOW_ALL_DEFAULT = List.of("*");
+
     private static final Setting<List<String>> SETTING_DOMAIN_ALLOWLIST = Setting.stringListSetting(
         "xpack.notification.email.account.domain_allowlist",
-        List.of("*"),
+        ALLOW_ALL_DEFAULT,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(List<String> value) {
+                // Ignored
+            }
+
+            @Override
+            @SuppressWarnings("unchecked")
+            public void validate(List<String> value, Map<Setting<?>, Object> settings) {
+                List<String> recipientAllowPatterns = (List<String>) settings.get(SETTING_RECIPIENT_ALLOW_PATTERNS);
+                if (value.equals(ALLOW_ALL_DEFAULT) == false && recipientAllowPatterns.equals(ALLOW_ALL_DEFAULT) == false) {
+                    throw new IllegalArgumentException(
+                        "Cannot set both ["
+                            + SETTING_RECIPIENT_ALLOW_PATTERNS.getKey()
+                            + "] and ["
+                            + SETTING_DOMAIN_ALLOWLIST.getKey()
+                            + "] to a non [\"*\"] value at the same time."
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                List<Setting<?>> settingRecipientAllowPatterns = List.of(SETTING_RECIPIENT_ALLOW_PATTERNS);
+                return settingRecipientAllowPatterns.iterator();
+            }
+        },
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    private static final Setting<List<String>> SETTING_RECIPIENT_ALLOW_PATTERNS = Setting.stringListSetting(
+        "xpack.notification.email.recipient_allowlist",
+        ALLOW_ALL_DEFAULT,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(List<String> value) {
+                // Ignored
+            }
+
+            @Override
+            @SuppressWarnings("unchecked")
+            public void validate(List<String> value, Map<Setting<?>, Object> settings) {
+                List<String> domainAllowList = (List<String>) settings.get(SETTING_DOMAIN_ALLOWLIST);
+                if (value.equals(ALLOW_ALL_DEFAULT) == false && domainAllowList.equals(ALLOW_ALL_DEFAULT) == false) {
+                    throw new IllegalArgumentException(
+                        "Connect set both ["
+                            + SETTING_RECIPIENT_ALLOW_PATTERNS.getKey()
+                            + "] and ["
+                            + SETTING_DOMAIN_ALLOWLIST.getKey()
+                            + "] to a non [\"*\"] value at the same time."
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                List<Setting<?>> settingDomainAllowlist = List.of(SETTING_DOMAIN_ALLOWLIST);
+                return settingDomainAllowlist.iterator();
+            }
+        },
         Property.Dynamic,
         Property.NodeScope
     );
@@ -167,6 +232,7 @@ public class EmailService extends NotificationService<Account> {
     private final CryptoService cryptoService;
     private final SSLService sslService;
     private volatile Set<String> allowedDomains;
+    private volatile Set<String> allowedRecipientPatterns;
 
     @SuppressWarnings("this-escape")
     public EmailService(Settings settings, @Nullable CryptoService cryptoService, SSLService sslService, ClusterSettings clusterSettings) {
@@ -192,13 +258,19 @@ public class EmailService extends NotificationService<Account> {
         clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_SEND_PARTIAL, (s, o) -> {}, (s, o) -> {});
         clusterSettings.addAffixUpdateConsumer(SETTING_SMTP_WAIT_ON_QUIT, (s, o) -> {}, (s, o) -> {});
         this.allowedDomains = new HashSet<>(SETTING_DOMAIN_ALLOWLIST.get(settings));
+        this.allowedRecipientPatterns = new HashSet<>(SETTING_RECIPIENT_ALLOW_PATTERNS.get(settings));
         clusterSettings.addSettingsUpdateConsumer(SETTING_DOMAIN_ALLOWLIST, this::updateAllowedDomains);
+        clusterSettings.addSettingsUpdateConsumer(SETTING_RECIPIENT_ALLOW_PATTERNS, this::updateAllowedRecipientPatterns);
         // do an initial load
         reload(settings);
     }
 
     void updateAllowedDomains(List<String> newDomains) {
         this.allowedDomains = new HashSet<>(newDomains);
+    }
+
+    void updateAllowedRecipientPatterns(List<String> newPatterns) {
+        this.allowedRecipientPatterns = new HashSet<>(newPatterns);
     }
 
     @Override
@@ -228,9 +300,20 @@ public class EmailService extends NotificationService<Account> {
                 "failed to send email with subject ["
                     + email.subject()
                     + "] and recipient domains "
-                    + getRecipientDomains(email)
+                    + getRecipients(email, true)
                     + ", one or more recipients is not specified in the domain allow list setting ["
                     + SETTING_DOMAIN_ALLOWLIST.getKey()
+                    + "]."
+            );
+        }
+        if (recipientAddressInAllowList(email, this.allowedRecipientPatterns) == false) {
+            throw new IllegalArgumentException(
+                "failed to send email with subject ["
+                    + email.subject()
+                    + "] and recipients "
+                    + getRecipients(email, false)
+                    + ", one or more recipients is not specified in the domain allow list setting ["
+                    + SETTING_RECIPIENT_ALLOW_PATTERNS.getKey()
                     + "]."
             );
         }
@@ -238,23 +321,26 @@ public class EmailService extends NotificationService<Account> {
     }
 
     // Visible for testing
-    static Set<String> getRecipientDomains(Email email) {
-        return Stream.concat(
+    static Set<String> getRecipients(Email email, boolean domainsOnly) {
+        var stream = Stream.concat(
             Optional.ofNullable(email.to()).map(addrs -> Arrays.stream(addrs.toArray())).orElse(Stream.empty()),
             Stream.concat(
                 Optional.ofNullable(email.cc()).map(addrs -> Arrays.stream(addrs.toArray())).orElse(Stream.empty()),
                 Optional.ofNullable(email.bcc()).map(addrs -> Arrays.stream(addrs.toArray())).orElse(Stream.empty())
             )
-        )
-            .map(InternetAddress::getAddress)
-            // Pull out only the domain of the email address, so foo@bar.com -> bar.com
-            .map(emailAddress -> emailAddress.substring(emailAddress.lastIndexOf('@') + 1))
-            .collect(Collectors.toSet());
+        ).map(InternetAddress::getAddress);
+
+        if (domainsOnly) {
+            // Pull out only the domain of the email address, so foo@bar.com becomes bar.com
+            stream = stream.map(emailAddress -> emailAddress.substring(emailAddress.lastIndexOf('@') + 1));
+        }
+
+        return stream.collect(Collectors.toSet());
     }
 
     // Visible for testing
     static boolean recipientDomainsInAllowList(Email email, Set<String> allowedDomainSet) {
-        if (allowedDomainSet.size() == 0) {
+        if (allowedDomainSet.isEmpty()) {
             // Nothing is allowed
             return false;
         }
@@ -262,10 +348,27 @@ public class EmailService extends NotificationService<Account> {
             // Don't bother checking, because there is a wildcard all
             return true;
         }
-        final Set<String> domains = getRecipientDomains(email);
+        final Set<String> domains = getRecipients(email, true);
         final Predicate<String> matchesAnyAllowedDomain = domain -> allowedDomainSet.stream()
             .anyMatch(allowedDomain -> Regex.simpleMatch(allowedDomain, domain, true));
         return domains.stream().allMatch(matchesAnyAllowedDomain);
+    }
+
+    // Visible for testing
+    static boolean recipientAddressInAllowList(Email email, Set<String> allowedRecipientPatterns) {
+        if (allowedRecipientPatterns.isEmpty()) {
+            // Nothing is allowed
+            return false;
+        }
+        if (allowedRecipientPatterns.contains("*")) {
+            // Don't bother checking, because there is a wildcard all
+            return true;
+        }
+
+        final Set<String> recipients = getRecipients(email, false);
+        final Predicate<String> matchesAnyAllowedRecipient = recipient -> allowedRecipientPatterns.stream()
+            .anyMatch(pattern -> Regex.simpleMatch(pattern, recipient, true));
+        return recipients.stream().allMatch(matchesAnyAllowedRecipient);
     }
 
     private static EmailSent send(Email email, Authentication auth, Profile profile, Account account) throws MessagingException {
@@ -304,6 +407,7 @@ public class EmailService extends NotificationService<Account> {
         return Arrays.asList(
             SETTING_DEFAULT_ACCOUNT,
             SETTING_DOMAIN_ALLOWLIST,
+            SETTING_RECIPIENT_ALLOW_PATTERNS,
             SETTING_PROFILE,
             SETTING_EMAIL_DEFAULTS,
             SETTING_SMTP_AUTH,

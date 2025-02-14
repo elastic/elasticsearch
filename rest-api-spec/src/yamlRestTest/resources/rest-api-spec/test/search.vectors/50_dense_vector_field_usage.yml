@@ -55,6 +55,9 @@ setup:
       reason: 'dense_vector field usage was added in 8.1'
       test_runner_features: ["allowed_warnings"]
   - do:
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=8"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=8"
       allowed_warnings:
         - "The kNN search API has been replaced by the `knn` option in the search API."
       knn_search:

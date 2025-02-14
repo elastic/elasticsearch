@@ -4,6 +4,12 @@
 <titleabbrev>Enroll {kib}</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Enables a {kib} instance to configure itself for communication with a secured {es} cluster.
 
 NOTE: This API is currently intended for internal use only by {kib}.

@@ -15,7 +15,7 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SequenceDoubleBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
+import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -33,8 +33,8 @@ public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new SumDoubleAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new SumDoubleAggregatorFunctionSupplier();
     }
 
     @Override
@@ -53,6 +53,7 @@ public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
         List<Page> results = new ArrayList<>();
         try (
             Driver d = new Driver(
+                "test",
                 driverContext,
                 new SequenceDoubleBlockSourceOperator(driverContext.blockFactory(), DoubleStream.of(Double.MAX_VALUE - 1, 2)),
                 List.of(simple().get(driverContext)),
@@ -71,6 +72,7 @@ public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
         List<Page> results = new ArrayList<>();
         try (
             Driver d = new Driver(
+                "test",
                 driverContext,
                 new SequenceDoubleBlockSourceOperator(
                     driverContext.blockFactory(),
@@ -100,6 +102,7 @@ public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
         driverContext = driverContext();
         try (
             Driver d = new Driver(
+                "test",
                 driverContext,
                 new SequenceDoubleBlockSourceOperator(driverContext.blockFactory(), DoubleStream.of(values)),
                 List.of(simple().get(driverContext)),
@@ -122,6 +125,7 @@ public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
         driverContext = driverContext();
         try (
             Driver d = new Driver(
+                "test",
                 driverContext,
                 new SequenceDoubleBlockSourceOperator(driverContext.blockFactory(), DoubleStream.of(largeValues)),
                 List.of(simple().get(driverContext)),
@@ -141,6 +145,7 @@ public class SumDoubleAggregatorFunctionTests extends AggregatorFunctionTestCase
         driverContext = driverContext();
         try (
             Driver d = new Driver(
+                "test",
                 driverContext,
                 new SequenceDoubleBlockSourceOperator(driverContext.blockFactory(), DoubleStream.of(largeValues)),
                 List.of(simple().get(driverContext)),

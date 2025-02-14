@@ -14,6 +14,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -23,6 +24,29 @@ public class OpenAiChatCompletionTaskSettingsTests extends AbstractWireSerializi
 
     public static OpenAiChatCompletionTaskSettings createRandomWithUser() {
         return new OpenAiChatCompletionTaskSettings(randomAlphaOfLength(15));
+    }
+
+    public void testIsEmpty() {
+        var randomSettings = new OpenAiChatCompletionTaskSettings(randomBoolean() ? null : "username");
+        var stringRep = Strings.toString(randomSettings);
+        assertEquals(stringRep, randomSettings.isEmpty(), stringRep.equals("{}"));
+    }
+
+    public void testUpdatedTaskSettings() {
+        var initialSettings = createRandomWithUser();
+        var newSettings = createRandomWithUser();
+        Map<String, Object> newSettingsMap = new HashMap<>();
+        if (newSettings.user() != null) {
+            newSettingsMap.put(OpenAiServiceFields.USER, newSettings.user());
+        }
+        OpenAiChatCompletionTaskSettings updatedSettings = (OpenAiChatCompletionTaskSettings) initialSettings.updatedTaskSettings(
+            Collections.unmodifiableMap(newSettingsMap)
+        );
+        if (newSettings.user() == null) {
+            assertEquals(initialSettings.user(), updatedSettings.user());
+        } else {
+            assertEquals(newSettings.user(), updatedSettings.user());
+        }
     }
 
     public void testFromMap_WithUser() {

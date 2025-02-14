@@ -1,5 +1,10 @@
 pluginManagement {
-    includeBuild "../build-conventions"
+  repositories {
+    mavenCentral()
+    gradlePluginPortal()
+  }
+
+  includeBuild "../build-conventions"
     includeBuild "../build-tools"
 }
 

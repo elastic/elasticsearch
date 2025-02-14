@@ -5,7 +5,13 @@
 <titleabbrev>Resume auto-follow pattern</titleabbrev>
 ++++
 
-Resumes an auto-follow pattern.
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ccr[Cross-cluster replication APIs].
+--
+
+Resumes a {ccr} <<ccr-auto-follow,auto-follow pattern>>.
 
 [[ccr-resume-auto-follow-pattern-request]]
 ==== {api-request-title}

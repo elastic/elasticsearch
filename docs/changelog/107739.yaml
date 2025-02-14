@@ -1,6 +1,0 @@
-pr: 107739
-summary: Binary field enables doc values by default for index mode with synthe…
-area: Mapping
-type: enhancement
-issues:
- - 107554

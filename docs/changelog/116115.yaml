@@ -1,0 +1,5 @@
+pr: 116115
+summary: Allow http unsafe buffers by default
+area: Network
+type: enhancement
+issues: []

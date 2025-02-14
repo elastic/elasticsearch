@@ -10,18 +10,15 @@ same data type. For instance:
 * an array of arrays: [ `1`, [ `2`, `3` ]] which is the equivalent of [ `1`, `2`, `3` ]
 * an array of objects: [ `{ "name": "Mary", "age": 12 }`, `{ "name": "John", "age": 10 }`]
 
-.Arrays of objects
+.Arrays with `object` field type vs `nested` type
 [NOTE]
 ====================================================
 
-Arrays of objects do not work as you would expect: you cannot query each
-object independently of the other objects in the array. If you need to be
-able to do this then you should use the <<nested,`nested`>> data type instead
-of the <<object,`object`>> data type.
+Arrays of objects in Elasticsearch do not behave as you would expect: queries may match fields across different objects in the array, leading to unexpected results. By default, arrays of objects are <<nested-arrays-flattening-objects,flattened>> 
+during indexing. To ensure queries match values within the same object, use the <<nested,`nested`>> data type instead of the <<object,`object`>> data type.
 
-This is explained in more detail in <<nested>>.
+This behavior is explained in more detail in <<nested-arrays-flattening-objects, `nested`>>.
 ====================================================
-
 
 When adding a field dynamically, the first value in the array determines the
 field `type`. All subsequent values must be of the same data type or it must
@@ -80,4 +77,11 @@ GET my-index-000001/_search
 <2> The `lists` field is dynamically added as an `object` field.
 <3> The second document contains no arrays, but can be indexed into the same fields.
 <4> The query looks for `elasticsearch` in the `tags` field, and matches both documents.
+
+[TIP]
+====
+You can modify arrays using the <<update-api-example,update API>>.
+====
+
+
 

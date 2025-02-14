@@ -13,7 +13,7 @@ import org.elasticsearch.core.Releasables;
 
 /**
  * Block view of a {@link IntVector}. Cannot represent multi-values or nulls.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-VectorBlock.java.st} instead.
  */
 public final class IntVectorBlock extends AbstractVectorBlock implements IntBlock {
 
@@ -49,6 +49,11 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
     @Override
     public IntBlock filter(int... positions) {
         return vector.filter(positions).asBlock();
+    }
+
+    @Override
+    public IntBlock keepMask(BooleanVector mask) {
+        return vector.keepMask(mask);
     }
 
     @Override

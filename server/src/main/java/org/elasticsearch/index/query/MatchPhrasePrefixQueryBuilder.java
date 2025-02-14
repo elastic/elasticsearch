@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -65,9 +66,7 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
         slop = in.readVInt();
         maxExpansions = in.readVInt();
         analyzer = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            this.zeroTermsQuery = ZeroTermsQueryOption.readFromStream(in);
-        }
+        zeroTermsQuery = ZeroTermsQueryOption.readFromStream(in);
     }
 
     @Override
@@ -77,9 +76,7 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
         out.writeVInt(slop);
         out.writeVInt(maxExpansions);
         out.writeOptionalString(analyzer);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            zeroTermsQuery.writeTo(out);
-        }
+        zeroTermsQuery.writeTo(out);
     }
 
     /** Returns the field name used in this query. */
@@ -99,11 +96,6 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
     public MatchPhrasePrefixQueryBuilder analyzer(String analyzer) {
         this.analyzer = analyzer;
         return this;
-    }
-
-    /** Get the analyzer to use, if previously set, otherwise {@code null} */
-    public String analyzer() {
-        return this.analyzer;
     }
 
     /** Sets a slop factor for phrase queries */

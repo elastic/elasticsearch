@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.store;
@@ -28,7 +29,6 @@ public class StoreStats implements Writeable, ToXContentFragment {
      */
     public static final long UNKNOWN_RESERVED_BYTES = -1L;
 
-    public static final TransportVersion RESERVED_BYTES_VERSION = TransportVersions.V_7_9_0;
     public static final TransportVersion TOTAL_DATA_SET_SIZE_SIZE_VERSION = TransportVersions.V_7_13_0;
 
     private long sizeInBytes;
@@ -46,11 +46,7 @@ public class StoreStats implements Writeable, ToXContentFragment {
         } else {
             totalDataSetSizeInBytes = sizeInBytes;
         }
-        if (in.getTransportVersion().onOrAfter(RESERVED_BYTES_VERSION)) {
-            reservedSizeInBytes = in.readZLong();
-        } else {
-            reservedSizeInBytes = UNKNOWN_RESERVED_BYTES;
-        }
+        reservedSizeInBytes = in.readZLong();
     }
 
     /**
@@ -114,9 +110,7 @@ public class StoreStats implements Writeable, ToXContentFragment {
         if (out.getTransportVersion().onOrAfter(TOTAL_DATA_SET_SIZE_SIZE_VERSION)) {
             out.writeVLong(totalDataSetSizeInBytes);
         }
-        if (out.getTransportVersion().onOrAfter(RESERVED_BYTES_VERSION)) {
-            out.writeZLong(reservedSizeInBytes);
-        }
+        out.writeZLong(reservedSizeInBytes);
     }
 
     @Override

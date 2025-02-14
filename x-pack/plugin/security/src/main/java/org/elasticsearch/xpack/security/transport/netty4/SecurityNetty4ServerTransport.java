@@ -104,7 +104,7 @@ public class SecurityNetty4ServerTransport extends SecurityNetty4Transport {
 
     private void maybeAddIPFilter(final Channel ch, final String name) {
         if (authenticator != null) {
-            ch.pipeline().addFirst("ipfilter", new IpFilterRemoteAddressFilter(authenticator, name));
+            ch.pipeline().addFirst("ipfilter", new IpFilterRemoteAddressFilter(authenticator, name, getThreadPool().getThreadContext()));
         }
     }
 

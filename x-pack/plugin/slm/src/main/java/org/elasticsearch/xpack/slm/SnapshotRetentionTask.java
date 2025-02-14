@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
@@ -87,33 +88,33 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
 
     @Override
     public void triggered(SchedulerEngine.Event event) {
-        assert event.getJobName().equals(SnapshotRetentionService.SLM_RETENTION_JOB_ID)
-            || event.getJobName().equals(SnapshotRetentionService.SLM_RETENTION_MANUAL_JOB_ID)
+        assert event.jobName().equals(SnapshotRetentionService.SLM_RETENTION_JOB_ID)
+            || event.jobName().equals(SnapshotRetentionService.SLM_RETENTION_MANUAL_JOB_ID)
             : "expected id to be "
                 + SnapshotRetentionService.SLM_RETENTION_JOB_ID
                 + " or "
                 + SnapshotRetentionService.SLM_RETENTION_MANUAL_JOB_ID
                 + " but it was "
-                + event.getJobName();
+                + event.jobName();
 
         final ClusterState state = clusterService.state();
 
         // Skip running retention if SLM is disabled, however, even if it's
         // disabled we allow manual running.
         if (SnapshotLifecycleService.slmStoppedOrStopping(state)
-            && event.getJobName().equals(SnapshotRetentionService.SLM_RETENTION_MANUAL_JOB_ID) == false) {
+            && event.jobName().equals(SnapshotRetentionService.SLM_RETENTION_MANUAL_JOB_ID) == false) {
             logger.debug("skipping SLM retention as SLM is currently stopped or stopping");
             return;
         }
 
-        final SnapshotLifecycleStats slmStats = new SnapshotLifecycleStats();
+        AtomicReference<SnapshotLifecycleStats> slmStats = new AtomicReference<>(new SnapshotLifecycleStats());
 
         // Defined here so it can be re-used without having to repeat it
         final Consumer<Exception> failureHandler = e -> {
             try {
                 logger.error("error during snapshot retention task", e);
-                slmStats.retentionFailed();
-                updateStateWithStats(slmStats);
+                slmStats.getAndUpdate(SnapshotLifecycleStats::withRetentionFailedIncremented);
+                updateStateWithStats(slmStats.get());
             } finally {
                 logger.info("SLM retention snapshot cleanup task completed with error");
             }
@@ -121,7 +122,9 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
 
         try {
             logger.info("starting SLM retention snapshot cleanup task");
-            slmStats.retentionRun();
+
+            slmStats.getAndUpdate(SnapshotLifecycleStats::withRetentionRunIncremented);
+
             // Find all SLM policies that have retention enabled
             final Map<String, SnapshotLifecyclePolicy> policiesWithRetention = getAllPoliciesWithRetentionEnabled(state);
             logger.trace("policies with retention enabled: {}", policiesWithRetention.keySet());
@@ -150,7 +153,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
 
                     // Finally, delete the snapshots that need to be deleted
                     deleteSnapshots(snapshotsToBeDeleted, slmStats, ActionListener.running(() -> {
-                        updateStateWithStats(slmStats);
+                        updateStateWithStats(slmStats.get());
                         logger.info("SLM retention snapshot cleanup task complete");
                     }));
                 }
@@ -192,7 +195,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
 
     void deleteSnapshots(
         Map<String, List<Tuple<SnapshotId, String>>> snapshotsToDelete,
-        SnapshotLifecycleStats slmStats,
+        AtomicReference<SnapshotLifecycleStats> slmStats,
         ActionListener<Void> listener
     ) {
         int count = snapshotsToDelete.values().stream().mapToInt(List::size).sum();
@@ -211,7 +214,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
             ActionListener.runAfter(listener, () -> {
                 TimeValue totalElapsedTime = TimeValue.timeValueNanos(nowNanoSupplier.getAsLong() - startTime);
                 logger.debug("total elapsed time for deletion of [{}] snapshots: {}", deleted, totalElapsedTime);
-                slmStats.deletionTime(totalElapsedTime);
+                slmStats.getAndUpdate(s -> s.withDeletionTimeUpdated(totalElapsedTime));
             })
         );
         for (Map.Entry<String, List<Tuple<SnapshotId, String>>> entry : snapshotsToDelete.entrySet()) {
@@ -224,7 +227,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
     }
 
     private void deleteSnapshots(
-        SnapshotLifecycleStats slmStats,
+        AtomicReference<SnapshotLifecycleStats> slmStats,
         AtomicInteger deleted,
         AtomicInteger failed,
         String repo,
@@ -302,22 +305,21 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
         String slmPolicy,
         String repo,
         SnapshotId snapshot,
-        SnapshotLifecycleStats slmStats,
+        AtomicReference<SnapshotLifecycleStats> slmStats,
         ActionListener<AcknowledgedResponse> listener
     ) {
         logger.info("[{}] snapshot retention deleting snapshot [{}]", repo, snapshot);
         // don't time out on this request to not produce failed SLM runs in case of a temporarily slow master node
         client.admin()
             .cluster()
-            .prepareDeleteSnapshot(repo, snapshot.getName())
-            .setMasterNodeTimeout(TimeValue.MAX_VALUE)
+            .prepareDeleteSnapshot(TimeValue.MAX_VALUE, repo, snapshot.getName())
             .execute(ActionListener.wrap(acknowledgedResponse -> {
-                slmStats.snapshotDeleted(slmPolicy);
+                slmStats.getAndUpdate(s -> s.withDeletedIncremented(slmPolicy));
                 listener.onResponse(acknowledgedResponse);
             }, e -> {
                 try {
                     logger.warn(() -> format("[%s] failed to delete snapshot [%s] for retention", repo, snapshot), e);
-                    slmStats.snapshotDeleteFailure(slmPolicy);
+                    slmStats.getAndUpdate(s -> s.withDeleteFailureIncremented(slmPolicy));
                 } finally {
                     listener.onFailure(e);
                 }

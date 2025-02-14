@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.fs;
@@ -45,7 +46,7 @@ public class FsRepository extends BlobStoreRepository {
 
     public static final String TYPE = "fs";
 
-    public static final Setting<String> LOCATION_SETTING = new Setting<>("location", "", Function.identity(), Property.NodeScope);
+    public static final Setting<String> LOCATION_SETTING = Setting.simpleString("location", Property.NodeScope);
     public static final Setting<String> REPOSITORIES_LOCATION_SETTING = new Setting<>(
         "repositories.fs.location",
         LOCATION_SETTING,
@@ -91,13 +92,13 @@ public class FsRepository extends BlobStoreRepository {
             );
             throw new RepositoryException(metadata.name(), "missing location");
         }
-        Path locationFile = environment.resolveRepoFile(location);
+        Path locationFile = environment.resolveRepoDir(location);
         if (locationFile == null) {
-            if (environment.repoFiles().length > 0) {
+            if (environment.repoDirs().length > 0) {
                 logger.warn(
                     "The specified location [{}] doesn't start with any " + "repository paths specified by the path.repo setting: [{}] ",
                     location,
-                    environment.repoFiles()
+                    environment.repoDirs()
                 );
                 throw new RepositoryException(
                     metadata.name(),
@@ -126,7 +127,7 @@ public class FsRepository extends BlobStoreRepository {
     @Override
     protected BlobStore createBlobStore() throws Exception {
         final String location = REPOSITORIES_LOCATION_SETTING.get(getMetadata().settings());
-        final Path locationFile = environment.resolveRepoFile(location);
+        final Path locationFile = environment.resolveRepoDir(location);
         return new FsBlobStore(bufferSize, locationFile, isReadOnly());
     }
 

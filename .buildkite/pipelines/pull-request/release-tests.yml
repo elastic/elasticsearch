@@ -1,11 +1,22 @@
 config:
   allow-labels: test-release
 steps:
-  - label: release-tests
-    command: .buildkite/scripts/release-tests.sh
-    timeout_in_minutes: 300
-    agents:
-      provider: gcp
-      image: family/elasticsearch-ubuntu-2004
-      diskSizeGb: 350
-      machineType: custom-32-98304
+  - group: release-tests
+    steps:
+      - label: "{{matrix.CHECK_TASK}} / release-tests"
+        key: "packaging-tests-unix"
+        command: .buildkite/scripts/release-tests.sh {{matrix.CHECK_TASK}}
+        timeout_in_minutes: 120
+        matrix:
+          setup:
+            CHECK_TASK:
+              - checkPart1
+              - checkPart2
+              - checkPart3
+              - checkPart4
+              - checkPart5
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2004
+          diskSizeGb: 350
+          machineType: custom-32-98304

@@ -1,12 +1,17 @@
 [role="xpack"]
 [[get-search-application]]
 === Get Search Application
-
-beta::[]
-
 ++++
 <titleabbrev>Get Search Application</titleabbrev>
 ++++
+
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-search_application[Search application APIs].
+--
+
+beta::[]
 
 Retrieves information about a search application.
 

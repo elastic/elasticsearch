@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.autoscaling.capacity;
 
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Processors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;

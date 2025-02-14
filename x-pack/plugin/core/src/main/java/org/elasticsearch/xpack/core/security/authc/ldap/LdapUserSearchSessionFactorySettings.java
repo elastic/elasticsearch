@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySe
 
 import java.util.HashSet;
 import java.util.Set;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings.LDAP_TYPE;
 
@@ -21,10 +20,9 @@ public final class LdapUserSearchSessionFactorySettings {
     public static final Setting.AffixSetting<String> SEARCH_ATTRIBUTE = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(LDAP_TYPE),
         "user_search.attribute",
-        key -> new Setting<>(
+        key -> Setting.simpleString(
             key,
             LdapUserSearchSessionFactorySettings.DEFAULT_USERNAME_ATTRIBUTE,
-            Function.identity(),
             Setting.Property.NodeScope,
             Setting.Property.DeprecatedWarning
         )

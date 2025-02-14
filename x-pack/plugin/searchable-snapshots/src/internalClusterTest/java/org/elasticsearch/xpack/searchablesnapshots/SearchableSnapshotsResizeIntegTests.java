@@ -20,7 +20,6 @@ import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest.Storage;
@@ -37,11 +36,7 @@ public class SearchableSnapshotsResizeIntegTests extends BaseFrozenSearchableSna
         assertAcked(
             prepareCreate(
                 "index",
-                Settings.builder()
-                    .put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                    .put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 2)
-                    .put(INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey(), 4)
-                    .put(INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                indexSettings(2, 0).put(INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING.getKey(), 4).put(INDEX_SOFT_DELETES_SETTING.getKey(), true)
             )
         );
         indexRandomDocs("index", scaledRandomIntBetween(0, 1_000));
@@ -55,8 +50,8 @@ public class SearchableSnapshotsResizeIntegTests extends BaseFrozenSearchableSna
     @Override
     public void tearDown() throws Exception {
         assertAcked(indicesAdmin().prepareDelete("mounted-*"));
-        assertAcked(clusterAdmin().prepareDeleteSnapshot("repository", "snapshot").get());
-        assertAcked(clusterAdmin().prepareDeleteRepository("repository"));
+        assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, "repository", "snapshot").get());
+        assertAcked(clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "repository"));
         super.tearDown();
     }
 

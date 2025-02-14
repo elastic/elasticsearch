@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http.netty4;
@@ -114,6 +115,36 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         channel.writeInbound(request);
         assertFalse(channel.config().isAutoRead());
         assertThat(netty4HttpHeaderValidator.getState(), equalTo(QUEUEING_DATA));
+    }
+
+    public void testValidatorDoesNotTweakAutoReadAfterValidationComplete() {
+        assertTrue(channel.config().isAutoRead());
+        assertThat(netty4HttpHeaderValidator.getState(), equalTo(WAITING_TO_START));
+
+        final DefaultHttpRequest request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri");
+        DefaultHttpContent content = new DefaultHttpContent(Unpooled.buffer(4));
+        channel.writeInbound(request);
+        channel.writeInbound(content);
+
+        assertThat(header.get(), sameInstance(request));
+        // channel is paused
+        assertThat(channel.readInbound(), nullValue());
+        assertFalse(channel.config().isAutoRead());
+
+        // channel is resumed
+        listener.get().onResponse(null);
+        channel.runPendingTasks();
+
+        assertTrue(channel.config().isAutoRead());
+        assertThat(netty4HttpHeaderValidator.getState(), equalTo(FORWARDING_DATA_UNTIL_NEXT_REQUEST));
+        assertThat(channel.readInbound(), sameInstance(request));
+        assertThat(channel.readInbound(), sameInstance(content));
+        assertThat(channel.readInbound(), nullValue());
+        assertThat(content.refCnt(), equalTo(1));
+        channel.config().setAutoRead(false);
+
+        channel.writeOutbound(new DefaultHttpContent(Unpooled.buffer(4)));
+        assertFalse(channel.config().isAutoRead());
     }
 
     public void testContentForwardedAfterValidation() {

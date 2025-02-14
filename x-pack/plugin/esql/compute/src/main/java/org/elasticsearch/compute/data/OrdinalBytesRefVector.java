@@ -123,6 +123,15 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
+    public BytesRefBlock keepMask(BooleanVector mask) {
+        /*
+         * The implementation in OrdinalBytesRefBlock is quite fast and
+         * amounts to the same thing so we can just reuse it.
+         */
+        return asBlock().keepMask(mask);
+    }
+
+    @Override
     public ReleasableIterator<? extends BytesRefBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
         return new BytesRefLookup(asBlock(), positions, targetBlockSize);
     }

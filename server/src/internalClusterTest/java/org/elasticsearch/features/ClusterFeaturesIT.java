@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.features;
@@ -29,14 +30,14 @@ public class ClusterFeaturesIT extends ESIntegTestCase {
 
         FeatureService service = internalCluster().getCurrentMasterNodeInstance(FeatureService.class);
 
-        assertThat(service.getNodeFeatures(), hasKey(FeatureService.FEATURES_SUPPORTED.id()));
+        assertThat(service.getNodeFeatures(), hasKey(FeatureService.TEST_FEATURES_ENABLED.id()));
 
         // check the nodes all have a feature in their cluster state (there should always be features_supported)
-        var response = clusterAdmin().state(new ClusterStateRequest().clear().nodes(true)).actionGet();
+        var response = clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT).clear().nodes(true)).actionGet();
         var features = response.getState().clusterFeatures().nodeFeatures();
         Set<String> missing = features.entrySet()
             .stream()
-            .filter(e -> e.getValue().contains(FeatureService.FEATURES_SUPPORTED.id()) == false)
+            .filter(e -> e.getValue().contains(FeatureService.TEST_FEATURES_ENABLED.id()) == false)
             .map(Map.Entry::getKey)
             .collect(Collectors.toSet());
         assertThat(missing + " out of " + features.keySet() + " does not have the required feature", missing, empty());

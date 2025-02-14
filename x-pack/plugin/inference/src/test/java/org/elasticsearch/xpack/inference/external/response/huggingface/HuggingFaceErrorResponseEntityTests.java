@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.inference.external.response.huggingface;
 import org.apache.http.HttpResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
+import org.hamcrest.Matchers;
 
 import java.nio.charset.StandardCharsets;
 
@@ -23,7 +25,7 @@ public class HuggingFaceErrorResponseEntityTests extends ESTestCase {
             }
             """;
 
-        HuggingFaceErrorResponseEntity errorMessage = HuggingFaceErrorResponseEntity.fromResponse(
+        var errorMessage = HuggingFaceErrorResponseEntity.fromResponse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
         assertNotNull(errorMessage);
@@ -39,10 +41,10 @@ public class HuggingFaceErrorResponseEntityTests extends ESTestCase {
             }
             """;
 
-        HuggingFaceErrorResponseEntity errorMessage = HuggingFaceErrorResponseEntity.fromResponse(
+        var errorMessage = HuggingFaceErrorResponseEntity.fromResponse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
-        assertNull(errorMessage);
+        assertThat(errorMessage, Matchers.sameInstance(ErrorResponse.UNDEFINED_ERROR));
     }
 
     public void testFromResponse_noError() {
@@ -54,9 +56,9 @@ public class HuggingFaceErrorResponseEntityTests extends ESTestCase {
             }
             """;
 
-        HuggingFaceErrorResponseEntity errorMessage = HuggingFaceErrorResponseEntity.fromResponse(
+        var errorMessage = HuggingFaceErrorResponseEntity.fromResponse(
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
-        assertNull(errorMessage);
+        assertThat(errorMessage, Matchers.sameInstance(ErrorResponse.UNDEFINED_ERROR));
     }
 }

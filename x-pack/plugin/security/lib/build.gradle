@@ -1,0 +1,13 @@
+// This build deserves an explanation. Nimbus-jose-jwt uses gson internally, which is unfriendly
+// to our usage of the security manager, to a degree that it makes the library extremely difficult
+// to work with safely. The purpose of this build is to create a version of nimbus-jose-jwt with
+// a couple classes replaced with wrappers which work with the security manager, the source files
+// in this directory.
+
+// Because we want to include the original class files so that we can reference them without
+// modification, there are a couple intermediate steps:
+// nimbus-jose-jwt-modified-part1: Create a version of the JAR in which the relevant class files are moved to a different package.
+//      This is not immediately usable as this process rewrites the rest of the JAR to "correctly" reference the new classes. So, we need to...
+// nimbus-jose-jwt-modified-part2: Create a JAR from the result of part 1 which contains *only* the relevant class files by removing everything else.
+// nimbus-jose-jwt-modified: Use the result of part 2 here, combined with the original library, so that we can use our
+//      replacement classes which wrap the original class files.

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations;
 
@@ -136,17 +137,15 @@ public class InternalAggregationsTests extends ESTestCase {
                                     new InternalFiltersForF2(
                                         "f2",
                                         List.of(
-                                            new InternalFilters.InternalBucket("f2k1", k1k1, InternalAggregations.EMPTY, true, true),
-                                            new InternalFilters.InternalBucket("f2k2", k1k2, InternalAggregations.EMPTY, true, true)
+                                            new InternalFilters.InternalBucket("f2k1", k1k1, InternalAggregations.EMPTY),
+                                            new InternalFilters.InternalBucket("f2k2", k1k2, InternalAggregations.EMPTY)
                                         ),
                                         true,
                                         true,
                                         null
                                     )
                                 )
-                            ),
-                            true,
-                            true
+                            )
                         ),
                         new InternalFilters.InternalBucket(
                             "f1k2",
@@ -156,17 +155,15 @@ public class InternalAggregationsTests extends ESTestCase {
                                     new InternalFiltersForF2(
                                         "f2",
                                         List.of(
-                                            new InternalFilters.InternalBucket("f2k1", k2k1, InternalAggregations.EMPTY, true, true),
-                                            new InternalFilters.InternalBucket("f2k2", k2k2, InternalAggregations.EMPTY, true, true)
+                                            new InternalFilters.InternalBucket("f2k1", k2k1, InternalAggregations.EMPTY),
+                                            new InternalFilters.InternalBucket("f2k2", k2k2, InternalAggregations.EMPTY)
                                         ),
                                         true,
                                         true,
                                         null
                                     )
                                 )
-                            ),
-                            true,
-                            true
+                            )
                         )
                     ),
                     true,
@@ -191,17 +188,15 @@ public class InternalAggregationsTests extends ESTestCase {
                                     new InternalFilters(
                                         "f2",
                                         List.of(
-                                            new InternalFilters.InternalBucket("f2k1", k1k1, InternalAggregations.EMPTY, true, true),
-                                            new InternalFilters.InternalBucket("f2k2", k1k2, InternalAggregations.EMPTY, true, true)
+                                            new InternalFilters.InternalBucket("f2k1", k1k1, InternalAggregations.EMPTY),
+                                            new InternalFilters.InternalBucket("f2k2", k1k2, InternalAggregations.EMPTY)
                                         ),
                                         true,
                                         true,
                                         null
                                     )
                                 )
-                            ),
-                            true,
-                            true
+                            )
                         ),
                         new InternalFilters.InternalBucket(
                             "f1k2",
@@ -211,17 +206,15 @@ public class InternalAggregationsTests extends ESTestCase {
                                     new InternalFilters(
                                         "f2",
                                         List.of(
-                                            new InternalFilters.InternalBucket("f2k1", k2k1, InternalAggregations.EMPTY, true, true),
-                                            new InternalFilters.InternalBucket("f2k2", k2k2, InternalAggregations.EMPTY, true, true)
+                                            new InternalFilters.InternalBucket("f2k1", k2k1, InternalAggregations.EMPTY),
+                                            new InternalFilters.InternalBucket("f2k2", k2k2, InternalAggregations.EMPTY)
                                         ),
                                         true,
                                         true,
                                         null
                                     )
                                 )
-                            ),
-                            true,
-                            true
+                            )
                         )
                     ),
                     true,

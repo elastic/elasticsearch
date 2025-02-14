@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.routing.allocation;
 
@@ -908,6 +909,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                                 sourceNode,
                                 SingleNodeShutdownMetadata.builder()
                                     .setNodeId(sourceNode)
+                                    .setNodeEphemeralId(sourceNode)
                                     .setReason("testing")
                                     .setType(SingleNodeShutdownMetadata.Type.REPLACE)
                                     .setTargetNodeName(targetNode)
@@ -1292,6 +1294,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                         "node1",
                         SingleNodeShutdownMetadata.builder()
                             .setNodeId("node1")
+                            .setNodeEphemeralId("node1")
                             .setReason("testing")
                             .setType(SingleNodeShutdownMetadata.Type.REPLACE)
                             .setTargetNodeName("node3")

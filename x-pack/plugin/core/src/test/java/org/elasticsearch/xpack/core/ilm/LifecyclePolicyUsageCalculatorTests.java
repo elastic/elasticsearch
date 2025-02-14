@@ -24,8 +24,6 @@ import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -45,7 +43,7 @@ public class LifecyclePolicyUsageCalculatorTests extends ESTestCase {
         ClusterState state = ClusterState.builder(new ClusterName("mycluster")).build();
         assertThat(
             new LifecyclePolicyUsageCalculator(iner, state, List.of("mypolicy")).calculateUsage("mypolicy"),
-            equalTo(new ItemUsage(Collections.emptyList(), Collections.emptyList(), Collections.emptyList()))
+            equalTo(new ItemUsage(List.of(), List.of(), List.of()))
         );
     }
 
@@ -57,7 +55,7 @@ public class LifecyclePolicyUsageCalculatorTests extends ESTestCase {
                     .putCustom(
                         IndexLifecycleMetadata.TYPE,
                         new IndexLifecycleMetadata(
-                            Collections.singletonMap("mypolicy", LifecyclePolicyMetadataTests.createRandomPolicyMetadata("mypolicy")),
+                            Map.of("mypolicy", LifecyclePolicyMetadataTests.createRandomPolicyMetadata("mypolicy")),
                             OperationMode.RUNNING
                         )
                     )
@@ -66,7 +64,7 @@ public class LifecyclePolicyUsageCalculatorTests extends ESTestCase {
             .build();
         assertThat(
             new LifecyclePolicyUsageCalculator(iner, state, List.of("mypolicy")).calculateUsage("mypolicy"),
-            equalTo(new ItemUsage(Collections.emptyList(), Collections.emptyList(), Collections.emptyList()))
+            equalTo(new ItemUsage(List.of(), List.of(), List.of()))
         );
     }
 
@@ -79,7 +77,7 @@ public class LifecyclePolicyUsageCalculatorTests extends ESTestCase {
                     .putCustom(
                         IndexLifecycleMetadata.TYPE,
                         new IndexLifecycleMetadata(
-                            Collections.singletonMap("mypolicy", LifecyclePolicyMetadataTests.createRandomPolicyMetadata("mypolicy")),
+                            Map.of("mypolicy", LifecyclePolicyMetadataTests.createRandomPolicyMetadata("mypolicy")),
                             OperationMode.RUNNING
                         )
                     )
@@ -92,7 +90,7 @@ public class LifecyclePolicyUsageCalculatorTests extends ESTestCase {
             .build();
         assertThat(
             new LifecyclePolicyUsageCalculator(iner, state, List.of("mypolicy")).calculateUsage("mypolicy"),
-            equalTo(new ItemUsage(Collections.singleton("myindex"), Collections.emptyList(), Collections.emptyList()))
+            equalTo(new ItemUsage(List.of("myindex"), List.of(), List.of()))
         );
     }
 
@@ -105,7 +103,7 @@ public class LifecyclePolicyUsageCalculatorTests extends ESTestCase {
                     .putCustom(
                         IndexLifecycleMetadata.TYPE,
                         new IndexLifecycleMetadata(
-                            Collections.singletonMap("mypolicy", LifecyclePolicyMetadataTests.createRandomPolicyMetadata("mypolicy")),
+                            Map.of("mypolicy", LifecyclePolicyMetadataTests.createRandomPolicyMetadata("mypolicy")),
                             OperationMode.RUNNING
                         )
                     )
@@ -116,10 +114,10 @@ public class LifecyclePolicyUsageCalculatorTests extends ESTestCase {
                     .putCustom(
                         ComposableIndexTemplateMetadata.TYPE,
                         new ComposableIndexTemplateMetadata(
-                            Collections.singletonMap(
+                            Map.of(
                                 "mytemplate",
                                 ComposableIndexTemplate.builder()
-                                    .indexPatterns(Collections.singletonList("myds"))
+                                    .indexPatterns(List.of("myds"))
                                     .template(
                                         new Template(
                                             Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy").build(),
@@ -137,7 +135,7 @@ public class LifecyclePolicyUsageCalculatorTests extends ESTestCase {
             .build();
         assertThat(
             new LifecyclePolicyUsageCalculator(iner, state, List.of("mypolicy")).calculateUsage("mypolicy"),
-            equalTo(new ItemUsage(Collections.singleton("myindex"), Collections.emptyList(), Collections.singleton("mytemplate")))
+            equalTo(new ItemUsage(List.of("myindex"), List.of(), List.of("mytemplate")))
         );
     }
 
@@ -147,7 +145,7 @@ public class LifecyclePolicyUsageCalculatorTests extends ESTestCase {
             .putCustom(
                 IndexLifecycleMetadata.TYPE,
                 new IndexLifecycleMetadata(
-                    Collections.singletonMap("mypolicy", LifecyclePolicyMetadataTests.createRandomPolicyMetadata("mypolicy")),
+                    Map.of("mypolicy", LifecyclePolicyMetadataTests.createRandomPolicyMetadata("mypolicy")),
                     OperationMode.RUNNING
                 )
             )
@@ -167,10 +165,10 @@ public class LifecyclePolicyUsageCalculatorTests extends ESTestCase {
             .putCustom(
                 ComposableIndexTemplateMetadata.TYPE,
                 new ComposableIndexTemplateMetadata(
-                    Collections.singletonMap(
+                    Map.of(
                         "mytemplate",
                         ComposableIndexTemplate.builder()
-                            .indexPatterns(Collections.singletonList("myds"))
+                            .indexPatterns(List.of("myds"))
                             .template(
                                 new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy").build(), null, null)
                             )
@@ -180,12 +178,12 @@ public class LifecyclePolicyUsageCalculatorTests extends ESTestCase {
                 )
             );
         // Need to get the real Index instance of myindex:
-        mBuilder.put(DataStreamTestHelper.newInstance("myds", Collections.singletonList(mBuilder.get("myindex").getIndex())));
+        mBuilder.put(DataStreamTestHelper.newInstance("myds", List.of(mBuilder.get("myindex").getIndex())));
 
         ClusterState state = ClusterState.builder(new ClusterName("mycluster")).metadata(mBuilder.build()).build();
         assertThat(
             new LifecyclePolicyUsageCalculator(iner, state, List.of("mypolicy")).calculateUsage("mypolicy"),
-            equalTo(new ItemUsage(Arrays.asList("myindex", "another"), Collections.singleton("myds"), Collections.singleton("mytemplate")))
+            equalTo(new ItemUsage(List.of("myindex", "another"), List.of("myds"), List.of("mytemplate")))
         );
     }
 
@@ -209,7 +207,7 @@ public class LifecyclePolicyUsageCalculatorTests extends ESTestCase {
                     Map.of(
                         "mytemplate",
                         ComposableIndexTemplate.builder()
-                            .indexPatterns(Collections.singletonList("myds*"))
+                            .indexPatterns(List.of("myds*"))
                             .template(
                                 new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy").build(), null, null)
                             )
@@ -217,7 +215,7 @@ public class LifecyclePolicyUsageCalculatorTests extends ESTestCase {
                             .build(),
                         "myhighertemplate",
                         ComposableIndexTemplate.builder()
-                            .indexPatterns(Collections.singletonList("myds"))
+                            .indexPatterns(List.of("myds"))
                             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                             .priority(1_000L)
                             .build()
@@ -225,7 +223,7 @@ public class LifecyclePolicyUsageCalculatorTests extends ESTestCase {
                 )
             );
 
-        mBuilder.put(DataStreamTestHelper.newInstance("myds", Collections.singletonList(mBuilder.get("myindex").getIndex())));
+        mBuilder.put(DataStreamTestHelper.newInstance("myds", List.of(mBuilder.get("myindex").getIndex())));
 
         // Test where policy exists and is used by an index, datastream, and template
         ClusterState state = ClusterState.builder(new ClusterName("mycluster")).metadata(mBuilder.build()).build();

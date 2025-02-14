@@ -5,6 +5,12 @@
 <titleabbrev>Get {ls} pipeline</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-logstash[{ls} APIs].
+--
+
 This API retrieves pipelines used for
 {logstash-ref}/logstash-centralized-pipeline-management.html[{ls} Central
 Management].

@@ -1,0 +1,6 @@
+pr: 120250
+summary: "Retry internally when CAS upload is throttled [GCS]"
+area: Snapshot/Restore
+type: enhancement
+issues:
+ - 116546

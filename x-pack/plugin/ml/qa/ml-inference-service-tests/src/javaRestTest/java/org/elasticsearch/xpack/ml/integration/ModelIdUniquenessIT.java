@@ -29,9 +29,10 @@ public class ModelIdUniquenessIT extends InferenceBaseRestTest {
         assertThat(
             e.getMessage(),
             Matchers.containsString(
-                "Model IDs must be unique. Requested model ID [" + modelId + "] matches existing model IDs but must not."
+                "Inference endpoint IDs must be unique. Requested inference endpoint ID ["
+                    + modelId
+                    + "] matches existing trained model ID(s) but must not."
             )
-
         );
     }
 

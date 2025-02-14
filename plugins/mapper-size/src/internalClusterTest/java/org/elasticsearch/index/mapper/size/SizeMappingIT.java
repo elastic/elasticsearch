@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper.size;
 
@@ -24,6 +25,7 @@ import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
@@ -89,7 +91,7 @@ public class SizeMappingIT extends ESIntegTestCase {
             "Expected size field mapping to be " + (enabled ? "enabled" : "disabled") + " for %s",
             index
         );
-        GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings(index).get();
+        GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, index).get();
         Map<String, Object> mappingSource = getMappingsResponse.getMappings().get(index).getSourceAsMap();
         assertThat(errMsg, mappingSource, hasKey("_size"));
         String sizeAsString = mappingSource.get("_size").toString();
@@ -135,14 +137,11 @@ public class SizeMappingIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setMapping("_size", "enabled=false"));
         final String source = "{\"f\":\"" + randomAlphaOfLengthBetween(1, 100) + "\"}";
         indexRandom(true, prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
-        assertResponse(
+        assertResponses(
+            response -> assertNull(response.getHits().getHits()[0].getFields().get("_size")),
             prepareSearch("test").addFetchField("_size"),
-            response -> assertNull(response.getHits().getHits()[0].getFields().get("_size"))
-        );
-
-        assertResponse(
             prepareSearch("test").addFetchField("*"),
-            response -> assertNull(response.getHits().getHits()[0].getFields().get("_size"))
+            prepareSearch("test").addStoredField("*")
         );
 
         assertResponse(
@@ -155,19 +154,11 @@ public class SizeMappingIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test"));
         final String source = "{\"f\":\"" + randomAlphaOfLengthBetween(1, 100) + "\"}";
         indexRandom(true, prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
-        assertResponse(
+        assertResponses(
+            response -> assertNull(response.getHits().getHits()[0].getFields().get("_size")),
             prepareSearch("test").addFetchField("_size"),
-            response -> assertNull(response.getHits().getHits()[0].getFields().get("_size"))
-        );
-
-        assertResponse(
             prepareSearch("test").addFetchField("*"),
-            response -> assertNull(response.getHits().getHits()[0].getFields().get("_size"))
-        );
-
-        assertResponse(
-            prepareSearch("test").addStoredField("*"),
-            response -> assertNull(response.getHits().getHits()[0].getFields().get("_size"))
+            prepareSearch("test").addStoredField("*")
         );
     }
 }

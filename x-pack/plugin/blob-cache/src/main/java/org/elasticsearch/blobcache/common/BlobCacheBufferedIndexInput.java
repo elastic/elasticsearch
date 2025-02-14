@@ -175,7 +175,7 @@ public abstract class BlobCacheBufferedIndexInput extends IndexInput implements 
 
     @Override
     public final long readVLong() throws IOException {
-        if (9 <= buffer.remaining()) {
+        if (10 <= buffer.remaining()) {
             return ByteBufferStreamInput.readVLong(buffer);
         } else {
             return super.readVLong();
@@ -390,12 +390,11 @@ public abstract class BlobCacheBufferedIndexInput extends IndexInput implements 
 
     /** Returns default buffer sizes for the given {@link IOContext} */
     public static int bufferSize(IOContext context) {
-        switch (context.context) {
+        switch (context.context()) {
             case MERGE:
                 return MERGE_BUFFER_SIZE;
             case DEFAULT:
             case FLUSH:
-            case READ:
             default:
                 return BUFFER_SIZE;
         }

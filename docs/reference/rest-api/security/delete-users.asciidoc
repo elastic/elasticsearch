@@ -5,6 +5,12 @@
 <titleabbrev>Delete users</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Deletes users from the native realm. 
 
 [[security-api-delete-user-request]]

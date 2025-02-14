@@ -5,6 +5,12 @@
 <titleabbrev>Get overall buckets</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-anomaly[{ml-cap}  {anomaly-detect} APIs].
+--
+
 Retrieves overall bucket results that summarize the bucket results of multiple
 {anomaly-jobs}.
 

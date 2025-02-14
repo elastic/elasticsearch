@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -88,6 +89,21 @@ public record ReservedStateMetadata(
         Set<String> intersect = new HashSet<>(handlerMetadata.keys());
         intersect.retainAll(modified);
         return Collections.unmodifiableSet(intersect);
+    }
+
+    /**
+     * Get the reserved keys for the handler name
+     *
+     * @param handlerName handler name to get keys for
+     * @return set of keys for that handler
+     */
+    public Set<String> keys(String handlerName) {
+        ReservedStateHandlerMetadata handlerMetadata = handlers.get(handlerName);
+        if (handlerMetadata == null || handlerMetadata.keys().isEmpty()) {
+            return Collections.emptySet();
+        }
+
+        return Collections.unmodifiableSet(handlerMetadata.keys());
     }
 
     /**

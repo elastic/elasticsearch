@@ -1,0 +1,3 @@
+config:
+  - path: distribution/docker/src/docker/iron_bank
+    dockerfile: ../Dockerfile

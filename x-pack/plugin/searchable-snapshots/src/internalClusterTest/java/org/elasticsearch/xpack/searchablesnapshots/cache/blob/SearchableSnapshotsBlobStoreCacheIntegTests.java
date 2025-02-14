@@ -74,7 +74,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
 
     @BeforeClass
     public static void setUpCacheSettings() {
-        blobCacheMaxLength = pageAligned(new ByteSizeValue(randomLongBetween(64L, 128L), ByteSizeUnit.KB));
+        blobCacheMaxLength = pageAligned(ByteSizeValue.of(randomLongBetween(64L, 128L), ByteSizeUnit.KB));
 
         final Settings.Builder builder = Settings.builder();
         // Align ranges to match the blob cache max length
@@ -153,7 +153,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
         expectThrows(
             IndexNotFoundException.class,
             ".snapshot-blob-cache system index should not be created yet",
-            () -> systemClient().admin().indices().prepareGetIndex().addIndices(SNAPSHOT_BLOB_CACHE_INDEX).get()
+            () -> systemClient().admin().indices().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(SNAPSHOT_BLOB_CACHE_INDEX).get()
         );
 
         final Storage storage1 = randomFrom(Storage.values());

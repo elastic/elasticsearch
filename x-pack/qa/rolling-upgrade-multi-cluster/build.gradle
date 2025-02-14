@@ -1,4 +1,10 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-testclusters'
@@ -9,7 +15,7 @@ dependencies {
   testImplementation project(':x-pack:qa')
 }
 
-BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
+buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 
   def baseLeaderCluster = testClusters.register("${baseName}-leader") {
       numberOfNodes = 3
@@ -32,48 +38,44 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     useCluster baseLeaderCluster
     useCluster baseFollowerCluster
     systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
-
+    def baseClusterName = getName().substring(0, getName().lastIndexOf("#")).replace('#', '-')
+    def baseCluster = testClusters.named(baseClusterName)
     doFirst {
-      def baseCluster = testClusters.named("${baseName}-${kindExt}").get()
       if (name.endsWith("#clusterTest") == false) {
         println "Upgrade node $it"
-        baseCluster.nextNodeToNextVersion()
+        getRegistry().get().nextNodeToNextVersion(baseCluster)
       }
-      nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.allHttpSocketURI.join(","))
-      nonInputProperties.systemProperty('tests.clustername', baseName)
-      nonInputProperties.systemProperty('tests.leader_host', baseLeaderCluster.map(c->c.allHttpSocketURI.last()))
-      nonInputProperties.systemProperty('tests.leader_remote_cluster_seed', baseLeaderCluster.map(c -> c.allTransportPortURI.last()))
-      nonInputProperties.systemProperty('tests.follower_host', baseFollowerCluster.map(c -> c.allHttpSocketURI.last()))
-      nonInputProperties.systemProperty('tests.follower_remote_cluster_seed', baseFollowerCluster.map(c -> c.allTransportPortURI.last()))
     }
+    nonInputProperties.systemProperty('tests.rest.cluster', getClusterInfo(baseCluster.name).map { it.allHttpSocketURI.join(",") })
+    nonInputProperties.systemProperty('tests.clustername', baseName)
+    nonInputProperties.systemProperty('tests.leader_host', getClusterInfo(baseLeaderCluster.name).map { c->c.allHttpSocketURI.last() })
+    nonInputProperties.systemProperty('tests.leader_remote_cluster_seed', getClusterInfo(baseLeaderCluster.name).map { c -> c.allTransportPortURI.last() })
+    nonInputProperties.systemProperty('tests.follower_host', getClusterInfo(baseFollowerCluster.name).map { c->c.allHttpSocketURI.last() })
+    nonInputProperties.systemProperty('tests.follower_remote_cluster_seed', getClusterInfo(baseFollowerCluster.name).map { c -> c.allTransportPortURI.last() })
   }
 
   ["follower", "leader"].each { kind ->
     tasks.register("${baseName}#${kind}#clusterTest", StandaloneRestIntegTestTask) {
       systemProperty 'tests.rest.upgrade_state', 'none'
       systemProperty 'tests.rest.cluster_name', kind
-      ext.kindExt = kind
     }
 
     tasks.register("${baseName}#${kind}#oneThirdUpgradedTest", StandaloneRestIntegTestTask) {
       systemProperty 'tests.rest.upgrade_state', 'one_third'
       systemProperty 'tests.rest.cluster_name', kind
       dependsOn "${baseName}#leader#clusterTest", "${baseName}#follower#clusterTest"
-      ext.kindExt = kind
     }
 
     tasks.register("${baseName}#${kind}#twoThirdsUpgradedTest", StandaloneRestIntegTestTask) {
       systemProperty 'tests.rest.upgrade_state', 'two_third'
       systemProperty 'tests.rest.cluster_name', kind
       dependsOn "${baseName}#${kind}#oneThirdUpgradedTest"
-      ext.kindExt = kind
     }
 
     tasks.register("${baseName}#${kind}#upgradedClusterTest", StandaloneRestIntegTestTask) {
       systemProperty 'tests.rest.upgrade_state', 'all'
       systemProperty 'tests.rest.cluster_name', kind
       dependsOn "${baseName}#${kind}#twoThirdsUpgradedTest"
-      ext.kindExt = kind
     }
   }
 
@@ -92,5 +94,5 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 
 // Security is explicitly disabled, do not run tests in FIPS mode
 tasks.withType(Test).configureEach {
-  BuildParams.withFipsEnabledOnly(it)
+  buildParams.withFipsEnabledOnly(it)
 }

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -20,7 +19,6 @@ import org.elasticsearch.xpack.inference.external.request.cohere.CohereRerankReq
 import org.elasticsearch.xpack.inference.external.response.cohere.CohereRankedResponseEntity;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModel;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -29,7 +27,7 @@ public class CohereRerankRequestManager extends CohereRequestManager {
     private static final ResponseHandler HANDLER = createCohereResponseHandler();
 
     private static ResponseHandler createCohereResponseHandler() {
-        return new CohereResponseHandler("cohere rerank", (request, response) -> CohereRankedResponseEntity.fromResponse(response));
+        return new CohereResponseHandler("cohere rerank", (request, response) -> CohereRankedResponseEntity.fromResponse(response), false);
     }
 
     public static CohereRerankRequestManager of(CohereRerankModel model, ThreadPool threadPool) {
@@ -44,16 +42,15 @@ public class CohereRerankRequestManager extends CohereRequestManager {
     }
 
     @Override
-    public Runnable create(
-        String query,
-        List<String> input,
+    public void execute(
+        InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
-        HttpClientContext context,
         ActionListener<InferenceServiceResults> listener
     ) {
-        CohereRerankRequest request = new CohereRerankRequest(query, input, model);
+        var rerankInput = QueryAndDocsInputs.of(inferenceInputs);
+        CohereRerankRequest request = new CohereRerankRequest(rerankInput.getQuery(), rerankInput.getChunks(), model);
 
-        return new ExecutableInferenceRequest(requestSender, logger, request, context, HANDLER, hasRequestCompletedFunction, listener);
+        execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }
 }

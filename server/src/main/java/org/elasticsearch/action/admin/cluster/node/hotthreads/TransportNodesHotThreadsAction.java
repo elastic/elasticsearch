@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.hotthreads;
@@ -16,11 +17,11 @@ import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -37,7 +38,8 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<
     NodesHotThreadsRequest,
     NodesHotThreadsResponse,
     TransportNodesHotThreadsAction.NodeRequest,
-    NodeHotThreads> {
+    NodeHotThreads,
+    Void> {
 
     public static final ActionType<NodesHotThreadsResponse> TYPE = new ActionType<>("cluster:monitor/nodes/hot_threads");
 
@@ -79,12 +81,12 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<
 
     @Override
     protected NodeHotThreads nodeOperation(NodeRequest request, Task task) {
-        final var hotThreads = new HotThreads().busiestThreads(request.request.threads)
-            .type(request.request.type)
-            .sortOrder(request.request.sortOrder)
-            .interval(request.request.interval)
-            .threadElementsSnapshotCount(request.request.snapshots)
-            .ignoreIdleThreads(request.request.ignoreIdleThreads);
+        final var hotThreads = new HotThreads().busiestThreads(request.requestOptions.threads())
+            .type(request.requestOptions.reportType())
+            .sortOrder(request.requestOptions.sortOrder())
+            .interval(request.requestOptions.interval())
+            .threadElementsSnapshotCount(request.requestOptions.snapshots())
+            .ignoreIdleThreads(request.requestOptions.ignoreIdleThreads());
         final var out = transportService.newNetworkBytesStream();
         final var trackedResource = LeakTracker.wrap(out);
         var success = false;
@@ -106,22 +108,21 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<
 
     public static class NodeRequest extends TransportRequest {
 
-        // TODO don't wrap the whole top-level request, it contains heavy and irrelevant DiscoveryNode things; see #100878
-        NodesHotThreadsRequest request;
-
-        public NodeRequest(StreamInput in) throws IOException {
-            super(in);
-            request = new NodesHotThreadsRequest(in);
-        }
+        final HotThreads.RequestOptions requestOptions;
 
         NodeRequest(NodesHotThreadsRequest request) {
-            this.request = request;
+            this.requestOptions = request.requestOptions;
+        }
+
+        NodeRequest(StreamInput in) throws IOException {
+            super(in);
+            requestOptions = HotThreads.RequestOptions.readFrom(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            request.writeTo(out);
+            requestOptions.writeTo(out);
         }
     }
 }

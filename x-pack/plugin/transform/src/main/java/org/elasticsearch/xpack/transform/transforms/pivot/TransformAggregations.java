@@ -60,7 +60,6 @@ public final class TransformAggregations {
         "date_histogram",
         "date_range",
         "diversified_sampler",
-        "extended_stats", // https://github.com/elastic/elasticsearch/issues/51925
         "filters",
         "geo_distance",
         "geohash_grid",
@@ -120,7 +119,8 @@ public final class TransformAggregations {
         MISSING("missing", LONG),
         TOP_METRICS("top_metrics", SOURCE),
         STATS("stats", DOUBLE),
-        BOXPLOT("boxplot", DOUBLE);
+        BOXPLOT("boxplot", DOUBLE),
+        EXTENDED_STATS("extended_stats", DOUBLE);
 
         private final String aggregationType;
         private final String targetMapping;

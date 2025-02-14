@@ -5,6 +5,12 @@
 <titleabbrev>Simulate pipeline</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ingest[Ingest APIs].
+--
+
 Executes an ingest pipeline against
 a set of provided documents.
 

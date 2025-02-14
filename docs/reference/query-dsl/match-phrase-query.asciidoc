@@ -19,8 +19,44 @@ GET /_search
 }
 --------------------------------------------------
 
+[[match-phrase-field-params]]
+==== Parameters for `<field>`
+`query`::
++
+--
+(Required) Text, number, boolean value or date you wish to find in the provided
+`<field>`.
+--
+
+`analyzer`::
+(Optional, string) <<analysis,Analyzer>> used to convert the text in the `query`
+value into tokens. Defaults to the <<specify-index-time-analyzer,index-time
+analyzer>> mapped for the `<field>`. If no analyzer is mapped, the index's
+default analyzer is used.
+
+`slop`::
+(Optional, integer) Maximum number of positions allowed between matching tokens.
+Defaults to `0`. Transposed terms have a slop of `2`.
+
+`zero_terms_query`::
++
+--
+(Optional, string) Indicates whether no documents are returned if the `analyzer`
+removes all tokens, such as when using a `stop` filter. Valid values are:
+
+ `none` (Default)::
+No documents are returned if the `analyzer` removes all tokens.
+
+ `all`::
+Returns all documents, similar to a <<query-dsl-match-all-query,`match_all`>>
+query.
+--
+
 A phrase query matches terms up to a configurable `slop`
 (which defaults to 0) in any order. Transposed terms have a slop of 2.
+
+[[query-dsl-match-query-phrase-analyzer]]
+===== Analyzer in the match phrase query
 
 The `analyzer` can be set to control which analyzer will perform the
 analysis process on the text. It defaults to the field explicit mapping
@@ -40,5 +76,3 @@ GET /_search
   }
 }
 --------------------------------------------------
-
-This query also accepts `zero_terms_query`, as explained in <<query-dsl-match-query, `match` query>>.

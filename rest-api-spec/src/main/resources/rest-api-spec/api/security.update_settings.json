@@ -18,7 +18,16 @@
         }
       ]
     },
-    "params":{},
+    "params":{
+      "master_timeout":{
+        "type":"time",
+        "description":"Timeout for connection to master"
+      },
+      "timeout":{
+        "type":"time",
+        "description":"Timeout for acknowledgements from all nodes"
+      }
+    },
     "body":{
       "description": "An object with the new settings for each index, if any",
       "required": true

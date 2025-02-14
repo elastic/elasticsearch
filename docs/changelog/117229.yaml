@@ -1,0 +1,6 @@
+pr: 117229
+summary: "In this pr, a 400 error is returned when _source / _seq_no / _feature /\
+  \ _nested_path / _field_names is requested, rather a 5xx"
+area: Search
+type: bug
+issues: []

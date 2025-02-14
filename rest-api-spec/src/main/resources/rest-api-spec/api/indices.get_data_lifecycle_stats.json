@@ -1,0 +1,21 @@
+{
+  "indices.get_data_lifecycle_stats": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/data-streams-get-lifecycle-stats.html",
+      "description": "Get data stream lifecycle statistics."
+    },
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": ["application/json"]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_lifecycle/stats",
+          "methods": ["GET"]
+        }
+      ]
+    }
+  }
+}

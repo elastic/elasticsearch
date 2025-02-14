@@ -15,6 +15,7 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
 
+import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -33,11 +34,10 @@ public class RestPostConnectorAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
+    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         PostConnectorAction.Request request;
-        // Handle empty REST request body
         if (restRequest.hasContent()) {
-            request = PostConnectorAction.Request.fromXContentBytes(restRequest.content(), restRequest.getXContentType());
+            request = PostConnectorAction.Request.fromXContent(restRequest.contentParser());
         } else {
             request = new PostConnectorAction.Request();
         }

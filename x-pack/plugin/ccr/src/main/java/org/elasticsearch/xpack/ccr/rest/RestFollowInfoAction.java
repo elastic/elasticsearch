@@ -33,8 +33,7 @@ public class RestFollowInfoAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest restRequest, final NodeClient client) {
-        final FollowInfoAction.Request request = new FollowInfoAction.Request();
-        request.masterNodeTimeout(getMasterNodeTimeout(restRequest));
+        final var request = new FollowInfoAction.Request(getMasterNodeTimeout(restRequest));
         request.setFollowerIndices(Strings.splitStringByCommaToArray(restRequest.param("index")));
         return channel -> client.execute(FollowInfoAction.INSTANCE, request, new RestRefCountedChunkedToXContentListener<>(channel));
     }

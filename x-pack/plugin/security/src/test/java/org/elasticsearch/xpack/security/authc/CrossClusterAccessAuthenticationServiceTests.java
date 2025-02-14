@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -17,7 +16,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -36,7 +34,6 @@ import org.mockito.Mockito;
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -73,51 +70,6 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
             apiKeyService,
             authenticationService
         );
-    }
-
-    public void testAuthenticateThrowsOnUnsupportedMinVersions() throws IOException {
-        when(clusterService.state().getMinTransportVersion()).thenReturn(TransportVersionUtils.randomVersionBetween(
-                random(),
-                TransportVersions.MINIMUM_COMPATIBLE,
-                TransportVersionUtils.getPreviousVersion(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
-            ));
-        final var authcContext = mock(Authenticator.Context.class, Mockito.RETURNS_DEEP_STUBS);
-        when(authcContext.getThreadContext()).thenReturn(threadContext);
-        final var crossClusterAccessHeaders = new CrossClusterAccessHeaders(
-            CrossClusterAccessHeadersTests.randomEncodedApiKeyHeader(),
-            AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo()
-        );
-        crossClusterAccessHeaders.writeToContext(threadContext);
-        final AuthenticationService.AuditableRequest auditableRequest = mock(AuthenticationService.AuditableRequest.class);
-        when(authcContext.getRequest()).thenReturn(auditableRequest);
-        when(auditableRequest.exceptionProcessingRequest(any(), any())).thenAnswer(
-            i -> new ElasticsearchSecurityException("potato", (Exception) i.getArguments()[0])
-        );
-        doAnswer(invocationOnMock -> new Authenticator.Context(
-                threadContext,
-                auditableRequest,
-                mock(Realms.class),
-                (AuthenticationToken) invocationOnMock.getArguments()[2]
-        )).when(authenticationService).newContext(anyString(), any(), any());
-
-        final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
-        crossClusterAccessAuthenticationService.authenticate("action", mock(TransportRequest.class), future);
-        final ExecutionException actual = expectThrows(ExecutionException.class, future::get);
-
-        assertThat(actual.getCause().getCause(), instanceOf(IllegalArgumentException.class));
-        assertThat(
-            actual.getCause().getCause().getMessage(),
-            equalTo(
-                "all nodes must have version ["
-                    + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
-                    + "] or higher to support cross cluster requests through the dedicated remote cluster port"
-            )
-        );
-        verify(auditableRequest).exceptionProcessingRequest(
-            any(Exception.class),
-            credentialsArgMatches(crossClusterAccessHeaders.credentials())
-        );
-        verifyNoMoreInteractions(auditableRequest);
     }
 
     public void testAuthenticationSuccessOnSuccessfulAuthentication() throws IOException, ExecutionException, InterruptedException {

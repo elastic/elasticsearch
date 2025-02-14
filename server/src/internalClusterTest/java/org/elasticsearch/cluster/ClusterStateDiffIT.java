@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
@@ -44,6 +45,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -68,6 +70,7 @@ import static org.elasticsearch.cluster.routing.UnassignedInfoTests.randomUnassi
 import static org.elasticsearch.test.XContentTestUtils.convertToMap;
 import static org.elasticsearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
 import static org.elasticsearch.test.index.IndexVersionUtils.randomVersion;
+import static org.elasticsearch.test.index.IndexVersionUtils.randomWriteVersion;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -144,13 +147,12 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 for (Map.Entry<String, DiscoveryNode> node : clusterStateFromDiffs.nodes().getNodes().entrySet()) {
                     DiscoveryNode node1 = clusterState.nodes().get(node.getKey());
                     DiscoveryNode node2 = clusterStateFromDiffs.nodes().get(node.getKey());
-                    assertThat(node1.getVersion(), equalTo(node2.getVersion()));
+                    assertThat(node1.getBuildVersion(), equalTo(node2.getBuildVersion()));
                     assertThat(node1.getAddress(), equalTo(node2.getAddress()));
                     assertThat(node1.getAttributes(), equalTo(node2.getAttributes()));
                 }
 
                 // Check routing table
-                assertThat(clusterStateFromDiffs.routingTable().version(), equalTo(clusterState.routingTable().version()));
                 assertThat(clusterStateFromDiffs.routingTable().indicesRouting(), equalTo(clusterState.routingTable().indicesRouting()));
 
                 // Check cluster blocks
@@ -216,7 +218,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
 
     private DiscoveryNode randomNode(String nodeId) {
         Version nodeVersion = VersionUtils.randomVersion(random());
-        IndexVersion indexVersion = randomVersion(random());
+        IndexVersion indexVersion = randomVersion();
         return DiscoveryNodeUtils.builder(nodeId)
             .roles(emptySet())
             .version(nodeVersion, IndexVersion.fromId(indexVersion.id() - 1_000_000), indexVersion)
@@ -559,9 +561,10 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 IndexMetadata.Builder builder = IndexMetadata.builder(name);
                 Settings.Builder settingsBuilder = Settings.builder();
                 setRandomIndexSettings(random(), settingsBuilder);
-                settingsBuilder.put(randomSettings(Settings.EMPTY)).put(IndexMetadata.SETTING_VERSION_CREATED, randomVersion(random()));
+                settingsBuilder.put(randomSettings(Settings.EMPTY)).put(IndexMetadata.SETTING_VERSION_CREATED, randomWriteVersion());
                 builder.settings(settingsBuilder);
                 builder.numberOfShards(randomIntBetween(1, 10)).numberOfReplicas(randomInt(10));
+                builder.eventIngestedRange(IndexLongFieldRange.UNKNOWN);
                 int aliasCount = randomInt(10);
                 for (int i = 0; i < aliasCount; i++) {
                     builder.putAlias(randomAlias());
@@ -733,7 +736,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                             ImmutableOpenMap.of(),
                             null,
                             SnapshotInfoTestUtils.randomUserMetadata(),
-                            randomVersion(random())
+                            randomVersion()
                         )
                     );
                     case 1 -> new RestoreInProgress.Builder().add(

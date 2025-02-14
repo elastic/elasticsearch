@@ -20,11 +20,11 @@ import static org.elasticsearch.common.Strings.requireNonBlank;
 
 public class DocumentAnalyticsEventField {
 
-    public static ParseField DOCUMENT_FIELD = new ParseField("document");
+    public static final ParseField DOCUMENT_FIELD = new ParseField("document");
 
-    public static ParseField DOCUMENT_ID_FIELD = new ParseField("id");
+    public static final ParseField DOCUMENT_ID_FIELD = new ParseField("id");
 
-    public static ParseField DOCUMENT_INDEX_FIELD = new ParseField("index");
+    public static final ParseField DOCUMENT_INDEX_FIELD = new ParseField("index");
 
     private static final ObjectParser<Map<String, String>, AnalyticsEvent.Context> PARSER = new ObjectParser<>(
         DOCUMENT_FIELD.getPreferredName(),

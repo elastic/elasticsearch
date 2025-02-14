@@ -58,11 +58,16 @@ public class LifecycleOperationSnapshotTests extends ESSingleNodeTestCase {
     }
 
     public void testModeSnapshotRestore() throws Exception {
-        clusterAdmin().preparePutRepository("repo").setType("fs").setSettings(Settings.builder().put("location", "repo").build()).get();
+        clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "repo")
+            .setType("fs")
+            .setSettings(Settings.builder().put("location", "repo").build())
+            .get();
 
         client().execute(
             PutSnapshotLifecycleAction.INSTANCE,
             new PutSnapshotLifecycleAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
                 "slm-policy",
                 new SnapshotLifecyclePolicy(
                     "slm-policy",
@@ -78,6 +83,8 @@ public class LifecycleOperationSnapshotTests extends ESSingleNodeTestCase {
         client().execute(
             ILMActions.PUT,
             new PutLifecycleRequest(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
                 new LifecyclePolicy(
                     "ilm-policy",
                     Map.of("warm", new Phase("warm", TimeValue.timeValueHours(1), Map.of("readonly", new ReadOnlyAction())))
@@ -91,7 +98,7 @@ public class LifecycleOperationSnapshotTests extends ESSingleNodeTestCase {
         // Take snapshot
         ExecuteSnapshotLifecycleAction.Response resp = client().execute(
             ExecuteSnapshotLifecycleAction.INSTANCE,
-            new ExecuteSnapshotLifecycleAction.Request("slm-policy")
+            new ExecuteSnapshotLifecycleAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "slm-policy")
         ).get();
         final String snapshotName = resp.getSnapshotName();
         // Wait for the snapshot to be successful
@@ -100,7 +107,7 @@ public class LifecycleOperationSnapshotTests extends ESSingleNodeTestCase {
             try {
                 GetSnapshotsResponse getResp = client().execute(
                     TransportGetSnapshotsAction.TYPE,
-                    new GetSnapshotsRequest(new String[] { "repo" }, new String[] { snapshotName })
+                    new GetSnapshotsRequest(TEST_REQUEST_TIMEOUT, new String[] { "repo" }, new String[] { snapshotName })
                 ).get();
                 assertThat(getResp.getSnapshots().size(), equalTo(1));
                 assertThat(getResp.getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
@@ -109,15 +116,17 @@ public class LifecycleOperationSnapshotTests extends ESSingleNodeTestCase {
             }
         });
 
-        assertAcked(client().execute(ILMActions.STOP, new StopILMRequest()).get());
-        assertAcked(client().execute(StopSLMAction.INSTANCE, new StopSLMAction.Request()).get());
+        assertAcked(client().execute(ILMActions.STOP, new StopILMRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)).get());
+        assertAcked(client().execute(StopSLMAction.INSTANCE, new StopSLMAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)).get());
         assertBusy(() -> assertThat(ilmMode(), equalTo(OperationMode.STOPPED)));
         assertBusy(() -> assertThat(slmMode(), equalTo(OperationMode.STOPPED)));
 
         // Restore snapshot
         client().execute(
             TransportRestoreSnapshotAction.TYPE,
-            new RestoreSnapshotRequest("repo", snapshotName).includeGlobalState(true).indices(Strings.EMPTY_ARRAY).waitForCompletion(true)
+            new RestoreSnapshotRequest(TEST_REQUEST_TIMEOUT, "repo", snapshotName).includeGlobalState(true)
+                .indices(Strings.EMPTY_ARRAY)
+                .waitForCompletion(true)
         ).get();
 
         assertBusy(() -> assertThat(ilmMode(), equalTo(OperationMode.STOPPED)));
@@ -125,10 +134,14 @@ public class LifecycleOperationSnapshotTests extends ESSingleNodeTestCase {
     }
 
     private OperationMode ilmMode() throws Exception {
-        return client().execute(GetStatusAction.INSTANCE, new AcknowledgedRequest.Plain()).get().getMode();
+        return client().execute(GetStatusAction.INSTANCE, new AcknowledgedRequest.Plain(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))
+            .get()
+            .getMode();
     }
 
     private OperationMode slmMode() throws Exception {
-        return client().execute(GetSLMStatusAction.INSTANCE, new AcknowledgedRequest.Plain()).get().getOperationMode();
+        return client().execute(GetSLMStatusAction.INSTANCE, new AcknowledgedRequest.Plain(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))
+            .get()
+            .getOperationMode();
     }
 }

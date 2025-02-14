@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
@@ -82,9 +83,9 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         "2017-12-12T22:55:46"
     );
 
-    public void testBooleanFieldDeprecated() throws IOException {
+    public void testBooleanFieldUnsupported() throws IOException {
         final String fieldName = "bogusBoolean";
-        testCase(iw -> {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> testCase(iw -> {
             Document d = new Document();
             d.add(new SortedNumericDocValuesField(fieldName, 0));
             iw.addDocument(d);
@@ -94,8 +95,8 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 new DateHistogramAggregationBuilder("name").calendarInterval(DateHistogramInterval.HOUR).field(fieldName),
                 new BooleanFieldMapper.BooleanFieldType(fieldName)
             )
-        );
-        assertWarnings("Running DateHistogram aggregations on [boolean] fields is deprecated");
+        ));
+        assertThat(e.getMessage(), equalTo("Field [bogusBoolean] of type [boolean] is not supported for aggregation [date_histogram]"));
     }
 
     public void testMatchNoDocs() throws IOException {

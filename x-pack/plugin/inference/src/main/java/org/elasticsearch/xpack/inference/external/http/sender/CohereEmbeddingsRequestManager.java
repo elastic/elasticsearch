@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -29,7 +28,7 @@ public class CohereEmbeddingsRequestManager extends CohereRequestManager {
     private static final ResponseHandler HANDLER = createEmbeddingsHandler();
 
     private static ResponseHandler createEmbeddingsHandler() {
-        return new CohereResponseHandler("cohere text embedding", CohereEmbeddingsResponseEntity::fromResponse);
+        return new CohereResponseHandler("cohere text embedding", CohereEmbeddingsResponseEntity::fromResponse, false);
     }
 
     public static CohereEmbeddingsRequestManager of(CohereEmbeddingsModel model, ThreadPool threadPool) {
@@ -44,16 +43,15 @@ public class CohereEmbeddingsRequestManager extends CohereRequestManager {
     }
 
     @Override
-    public Runnable create(
-        String query,
-        List<String> input,
+    public void execute(
+        InferenceInputs inferenceInputs,
         RequestSender requestSender,
         Supplier<Boolean> hasRequestCompletedFunction,
-        HttpClientContext context,
         ActionListener<InferenceServiceResults> listener
     ) {
-        CohereEmbeddingsRequest request = new CohereEmbeddingsRequest(input, model);
+        List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
+        CohereEmbeddingsRequest request = new CohereEmbeddingsRequest(docsInput, model);
 
-        return new ExecutableInferenceRequest(requestSender, logger, request, context, HANDLER, hasRequestCompletedFunction, listener);
+        execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }
 }

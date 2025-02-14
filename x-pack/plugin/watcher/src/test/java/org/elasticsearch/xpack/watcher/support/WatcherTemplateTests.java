@@ -37,7 +37,7 @@ public class WatcherTemplateTests extends ESTestCase {
 
     @Before
     public void init() throws Exception {
-        MustacheScriptEngine engine = new MustacheScriptEngine();
+        MustacheScriptEngine engine = new MustacheScriptEngine(Settings.EMPTY);
         Map<String, ScriptEngine> engines = Collections.singletonMap(engine.getType(), engine);
         Map<String, ScriptContext<?>> contexts = Collections.singletonMap(
             Watcher.SCRIPT_TEMPLATE_CONTEXT.name,

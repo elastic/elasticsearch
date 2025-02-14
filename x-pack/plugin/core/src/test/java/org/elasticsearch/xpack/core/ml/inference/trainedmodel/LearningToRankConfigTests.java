@@ -14,6 +14,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.license.License;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -36,6 +38,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.hamcrest.Matchers.is;
 
 public class LearningToRankConfigTests extends InferenceConfigItemTestCase<LearningToRankConfig> {
     private boolean lenient;
@@ -138,6 +141,16 @@ public class LearningToRankConfigTests extends InferenceConfigItemTestCase<Learn
             .setLearningToRankFeatureExtractorBuilders(featureExtractorBuilderList);
 
         expectThrows(IllegalArgumentException.class, () -> builder.build());
+    }
+
+    public void testLicenseSupport_ForPutAction_RequiresEnterprise() {
+        var config = randomLearningToRankConfig();
+        assertThat(config.getMinLicenseSupportedForAction(RestRequest.Method.PUT), is(License.OperationMode.ENTERPRISE));
+    }
+
+    public void testLicenseSupport_ForGetAction_RequiresPlatinum() {
+        var config = randomLearningToRankConfig();
+        assertThat(config.getMinLicenseSupportedForAction(RestRequest.Method.GET), is(License.OperationMode.PLATINUM));
     }
 
     @Override

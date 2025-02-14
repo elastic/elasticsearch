@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedConsumer;
@@ -22,7 +24,6 @@ import org.hamcrest.Matcher;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -307,25 +308,13 @@ public class ActionListenerTests extends ESTestCase {
         });
         assertThat(listener.toString(), equalTo("notifyOnce[inner-listener]"));
 
-        final var threads = new Thread[between(1, 10)];
-        final var startBarrier = new CyclicBarrier(threads.length);
-        for (int i = 0; i < threads.length; i++) {
-            threads[i] = new Thread(() -> {
-                safeAwait(startBarrier);
-                if (randomBoolean()) {
-                    listener.onResponse(null);
-                } else {
-                    listener.onFailure(new RuntimeException("test"));
-                }
-            });
-        }
-
-        for (Thread thread : threads) {
-            thread.start();
-        }
-        for (Thread thread : threads) {
-            thread.join();
-        }
+        startInParallel(between(1, 10), i -> {
+            if (randomBoolean()) {
+                listener.onResponse(null);
+            } else {
+                listener.onFailure(new RuntimeException("test"));
+            }
+        });
 
         assertTrue(completed.get());
     }
@@ -368,6 +357,52 @@ public class ActionListenerTests extends ESTestCase {
         }));
         assertThat(assertionError.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(exReference.get(), instanceOf(IllegalArgumentException.class));
+    }
+
+    public void testAssertAtLeastOnceWillLogAssertionErrorWhenNotResolved() throws Exception {
+        assumeTrue("assertAtLeastOnce will be a no-op when assertions are disabled", Assertions.ENABLED);
+        ActionListener<Object> listenerRef = ActionListener.assertAtLeastOnce(ActionListener.running(() -> {
+            // Do nothing, but don't use ActionListener.noop() as it'll never be garbage collected
+        }));
+        // Nullify reference so it becomes unreachable
+        listenerRef = null;
+        assertBusy(() -> {
+            System.gc();
+            assertLeakDetected();
+        });
+    }
+
+    public void testAssertAtLeastOnceWillNotLogWhenResolvedOrFailed() {
+        assumeTrue("assertAtLeastOnce will be a no-op when assertions are disabled", Assertions.ENABLED);
+        ReachabilityChecker reachabilityChecker = new ReachabilityChecker();
+        ActionListener<Object> listenerRef = reachabilityChecker.register(ActionListener.assertAtLeastOnce(ActionListener.running(() -> {
+            // Do nothing, but don't use ActionListener.noop() as it'll never be garbage collected
+        })));
+        // Call onResponse and/or onFailure at least once
+        int times = randomIntBetween(1, 3);
+        for (int i = 0; i < times; i++) {
+            if (randomBoolean()) {
+                listenerRef.onResponse("succeeded");
+            } else {
+                listenerRef.onFailure(new RuntimeException("Failed"));
+            }
+        }
+        // Nullify reference so it becomes unreachable
+        listenerRef = null;
+        reachabilityChecker.ensureUnreachable();
+    }
+
+    public void testAssertAtLeastOnceWillDelegateResponses() {
+        final var response = new Object();
+        assertSame(response, safeAwait(SubscribableListener.newForked(l -> ActionListener.assertAtLeastOnce(l).onResponse(response))));
+    }
+
+    public void testAssertAtLeastOnceWillDelegateFailures() {
+        final var exception = new RuntimeException();
+        assertSame(
+            exception,
+            safeAwaitFailure(SubscribableListener.newForked(l -> ActionListener.assertAtLeastOnce(l).onFailure(exception)))
+        );
     }
 
     /**

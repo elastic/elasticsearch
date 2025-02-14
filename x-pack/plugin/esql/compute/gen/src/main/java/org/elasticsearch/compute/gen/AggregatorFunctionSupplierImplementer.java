@@ -10,6 +10,7 @@ package org.elasticsearch.compute.gen;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.MethodSpec;
+import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 
 import org.elasticsearch.compute.ann.Aggregator;
@@ -30,7 +31,10 @@ import javax.lang.model.util.Elements;
 
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_FUNCTION_SUPPLIER;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
+import static org.elasticsearch.compute.gen.Types.LIST_AGG_FUNC_DESC;
 import static org.elasticsearch.compute.gen.Types.LIST_INTEGER;
+import static org.elasticsearch.compute.gen.Types.STRING;
+import static org.elasticsearch.compute.gen.Types.WARNINGS;
 
 /**
  * Implements "AggregationFunctionSupplier" from a class annotated with both
@@ -40,6 +44,7 @@ public class AggregatorFunctionSupplierImplementer {
     private final TypeElement declarationType;
     private final AggregatorImplementer aggregatorImplementer;
     private final GroupingAggregatorImplementer groupingAggregatorImplementer;
+    private final boolean hasWarnings;
     private final List<Parameter> createParameters;
     private final ClassName implementation;
 
@@ -47,11 +52,13 @@ public class AggregatorFunctionSupplierImplementer {
         Elements elements,
         TypeElement declarationType,
         AggregatorImplementer aggregatorImplementer,
-        GroupingAggregatorImplementer groupingAggregatorImplementer
+        GroupingAggregatorImplementer groupingAggregatorImplementer,
+        boolean hasWarnings
     ) {
         this.declarationType = declarationType;
         this.aggregatorImplementer = aggregatorImplementer;
         this.groupingAggregatorImplementer = groupingAggregatorImplementer;
+        this.hasWarnings = hasWarnings;
 
         Set<Parameter> createParameters = new LinkedHashSet<>();
         if (aggregatorImplementer != null) {
@@ -61,7 +68,6 @@ public class AggregatorFunctionSupplierImplementer {
             createParameters.addAll(groupingAggregatorImplementer.createParameters());
         }
         this.createParameters = new ArrayList<>(createParameters);
-        this.createParameters.add(0, new Parameter(LIST_INTEGER, "channels"));
 
         this.implementation = ClassName.get(
             elements.getPackageOf(declarationType).toString(),
@@ -82,17 +88,20 @@ public class AggregatorFunctionSupplierImplementer {
     private TypeSpec type() {
         TypeSpec.Builder builder = TypeSpec.classBuilder(implementation);
         builder.addJavadoc("{@link $T} implementation for {@link $T}.\n", AGGREGATOR_FUNCTION_SUPPLIER, declarationType);
-        builder.addJavadoc("This class is generated. Do not edit it.");
+        builder.addJavadoc("This class is generated. Edit {@code " + getClass().getSimpleName() + "} instead.");
         builder.addModifiers(Modifier.PUBLIC, Modifier.FINAL);
         builder.addSuperinterface(AGGREGATOR_FUNCTION_SUPPLIER);
 
+        if (hasWarnings) {
+            builder.addField(TypeName.INT, "warningsLineNumber");
+            builder.addField(TypeName.INT, "warningsColumnNumber");
+            builder.addField(STRING, "warningsSourceText");
+        }
         createParameters.stream().forEach(p -> p.declareField(builder));
         builder.addMethod(ctor());
-        if (aggregatorImplementer != null) {
-            builder.addMethod(aggregator());
-        } else {
-            builder.addMethod(unsupportedNonGroupingAggregator());
-        }
+        builder.addMethod(nonGroupingIntermediateStateDesc());
+        builder.addMethod(groupingIntermediateStateDesc());
+        builder.addMethod(aggregator());
         builder.addMethod(groupingAggregator());
         builder.addMethod(describe());
         return builder.build();
@@ -100,44 +109,97 @@ public class AggregatorFunctionSupplierImplementer {
 
     private MethodSpec ctor() {
         MethodSpec.Builder builder = MethodSpec.constructorBuilder().addModifiers(Modifier.PUBLIC);
+        if (hasWarnings) {
+            builder.addParameter(TypeName.INT, "warningsLineNumber");
+            builder.addParameter(TypeName.INT, "warningsColumnNumber");
+            builder.addParameter(STRING, "warningsSourceText");
+            builder.addStatement("this.warningsLineNumber = warningsLineNumber");
+            builder.addStatement("this.warningsColumnNumber = warningsColumnNumber");
+            builder.addStatement("this.warningsSourceText = warningsSourceText");
+        }
         createParameters.stream().forEach(p -> p.buildCtor(builder));
         return builder.build();
     }
 
-    private MethodSpec unsupportedNonGroupingAggregator() {
-        MethodSpec.Builder builder = MethodSpec.methodBuilder("aggregator")
-            .addParameter(DRIVER_CONTEXT, "driverContext")
-            .returns(Types.AGGREGATOR_FUNCTION);
+    private MethodSpec nonGroupingIntermediateStateDesc() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("nonGroupingIntermediateStateDesc");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
-        builder.addStatement("throw new UnsupportedOperationException($S)", "non-grouping aggregator is not supported");
+        builder.returns(LIST_AGG_FUNC_DESC);
+
+        if (aggregatorImplementer == null) {
+            builder.addStatement("throw new UnsupportedOperationException($S)", "non-grouping aggregator is not supported");
+            return builder.build();
+        }
+
+        builder.addStatement("return $T.intermediateStateDesc()", aggregatorImplementer.implementation());
+
+        return builder.build();
+    }
+
+    private MethodSpec groupingIntermediateStateDesc() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("groupingIntermediateStateDesc");
+        builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
+        builder.returns(LIST_AGG_FUNC_DESC);
+
+        builder.addStatement("return $T.intermediateStateDesc()", groupingAggregatorImplementer.implementation());
+
         return builder.build();
     }
 
     private MethodSpec aggregator() {
-        MethodSpec.Builder builder = MethodSpec.methodBuilder("aggregator")
-            .addParameter(DRIVER_CONTEXT, "driverContext")
-            .returns(aggregatorImplementer.implementation());
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("aggregator");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
+        builder.addParameter(DRIVER_CONTEXT, "driverContext");
+        builder.addParameter(LIST_INTEGER, "channels");
+
+        if (aggregatorImplementer == null) {
+            builder.returns(Types.AGGREGATOR_FUNCTION);
+            builder.addStatement("throw new UnsupportedOperationException($S)", "non-grouping aggregator is not supported");
+            return builder.build();
+        }
+
+        builder.returns(aggregatorImplementer.implementation());
+
+        if (hasWarnings) {
+            builder.addStatement(
+                "var warnings = $T.createWarnings(driverContext.warningsMode(), "
+                    + "warningsLineNumber, warningsColumnNumber, warningsSourceText)",
+                WARNINGS
+            );
+        }
+
         builder.addStatement(
             "return $T.create($L)",
             aggregatorImplementer.implementation(),
-            Stream.concat(Stream.of("driverContext, channels"), aggregatorImplementer.createParameters().stream().map(Parameter::name))
-                .collect(Collectors.joining(", "))
+            Stream.concat(
+                Stream.concat(hasWarnings ? Stream.of("warnings") : Stream.of(), Stream.of("driverContext, channels")),
+                aggregatorImplementer.createParameters().stream().map(Parameter::name)
+            ).collect(Collectors.joining(", "))
         );
 
         return builder.build();
     }
 
     private MethodSpec groupingAggregator() {
-        MethodSpec.Builder builder = MethodSpec.methodBuilder("groupingAggregator")
-            .addParameter(DRIVER_CONTEXT, "driverContext")
-            .returns(groupingAggregatorImplementer.implementation());
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("groupingAggregator");
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
+        builder.addParameter(DRIVER_CONTEXT, "driverContext");
+        builder.addParameter(LIST_INTEGER, "channels");
+        builder.returns(groupingAggregatorImplementer.implementation());
+
+        if (hasWarnings) {
+            builder.addStatement(
+                "var warnings = $T.createWarnings(driverContext.warningsMode(), "
+                    + "warningsLineNumber, warningsColumnNumber, warningsSourceText)",
+                WARNINGS
+            );
+        }
+
         builder.addStatement(
             "return $T.create($L)",
             groupingAggregatorImplementer.implementation(),
             Stream.concat(
-                Stream.of("channels, driverContext"),
+                Stream.concat(hasWarnings ? Stream.of("warnings") : Stream.of(), Stream.of("channels, driverContext")),
                 groupingAggregatorImplementer.createParameters().stream().map(Parameter::name)
             ).collect(Collectors.joining(", "))
         );

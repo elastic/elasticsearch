@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.common.settings;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.config.Configurator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.rest.RestRequest;
@@ -97,6 +99,31 @@ public class SettingsFilterTests extends ESTestCase {
             new MockLog.UnseenEventExpectation("unwanted old setting name", "org.elasticsearch.test", Level.INFO, "*old*"),
             new MockLog.UnseenEventExpectation("unwanted new setting name", "org.elasticsearch.test", Level.INFO, "*new*")
         );
+    }
+
+    public void testIndexScopeSettingUpdateLoggedAsDebug() throws Exception {
+        Settings oldSettings = Settings.builder().put("key", "old").build();
+        Settings newSettings = Settings.builder().put("key", "new").build();
+
+        // With INFO log level nothing gets logged.
+        Setting<String> filteredSetting = Setting.simpleString("key", Property.IndexScope);
+        assertExpectedLogMessages((testLogger) -> Setting.logSettingUpdate(filteredSetting, newSettings, oldSettings, testLogger));
+
+        try {
+            // With DEBUG log level something gets logged
+            Configurator.setLevel("org.elasticsearch.test", Level.DEBUG);
+            assertExpectedLogMessages(
+                (logger) -> Setting.logSettingUpdate(filteredSetting, newSettings, oldSettings, logger),
+                new MockLog.SeenEventExpectation(
+                    "regular logging",
+                    "org.elasticsearch.test",
+                    Level.DEBUG,
+                    "updating [key] from [old] to [new]"
+                )
+            );
+        } finally {
+            Configurator.setLevel("org.elasticsearch.test", Level.INFO);
+        }
     }
 
     public void testRegularSettingUpdateIsFullyLogged() throws Exception {

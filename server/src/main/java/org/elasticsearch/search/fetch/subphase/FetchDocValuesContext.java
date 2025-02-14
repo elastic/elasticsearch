@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.fetch.subphase;
 
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -24,7 +26,7 @@ import java.util.Map;
  */
 public class FetchDocValuesContext {
 
-    private final Collection<FieldAndFormat> fields;
+    private final List<FieldAndFormat> fields;
 
     /**
      * Create a new FetchDocValuesContext using the provided input list.
@@ -40,7 +42,7 @@ public class FetchDocValuesContext {
                 fieldToFormats.put(fieldName, new FieldAndFormat(fieldName, field.format, field.includeUnmapped));
             }
         }
-        this.fields = fieldToFormats.values();
+        this.fields = new ArrayList<>(fieldToFormats.values());
         int maxAllowedDocvalueFields = searchExecutionContext.getIndexSettings().getMaxDocvalueFields();
         if (fields.size() > maxAllowedDocvalueFields) {
             throw new IllegalArgumentException(
@@ -58,7 +60,7 @@ public class FetchDocValuesContext {
     /**
      * Returns the required docvalue fields.
      */
-    public Collection<FieldAndFormat> fields() {
+    public List<FieldAndFormat> fields() {
         return this.fields;
     }
 }

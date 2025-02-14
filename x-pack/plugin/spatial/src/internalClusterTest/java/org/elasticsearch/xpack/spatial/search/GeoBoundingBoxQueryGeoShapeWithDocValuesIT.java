@@ -40,6 +40,6 @@ public class GeoBoundingBoxQueryGeoShapeWithDocValuesIT extends GeoBoundingBoxQu
 
     @Override
     public IndexVersion randomSupportedVersion() {
-        return IndexVersionUtils.randomCompatibleVersion(random());
+        return IndexVersionUtils.randomCompatibleWriteVersion(random());
     }
 }

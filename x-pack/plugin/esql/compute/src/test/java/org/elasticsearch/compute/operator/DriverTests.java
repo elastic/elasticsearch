@@ -9,6 +9,7 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -17,10 +18,17 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.compute.data.BasicBlockTests;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
+import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
+import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
+import org.elasticsearch.compute.test.CannedSourceOperator;
+import org.elasticsearch.compute.test.RandomBlock;
+import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -35,8 +43,11 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DriverTests extends ESTestCase {
@@ -56,6 +67,7 @@ public class DriverTests extends ESTestCase {
 
         Driver driver = new Driver(
             "unset",
+            "test",
             startEpoch,
             startNanos,
             driverContext,
@@ -105,6 +117,7 @@ public class DriverTests extends ESTestCase {
 
         Driver driver = new Driver(
             "unset",
+            "test",
             startEpoch,
             startNanos,
             driverContext,
@@ -155,6 +168,7 @@ public class DriverTests extends ESTestCase {
 
         Driver driver = new Driver(
             "unset",
+            "test",
             startEpoch,
             startNanos,
             driverContext,
@@ -220,7 +234,7 @@ public class DriverTests extends ESTestCase {
             WarningsOperator warning1 = new WarningsOperator(threadPool);
             WarningsOperator warning2 = new WarningsOperator(threadPool);
             CyclicBarrier allPagesProcessed = new CyclicBarrier(2);
-            Driver driver = new Driver(driverContext, new CannedSourceOperator(inPages.iterator()) {
+            Driver driver = new Driver("test", driverContext, new CannedSourceOperator(inPages.iterator()) {
                 @Override
                 public Page getOutput() {
                     assertRunningWithRegularUser(threadPool);
@@ -273,13 +287,81 @@ public class DriverTests extends ESTestCase {
         }
     }
 
+    public void testEarlyTermination() {
+        DriverContext driverContext = driverContext();
+        ThreadPool threadPool = threadPool();
+        try {
+            int positions = between(1000, 5000);
+            List<Page> inPages = randomList(1, 100, () -> {
+                var block = driverContext.blockFactory().newConstantIntBlockWith(randomInt(), positions);
+                return new Page(block);
+            });
+            final var sourceOperator = new CannedSourceOperator(inPages.iterator());
+            final int maxAllowedRows = between(1, 100);
+            final AtomicInteger processedRows = new AtomicInteger(0);
+            var sinkHandler = new ExchangeSinkHandler(driverContext.blockFactory(), positions, System::currentTimeMillis);
+            var sinkOperator = new ExchangeSinkOperator(sinkHandler.createExchangeSink(() -> {}), Function.identity());
+            final var delayOperator = new EvalOperator(driverContext.blockFactory(), new EvalOperator.ExpressionEvaluator() {
+                @Override
+                public Block eval(Page page) {
+                    for (int i = 0; i < page.getPositionCount(); i++) {
+                        driverContext.checkForEarlyTermination();
+                        if (processedRows.incrementAndGet() >= maxAllowedRows) {
+                            sinkHandler.fetchPageAsync(true, ActionListener.noop());
+                        }
+                    }
+                    return driverContext.blockFactory().newConstantBooleanBlockWith(true, page.getPositionCount());
+                }
+
+                @Override
+                public void close() {
+
+                }
+            });
+            Driver driver = new Driver("test", driverContext, sourceOperator, List.of(delayOperator), sinkOperator, () -> {});
+            ThreadContext threadContext = threadPool.getThreadContext();
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+
+            Driver.start(threadContext, threadPool.executor("esql"), driver, between(1, 1000), future);
+            future.actionGet(30, TimeUnit.SECONDS);
+            assertThat(processedRows.get(), equalTo(maxAllowedRows));
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
+    public void testResumeOnEarlyFinish() throws Exception {
+        DriverContext driverContext = driverContext();
+        ThreadPool threadPool = threadPool();
+        try {
+            var sourceHandler = new ExchangeSourceHandler(between(1, 5), threadPool.executor("esql"));
+            var sinkHandler = new ExchangeSinkHandler(driverContext.blockFactory(), between(1, 5), System::currentTimeMillis);
+            var sourceOperator = new ExchangeSourceOperator(sourceHandler.createExchangeSource());
+            var sinkOperator = new ExchangeSinkOperator(sinkHandler.createExchangeSink(() -> {}), Function.identity());
+            Driver driver = new Driver("test", driverContext, sourceOperator, List.of(), sinkOperator, () -> {});
+            PlainActionFuture<Void> future = new PlainActionFuture<>();
+            Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 1000), future);
+            assertBusy(
+                () -> assertThat(
+                    driver.status().status(),
+                    either(equalTo(DriverStatus.Status.ASYNC)).or(equalTo(DriverStatus.Status.STARTING))
+                )
+            );
+            sinkHandler.fetchPageAsync(true, ActionListener.noop());
+            future.actionGet(5, TimeUnit.SECONDS);
+            assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
+        } finally {
+            terminate(threadPool);
+        }
+    }
+
     private static void assertRunningWithRegularUser(ThreadPool threadPool) {
         String user = threadPool.getThreadContext().getHeader("user");
         assertThat(user, equalTo("user1"));
     }
 
     private static Page randomPage() {
-        BasicBlockTests.RandomBlock block = BasicBlockTests.randomBlock(
+        RandomBlock block = RandomBlock.randomBlock(
             randomFrom(ElementType.BOOLEAN, ElementType.INT, ElementType.BYTES_REF),
             between(1, 10),
             randomBoolean(),
@@ -291,11 +373,11 @@ public class DriverTests extends ESTestCase {
         return new Page(block.block());
     }
 
-    static class SwitchContextOperator extends AsyncOperator {
+    static class SwitchContextOperator extends AsyncOperator<Page> {
         private final ThreadPool threadPool;
 
         SwitchContextOperator(DriverContext driverContext, ThreadPool threadPool) {
-            super(driverContext, between(1, 3));
+            super(driverContext, threadPool.getThreadContext(), between(1, 3));
             this.threadPool = threadPool;
         }
 
@@ -312,6 +394,16 @@ public class DriverTests extends ESTestCase {
                     innerListener.onResponse(page);
                 }
             }), TimeValue.timeValueNanos(between(1, 1_000_000)), threadPool.executor("esql"));
+        }
+
+        @Override
+        public Page getOutput() {
+            return fetchFromBuffer();
+        }
+
+        @Override
+        protected void releaseFetchedOnAnyThread(Page page) {
+            releasePageOnAnyThread(page);
         }
 
         @Override

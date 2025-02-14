@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.codec.tsdb;
@@ -30,17 +31,18 @@ import java.util.Arrays;
 import java.util.Random;
 
 public class DocValuesForUtilTests extends LuceneTestCase {
+    int NUMERIC_BLOCK_SIZE = 1 << 7;
 
     public void testEncodeDecode() throws IOException {
         final int iterations = RandomNumbers.randomIntBetween(random(), 50, 1000);
-        final long[] values = new long[iterations * ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
+        final long[] values = new long[iterations * NUMERIC_BLOCK_SIZE];
         final int[] bpvs = new int[iterations];
 
         for (int i = 0; i < iterations; ++i) {
             final int bpv = TestUtil.nextInt(random(), 1, 64);
             bpvs[i] = DocValuesForUtil.roundBits(bpv);
-            for (int j = 0; j < ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE; ++j) {
-                values[i * ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE + j] = bpv == 64
+            for (int j = 0; j < NUMERIC_BLOCK_SIZE; ++j) {
+                values[i * NUMERIC_BLOCK_SIZE + j] = bpv == 64
                     ? random().nextLong()
                     : TestUtil.nextLong(random(), 0, PackedInts.maxValue(bpv));
             }
@@ -52,12 +54,12 @@ public class DocValuesForUtilTests extends LuceneTestCase {
         {
             // encode
             IndexOutput out = d.createOutput("test.bin", IOContext.DEFAULT);
-            final DocValuesForUtil forUtil = new DocValuesForUtil();
+            final DocValuesForUtil forUtil = new DocValuesForUtil(NUMERIC_BLOCK_SIZE);
 
             for (int i = 0; i < iterations; ++i) {
-                long[] source = new long[ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
-                for (int j = 0; j < ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE; ++j) {
-                    source[j] = values[i * ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE + j];
+                long[] source = new long[NUMERIC_BLOCK_SIZE];
+                for (int j = 0; j < NUMERIC_BLOCK_SIZE; ++j) {
+                    source[j] = values[i * NUMERIC_BLOCK_SIZE + j];
                 }
                 out.writeByte((byte) bpvs[i]);
                 forUtil.encode(source, bpvs[i], out);
@@ -69,18 +71,14 @@ public class DocValuesForUtilTests extends LuceneTestCase {
         {
             // decode
             IndexInput in = d.openInput("test.bin", IOContext.READONCE);
-            final DocValuesForUtil forUtil = new DocValuesForUtil();
-            final long[] restored = new long[ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE];
+            final DocValuesForUtil forUtil = new DocValuesForUtil(NUMERIC_BLOCK_SIZE);
+            final long[] restored = new long[NUMERIC_BLOCK_SIZE];
             for (int i = 0; i < iterations; ++i) {
                 final int bitsPerValue = in.readByte();
                 forUtil.decode(bitsPerValue, in, restored);
                 assertArrayEquals(
                     Arrays.toString(restored),
-                    ArrayUtil.copyOfSubArray(
-                        values,
-                        i * ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE,
-                        (i + 1) * ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE
-                    ),
+                    ArrayUtil.copyOfSubArray(values, i * NUMERIC_BLOCK_SIZE, (i + 1) * NUMERIC_BLOCK_SIZE),
                     restored
                 );
             }

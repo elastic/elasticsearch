@@ -1,16 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 
 import java.util.concurrent.TimeUnit;
 
@@ -77,6 +80,9 @@ final class InternalIndexingStats implements IndexingOperationListener {
         if (index.origin().isRecovery() == false) {
             totalStats.indexCurrent.dec();
             totalStats.indexFailed.inc();
+            if (ExceptionsHelper.unwrapCause(ex) instanceof VersionConflictEngineException) {
+                totalStats.indexFailedDueToVersionConflicts.inc();
+            }
         }
     }
 
@@ -123,6 +129,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
         private final MeanMetric deleteMetric = new MeanMetric();
         private final CounterMetric indexCurrent = new CounterMetric();
         private final CounterMetric indexFailed = new CounterMetric();
+        private final CounterMetric indexFailedDueToVersionConflicts = new CounterMetric();
         private final CounterMetric deleteCurrent = new CounterMetric();
         private final CounterMetric noopUpdates = new CounterMetric();
 
@@ -139,6 +146,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
                 TimeUnit.NANOSECONDS.toMillis(totalIndexingTimeInNanos),
                 indexCurrent.count(),
                 indexFailed.count(),
+                indexFailedDueToVersionConflicts.count(),
                 deleteMetric.count(),
                 TimeUnit.NANOSECONDS.toMillis(deleteMetric.sum()),
                 deleteCurrent.count(),

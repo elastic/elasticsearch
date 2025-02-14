@@ -12,11 +12,15 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 
 public class Clusters {
+
+    static final String REMOTE_CLUSTER_NAME = "remote_cluster";
+    static final String LOCAL_CLUSTER_NAME = "local_cluster";
+
     public static ElasticsearchCluster remoteCluster() {
         return ElasticsearchCluster.local()
-            .name("remote_cluster")
+            .name(REMOTE_CLUSTER_NAME)
             .distribution(DistributionType.DEFAULT)
-            .version(Version.fromString(System.getProperty("tests.old_cluster_version")))
+            .version(distributionVersion("tests.version.remote_cluster"))
             .nodes(2)
             .setting("node.roles", "[data,ingest,master]")
             .setting("xpack.security.enabled", "false")
@@ -27,22 +31,38 @@ public class Clusters {
     }
 
     public static ElasticsearchCluster localCluster(ElasticsearchCluster remoteCluster) {
+        return localCluster(remoteCluster, true);
+    }
+
+    public static ElasticsearchCluster localCluster(ElasticsearchCluster remoteCluster, Boolean skipUnavailable) {
         return ElasticsearchCluster.local()
-            .name("local_cluster")
+            .name(LOCAL_CLUSTER_NAME)
             .distribution(DistributionType.DEFAULT)
-            .version(Version.CURRENT)
+            .version(distributionVersion("tests.version.local_cluster"))
             .nodes(2)
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("node.roles", "[data,ingest,master,remote_cluster_client]")
             .setting("cluster.remote.remote_cluster.seeds", () -> "\"" + remoteCluster.getTransportEndpoint(0) + "\"")
             .setting("cluster.remote.connections_per_cluster", "1")
+            .setting("cluster.remote." + REMOTE_CLUSTER_NAME + ".skip_unavailable", skipUnavailable.toString())
             .shared(true)
             .setting("cluster.routing.rebalance.enable", "none")
             .build();
     }
 
-    public static org.elasticsearch.Version oldVersion() {
-        return org.elasticsearch.Version.fromString(System.getProperty("tests.old_cluster_version"));
+    public static org.elasticsearch.Version localClusterVersion() {
+        String prop = System.getProperty("tests.version.local_cluster");
+        return prop != null ? org.elasticsearch.Version.fromString(prop) : org.elasticsearch.Version.CURRENT;
+    }
+
+    public static org.elasticsearch.Version remoteClusterVersion() {
+        String prop = System.getProperty("tests.version.remote_cluster");
+        return prop != null ? org.elasticsearch.Version.fromString(prop) : org.elasticsearch.Version.CURRENT;
+    }
+
+    private static Version distributionVersion(String key) {
+        final String val = System.getProperty(key);
+        return val != null ? Version.fromString(val) : Version.CURRENT;
     }
 }

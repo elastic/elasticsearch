@@ -5,7 +5,13 @@
 <titleabbrev>Create follower</titleabbrev>
 ++++
 
-Creates a follower index.
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ccr[Cross-cluster replication APIs].
+--
+
+Creates a <<xpack-ccr,{ccr}>> follower index.
 
 [[ccr-put-follow-request]]
 ==== {api-request-title}

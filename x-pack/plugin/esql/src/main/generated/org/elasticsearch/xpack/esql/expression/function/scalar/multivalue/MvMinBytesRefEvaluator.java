@@ -15,7 +15,7 @@ import org.elasticsearch.compute.operator.EvalOperator;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvMin}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code MvEvaluatorImplementer} instead.
  */
 public final class MvMinBytesRefEvaluator extends AbstractMultivalueFunction.AbstractEvaluator {
   public MvMinBytesRefEvaluator(EvalOperator.ExpressionEvaluator field,

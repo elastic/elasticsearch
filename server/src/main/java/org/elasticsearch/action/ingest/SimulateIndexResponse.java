@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -22,6 +24,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -32,6 +35,7 @@ import java.util.List;
 public class SimulateIndexResponse extends IndexResponse {
     private final BytesReference source;
     private final XContentType sourceXContentType;
+    private final Collection<String> ignoredFields;
     private final Exception exception;
 
     @SuppressWarnings("this-escape")
@@ -40,10 +44,15 @@ public class SimulateIndexResponse extends IndexResponse {
         this.source = in.readBytesReference();
         this.sourceXContentType = XContentType.valueOf(in.readString());
         setShardInfo(ShardInfo.EMPTY);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_VALIDATES_MAPPINGS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             this.exception = in.readException();
         } else {
             this.exception = null;
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_IGNORED_FIELDS)) {
+            this.ignoredFields = in.readStringCollectionAsList();
+        } else {
+            this.ignoredFields = List.of();
         }
     }
 
@@ -55,13 +64,24 @@ public class SimulateIndexResponse extends IndexResponse {
         BytesReference source,
         XContentType sourceXContentType,
         List<String> pipelines,
+        Collection<String> ignoredFields,
         @Nullable Exception exception
     ) {
         // We don't actually care about most of the IndexResponse fields:
-        super(new ShardId(index, "", 0), id == null ? "<n/a>" : id, 0, 0, version, true, pipelines);
+        super(
+            new ShardId(index, "", 0),
+            id == null ? "<n/a>" : id,
+            0,
+            0,
+            version,
+            true,
+            pipelines,
+            IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN
+        );
         this.source = source;
         this.sourceXContentType = sourceXContentType;
         setShardInfo(ShardInfo.EMPTY);
+        this.ignoredFields = ignoredFields;
         this.exception = exception;
     }
 
@@ -73,6 +93,16 @@ public class SimulateIndexResponse extends IndexResponse {
         builder.field("_source", XContentHelper.convertToMap(source, false, sourceXContentType).v2());
         assert executedPipelines != null : "executedPipelines is null when it shouldn't be - we always list pipelines in simulate mode";
         builder.array("executed_pipelines", executedPipelines.toArray());
+        if (ignoredFields.isEmpty() == false) {
+            builder.startArray("ignored_fields");
+            for (String ignoredField : ignoredFields) {
+                builder.startObject();
+                builder.field("field", ignoredField);
+                builder.endObject();
+            }
+            ;
+            builder.endArray();
+        }
         if (exception != null) {
             builder.startObject("error");
             ElasticsearchException.generateThrowableXContent(builder, params, exception);
@@ -91,9 +121,16 @@ public class SimulateIndexResponse extends IndexResponse {
         super.writeTo(out);
         out.writeBytesReference(source);
         out.writeString(sourceXContentType.name());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_VALIDATES_MAPPINGS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             out.writeException(exception);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SIMULATE_IGNORED_FIELDS)) {
+            out.writeStringCollection(ignoredFields);
+        }
+    }
+
+    public Exception getException() {
+        return this.exception;
     }
 
     @Override

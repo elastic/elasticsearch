@@ -7,8 +7,8 @@ echo "steps:"
 source .buildkite/scripts/branches.sh
 
 for BRANCH in "${BRANCHES[@]}"; do
-  if [[ "$BRANCH" == "main" ]]; then
-    continue
+  if [[ "$BRANCH" == "9.0" ]]; then
+    export VERSION_QUALIFIER="beta1"
   fi
 
   INTAKE_PIPELINE_SLUG="elasticsearch-intake"
@@ -24,5 +24,6 @@ for BRANCH in "${BRANCHES[@]}"; do
       commit: "$LAST_GOOD_COMMIT"
       env:
         DRA_WORKFLOW: staging
+        VERSION_QUALIFIER: ${VERSION_QUALIFIER:-}
 EOF
 done

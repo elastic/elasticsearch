@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest;
@@ -12,7 +13,6 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.script.CtxMap;
 
 import java.time.ZonedDateTime;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -28,10 +28,13 @@ import java.util.Map;
  *
  * The map is expected to be used by processors, server code should the typed getter and setters where possible.
  */
-class IngestCtxMap extends CtxMap<IngestDocMetadata> {
+final class IngestCtxMap extends CtxMap<IngestDocMetadata> {
 
     /**
      * Create an IngestCtxMap with the given metadata, source and default validators
+     * <p>
+     * The passed-in source map is used directly (that is, it's neither shallowly nor deeply copied). mutation-like methods (e.g. setters,
+     * put, etc.) may rely on the map being mutable, and will fail if the passed-in map isn't mutable.
      */
     IngestCtxMap(
         String index,
@@ -42,7 +45,7 @@ class IngestCtxMap extends CtxMap<IngestDocMetadata> {
         ZonedDateTime timestamp,
         Map<String, Object> source
     ) {
-        super(new HashMap<>(source), new IngestDocMetadata(index, id, version, routing, versionType, timestamp));
+        super(source, new IngestDocMetadata(index, id, version, routing, versionType, timestamp));
     }
 
     /**

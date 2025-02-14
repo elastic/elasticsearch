@@ -1,0 +1,21 @@
+---
+name: Comment on PR for .asciidoc changes
+
+on:
+  # We need to use pull_request_target to be able to comment on PRs from forks
+  pull_request_target:
+    types:
+      - synchronize
+      - opened
+      - reopened
+    branches:
+      - main
+      - master
+      - "9.0"
+
+jobs:
+  comment-on-asciidoc-change:
+    permissions:
+      contents: read
+      pull-requests: write
+    uses: elastic/docs-builder/.github/workflows/comment-on-asciidoc-changes.yml@main

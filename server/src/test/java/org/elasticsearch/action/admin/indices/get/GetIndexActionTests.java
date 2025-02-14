@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.get;
@@ -79,7 +80,7 @@ public class GetIndexActionTests extends ESSingleNodeTestCase {
     }
 
     public void testIncludeDefaults() {
-        GetIndexRequest defaultsRequest = new GetIndexRequest().indices(indexName).includeDefaults(true);
+        GetIndexRequest defaultsRequest = new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(indexName).includeDefaults(true);
         ActionTestUtils.execute(
             getIndexAction,
             null,
@@ -94,7 +95,7 @@ public class GetIndexActionTests extends ESSingleNodeTestCase {
     }
 
     public void testDoNotIncludeDefaults() {
-        GetIndexRequest noDefaultsRequest = new GetIndexRequest().indices(indexName);
+        GetIndexRequest noDefaultsRequest = new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(indexName);
         ActionTestUtils.execute(
             getIndexAction,
             null,

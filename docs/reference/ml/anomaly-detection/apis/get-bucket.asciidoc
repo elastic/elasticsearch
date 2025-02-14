@@ -5,6 +5,12 @@
 <titleabbrev>Get buckets</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-anomaly[{ml-cap}  {anomaly-detect} APIs].
+--
+
 Retrieves {anomaly-job} results for one or more buckets.
 
 [[ml-get-bucket-request]]

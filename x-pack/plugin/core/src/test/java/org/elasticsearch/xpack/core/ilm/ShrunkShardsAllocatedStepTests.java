@@ -94,8 +94,8 @@ public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkS
             .build();
 
         Result result = step.isConditionMet(originalIndexMetadata.getIndex(), clusterState);
-        assertTrue(result.isComplete());
-        assertNull(result.getInfomationContext());
+        assertTrue(result.complete());
+        assertNull(result.informationContext());
     }
 
     public void testConditionNotMetBecauseOfActive() {
@@ -137,8 +137,8 @@ public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkS
             .build();
 
         Result result = step.isConditionMet(originalIndexMetadata.getIndex(), clusterState);
-        assertFalse(result.isComplete());
-        assertEquals(new ShrunkShardsAllocatedStep.Info(true, shrinkNumberOfShards, false), result.getInfomationContext());
+        assertFalse(result.complete());
+        assertEquals(new ShrunkShardsAllocatedStep.Info(true, shrinkNumberOfShards, false), result.informationContext());
     }
 
     public void testConditionNotMetBecauseOfShrunkIndexDoesntExistYet() {
@@ -166,7 +166,7 @@ public class ShrunkShardsAllocatedStepTests extends AbstractStepTestCase<ShrunkS
             .build();
 
         Result result = step.isConditionMet(originalIndexMetadata.getIndex(), clusterState);
-        assertFalse(result.isComplete());
-        assertEquals(new ShrunkShardsAllocatedStep.Info(false, -1, false), result.getInfomationContext());
+        assertFalse(result.complete());
+        assertEquals(new ShrunkShardsAllocatedStep.Info(false, -1, false), result.informationContext());
     }
 }

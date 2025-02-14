@@ -49,6 +49,7 @@ public class AnnotationIndex {
 
     // Exposed for testing, but always use the aliases in non-test code.
     public static final String LATEST_INDEX_NAME = ".ml-annotations-000001";
+    public static final String INDEX_PATTERN = ".ml-annotations-*";
     // Due to historical bugs this index may not have the correct mappings
     // in some production clusters. Therefore new annotations should be
     // written to the latest index. If we ever switch to another new annotations
@@ -72,8 +73,7 @@ public class AnnotationIndex {
     ) {
 
         final ActionListener<Boolean> annotationsIndexCreatedListener = finalListener.delegateFailureAndWrap((delegate, success) -> {
-            final ClusterHealthRequest request = new ClusterHealthRequest(READ_ALIAS_NAME).waitForYellowStatus()
-                .masterNodeTimeout(masterNodeTimeout);
+            final ClusterHealthRequest request = new ClusterHealthRequest(masterNodeTimeout, READ_ALIAS_NAME).waitForYellowStatus();
             executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,

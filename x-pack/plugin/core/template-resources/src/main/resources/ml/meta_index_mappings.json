@@ -36,6 +36,15 @@
       "end_time": {
         "type": "date"
       },
+      "skip_result": {
+        "type": "boolean"
+      },
+      "skip_model_update": {
+        "type": "boolean"
+      },
+      "force_time_shift": {
+        "type": "integer"
+      },
       "type": {
         "type": "keyword"
       }

@@ -14,10 +14,11 @@ To achieve that, it supports:
 * Automatic <<index-rollover,rollover>>, which chunks your incoming data in smaller pieces to facilitate better performance
 and backwards incompatible mapping changes.
 * Configurable retention, which allows you to configure the time period for which your data is guaranteed to be stored.
-{es} is allowed at a later time to delete data older than this time period.
+{es} is allowed at a later time to delete data older than this time period. Retention can be configured on the data stream level
+or on a global level. Read more about the different options in this <<tutorial-manage-data-stream-retention,tutorial>>.
 
 A data stream lifecycle also supports downsampling the data stream backing indices.
-See <<data-streams-put-lifecycle-downsampling-example, the downsampling example>> for 
+See <<data-streams-put-lifecycle-downsampling-example, the downsampling example>> for
 more details.
 
 [discrete]
@@ -33,16 +34,17 @@ each data stream and performs the following steps:
 3. After an index is not the write index anymore (i.e. the data stream has been rolled over),
 automatically tail merges the index. Data stream lifecycle executes a merge operation that only targets
 the long tail of small segments instead of the whole shard. As the segments are organised
-into tiers of exponential sizes, merging the long tail of small segments is only a 
+into tiers of exponential sizes, merging the long tail of small segments is only a
 fraction of the cost of force merging to a single segment. The small segments would usually
 hold the most recent data so tail merging will focus the merging resources on the higher-value
 data that is most likely to keep being queried.
-4. If <<data-streams-put-lifecycle-downsampling-example, downsampling>> is configured it will execute 
+4. If <<data-streams-put-lifecycle-downsampling-example, downsampling>> is configured it will execute
 all the configured downsampling rounds.
 5. Applies retention to the remaining backing indices. This means deleting the backing indices whose
-`generation_time` is longer than the configured retention period. The `generation_time` is only applicable to rolled over backing
-indices and it is either the time since the backing index got rolled over, or the time optionally configured in the
-<<index-data-stream-lifecycle-origination-date,`index.lifecycle.origination_date`>> setting.
+`generation_time` is longer than the effective retention period (read more about the
+<<effective-retention-calculation, effective retention calculation>>). The `generation_time` is only applicable to rolled
+over backing indices and it is either the time since the backing index got rolled over, or the time optionally configured
+in the <<index-data-stream-lifecycle-origination-date,`index.lifecycle.origination_date`>> setting.
 
 IMPORTANT: We use the `generation_time` instead of the creation time because this ensures that all data in the backing
 index have passed the retention period. As a result, the retention period is not the exact time data gets deleted, but
@@ -74,5 +76,7 @@ because it is applied on the data stream level and not on the individual backing
 include::tutorial-manage-new-data-stream.asciidoc[]
 
 include::tutorial-manage-existing-data-stream.asciidoc[]
+
+include::tutorial-manage-data-stream-retention.asciidoc[]
 
 include::tutorial-migrate-data-stream-from-ilm-to-dsl.asciidoc[]

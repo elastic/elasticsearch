@@ -1,0 +1,6 @@
+pr: 115616
+summary: Fix double lookup failure on ESQL
+area: ES|QL
+type: bug
+issues:
+  - 111398

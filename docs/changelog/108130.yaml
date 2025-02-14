@@ -1,5 +1,0 @@
-pr: 108130
-summary: Optimise frequent item sets aggregation for single value fields
-area: Machine Learning
-type: enhancement
-issues: []

@@ -2,6 +2,9 @@
 [[esql-row]]
 === `ROW`
 
+The `ROW` source command produces a row with one or more columns with values
+that you specify. This can be useful for testing.
+
 **Syntax**
 
 [source,esql]
@@ -13,15 +16,11 @@ ROW column1 = value1[, ..., columnN = valueN]
 
 `columnX`::
 The column name.
+In case of duplicate column names, only the rightmost duplicate creates a column.
 
 `valueX`::
 The value for the column. Can be a literal, an expression, or a
 <<esql-functions,function>>.
-
-*Description*
-
-The `ROW` source command produces a row with one or more columns with values
-that you specify. This can be useful for testing.
 
 *Examples*
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
@@ -32,10 +33,28 @@ public class OrderedShardsIterator implements Iterator<ShardRouting> {
 
     private final ArrayDeque<NodeAndShardIterator> queue;
 
+    /**
+     * This iterator will progress through the shards node by node, each node's shards ordered from most write active to least.
+     *
+     * @param allocation
+     * @param ordering
+     * @return An iterator over all shards in the {@link RoutingNodes} held by {@code allocation} (all shards assigned to a node). The
+     * iterator will progress node by node, where each node's shards are ordered from data stream write indices, to regular indices and
+     * lastly to data stream read indices.
+     */
     public static OrderedShardsIterator createForNecessaryMoves(RoutingAllocation allocation, NodeAllocationOrdering ordering) {
         return create(allocation.routingNodes(), createShardsComparator(allocation.metadata()), ordering);
     }
 
+    /**
+     * This iterator will progress through the shards node by node, each node's shards ordered from least write active to most.
+     *
+     * @param allocation
+     * @param ordering
+     * @return An iterator over all shards in the {@link RoutingNodes} held by {@code allocation} (all shards assigned to a node). The
+     * iterator will progress node by node, where each node's shards are ordered from data stream read indices, to regular indices and
+     * lastly to data stream write indices.
+     */
     public static OrderedShardsIterator createForBalancing(RoutingAllocation allocation, NodeAllocationOrdering ordering) {
         return create(allocation.routingNodes(), createShardsComparator(allocation.metadata()).reversed(), ordering);
     }
@@ -60,6 +79,9 @@ public class OrderedShardsIterator implements Iterator<ShardRouting> {
         return Iterators.forArray(shards);
     }
 
+    /**
+     * Prioritizes write indices of data streams, and deprioritizes data stream read indices, relative to regular indices.
+     */
     private static Comparator<ShardRouting> createShardsComparator(Metadata metadata) {
         return Comparator.comparing(shard -> {
             var lookup = metadata.getIndicesLookup().get(shard.getIndexName());

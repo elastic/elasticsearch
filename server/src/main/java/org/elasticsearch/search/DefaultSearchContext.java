@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
@@ -20,7 +21,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -70,10 +70,13 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
+import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rescore.RescoreContext;
+import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
+import org.elasticsearch.tasks.CancellableTask;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -102,6 +105,7 @@ final class DefaultSearchContext extends SearchContext {
     private final ContextIndexSearcher searcher;
     private DfsSearchResult dfsResult;
     private QuerySearchResult queryResult;
+    private RankFeatureResult rankFeatureResult;
     private FetchSearchResult fetchResult;
     private final float queryBoost;
     private final boolean lowLevelCancellation;
@@ -127,7 +131,7 @@ final class DefaultSearchContext extends SearchContext {
     private CollapseContext collapse;
     // filter for sliced scroll
     private SliceBuilder sliceBuilder;
-    private SearchShardTask task;
+    private CancellableTask task;
     private QueryPhaseRankShardContext queryPhaseRankShardContext;
 
     /**
@@ -184,7 +188,7 @@ final class DefaultSearchContext extends SearchContext {
                 enableQueryPhaseParallelCollection,
                 field -> getFieldCardinality(field, readerContext.indexService(), engineSearcher.getDirectoryReader())
             );
-            if (executor == null) {
+            if (executor == null || maximumNumberOfSlices <= 1) {
                 this.searcher = new ContextIndexSearcher(
                     engineSearcher.getIndexReader(),
                     engineSearcher.getSimilarity(),
@@ -288,6 +292,7 @@ final class DefaultSearchContext extends SearchContext {
         ToLongFunction<String> fieldCardinality
     ) {
         return executor instanceof ThreadPoolExecutor tpe
+            && tpe.getQueue().size() <= tpe.getMaximumPoolSize()
             && isParallelCollectionSupportedForResults(resultsType, request.source(), fieldCardinality, enableQueryPhaseParallelCollection)
                 ? tpe.getMaximumPoolSize()
                 : 1;
@@ -306,6 +311,17 @@ final class DefaultSearchContext extends SearchContext {
             return source == null || source.supportsParallelCollection(fieldCardinality);
         }
         return false;
+    }
+
+    @Override
+    public void addRankFeatureResult() {
+        this.rankFeatureResult = new RankFeatureResult(this.readerContext.id(), this.shardTarget, this.request);
+        addReleasable(rankFeatureResult::decRef);
+    }
+
+    @Override
+    public RankFeatureResult rankFeatureResult() {
+        return rankFeatureResult;
     }
 
     @Override
@@ -362,7 +378,7 @@ final class DefaultSearchContext extends SearchContext {
             );
         }
         if (rescore != null) {
-            if (sort != null) {
+            if (RescorePhase.validateSort(sort) == false) {
                 throw new IllegalArgumentException("Cannot use [sort] option in conjunction with [rescore].");
             }
             int maxWindow = indexService.getIndexSettings().getMaxRescoreWindow();
@@ -417,7 +433,7 @@ final class DefaultSearchContext extends SearchContext {
         this.query = buildFilteredQuery(query);
         if (lowLevelCancellation) {
             searcher().addQueryCancellation(() -> {
-                final SearchShardTask task = getTask();
+                final CancellableTask task = getTask();
                 if (task != null) {
                     task.ensureNotCancelled();
                 }
@@ -429,10 +445,9 @@ final class DefaultSearchContext extends SearchContext {
     public Query buildFilteredQuery(Query query) {
         List<Query> filters = new ArrayList<>();
         NestedLookup nestedLookup = searchExecutionContext.nestedLookup();
-        NestedHelper nestedHelper = new NestedHelper(nestedLookup, searchExecutionContext::isFieldMapped);
         if (nestedLookup != NestedLookup.EMPTY
-            && nestedHelper.mightMatchNestedDocs(query)
-            && (aliasFilter == null || nestedHelper.mightMatchNestedDocs(aliasFilter))) {
+            && NestedHelper.mightMatchNestedDocs(query, searchExecutionContext)
+            && (aliasFilter == null || NestedHelper.mightMatchNestedDocs(aliasFilter, searchExecutionContext))) {
             filters.add(Queries.newNonNestedFilter(searchExecutionContext.indexVersionCreated()));
         }
 
@@ -892,12 +907,12 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public void setTask(SearchShardTask task) {
+    public void setTask(CancellableTask task) {
         this.task = task;
     }
 
     @Override
-    public SearchShardTask getTask() {
+    public CancellableTask getTask() {
         return task;
     }
 
@@ -930,8 +945,8 @@ final class DefaultSearchContext extends SearchContext {
                         // to the routing path.
                         Set<String> matchingRoutingPaths = new TreeSet<>(routingPaths);
                         for (Mapper mapper : indexService.mapperService().mappingLookup().fieldMappers()) {
-                            if (mapper instanceof KeywordFieldMapper && indexRouting.matchesField(mapper.name())) {
-                                matchingRoutingPaths.add(mapper.name());
+                            if (mapper instanceof KeywordFieldMapper && indexRouting.matchesField(mapper.fullPath())) {
+                                matchingRoutingPaths.add(mapper.fullPath());
                             }
                         }
                         routingPaths = new ArrayList<>(matchingRoutingPaths);

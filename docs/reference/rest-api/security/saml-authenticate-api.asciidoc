@@ -5,6 +5,12 @@
 <titleabbrev>SAML authenticate</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Submits a SAML `Response` message to {es} for consumption.
 
 NOTE: This API is intended for use by custom web applications other than {kib}.

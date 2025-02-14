@@ -5,6 +5,12 @@
 <titleabbrev>Enable users</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Enables users in the native realm. 
 
 

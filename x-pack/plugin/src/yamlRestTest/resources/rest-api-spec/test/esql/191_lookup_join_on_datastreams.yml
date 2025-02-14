@@ -1,0 +1,68 @@
+---
+setup:
+  - requires:
+      test_runner_features: [capabilities, contains]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lookup_join_no_aliases]
+      reason: "uses LOOKUP JOIN"
+
+  - do:
+      cluster.put_component_template:
+        name: my_settings
+        body:
+          template:
+            settings:
+              index:
+                mode: lookup
+
+
+  - do:
+      cluster.put_component_template:
+        name: my_mappings
+        body:
+          template:
+            mappings:
+              properties:
+                "@timestamp":
+                   type: date
+                x:
+                  type: keyword
+
+  - do:
+      indices.put_index_template:
+        name: my_index_template
+        body:
+          index_patterns: my_data_stream*
+          data_stream: {}
+          composed_of: [ "my_mappings", "my_settings" ]
+          priority: 500
+
+
+  - do:
+      bulk:
+        index: "my_data_stream"
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "x": "foo", "y": "y1" }
+          - { "index": { } }
+          - { "x": "bar", "y": "y2" }
+
+
+
+---
+"data streams not supported in LOOKUP JOIN":
+  - do:
+      esql.query:
+        body:
+          query: 'row x = "foo" | LOOKUP JOIN my_data_stream ON x'
+      catch: "bad_request"
+
+  - match: { error.type: "verification_exception" }
+  - contains: { error.reason: "Found 1 problem\nline 1:17: Aliases and index patterns are not allowed for LOOKUP JOIN [my_data_stream]" }
+
+
+

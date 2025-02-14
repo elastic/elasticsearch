@@ -17,7 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.application.search.SearchApplicationTestUtils;
+import org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -51,7 +51,7 @@ public class QueryRuleCriteriaTests extends ESTestCase {
 
     public final void testRandomSerialization() throws IOException {
         for (int runs = 0; runs < 10; runs++) {
-            QueryRuleCriteria testInstance = SearchApplicationTestUtils.randomQueryRuleCriteria();
+            QueryRuleCriteria testInstance = EnterpriseSearchModuleTestUtils.randomQueryRuleCriteria();
             assertTransportSerialization(testInstance);
             assertXContent(testInstance, randomBoolean());
         }

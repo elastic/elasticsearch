@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -17,11 +18,16 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -40,45 +46,18 @@ final class TransportHandshaker {
      * ignores the body of the request. After the handshake, the OutboundHandler uses the min(local,remote) protocol version for all later
      * messages.
      *
-     * This version supports two handshake protocols, v6080099 and v7170099, which respectively have the same message structure as the
-     * transport protocols of v6.8.0 and v7.17.0. This node only sends v7170099 requests, but it can send a valid response to any v6080099
+     * This version supports two handshake protocols, v7170099 and v8800000, which respectively have the same message structure as the
+     * transport protocols of v7.17.0, and v8.18.0. This node only sends v8800000 requests, but it can send a valid response to any v7170099
      * requests that it receives.
      *
-     * Here are some example messages, broken down to show their structure:
+     * Note that these are not really TransportVersion constants as used elsewhere in ES, they're independent things that just happen to be
+     * stored in the same location in the message header and which roughly match the same ID numbering scheme. Older versions of ES did rely
+     * on them matching the real transport protocol (which itself matched the release version numbers), but these days that's no longer
+     * true.
      *
-     * ## v6080099 Request:
+     * Here are some example messages, broken down to show their structure. See TransportHandshakerRawMessageTests for supporting tests.
      *
-     * 45 53                            -- 'ES' marker
-     * 00 00 00 34                      -- total message length
-     *    00 00 00 00 00 00 00 01       -- request ID
-     *    08                            -- status flags (0b1000 == handshake request)
-     *    00 5c c6 63                   -- handshake protocol version (0x5cc663 == 6080099)
-     *    00                            -- no request headers [1]
-     *    00                            -- no response headers [1]
-     *    01                            -- one feature [2]
-     *       06                         -- feature name length
-     *          78 2d 70 61 63 6b       -- feature name 'x-pack'
-     *    16                            -- action string size
-     *       69 6e 74 65 72 6e 61 6c    }
-     *       3a 74 63 70 2f 68 61 6e    }- ASCII representation of HANDSHAKE_ACTION_NAME
-     *       64 73 68 61 6b 65          }
-     *    00                            -- no parent task ID [3]
-     *    04                            -- payload length
-     *       8b d5 b5 03                -- max acceptable protocol version (vInt: 00000011 10110101 11010101 10001011 == 7170699)
-     *
-     * ## v6080099 Response:
-     *
-     * 45 53                            -- 'ES' marker
-     * 00 00 00 13                      -- total message length
-     *    00 00 00 00 00 00 00 01       -- request ID (copied from request)
-     *    09                            -- status flags (0b1001 == handshake response)
-     *    00 5c c6 63                   -- handshake protocol version (0x5cc663 == 6080099, copied from request)
-     *    00                            -- no request headers [1]
-     *    00                            -- no response headers [1]
-     *    c3 f9 eb 03                   -- max acceptable protocol version (vInt: 00000011 11101011 11111001 11000011 == 8060099)
-     *
-     *
-     * ## v7170099 Request:
+     * ## v7170099 Requests:
      *
      * 45 53                            -- 'ES' marker
      * 00 00 00 31                      -- total message length
@@ -97,7 +76,7 @@ final class TransportHandshaker {
      *    04                            -- payload length
      *       c3 f9 eb 03                -- max acceptable protocol version (vInt: 00000011 11101011 11111001 11000011 == 8060099)
      *
-     * ## v7170099 Response:
+     * ## v7170099 Responses:
      *
      * 45 53                            -- 'ES' marker
      * 00 00 00 17                      -- total message length
@@ -109,15 +88,51 @@ final class TransportHandshaker {
      *       00                         -- no response headers [1]
      *    c3 f9 eb 03                   -- max acceptable protocol version (vInt: 00000011 11101011 11111001 11000011 == 8060099)
      *
+     * ## v8800000 Requests:
+     *
+     * 45 53                            -- 'ES' marker
+     * 00 00 00 36                      -- total message length
+     *    00 00 00 00 00 00 00 01       -- request ID
+     *    08                            -- status flags (0b1000 == handshake request)
+     *    00 86 47 00                   -- handshake protocol version (0x6d6833 == 7170099)
+     *    00 00 00 19                   -- length of variable portion of header
+     *       00                         -- no request headers [1]
+     *       00                         -- no response headers [1]
+     *       16                         -- action string size
+     *       69 6e 74 65 72 6e 61 6c    }
+     *       3a 74 63 70 2f 68 61 6e    }- ASCII representation of HANDSHAKE_ACTION_NAME
+     *       64 73 68 61 6b 65          }
+     *    00                            -- no parent task ID [3]
+     *    0a                            -- payload length
+     *       e8 8f 9b 04                -- requesting node transport version (vInt: 00000100 10011011 10001111 11101000 == 8833000)
+     *       05                         -- requesting node release version string length
+     *          39 2e 30 2e 30          -- requesting node release version string "9.0.0"
+     *
+     * ## v8800000 Responses:
+     *
+     * 45 53                            -- 'ES' marker
+     * 00 00 00 1d                      -- total message length
+     *    00 00 00 00 00 00 00 01       -- request ID (copied from request)
+     *    09                            -- status flags (0b1001 == handshake response)
+     *    00 86 47 00                   -- handshake protocol version (0x864700 == 8800000, copied from request)
+     *    00 00 00 02                   -- length of following variable portion of header
+     *       00                         -- no request headers [1]
+     *       00                         -- no response headers [1]
+     *    e8 8f 9b 04                   -- responding node transport version (vInt: 00000100 10011011 10001111 11101000 == 8833000)
+     *    05                            -- responding node release version string length
+     *       39 2e 30 2e 30             -- responding node release version string "9.0.0"
+     *
      * [1] Thread context headers should be empty; see org.elasticsearch.common.util.concurrent.ThreadContext.ThreadContextStruct.writeTo
      *     for their structure.
      * [2] A list of strings, which can safely be ignored
      * [3] Parent task ID should be empty; see org.elasticsearch.tasks.TaskId.writeTo for its structure.
      */
 
-    static final TransportVersion EARLIEST_HANDSHAKE_VERSION = TransportVersion.fromId(6080099);
-    static final TransportVersion REQUEST_HANDSHAKE_VERSION = TransportVersions.MINIMUM_COMPATIBLE;
-    static final Set<TransportVersion> ALLOWED_HANDSHAKE_VERSIONS = Set.of(EARLIEST_HANDSHAKE_VERSION, REQUEST_HANDSHAKE_VERSION);
+    private static final Logger logger = LogManager.getLogger(TransportHandshaker.class);
+
+    static final TransportVersion V8_HANDSHAKE_VERSION = TransportVersion.fromId(7_17_00_99);
+    static final TransportVersion V9_HANDSHAKE_VERSION = TransportVersion.fromId(8_800_00_0);
+    static final Set<TransportVersion> ALLOWED_HANDSHAKE_VERSIONS = Set.of(V8_HANDSHAKE_VERSION, V9_HANDSHAKE_VERSION);
 
     static final String HANDSHAKE_ACTION_NAME = "internal:tcp/handshake";
     private final ConcurrentMap<Long, HandshakeResponseHandler> pendingHandshakes = new ConcurrentHashMap<>();
@@ -148,14 +163,14 @@ final class TransportHandshaker {
         ActionListener<TransportVersion> listener
     ) {
         numHandshakes.inc();
-        final HandshakeResponseHandler handler = new HandshakeResponseHandler(requestId, listener);
+        final HandshakeResponseHandler handler = new HandshakeResponseHandler(requestId, channel, listener);
         pendingHandshakes.put(requestId, handler);
         channel.addCloseListener(
             ActionListener.running(() -> handler.handleLocalException(new TransportException("handshake failed because connection reset")))
         );
         boolean success = false;
         try {
-            handshakeRequestSender.sendRequest(node, channel, requestId, REQUEST_HANDSHAKE_VERSION);
+            handshakeRequestSender.sendRequest(node, channel, requestId, V9_HANDSHAKE_VERSION);
 
             threadPool.schedule(
                 () -> handler.handleLocalException(new ConnectTransportException(node, "handshake_timeout[" + timeout + "]")),
@@ -174,9 +189,9 @@ final class TransportHandshaker {
     }
 
     void handleHandshake(TransportChannel channel, long requestId, StreamInput stream) throws IOException {
+        final HandshakeRequest handshakeRequest;
         try {
-            // Must read the handshake request to exhaust the stream
-            new HandshakeRequest(stream);
+            handshakeRequest = new HandshakeRequest(stream);
         } catch (Exception e) {
             assert ignoreDeserializationErrors : e;
             throw e;
@@ -195,7 +210,42 @@ final class TransportHandshaker {
             assert ignoreDeserializationErrors : exception;
             throw exception;
         }
-        channel.sendResponse(new HandshakeResponse(this.version));
+        ensureCompatibleVersion(version, handshakeRequest.transportVersion, handshakeRequest.releaseVersion, channel);
+        channel.sendResponse(new HandshakeResponse(this.version, Build.current().version()));
+    }
+
+    static void ensureCompatibleVersion(
+        TransportVersion localTransportVersion,
+        TransportVersion remoteTransportVersion,
+        String releaseVersion,
+        Object channel
+    ) {
+        if (TransportVersion.isCompatible(remoteTransportVersion)) {
+            if (remoteTransportVersion.onOrAfter(localTransportVersion)) {
+                // Remote is newer than us, so we will be using our transport protocol and it's up to the other end to decide whether it
+                // knows how to do that.
+                return;
+            }
+            if (remoteTransportVersion.isKnown()) {
+                // Remote is older than us, so we will be using its transport protocol, which we can only do if and only if its protocol
+                // version is known to us.
+                return;
+            }
+        }
+
+        final var message = Strings.format(
+            """
+                Rejecting unreadable transport handshake from remote node with version [%s/%s] received on [%s] since this node has \
+                version [%s/%s] which has an incompatible wire format.""",
+            releaseVersion,
+            remoteTransportVersion,
+            channel,
+            Build.current().version(),
+            localTransportVersion
+        );
+        logger.warn(message);
+        throw new IllegalStateException(message);
+
     }
 
     TransportResponseHandler<HandshakeResponse> removeHandlerForHandshake(long requestId) {
@@ -213,11 +263,13 @@ final class TransportHandshaker {
     private class HandshakeResponseHandler implements TransportResponseHandler<HandshakeResponse> {
 
         private final long requestId;
+        private final TcpChannel channel;
         private final ActionListener<TransportVersion> listener;
         private final AtomicBoolean isDone = new AtomicBoolean(false);
 
-        private HandshakeResponseHandler(long requestId, ActionListener<TransportVersion> listener) {
+        private HandshakeResponseHandler(long requestId, TcpChannel channel, ActionListener<TransportVersion> listener) {
             this.requestId = requestId;
+            this.channel = channel;
             this.listener = listener;
         }
 
@@ -234,20 +286,13 @@ final class TransportHandshaker {
         @Override
         public void handleResponse(HandshakeResponse response) {
             if (isDone.compareAndSet(false, true)) {
-                TransportVersion responseVersion = response.responseVersion;
-                if (TransportVersion.isCompatible(responseVersion) == false) {
-                    listener.onFailure(
-                        new IllegalStateException(
-                            "Received message from unsupported version: ["
-                                + responseVersion
-                                + "] minimal compatible version is: ["
-                                + TransportVersions.MINIMUM_COMPATIBLE
-                                + "]"
-                        )
-                    );
-                } else {
-                    listener.onResponse(responseVersion);
-                }
+                ActionListener.completeWith(listener, () -> {
+                    ensureCompatibleVersion(version, response.getTransportVersion(), response.getReleaseVersion(), channel);
+                    final var resultVersion = TransportVersion.min(TransportHandshaker.this.version, response.getTransportVersion());
+                    assert TransportVersion.current().before(version) // simulating a newer-version transport service for test purposes
+                        || resultVersion.isKnown() : "negotiated unknown version " + resultVersion;
+                    return resultVersion;
+                });
             }
         }
 
@@ -267,12 +312,23 @@ final class TransportHandshaker {
 
     static final class HandshakeRequest extends TransportRequest {
 
-        private final TransportVersion version;
+        /**
+         * The {@link TransportVersion#current()} of the requesting node.
+         */
+        final TransportVersion transportVersion;
 
-        HandshakeRequest(TransportVersion version) {
-            this.version = version;
+        /**
+         * The {@link Build#version()} of the requesting node, as a {@link String}, for better reporting of handshake failures due to
+         * an incompatible version.
+         */
+        final String releaseVersion;
+
+        HandshakeRequest(TransportVersion transportVersion, String releaseVersion) {
+            this.transportVersion = Objects.requireNonNull(transportVersion);
+            this.releaseVersion = Objects.requireNonNull(releaseVersion);
         }
 
+        @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // remainingMessage == null is invalid in v9
         HandshakeRequest(StreamInput streamInput) throws IOException {
             super(streamInput);
             BytesReference remainingMessage;
@@ -282,10 +338,16 @@ final class TransportHandshaker {
                 remainingMessage = null;
             }
             if (remainingMessage == null) {
-                version = null;
+                transportVersion = null;
+                releaseVersion = null;
             } else {
                 try (StreamInput messageStreamInput = remainingMessage.streamInput()) {
-                    this.version = TransportVersion.readVersion(messageStreamInput);
+                    this.transportVersion = TransportVersion.readVersion(messageStreamInput);
+                    if (streamInput.getTransportVersion().onOrAfter(V9_HANDSHAKE_VERSION)) {
+                        this.releaseVersion = messageStreamInput.readString();
+                    } else {
+                        this.releaseVersion = this.transportVersion.toReleaseVersion();
+                    }
                 }
             }
         }
@@ -293,42 +355,84 @@ final class TransportHandshaker {
         @Override
         public void writeTo(StreamOutput streamOutput) throws IOException {
             super.writeTo(streamOutput);
-            assert version != null;
-            try (BytesStreamOutput messageStreamOutput = new BytesStreamOutput(4)) {
-                TransportVersion.writeVersion(version, messageStreamOutput);
+            assert transportVersion != null;
+            try (BytesStreamOutput messageStreamOutput = new BytesStreamOutput(1024)) {
+                TransportVersion.writeVersion(transportVersion, messageStreamOutput);
+                if (streamOutput.getTransportVersion().onOrAfter(V9_HANDSHAKE_VERSION)) {
+                    messageStreamOutput.writeString(releaseVersion);
+                } // else we just send the transport version and rely on a best-effort mapping to release versions
                 BytesReference reference = messageStreamOutput.bytes();
                 streamOutput.writeBytesReference(reference);
             }
         }
     }
 
+    /**
+     * A response to a low-level transport handshake, carrying information about the version of the responding node.
+     */
     static final class HandshakeResponse extends TransportResponse {
 
-        private final TransportVersion responseVersion;
+        /**
+         * The {@link TransportVersion#current()} of the responding node.
+         */
+        private final TransportVersion transportVersion;
 
-        HandshakeResponse(TransportVersion responseVersion) {
-            this.responseVersion = responseVersion;
+        /**
+         * The {@link Build#version()} of the responding node, as a {@link String}, for better reporting of handshake failures due to
+         * an incompatible version.
+         */
+        private final String releaseVersion;
+
+        HandshakeResponse(TransportVersion transportVersion, String releaseVersion) {
+            this.transportVersion = Objects.requireNonNull(transportVersion);
+            this.releaseVersion = Objects.requireNonNull(releaseVersion);
         }
 
-        private HandshakeResponse(StreamInput in) throws IOException {
+        HandshakeResponse(StreamInput in) throws IOException {
             super(in);
-            responseVersion = TransportVersion.readVersion(in);
+            transportVersion = TransportVersion.readVersion(in);
+            if (in.getTransportVersion().onOrAfter(V9_HANDSHAKE_VERSION)) {
+                releaseVersion = in.readString();
+            } else {
+                releaseVersion = transportVersion.toReleaseVersion();
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            assert responseVersion != null;
-            TransportVersion.writeVersion(responseVersion, out);
+            TransportVersion.writeVersion(transportVersion, out);
+            if (out.getTransportVersion().onOrAfter(V9_HANDSHAKE_VERSION)) {
+                out.writeString(releaseVersion);
+            } // else we just send the transport version and rely on a best-effort mapping to release versions
         }
 
-        TransportVersion getResponseVersion() {
-            return responseVersion;
+        /**
+         * @return the {@link TransportVersion#current()} of the responding node.
+         */
+        TransportVersion getTransportVersion() {
+            return transportVersion;
+        }
+
+        /**
+         * @return the {@link Build#version()} of the responding node, as a {@link String}, for better reporting of handshake failures due
+         * to an incompatible version.
+         */
+        String getReleaseVersion() {
+            return releaseVersion;
         }
     }
 
     @FunctionalInterface
     interface HandshakeRequestSender {
-
-        void sendRequest(DiscoveryNode node, TcpChannel channel, long requestId, TransportVersion version) throws IOException;
+        /**
+         * @param node                      The (expected) remote node, for error reporting and passing to
+         *                                  {@link TransportMessageListener#onRequestSent}.
+         * @param channel                   The TCP channel to use to send the handshake request.
+         * @param requestId                 The transport request ID, for matching up the response.
+         * @param handshakeTransportVersion The {@link TransportVersion} to use for the handshake request, which will be
+         *                                  {@link TransportHandshaker#V8_HANDSHAKE_VERSION} in production.
+         */
+        void sendRequest(DiscoveryNode node, TcpChannel channel, long requestId, TransportVersion handshakeTransportVersion)
+            throws IOException;
     }
 }

@@ -51,15 +51,20 @@ public class QueryFeatureExtractor implements FeatureExtractor {
             }
             Scorer scorer = weight.scorer(segmentContext);
             if (scorer != null) {
-                disiPriorityQueue.add(new DisiWrapper(scorer));
+                disiPriorityQueue.add(new DisiWrapper(scorer, false));
             }
             scorers.add(scorer);
         }
-        rankerIterator = new DisjunctionDISIApproximation(disiPriorityQueue);
+
+        rankerIterator = disiPriorityQueue.size() > 0 ? new DisjunctionDISIApproximation(disiPriorityQueue) : null;
     }
 
     @Override
     public void addFeatures(Map<String, Object> featureMap, int docId) throws IOException {
+        if (rankerIterator == null) {
+            return;
+        }
+
         rankerIterator.advance(docId);
         for (int i = 0; i < featureNames.size(); i++) {
             Scorer scorer = scorers.get(i);

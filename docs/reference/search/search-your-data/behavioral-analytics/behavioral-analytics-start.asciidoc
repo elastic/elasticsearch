@@ -182,7 +182,7 @@ createTracker({
 [[behavioral-analytics-start-ui-integration-search-ui]]
 ==== Search UI integration
 
-https://docs.elastic.co/search-ui/getting-started[Search UI^] is a JavaScript library for building search experiences.
+https://docs.elastic.co/search-ui[Search UI^] is a JavaScript library for building search experiences.
 Use the https://www.npmjs.com/package/@elastic/search-ui-analytics-plugin[Search UI analytics plugin^] available on NPM to integrate behavioral analytics with Search UI.
 
 This integration enables you to dispatch events from Search UI to the behavioral analytics client.

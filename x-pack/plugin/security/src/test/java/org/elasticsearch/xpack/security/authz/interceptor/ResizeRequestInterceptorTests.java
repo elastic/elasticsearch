@@ -49,8 +49,22 @@ import static org.mockito.Mockito.when;
 
 public class ResizeRequestInterceptorTests extends ESTestCase {
 
-    @SuppressWarnings("unchecked")
     public void testResizeRequestInterceptorThrowsWhenFLSDLSEnabled() {
+        checkResizeWithDlsFlsConfigured(
+            true,
+            "Resize requests are not allowed for users when field or document level security is enabled on the source index"
+        );
+    }
+
+    public void testResizeRequestInterceptorWorksAsNormalWhenFLSDLSDisabled() {
+        checkResizeWithDlsFlsConfigured(
+            false,
+            "Resizing an index is not allowed when the target index has more permissions than the source index"
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void checkResizeWithDlsFlsConfigured(boolean dlsFlsFeatureEnabled, String expectedErrorMessage) {
         MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
@@ -89,7 +103,12 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
         );
         new SecurityContext(Settings.EMPTY, threadContext).putIndicesAccessControl(accessControl);
 
-        ResizeRequestInterceptor resizeRequestInterceptor = new ResizeRequestInterceptor(threadPool, licenseState, auditTrailService);
+        ResizeRequestInterceptor resizeRequestInterceptor = new ResizeRequestInterceptor(
+            threadPool,
+            licenseState,
+            auditTrailService,
+            dlsFlsFeatureEnabled
+        );
 
         PlainActionFuture<Void> plainActionFuture = new PlainActionFuture<>();
         RequestInfo requestInfo = new RequestInfo(authentication, new ResizeRequest("bar", "foo"), ResizeAction.NAME, null);
@@ -104,10 +123,7 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
             resizeRequestInterceptor.intercept(requestInfo, mockEngine, EmptyAuthorizationInfo.INSTANCE, plainActionFuture);
             plainActionFuture.actionGet();
         });
-        assertEquals(
-            "Resize requests are not allowed for users when field or document level security is enabled on the source index",
-            securityException.getMessage()
-        );
+        assertEquals(expectedErrorMessage, securityException.getMessage());
     }
 
     @SuppressWarnings("unchecked")
@@ -126,7 +142,7 @@ public class ResizeRequestInterceptorTests extends ESTestCase {
             .build();
         IndicesAccessControl accessControl = new IndicesAccessControl(true, Collections.emptyMap());
         new SecurityContext(Settings.EMPTY, threadContext).putIndicesAccessControl(accessControl);
-        ResizeRequestInterceptor resizeRequestInterceptor = new ResizeRequestInterceptor(threadPool, licenseState, auditTrailService);
+        ResizeRequestInterceptor resizeRequestInterceptor = new ResizeRequestInterceptor(threadPool, licenseState, auditTrailService, true);
 
         AuthorizationEngine mockEngine = mock(AuthorizationEngine.class);
         {

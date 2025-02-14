@@ -5,6 +5,12 @@
 <titleabbrev>SQL search</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-sql[SQL APIs].
+--
+
 Returns results for an <<sql-rest-overview,SQL search>>.
 
 [source,console]

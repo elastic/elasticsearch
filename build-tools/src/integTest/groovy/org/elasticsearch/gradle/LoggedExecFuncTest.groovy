@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle
@@ -20,7 +21,7 @@ class LoggedExecFuncTest extends AbstractGradleFuncTest {
 
     def setup() {
         buildFile << """
-        // we need apply any custom plugin 
+        // we need apply any custom plugin
         // to add build-logic to the build classpath
         plugins {
             id 'elasticsearch.distribution-download'
@@ -54,7 +55,7 @@ class LoggedExecFuncTest extends AbstractGradleFuncTest {
         import org.elasticsearch.gradle.LoggedExec
         tasks.register('loggedExec', LoggedExec) {
           commandLine 'ls', 'wtf'
-          getSpoolOutput().set($spooling)        
+          getSpoolOutput().set($spooling)
         }
         """
         when:
@@ -81,7 +82,7 @@ class LoggedExecFuncTest extends AbstractGradleFuncTest {
             println 'OUTPUT ' + output
           }
         }
-       
+
         """
         when:
         def result = gradleRunner("loggedExec").build()
@@ -106,7 +107,7 @@ class LoggedExecFuncTest extends AbstractGradleFuncTest {
         result.task(':loggedExec').outcome == TaskOutcome.FAILED
         assertOutputContains(result.output, '''\
             FAILURE: Build failed with an exception.
-            
+
             * What went wrong:
             Execution failed for task ':loggedExec'.
             > Capturing output is not supported when spoolOutput is true.'''.stripIndent())
@@ -138,13 +139,13 @@ class LoggedExecFuncTest extends AbstractGradleFuncTest {
     def "can provide standard input"() {
         setup:
         file('script.sh') << """
-#!/bin/bash  
-  
-# Read the user input   
-  
-echo "Enter the user input: "  
-read userInput  
-echo "The user input is \$userInput"  
+#!/bin/bash
+
+# Read the user input
+
+echo "Enter the user input: "
+read userInput
+echo "The user input is \$userInput"
 """
         buildFile << """
         import org.elasticsearch.gradle.LoggedExec

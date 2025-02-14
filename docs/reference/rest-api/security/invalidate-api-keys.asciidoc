@@ -5,6 +5,12 @@
 <titleabbrev>Invalidate API key</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Invalidates one or more API keys.
 
 [[security-api-invalidate-api-key-request]]

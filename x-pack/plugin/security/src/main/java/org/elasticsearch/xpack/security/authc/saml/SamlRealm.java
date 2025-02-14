@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.PrivilegedFileWatcher;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
@@ -774,7 +775,11 @@ public final class SamlRealm extends Realm implements Releasable {
         @Override
         protected byte[] fetchMetadata() throws ResolverException {
             assert assertNotTransportThread("fetching SAML metadata from a file");
-            return super.fetchMetadata();
+            try {
+                return AccessController.doPrivileged((PrivilegedExceptionAction<byte[]>) () -> super.fetchMetadata());
+            } catch (PrivilegedActionException e) {
+                throw (ResolverException) e.getException();
+            }
         }
     }
 
@@ -787,7 +792,7 @@ public final class SamlRealm extends Realm implements Releasable {
     ) throws ResolverException, ComponentInitializationException, IOException, PrivilegedActionException {
 
         final String entityId = require(config, IDP_ENTITY_ID);
-        final Path path = config.env().configFile().resolve(metadataPath);
+        final Path path = config.env().configDir().resolve(metadataPath);
         final FilesystemMetadataResolver resolver = new SamlFilesystemMetadataResolver(path.toFile());
 
         for (var httpSetting : List.of(IDP_METADATA_HTTP_REFRESH, IDP_METADATA_HTTP_MIN_REFRESH, IDP_METADATA_HTTP_FAIL_ON_ERROR)) {
@@ -806,7 +811,7 @@ public final class SamlRealm extends Realm implements Releasable {
         resolver.setMaxRefreshDelay(oneDayMs);
         initialiseResolver(resolver, config);
 
-        FileWatcher watcher = new FileWatcher(path);
+        FileWatcher watcher = new PrivilegedFileWatcher(path);
         watcher.addListener(new FileListener(logger, resolver::refresh));
         watcherService.add(watcher, ResourceWatcherService.Frequency.MEDIUM);
         return new Tuple<>(resolver, () -> resolveEntityDescriptor(resolver, entityId, path.toString(), true));

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.core;
@@ -86,6 +87,13 @@ public class TimeValue implements Comparable<TimeValue> {
             throw new IllegalArgumentException("time value cannot store values greater than 106751 days");
         }
         return new TimeValue(days, TimeUnit.DAYS);
+    }
+
+    /**
+     * @return the {@link TimeValue} object that has the least duration.
+     */
+    public static TimeValue min(TimeValue time1, TimeValue time2) {
+        return time1.compareTo(time2) < 0 ? time1 : time2;
     }
 
     /**

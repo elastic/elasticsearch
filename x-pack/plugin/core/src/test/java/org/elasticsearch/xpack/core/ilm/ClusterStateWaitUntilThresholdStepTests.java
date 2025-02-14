@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
-import java.util.Collections;
 import java.util.Map;
 import java.util.UUID;
 
@@ -70,8 +69,8 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
             new Index("testName", UUID.randomUUID().toString()),
             ClusterState.EMPTY_STATE
         );
-        assertThat(result.isComplete(), is(false));
-        assertThat(result.getInfomationContext(), nullValue());
+        assertThat(result.complete(), is(false));
+        assertThat(result.informationContext(), nullValue());
     }
 
     public void testIsConditionMetForUnderlyingStep() {
@@ -83,7 +82,7 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
                         .put(LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, "480h")
                 )
                 .putCustom(ILM_CUSTOM_METADATA_KEY, Map.of("step_time", String.valueOf(System.currentTimeMillis())))
-                .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+                .putCustom(CCR_METADATA_KEY, Map.of())
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .build();
@@ -95,8 +94,8 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
             ClusterStateWaitUntilThresholdStep underTest = new ClusterStateWaitUntilThresholdStep(stepToExecute, randomStepKey());
 
             ClusterStateWaitStep.Result result = underTest.isConditionMet(indexMetadata.getIndex(), clusterState);
-            assertThat(result.isComplete(), is(true));
-            assertThat(result.getInfomationContext(), nullValue());
+            assertThat(result.complete(), is(true));
+            assertThat(result.informationContext(), nullValue());
         }
 
         {
@@ -107,7 +106,7 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
                         .put(LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, "48h")
                 )
                 .putCustom(ILM_CUSTOM_METADATA_KEY, Map.of("step_time", String.valueOf(System.currentTimeMillis())))
-                .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+                .putCustom(CCR_METADATA_KEY, Map.of())
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .build();
@@ -120,10 +119,10 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
             ClusterStateWaitUntilThresholdStep underTest = new ClusterStateWaitUntilThresholdStep(stepToExecute, randomStepKey());
             ClusterStateWaitStep.Result result = underTest.isConditionMet(indexMetadata.getIndex(), clusterState);
 
-            assertThat(result.isComplete(), is(false));
-            assertThat(result.getInfomationContext(), notNullValue());
+            assertThat(result.complete(), is(false));
+            assertThat(result.informationContext(), notNullValue());
             WaitForIndexingCompleteStep.IndexingNotCompleteInfo info = (WaitForIndexingCompleteStep.IndexingNotCompleteInfo) result
-                .getInfomationContext();
+                .informationContext();
             assertThat(
                 info.getMessage(),
                 equalTo(
@@ -140,7 +139,7 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
                     settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true")
                         .put(LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, "1s")
                 )
-                .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+                .putCustom(CCR_METADATA_KEY, Map.of())
                 .putCustom(ILM_CUSTOM_METADATA_KEY, Map.of("step_time", String.valueOf(1234L)))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
@@ -154,8 +153,8 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
             ClusterStateWaitUntilThresholdStep underTest = new ClusterStateWaitUntilThresholdStep(stepToExecute, nextKeyOnThresholdBreach);
 
             ClusterStateWaitStep.Result result = underTest.isConditionMet(indexMetadata.getIndex(), clusterState);
-            assertThat(result.isComplete(), is(true));
-            assertThat(result.getInfomationContext(), nullValue());
+            assertThat(result.complete(), is(true));
+            assertThat(result.informationContext(), nullValue());
             assertThat(underTest.getNextStepKey(), is(not(nextKeyOnThresholdBreach)));
             assertThat(underTest.getNextStepKey(), is(stepToExecute.getNextStepKey()));
         }
@@ -168,7 +167,7 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
                     settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "false")
                         .put(LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, "1h")
                 )
-                .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+                .putCustom(CCR_METADATA_KEY, Map.of())
                 .putCustom(ILM_CUSTOM_METADATA_KEY, Map.of("step_time", String.valueOf(1234L)))
                 .numberOfShards(1)
                 .numberOfReplicas(0)
@@ -184,11 +183,11 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
             ClusterStateWaitUntilThresholdStep underTest = new ClusterStateWaitUntilThresholdStep(stepToExecute, nextKeyOnThresholdBreach);
             ClusterStateWaitStep.Result result = underTest.isConditionMet(indexMetadata.getIndex(), clusterState);
 
-            assertThat(result.isComplete(), is(true));
-            assertThat(result.getInfomationContext(), notNullValue());
-            SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.getInfomationContext();
+            assertThat(result.complete(), is(true));
+            assertThat(result.informationContext(), notNullValue());
+            SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.informationContext();
             assertThat(
-                info.getMessage(),
+                info.message(),
                 equalTo(
                     "["
                         + currentStepKey.name()
@@ -267,7 +266,7 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
             new StepKey("phase", "action", "breached")
         );
 
-        assertFalse(step.isConditionMet(indexMetadata.getIndex(), clusterState).isComplete());
+        assertFalse(step.isConditionMet(indexMetadata.getIndex(), clusterState).complete());
 
         assertThat(step.getNextStepKey().name(), equalTo("next-key"));
 
@@ -290,7 +289,7 @@ public class ClusterStateWaitUntilThresholdStepTests extends AbstractStepTestCas
             },
             new StepKey("phase", "action", "breached")
         );
-        assertTrue(step.isConditionMet(indexMetadata.getIndex(), clusterState).isComplete());
+        assertTrue(step.isConditionMet(indexMetadata.getIndex(), clusterState).complete());
         assertThat(step.getNextStepKey().name(), equalTo("breached"));
     }
 }

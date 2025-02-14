@@ -1,0 +1,5 @@
+pr: 103572
+summary: Match and `match_phrase` not rewriting to term query
+area: Search
+type: bug
+issues: []

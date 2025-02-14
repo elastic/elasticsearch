@@ -23,7 +23,8 @@ public enum FeatureFlag {
         "es.index_recovery_use_synthetic_source_feature_flag_enabled=true",
         Version.fromString("8.18.0"),
         null
-    );
+    ),
+    DOC_VALUES_SKIPPER("es.doc_values_skipper_feature_flag_enabled=true", Version.fromString("8.18.1"), null);
 
     public final String systemProperty;
     public final Version from;

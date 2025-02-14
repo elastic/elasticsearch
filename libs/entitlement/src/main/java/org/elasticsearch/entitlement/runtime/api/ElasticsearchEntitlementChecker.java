@@ -61,6 +61,7 @@ import java.nio.file.AccessMode;
 import java.nio.file.CopyOption;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileStore;
+import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
@@ -1383,8 +1384,7 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
         }
         if (followLinks) {
             try {
-                FileSystemProvider provider = that.getFileSystem().provider();
-                policyManager.checkFileRead(callerClass, provider.readSymbolicLink(that));
+                policyManager.checkFileRead(callerClass, Files.readSymbolicLink(that));
             } catch (IOException | UnsupportedOperationException e) {
                 // that is not a link, or unrelated IOException or unsupported
             }

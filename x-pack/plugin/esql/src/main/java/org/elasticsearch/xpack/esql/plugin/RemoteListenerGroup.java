@@ -74,7 +74,7 @@ class RemoteListenerGroup {
     private <T> ActionListener<T> createCancellingListener(String reason, ActionListener<T> delegate, Runnable finishGroup) {
         return ActionListener.runAfter(delegate.delegateResponse((inner, e) -> {
             taskManager.cancelTaskAndDescendants(groupTask, reason, true, ActionListener.running(() -> {
-                EsqlCCSUtils.skipUnavailableListener(delegate, executionInfo, clusterAlias, EsqlExecutionInfo.Cluster.Status.PARTIAL)
+                EsqlCCSUtils.skipUnavailableListener(inner, executionInfo, clusterAlias, EsqlExecutionInfo.Cluster.Status.PARTIAL)
                     .onFailure(e);
             }));
         }), finishGroup);

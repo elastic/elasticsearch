@@ -1214,12 +1214,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         } else {
             StringBuilder sb = new StringBuilder(5);
             sb.append(processor.getType());
-
             if (pipelineName != null) {
                 sb.append(":");
                 sb.append(pipelineName);
             }
-
             if (tag != null) {
                 sb.append(":");
                 sb.append(tag);

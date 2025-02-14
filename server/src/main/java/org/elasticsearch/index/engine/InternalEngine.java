@@ -2850,7 +2850,7 @@ public class InternalEngine extends Engine {
         @Override
         protected long estimateMergeMemory(MergePolicy.OneMerge merge) {
             try (Searcher searcher = acquireSearcher("merge_memory_estimation", SearcherScope.INTERNAL)) {
-                return SegmentMergeMemoryEstimator.estimateMergeMemory(merge, searcher.getIndexReader());
+                return MergeMemoryEstimator.estimateMergeMemory(merge, searcher.getIndexReader());
             } catch (AlreadyClosedException e) {
                 failOnTragicEvent(e);
                 return 0L;

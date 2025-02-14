@@ -23,8 +23,17 @@ import org.elasticsearch.common.lucene.Lucene;
 
 import java.util.List;
 
-public class SegmentMergeMemoryEstimator {
+/**
+ * Provides an estimation of the memory needed to merge segments.
+ *
+ * This class is a temporary solution until we have a better way to estimate the memory needed for merges in Lucene.
+ * We can work iteratively in providing estimations for different types of fields and vector encodings.
+ */
+public class MergeMemoryEstimator {
 
+    /**
+     * Estimates the memory, in bytes, needed to merge the segments of the given merge.
+     */
     public static long estimateMergeMemory(MergePolicy.OneMerge merge, IndexReader indexReader) {
         long memoryNeeded = 0;
         for (SegmentCommitInfo mergedSegment : merge.segments) {

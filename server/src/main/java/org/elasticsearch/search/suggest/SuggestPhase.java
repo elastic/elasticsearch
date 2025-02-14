@@ -56,5 +56,4 @@ public class SuggestPhase {
             throw new ElasticsearchException("I/O exception during suggest phase", e);
         }
     }
-
 }

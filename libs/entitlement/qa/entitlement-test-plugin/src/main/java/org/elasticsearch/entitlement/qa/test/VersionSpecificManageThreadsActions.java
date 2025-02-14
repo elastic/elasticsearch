@@ -7,8 +7,12 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.common.util;
+package org.elasticsearch.entitlement.qa.test;
 
-public interface Countable {
-    int size();
+import org.elasticsearch.core.SuppressForbidden;
+
+@SuppressForbidden(reason = "testing entitlements")
+@SuppressWarnings("unused") // used via reflection
+class VersionSpecificManageThreadsActions {
+    private VersionSpecificManageThreadsActions() {}
 }

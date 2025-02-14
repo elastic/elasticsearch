@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.upgrades;
 
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersions;
@@ -209,6 +210,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         Map<String, Map<String, Object>> oldIndicesMetadata,
         Map<String, Map<String, Object>> upgradedIndicesMetadata
     ) {
+        String oldWriteIndex = getWriteIndexFromDataStreamIndexMetadata(oldIndicesMetadata);
         for (Map.Entry<String, Map<String, Object>> upgradedIndexEntry : upgradedIndicesMetadata.entrySet()) {
             String upgradedIndexName = upgradedIndexEntry.getKey();
             if (upgradedIndexName.startsWith(".migrated-")) {
@@ -217,16 +219,33 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                 Map<String, Object> upgradedIndexMetadata = upgradedIndexEntry.getValue();
                 compareSettings(oldIndexMetadata, upgradedIndexMetadata);
                 assertThat("Mappings did not match", upgradedIndexMetadata.get("mappings"), equalTo(oldIndexMetadata.get("mappings")));
-                // TODO: Uncomment the following two checks once we are correctly copying this state over:
-                // assertThat("ILM states did not match", upgradedIndexMetadata.get("ilm"), equalTo(oldIndexMetadata.get("ilm")));
-                // assertThat(
-                // "Rollover info did not match",
-                // upgradedIndexMetadata.get("rollover_info"),
-                // equalTo(oldIndexMetadata.get("rollover_info"))
-                // );
+                assertThat("ILM states did not match", upgradedIndexMetadata.get("ilm"), equalTo(oldIndexMetadata.get("ilm")));
+                if (oldIndexName.equals(oldWriteIndex) == false) { // the old write index will have been rolled over by upgrade
+                    assertThat(
+                        "Rollover info did not match",
+                        upgradedIndexMetadata.get("rollover_info"),
+                        equalTo(oldIndexMetadata.get("rollover_info"))
+                    );
+                }
                 assertThat(upgradedIndexMetadata.get("system"), equalTo(oldIndexMetadata.get("system")));
             }
         }
+    }
+
+    private String getWriteIndexFromDataStreamIndexMetadata(Map<String, Map<String, Object>> indexMetadataForDataStream) {
+        return indexMetadataForDataStream.entrySet()
+            .stream()
+            .sorted((o1, o2) -> Long.compare(getCreationDate(o2.getValue()), getCreationDate(o1.getValue())))
+            .map(Map.Entry::getKey)
+            .findFirst()
+            .get();
+    }
+
+    @SuppressWarnings("unchecked")
+    long getCreationDate(Map<String, Object> indexMetadata) {
+        return Long.parseLong(
+            (String) ((Map<String, Map<String, Object>>) indexMetadata.get("settings")).get("index").get("creation_date")
+        );
     }
 
     private void compareSettings(Map<String, Object> oldIndexMetadata, Map<String, Object> upgradedIndexMetadata) {
@@ -238,7 +257,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             "routing",
             "hidden",
             "number_of_shards",
-            // "creation_date", TODO: Uncomment this once we are correctly copying over this setting
+            "creation_date",
             "number_of_replicas"
         );
         for (String setting : SETTINGS_TO_CHECK) {
@@ -342,9 +361,26 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         for (int i = 0; i < numRollovers; i++) {
             String oldIndexName = rollover(dataStreamName);
             if (randomBoolean()) {
-                closeIndex(oldIndexName);
+                closeOrFreezeIndex(oldIndexName);
             }
             bulkLoadData(dataStreamName);
+        }
+    }
+
+    // Randomly either closes or freezes the index. If the cluster does not support the _freeze API, then this always closes the index.
+    private void closeOrFreezeIndex(String indexName) throws IOException {
+        boolean canFreeze = minimumTransportVersion().before(TransportVersions.V_8_0_0);
+        if (canFreeze && randomBoolean()) {
+            final Request freezeRequest = new Request(HttpPost.METHOD_NAME, "/" + indexName + "/_freeze");
+            freezeRequest.setOptions(
+                expectWarnings(
+                    "Frozen indices are deprecated because they provide no benefit given improvements in heap memory utilization. "
+                        + "They will be removed in a future release."
+                )
+            );
+            assertOK(client().performRequest(freezeRequest));
+        } else {
+            closeIndex(indexName);
         }
     }
 

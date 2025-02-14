@@ -18,7 +18,9 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.SegmentScope;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.spi.FileSystemProvider;
 
 public class Java20ElasticsearchEntitlementChecker extends ElasticsearchEntitlementChecker implements Java20EntitlementChecker {
 
@@ -96,7 +98,23 @@ public class Java20ElasticsearchEntitlementChecker extends ElasticsearchEntitlem
 
     @Override
     public void check$java_lang_foreign_SymbolLookup$$libraryLookup(Class<?> callerClass, Path path, SegmentScope scope) {
-        // TODO: check filesystem entitlement READ
+        policyManager.checkFileRead(callerClass, path);
         policyManager.checkLoadingNativeLibraries(callerClass);
+    }
+
+    @Override
+    public void checkReadAttributesIfExists(
+        Class<?> callerClass,
+        FileSystemProvider that,
+        Path path,
+        Class<?> type,
+        LinkOption... options
+    ) {
+        policyManager.checkFileRead(callerClass, path);
+    }
+
+    @Override
+    public void checkExists(Class<?> callerClass, FileSystemProvider that, Path path, LinkOption... options) {
+        policyManager.checkFileRead(callerClass, path);
     }
 }

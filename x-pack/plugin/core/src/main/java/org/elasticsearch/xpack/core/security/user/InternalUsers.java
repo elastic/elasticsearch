@@ -29,6 +29,7 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
@@ -207,6 +208,7 @@ public class InternalUsers {
                         TransportDeleteIndexAction.TYPE.name(),
                         "indices:admin/data_stream/index/reindex",
                         "indices:admin/index/create_from_source",
+                        "indices:admin/index/copy_lifecycle_index_metadata",
                         TransportAddIndexBlockAction.TYPE.name(),
                         OpenIndexAction.NAME,
                         TransportCloseIndexAction.NAME,
@@ -215,6 +217,7 @@ public class InternalUsers {
                         TransportUpdateSettingsAction.TYPE.name(),
                         RefreshAction.NAME,
                         ReindexAction.NAME,
+                        FreezeIndexAction.NAME,
                         TransportSearchAction.NAME,
                         TransportBulkAction.NAME,
                         TransportIndexAction.NAME,

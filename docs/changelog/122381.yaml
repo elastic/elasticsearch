@@ -1,0 +1,6 @@
+pr: 122381
+summary: Add basic implementations of float-byte script comparisons
+area: Vector Search
+type: enhancement
+issues:
+ - 117274

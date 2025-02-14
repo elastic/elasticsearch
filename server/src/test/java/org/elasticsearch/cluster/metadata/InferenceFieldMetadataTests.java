@@ -39,11 +39,6 @@ public class InferenceFieldMetadataTests extends AbstractXContentTestCase<Infere
     }
 
     @Override
-    protected Predicate<String> getRandomFieldsExcludeFilter() {
-        return p -> p.equals(""); // do not add elements at the top-level as any element at this level is parsed as a new inference field
-    }
-
-    @Override
     protected InferenceFieldMetadata doParseInstance(XContentParser parser) throws IOException {
         if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
             parser.nextToken();
@@ -56,7 +51,7 @@ public class InferenceFieldMetadataTests extends AbstractXContentTestCase<Infere
 
     @Override
     protected boolean supportsUnknownFields() {
-        return true;
+        return false;
     }
 
     private static InferenceFieldMetadata createTestItem() {

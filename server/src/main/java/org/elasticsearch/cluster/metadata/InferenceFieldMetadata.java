@@ -12,6 +12,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -38,7 +39,8 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
     private static final String INFERENCE_ID_FIELD = "inference_id";
     private static final String SEARCH_INFERENCE_ID_FIELD = "search_inference_id";
     private static final String SOURCE_FIELDS_FIELD = "source_fields";
-    private static final String CHUNKING_SETTINGS_FIELD = "chunking_settings";
+    static final String CHUNKING_SETTINGS_FIELD = "chunking_settings";
+    private final int EXPECTED_CHUNKING_SETTINGS_SIZE = 3;
 
     private final String name;
     private final String inferenceId;
@@ -62,6 +64,10 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
         this.searchInferenceId = Objects.requireNonNull(searchInferenceId);
         this.sourceFields = Objects.requireNonNull(sourceFields);
         this.chunkingSettings = chunkingSettings;
+
+        if (chunkingSettings != null && chunkingSettings.size() != EXPECTED_CHUNKING_SETTINGS_SIZE) {
+            throw new IllegalArgumentException("Chunking settings did not contain expected number of entries, was: " + chunkingSettings);
+        }
     }
 
     public InferenceFieldMetadata(StreamInput input) throws IOException {
@@ -110,6 +116,11 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
         int result = Objects.hash(name, inferenceId, searchInferenceId, chunkingSettings);
         result = 31 * result + Arrays.hashCode(sourceFields);
         return result;
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 
     public String getName() {
@@ -182,7 +193,6 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
                 }
             } else if (CHUNKING_SETTINGS_FIELD.equals(currentFieldName)) {
                 chunkingSettings = parser.map();
-
             } else {
                 parser.skipChildren();
             }

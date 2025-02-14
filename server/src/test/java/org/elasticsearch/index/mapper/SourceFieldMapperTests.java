@@ -522,10 +522,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             DocumentMapper docMapper = mapperService.documentMapper();
             ParsedDocument doc = docMapper.parse(source(b -> { b.field("@timestamp", "2012-02-13"); }));
             assertNotNull(doc.rootDoc().getField("_recovery_source"));
-            assertThat(
-                doc.rootDoc().getField("_recovery_source").binaryValue(),
-                equalTo(new BytesRef("{\"@timestamp\":\"2012-02-13\"}"))
-            );
+            assertThat(doc.rootDoc().getField("_recovery_source").binaryValue(), equalTo(new BytesRef("{\"@timestamp\":\"2012-02-13\"}")));
         }
         {
             Settings settings = Settings.builder()
@@ -719,10 +716,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
             DocumentMapper docMapper = mapperService.documentMapper();
             ParsedDocument doc = docMapper.parse(source(b -> { b.field("@timestamp", "2012-02-13"); }));
             assertNotNull(doc.rootDoc().getField("_recovery_source"));
-            assertThat(
-                doc.rootDoc().getField("_recovery_source").binaryValue(),
-                equalTo(new BytesRef("{\"@timestamp\":\"2012-02-13\"}"))
-            );
+            assertThat(doc.rootDoc().getField("_recovery_source").binaryValue(), equalTo(new BytesRef("{\"@timestamp\":\"2012-02-13\"}")));
         }
         {
             Settings settings = Settings.builder()

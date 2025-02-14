@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
@@ -329,39 +330,4 @@ public class Maps {
         return copy;
     }
 
-    /**
-     * An immutable implementation of {@link Map.Entry}.
-     * Unlike {@code Map.entry(...)} this implementation permits null key and value.
-     */
-    public record ImmutableEntry<KType, VType>(KType key, VType value) implements Map.Entry<KType, VType> {
-
-        @Override
-        public KType getKey() {
-            return key;
-        }
-
-        @Override
-        public VType getValue() {
-            return value;
-        }
-
-        @Override
-        public VType setValue(VType value) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        @SuppressWarnings("rawtypes")
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if ((o instanceof Map.Entry) == false) return false;
-            Map.Entry that = (Map.Entry) o;
-            return Objects.equals(key, that.getKey()) && Objects.equals(value, that.getValue());
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hashCode(key) ^ Objects.hashCode(value);
-        }
-    }
 }

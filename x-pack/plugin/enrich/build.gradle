@@ -1,9 +1,9 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
-  name 'x-pack-enrich'
-  description 'Elasticsearch Expanded Pack Plugin - Enrich'
-  classname 'org.elasticsearch.xpack.enrich.EnrichPlugin'
+  name = 'x-pack-enrich'
+  description = 'Elasticsearch Expanded Pack Plugin - Enrich'
+  classname ='org.elasticsearch.xpack.enrich.EnrichPlugin'
   extendedPlugins = ['x-pack-core']
 }
 base {
@@ -19,6 +19,7 @@ dependencies {
   testImplementation project(path: ':modules:legacy-geo')
   testImplementation project(xpackModule('spatial'))
   testImplementation(testArtifact(project(xpackModule('monitoring'))))
+  internalClusterTestImplementation project(':modules:rest-root')
 }
 
 addQaCheckDependencies(project)

@@ -15,11 +15,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public record CohereCompletionRequestEntity(List<String> input, @Nullable String model) implements ToXContentObject {
+public record CohereCompletionRequestEntity(List<String> input, @Nullable String model, boolean stream) implements ToXContentObject {
 
     private static final String MESSAGE_FIELD = "message";
-
     private static final String MODEL = "model";
+    private static final String STREAM = "stream";
 
     public CohereCompletionRequestEntity {
         Objects.requireNonNull(input);
@@ -34,6 +34,10 @@ public record CohereCompletionRequestEntity(List<String> input, @Nullable String
         builder.field(MESSAGE_FIELD, input.get(0));
         if (model != null) {
             builder.field(MODEL, model);
+        }
+
+        if (stream) {
+            builder.field(STREAM, true);
         }
 
         builder.endObject();

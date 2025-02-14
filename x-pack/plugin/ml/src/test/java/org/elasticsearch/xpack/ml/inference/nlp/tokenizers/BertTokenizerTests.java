@@ -760,6 +760,119 @@ public class BertTokenizerTests extends ESTestCase {
 
     }
 
+    public void testTokenizeLargeInputMultiSequenceBalancedTruncation() {
+        try (
+            BertTokenizer tokenizer = BertTokenizer.builder(
+                TEST_CASED_VOCAB,
+                new BertTokenization(null, true, 10, Tokenization.Truncate.BALANCED, -1)
+            ).build()
+        ) {
+
+            { // both sequences are truncated
+                TokenizationResult.Tokens tokenization = tokenizer.tokenize(
+                    "Elasticsearch is fun",
+                    "Godzilla my little red car",
+                    Tokenization.Truncate.BALANCED,
+                    0
+                );
+
+                var tokenStream = Arrays.stream(tokenization.tokenIds()).mapToObj(TEST_CASED_VOCAB::get).collect(Collectors.toList());
+                assertThat(
+                    tokenStream,
+                    contains(
+                        BertTokenizer.CLASS_TOKEN,
+                        "Elastic",
+                        "##search",
+                        "is",
+                        BertTokenizer.SEPARATOR_TOKEN,
+                        "God",
+                        "##zilla",
+                        "my",
+                        "little",
+                        BertTokenizer.SEPARATOR_TOKEN
+                    )
+                );
+            }
+
+            { // first sequence is too short to be truncated
+                TokenizationResult.Tokens tokenization = tokenizer.tokenize(
+                    "Elasticsearch",
+                    "Godzilla my little red car",
+                    Tokenization.Truncate.BALANCED,
+                    0
+                );
+
+                var tokenStream = Arrays.stream(tokenization.tokenIds()).mapToObj(TEST_CASED_VOCAB::get).collect(Collectors.toList());
+                assertThat(
+                    tokenStream,
+                    contains(
+                        BertTokenizer.CLASS_TOKEN,
+                        "Elastic",
+                        "##search",
+                        BertTokenizer.SEPARATOR_TOKEN,
+                        "God",
+                        "##zilla",
+                        "my",
+                        "little",
+                        "red",
+                        BertTokenizer.SEPARATOR_TOKEN
+                    )
+                );
+            }
+
+            { // second sequence is too short to be truncated
+                TokenizationResult.Tokens tokenization = tokenizer.tokenize(
+                    "Elasticsearch is my little red fun",
+                    "Godzilla",
+                    Tokenization.Truncate.BALANCED,
+                    0
+                );
+
+                var tokenStream = Arrays.stream(tokenization.tokenIds()).mapToObj(TEST_CASED_VOCAB::get).collect(Collectors.toList());
+                assertThat(
+                    tokenStream,
+                    contains(
+                        BertTokenizer.CLASS_TOKEN,
+                        "Elastic",
+                        "##search",
+                        "is",
+                        "my",
+                        "little",
+                        BertTokenizer.SEPARATOR_TOKEN,
+                        "God",
+                        "##zilla",
+                        BertTokenizer.SEPARATOR_TOKEN
+                    )
+                );
+            }
+
+            { // both sequences are too short to be truncated
+                TokenizationResult.Tokens tokenization = tokenizer.tokenize("Elasticsearch", "Godzilla", Tokenization.Truncate.BALANCED, 0);
+
+                var tokenStream = Arrays.stream(tokenization.tokenIds()).mapToObj(TEST_CASED_VOCAB::get).collect(Collectors.toList());
+                assertThat(
+                    tokenStream,
+                    contains(
+                        BertTokenizer.CLASS_TOKEN,
+                        "Elastic",
+                        "##search",
+                        BertTokenizer.SEPARATOR_TOKEN,
+                        "God",
+                        "##zilla",
+                        BertTokenizer.SEPARATOR_TOKEN
+                    )
+                );
+            }
+
+            expectThrows(
+                ElasticsearchStatusException.class,
+                () -> BertTokenizer.builder(TEST_CASED_VOCAB, new BertTokenization(null, true, 8, Tokenization.Truncate.NONE, -1))
+                    .build()
+                    .tokenize("Elasticsearch is fun", "Godzilla my little red car", Tokenization.Truncate.NONE, 0)
+            );
+        }
+    }
+
     public void testMultiSeqRequiresSpecialTokens() {
         try (
             BertTokenizer tokenizer = BertTokenizer.builder(

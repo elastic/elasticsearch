@@ -27,7 +27,7 @@ import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-$if(int||double||BytesRef)$
+$if(int||double||float||BytesRef)$
 import org.elasticsearch.compute.data.$Type$Block;
 $endif$
 import org.elasticsearch.compute.data.IntVector;
@@ -35,7 +35,6 @@ $if(long)$
 import org.elasticsearch.compute.data.LongBlock;
 $endif$
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.core.Releasable;
 $if(BytesRef)$
 import org.elasticsearch.core.Releasables;
 
@@ -55,7 +54,9 @@ class Values$Type$Aggregator {
     }
 
     public static void combine(SingleState state, $type$ v) {
-$if(double)$
+$if(float)$
+        state.values.add(Float.floatToIntBits(v));
+$elseif(double)$
         state.values.add(Double.doubleToLongBits(v));
 $else$
         state.values.add(v);
@@ -98,6 +99,12 @@ $elseif(int)$
          * the top 32 bits for the group, the bottom 32 for the value.
          */
         state.values.add((((long) groupId) << Integer.SIZE) | (v & 0xFFFFFFFFL));
+$elseif(float)$
+        /*
+         * Encode the groupId and value into a single long -
+         * the top 32 bits for the group, the bottom 32 for the value.
+         */
+        state.values.add((((long) groupId) << Float.SIZE) | (Float.floatToIntBits(v) & 0xFFFFFFFFL));
 $endif$
     }
 
@@ -132,6 +139,11 @@ $elseif(int)$
             int group = (int) (both >>> Integer.SIZE);
             if (group == statePosition) {
                 int value = (int) both;
+$elseif(float)$
+            long both = state.values.get(id);
+            int group = (int) (both >>> Float.SIZE);
+            if (group == statePosition) {
+                float value = Float.intBitsToFloat((int) both);
 $endif$
                 combine(current, currentGroupId, $if(BytesRef)$state.bytes.get(value, scratch)$else$value$endif$);
             }
@@ -142,7 +154,7 @@ $endif$
         return state.toBlock(driverContext.blockFactory(), selected);
     }
 
-    public static class SingleState implements Releasable {
+    public static class SingleState implements AggregatorState {
 $if(BytesRef)$
         private final BytesRefHash values;
 
@@ -158,7 +170,8 @@ $else$
 $endif$
         }
 
-        void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
+        @Override
+        public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
             blocks[offset] = toBlock(driverContext.blockFactory());
         }
 
@@ -172,12 +185,14 @@ $endif$
             if (values.size() == 1) {
 $if(long)$
                 return blockFactory.newConstantLongBlockWith(values.get(0), 1);
+$elseif(float)$
+                return blockFactory.newConstantFloatBlockWith(Float.intBitsToFloat((int) values.get(0)), 1);
 $elseif(double)$
                 return blockFactory.newConstantDoubleBlockWith(Double.longBitsToDouble(values.get(0)), 1);
 $elseif(int)$
                 return blockFactory.newConstantIntBlockWith((int) values.get(0), 1);
 $elseif(BytesRef)$
-                return blockFactory.newConstantBytesRefBlockWith(values.get(0, scratch), 1);
+                return blockFactory.newConstantBytesRefBlockWith(BytesRef.deepCopyOf(values.get(0, scratch)), 1);
 $endif$
             }
             try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder((int) values.size())) {
@@ -185,6 +200,8 @@ $endif$
                 for (int id = 0; id < values.size(); id++) {
 $if(long)$
                     builder.appendLong(values.get(id));
+$elseif(float)$
+                    builder.appendFloat(Float.intBitsToFloat((int) values.get(id)));
 $elseif(double)$
                     builder.appendDouble(Double.longBitsToDouble(values.get(id)));
 $elseif(int)$
@@ -211,7 +228,7 @@ $endif$
      * an {@code O(n^2)} operation for collection to support a {@code O(1)}
      * collector operation. But at least it's fairly simple.
      */
-    public static class GroupingState implements Releasable {
+    public static class GroupingState implements GroupingAggregatorState {
 $if(long||double)$
         private final LongLongHash values;
 
@@ -219,7 +236,7 @@ $elseif(BytesRef)$
         private final LongLongHash values;
         private final BytesRefHash bytes;
 
-$elseif(int)$
+$elseif(int||float)$
         private final LongHash values;
 
 $endif$
@@ -227,14 +244,27 @@ $endif$
 $if(long||double)$
             values = new LongLongHash(1, bigArrays);
 $elseif(BytesRef)$
-            values = new LongLongHash(1, bigArrays);
-            bytes = new BytesRefHash(1, bigArrays);
-$elseif(int)$
+            LongLongHash _values = null;
+            BytesRefHash _bytes = null;
+            try {
+                _values = new LongLongHash(1, bigArrays);
+                _bytes = new BytesRefHash(1, bigArrays);
+
+                values = _values;
+                bytes = _bytes;
+
+                _values = null;
+                _bytes = null;
+            } finally {
+                Releasables.closeExpectNoException(_values, _bytes);
+            }
+$elseif(int||float)$
             values = new LongHash(1, bigArrays);
 $endif$
         }
 
-        void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
+        @Override
+        public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
             blocks[offset] = toBlock(driverContext.blockFactory(), selected);
         }
 
@@ -262,6 +292,11 @@ $if(long||BytesRef)$
 $elseif(double)$
                         if (values.getKey1(id) == selectedGroup) {
                             double value = Double.longBitsToDouble(values.getKey2(id));
+$elseif(float)$
+                        long both = values.get(id);
+                        int group = (int) (both >>> Float.SIZE);
+                        if (group == selectedGroup) {
+                            float value = Float.intBitsToFloat((int) both);
 $elseif(int)$
                         long both = values.get(id);
                         int group = (int) (both >>> Integer.SIZE);
@@ -290,7 +325,8 @@ $endif$
             }
         }
 
-        void enableGroupIdTracking(SeenGroupIds seen) {
+        @Override
+        public void enableGroupIdTracking(SeenGroupIds seen) {
             // we figure out seen values from nulls on the values block
         }
 

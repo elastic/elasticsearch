@@ -21,7 +21,6 @@ import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Tests that the ReservedRoleMappingAction does validation, can add and remove role mappings
@@ -31,9 +30,7 @@ public class ReservedRoleMappingActionTests extends ESTestCase {
     private TransformState processJSON(ReservedRoleMappingAction action, TransformState prevState, String json) throws Exception {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
             var content = action.fromXContent(parser);
-            var state = action.transform(content, prevState);
-            assertThat(state.nonStateTransform(), nullValue());
-            return state;
+            return action.transform(content, prevState);
         }
     }
 

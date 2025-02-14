@@ -22,9 +22,9 @@ import java.util.stream.Stream;
 import static org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlannerTests.assertModelFullyAssignedToNode;
 import static org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlannerTests.assertPreviousAssignmentsAreSatisfied;
 import static org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlannerTests.convertToIdIndexed;
-import static org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlannerTests.createModelsFromPlan;
+import static org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlannerTests.createDeploymentsFromPlan;
+import static org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlannerTests.randomDeployments;
 import static org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlannerTests.randomModel;
-import static org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlannerTests.randomModels;
 import static org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlannerTests.randomNodes;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -36,7 +36,7 @@ public class ZoneAwareAssignmentPlannerTests extends ESTestCase {
 
     public void testGivenOneModel_OneNode_OneZone_DoesNotFit() {
         Node node = new Node("n_1", 100, 1);
-        AssignmentPlan.Deployment deployment = new AssignmentPlan.Deployment("m_1", 100, 1, 2, Map.of(), 0, 0, 0);
+        AssignmentPlan.Deployment deployment = new AssignmentPlan.Deployment("m_1", 100, 1, 2, Map.of(), 0, null, 0, 0);
 
         AssignmentPlan plan = new ZoneAwareAssignmentPlanner(Map.of(List.of(), List.of(node)), List.of(deployment)).computePlan();
 
@@ -52,6 +52,7 @@ public class ZoneAwareAssignmentPlannerTests extends ESTestCase {
             2,
             Map.of(),
             0,
+            null,
             0,
             0
         );
@@ -70,6 +71,7 @@ public class ZoneAwareAssignmentPlannerTests extends ESTestCase {
             2,
             Map.of(),
             0,
+            null,
             0,
             0
         );
@@ -91,6 +93,7 @@ public class ZoneAwareAssignmentPlannerTests extends ESTestCase {
             2,
             Map.of(),
             0,
+            null,
             0,
             0
         );
@@ -118,6 +121,7 @@ public class ZoneAwareAssignmentPlannerTests extends ESTestCase {
             2,
             Map.of(),
             0,
+            null,
             0,
             0
         );
@@ -134,6 +138,33 @@ public class ZoneAwareAssignmentPlannerTests extends ESTestCase {
         assertThat(indexedBasedPlan.get("m_1"), equalTo(Map.of("n_1", 1, "n_2", 1)));
     }
 
+    public void testGivenOneModel_OneLargeNodePerZone_TwoZones_FullyFits() {
+        Node node1 = new Node("n_1", ByteSizeValue.ofGb(16).getBytes(), 8);
+        Node node2 = new Node("n_2", ByteSizeValue.ofGb(16).getBytes(), 8);
+        AssignmentPlan.Deployment deployment = new AssignmentPlan.Deployment(
+            "m_1",
+            ByteSizeValue.ofMb(100).getBytes(),
+            4,
+            2,
+            Map.of(),
+            0,
+            null,
+            0,
+            0
+        );
+
+        AssignmentPlan plan = new ZoneAwareAssignmentPlanner(
+            Map.of(List.of("z_1"), List.of(node1), List.of("z_2"), List.of(node2)),
+            List.of(deployment)
+        ).computePlan();
+
+        assertThat(plan.satisfiesAllModels(), is(true));
+
+        Map<String, Map<String, Integer>> indexedBasedPlan = convertToIdIndexed(plan);
+        assertThat(indexedBasedPlan.keySet(), hasItems("m_1"));
+        assertThat(indexedBasedPlan.get("m_1"), equalTo(Map.of("n_1", 2, "n_2", 2)));
+    }
+
     public void testGivenOneModel_OneNodePerZone_TwoZones_PartiallyFits() {
         Node node1 = new Node("n_1", ByteSizeValue.ofMb(440).getBytes(), 4);
         Node node2 = new Node("n_2", ByteSizeValue.ofMb(440).getBytes(), 4);
@@ -144,6 +175,7 @@ public class ZoneAwareAssignmentPlannerTests extends ESTestCase {
             3,
             Map.of(),
             0,
+            null,
             0,
             0
         );
@@ -161,16 +193,16 @@ public class ZoneAwareAssignmentPlannerTests extends ESTestCase {
         assertThat(plan.getRemainingNodeMemory("n_2"), equalTo(0L));
     }
 
-    public void testGivenThreeModels_TwoNodesPerZone_ThreeZones_FullyFit() {
+    public void testGivenThreeDeployments_TwoNodesPerZone_ThreeZones_FullyFit() {
         Node node1 = new Node("n_1", ByteSizeValue.ofMb(1000).getBytes(), 4);
         Node node2 = new Node("n_2", ByteSizeValue.ofMb(1000).getBytes(), 4);
         Node node3 = new Node("n_3", ByteSizeValue.ofMb(1000).getBytes(), 4);
         Node node4 = new Node("n_4", ByteSizeValue.ofMb(1000).getBytes(), 4);
         Node node5 = new Node("n_5", ByteSizeValue.ofMb(1000).getBytes(), 4);
         Node node6 = new Node("n_6", ByteSizeValue.ofMb(1000).getBytes(), 4);
-        Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(30).getBytes(), 4, 1, Map.of(), 0, 0, 0);
-        Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(30).getBytes(), 6, 2, Map.of(), 0, 0, 0);
-        Deployment deployment3 = new Deployment("m_3", ByteSizeValue.ofMb(30).getBytes(), 2, 3, Map.of(), 0, 0, 0);
+        Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(30).getBytes(), 4, 1, Map.of(), 0, null, 0, 0);
+        Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(30).getBytes(), 6, 2, Map.of(), 0, null, 0, 0);
+        Deployment deployment3 = new Deployment("m_3", ByteSizeValue.ofMb(30).getBytes(), 2, 3, Map.of(), 0, null, 0, 0);
 
         Map<List<String>, List<Node>> nodesByZone = Map.of(
             List.of("z_1"),
@@ -212,12 +244,12 @@ public class ZoneAwareAssignmentPlannerTests extends ESTestCase {
         }
     }
 
-    public void testGivenTwoModelsWithSingleAllocation_OneNode_ThreeZones() {
+    public void testGivenTwoDeploymentsWithSingleAllocation_OneNode_ThreeZones() {
         Node node1 = new Node("n_1", ByteSizeValue.ofMb(1000).getBytes(), 4);
         Node node2 = new Node("n_2", ByteSizeValue.ofMb(1000).getBytes(), 4);
         Node node3 = new Node("n_3", ByteSizeValue.ofMb(1000).getBytes(), 4);
-        Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(30).getBytes(), 1, 1, Map.of(), 0, 0, 0);
-        Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(30).getBytes(), 1, 1, Map.of(), 0, 0, 0);
+        Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(30).getBytes(), 1, 1, Map.of(), 0, null, 0, 0);
+        Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(30).getBytes(), 1, 1, Map.of(), 0, null, 0, 0);
 
         AssignmentPlan plan = new ZoneAwareAssignmentPlanner(
             Map.of(List.of("z1"), List.of(node1), List.of("z2"), List.of(node2), List.of("z3"), List.of(node3)),
@@ -238,7 +270,7 @@ public class ZoneAwareAssignmentPlannerTests extends ESTestCase {
             List.of("z_3"),
             randomNodes(scale, "z_3_")
         );
-        List<AssignmentPlan.Deployment> deployments = randomModels(scale, load);
+        List<AssignmentPlan.Deployment> deployments = randomDeployments(scale, load);
         AssignmentPlan originalPlan = new ZoneAwareAssignmentPlanner(nodesByZone, deployments).computePlan();
 
         List<Deployment> previousModelsPlusNew = new ArrayList<>(deployments.size() + 1);
@@ -249,12 +281,13 @@ public class ZoneAwareAssignmentPlannerTests extends ESTestCase {
                 .collect(Collectors.toMap(e -> e.getKey().id(), Map.Entry::getValue));
             previousModelsPlusNew.add(
                 new AssignmentPlan.Deployment(
-                    m.id(),
+                    m.deploymentId(),
                     m.memoryBytes(),
                     m.allocations(),
                     m.threadsPerAllocation(),
                     previousAssignments,
                     0,
+                    null,
                     0,
                     0
                 )
@@ -270,9 +303,9 @@ public class ZoneAwareAssignmentPlannerTests extends ESTestCase {
     public void testGivenClusterResize_GivenOneZone_ShouldAllocateEachModelAtLeastOnce() {
         Node node1 = new Node("n_1", ByteSizeValue.ofMb(2580).getBytes(), 2);
         Node node2 = new Node("n_2", ByteSizeValue.ofMb(2580).getBytes(), 2);
-        Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(800).getBytes(), 2, 1, Map.of(), 0, 0, 0);
-        Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(800).getBytes(), 1, 1, Map.of(), 0, 0, 0);
-        Deployment deployment3 = new Deployment("m_3", ByteSizeValue.ofMb(250).getBytes(), 4, 1, Map.of(), 0, 0, 0);
+        Deployment deployment1 = new Deployment("m_1", ByteSizeValue.ofMb(800).getBytes(), 2, 1, Map.of(), 0, null, 0, 0);
+        Deployment deployment2 = new Deployment("m_2", ByteSizeValue.ofMb(800).getBytes(), 1, 1, Map.of(), 0, null, 0, 0);
+        Deployment deployment3 = new Deployment("m_3", ByteSizeValue.ofMb(250).getBytes(), 4, 1, Map.of(), 0, null, 0, 0);
 
         // First only start m_1
         AssignmentPlan assignmentPlan = new ZoneAwareAssignmentPlanner(Map.of(List.of(), List.of(node1, node2)), List.of(deployment1))
@@ -285,7 +318,7 @@ public class ZoneAwareAssignmentPlannerTests extends ESTestCase {
         // Then start m_2
         assignmentPlan = new ZoneAwareAssignmentPlanner(
             Map.of(List.of(), List.of(node1, node2)),
-            Stream.concat(createModelsFromPlan(assignmentPlan).stream(), Stream.of(deployment2)).toList()
+            Stream.concat(createDeploymentsFromPlan(assignmentPlan).stream(), Stream.of(deployment2)).toList()
         ).computePlan();
 
         indexedBasedPlan = convertToIdIndexed(assignmentPlan);
@@ -296,7 +329,7 @@ public class ZoneAwareAssignmentPlannerTests extends ESTestCase {
         // Then start m_3
         assignmentPlan = new ZoneAwareAssignmentPlanner(
             Map.of(List.of(), List.of(node1, node2)),
-            Stream.concat(createModelsFromPlan(assignmentPlan).stream(), Stream.of(deployment3)).toList()
+            Stream.concat(createDeploymentsFromPlan(assignmentPlan).stream(), Stream.of(deployment3)).toList()
         ).computePlan();
 
         indexedBasedPlan = convertToIdIndexed(assignmentPlan);
@@ -310,19 +343,19 @@ public class ZoneAwareAssignmentPlannerTests extends ESTestCase {
         Node node4 = new Node("n_4", ByteSizeValue.ofMb(5160).getBytes(), 2);
 
         // First, one node goes away.
-        assignmentPlan = new ZoneAwareAssignmentPlanner(Map.of(List.of(), List.of(node1)), createModelsFromPlan(assignmentPlan))
+        assignmentPlan = new ZoneAwareAssignmentPlanner(Map.of(List.of(), List.of(node1)), createDeploymentsFromPlan(assignmentPlan))
             .computePlan();
 
         // Then, a node double in memory size is added.
-        assignmentPlan = new ZoneAwareAssignmentPlanner(Map.of(List.of(), List.of(node1, node3)), createModelsFromPlan(assignmentPlan))
+        assignmentPlan = new ZoneAwareAssignmentPlanner(Map.of(List.of(), List.of(node1, node3)), createDeploymentsFromPlan(assignmentPlan))
             .computePlan();
         // And another.
         assignmentPlan = new ZoneAwareAssignmentPlanner(
             Map.of(List.of(), List.of(node1, node3, node4)),
-            createModelsFromPlan(assignmentPlan)
+            createDeploymentsFromPlan(assignmentPlan)
         ).computePlan();
         // Finally, the remaining smaller node is removed
-        assignmentPlan = new ZoneAwareAssignmentPlanner(Map.of(List.of(), List.of(node3, node4)), createModelsFromPlan(assignmentPlan))
+        assignmentPlan = new ZoneAwareAssignmentPlanner(Map.of(List.of(), List.of(node3, node4)), createDeploymentsFromPlan(assignmentPlan))
             .computePlan();
 
         indexedBasedPlan = convertToIdIndexed(assignmentPlan);

@@ -109,10 +109,49 @@ the `transport_worker` threads are too busy. It is more reliable to use
 profiling trace. These tools are independent of any work the JVM is performing.
 
 It may also be possible to identify some reasons for delays from the server
-logs, particularly looking at warnings from
-`org.elasticsearch.transport.InboundHandler` and
-`org.elasticsearch.transport.OutboundHandler`. Warnings about long processing
-times from the `InboundHandler` are particularly indicative of incorrect
-threading behaviour, whereas the transmission time reported by the
-`OutboundHandler` includes time spent waiting for network congestion and the
-`transport_worker` thread is free to do other work during this time.
+logs. See for instance the following loggers:
+
+`org.elasticsearch.transport.InboundHandler`:: This logger reports a warning if
+processing an inbound message occupies a network thread for unreasonably long,
+which is almost certainly a bug. The warning includes some information which
+can be used to identify the message that took unreasonably long to process.
+
+`org.elasticsearch.transport.OutboundHandler`:: This logger reports a warning
+if sending an outbound message takes longer than expected. This duration
+includes time spent waiting for network congestion to clear, and time spent
+processing other work on the same network thread, so does not always indicate
+the presence of a bug related to the outbound message specified in the log
+entry.
+
+`org.elasticsearch.common.network.ThreadWatchdog`:: This logger reports a
+warning and a thread dump when it notices that a network thread has not made
+progress between two consecutive checks, which is almost certainly a bug:
++
+--
+[source,text]
+----
+[WARN ][o.e.c.n.ThreadWatchdog   ] the following threads are active but did not make progress in the preceding [5s]: [elasticsearch[instance-0000000004][transport_worker][T#1]]]
+[WARN ][o.e.c.n.ThreadWatchdog   ] hot threads dump due to active threads not making progress [part 1]: H4sIAAAAAAAA/+1aa2/bOBb93l8hYLUYFWgYvWw5AQbYpEkn6STZbJyiwAwGA1qiY8US6ZJUHvPr90qk/JJky41TtDMuUIci...
+[WARN ][o.e.c.n.ThreadWatchdog   ] hot threads dump due to active threads not making progress [part 2]: LfXL/x70a3eL8ve6Ral74ZBrp5x7HmUD9KXQz1MaXUNfFC6SeEysxSw1cNXL9JXYl3AigAE7ywbm/AZ+ll3Ox4qXJHNjVr6h...
+[WARN ][o.e.c.n.ThreadWatchdog   ] hot threads dump due to active threads not making progress (gzip compressed, base64-encoded, and split into 2 parts on preceding log lines; ...
+----
+
+To reconstruct the thread dump, base64-decode the data and decompress it using `gzip`. For instance, on Unix-like systems:
+
+[source,sh]
+----
+cat watchdog.log | sed -e 's/.*://' | base64 --decode | gzip --decompress
+----
+
+This mechanism can be controlled with the following settings:
+
+`network.thread.watchdog.interval`:::
+(<<static-cluster-setting,Static>>, <<time-units,time value>>)
+Defines the interval between watchdog checks. Defaults to `5s`. Set to `0` to
+disable the network thread watchdog.
+
+`network.thread.watchdog.quiet_time`:::
+(<<static-cluster-setting,Static>>, <<time-units,time value>>)
+Defines the interval between watchdog warnings. Defaults to `10m`.
+
+--

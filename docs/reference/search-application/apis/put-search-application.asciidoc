@@ -1,12 +1,17 @@
 [role="xpack"]
 [[put-search-application]]
 === Put Search Application
-
-beta::[]
-
 ++++
 <titleabbrev>Put Search Application</titleabbrev>
 ++++
+
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-search_application[Search application APIs].
+--
+
+beta::[]
 
 Creates or updates a Search Application.
 
@@ -192,7 +197,7 @@ When the above `dictionary` parameter is specified, the <<search-application-sea
 * It verifies that `query_string` and `default_field` are both strings
 * It accepts `default_field` only if it takes the values `title` or `description`
 
-If the parameters are not valid, the the <<search-application-search, search application search>> API will return an error.
+If the parameters are not valid, the <<search-application-search, search application search>> API will return an error.
 [source,console]
 ----
 POST _application/search_application/my-app/_search

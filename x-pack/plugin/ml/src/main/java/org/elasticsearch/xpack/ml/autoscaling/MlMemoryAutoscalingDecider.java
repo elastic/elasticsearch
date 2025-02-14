@@ -809,7 +809,7 @@ class MlMemoryAutoscalingDecider {
         MlMemoryAutoscalingCapacity scaleDownResult,
         MlMemoryAutoscalingCapacity currentCapacity
     ) {
-        if (scaleDownResult == null || currentCapacity == null) {
+        if (scaleDownResult == null || currentCapacity == null || currentCapacity.isUndetermined()) {
             return null;
         }
         MlMemoryAutoscalingCapacity newCapacity = MlMemoryAutoscalingCapacity.builder(

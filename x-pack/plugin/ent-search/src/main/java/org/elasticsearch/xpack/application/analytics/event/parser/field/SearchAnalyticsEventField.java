@@ -21,13 +21,13 @@ import static org.elasticsearch.xpack.application.analytics.event.parser.field.S
 import static org.elasticsearch.xpack.application.analytics.event.parser.field.SortOrderAnalyticsEventField.SORT_FIELD;
 
 public class SearchAnalyticsEventField {
-    public static ParseField SEARCH_FIELD = new ParseField("search");
+    public static final ParseField SEARCH_FIELD = new ParseField("search");
 
-    public static ParseField SEARCH_QUERY_FIELD = new ParseField("query");
+    public static final ParseField SEARCH_QUERY_FIELD = new ParseField("query");
 
-    public static ParseField SEARCH_APPLICATION_FIELD = new ParseField("search_application");
+    public static final ParseField SEARCH_APPLICATION_FIELD = new ParseField("search_application");
 
-    public static ParseField SEARCH_RESULTS_FIELD = new ParseField("results");
+    public static final ParseField SEARCH_RESULTS_FIELD = new ParseField("results");
 
     private static final ObjectParser<Map<String, Object>, AnalyticsEvent.Context> PARSER = new ObjectParser<>(
         SEARCH_FIELD.getPreferredName(),

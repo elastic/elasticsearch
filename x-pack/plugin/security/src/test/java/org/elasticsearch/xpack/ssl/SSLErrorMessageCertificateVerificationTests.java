@@ -39,7 +39,6 @@ import java.util.Locale;
 import java.util.regex.Pattern;
 
 import javax.net.ssl.HostnameVerifier;
-import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.SSLSocketFactory;
@@ -104,7 +103,6 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
     }
 
     public void testDiagnosticTrustManagerForHostnameVerificationFailure() throws Exception {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
         final Settings settings = getPemSSLSettings(
             HTTP_SERVER_SSL,
             "not-this-host.crt",
@@ -133,7 +131,7 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
                     DiagnosticTrustManager.class.getName(),
                     Level.WARN,
                     "failed to establish trust with server at \\["
-                        + Pattern.quote(webServer.getHostName())
+                        + (inFipsJvm() ? "<unknown host>" : Pattern.quote(webServer.getHostName()))
                         + "\\];"
                         + " the server provided a certificate with subject name \\[CN=not-this-host\\],"
                         + " fingerprint \\[[0-9a-f]{40}\\], no keyUsage and no extendedKeyUsage;"
@@ -154,13 +152,12 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
             enableHttpsHostnameChecking(clientSocket);
             connect(clientSocket, webServer);
             assertThat(clientSocket.isConnected(), is(true));
-            final SSLHandshakeException handshakeException = expectThrows(
-                SSLHandshakeException.class,
-                () -> clientSocket.getInputStream().read()
-            );
-            assertThat(handshakeException, throwableWithMessage(containsStringIgnoringCase("subject alternative names")));
-            assertThat(handshakeException, throwableWithMessage(containsString(webServer.getHostName())));
-
+            final Exception handshakeException = expectThrows(Exception.class, () -> clientSocket.getInputStream().read());
+            // Bouncy Castle throws a different exception message
+            if (inFipsJvm() == false) {
+                assertThat(handshakeException, throwableWithMessage(containsStringIgnoringCase("subject alternative names")));
+                assertThat(handshakeException, throwableWithMessage(containsString(webServer.getHostName())));
+            }
             // Logging message failures are tricky to debug because you just get a "didn't find match" assertion failure.
             // You should be able to check the log output for the text that was logged and compare to the regex above.
             mockLog.assertAllExpectationsMatched();

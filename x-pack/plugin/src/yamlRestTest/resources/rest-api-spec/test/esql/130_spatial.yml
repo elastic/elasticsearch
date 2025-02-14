@@ -97,7 +97,6 @@ geo_point:
       esql.query:
         body:
           query: 'from geo_points | sort id'
-          version: 2024.04.01
   - match: { columns.0.name: id }
   - match: { columns.0.type: integer }
   - match: { columns.1.name: location }
@@ -115,7 +114,14 @@ geo_point unsortable:
       esql.query:
         body:
           query: 'from geo_points | sort location'
-          version: 2024.04.01
+
+---
+geo_point unsortable status:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'from geo_points | sort location'
 
 ---
 geo_point unsortable with limit:
@@ -124,7 +130,14 @@ geo_point unsortable with limit:
       esql.query:
         body:
           query: 'from geo_points | LIMIT 10 | sort location'
-          version: 2024.04.01
+
+---
+geo_point unsortable with limit status:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'from geo_points | LIMIT 10 | sort location'
 
 ---
 geo_point unsortable with limit from row:
@@ -133,16 +146,22 @@ geo_point unsortable with limit from row:
       esql.query:
         body:
           query: 'ROW wkt = ["POINT(42.9711 -14.7553)", "POINT(75.8093 22.7277)"] | MV_EXPAND wkt | EVAL pt = TO_GEOPOINT(wkt) | limit 5 | sort pt'
-          version: 2024.04.01
 
 ---
 values unsupported for geo_point:
   - do:
-      catch: '/.+argument of \[VALUES\(location\)\] must be \[boolean, date, double, integer, ip, keyword, long, null, text, unsigned_long or version\].+/'
+      catch: '/.+argument of \[VALUES\(location\)\] must be .+/'
       esql.query:
         body:
           query: 'FROM geo_points | STATS VALUES(location)'
-          version: 2024.04.01
+
+---
+values unsupported for geo_point status code:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM geo_points | STATS VALUES(location)'
 
 ---
 cartesian_point:
@@ -152,7 +171,6 @@ cartesian_point:
       esql.query:
         body:
           query: 'from cartesian_points | sort id'
-          version: 2024.04.01
   - match: { columns.0.name: id }
   - match: { columns.0.type: integer }
   - match: { columns.1.name: location }
@@ -170,7 +188,14 @@ cartesian_point unsortable:
       esql.query:
         body:
           query: 'from cartesian_points | sort location'
-          version: 2024.04.01
+
+---
+cartesian_point unsortable status code:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'from cartesian_points | sort location'
 
 ---
 cartesian_point unsortable with limit:
@@ -179,7 +204,14 @@ cartesian_point unsortable with limit:
       esql.query:
         body:
           query: 'from cartesian_points | LIMIT 10 | sort location'
-          version: 2024.04.01
+
+---
+cartesian_point unsortable with limit status code:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'from cartesian_points | LIMIT 10 | sort location'
 
 ---
 cartesian_point unsortable with limit from row:
@@ -188,7 +220,6 @@ cartesian_point unsortable with limit from row:
       esql.query:
         body:
           query: 'ROW wkt = ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"] | MV_EXPAND wkt | EVAL pt = TO_CARTESIANPOINT(wkt) | limit 5 | sort pt'
-          version: 2024.04.01
 
 ---
 geo_shape:
@@ -198,7 +229,6 @@ geo_shape:
       esql.query:
         body:
           query: 'from geo_shapes | sort id'
-          version: 2024.04.01
   - match: { columns.0.name: id }
   - match: { columns.0.type: integer }
   - match: { columns.1.name: shape }
@@ -216,7 +246,14 @@ geo_shape unsortable:
       esql.query:
         body:
           query: 'from geo_shapes | sort shape'
-          version: 2024.04.01
+
+---
+geo_shape unsortable status code:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'from geo_shapes | sort shape'
 
 ---
 geo_shape unsortable with limit:
@@ -225,7 +262,14 @@ geo_shape unsortable with limit:
       esql.query:
         body:
           query: 'from geo_shapes | LIMIT 10 | sort shape'
-          version: 2024.04.01
+
+---
+geo_shape unsortable with limit status code:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'from geo_shapes | LIMIT 10 | sort shape'
 
 ---
 geo_shape unsortable with limit from row:
@@ -234,7 +278,6 @@ geo_shape unsortable with limit from row:
       esql.query:
         body:
           query: 'ROW wkt = ["POINT(42.9711 -14.7553)", "POINT(75.8093 22.7277)"] | MV_EXPAND wkt | EVAL shape = TO_GEOSHAPE(wkt) | limit 5 | sort shape'
-          version: 2024.04.01
 
 ---
 cartesian_shape:
@@ -244,7 +287,6 @@ cartesian_shape:
       esql.query:
         body:
           query: 'from cartesian_shapes | sort id'
-          version: 2024.04.01
   - match: { columns.0.name: id }
   - match: { columns.0.type: integer }
   - match: { columns.1.name: shape }
@@ -262,7 +304,14 @@ cartesian_shape unsortable:
       esql.query:
         body:
           query: 'from cartesian_shapes | sort shape'
-          version: 2024.04.01
+
+---
+cartesian_shape unsortable status code:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'from cartesian_shapes | sort shape'
 
 ---
 cartesian_shape unsortable with limit:
@@ -271,7 +320,14 @@ cartesian_shape unsortable with limit:
       esql.query:
         body:
           query: 'from cartesian_shapes | LIMIT 10 | sort shape'
-          version: 2024.04.01
+
+---
+cartesian_shape unsortable with limit status code:
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'from cartesian_shapes | LIMIT 10 | sort shape'
 
 ---
 cartesian_shape unsortable with limit from row:
@@ -280,4 +336,3 @@ cartesian_shape unsortable with limit from row:
       esql.query:
         body:
           query: 'ROW wkt = ["POINT(4297.11 -1475.53)", "POINT(7580.93 2272.77)"] | MV_EXPAND wkt | EVAL shape = TO_CARTESIANSHAPE(wkt) | limit 5 | sort shape'
-          version: 2024.04.01

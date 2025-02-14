@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.suggest.phrase;
 
@@ -132,7 +133,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
                  * because that's what {@link DirectSpellChecker#suggestSimilar} expects
                  * when filtering terms.
                  */
-                int threshold = thresholdTermFrequency(original.termStats.docFreq);
+                int threshold = thresholdTermFrequency(original.termStats.docFreq());
                 if (threshold == Integer.MAX_VALUE) {
                     // the threshold is the max possible frequency so we can skip the search
                     return set;
@@ -225,7 +226,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
     }
 
     private static double score(TermStats termStats, double errorScore, long dictionarySize) {
-        return errorScore * (((double) termStats.totalTermFreq + 1) / ((double) dictionarySize + 1));
+        return errorScore * (((double) termStats.totalTermFreq() + 1) / ((double) dictionarySize + 1));
     }
 
     // package protected for test

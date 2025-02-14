@@ -41,6 +41,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -549,33 +550,29 @@ public class RollupIndexerStateTests extends ESTestCase {
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         final ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
-            final AtomicBoolean isAborted = new AtomicBoolean(false);
-            DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(threadPool, job, state, null) {
-                @Override
-                protected void onAbort() {
-                    isAborted.set(true);
-                }
-            };
+            DelayedEmptyRollupIndexer indexer = new DelayedEmptyRollupIndexer(threadPool, job, state, null);
             indexer.start();
             for (int i = 0; i < 5; i++) {
                 final CountDownLatch latch = indexer.newLatch();
                 assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
-                assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+                // This may take more than one attempt due to a cleanup/transition phase
+                // that happens after state change to STARTED (`isJobFinishing`).
+                assertBusy(() -> assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis())));
                 assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
                 assertFalse(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
                 assertThat(indexer.getState(), equalTo(IndexerState.INDEXING));
                 latch.countDown();
                 assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STARTED)));
-                assertThat(indexer.getStats().getNumInvocations(), equalTo((long) i + 1));
                 assertThat(indexer.getStats().getNumPages(), equalTo((long) i + 1));
             }
             final CountDownLatch latch = indexer.newLatch();
-            assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis()));
+            assertBusy(() -> assertTrue(indexer.maybeTriggerAsyncJob(System.currentTimeMillis())));
             assertThat(indexer.stop(), equalTo(IndexerState.STOPPING));
             assertThat(indexer.getState(), Matchers.either(Matchers.is(IndexerState.STOPPING)).or(Matchers.is(IndexerState.STOPPED)));
             latch.countDown();
             assertBusy(() -> assertThat(indexer.getState(), equalTo(IndexerState.STOPPED)));
             assertTrue(indexer.abort());
+            assertThat(indexer.getStats().getNumInvocations(), greaterThanOrEqualTo(6L));
         } finally {
             ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
         }

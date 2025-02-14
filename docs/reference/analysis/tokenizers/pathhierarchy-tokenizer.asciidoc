@@ -40,14 +40,14 @@ POST _analyze
       "start_offset": 0,
       "end_offset": 8,
       "type": "word",
-      "position": 0
+      "position": 1
     },
     {
       "token": "/one/two/three",
       "start_offset": 0,
       "end_offset": 14,
       "type": "word",
-      "position": 0
+      "position": 2
     }
   ]
 }
@@ -144,14 +144,14 @@ POST my-index-000001/_analyze
       "start_offset": 7,
       "end_offset": 18,
       "type": "word",
-      "position": 0
+      "position": 1
     },
     {
       "token": "/three/four/five",
       "start_offset": 7,
       "end_offset": 23,
       "type": "word",
-      "position": 0
+      "position": 2
     }
   ]
 }
@@ -178,14 +178,14 @@ If we were to set `reverse` to `true`, it would produce the following:
 [[analysis-pathhierarchy-tokenizer-detailed-examples]]
 === Detailed examples
 
-A common use-case for the `path_hierarchy` tokenizer is filtering results by 
-file paths. If indexing a file path along with the data, the use of the 
-`path_hierarchy` tokenizer to analyze the path allows filtering the results 
+A common use-case for the `path_hierarchy` tokenizer is filtering results by
+file paths. If indexing a file path along with the data, the use of the
+`path_hierarchy` tokenizer to analyze the path allows filtering the results
 by different parts of the file path string.
 
 
 This example configures an index to have two custom analyzers and applies
-those analyzers to multifields of the `file_path` text field that will 
+those analyzers to multifields of the `file_path` text field that will
 store filenames. One of the two analyzers uses reverse tokenization.
 Some sample documents are then indexed to represent some file paths
 for photos inside photo folders of two different users.
@@ -264,8 +264,8 @@ POST file-path-test/_doc/5
 --------------------------------------------------
 
 
-A search for a particular file path string against the text field matches all 
-the example documents, with Bob's documents ranking highest due to `bob` also 
+A search for a particular file path string against the text field matches all
+the example documents, with Bob's documents ranking highest due to `bob` also
 being one of the terms created by the standard analyzer boosting relevance for
 Bob's documents.
 
@@ -301,7 +301,7 @@ GET file-path-test/_search
 With the reverse parameter for this tokenizer, it's also possible to match
 from the other end of the file path, such as individual file names or a deep
 level subdirectory. The following example shows a search for all files named
-`my_photo1.jpg` within any directory via the `file_path.tree_reversed` field 
+`my_photo1.jpg` within any directory via the `file_path.tree_reversed` field
 configured to use the reverse parameter in the mapping.
 
 
@@ -342,7 +342,7 @@ POST file-path-test/_analyze
 
 
 It's also useful to be able to filter with file paths when combined with other
-types of searches, such as this example looking for any files paths with `16` 
+types of searches, such as this example looking for any files paths with `16`
 that also must be in Alice's photo directory.
 
 [source,console]

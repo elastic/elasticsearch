@@ -23,11 +23,13 @@ import java.util.Objects;
 public class AzureAiStudioChatCompletionRequest extends AzureAiStudioRequest {
     private final List<String> input;
     private final AzureAiStudioChatCompletionModel completionModel;
+    private final boolean stream;
 
-    public AzureAiStudioChatCompletionRequest(AzureAiStudioChatCompletionModel model, List<String> input) {
+    public AzureAiStudioChatCompletionRequest(AzureAiStudioChatCompletionModel model, List<String> input, boolean stream) {
         super(model);
         this.input = Objects.requireNonNull(input);
         this.completionModel = Objects.requireNonNull(model);
+        this.stream = stream;
     }
 
     public boolean isRealtimeEndpoint() {
@@ -59,6 +61,11 @@ public class AzureAiStudioChatCompletionRequest extends AzureAiStudioRequest {
         return null;
     }
 
+    @Override
+    public boolean isStreaming() {
+        return stream;
+    }
+
     private AzureAiStudioChatCompletionRequestEntity createRequestEntity() {
         var taskSettings = completionModel.getTaskSettings();
         var serviceSettings = completionModel.getServiceSettings();
@@ -68,7 +75,8 @@ public class AzureAiStudioChatCompletionRequest extends AzureAiStudioRequest {
             taskSettings.temperature(),
             taskSettings.topP(),
             taskSettings.doSample(),
-            taskSettings.maxNewTokens()
+            taskSettings.maxNewTokens(),
+            isStreaming()
         );
     }
 

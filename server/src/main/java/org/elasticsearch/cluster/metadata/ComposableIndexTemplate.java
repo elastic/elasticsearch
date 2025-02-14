@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -27,6 +29,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -188,9 +192,14 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         if (ignoreMissingComponentTemplates == null) {
             return componentTemplates;
         }
-        return componentTemplates.stream()
-            .filter(componentTemplate -> ignoreMissingComponentTemplates.contains(componentTemplate) == false)
-            .toList();
+        // note: this loop is unrolled rather than streaming-style because it's hot enough to show up in a flamegraph
+        List<String> required = new ArrayList<>(componentTemplates.size());
+        for (String template : componentTemplates) {
+            if (ignoreMissingComponentTemplates.contains(template) == false) {
+                required.add(template);
+            }
+        }
+        return Collections.unmodifiableList(required);
     }
 
     @Nullable
@@ -364,16 +373,14 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
 
         private static final ParseField HIDDEN = new ParseField("hidden");
         private static final ParseField ALLOW_CUSTOM_ROUTING = new ParseField("allow_custom_routing");
+        // Remove this after this PR gets backported
+        @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
         private static final ParseField FAILURE_STORE = new ParseField("failure_store");
 
         public static final ConstructingObjectParser<DataStreamTemplate, Void> PARSER = new ConstructingObjectParser<>(
             "data_stream_template",
             false,
-            args -> new DataStreamTemplate(
-                args[0] != null && (boolean) args[0],
-                args[1] != null && (boolean) args[1],
-                DataStream.isFailureStoreFeatureFlagEnabled() && args[2] != null && (boolean) args[2]
-            )
+            args -> new DataStreamTemplate(args[0] != null && (boolean) args[0], args[1] != null && (boolean) args[1])
         );
 
         static {
@@ -386,20 +393,14 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
 
         private final boolean hidden;
         private final boolean allowCustomRouting;
-        private final boolean failureStore;
 
         public DataStreamTemplate() {
-            this(false, false, false);
+            this(false, false);
         }
 
         public DataStreamTemplate(boolean hidden, boolean allowCustomRouting) {
-            this(hidden, allowCustomRouting, false);
-        }
-
-        public DataStreamTemplate(boolean hidden, boolean allowCustomRouting, boolean failureStore) {
             this.hidden = hidden;
             this.allowCustomRouting = allowCustomRouting;
-            this.failureStore = failureStore;
         }
 
         DataStreamTemplate(StreamInput in) throws IOException {
@@ -417,17 +418,16 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
                 boolean value = in.readBoolean();
                 assert value == false : "expected false, because this used to be an optional enum that never got set";
             }
-            if (in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)) {
-                failureStore = in.readBoolean();
-            } else {
-                failureStore = false;
+            if (in.getTransportVersion()
+                .between(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION, TransportVersions.ADD_DATA_STREAM_OPTIONS_TO_TEMPLATES)) {
+                in.readBoolean();
             }
         }
 
         /**
          * A mapping snippet for a backing index with `_data_stream_timestamp` meta field mapper properly configured.
          */
-        public static CompressedXContent DATA_STREAM_MAPPING_SNIPPET;
+        public static final CompressedXContent DATA_STREAM_MAPPING_SNIPPET;
 
         static {
             try {
@@ -450,10 +450,6 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             return allowCustomRouting;
         }
 
-        public boolean hasFailureStore() {
-            return failureStore;
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(hidden);
@@ -464,8 +460,11 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
                 // See comment in constructor.
                 out.writeBoolean(false);
             }
-            if (out.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION)) {
-                out.writeBoolean(failureStore);
+            if (out.getTransportVersion()
+                .between(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION, TransportVersions.ADD_DATA_STREAM_OPTIONS_TO_TEMPLATES)) {
+                // Previous versions expect the failure store to be configured via the DataStreamTemplate. We add it here, so we don't break
+                // the serialisation, but we do not care to preserve the value because this feature is still behind a feature flag.
+                out.writeBoolean(false);
             }
         }
 
@@ -474,9 +473,6 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             builder.startObject();
             builder.field("hidden", hidden);
             builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), allowCustomRouting);
-            if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-                builder.field(FAILURE_STORE.getPreferredName(), failureStore);
-            }
             builder.endObject();
             return builder;
         }
@@ -486,12 +482,12 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             DataStreamTemplate that = (DataStreamTemplate) o;
-            return hidden == that.hidden && allowCustomRouting == that.allowCustomRouting && failureStore == that.failureStore;
+            return hidden == that.hidden && allowCustomRouting == that.allowCustomRouting;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(hidden, allowCustomRouting, failureStore);
+            return Objects.hash(hidden, allowCustomRouting);
         }
     }
 
@@ -533,6 +529,11 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
 
         public Builder template(Template template) {
             this.template = template;
+            return this;
+        }
+
+        public Builder template(Template.Builder template) {
+            this.template = template.build();
             return this;
         }
 

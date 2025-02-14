@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -102,19 +103,9 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
         out.writeOptionalString(fuzzyRewrite);
     }
 
-    /** Returns the field name used in this query. */
-    public String fieldName() {
-        return this.fieldName;
-    }
-
     /** Returns the value used in this query. */
     public Object value() {
         return this.value;
-    }
-
-    /** Get the analyzer to use, if previously set, otherwise {@code null} */
-    public String analyzer() {
-        return this.analyzer;
     }
 
     /**
@@ -133,11 +124,6 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
         }
         this.operator = operator;
         return this;
-    }
-
-    /** Returns the operator to use in a boolean query.*/
-    public Operator operator() {
-        return this.operator;
     }
 
     /** Sets optional minimumShouldMatch value to apply to the query */
@@ -194,13 +180,6 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
     }
 
     /**
-     * Get the (optional) number of term expansions when using fuzzy or prefix type query.
-     */
-    public int maxExpansions() {
-        return this.maxExpansions;
-    }
-
-    /**
      * Sets whether transpositions are supported in fuzzy queries.<p>
      * The default metric used by fuzzy queries to determine a match is the Damerau-Levenshtein
      * distance formula which supports transpositions. Setting transposition to false will
@@ -221,14 +200,6 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
     public MatchBoolPrefixQueryBuilder fuzzyRewrite(String fuzzyRewrite) {
         this.fuzzyRewrite = fuzzyRewrite;
         return this;
-    }
-
-    /**
-     * Get the fuzzy_rewrite parameter
-     * @see #fuzzyRewrite(String)
-     */
-    public String fuzzyRewrite() {
-        return this.fuzzyRewrite;
     }
 
     @Override
@@ -406,6 +377,6 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_7_2_0;
+        return TransportVersions.ZERO;
     }
 }

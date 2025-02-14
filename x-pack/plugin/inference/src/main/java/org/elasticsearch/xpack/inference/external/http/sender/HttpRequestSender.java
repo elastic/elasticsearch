@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -15,8 +17,12 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
+import org.elasticsearch.xpack.inference.external.http.RequestExecutor;
+import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
+import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryingHttpSender;
+import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 
 import java.io.IOException;
@@ -39,30 +45,28 @@ public class HttpRequestSender implements Sender {
         private final ServiceComponents serviceComponents;
         private final HttpClientManager httpClientManager;
         private final ClusterService clusterService;
-        private final SingleRequestManager requestManager;
+        private final RequestSender requestSender;
 
         public Factory(ServiceComponents serviceComponents, HttpClientManager httpClientManager, ClusterService clusterService) {
             this.serviceComponents = Objects.requireNonNull(serviceComponents);
             this.httpClientManager = Objects.requireNonNull(httpClientManager);
             this.clusterService = Objects.requireNonNull(clusterService);
 
-            var requestSender = new RetryingHttpSender(
+            requestSender = new RetryingHttpSender(
                 this.httpClientManager.getHttpClient(),
                 serviceComponents.throttlerManager(),
                 new RetrySettings(serviceComponents.settings(), clusterService),
                 serviceComponents.threadPool()
             );
-            requestManager = new SingleRequestManager(requestSender);
         }
 
-        public Sender createSender(String serviceName) {
+        public Sender createSender() {
             return new HttpRequestSender(
-                serviceName,
                 serviceComponents.threadPool(),
                 httpClientManager,
                 clusterService,
                 serviceComponents.settings(),
-                requestManager
+                requestSender
             );
         }
     }
@@ -71,26 +75,26 @@ public class HttpRequestSender implements Sender {
 
     private final ThreadPool threadPool;
     private final HttpClientManager manager;
-    private final RequestExecutorService service;
+    private final RequestExecutor service;
     private final AtomicBoolean started = new AtomicBoolean(false);
-    private final CountDownLatch startCompleted = new CountDownLatch(2);
+    private final CountDownLatch startCompleted = new CountDownLatch(1);
+    private final RequestSender requestSender;
 
     private HttpRequestSender(
-        String serviceName,
         ThreadPool threadPool,
         HttpClientManager httpClientManager,
         ClusterService clusterService,
         Settings settings,
-        SingleRequestManager requestManager
+        RequestSender requestSender
     ) {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.manager = Objects.requireNonNull(httpClientManager);
+        this.requestSender = Objects.requireNonNull(requestSender);
         service = new RequestExecutorService(
-            serviceName,
             threadPool,
             startCompleted,
             new RequestExecutorServiceSettings(settings, clusterService),
-            requestManager
+            requestSender
         );
     }
 
@@ -103,7 +107,21 @@ public class HttpRequestSender implements Sender {
             // is ready prior to the service attempting to use the http client to send a request
             manager.start();
             threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(service::start);
-            startCompleted.countDown();
+            waitForStartToComplete();
+        }
+    }
+
+    public void updateRateLimitDivisor(int rateLimitDivisor) {
+        service.updateRateLimitDivisor(rateLimitDivisor);
+    }
+
+    private void waitForStartToComplete() {
+        try {
+            if (startCompleted.await(START_COMPLETED_WAIT_TIME.getSeconds(), TimeUnit.SECONDS) == false) {
+                throw new IllegalStateException("Http sender startup did not complete in time");
+            }
+        } catch (InterruptedException e) {
+            throw new IllegalStateException("Http sender interrupted while waiting for startup to complete");
         }
     }
 
@@ -134,13 +152,30 @@ public class HttpRequestSender implements Sender {
         service.execute(requestCreator, inferenceInputs, timeout, listener);
     }
 
-    private void waitForStartToComplete() {
-        try {
-            if (startCompleted.await(START_COMPLETED_WAIT_TIME.getSeconds(), TimeUnit.SECONDS) == false) {
-                throw new IllegalStateException("Http sender startup did not complete in time");
-            }
-        } catch (InterruptedException e) {
-            throw new IllegalStateException("Http sender interrupted while waiting for startup to complete");
-        }
+    /**
+     * This method sends a request and parses the response. It does not leverage any queuing or
+     * rate limiting logic. This method should only be used for requests that are not sent often.
+     *
+     * @param logger          A logger to use for messages
+     * @param request         A request to be sent
+     * @param responseHandler A handler for parsing the response
+     * @param timeout         the maximum time the request should wait for a response before timing out. If null, the timeout is ignored
+     * @param listener        a listener to handle the response
+     */
+    public void sendWithoutQueuing(
+        Logger logger,
+        Request request,
+        ResponseHandler responseHandler,
+        @Nullable TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        assert started.get() : "call start() before sending a request";
+        waitForStartToComplete();
+
+        var preservedListener = ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext());
+        var timedListener = new TimedListener<>(timeout, preservedListener, threadPool);
+
+        threadPool.executor(UTILITY_THREAD_POOL_NAME)
+            .execute(() -> requestSender.send(logger, request, timedListener::hasCompleted, responseHandler, timedListener.getListener()));
     }
 }

@@ -290,21 +290,6 @@ setup:
         name: foo
 
 ---
-"Get alias with local flag":
-  - skip:
-      features: ["allowed_warnings"]
-
-  - do:
-      indices.get_alias:
-        local: true
-      allowed_warnings:
-        - "the [?local=true] query parameter to get-aliases requests has no effect and will be removed in a future version"
-
-  - is_true: test_index
-
-  - is_true: test_index_2
-
----
 "Get alias against closed indices":
   - skip:
       features: ["allowed_warnings"]
@@ -312,8 +297,6 @@ setup:
   - do:
       indices.close:
         index: test_index_2
-      allowed_warnings:
-        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
 
   - do:
       indices.get_alias:
@@ -329,17 +312,3 @@ setup:
 
   - is_true: test_index
   - is_false: test_index_2
-
-
----
-"Deprecated local parameter":
-  - requires:
-      cluster_features: "gte_v8.12.0"
-      test_runner_features: ["warnings"]
-      reason: verifying deprecation warnings from 8.12.0 onwards
-
-  - do:
-      indices.get_alias:
-        local: true
-      warnings:
-        - "the [?local=true] query parameter to get-aliases requests has no effect and will be removed in a future version"

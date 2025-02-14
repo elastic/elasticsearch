@@ -7,7 +7,7 @@
 field | result
 boolean | integer
 counter_integer | integer
-datetime | integer
+date | integer
 double | integer
 integer | integer
 keyword | integer

@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -74,6 +75,7 @@ public class PositionMergingSourceOperator extends MappingSourceOperator {
             switch (in.elementType()) {
                 case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean(((BooleanBlock) in).getBoolean(i));
                 case BYTES_REF -> ((BytesRefBlock.Builder) builder).appendBytesRef(((BytesRefBlock) in).getBytesRef(i, scratch));
+                case FLOAT -> ((FloatBlock.Builder) builder).appendFloat(((FloatBlock) in).getFloat(i));
                 case DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble(((DoubleBlock) in).getDouble(i));
                 case INT -> ((IntBlock.Builder) builder).appendInt(((IntBlock) in).getInt(i));
                 case LONG -> ((LongBlock.Builder) builder).appendLong(((LongBlock) in).getLong(i));

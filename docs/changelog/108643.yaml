@@ -1,6 +1,0 @@
-pr: 108643
-summary: Use `scheduleUnlessShuttingDown` in `LeaderChecker`
-area: Cluster Coordination
-type: bug
-issues:
- - 108642

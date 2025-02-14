@@ -5,7 +5,13 @@
 <titleabbrev>Remove policy</titleabbrev>
 ++++
 
-Removes assigned lifecycle policies from an index or a data stream's backing
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ilm[{ilm-cap} APIs].
+--
+
+Removes assigned <<index-lifecycle-management,lifecycle>> policies from an index or a data stream's backing
 indices.
 
 [[ilm-remove-policy-request]]

@@ -34,8 +34,3 @@ more, refer to {security-guide}/rules-ui-create.html#create-esql-rule[Create an
 Use the Elastic AI Assistant to build {esql} queries, or answer questions about
 the {esql} query language. To learn more, refer to
 {security-guide}/security-assistant.html[AI Assistant].
-
-NOTE: For AI Assistant to answer questions about {esql} and write {esql}
-queries, you need to
-{security-guide}/security-assistant.html#set-up-ai-assistant[enable knowledge
-base].

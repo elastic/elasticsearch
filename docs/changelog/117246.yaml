@@ -1,0 +1,5 @@
+pr: 117246
+summary: LOOKUP JOIN using field-caps for field mapping
+area: ES|QL
+type: enhancement
+issues: []

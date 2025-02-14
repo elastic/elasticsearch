@@ -22,7 +22,7 @@ import java.util.Map;
 
 import static org.elasticsearch.core.Strings.format;
 
-public class Utils {
+public final class Utils {
 
     public static String getUrl(MockWebServer webServer) {
         return format("http://%s:%s", webServer.getHostName(), webServer.getPort());
@@ -46,4 +46,6 @@ public class Utils {
             return parser.map();
         }
     }
+
+    private Utils() {}
 }

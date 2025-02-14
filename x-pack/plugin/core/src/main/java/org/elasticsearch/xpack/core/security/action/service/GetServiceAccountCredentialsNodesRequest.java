@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.security.action.service;
 
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,7 +18,7 @@ import java.io.IOException;
  * Request for retrieving service account credentials that are local to each node.
  * Currently, this means file-backed service tokens.
  */
-public class GetServiceAccountCredentialsNodesRequest extends BaseNodesRequest<GetServiceAccountCredentialsNodesRequest> {
+public class GetServiceAccountCredentialsNodesRequest extends BaseNodesRequest {
 
     private final String namespace;
     private final String serviceName;
@@ -28,11 +27,6 @@ public class GetServiceAccountCredentialsNodesRequest extends BaseNodesRequest<G
         super((String[]) null);
         this.namespace = namespace;
         this.serviceName = serviceName;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        TransportAction.localOnly();
     }
 
     public static class Node extends TransportRequest {

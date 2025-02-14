@@ -5,7 +5,13 @@
 <titleabbrev>Get policy</titleabbrev>
 ++++
 
-Retrieves a lifecycle policy.
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ilm[{ilm-cap} APIs].
+--
+
+Retrieves a <<index-lifecycle-management,lifecycle>> policy.
 
 [[ilm-get-lifecycle-request]]
 ==== {api-request-title}

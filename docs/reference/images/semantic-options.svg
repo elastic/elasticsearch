@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg">
+  <!-- Title -->
+  <text x="400" y="40" text-anchor="middle" font-size="24" fill="#000" font-family="Inter, Arial, sans-serif">Elasticsearch semantic search workflows</text>
+  
+  <!-- Workflow boxes -->
+  <g transform="translate(0, 80)">
+    <!-- semantic_text workflow (recommended) -->
+    <rect x="50" y="50" width="200" height="300" rx="10" fill="#c2e0ff" stroke="#3f8dd6" stroke-width="2"/>
+    <text x="150" y="80" text-anchor="middle" font-size="16" font-weight="bold" fill="#2c5282" font-family="Inter, Arial, sans-serif">semantic_text</text>
+    <text x="150" y="100" text-anchor="middle" font-size="12" fill="#2c5282" font-family="Inter, Arial, sans-serif">(Recommended)</text>
+    
+    <!-- Inference API workflow -->
+    <rect x="300" y="50" width="200" height="300" rx="10" fill="#d9f1e3" stroke="#38a169" stroke-width="2"/>
+    <text x="400" y="80" text-anchor="middle" font-size="16" font-weight="bold" fill="#276749" font-family="Inter, Arial, sans-serif">Inference API</text>
+    
+    <!-- Model deployment workflow -->
+    <rect x="550" y="50" width="200" height="300" rx="10" fill="#feebc8" stroke="#dd6b20" stroke-width="2"/>
+    <text x="650" y="80" text-anchor="middle" font-size="16" font-weight="bold" fill="#9c4221" font-family="Inter, Arial, sans-serif">Model Deployment</text>
+    
+    <!-- Complexity indicators -->
+    <text x="150" y="130" text-anchor="middle" font-size="12" fill="#2c5282" font-family="Inter, Arial, sans-serif">Complexity: Low</text>
+    <text x="400" y="130" text-anchor="middle" font-size="12" fill="#276749" font-family="Inter, Arial, sans-serif">Complexity: Medium</text>
+    <text x="650" y="130" text-anchor="middle" font-size="12" fill="#9c4221" font-family="Inter, Arial, sans-serif">Complexity: High</text>
+    
+    <!-- Components in each workflow -->
+    <g transform="translate(60, 150)">
+      <!-- semantic_text components -->
+      <rect x="10" y="0" width="170" height="30" rx="5" fill="#fff" stroke="#3f8dd6"/>
+      <text x="95" y="20" text-anchor="middle" font-size="12" font-family="Inter, Arial, sans-serif">Create Inference Endpoint</text>
+      
+      <rect x="10" y="40" width="170" height="30" rx="5" fill="#fff" stroke="#3f8dd6"/>
+      <text x="95" y="60" text-anchor="middle" font-size="12" font-family="Inter, Arial, sans-serif">Define Index Mapping</text>
+      
+      <!-- Inference API components -->
+      <rect x="260" y="0" width="170" height="30" rx="5" fill="#fff" stroke="#38a169"/>
+      <text x="345" y="20" text-anchor="middle" font-size="12" font-family="Inter, Arial, sans-serif">Create Inference Endpoint</text>
+      
+      <rect x="260" y="40" width="170" height="30" rx="5" fill="#fff" stroke="#38a169"/>
+      <text x="345" y="60" text-anchor="middle" font-size="12" font-family="Inter, Arial, sans-serif">Configure Model Settings</text>
+      
+      <rect x="260" y="80" width="170" height="30" rx="5" fill="#fff" stroke="#38a169"/>
+      <text x="345" y="100" text-anchor="middle" font-size="12" font-family="Inter, Arial, sans-serif">Define Index Mapping</text>
+      
+      <rect x="260" y="120" width="170" height="30" rx="5" fill="#fff" stroke="#38a169"/>
+      <text x="345" y="140" text-anchor="middle" font-size="12" font-family="Inter, Arial, sans-serif">Setup Ingest Pipeline</text>
+      
+      <!-- Model deployment components -->
+      <rect x="510" y="0" width="170" height="30" rx="5" fill="#fff" stroke="#dd6b20"/>
+      <text x="595" y="20" text-anchor="middle" font-size="12" font-family="Inter, Arial, sans-serif">Select NLP Model</text>
+      
+      <rect x="510" y="40" width="170" height="30" rx="5" fill="#fff" stroke="#dd6b20"/>
+      <text x="595" y="60" text-anchor="middle" font-size="12" font-family="Inter, Arial, sans-serif">Deploy with Eland Client</text>
+      
+      <rect x="510" y="80" width="170" height="30" rx="5" fill="#fff" stroke="#dd6b20"/>
+      <text x="595" y="100" text-anchor="middle" font-size="12" font-family="Inter, Arial, sans-serif">Define Index Mapping</text>
+      
+      <rect x="510" y="120" width="170" height="30" rx="5" fill="#fff" stroke="#dd6b20"/>
+      <text x="595" y="140" text-anchor="middle" font-size="12" font-family="Inter, Arial, sans-serif">Setup Ingest Pipeline</text>
+    </g>
+  </g>
+</svg>

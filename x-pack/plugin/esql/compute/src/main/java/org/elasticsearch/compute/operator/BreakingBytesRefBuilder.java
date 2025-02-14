@@ -132,6 +132,14 @@ public class BreakingBytesRefBuilder implements Accountable, Releasable {
     }
 
     /**
+     * Set the content of the builder to the given bytes.
+     */
+    public void copyBytes(BytesRef newBytes) {
+        clear();
+        append(newBytes);
+    }
+
+    /**
      * Reset the builder to an empty bytes array. Doesn't deallocate any memory.
      */
     public void clear() {
@@ -141,7 +149,7 @@ public class BreakingBytesRefBuilder implements Accountable, Releasable {
     /**
      * Returns a view of the data added as a {@link BytesRef}. Importantly, this does not
      * copy the bytes and any further modification to the {@link BreakingBytesRefBuilder}
-     * will modify the returned {@link BytesRef}. The called must copy the bytes
+     * will modify the returned {@link BytesRef}. The caller must copy the bytes
      * if they wish to keep them.
      */
     public BytesRef bytesRefView() {

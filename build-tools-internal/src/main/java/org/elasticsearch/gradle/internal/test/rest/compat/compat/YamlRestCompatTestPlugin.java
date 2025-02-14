@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.test.rest.compat.compat;
@@ -32,7 +33,7 @@ public class YamlRestCompatTestPlugin extends AbstractYamlRestCompatTestPlugin {
 
     @Override
     public TaskProvider<? extends Test> registerTestTask(Project project, SourceSet sourceSet) {
-        return RestTestUtil.registerTestTask(project, sourceSet, sourceSet.getTaskName(null, "test"), StandaloneRestIntegTestTask.class);
+        return RestTestUtil.registerTestTask(project, sourceSet, sourceSet.getName(), StandaloneRestIntegTestTask.class);
     }
 
     @Override

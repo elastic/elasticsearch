@@ -13,11 +13,11 @@ import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToDegrees}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToDegreesEvaluator extends AbstractConvertFunction.AbstractEvaluator {
   public ToDegreesEvaluator(EvalOperator.ExpressionEvaluator field, Source source,

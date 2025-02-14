@@ -1,22 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.alias.get;
 
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.AliasMetadata.Builder;
-import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.UpdateForV9;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -25,32 +23,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
-@UpdateForV9 // no need to round-trip these objects over the wire any more, we only need a checkEqualsAndHashCode test
-public class GetAliasesResponseTests extends AbstractWireSerializingTestCase<GetAliasesResponse> {
+public class GetAliasesResponseTests extends ESTestCase {
 
-    @Override
-    protected GetAliasesResponse createTestInstance() {
-        return createTestItem();
-    }
-
-    /**
-     * NB prior to 8.12 get-aliases was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses so that
-     * older nodes can read them until we no longer need to support calling this action remotely. The reader implementation below is the
-     * production implementation from earlier versions, but moved here because it is unused in production now.
-     */
-    @Override
-    protected Writeable.Reader<GetAliasesResponse> instanceReader() {
-        return in -> new GetAliasesResponse(
-            in.readImmutableOpenMap(StreamInput::readString, i -> i.readCollectionAsList(AliasMetadata::new)),
-            in.readMap(in1 -> in1.readCollectionAsList(DataStreamAlias::new))
-        );
-    }
-
-    @Override
-    protected GetAliasesResponse mutateInstance(GetAliasesResponse response) {
-        return new GetAliasesResponse(
-            mutateAliases(response.getAliases()),
-            randomMap(5, 5, () -> new Tuple<>(randomAlphaOfLength(4), randomList(5, DataStreamTestHelper::randomAliasInstance)))
+    public void testEqualsAndHashCode() {
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            createTestItem(),
+            response -> new GetAliasesResponse(response.getAliases(), response.getDataStreamAliases()),
+            response -> new GetAliasesResponse(
+                mutateAliases(response.getAliases()),
+                randomMap(5, 5, () -> new Tuple<>(randomAlphaOfLength(4), randomList(5, DataStreamTestHelper::randomAliasInstance)))
+            )
         );
     }
 

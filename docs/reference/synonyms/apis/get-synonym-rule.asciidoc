@@ -1,9 +1,14 @@
 [[get-synonym-rule]]
 === Get synonym rule
-
 ++++
 <titleabbrev>Get synonym rule</titleabbrev>
 ++++
+
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-synonyms[Synonyms APIs].
+--
 
 Retrieves a synonym rule from a synonyms set.
 

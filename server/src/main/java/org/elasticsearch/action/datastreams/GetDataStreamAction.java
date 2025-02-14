@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.datastreams;
 
@@ -25,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -54,22 +56,47 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
     public static class Request extends MasterNodeReadRequest<Request> implements IndicesRequest.Replaceable {
 
         private String[] names;
-        private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true, false, false, true, false);
-        private boolean includeDefaults = false;
+        private IndicesOptions indicesOptions = IndicesOptions.builder()
+            .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+            .wildcardOptions(
+                IndicesOptions.WildcardOptions.builder()
+                    .matchOpen(true)
+                    .matchClosed(true)
+                    .includeHidden(false)
+                    .resolveAliases(false)
+                    .allowEmptyExpressions(true)
+                    .build()
+            )
+            .gatekeeperOptions(
+                IndicesOptions.GatekeeperOptions.builder()
+                    .allowAliasToMultipleIndices(false)
+                    .allowClosedIndices(true)
+                    .ignoreThrottled(false)
+                    .allowSelectors(false)
+                    .build()
+            )
+            .build();
 
-        public Request(String[] names) {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        private boolean includeDefaults = false;
+        private boolean verbose = false;
+
+        public Request(TimeValue masterNodeTimeout, String[] names) {
+            super(masterNodeTimeout);
             this.names = names;
         }
 
-        public Request(String[] names, boolean includeDefaults) {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        public Request(TimeValue masterNodeTimeout, String[] names, boolean includeDefaults) {
+            super(masterNodeTimeout);
             this.names = names;
             this.includeDefaults = includeDefaults;
         }
 
         public String[] getNames() {
             return names;
+        }
+
+        public boolean verbose() {
+            return verbose;
         }
 
         @Override
@@ -86,6 +113,11 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             } else {
                 this.includeDefaults = false;
             }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+                this.verbose = in.readBoolean();
+            } else {
+                this.verbose = false;
+            }
         }
 
         @Override
@@ -96,6 +128,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 out.writeBoolean(includeDefaults);
             }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+                out.writeBoolean(verbose);
+            }
         }
 
         @Override
@@ -105,12 +140,13 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             Request request = (Request) o;
             return Arrays.equals(names, request.names)
                 && indicesOptions.equals(request.indicesOptions)
-                && includeDefaults == request.includeDefaults;
+                && includeDefaults == request.includeDefaults
+                && verbose == request.verbose;
         }
 
         @Override
         public int hashCode() {
-            int result = Objects.hash(indicesOptions, includeDefaults);
+            int result = Objects.hash(indicesOptions, includeDefaults, verbose);
             result = 31 * result + Arrays.hashCode(names);
             return result;
         }
@@ -147,6 +183,11 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
         public Request includeDefaults(boolean includeDefaults) {
             this.includeDefaults = includeDefaults;
+            return this;
+        }
+
+        public Request verbose(boolean verbose) {
+            this.verbose = verbose;
             return this;
         }
     }
@@ -190,9 +231,11 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 "time_since_last_auto_shard_event_millis"
             );
             public static final ParseField FAILURE_STORE_ENABLED = new ParseField("enabled");
+            public static final ParseField MAXIMUM_TIMESTAMP = new ParseField("maximum_timestamp");
 
             private final DataStream dataStream;
             private final ClusterHealthStatus dataStreamStatus;
+            private final boolean failureStoreEffectivelyEnabled; // Must be serialized independently of dataStream as depends on settings
             @Nullable
             private final String indexTemplate;
             @Nullable
@@ -201,40 +244,57 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             private final TimeSeries timeSeries;
             private final Map<Index, IndexProperties> indexSettingsValues;
             private final boolean templatePreferIlmValue;
+            @Nullable
+            private final Long maximumTimestamp;
 
             public DataStreamInfo(
                 DataStream dataStream,
+                boolean failureStoreEffectivelyEnabled,
                 ClusterHealthStatus dataStreamStatus,
                 @Nullable String indexTemplate,
                 @Nullable String ilmPolicyName,
                 @Nullable TimeSeries timeSeries,
                 Map<Index, IndexProperties> indexSettingsValues,
-                boolean templatePreferIlmValue
+                boolean templatePreferIlmValue,
+                @Nullable Long maximumTimestamp
             ) {
                 this.dataStream = dataStream;
+                this.failureStoreEffectivelyEnabled = failureStoreEffectivelyEnabled;
                 this.dataStreamStatus = dataStreamStatus;
                 this.indexTemplate = indexTemplate;
                 this.ilmPolicyName = ilmPolicyName;
                 this.timeSeries = timeSeries;
                 this.indexSettingsValues = indexSettingsValues;
                 this.templatePreferIlmValue = templatePreferIlmValue;
+                this.maximumTimestamp = maximumTimestamp;
             }
 
             @SuppressWarnings("unchecked")
             DataStreamInfo(StreamInput in) throws IOException {
-                this(
-                    DataStream.read(in),
-                    ClusterHealthStatus.readFrom(in),
-                    in.readOptionalString(),
-                    in.readOptionalString(),
-                    in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0) ? in.readOptionalWriteable(TimeSeries::new) : null,
-                    in.getTransportVersion().onOrAfter(V_8_11_X) ? in.readMap(Index::new, IndexProperties::new) : Map.of(),
-                    in.getTransportVersion().onOrAfter(V_8_11_X) ? in.readBoolean() : true
-                );
+                this.dataStream = DataStream.read(in);
+                this.failureStoreEffectivelyEnabled = in.getTransportVersion()
+                    .onOrAfter(TransportVersions.FAILURE_STORE_ENABLED_BY_CLUSTER_SETTING)
+                        ? in.readBoolean()
+                        : dataStream.isFailureStoreExplicitlyEnabled(); // Revert to the behaviour before this field was added
+                this.dataStreamStatus = ClusterHealthStatus.readFrom(in);
+                this.indexTemplate = in.readOptionalString();
+                this.ilmPolicyName = in.readOptionalString();
+                this.timeSeries = in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)
+                    ? in.readOptionalWriteable(TimeSeries::new)
+                    : null;
+                this.indexSettingsValues = in.getTransportVersion().onOrAfter(V_8_11_X)
+                    ? in.readMap(Index::new, IndexProperties::new)
+                    : Map.of();
+                this.templatePreferIlmValue = in.getTransportVersion().onOrAfter(V_8_11_X) ? in.readBoolean() : true;
+                this.maximumTimestamp = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readOptionalVLong() : null;
             }
 
             public DataStream getDataStream() {
                 return dataStream;
+            }
+
+            public boolean isFailureStoreEffectivelyEnabled() {
+                return failureStoreEffectivelyEnabled;
             }
 
             public ClusterHealthStatus getDataStreamStatus() {
@@ -264,9 +324,17 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 return templatePreferIlmValue;
             }
 
+            @Nullable
+            public Long getMaximumTimestamp() {
+                return maximumTimestamp;
+            }
+
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 dataStream.writeTo(out);
+                if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_ENABLED_BY_CLUSTER_SETTING)) {
+                    out.writeBoolean(failureStoreEffectivelyEnabled);
+                }
                 dataStreamStatus.writeTo(out);
                 out.writeOptionalString(indexTemplate);
                 out.writeOptionalString(ilmPolicyName);
@@ -276,6 +344,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 if (out.getTransportVersion().onOrAfter(V_8_11_X)) {
                     out.writeMap(indexSettingsValues);
                     out.writeBoolean(templatePreferIlmValue);
+                }
+                if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
+                    out.writeOptionalVLong(maximumTimestamp);
                 }
             }
 
@@ -312,8 +383,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 }
                 if (dataStream.getLifecycle() != null) {
                     builder.field(LIFECYCLE_FIELD.getPreferredName());
-                    dataStream.getLifecycle()
-                        .toXContent(builder, params, rolloverConfiguration, dataStream.isSystem() ? null : globalRetention);
+                    dataStream.getLifecycle().toXContent(builder, params, rolloverConfiguration, globalRetention, dataStream.isInternal());
                 }
                 if (ilmPolicyName != null) {
                     builder.field(ILM_POLICY_FIELD.getPreferredName(), ilmPolicyName);
@@ -325,6 +395,9 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), dataStream.isAllowCustomRouting());
                 builder.field(REPLICATED.getPreferredName(), dataStream.isReplicated());
                 builder.field(ROLLOVER_ON_WRITE.getPreferredName(), dataStream.rolloverOnWrite());
+                if (this.maximumTimestamp != null) {
+                    builder.field(MAXIMUM_TIMESTAMP.getPreferredName(), this.maximumTimestamp);
+                }
                 addAutoShardingEvent(builder, params, dataStream.getAutoShardingEvent());
                 if (timeSeries != null) {
                     builder.startObject(TIME_SERIES.getPreferredName());
@@ -342,13 +415,13 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 }
                 if (DataStream.isFailureStoreFeatureFlagEnabled()) {
                     builder.startObject(DataStream.FAILURE_STORE_FIELD.getPreferredName());
-                    builder.field(FAILURE_STORE_ENABLED.getPreferredName(), dataStream.isFailureStoreEnabled());
+                    builder.field(FAILURE_STORE_ENABLED.getPreferredName(), failureStoreEffectivelyEnabled);
                     builder.field(
                         DataStream.ROLLOVER_ON_WRITE_FIELD.getPreferredName(),
-                        dataStream.getFailureIndices().isRolloverOnWrite()
+                        dataStream.getFailureComponent().isRolloverOnWrite()
                     );
-                    indicesToXContent(builder, dataStream.getFailureIndices().getIndices());
-                    addAutoShardingEvent(builder, params, dataStream.getFailureIndices().getAutoShardingEvent());
+                    indicesToXContent(builder, dataStream.getFailureIndices());
+                    addAutoShardingEvent(builder, params, dataStream.getFailureComponent().getAutoShardingEvent());
                     builder.endObject();
                 }
                 builder.endObject();
@@ -421,11 +494,13 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 DataStreamInfo that = (DataStreamInfo) o;
                 return templatePreferIlmValue == that.templatePreferIlmValue
                     && Objects.equals(dataStream, that.dataStream)
+                    && failureStoreEffectivelyEnabled == that.failureStoreEffectivelyEnabled
                     && dataStreamStatus == that.dataStreamStatus
                     && Objects.equals(indexTemplate, that.indexTemplate)
                     && Objects.equals(ilmPolicyName, that.ilmPolicyName)
                     && Objects.equals(timeSeries, that.timeSeries)
-                    && Objects.equals(indexSettingsValues, that.indexSettingsValues);
+                    && Objects.equals(indexSettingsValues, that.indexSettingsValues)
+                    && Objects.equals(maximumTimestamp, that.maximumTimestamp);
             }
 
             @Override
@@ -433,11 +508,13 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 return Objects.hash(
                     dataStream,
                     dataStreamStatus,
+                    failureStoreEffectivelyEnabled,
                     indexTemplate,
                     ilmPolicyName,
                     timeSeries,
                     indexSettingsValues,
-                    templatePreferIlmValue
+                    templatePreferIlmValue,
+                    maximumTimestamp
                 );
             }
         }
@@ -511,7 +588,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             this(
                 in.readCollectionAsList(DataStreamInfo::new),
                 in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X) ? in.readOptionalWriteable(RolloverConfiguration::new) : null,
-                in.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)
+                in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)
                     ? in.readOptionalWriteable(DataStreamGlobalRetention::read)
                     : null
             );
@@ -537,7 +614,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 out.writeOptionalWriteable(rolloverConfiguration);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                 out.writeOptionalWriteable(globalRetention);
             }
         }
@@ -549,7 +626,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             for (DataStreamInfo dataStream : dataStreams) {
                 dataStream.toXContent(
                     builder,
-                    DataStreamLifecycle.maybeAddEffectiveRetentionParams(params),
+                    DataStreamLifecycle.addEffectiveRetentionParams(params),
                     rolloverConfiguration,
                     globalRetention
                 );

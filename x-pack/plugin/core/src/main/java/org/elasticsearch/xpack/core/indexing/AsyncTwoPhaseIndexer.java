@@ -57,6 +57,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
     private final AtomicReference<JobPosition> position;
     private final ThreadPool threadPool;
     private final Object lock;
+    private final AtomicBoolean isJobFinishing;
 
     // throttling implementation
     private volatile float currentMaxDocsPerSecond;
@@ -115,6 +116,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
         this.position = new AtomicReference<>(initialPosition);
         this.stats = jobStats;
         this.lock = lock;
+        this.isJobFinishing = new AtomicBoolean(false);
     }
 
     /**
@@ -147,7 +149,10 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
      *         job was already aborted).
      */
     public IndexerState start() {
-        state.compareAndSet(IndexerState.STOPPED, IndexerState.STARTED);
+        if (state.compareAndSet(IndexerState.STOPPED, IndexerState.STARTED)) {
+            // in case something happens and isJobFinishing gets stuck as true, stop() and start() can reset it
+            isJobFinishing.set(false);
+        }
         return state.get();
     }
 
@@ -224,7 +229,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 case STARTED -> {
                     logger.debug("Schedule was triggered for job [" + getJobId() + "], state: [" + currentState + "]");
                     stats.incrementNumInvocations(1);
-                    if (state.compareAndSet(IndexerState.STARTED, IndexerState.INDEXING)) {
+                    if (startJob()) {
                         // fire off the search. Note this is async, the method will return from here
                         threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
                             onStart(now, ActionListener.wrap(r -> {
@@ -232,23 +237,13 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                                 if (r) {
                                     nextSearch();
                                 } else {
-                                    onFinish(
-                                        ActionListener.wrap(
-                                            onFinishResponse -> doSaveState(
-                                                finishAndSetState(),
-                                                position.get(),
-                                                this::afterFinishOrFailure
-                                            ),
-                                            onFinishFailure -> doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure)
-                                        )
-                                    );
+                                    onFinish(finishJobListener());
                                 }
                             }, this::finishWithFailure));
                         });
                         logger.debug("Beginning to index [" + getJobId() + "], state: [" + currentState + "]");
                         return true;
                     } else {
-                        logger.debug("Could not move from STARTED to INDEXING state because current state is [" + state.get() + "]");
                         return false;
                     }
                 }
@@ -258,6 +253,41 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 }
             }
         }
+    }
+
+    /**
+     * isJobFinishing is checked here, before moving from STARTED to INDEXING, in case the previous job is still cleaning up from its run.
+     * See {@link #finishJob()}.
+     */
+    private boolean startJob() {
+        if (isJobFinishing.get() == false && state.compareAndSet(IndexerState.STARTED, IndexerState.INDEXING)) {
+            return true;
+        } else {
+            logger.debug(
+                "Could not start job because current state is [{}] and another job may be finishing [{}]",
+                state::get,
+                isJobFinishing::get
+            );
+            return false;
+        }
+    }
+
+    /**
+     * finishAndSetState can toggle the IndexerState back to STARTED, allowing another thread to start another job.
+     * In order to give doSaveState and afterFinishOrFailure time to clean up the current job, toggle isJobFinishing around those
+     * operations. This toggle is a boolean rather than a lock so the second thread doesn't block and wait.
+     * See gh#67121
+     */
+    private void finishJob() {
+        isJobFinishing.set(true);
+        doSaveState(finishAndSetState(), position.get(), () -> {
+            afterFinishOrFailure();
+            isJobFinishing.set(false);
+        });
+    }
+
+    private <T> ActionListener<T> finishJobListener() {
+        return ActionListener.wrap(r -> finishJob(), e -> finishJob());
     }
 
     /**
@@ -431,7 +461,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
     private void finishWithFailure(Exception exc) {
         onFailure(exc);
-        doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure);
+        finishJob();
     }
 
     private IndexerState finishAndSetState() {
@@ -488,12 +518,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
             if (searchResponse == null) {
                 logger.debug("No indexing necessary for job [{}], saving state and shutting down.", getJobId());
                 // execute finishing tasks
-                onFinish(
-                    ActionListener.wrap(
-                        r -> doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure),
-                        e -> doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure)
-                    )
-                );
+                onFinish(finishJobListener());
                 return;
             }
 
@@ -514,12 +539,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
                 position.set(iterationResult.getPosition());
                 stats.markEndProcessing();
                 // execute finishing tasks
-                onFinish(
-                    ActionListener.wrap(
-                        r -> doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure),
-                        e -> doSaveState(finishAndSetState(), position.get(), this::afterFinishOrFailure)
-                    )
-                );
+                onFinish(finishJobListener());
                 return;
             }
 
@@ -635,7 +655,7 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
             case STOPPING:
                 logger.info("Indexer job encountered [" + IndexerState.STOPPING + "] state, halting indexer.");
-                doSaveState(finishAndSetState(), getPosition(), this::afterFinishOrFailure);
+                finishJob();
                 return false;
 
             case STOPPED:

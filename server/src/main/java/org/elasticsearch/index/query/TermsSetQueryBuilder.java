@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.query;
 
@@ -11,7 +12,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.sandbox.search.CoveringQuery;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LongValues;
@@ -272,8 +272,8 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
             return Queries.newMatchNoDocsQuery("No terms supplied for \"" + getName() + "\" query.");
         }
         // Fail before we attempt to create the term queries:
-        if (values.size() > BooleanQuery.getMaxClauseCount()) {
-            throw new BooleanQuery.TooManyClauses();
+        if (values.size() > IndexSearcher.getMaxClauseCount()) {
+            throw new IndexSearcher.TooManyClauses();
         }
 
         List<Query> queries = createTermQueries(context);

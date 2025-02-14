@@ -1,0 +1,5 @@
+pr: 120354
+summary: Move scoring in ES|QL out of snapshot
+area: ES|QL
+type: enhancement
+issues: []

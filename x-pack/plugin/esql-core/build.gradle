@@ -1,0 +1,25 @@
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-test-artifact'
+apply plugin: 'elasticsearch.publish'
+
+esplugin {
+  name = 'x-pack-esql-core'
+  description = 'Elasticsearch infrastructure plugin for ESQL'
+  classname = 'org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin'
+  extendedPlugins = ['x-pack-core']
+}
+
+base {
+  archivesName = 'x-pack-esql-core'
+}
+
+dependencies {
+  api "org.antlr:antlr4-runtime:${versions.antlr4}"
+  api project(path: xpackModule('mapper-version'))
+  compileOnly project(path: xpackModule('core'))
+  testApi(project(xpackModule('esql-core:test-fixtures'))) {
+    exclude group: 'org.elasticsearch.plugin', module: 'esql-core'
+  }
+  testImplementation project(':test:framework')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+}

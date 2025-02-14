@@ -62,20 +62,20 @@ contain the words "error" or "problem".
 
 To set up the watch:
 
-. Define the watch trigger--a daily schedule that runs at 12:00 UTC:
+. Define the watch trigger--a daily schedule that runs at 12:00 Australian Eastern Standard Time (UTC+10:00):
 +
 [source,js]
 --------------------------------------------------
 "trigger" : {
   "schedule" : {
+    "timezone": "Australia/Brisbane",
     "daily" : { "at" : "12:00" }
   }
 }
 --------------------------------------------------
 +
-NOTE: In {watcher}, you specify times in UTC time. Don't forget to do the
-      conversion from your local time so the schedule triggers at the time
-      you intend.
+NOTE: In {watcher}, if the timezone is omitted then schedules default to UTC. `timezone` can be specified either
+as a +/-HH:mm offset from UTC or as a timezone name from the machines local IANA Time Zone Database.
 
 . Define the watch input--a search that uses a filter to constrain the results
   to the past day.

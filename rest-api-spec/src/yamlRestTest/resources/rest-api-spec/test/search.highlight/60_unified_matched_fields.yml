@@ -1,0 +1,104 @@
+setup:
+  - do:
+      indices.create:
+          index: index1
+          body:
+            settings:
+              index:
+                number_of_shards: 1
+                number_of_replicas: 1
+              analysis:
+                filter:
+                  my_edge_ngram:
+                    type: edge_ngram
+                    min_gram: 2
+                    max_gram: 20
+                analyzer:
+                  my_analyzer:
+                    tokenizer: whitespace
+                    filter: [ my_edge_ngram ]
+            mappings:
+              properties:
+                title:
+                  type: text
+                  fields:
+                    english:
+                      type: text
+                      analyzer: english
+                    ngram:
+                      type: text
+                      analyzer: my_analyzer
+                body :
+                  type: text
+
+
+  - do:
+      bulk:
+        refresh: true
+        index: index1
+        body:
+          - '{"index": {"_id": 1 }}'
+          - '{"title": "dancing with the stars", "body": "Dancing with the Stars is a popular TV show"}'
+          - '{"index": {"_id": 2 }}'
+          - '{"title": "dance with star", "body": "Dancing with the Stars is a popular TV show"}'
+
+---
+"Highlight based on single masked field":
+  - do:
+      search:
+        index: index1
+        body:
+          query:
+            query_string:
+              query: "\"dancing with the stars\""
+              fields: ["title^5", "title.english"]
+              phrase_slop: 2
+          highlight:
+            fields:
+              title:
+                matched_fields: ["title.english"]
+
+  - length: {hits.hits: 2}
+  - match: {hits.hits.0.highlight.title.0: "<em>dancing with the stars</em>"}
+  - match: {hits.hits.1.highlight.title.0: "<em>dance with star</em>"}
+
+---
+"Highlight based on multiple masked fields":
+  - do:
+      search:
+        index: index1
+        body:
+          query:
+            query_string:
+              query: "dan with star"
+              fields: ["title^5", "title.ngram", "title.english"]
+          highlight:
+            fields:
+              title:
+                matched_fields: ["title.ngram", "title.english"]
+
+  - length: {hits.hits: 2}
+  - match: {hits.hits.0.highlight.title.0: "<em>dance</em> <em>with</em> <em>star</em>" }
+  - match: {hits.hits.1.highlight.title.0: "<em>dancing</em> <em>with</em> the <em>stars</em>"}
+
+
+---
+"Highlight using matched_fields is not allowed when require_field_match is set to false":
+  - do:
+      catch: bad_request
+      search:
+        index: index1
+        body:
+          query:
+            query_string:
+              query: "dan with star"
+              fields: ["title^5", "title.ngram", "title.english"]
+          highlight:
+            require_field_match: false
+            fields:
+              title:
+                matched_fields: ["title.ngram", "title.english"]
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Matched fields are not supported when [require_field_match] is set to [false]" }

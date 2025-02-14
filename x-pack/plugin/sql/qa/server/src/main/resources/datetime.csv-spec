@@ -1922,3 +1922,21 @@ SELECT hire_date FROM test_emp WHERE '2005-12-14T00:00:00.000Z'::datetime BETWEE
 ------------------------
 
 ;
+
+// checking regressions after https://github.com/elastic/elasticsearch/pull/110222
+selectDateFunctionsCldr
+schema::month:s|day_of_week:s|day:s|week:s|ad:s|day_of_week2:s|month2:s|ad2:s
+SELECT DATE_FORMAT('2020-04-05T11:22:33.123Z'::date, '%M') AS month,
+DATE_FORMAT('2020-04-05T11:22:33.123Z'::date, '%W') AS day_of_week,
+DATE_FORMAT('2020-04-05T11:22:33.123Z'::date, '%w') AS day,
+DATE_FORMAT('2020-04-05T11:22:33.123Z'::date, '%v') AS week,
+DATETIME_FORMAT('2020-04-05T11:22:33.123Z'::date, 'G') AS ad,
+TO_CHAR('2020-04-05T11:22:33.123Z'::date, 'Day') AS day_of_week2,
+TO_CHAR('2020-04-05T11:22:33.123Z'::date, 'Month') AS month2,
+TO_CHAR('2020-04-05T11:22:33.123Z'::date, 'BC') AS ad2;
+
+    month     |    day_of_week  |  day    |  week   |  ad    |  day_of_week2  |  month2      |  ad2
+--------------+-----------------+---------+---------+--------+----------------+--------------+------------
+  April       |    Sunday       |  0      | 14      | AD     | "Sunday   "    |  "April    " |  AD
+;
+

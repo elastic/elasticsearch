@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.join.aggregations;
 
@@ -114,7 +115,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
                     logger.info("bucket={}", bucket.getKey());
                     Children childrenBucket = bucket.getAggregations().get("to_comment");
                     TopHits topHits = childrenBucket.getAggregations().get("top_comments");
-                    logger.info("total_hits={}", topHits.getHits().getTotalHits().value);
+                    logger.info("total_hits={}", topHits.getHits().getTotalHits().value());
                     for (SearchHit searchHit : topHits.getHits()) {
                         logger.info("hit= {} {}", searchHit.getSortValues()[0], searchHit.getId());
                     }
@@ -128,7 +129,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
                 assertThat(childrenBucket.getName(), equalTo("to_comment"));
                 assertThat(childrenBucket.getDocCount(), equalTo(2L));
                 TopHits topHits = childrenBucket.getAggregations().get("top_comments");
-                assertThat(topHits.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(topHits.getHits().getTotalHits().value(), equalTo(2L));
                 assertThat(topHits.getHits().getAt(0).getId(), equalTo("e"));
                 assertThat(topHits.getHits().getAt(1).getId(), equalTo("f"));
 
@@ -140,7 +141,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
                 assertThat(childrenBucket.getName(), equalTo("to_comment"));
                 assertThat(childrenBucket.getDocCount(), equalTo(1L));
                 topHits = childrenBucket.getAggregations().get("top_comments");
-                assertThat(topHits.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(topHits.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(topHits.getHits().getAt(0).getId(), equalTo("f"));
 
                 categoryBucket = categoryTerms.getBucketByKey("c");
@@ -151,7 +152,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
                 assertThat(childrenBucket.getName(), equalTo("to_comment"));
                 assertThat(childrenBucket.getDocCount(), equalTo(1L));
                 topHits = childrenBucket.getAggregations().get("top_comments");
-                assertThat(topHits.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(topHits.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(topHits.getHits().getAt(0).getId(), equalTo("f"));
             }
         );

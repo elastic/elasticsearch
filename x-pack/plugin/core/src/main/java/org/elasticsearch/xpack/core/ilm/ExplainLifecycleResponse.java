@@ -22,7 +22,7 @@ import java.util.Objects;
 
 /**
  * The response object returned by the Explain Lifecycle API.
- *
+ * <p>
  * Since the API can be run over multiple indices the response provides a map of
  * index to the explanation of the lifecycle status for that index.
  */

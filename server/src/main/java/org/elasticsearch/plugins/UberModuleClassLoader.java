@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.nativeaccess.NativeAccessUtil;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -81,7 +83,7 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
     }
 
     static UberModuleClassLoader getInstance(ClassLoader parent, String moduleName, Set<URL> jarUrls) {
-        return getInstance(parent, ModuleLayer.boot(), moduleName, jarUrls, Set.of());
+        return getInstance(parent, ModuleLayer.boot(), moduleName, jarUrls, Set.of(), Set.of());
     }
 
     @SuppressWarnings("removal")
@@ -90,7 +92,8 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
         ModuleLayer parentLayer,
         String moduleName,
         Set<URL> jarUrls,
-        Set<String> moduleDenyList
+        Set<String> moduleDenyList,
+        Set<String> modulesWithNativeAccess
     ) {
         Path[] jarPaths = jarUrls.stream().map(UberModuleClassLoader::urlToPathUnchecked).toArray(Path[]::new);
         var parentLayerModuleToServiceMap = getModuleToServiceMap(parentLayer);
@@ -122,7 +125,8 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
             jarUrls.toArray(new URL[0]),
             cf,
             parentLayer,
-            packageNames
+            packageNames,
+            modulesWithNativeAccess
         );
         return AccessController.doPrivileged(pa);
     }
@@ -146,7 +150,8 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
         URL[] jarURLs,
         Configuration cf,
         ModuleLayer mparent,
-        Set<String> packageNames
+        Set<String> packageNames,
+        Set<String> modulesWithNativeAccess
     ) {
         super(parent);
 
@@ -158,7 +163,9 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
         // Class::getModule call return the name of our ubermodule.
         this.moduleController = ModuleLayer.defineModules(cf, List.of(mparent), s -> this);
         this.module = this.moduleController.layer().findModule(moduleName).orElseThrow();
-
+        for (var name : modulesWithNativeAccess) {
+            moduleController.layer().findModule(name).ifPresent(m -> NativeAccessUtil.enableNativeAccess(moduleController, m));
+        }
         this.packageNames = packageNames;
     }
 

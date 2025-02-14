@@ -24,7 +24,7 @@ public interface GroupingAggregatorFunction extends Releasable {
      * Consume group ids to cause the {@link GroupingAggregatorFunction}
      * to group values at a particular position into a particular group.
      */
-    interface AddInput {
+    interface AddInput extends Releasable {
         /**
          * Send a batch of group ids to the aggregator. The {@code groupIds}
          * may be offset from the start of the block to allow for sending chunks
@@ -42,6 +42,12 @@ public interface GroupingAggregatorFunction extends Releasable {
          *     multiple times with the same {@code positionOffset} and a
          *     {@code groupIds} {@linkplain Block} that contains thousands of
          *     values at a single positions.
+         * </p>
+         * <p>
+         *     Finally, it's possible for a single position to be collected into
+         *     <strong>groupIds</strong>. In that case it's positionOffset may
+         *     be skipped entirely or the groupIds block could contain a
+         *     {@code null} value at that position.
          * </p>
          * @param positionOffset offset into the {@link Page} used to build this
          *                       {@link AddInput} of these ids
@@ -68,13 +74,23 @@ public interface GroupingAggregatorFunction extends Releasable {
     }
 
     /**
-     * Prepare to process a single page of results.
+     * Prepare to process a single page of input.
      * <p>
      *     This should load the input {@link Block}s and check their types and
      *     select an optimal path and return that path as an {@link AddInput}.
      * </p>
      */
     AddInput prepareProcessPage(SeenGroupIds seenGroupIds, Page page);  // TODO allow returning null to opt out of the callback loop
+
+    /**
+     * Call this to signal to the aggregation that the {@code selected}
+     * parameter that's passed to {@link #evaluateIntermediate} or
+     * {@link #evaluateFinal} may reference groups that haven't been
+     * seen. This puts the underlying storage into a mode where it'll
+     * track which group ids have been seen, even if that increases the
+     * overhead.
+     */
+    void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds);
 
     /**
      * Add data produced by {@link #evaluateIntermediate}.

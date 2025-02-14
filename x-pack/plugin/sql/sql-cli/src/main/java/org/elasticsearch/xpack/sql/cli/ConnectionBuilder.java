@@ -24,8 +24,8 @@ import static org.elasticsearch.xpack.sql.client.UriUtils.removeQuery;
  * Connection Builder. Can interactively ask users for the password if it is not provided
  */
 public class ConnectionBuilder {
-    public static String DEFAULT_CONNECTION_STRING = "http://localhost:9200/";
-    public static URI DEFAULT_URI = URI.create(DEFAULT_CONNECTION_STRING);
+    public static final String DEFAULT_CONNECTION_STRING = "http://localhost:9200/";
+    public static final URI DEFAULT_URI = URI.create(DEFAULT_CONNECTION_STRING);
 
     private CliTerminal cliTerminal;
 

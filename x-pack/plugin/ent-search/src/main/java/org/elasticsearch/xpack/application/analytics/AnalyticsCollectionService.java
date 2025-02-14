@@ -18,7 +18,8 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.application.analytics.action.DeleteAnalyticsCollectionAction;
@@ -81,7 +82,11 @@ public class AnalyticsCollectionService {
         assert (state.nodes().isLocalNodeElectedMaster());
 
         AnalyticsCollection collection = new AnalyticsCollection(request.getName());
-        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(collection.getEventDataStream());
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
+            TimeValue.THIRTY_SECONDS /* TODO should we wait longer? */,
+            TimeValue.THIRTY_SECONDS /* TODO should we wait longer? */,
+            collection.getEventDataStream()
+        );
 
         ActionListener<AcknowledgedResponse> createDataStreamListener = ActionListener.wrap(
             r -> listener.onResponse(new PutAnalyticsCollectionAction.Response(r.isAcknowledged(), request.getName())),
@@ -124,7 +129,10 @@ public class AnalyticsCollectionService {
         assert (state.nodes().isLocalNodeElectedMaster());
 
         AnalyticsCollection collection = new AnalyticsCollection(request.getCollectionName());
-        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(collection.getEventDataStream());
+        DeleteDataStreamAction.Request deleteDataStreamRequest = new DeleteDataStreamAction.Request(
+            TimeValue.THIRTY_SECONDS /* TODO should we wait longer? */,
+            collection.getEventDataStream()
+        );
         ActionListener<AcknowledgedResponse> deleteDataStreamListener = ActionListener.wrap(listener::onResponse, (Exception e) -> {
             if (e instanceof ResourceNotFoundException) {
                 listener.onFailure(new ResourceNotFoundException("analytics collection [{}] does not exists", request.getCollectionName()));

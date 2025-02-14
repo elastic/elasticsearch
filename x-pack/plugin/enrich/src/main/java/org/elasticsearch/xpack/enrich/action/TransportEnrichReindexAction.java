@@ -13,11 +13,11 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.reindex.ReindexSslConfig;
 import org.elasticsearch.reindex.TransportReindexAction;
 import org.elasticsearch.script.ScriptService;
@@ -61,7 +61,8 @@ public class TransportEnrichReindexAction extends TransportReindexAction {
             autoCreateIndex,
             client,
             transportService,
-            new ReindexSslConfig(settings, environment, watcherService)
+            new ReindexSslConfig(settings, environment, watcherService),
+            null
         );
         this.bulkClient = new OriginSettingClient(client, ENRICH_ORIGIN);
     }

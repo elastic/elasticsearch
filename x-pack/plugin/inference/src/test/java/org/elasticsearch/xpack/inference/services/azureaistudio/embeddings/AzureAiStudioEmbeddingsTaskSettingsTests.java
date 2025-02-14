@@ -7,23 +7,48 @@
 
 package org.elasticsearch.xpack.inference.services.azureaistudio.embeddings;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 
-public class AzureAiStudioEmbeddingsTaskSettingsTests extends ESTestCase {
+public class AzureAiStudioEmbeddingsTaskSettingsTests extends AbstractBWCWireSerializationTestCase<AzureAiStudioEmbeddingsTaskSettings> {
+    public void testIsEmpty() {
+        var randomSettings = createRandom();
+        var stringRep = Strings.toString(randomSettings);
+        assertEquals(stringRep, randomSettings.isEmpty(), stringRep.equals("{}"));
+    }
+
+    public void testUpdatedTaskSettings() {
+        var initialSettings = createRandom();
+        var newSettings = createRandom();
+        Map<String, Object> newSettingsMap = new HashMap<>();
+        if (newSettings.user() != null) {
+            newSettingsMap.put(AzureAiStudioConstants.USER_FIELD, newSettings.user());
+        }
+        AzureAiStudioEmbeddingsTaskSettings updatedSettings = (AzureAiStudioEmbeddingsTaskSettings) initialSettings.updatedTaskSettings(
+            Collections.unmodifiableMap(newSettingsMap)
+        );
+        if (newSettings.user() == null) {
+            assertEquals(initialSettings.user(), updatedSettings.user());
+        } else {
+            assertEquals(newSettings.user(), updatedSettings.user());
+        }
+    }
 
     public void testFromMap_WithUser() {
         assertEquals(
@@ -97,5 +122,32 @@ public class AzureAiStudioEmbeddingsTaskSettingsTests extends ESTestCase {
             map.put(AzureAiStudioConstants.USER_FIELD, user);
         }
         return map;
+    }
+
+    @Override
+    protected Writeable.Reader<AzureAiStudioEmbeddingsTaskSettings> instanceReader() {
+        return AzureAiStudioEmbeddingsTaskSettings::new;
+    }
+
+    @Override
+    protected AzureAiStudioEmbeddingsTaskSettings createTestInstance() {
+        return createRandom();
+    }
+
+    @Override
+    protected AzureAiStudioEmbeddingsTaskSettings mutateInstance(AzureAiStudioEmbeddingsTaskSettings instance) throws IOException {
+        return randomValueOtherThan(instance, AzureAiStudioEmbeddingsTaskSettingsTests::createRandom);
+    }
+
+    @Override
+    protected AzureAiStudioEmbeddingsTaskSettings mutateInstanceForVersion(
+        AzureAiStudioEmbeddingsTaskSettings instance,
+        TransportVersion version
+    ) {
+        return instance;
+    }
+
+    private static AzureAiStudioEmbeddingsTaskSettings createRandom() {
+        return new AzureAiStudioEmbeddingsTaskSettings(randomFrom(new String[] { null, randomAlphaOfLength(15) }));
     }
 }

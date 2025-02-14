@@ -1,0 +1,5 @@
+pr: 117265
+summary: Async search responses have CCS metadata while searches are running
+area: ES|QL
+type: enhancement
+issues: []

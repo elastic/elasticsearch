@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -23,7 +22,6 @@ record ExecutableInferenceRequest(
     RequestSender requestSender,
     Logger logger,
     Request request,
-    HttpClientContext context,
     ResponseHandler responseHandler,
     Supplier<Boolean> hasFinished,
     ActionListener<InferenceServiceResults> listener
@@ -31,10 +29,10 @@ record ExecutableInferenceRequest(
 
     @Override
     public void run() {
-        var inferenceEntityId = request.createHttpRequest().inferenceEntityId();
+        var inferenceEntityId = request.getInferenceEntityId();
 
         try {
-            requestSender.send(logger, request, context, hasFinished, responseHandler, listener);
+            requestSender.send(logger, request, hasFinished, responseHandler, listener);
         } catch (Exception e) {
             var errorMessage = Strings.format("Failed to send request from inference entity id [%s]", inferenceEntityId);
             logger.warn(errorMessage, e);

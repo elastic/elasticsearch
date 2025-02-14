@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.sql.qa.rest;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -20,6 +20,8 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.cbor.CborXContent;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
+import org.elasticsearch.xpack.sql.proto.SqlVersions;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 
 import java.io.IOException;
@@ -54,6 +56,11 @@ public abstract class BaseRestSqlTestCase extends RemoteClusterAwareSqlRestTestC
 
     private static final String TEST_INDEX = "test";
     private static final String DATA_STREAM_TEMPLATE = "test-ds-index-template";
+    /**
+     * What's the version of the server that the clients should be compatible with?
+     * This will be either the stack version, or SqlVersions.getLatestVersion() if the stack version is not available.
+     */
+    private static final SqlVersion SERVER_COMPAT_VERSION = getServerCompatVersion();
 
     public static class RequestObjectBuilder {
         private StringBuilder request;
@@ -83,7 +90,7 @@ public abstract class BaseRestSqlTestCase extends RemoteClusterAwareSqlRestTestC
             if (isQuery) {
                 Mode mode = (m instanceof Mode) ? (Mode) m : Mode.fromString(modeString);
                 if (Mode.isDedicatedClient(mode)) {
-                    version(Version.CURRENT.toString());
+                    version(SERVER_COMPAT_VERSION.toString());
                 }
             }
             return this;
@@ -300,5 +307,13 @@ public abstract class BaseRestSqlTestCase extends RemoteClusterAwareSqlRestTestC
             Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8)),
             response.getHeader("Cursor")
         );
+    }
+
+    private static SqlVersion getServerCompatVersion() {
+        try {
+            return SqlVersion.fromString(Build.current().version());
+        } catch (Exception e) {
+            return SqlVersions.getLatestVersion();
+        }
     }
 }

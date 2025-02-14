@@ -20,9 +20,9 @@ import static org.elasticsearch.xpack.application.analytics.event.parser.field.D
 import static org.elasticsearch.xpack.application.analytics.event.parser.field.PageAnalyticsEventField.PAGE_FIELD;
 
 public class SearchResultAnalyticsEventField {
-    public static ParseField SEARCH_RESULTS_TOTAL_FIELD = new ParseField("total_results");
+    public static final ParseField SEARCH_RESULTS_TOTAL_FIELD = new ParseField("total_results");
 
-    public static ParseField SEARCH_RESULT_ITEMS_FIELD = new ParseField("items");
+    public static final ParseField SEARCH_RESULT_ITEMS_FIELD = new ParseField("items");
 
     private static final ObjectParser<Map<String, Object>, AnalyticsEvent.Context> PARSER = new ObjectParser<>(
         "search_results",

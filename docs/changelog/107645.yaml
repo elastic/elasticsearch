@@ -1,7 +1,0 @@
-pr: 107645
-summary: Add `_name` support for top level `knn` clauses
-area: Search
-type: enhancement
-issues:
-  - 106254
-  - 107448

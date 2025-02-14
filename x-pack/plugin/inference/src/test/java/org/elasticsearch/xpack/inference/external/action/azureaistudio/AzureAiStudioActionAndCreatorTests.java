@@ -20,8 +20,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
-import org.elasticsearch.xpack.inference.external.action.openai.OpenAiChatCompletionActionTests;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
+import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -45,7 +45,9 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.retry.RetrySettingsTests.buildSettingsWithRetryFields;
+import static org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests.createSender;
 import static org.elasticsearch.xpack.inference.external.request.azureaistudio.AzureAiStudioRequestFields.API_KEY_HEADER;
+import static org.elasticsearch.xpack.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -92,7 +94,7 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
             TruncatorTests.createTruncator()
         );
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(testEmbeddingsTokenResponseJson));
@@ -141,7 +143,7 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
             TruncatorTests.createTruncator()
         );
 
-        try (var sender = senderFactory.createSender("test_service")) {
+        try (var sender = createSender(senderFactory)) {
             sender.start();
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(testCompletionTokenResponseJson));
@@ -159,14 +161,11 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
             var action = creator.create(model, Map.of());
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new ChatCompletionInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(
-                result.asMap(),
-                is(OpenAiChatCompletionActionTests.buildExpectedChatCompletionResultMap(List.of("test input string")))
-            );
+            assertThat(result.asMap(), is(buildExpectationCompletion(List.of("test input string"))));
             assertThat(webServer.requests(), hasSize(1));
 
             MockRequest request = webServer.requests().get(0);

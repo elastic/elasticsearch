@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.snapshots;
@@ -87,6 +88,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                                 nodeId -> SingleNodeShutdownMetadata.builder()
                                     .setType(SingleNodeShutdownMetadata.Type.REMOVE)
                                     .setNodeId(nodeId)
+                                    .setNodeEphemeralId(nodeId)
                                     .setStartedAtMillis(randomNonNegativeLong())
                                     .setReason(getTestName())
                                     .build()
@@ -132,7 +134,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
             shards,
             null,
             SnapshotInfoTestUtils.randomUserMetadata(),
-            IndexVersionUtils.randomVersion(random())
+            IndexVersionUtils.randomVersion()
         );
     }
 
@@ -475,6 +477,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                                 "node-id",
                                 SingleNodeShutdownMetadata.builder()
                                     .setNodeId("node-id")
+                                    .setNodeEphemeralId("node-id")
                                     .setType(SingleNodeShutdownMetadata.Type.REMOVE)
                                     .setStartedAtMillis(randomNonNegativeLong())
                                     .setReason("test")

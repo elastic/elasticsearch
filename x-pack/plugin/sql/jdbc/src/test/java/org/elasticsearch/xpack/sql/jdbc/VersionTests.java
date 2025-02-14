@@ -6,15 +6,20 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.client.ClientVersion;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
 public class VersionTests extends ESTestCase {
     public void testVersionIsCurrent() {
         /* This test will only work properly in gradle because in gradle we run the tests
          * using the jar. */
-        assertEquals(org.elasticsearch.Version.CURRENT.major, ClientVersion.CURRENT.major);
-        assertEquals(org.elasticsearch.Version.CURRENT.minor, ClientVersion.CURRENT.minor);
-        assertEquals(org.elasticsearch.Version.CURRENT.revision, ClientVersion.CURRENT.revision);
+        assertEquals(current(), ClientVersion.CURRENT);
+    }
+
+    /** Returns the current stack version. Can be unreleased. */
+    public static SqlVersion current() {
+        return SqlVersion.fromString(Build.current().version());
     }
 }

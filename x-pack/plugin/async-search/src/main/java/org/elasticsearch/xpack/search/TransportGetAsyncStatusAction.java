@@ -15,10 +15,11 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -40,6 +41,7 @@ import static org.elasticsearch.xpack.core.async.AsyncTaskIndexService.getTask;
 public class TransportGetAsyncStatusAction extends HandledTransportAction<GetAsyncStatusRequest, AsyncStatusResponse> {
     private final TransportService transportService;
     private final ClusterService clusterService;
+    private final ThreadContext threadContext;
     private final AsyncTaskIndexService<AsyncSearchResponse> store;
 
     @Inject
@@ -55,6 +57,7 @@ public class TransportGetAsyncStatusAction extends HandledTransportAction<GetAsy
         super(GetAsyncStatusAction.NAME, transportService, actionFilters, GetAsyncStatusRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
         this.clusterService = clusterService;
+        this.threadContext = threadPool.getThreadContext();
         this.store = new AsyncTaskIndexService<>(
             XPackPlugin.ASYNC_RESULTS_INDEX,
             clusterService,
@@ -73,6 +76,12 @@ public class TransportGetAsyncStatusAction extends HandledTransportAction<GetAsy
         DiscoveryNode node = clusterService.state().nodes().get(searchId.getTaskId().getNodeId());
         DiscoveryNode localNode = clusterService.state().getNodes().getLocalNode();
 
+        ActionListener<AsyncStatusResponse> listenerWithHeaders = listener.map(response -> {
+            threadContext.addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_IS_RUNNING_HEADER, response.isRunning() ? "?1" : "?0");
+            threadContext.addResponseHeader(AsyncExecutionId.ASYNC_EXECUTION_ID_HEADER, response.getId());
+            return response;
+        });
+
         if (node == null || Objects.equals(node, localNode)) {
             if (request.getKeepAlive() != null && request.getKeepAlive().getMillis() > 0) {
                 long expirationTime = System.currentTimeMillis() + request.getKeepAlive().getMillis();
@@ -87,17 +96,17 @@ public class TransportGetAsyncStatusAction extends HandledTransportAction<GetAsy
                         AsyncSearchTask.class,
                         AsyncSearchTask::getStatusResponse,
                         AsyncStatusResponse::getStatusFromStoredSearch,
-                        listener
+                        listenerWithHeaders
                     );
                 }, exc -> {
                     RestStatus status = ExceptionsHelper.status(ExceptionsHelper.unwrapCause(exc));
                     if (status != RestStatus.NOT_FOUND) {
                         logger.error(() -> format("failed to update expiration time for async-search [%s]", searchId.getEncoded()), exc);
-                        listener.onFailure(exc);
+                        listenerWithHeaders.onFailure(exc);
                     } else {
                         // the async search document or its index is not found.
                         // That can happen if an invalid/deleted search id is provided.
-                        listener.onFailure(new ResourceNotFoundException(searchId.getEncoded()));
+                        listenerWithHeaders.onFailure(new ResourceNotFoundException(searchId.getEncoded()));
                     }
                 }));
             } else {
@@ -107,7 +116,7 @@ public class TransportGetAsyncStatusAction extends HandledTransportAction<GetAsy
                     AsyncSearchTask.class,
                     AsyncSearchTask::getStatusResponse,
                     AsyncStatusResponse::getStatusFromStoredSearch,
-                    listener
+                    listenerWithHeaders
                 );
             }
         } else {
@@ -115,7 +124,7 @@ public class TransportGetAsyncStatusAction extends HandledTransportAction<GetAsy
                 node,
                 GetAsyncStatusAction.NAME,
                 request,
-                new ActionListenerResponseHandler<>(listener, AsyncStatusResponse::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
+                new ActionListenerResponseHandler<>(listenerWithHeaders, AsyncStatusResponse::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
             );
         }
     }

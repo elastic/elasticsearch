@@ -72,6 +72,22 @@ public class RoleReferenceTests extends ESTestCase {
         assertThat(roleKey.getSource(), equalTo("apikey_" + apiKeyRoleType));
     }
 
+    public void testCrossClusterApiKeyRoleReference() {
+        final String apiKeyId = randomAlphaOfLength(20);
+        final BytesArray roleDescriptorsBytes = new BytesArray(randomAlphaOfLength(50));
+        final RoleReference.CrossClusterApiKeyRoleReference apiKeyRoleReference = new RoleReference.CrossClusterApiKeyRoleReference(
+            apiKeyId,
+            roleDescriptorsBytes
+        );
+
+        final RoleKey roleKey = apiKeyRoleReference.id();
+        assertThat(
+            roleKey.getNames(),
+            hasItem("apikey:" + MessageDigests.toHexString(MessageDigests.digest(roleDescriptorsBytes, MessageDigests.sha256())))
+        );
+        assertThat(roleKey.getSource(), equalTo("apikey_" + RoleReference.ApiKeyRoleType.ASSIGNED));
+    }
+
     public void testCrossClusterAccessRoleReference() {
         final var roleDescriptorsBytes = new CrossClusterAccessSubjectInfo.RoleDescriptorsBytes(new BytesArray(randomAlphaOfLength(50)));
         final var crossClusterAccessRoleReference = new RoleReference.CrossClusterAccessRoleReference("user", roleDescriptorsBytes);

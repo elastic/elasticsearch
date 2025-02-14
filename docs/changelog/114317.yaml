@@ -1,0 +1,5 @@
+pr: 114317
+summary: "ESQL: CATEGORIZE as a `BlockHash`"
+area: ES|QL
+type: enhancement
+issues: []

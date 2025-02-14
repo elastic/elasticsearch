@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
@@ -134,6 +135,24 @@ final class CompositeIndexEventListener implements IndexEventListener {
                 throw e;
             }
         }
+    }
+
+    @Override
+    public void beforeIndexShardMutableOperation(IndexShard indexShard, ActionListener<Void> listener) {
+        iterateBeforeIndexShardMutableOperation(indexShard, listener.delegateResponse((l, e) -> {
+            logger.warn(() -> format("%s failed to invoke the listener before ensuring shard mutability", indexShard.shardId()), e);
+            l.onFailure(e);
+        }));
+    }
+
+    private void iterateBeforeIndexShardMutableOperation(IndexShard indexShard, ActionListener<Void> outerListener) {
+        callListeners(
+            indexShard,
+            listeners.stream()
+                .map(iel -> (Consumer<ActionListener<Void>>) (l) -> iel.beforeIndexShardMutableOperation(indexShard, l))
+                .iterator(),
+            outerListener
+        );
     }
 
     @Override
@@ -348,4 +367,5 @@ final class CompositeIndexEventListener implements IndexEventListener {
             }
         }
     }
+
 }

@@ -50,6 +50,7 @@ interface ResultBuilder extends Releasable {
             case BYTES_REF -> new ResultBuilderForBytesRef(blockFactory, encoder, inKey, positions);
             case INT -> new ResultBuilderForInt(blockFactory, encoder, inKey, positions);
             case LONG -> new ResultBuilderForLong(blockFactory, encoder, inKey, positions);
+            case FLOAT -> new ResultBuilderForFloat(blockFactory, encoder, inKey, positions);
             case DOUBLE -> new ResultBuilderForDouble(blockFactory, encoder, inKey, positions);
             case NULL -> new ResultBuilderForNull(blockFactory);
             case DOC -> new ResultBuilderForDoc(blockFactory, positions);

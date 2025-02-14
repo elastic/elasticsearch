@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.client.internal.support;
@@ -59,6 +60,7 @@ import org.elasticsearch.action.search.TransportMultiSearchAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequestBuilder;
@@ -92,6 +94,7 @@ public abstract class AbstractClient implements Client {
     private final ThreadPool threadPool;
     private final AdminClient admin;
 
+    @SuppressWarnings("this-escape")
     public AbstractClient(Settings settings, ThreadPool threadPool) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -410,7 +413,13 @@ public abstract class AbstractClient implements Client {
      * on the result before it goes out of scope.
      * @param <R> reference counted result type
      */
-    private static class RefCountedFuture<R extends RefCounted> extends PlainActionFuture<R> {
+    // todo: the use of UnsafePlainActionFuture here is quite broad, we should find a better way to be more specific
+    // (unless making all usages safe is easy).
+    private static class RefCountedFuture<R extends RefCounted> extends UnsafePlainActionFuture<R> {
+
+        private RefCountedFuture() {
+            super(ThreadPool.Names.GENERIC);
+        }
 
         @Override
         public final void onResponse(R result) {

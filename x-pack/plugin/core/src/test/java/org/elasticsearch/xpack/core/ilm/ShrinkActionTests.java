@@ -28,8 +28,8 @@ import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -203,11 +203,11 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
 
         LifecyclePolicy policy = new LifecyclePolicy(
             lifecycleName,
-            Collections.singletonMap("warm", new Phase("warm", TimeValue.ZERO, Collections.singletonMap(action.getWriteableName(), action)))
+            Map.of("warm", new Phase("warm", TimeValue.ZERO, Map.of(action.getWriteableName(), action)))
         );
         LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(
             policy,
-            Collections.emptyMap(),
+            Map.of(),
             randomNonNegativeLong(),
             randomNonNegativeLong()
         );
@@ -216,10 +216,7 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
                 Metadata.builder()
                     .putCustom(
                         IndexLifecycleMetadata.TYPE,
-                        new IndexLifecycleMetadata(
-                            Collections.singletonMap(policyMetadata.getName(), policyMetadata),
-                            OperationMode.RUNNING
-                        )
+                        new IndexLifecycleMetadata(Map.of(policyMetadata.getName(), policyMetadata), OperationMode.RUNNING)
                     )
                     .put(
                         indexMetadataBuilder.putCustom(

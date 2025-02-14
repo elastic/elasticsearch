@@ -1,0 +1,5 @@
+pr: 117606
+summary: Remove deprecated sort from reindex operation within dataframe analytics procedure
+area: Machine Learning
+type: enhancement
+issues: []

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.cluster;
@@ -36,16 +37,17 @@ import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.GatewayService;
@@ -72,6 +74,8 @@ import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.snapshots.SnapshotShardsService;
@@ -109,6 +113,18 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     public static final Setting<TimeValue> SHARD_LOCK_RETRY_TIMEOUT_SETTING = Setting.timeSetting(
         "indices.store.shard_lock_retry.timeout",
         TimeValue.timeValueMinutes(1),
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Maximum number of shards to try and close concurrently. Defaults to the smaller of {@code node.processors} and {@code 10}, but can be
+     * set to any positive integer.
+     */
+    public static final Setting<Integer> CONCURRENT_SHARD_CLOSE_LIMIT = Setting.intSetting(
+        "indices.store.max_concurrent_closing_shards",
+        settings -> Integer.toString(Math.min(10, EsExecutors.NODE_PROCESSORS_SETTING.get(settings).roundUp())),
+        1,
+        Integer.MAX_VALUE,
         Setting.Property.NodeScope
     );
 
@@ -417,7 +433,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             // lock is released so it's guaranteed to be deleted by the time we get the lock
                             indicesService.processPendingDeletes(index, indexSettings, timeout);
                         } catch (ShardLockObtainFailedException exc) {
-                            logger.warn("[{}] failed to lock all shards for index - timed out after [{}]]", index, timeout);
+                            logger.warn(
+                                Strings.format("[%s] failed to lock all shards for index - timed out after [%s]]", index, timeout),
+                                exc
+                            );
                         } catch (InterruptedException e) {
                             logger.warn("[{}] failed to lock all shards for index - interrupted", index);
                         }
@@ -683,6 +702,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 primaryTerm,
                 0,
                 0L,
+                new RunOnce(() -> HotThreads.logLocalCurrentThreads(logger, Level.WARN, shardId + ": acquire shard lock for create")),
                 ActionListener.runBefore(new ActionListener<>() {
                     @Override
                     public void onResponse(Boolean success) {
@@ -735,6 +755,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         long primaryTerm,
         int iteration,
         long delayMillis,
+        RunOnce dumpHotThreads,
         ActionListener<Boolean> listener
     ) {
         try {
@@ -758,8 +779,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 listener.onFailure(e);
                 return;
             }
+            final Level level = (iteration + 25) % 30 == 0 ? Level.WARN : Level.DEBUG;
             logger.log(
-                (iteration + 25) % 30 == 0 ? Level.WARN : Level.DEBUG,
+                level,
                 """
                     shard lock for [{}] has been unavailable for at least [{}/{}ms], \
                     attempting to create shard while applying cluster state [version={},uuid={}], will retry in [{}]: [{}]""",
@@ -771,6 +793,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 shardLockRetryInterval,
                 e.getMessage()
             );
+            if (level == Level.WARN) {
+                dumpHotThreads.run();
+            }
             // TODO could we instead subscribe to the shard lock and trigger the retry exactly when it is released rather than polling?
             threadPool.scheduleUnlessShuttingDown(
                 shardLockRetryInterval,
@@ -808,6 +833,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                                 shardLockRetryTimeout.millis(),
                                 shardRouting
                             );
+                            dumpHotThreads.run();
                             listener.onFailure(
                                 new ElasticsearchTimeoutException("timed out while waiting to acquire shard lock for " + shardRouting)
                             );
@@ -836,6 +862,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             primaryTerm,
                             iteration + 1,
                             newDelayMillis,
+                            dumpHotThreads,
                             listener
                         );
 
@@ -905,6 +932,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         + state
                         + "], mark shard as started",
                     shard.getTimestampRange(),
+                    shard.getEventIngestedRange(),
                     ActionListener.noop(),
                     clusterState
                 );
@@ -966,12 +994,17 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
 
         @Override
-        public void onRecoveryDone(final RecoveryState state, ShardLongFieldRange timestampMillisFieldRange) {
+        public void onRecoveryDone(
+            final RecoveryState state,
+            ShardLongFieldRange timestampMillisFieldRange,
+            ShardLongFieldRange eventIngestedMillisFieldRange
+        ) {
             shardStateAction.shardStarted(
                 shardRouting,
                 primaryTerm,
                 "after " + state.getRecoverySource(),
                 timestampMillisFieldRange,
+                eventIngestedMillisFieldRange,
                 ActionListener.noop()
             );
         }
@@ -1122,6 +1155,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          */
         @Nullable
         ShardLongFieldRange getTimestampRange();
+
+        /**
+         * @return the range of the {@code @event.ingested} field for this shard, or {@link ShardLongFieldRange#EMPTY} if this field is not
+         * found, or {@link ShardLongFieldRange#UNKNOWN} if its range is not fixed.
+         */
+        @Nullable
+        ShardLongFieldRange getEventIngestedRange();
 
         /**
          * Updates the shard state based on an incoming cluster state:
@@ -1319,7 +1359,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         }
     }
 
-    private static class ShardCloseExecutor implements Executor {
+    static class ShardCloseExecutor implements Executor {
 
         private final ThrottledTaskRunner throttledTaskRunner;
 
@@ -1332,8 +1372,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             // can't close the old ones down fast enough. Maybe we could block or throttle new shards starting while old shards are still
             // shutting down, given that starting new shards is already async. Since this seems unlikely in practice, we opt for the simple
             // approach here.
-            final var maxThreads = Math.max(EsExecutors.NODE_PROCESSORS_SETTING.get(settings).roundUp(), 10);
-            throttledTaskRunner = new ThrottledTaskRunner(IndicesClusterStateService.class.getCanonicalName(), maxThreads, delegate);
+            throttledTaskRunner = new ThrottledTaskRunner(
+                IndicesClusterStateService.class.getCanonicalName(),
+                CONCURRENT_SHARD_CLOSE_LIMIT.get(settings),
+                delegate
+            );
         }
 
         @Override

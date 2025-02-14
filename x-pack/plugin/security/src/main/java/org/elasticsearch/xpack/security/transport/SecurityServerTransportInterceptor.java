@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteConnectionManager;
 import org.elasticsearch.transport.RemoteConnectionManager.RemoteClusterAliasWithCredentials;
@@ -81,7 +82,11 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         "internal:data/read/esql/open_exchange",
         "cluster:internal:data/read/esql/open_exchange",
         "internal:data/read/esql/exchange",
-        "cluster:internal:data/read/esql/exchange"
+        "cluster:internal:data/read/esql/exchange",
+        TaskCancellationService.BAN_PARENT_ACTION_NAME,
+        TaskCancellationService.REMOTE_CLUSTER_BAN_PARENT_ACTION_NAME,
+        TaskCancellationService.CANCEL_CHILD_ACTION_NAME,
+        TaskCancellationService.REMOTE_CLUSTER_CANCEL_CHILD_ACTION_NAME
     );
 
     private final AuthenticationService authcService;

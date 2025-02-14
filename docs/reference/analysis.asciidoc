@@ -9,8 +9,7 @@
 --
 
 _Text analysis_ is the process of converting unstructured text, like
-the body of an email or a product description, into a structured format that's
-optimized for search.
+the body of an email or a product description, into a structured format that's <<full-text-search,optimized for search>>.
 
 [discrete]
 [[when-to-configure-analysis]]

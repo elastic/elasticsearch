@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util;
@@ -118,11 +119,9 @@ public class BigArrays {
         }
 
         @Override
-        public byte set(long index, byte value) {
+        public void set(long index, byte value) {
             assert indexIsInt(index);
-            final byte ret = array[(int) index];
             array[(int) index] = value;
-            return ret;
         }
 
         @Override
@@ -215,11 +214,17 @@ public class BigArrays {
         }
 
         @Override
-        public int set(long index, int value) {
+        public int getAndSet(long index, int value) {
             assert index >= 0 && index < size();
             final int ret = (int) VH_PLATFORM_NATIVE_INT.get(array, (int) index << 2);
             VH_PLATFORM_NATIVE_INT.set(array, (int) index << 2, value);
             return ret;
+        }
+
+        @Override
+        public void set(long index, int value) {
+            assert index >= 0 && index < size();
+            VH_PLATFORM_NATIVE_INT.set(array, (int) index << 2, value);
         }
 
         @Override
@@ -272,11 +277,17 @@ public class BigArrays {
         }
 
         @Override
-        public long set(long index, long value) {
+        public long getAndSet(long index, long value) {
             assert index >= 0 && index < size();
             final long ret = (long) VH_PLATFORM_NATIVE_LONG.get(array, (int) index << 3);
             VH_PLATFORM_NATIVE_LONG.set(array, (int) index << 3, value);
             return ret;
+        }
+
+        @Override
+        public void set(long index, long value) {
+            assert index >= 0 && index < size();
+            VH_PLATFORM_NATIVE_LONG.set(array, (int) index << 3, value);
         }
 
         @Override
@@ -336,11 +347,9 @@ public class BigArrays {
         }
 
         @Override
-        public double set(long index, double value) {
+        public void set(long index, double value) {
             assert index >= 0 && index < size();
-            final double ret = (double) VH_PLATFORM_NATIVE_DOUBLE.get(array, (int) index << 3);
             VH_PLATFORM_NATIVE_DOUBLE.set(array, (int) index << 3, value);
-            return ret;
         }
 
         @Override
@@ -400,11 +409,9 @@ public class BigArrays {
         }
 
         @Override
-        public float set(long index, float value) {
+        public void set(long index, float value) {
             assert index >= 0 && index < size();
-            final float ret = (float) VH_PLATFORM_NATIVE_FLOAT.get(array, (int) index << 2);
             VH_PLATFORM_NATIVE_FLOAT.set(array, (int) index << 2, value);
-            return ret;
         }
 
         @Override
@@ -445,7 +452,13 @@ public class BigArrays {
         }
 
         @Override
-        public T set(long index, T value) {
+        public void set(long index, T value) {
+            assert index >= 0 && index < size();
+            array[(int) index] = value;
+        }
+
+        @Override
+        public T getAndSet(long index, T value) {
             assert index >= 0 && index < size();
             @SuppressWarnings("unchecked")
             T ret = (T) array[(int) index];
@@ -455,6 +468,7 @@ public class BigArrays {
 
     }
 
+    @Nullable
     final PageCacheRecycler recycler;
     @Nullable
     private final CircuitBreakerService breakerService;
@@ -464,13 +478,13 @@ public class BigArrays {
     private final BigArrays circuitBreakingInstance;
     private final String breakerName;
 
-    public BigArrays(PageCacheRecycler recycler, @Nullable final CircuitBreakerService breakerService, String breakerName) {
+    public BigArrays(@Nullable PageCacheRecycler recycler, @Nullable final CircuitBreakerService breakerService, String breakerName) {
         // Checking the breaker is disabled if not specified
         this(recycler, breakerService, breakerName, false);
     }
 
     protected BigArrays(
-        PageCacheRecycler recycler,
+        @Nullable PageCacheRecycler recycler,
         @Nullable final CircuitBreakerService breakerService,
         String breakerName,
         boolean checkBreaker

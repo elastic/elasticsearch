@@ -108,6 +108,6 @@ public class NodeDataTiersUsage extends BaseNodeResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeMap(usageStatsByTier, (o, v) -> v.writeTo(o));
+        out.writeMap(usageStatsByTier, StreamOutput::writeWriteable);
     }
 }

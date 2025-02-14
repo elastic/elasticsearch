@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.analysis;
@@ -62,7 +63,7 @@ public class IncorrectSetupStablePluginsTests extends ESTestCase {
                 Settings.builder()
                     .put("index.analysis.analyzer.char_filter_test.tokenizer", "standard")
                     .put("index.analysis.analyzer.char_filter_test.char_filter", "incorrectlyAnnotatedSettings")
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion(random()))
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion())
                     .build(),
                 Map.of(
                     "incorrectlyAnnotatedSettings",
@@ -89,7 +90,7 @@ public class IncorrectSetupStablePluginsTests extends ESTestCase {
                 Settings.builder()
                     .put("index.analysis.analyzer.char_filter_test.tokenizer", "standard")
                     .put("index.analysis.analyzer.char_filter_test.char_filter", "noInjectCharFilter")
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion(random()))
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion())
                     .build(),
                 Map.of("noInjectCharFilter", new PluginInfo("noInjectCharFilter", NoInjectCharFilter.class.getName(), classLoader))
             )
@@ -111,7 +112,7 @@ public class IncorrectSetupStablePluginsTests extends ESTestCase {
                 Settings.builder()
                     .put("index.analysis.analyzer.char_filter_test.tokenizer", "standard")
                     .put("index.analysis.analyzer.char_filter_test.char_filter", "multipleConstructors")
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion(random()))
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion())
                     .build(),
                 Map.of("multipleConstructors", new PluginInfo("multipleConstructors", MultipleConstructors.class.getName(), classLoader))
             )

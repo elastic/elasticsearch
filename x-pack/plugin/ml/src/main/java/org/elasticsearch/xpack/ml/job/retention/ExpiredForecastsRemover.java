@@ -168,7 +168,7 @@ public class ExpiredForecastsRemover implements MlDataRemover {
         List<JobForecastId> forecastsToDelete = new ArrayList<>();
 
         SearchHits hits = searchResponse.getHits();
-        if (hits.getTotalHits().value > MAX_FORECASTS) {
+        if (hits.getTotalHits().value() > MAX_FORECASTS) {
             LOGGER.info("More than [{}] forecasts were found. This run will only delete [{}] of them", MAX_FORECASTS, MAX_FORECASTS);
         }
 

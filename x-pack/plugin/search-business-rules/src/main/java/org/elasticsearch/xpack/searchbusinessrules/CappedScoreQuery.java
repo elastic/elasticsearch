@@ -79,12 +79,10 @@ public final class CappedScoreQuery extends Query {
      */
     protected static class CappedBulkScorer extends BulkScorer {
         final BulkScorer bulkScorer;
-        final Weight weight;
         final float maxScore;
 
-        public CappedBulkScorer(BulkScorer bulkScorer, Weight weight, float maxScore) {
+        public CappedBulkScorer(BulkScorer bulkScorer, float maxScore) {
             this.bulkScorer = bulkScorer;
-            this.weight = weight;
             this.maxScore = maxScore;
         }
 
@@ -126,15 +124,6 @@ public final class CappedScoreQuery extends Query {
         if (scoreMode.needsScores()) {
             return new CappedScoreWeight(this, innerWeight, maxScore) {
                 @Override
-                public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
-                    final BulkScorer innerScorer = innerWeight.bulkScorer(context);
-                    if (innerScorer == null) {
-                        return null;
-                    }
-                    return new CappedBulkScorer(innerScorer, this, maxScore);
-                }
-
-                @Override
                 public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                     ScorerSupplier innerScorerSupplier = innerWeight.scorerSupplier(context);
                     if (innerScorerSupplier == null) {
@@ -152,7 +141,13 @@ public final class CappedScoreQuery extends Query {
                                     return innerScorer;
                                 }
                             }
-                            return new CappedScorer(innerWeight, innerScorer, maxScore);
+                            return new CappedScorer(innerScorer, maxScore);
+                        }
+
+                        @Override
+                        public BulkScorer bulkScorer() throws IOException {
+                            final BulkScorer innerScorer = innerScorerSupplier.bulkScorer();
+                            return new CappedBulkScorer(innerScorer, maxScore);
                         }
 
                         @Override
@@ -165,15 +160,6 @@ public final class CappedScoreQuery extends Query {
                 @Override
                 public Matches matches(LeafReaderContext context, int doc) throws IOException {
                     return innerWeight.matches(context, doc);
-                }
-
-                @Override
-                public Scorer scorer(LeafReaderContext context) throws IOException {
-                    ScorerSupplier scorerSupplier = scorerSupplier(context);
-                    if (scorerSupplier == null) {
-                        return null;
-                    }
-                    return scorerSupplier.get(Long.MAX_VALUE);
                 }
             };
         } else {

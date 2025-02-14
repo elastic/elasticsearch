@@ -28,7 +28,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.inference.InferenceFeatureSetUsage;
@@ -98,7 +98,7 @@ public class TransportInferenceUsageActionTests extends ESTestCase {
 
         BytesStreamOutput out = new BytesStreamOutput();
         future.get().getUsage().writeTo(out);
-        XPackFeatureSet.Usage usage = new InferenceFeatureSetUsage(out.bytes().streamInput());
+        XPackFeatureUsage usage = new InferenceFeatureSetUsage(out.bytes().streamInput());
 
         assertThat(usage.name(), is(XPackField.INFERENCE));
         assertTrue(usage.enabled());

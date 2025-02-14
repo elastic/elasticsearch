@@ -76,12 +76,6 @@ public class TextExpansionConfig implements NlpConfig {
         this.vocabularyConfig = Optional.ofNullable(vocabularyConfig)
             .orElse(new VocabularyConfig(InferenceIndexConstants.nativeDefinitionStore()));
         this.tokenization = tokenization == null ? Tokenization.createDefault() : tokenization;
-        if (this.tokenization instanceof BertTokenization == false) {
-            throw ExceptionsHelper.badRequestException(
-                "text expansion models must be configured with BERT tokenizer, [{}] given",
-                this.tokenization.getName()
-            );
-        }
         this.resultsField = resultsField;
     }
 

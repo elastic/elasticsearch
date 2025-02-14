@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.profiling.action;
 import java.util.Map;
 
 final class CostCalculator {
-    private static final double DEFAULT_SAMPLING_FREQUENCY = 20.0d;
+    private static final double DEFAULT_SAMPLING_FREQUENCY = 19.0d;
     private static final double SECONDS_PER_HOUR = 60 * 60;
     private static final double SECONDS_PER_YEAR = SECONDS_PER_HOUR * 24 * 365.0d; // unit: seconds
     public static final double DEFAULT_COST_USD_PER_CORE_HOUR = 0.0425d; // unit: USD / (core * hour)

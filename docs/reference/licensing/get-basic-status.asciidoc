@@ -5,6 +5,12 @@
 <titleabbrev>Get basic status</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-license[Licensing APIs].
+--
+
 This API enables you to check the status of your basic license.
 
 [discrete]

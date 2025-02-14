@@ -7,4 +7,32 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-public abstract class InferenceInputs {}
+import org.elasticsearch.common.Strings;
+
+public abstract class InferenceInputs {
+    private final boolean stream;
+
+    public InferenceInputs(boolean stream) {
+        this.stream = stream;
+    }
+
+    public static IllegalArgumentException createUnsupportedTypeException(InferenceInputs inferenceInputs, Class<?> clazz) {
+        return new IllegalArgumentException(
+            Strings.format("Unable to convert inference inputs type: [%s] to [%s]", inferenceInputs.getClass(), clazz)
+        );
+    }
+
+    public <T> T castTo(Class<T> clazz) {
+        if (clazz.isInstance(this) == false) {
+            throw createUnsupportedTypeException(this, clazz);
+        }
+
+        return clazz.cast(this);
+    }
+
+    public boolean stream() {
+        return stream;
+    }
+
+    public abstract int inputSize();
+}

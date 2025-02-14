@@ -18,7 +18,7 @@ import java.util.BitSet;
 
 /**
  * Block implementation that stores values in a {@link BooleanArrayVector}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ArrayBlock.java.st} instead.
  */
 final class BooleanArrayBlock extends AbstractArrayBlock implements BooleanBlock {
 
@@ -86,6 +86,27 @@ final class BooleanArrayBlock extends AbstractArrayBlock implements BooleanBlock
     }
 
     @Override
+    public ToMask toMask() {
+        if (getPositionCount() == 0) {
+            return new ToMask(blockFactory().newConstantBooleanVector(false, 0), false);
+        }
+        try (BooleanVector.FixedBuilder builder = blockFactory().newBooleanVectorFixedBuilder(getPositionCount())) {
+            boolean hasMv = false;
+            for (int p = 0; p < getPositionCount(); p++) {
+                builder.appendBoolean(switch (getValueCount(p)) {
+                    case 0 -> false;
+                    case 1 -> getBoolean(getFirstValueIndex(p));
+                    default -> {
+                        hasMv = true;
+                        yield false;
+                    }
+                });
+            }
+            return new ToMask(builder.build(), hasMv);
+        }
+    }
+
+    @Override
     public boolean getBoolean(int valueIndex) {
         return vector.getBoolean(valueIndex);
     }
@@ -101,7 +122,7 @@ final class BooleanArrayBlock extends AbstractArrayBlock implements BooleanBlock
                 int valueCount = getValueCount(pos);
                 int first = getFirstValueIndex(pos);
                 if (valueCount == 1) {
-                    builder.appendBoolean(getBoolean(getFirstValueIndex(pos)));
+                    builder.appendBoolean(getBoolean(first));
                 } else {
                     builder.beginPositionEntry();
                     for (int c = 0; c < valueCount; c++) {
@@ -111,6 +132,47 @@ final class BooleanArrayBlock extends AbstractArrayBlock implements BooleanBlock
                 }
             }
             return builder.mvOrdering(mvOrdering()).build();
+        }
+    }
+
+    @Override
+    public BooleanBlock keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return this;
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return this;
+            }
+            return (BooleanBlock) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+        try (BooleanBlock.Builder builder = blockFactory().newBooleanBlockBuilder(getPositionCount())) {
+            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
+            for (int p = 0; p < getPositionCount(); p++) {
+                if (false == mask.getBoolean(p)) {
+                    builder.appendNull();
+                    continue;
+                }
+                int valueCount = getValueCount(p);
+                if (valueCount == 0) {
+                    builder.appendNull();
+                    continue;
+                }
+                int start = getFirstValueIndex(p);
+                if (valueCount == 1) {
+                    builder.appendBoolean(getBoolean(start));
+                    continue;
+                }
+                int end = start + valueCount;
+                builder.beginPositionEntry();
+                for (int i = start; i < end; i++) {
+                    builder.appendBoolean(getBoolean(i));
+                }
+                builder.endPositionEntry();
+            }
+            return builder.build();
         }
     }
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams.lifecycle;
 
@@ -200,12 +201,10 @@ public class CrudSystemDataStreamLifecycleIT extends ESIntegTestCase {
                         ComposableIndexTemplate.builder()
                             .indexPatterns(List.of(".test-data-stream"))
                             .template(
-                                new Template(
-                                    Settings.EMPTY,
-                                    mappings,
-                                    null,
-                                    DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build()
-                                )
+                                Template.builder()
+                                    .settings(Settings.EMPTY)
+                                    .mappings(mappings)
+                                    .lifecycle(DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()).build())
                             )
                             .dataStreamTemplate(new DataStreamTemplate())
                             .build(),
@@ -233,6 +232,7 @@ public class CrudSystemDataStreamLifecycleIT extends ESIntegTestCase {
         public void cleanUpFeature(ClusterService clusterService, Client client, ActionListener<ResetFeatureStateStatus> listener) {
             Collection<SystemDataStreamDescriptor> dataStreamDescriptors = getSystemDataStreamDescriptors();
             final DeleteDataStreamAction.Request request = new DeleteDataStreamAction.Request(
+                TEST_REQUEST_TIMEOUT,
                 dataStreamDescriptors.stream().map(SystemDataStreamDescriptor::getDataStreamName).toList().toArray(Strings.EMPTY_ARRAY)
             );
             request.indicesOptions(

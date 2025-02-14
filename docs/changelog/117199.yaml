@@ -1,0 +1,5 @@
+pr: 117199
+summary: Speed up bit compared with floats or bytes script operations
+area: Vector Search
+type: enhancement
+issues: []

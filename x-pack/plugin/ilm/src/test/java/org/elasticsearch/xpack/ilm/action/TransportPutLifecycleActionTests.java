@@ -75,7 +75,17 @@ public class TransportPutLifecycleActionTests extends ESTestCase {
             }""";
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
-            PutLifecycleRequest request = PutLifecycleRequest.parseRequest("my_timeseries_lifecycle2", parser);
+            PutLifecycleRequest request = PutLifecycleRequest.parseRequest(new PutLifecycleRequest.Factory() {
+                @Override
+                public PutLifecycleRequest create(LifecyclePolicy lifecyclePolicy) {
+                    return new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, lifecyclePolicy);
+                }
+
+                @Override
+                public String getPolicyName() {
+                    return "my_timeseries_lifecycle2";
+                }
+            }, parser);
 
             assertThat(putAction.modifiedKeys(request), containsInAnyOrder("my_timeseries_lifecycle2"));
         }

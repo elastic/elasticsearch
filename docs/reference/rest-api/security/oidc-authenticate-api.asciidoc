@@ -5,6 +5,12 @@
 <titleabbrev>OpenID Connect authenticate</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Submits the response to an oAuth 2.0 authentication request for consumption from
 {es}. Upon successful validation, {es} will respond with an {es} internal Access
 Token and Refresh Token that can be subsequently used for authentication.

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.engine;
@@ -29,8 +30,8 @@ public class FlushListenersTests extends ESTestCase {
             );
             flushListeners.afterFlush(generation, lastWriteLocation);
             Translog.Location waitLocation = new Translog.Location(
-                lastWriteLocation.generation - randomLongBetween(0, 2),
-                lastWriteLocation.generation - randomLongBetween(10, 90),
+                lastWriteLocation.generation() - randomLongBetween(0, 2),
+                lastWriteLocation.generation() - randomLongBetween(10, 90),
                 2
             );
             PlainActionFuture<Long> future = new PlainActionFuture<>();
@@ -48,8 +49,8 @@ public class FlushListenersTests extends ESTestCase {
                 Integer.MAX_VALUE
             );
             Translog.Location waitLocation = new Translog.Location(
-                lastWriteLocation.generation - randomLongBetween(0, 2),
-                lastWriteLocation.generation - randomLongBetween(10, 90),
+                lastWriteLocation.generation() - randomLongBetween(0, 2),
+                lastWriteLocation.generation() - randomLongBetween(10, 90),
                 2
             );
             PlainActionFuture<Long> future = new PlainActionFuture<>();
@@ -61,13 +62,13 @@ public class FlushListenersTests extends ESTestCase {
 
             long generation2 = generation + 1;
             Translog.Location secondLastWriteLocation = new Translog.Location(
-                lastWriteLocation.generation,
-                lastWriteLocation.translogLocation + 10,
+                lastWriteLocation.generation(),
+                lastWriteLocation.translogLocation() + 10,
                 Integer.MAX_VALUE
             );
             Translog.Location waitLocation2 = new Translog.Location(
-                lastWriteLocation.generation,
-                lastWriteLocation.translogLocation + 4,
+                lastWriteLocation.generation(),
+                lastWriteLocation.translogLocation() + 4,
                 2
             );
 

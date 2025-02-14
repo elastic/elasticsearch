@@ -230,11 +230,7 @@ public final class PhaseCacheManagement {
         final Set<Step.StepKey> newPhaseStepKeys = readStepKeys(xContentRegistry, client, peiJson, currentPhase, licenseState);
         if (newPhaseStepKeys == null) {
             logger.debug(
-                () -> format(
-                    "[%s] unable to parse phase definition for policy [%s] " + "to determine if it could be refreshed",
-                    index,
-                    policyId
-                )
+                () -> format("[%s] unable to parse phase definition for policy [%s] to determine if it could be refreshed", index, policyId)
             );
             return false;
         }

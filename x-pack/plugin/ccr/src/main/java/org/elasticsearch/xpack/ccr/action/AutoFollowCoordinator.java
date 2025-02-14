@@ -300,7 +300,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                     CcrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
                         client,
                         remoteCluster,
-                        new ClusterStateRequest().clear()
+                        new ClusterStateRequest(waitForMetadataTimeOut).clear()
                             .metadata(true)
                             .routingTable(true)
                             .local(true)
@@ -712,7 +712,8 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             final String leaderIndexName = indexToFollow.getName();
             final String followIndexName = getFollowerIndexName(pattern, leaderIndexName);
 
-            PutFollowAction.Request request = new PutFollowAction.Request();
+            // TODO use longer timeouts here? see https://github.com/elastic/elasticsearch/issues/109150
+            PutFollowAction.Request request = new PutFollowAction.Request(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS);
             request.setRemoteCluster(remoteCluster);
             request.setLeaderIndex(indexToFollow.getName());
             request.setFollowerIndex(followIndexName);

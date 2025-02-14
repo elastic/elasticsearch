@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.shard;
 
@@ -84,6 +85,25 @@ public interface IndexEventListener {
         IndexShardState currentState,
         @Nullable String reason
     ) {}
+
+    /**
+     * Invoked before a shard performs a mutable operation. Mutable operations include, but are not limited to:
+     * <ul>
+     *     <li>Indexing operations</li>
+     *     <li>Force merges</li>
+     * </ul>
+     *
+     * This method ensures that the shard is ready to accept mutating operations. This is particularly useful in cases
+     * where the shard initializes its internal {@link org.elasticsearch.index.engine.Engine} lazily, which may take some time.
+     * The provided listener should be notified once the shard is prepared to proceed with the operation.
+     * This can be called from a transport thread and therefore the function should be lightweight and not block the thread.
+     *
+     * @param indexShard the shard where the mutable operation will be performed
+     * @param listener   the listener to be notified when the shard is ready to proceed
+     */
+    default void beforeIndexShardMutableOperation(IndexShard indexShard, ActionListener<Void> listener) {
+        listener.onResponse(null);
+    }
 
     /**
      * Called before the index gets created. Note that this is also called

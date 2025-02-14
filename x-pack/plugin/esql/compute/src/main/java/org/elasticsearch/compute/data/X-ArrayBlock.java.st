@@ -29,7 +29,7 @@ import java.util.BitSet;
 $if(BytesRef)$
  * Does not take ownership of the given {@link BytesRefArray} and does not adjust circuit breakers to account for it.
 $endif$
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ArrayBlock.java.st} instead.
  */
 final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$Block {
 
@@ -101,6 +101,28 @@ $if(BytesRef)$
     public OrdinalBytesRefBlock asOrdinals() {
         return null;
     }
+
+$elseif(boolean)$
+    @Override
+    public ToMask toMask() {
+        if (getPositionCount() == 0) {
+            return new ToMask(blockFactory().newConstantBooleanVector(false, 0), false);
+        }
+        try (BooleanVector.FixedBuilder builder = blockFactory().newBooleanVectorFixedBuilder(getPositionCount())) {
+            boolean hasMv = false;
+            for (int p = 0; p < getPositionCount(); p++) {
+                builder.appendBoolean(switch (getValueCount(p)) {
+                    case 0 -> false;
+                    case 1 -> getBoolean(getFirstValueIndex(p));
+                    default -> {
+                        hasMv = true;
+                        yield false;
+                    }
+                });
+            }
+            return new ToMask(builder.build(), hasMv);
+        }
+    }
 $endif$
 
     @Override
@@ -127,7 +149,7 @@ $endif$
                 int valueCount = getValueCount(pos);
                 int first = getFirstValueIndex(pos);
                 if (valueCount == 1) {
-                    builder.append$Type$(get$Type$(getFirstValueIndex(pos)$if(BytesRef)$, scratch$endif$));
+                    builder.append$Type$(get$Type$(first$if(BytesRef)$, scratch$endif$));
                 } else {
                     builder.beginPositionEntry();
                     for (int c = 0; c < valueCount; c++) {
@@ -137,6 +159,50 @@ $endif$
                 }
             }
             return builder.mvOrdering(mvOrdering()).build();
+        }
+    }
+
+    @Override
+    public $Type$Block keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return this;
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return this;
+            }
+            return ($Type$Block) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+$if(BytesRef)$
+        BytesRef scratch = new BytesRef();
+$endif$
+        try ($Type$Block.Builder builder = blockFactory().new$Type$BlockBuilder(getPositionCount())) {
+            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
+            for (int p = 0; p < getPositionCount(); p++) {
+                if (false == mask.getBoolean(p)) {
+                    builder.appendNull();
+                    continue;
+                }
+                int valueCount = getValueCount(p);
+                if (valueCount == 0) {
+                    builder.appendNull();
+                    continue;
+                }
+                int start = getFirstValueIndex(p);
+                if (valueCount == 1) {
+                    builder.append$Type$(get$Type$(start$if(BytesRef)$, scratch$endif$));
+                    continue;
+                }
+                int end = start + valueCount;
+                builder.beginPositionEntry();
+                for (int i = start; i < end; i++) {
+                    builder.append$Type$(get$Type$(i$if(BytesRef)$, scratch$endif$));
+                }
+                builder.endPositionEntry();
+            }
+            return builder.build();
         }
     }
 

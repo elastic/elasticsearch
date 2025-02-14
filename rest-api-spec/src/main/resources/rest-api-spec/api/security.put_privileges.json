@@ -13,7 +13,7 @@
     "url":{
       "paths":[
         {
-          "path":"/_security/privilege/",
+          "path":"/_security/privilege",
           "methods":[
             "PUT",
             "POST"

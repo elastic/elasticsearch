@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.settings.put;
@@ -23,12 +24,12 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -49,6 +50,7 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
     private static final Logger logger = LogManager.getLogger(TransportUpdateSettingsAction.class);
 
     private final MetadataUpdateSettingsService updateSettingsService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final SystemIndices systemIndices;
 
     @Inject
@@ -68,10 +70,10 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
             threadPool,
             actionFilters,
             UpdateSettingsRequest::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.updateSettingsService = updateSettingsService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.systemIndices = systemIndices;
     }
 
@@ -123,19 +125,24 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
             return;
         }
 
-        UpdateSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpdateSettingsClusterStateUpdateRequest().indices(
-            concreteIndices
-        )
-            .settings(requestSettings)
-            .setPreserveExisting(request.isPreserveExisting())
-            .reopenShards(request.reopen())
-            .ackTimeout(request.ackTimeout())
-            .masterNodeTimeout(request.masterNodeTimeout());
-
-        updateSettingsService.updateSettings(clusterStateUpdateRequest, listener.delegateResponse((l, e) -> {
-            logger.debug(() -> "failed to update settings on indices [" + Arrays.toString(concreteIndices) + "]", e);
-            l.onFailure(e);
-        }));
+        updateSettingsService.updateSettings(
+            new UpdateSettingsClusterStateUpdateRequest(
+                request.masterNodeTimeout(),
+                request.ackTimeout(),
+                requestSettings,
+                request.isPreserveExisting()
+                    ? UpdateSettingsClusterStateUpdateRequest.OnExisting.PRESERVE
+                    : UpdateSettingsClusterStateUpdateRequest.OnExisting.OVERWRITE,
+                request.reopen()
+                    ? UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REOPEN_INDICES
+                    : UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REJECT,
+                concreteIndices
+            ),
+            listener.delegateResponse((l, e) -> {
+                logger.debug(() -> "failed to update settings on indices [" + Arrays.toString(concreteIndices) + "]", e);
+                l.onFailure(e);
+            })
+        );
     }
 
     /**

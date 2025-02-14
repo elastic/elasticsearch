@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.routing.allocation.decider;
 
@@ -111,16 +112,16 @@ public class RestoreInProgressAllocationDeciderTests extends ESAllocationTestCas
 
             UnassignedInfo currentInfo = primary.unassignedInfo();
             UnassignedInfo newInfo = new UnassignedInfo(
-                currentInfo.getReason(),
-                currentInfo.getMessage(),
+                currentInfo.reason(),
+                currentInfo.message(),
                 new IOException("i/o failure"),
-                currentInfo.getNumFailedAllocations(),
-                currentInfo.getUnassignedTimeInNanos(),
-                currentInfo.getUnassignedTimeInMillis(),
-                currentInfo.isDelayed(),
-                currentInfo.getLastAllocationStatus(),
-                currentInfo.getFailedNodeIds(),
-                currentInfo.getLastAllocatedNodeId()
+                currentInfo.failedAllocations(),
+                currentInfo.unassignedTimeNanos(),
+                currentInfo.unassignedTimeMillis(),
+                currentInfo.delayed(),
+                currentInfo.lastAllocationStatus(),
+                currentInfo.failedNodeIds(),
+                currentInfo.lastAllocatedNodeId()
             );
             primary = primary.updateUnassigned(newInfo, primary.recoverySource());
 

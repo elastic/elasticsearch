@@ -21,9 +21,9 @@ import java.util.Map;
 import static org.elasticsearch.common.Strings.requireNonBlank;
 
 public class SessionAnalyticsEventField {
-    public static ParseField SESSION_FIELD = new ParseField("session");
+    public static final ParseField SESSION_FIELD = new ParseField("session");
 
-    public static ParseField SESSION_ID_FIELD = new ParseField("id");
+    public static final ParseField SESSION_ID_FIELD = new ParseField("id");
 
     public static final ParseField CLIENT_ADDRESS_FIELD = new ParseField("ip");
 

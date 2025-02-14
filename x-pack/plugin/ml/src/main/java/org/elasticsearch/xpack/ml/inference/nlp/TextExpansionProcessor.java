@@ -8,9 +8,10 @@
 package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.inference.InferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
+import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchInferenceResult;
@@ -71,20 +72,27 @@ public class TextExpansionProcessor extends NlpTask.Processor {
         boolean chunkResults
     ) {
         if (chunkResults) {
-            var chunkedResults = new ArrayList<ChunkedTextExpansionResults.ChunkedResult>();
+            var chunkedResults = new ArrayList<MlChunkedTextExpansionResults.ChunkedResult>();
 
             for (int i = 0; i < pyTorchResult.getInferenceResult()[0].length; i++) {
-                int startOffset = tokenization.getTokenization(i).tokens().get(0).get(0).startOffset();
-                int lastIndex = tokenization.getTokenization(i).tokens().get(0).size() - 1;
-                int endOffset = tokenization.getTokenization(i).tokens().get(0).get(lastIndex).endOffset();
-                String matchedText = tokenization.getTokenization(i).input().get(0).substring(startOffset, endOffset);
+                String matchedText;
+                if (tokenization.getTokenization(i).tokens().get(0).isEmpty() == false) {
+                    int startOffset = tokenization.getTokenization(i).tokens().get(0).get(0).startOffset();
+                    int lastIndex = tokenization.getTokenization(i).tokens().get(0).size() - 1;
+                    int endOffset = tokenization.getTokenization(i).tokens().get(0).get(lastIndex).endOffset();
+                    matchedText = tokenization.getTokenization(i).input().get(0).substring(startOffset, endOffset);
+                } else {
+                    // No tokens in the input, this should only happen with and empty string
+                    assert tokenization.getTokenization(i).input().get(0).isEmpty();
+                    matchedText = "";
+                }
 
                 var weightedTokens = sparseVectorToTokenWeights(pyTorchResult.getInferenceResult()[0][i], tokenization, replacementVocab);
                 weightedTokens.sort((t1, t2) -> Float.compare(t2.weight(), t1.weight()));
-                chunkedResults.add(new ChunkedTextExpansionResults.ChunkedResult(matchedText, weightedTokens));
+                chunkedResults.add(new MlChunkedTextExpansionResults.ChunkedResult(matchedText, weightedTokens));
             }
 
-            return new ChunkedTextExpansionResults(
+            return new MlChunkedTextExpansionResults(
                 Optional.ofNullable(resultsField).orElse(DEFAULT_RESULTS_FIELD),
                 chunkedResults,
                 tokenization.anyTruncated()
@@ -100,18 +108,16 @@ public class TextExpansionProcessor extends NlpTask.Processor {
         }
     }
 
-    static List<TextExpansionResults.WeightedToken> sparseVectorToTokenWeights(
+    static List<WeightedToken> sparseVectorToTokenWeights(
         double[] vector,
         TokenizationResult tokenization,
         Map<Integer, String> replacementVocab
     ) {
         // Anything with a score > 0.0 is retained.
-        List<TextExpansionResults.WeightedToken> weightedTokens = new ArrayList<>();
+        List<WeightedToken> weightedTokens = new ArrayList<>();
         for (int i = 0; i < vector.length; i++) {
             if (vector[i] > 0.0) {
-                weightedTokens.add(
-                    new TextExpansionResults.WeightedToken(tokenForId(i, tokenization, replacementVocab), (float) vector[i])
-                );
+                weightedTokens.add(new WeightedToken(tokenForId(i, tokenization, replacementVocab), (float) vector[i]));
             }
         }
         return weightedTokens;

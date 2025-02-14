@@ -21,10 +21,11 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
@@ -70,7 +71,7 @@ public class TransportSLMGetExpiredSnapshotsAction extends TransportAction<
         RepositoriesService repositoriesService,
         ActionFilters actionFilters
     ) {
-        super(INSTANCE.name(), actionFilters, transportService.getTaskManager());
+        super(INSTANCE.name(), actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.repositoriesService = repositoriesService;
         this.retentionExecutor = transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT);
     }

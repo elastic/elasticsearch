@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal;
@@ -11,9 +12,9 @@ package org.elasticsearch.gradle.internal;
 import groovy.lang.Closure;
 
 import org.elasticsearch.gradle.internal.conventions.util.Util;
-import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
 import org.elasticsearch.gradle.internal.precommit.JarHellPrecommitPlugin;
-import org.elasticsearch.gradle.internal.test.HistoricalFeaturesMetadataPlugin;
+import org.elasticsearch.gradle.internal.test.ClusterFeaturesMetadataPlugin;
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin;
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
@@ -37,7 +38,8 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
         project.getPluginManager().apply(PluginBuildPlugin.class);
         project.getPluginManager().apply(JarHellPrecommitPlugin.class);
         project.getPluginManager().apply(ElasticsearchJavaPlugin.class);
-        project.getPluginManager().apply(HistoricalFeaturesMetadataPlugin.class);
+        project.getPluginManager().apply(ClusterFeaturesMetadataPlugin.class);
+        boolean isCi = project.getRootProject().getExtensions().getByType(BuildParameterExtension.class).isCi();
         // Clear default dependencies added by public PluginBuildPlugin as we add our
         // own project dependencies for internal builds
         // TODO remove once we removed default dependencies from PluginBuildPlugin
@@ -53,7 +55,7 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
             .set("addQaCheckDependencies", new Closure<Project>(BaseInternalPluginBuildPlugin.this, BaseInternalPluginBuildPlugin.this) {
                 public void doCall(Project proj) {
                     // This is only a convenience for local developers so make this a noop when running in CI
-                    if (BuildParams.isCi() == false) {
+                    if (isCi == false) {
                         proj.afterEvaluate(project1 -> {
                             // let check depend on check tasks of qa sub-projects
                             final var checkTaskProvider = project1.getTasks().named("check");

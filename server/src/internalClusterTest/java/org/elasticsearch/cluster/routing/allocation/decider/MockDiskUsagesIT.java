@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.routing.allocation.decider;
 
@@ -75,7 +76,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             internalCluster().startNode(Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()));
         }
 
-        final List<String> nodeIds = clusterAdmin().prepareState()
+        final List<String> nodeIds = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .get()
             .getState()
             .getRoutingNodes()
@@ -106,7 +107,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         }
         updateClusterSettings(settings);
         // Create an index with 10 shards so we can check allocation for it
-        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("number_of_shards", 10).put("number_of_replicas", 0)));
+        assertAcked(prepareCreate("test").setSettings(indexSettings(10, 0)));
         ensureGreen("test");
 
         assertBusy(() -> {
@@ -153,7 +154,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             internalCluster().startNode(Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), createTempDir()));
         }
 
-        final List<String> nodeIds = clusterAdmin().prepareState()
+        final List<String> nodeIds = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .get()
             .getState()
             .getRoutingNodes()
@@ -184,7 +185,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         updateClusterSettings(builder);
 
         // Create an index with 6 shards so we can check allocation for it
-        prepareCreate("test").setSettings(Settings.builder().put("number_of_shards", 6).put("number_of_replicas", 0)).get();
+        prepareCreate("test").setSettings(indexSettings(6, 0)).get();
         ensureGreen("test");
 
         {
@@ -211,7 +212,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             () -> assertBlocked(prepareIndex("test").setId("1").setSource("foo", "bar"), IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
         );
 
-        assertFalse(clusterAdmin().prepareHealth("test").setWaitForEvents(Priority.LANGUID).get().isTimedOut());
+        assertFalse(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "test").setWaitForEvents(Priority.LANGUID).get().isTimedOut());
 
         // Cannot add further documents
         assertBlocked(prepareIndex("test").setId("2").setSource("foo", "bar"), IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
@@ -261,7 +262,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
                 .put(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "0ms")
         );
 
-        final List<String> nodeIds = clusterAdmin().prepareState()
+        final List<String> nodeIds = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .get()
             .getState()
             .getRoutingNodes()
@@ -269,7 +270,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             .map(RoutingNode::nodeId)
             .toList();
 
-        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("number_of_shards", 6).put("number_of_replicas", 0)));
+        assertAcked(prepareCreate("test").setSettings(indexSettings(6, 0)));
 
         ensureGreen("test");
 
@@ -318,7 +319,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
 
         final MockInternalClusterInfoService clusterInfoService = getMockInternalClusterInfoService();
 
-        final List<String> nodeIds = clusterAdmin().prepareState()
+        final List<String> nodeIds = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .get()
             .getState()
             .getRoutingNodes()
@@ -355,10 +356,10 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
 
         assertAcked(
             prepareCreate("test").setSettings(
-                Settings.builder()
-                    .put("number_of_shards", 6)
-                    .put("number_of_replicas", 0)
-                    .put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_id").getKey(), nodeIds.get(2))
+                indexSettings(6, 0).put(
+                    IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getConcreteSettingForNamespace("_id").getKey(),
+                    nodeIds.get(2)
+                )
             )
         );
         ensureGreen("test");
@@ -414,7 +415,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
                 .put(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "0ms")
         );
 
-        final List<String> nodeIds = clusterAdmin().prepareState()
+        final List<String> nodeIds = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .get()
             .getState()
             .getRoutingNodes()
@@ -422,7 +423,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             .map(RoutingNode::nodeId)
             .toList();
 
-        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("number_of_shards", 6).put("number_of_replicas", 0)));
+        assertAcked(prepareCreate("test").setSettings(indexSettings(6, 0)));
 
         ensureGreen("test");
 
@@ -483,7 +484,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
 
     private Map<String, Integer> getShardCountByNodeId() {
         final Map<String, Integer> shardCountByNodeId = new HashMap<>();
-        final ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+        final ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         for (final RoutingNode node : clusterState.getRoutingNodes()) {
             logger.info(
                 "----> node {} has {} shards",

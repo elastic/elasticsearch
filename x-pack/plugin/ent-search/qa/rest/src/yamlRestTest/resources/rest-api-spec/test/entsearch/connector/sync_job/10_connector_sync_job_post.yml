@@ -276,6 +276,27 @@ setup:
   - exists: last_seen
 
 ---
+'Create access control sync job - expect prefixed connector index name':
+  - do:
+      connector.sync_job_post:
+        body:
+          id: test-connector
+          job_type: access_control
+
+  - set:  { id: id }
+
+  - match: { id: $id }
+
+  - do:
+      connector.sync_job_get:
+        connector_sync_job_id: $id
+
+  - match: { connector.id: test-connector }
+  - match: { job_type: access_control }
+  - match: { connector.index_name: .search-acl-filter-search-test }
+
+
+---
 'Create connector sync job with non-existing connector id':
   - do:
       connector.sync_job_post:

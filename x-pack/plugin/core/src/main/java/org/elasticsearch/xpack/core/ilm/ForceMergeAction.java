@@ -162,8 +162,7 @@ public class ForceMergeAction implements LifecycleAction {
         WaitUntilTimeSeriesEndTimePassesStep waitUntilTimeSeriesEndTimeStep = new WaitUntilTimeSeriesEndTimePassesStep(
             waitTimeSeriesEndTimePassesKey,
             codecChange ? closeKey : forceMergeKey,
-            Instant::now,
-            client
+            Instant::now
         );
 
         // Indices already in this step key when upgrading need to know how to move forward but stop making the index

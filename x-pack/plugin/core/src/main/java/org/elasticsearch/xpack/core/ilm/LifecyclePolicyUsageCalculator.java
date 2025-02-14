@@ -46,7 +46,10 @@ public class LifecyclePolicyUsageCalculator {
         this.state = state;
         this.willIterate = names.size() > 1 || Regex.isSimpleMatchPattern(names.get(0));
 
-        var allDataStreams = indexNameExpressionResolver.dataStreamNames(state, IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN);
+        var allDataStreams = indexNameExpressionResolver.dataStreamNames(
+            state,
+            IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN_NO_SELECTOR
+        );
         // Sort all templates by descending priority. That way, findV2Template can exit on the first found template.
         var indexTemplates = new ArrayList<>(state.metadata().templatesV2().entrySet());
         CollectionUtil.timSort(indexTemplates, Comparator.comparing(entry -> entry.getValue().priorityOrZero(), Comparator.reverseOrder()));

@@ -14,7 +14,7 @@ import org.elasticsearch.core.Releasables;
 
 /**
  * Block view of a {@link BytesRefVector}. Cannot represent multi-values or nulls.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-VectorBlock.java.st} instead.
  */
 public final class BytesRefVectorBlock extends AbstractVectorBlock implements BytesRefBlock {
 
@@ -60,6 +60,11 @@ public final class BytesRefVectorBlock extends AbstractVectorBlock implements By
     @Override
     public BytesRefBlock filter(int... positions) {
         return vector.filter(positions).asBlock();
+    }
+
+    @Override
+    public BytesRefBlock keepMask(BooleanVector mask) {
+        return vector.keepMask(mask);
     }
 
     @Override

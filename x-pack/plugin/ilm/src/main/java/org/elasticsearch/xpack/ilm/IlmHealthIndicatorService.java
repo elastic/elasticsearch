@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.core.ilm.WaitForNoFollowersStep;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -219,8 +218,8 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
                 GREEN,
                 "No Index Lifecycle Management policies configured",
                 createDetails(verbose, ilmMetadata, currentMode),
-                Collections.emptyList(),
-                Collections.emptyList()
+                List.of(),
+                List.of()
             );
         } else if (currentMode != OperationMode.RUNNING) {
             return createIndicator(
@@ -228,7 +227,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
                 "Index Lifecycle Management is not running",
                 createDetails(verbose, ilmMetadata, currentMode),
                 AUTOMATION_DISABLED_IMPACT,
-                List.of(ILM_NOT_RUNNING)
+                verbose ? List.of(ILM_NOT_RUNNING) : List.of()
             );
         } else {
             var stagnatingIndices = stagnatingIndicesFinder.find();
@@ -238,8 +237,8 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
                     GREEN,
                     "Index Lifecycle Management is running",
                     createDetails(verbose, ilmMetadata, currentMode),
-                    Collections.emptyList(),
-                    Collections.emptyList()
+                    List.of(),
+                    List.of()
                 );
             } else {
                 return createIndicator(
@@ -248,7 +247,7 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
                         + " stayed on the same action longer than expected.",
                     createDetails(verbose, ilmMetadata, currentMode, stagnatingIndices),
                     STAGNATING_INDEX_IMPACT,
-                    createDiagnoses(stagnatingIndices, maxAffectedResourcesCount)
+                    verbose ? createDiagnoses(stagnatingIndices, maxAffectedResourcesCount) : List.of()
                 );
             }
         }

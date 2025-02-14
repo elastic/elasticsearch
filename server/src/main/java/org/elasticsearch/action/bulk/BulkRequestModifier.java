@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
@@ -86,10 +87,7 @@ final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
         if (itemResponses.isEmpty()) {
             return bulkRequest;
         } else {
-            BulkRequest modifiedBulkRequest = new BulkRequest();
-            modifiedBulkRequest.setRefreshPolicy(bulkRequest.getRefreshPolicy());
-            modifiedBulkRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
-            modifiedBulkRequest.timeout(bulkRequest.timeout());
+            BulkRequest modifiedBulkRequest = bulkRequest.shallowClone();
 
             int slot = 0;
             List<DocWriteRequest<?>> requests = bulkRequest.requests();
@@ -116,7 +114,12 @@ final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
     ActionListener<BulkResponse> wrapActionListenerIfNeeded(long ingestTookInMillis, ActionListener<BulkResponse> actionListener) {
         if (itemResponses.isEmpty()) {
             return actionListener.map(
-                response -> new BulkResponse(response.getItems(), response.getTook().getMillis(), ingestTookInMillis)
+                response -> new BulkResponse(
+                    response.getItems(),
+                    response.getTook().getMillis(),
+                    ingestTookInMillis,
+                    response.getIncrementalState()
+                )
             );
         } else {
             return actionListener.map(response -> {
@@ -141,7 +144,7 @@ final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
                     assertResponsesAreCorrect(bulkResponses, allResponses);
                 }
 
-                return new BulkResponse(allResponses, response.getTook().getMillis(), ingestTookInMillis);
+                return new BulkResponse(allResponses, response.getTook().getMillis(), ingestTookInMillis, response.getIncrementalState());
             });
         }
     }
@@ -176,7 +179,7 @@ final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
      * @param slot the slot in the bulk request to mark as failed.
      * @param e the failure encountered.
      */
-    synchronized void markItemAsFailed(int slot, Exception e) {
+    synchronized void markItemAsFailed(int slot, Exception e, IndexDocFailureStoreStatus failureStoreStatus) {
         final DocWriteRequest<?> docWriteRequest = bulkRequest.requests().get(slot);
         final String id = Objects.requireNonNullElse(docWriteRequest.id(), DROPPED_OR_FAILED_ITEM_WITH_AUTO_GENERATED_ID);
         // We hit a error during preprocessing a request, so we:
@@ -184,7 +187,7 @@ final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
         // 2) Add a bulk item failure for this request
         // 3) Continue with the next request in the bulk.
         failedSlots.set(slot);
-        BulkItemResponse.Failure failure = new BulkItemResponse.Failure(docWriteRequest.index(), id, e);
+        BulkItemResponse.Failure failure = new BulkItemResponse.Failure(docWriteRequest.index(), id, e, failureStoreStatus);
         itemResponses.add(BulkItemResponse.failure(slot, docWriteRequest.opType(), failure));
     }
 
@@ -220,7 +223,7 @@ final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
             assert false
                 : "Attempting to route a failed write request type to a failure store but the failure store is not enabled! "
                     + "This should be guarded against in TransportBulkAction#shouldStoreFailure()";
-            markItemAsFailed(slot, e);
+            markItemAsFailed(slot, e, IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN);
         } else {
             // We get the index write request to find the source of the failed document
             IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(bulkRequest.requests().get(slot));
@@ -235,7 +238,7 @@ final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
                         + "], index: ["
                         + targetIndexName
                         + "]";
-                markItemAsFailed(slot, e);
+                markItemAsFailed(slot, e, IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN);
                 logger.debug(
                     () -> "Attempted to redirect an invalid write operation after ingest failure - type: ["
                         + bulkRequest.requests().get(slot).getClass().getName()
@@ -264,7 +267,7 @@ final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
                             + "]",
                         ioException
                     );
-                    markItemAsFailed(slot, e);
+                    markItemAsFailed(slot, e, IndexDocFailureStoreStatus.FAILED);
                 }
             }
         }

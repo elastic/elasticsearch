@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.datastreams.lifecycle.health;
@@ -97,6 +98,25 @@ public class DataStreamLifecycleHealthIndicatorServiceTests extends ESTestCase {
         Diagnosis diagnosis = result.diagnosisList().get(0);
         assertThat(diagnosis.definition(), is(STAGNATING_BACKING_INDICES_DIAGNOSIS_DEF));
         assertThat(diagnosis.affectedResources().get(0).getValues(), containsInAnyOrder(secondGenerationIndex, firstGenerationIndex));
+    }
+
+    public void testSkippingFieldsWhenVerboseIsFalse() {
+        String secondGenerationIndex = DataStream.getDefaultBackingIndexName("foo", 2L);
+        String firstGenerationIndex = DataStream.getDefaultBackingIndexName("foo", 1L);
+        HealthIndicatorResult result = service.calculate(
+            false,
+            constructHealthInfo(
+                new DataStreamLifecycleHealthInfo(
+                    List.of(new DslErrorInfo(secondGenerationIndex, 1L, 200), new DslErrorInfo(firstGenerationIndex, 3L, 100)),
+                    15
+                )
+            )
+        );
+        assertThat(result.status(), is(HealthStatus.YELLOW));
+        assertThat(result.symptom(), is("2 backing indices have repeatedly encountered errors whilst trying to advance in its lifecycle"));
+        assertThat(result.details(), is(HealthIndicatorDetails.EMPTY));
+        assertThat(result.impacts(), is(STAGNATING_INDEX_IMPACT));
+        assertThat(result.diagnosisList().isEmpty(), is(true));
     }
 
     private HealthInfo constructHealthInfo(DataStreamLifecycleHealthInfo dslHealthInfo) {

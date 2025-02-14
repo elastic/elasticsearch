@@ -19,9 +19,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockWritables;
 import org.elasticsearch.compute.lucene.LuceneOperator;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
@@ -37,6 +38,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
@@ -44,34 +46,40 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.esql.EsqlInfoTransportAction;
 import org.elasticsearch.xpack.esql.EsqlUsageTransportAction;
 import org.elasticsearch.xpack.esql.action.EsqlAsyncGetResultAction;
+import org.elasticsearch.xpack.esql.action.EsqlAsyncStopAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequestBuilder;
+import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
+import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlDeleteAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
+import org.elasticsearch.xpack.esql.action.RestEsqlStopAsyncAction;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
+import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
+import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
+import org.elasticsearch.xpack.esql.plan.PlanWritables;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
-import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
-import org.elasticsearch.xpack.ql.index.IndexResolver;
+import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.lang.invoke.MethodHandles;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 public class EsqlPlugin extends Plugin implements ActionPlugin {
+    public static final FeatureFlag INLINESTATS_FEATURE_FLAG = new FeatureFlag("esql_inlinestats");
 
     public static final String ESQL_WORKER_THREAD_POOL_NAME = "esql_worker";
 
@@ -106,15 +114,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         BlockFactory blockFactory = new BlockFactory(circuitBreaker, bigArrays, maxPrimitiveArrayBlockSize);
         setupSharedSecrets();
         return List.of(
-            new PlanExecutor(
-                new IndexResolver(
-                    services.client(),
-                    services.clusterService().getClusterName().value(),
-                    EsqlDataTypeRegistry.INSTANCE,
-                    Set::of
-                ),
-                new EsqlIndexResolver(services.client(), EsqlDataTypeRegistry.INSTANCE)
-            ),
+            new PlanExecutor(new IndexResolver(services.client()), services.telemetryProvider().getMeterRegistry(), getLicenseState()),
             new ExchangeService(services.clusterService().getSettings(), services.threadPool(), ThreadPool.Names.SEARCH, blockFactory),
             blockFactory
         );
@@ -127,6 +127,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         } catch (IllegalAccessException e) {
             throw new AssertionError(e);
         }
+    }
+
+    // to be overriden by tests
+    protected XPackLicenseState getLicenseState() {
+        return XPackPlugin.getSharedLicenseState();
     }
 
     /**
@@ -146,7 +151,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
             new ActionHandler<>(EsqlAsyncGetResultAction.INSTANCE, TransportEsqlAsyncGetResultsAction.class),
             new ActionHandler<>(EsqlStatsAction.INSTANCE, TransportEsqlStatsAction.class),
             new ActionHandler<>(XPackUsageFeatureAction.ESQL, EsqlUsageTransportAction.class),
-            new ActionHandler<>(XPackInfoFeatureAction.ESQL, EsqlInfoTransportAction.class)
+            new ActionHandler<>(XPackInfoFeatureAction.ESQL, EsqlInfoTransportAction.class),
+            new ActionHandler<>(EsqlResolveFieldsAction.TYPE, EsqlResolveFieldsAction.class),
+            new ActionHandler<>(EsqlSearchShardsAction.TYPE, EsqlSearchShardsAction.class),
+            new ActionHandler<>(EsqlAsyncStopAction.INSTANCE, TransportEsqlAsyncStopAction.class)
         );
     }
 
@@ -166,32 +174,35 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
             new RestEsqlQueryAction(),
             new RestEsqlAsyncQueryAction(),
             new RestEsqlGetAsyncResultAction(),
+            new RestEsqlStopAsyncAction(),
             new RestEsqlDeleteAsyncResultAction()
         );
     }
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return Stream.concat(
-            List.of(
-                DriverStatus.ENTRY,
-                AbstractPageMappingOperator.Status.ENTRY,
-                AbstractPageMappingToIteratorOperator.Status.ENTRY,
-                AggregationOperator.Status.ENTRY,
-                ExchangeSinkOperator.Status.ENTRY,
-                ExchangeSourceOperator.Status.ENTRY,
-                HashAggregationOperator.Status.ENTRY,
-                LimitOperator.Status.ENTRY,
-                LuceneOperator.Status.ENTRY,
-                TopNOperatorStatus.ENTRY,
-                MvExpandOperator.Status.ENTRY,
-                ValuesSourceReaderOperator.Status.ENTRY,
-                SingleValueQuery.ENTRY,
-                AsyncOperator.Status.ENTRY,
-                EnrichLookupOperator.Status.ENTRY
-            ).stream(),
-            Block.getNamedWriteables().stream()
-        ).toList();
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
+        entries.add(DriverStatus.ENTRY);
+        entries.add(AbstractPageMappingOperator.Status.ENTRY);
+        entries.add(AbstractPageMappingToIteratorOperator.Status.ENTRY);
+        entries.add(AggregationOperator.Status.ENTRY);
+        entries.add(ExchangeSinkOperator.Status.ENTRY);
+        entries.add(ExchangeSourceOperator.Status.ENTRY);
+        entries.add(HashAggregationOperator.Status.ENTRY);
+        entries.add(LimitOperator.Status.ENTRY);
+        entries.add(LuceneOperator.Status.ENTRY);
+        entries.add(TopNOperatorStatus.ENTRY);
+        entries.add(MvExpandOperator.Status.ENTRY);
+        entries.add(ValuesSourceReaderOperator.Status.ENTRY);
+        entries.add(SingleValueQuery.ENTRY);
+        entries.add(AsyncOperator.Status.ENTRY);
+        entries.add(EnrichLookupOperator.Status.ENTRY);
+        entries.add(LookupFromIndexOperator.Status.ENTRY);
+
+        entries.addAll(BlockWritables.getNamedWriteables());
+        entries.addAll(ExpressionWritables.getNamedWriteables());
+        entries.addAll(PlanWritables.getNamedWriteables());
+        return entries;
     }
 
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {

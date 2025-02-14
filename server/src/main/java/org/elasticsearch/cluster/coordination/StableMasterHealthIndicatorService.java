@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.coordination;
@@ -141,18 +142,18 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     /**
      * Transforms a CoordinationDiagnosticsService.CoordinationDiagnosticsResult into a HealthIndicatorResult.
      * @param coordinationDiagnosticsResult The CoordinationDiagnosticsResult from the CoordinationDiagnosticsService to be transformed
-     * @param explain If false, the details and user actions returned will be empty
+     * @param verbose If false, the details and user actions returned will be empty
      * @return The HealthIndicatorResult
      */
     // Non-private for testing
     HealthIndicatorResult getHealthIndicatorResult(
         CoordinationDiagnosticsService.CoordinationDiagnosticsResult coordinationDiagnosticsResult,
-        boolean explain
+        boolean verbose
     ) {
         HealthStatus status = HealthStatus.fromCoordinationDiagnosticsStatus(coordinationDiagnosticsResult.status());
-        HealthIndicatorDetails details = getDetails(coordinationDiagnosticsResult.details(), explain);
+        HealthIndicatorDetails details = getDetails(coordinationDiagnosticsResult.details(), verbose);
         Collection<HealthIndicatorImpact> impacts = status.indicatesHealthProblem() ? UNSTABLE_MASTER_IMPACTS : List.of();
-        List<Diagnosis> diagnosis = status.indicatesHealthProblem() ? getUnstableMasterDiagnoses(explain) : List.of();
+        List<Diagnosis> diagnosis = status.indicatesHealthProblem() ? getUnstableMasterDiagnoses(verbose) : List.of();
         return createIndicator(status, coordinationDiagnosticsResult.summary(), details, impacts, diagnosis);
     }
 
@@ -242,12 +243,12 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
      * This method returns the relevant user actions when the master is unstable, linking to some troubleshooting docs and suggesting to
      * contact support.
      *
-     * @param explain If true, the returned list includes UserActions linking to troubleshooting docs and another to contact support,
+     * @param verbose If true, the returned list includes UserActions linking to troubleshooting docs and another to contact support,
      *                otherwise an empty list.
      * @return the relevant user actions when the master is unstable.
      */
-    private List<Diagnosis> getUnstableMasterDiagnoses(boolean explain) {
-        if (explain) {
+    private List<Diagnosis> getUnstableMasterDiagnoses(boolean verbose) {
+        if (verbose) {
             return List.of(TROUBLESHOOT_DISCOVERY, TROUBLESHOOT_UNSTABLE_CLUSTER, CONTACT_SUPPORT);
         } else {
             return List.of();

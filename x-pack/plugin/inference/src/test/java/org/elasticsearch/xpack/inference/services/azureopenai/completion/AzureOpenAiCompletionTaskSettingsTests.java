@@ -32,6 +32,22 @@ public class AzureOpenAiCompletionTaskSettingsTests extends AbstractWireSerializ
         return new AzureOpenAiCompletionTaskSettings(user);
     }
 
+    public void testIsEmpty() {
+        var randomSettings = createRandom();
+        var stringRep = Strings.toString(randomSettings);
+        assertEquals(stringRep, randomSettings.isEmpty(), stringRep.equals("{}"));
+    }
+
+    public void testUpdatedTaskSettings() {
+        var initialSettings = createRandom();
+        var newSettings = createRandom();
+        AzureOpenAiCompletionTaskSettings updatedSettings = (AzureOpenAiCompletionTaskSettings) initialSettings.updatedTaskSettings(
+            newSettings.user() == null ? Map.of() : Map.of(AzureOpenAiServiceFields.USER, newSettings.user())
+        );
+
+        assertEquals(newSettings.user() == null ? initialSettings.user() : newSettings.user(), updatedSettings.user());
+    }
+
     public void testFromMap_WithUser() {
         var user = "user";
 

@@ -146,7 +146,15 @@ public class CircuitBreakerTests extends ESTestCase {
             booleanArrayOf(stages, false),
             CIRCUIT_BREAKER
         );
-        TumblingWindow window = new TumblingWindow(client, criteria, null, matcher, Collections.emptyList());
+        TumblingWindow window = new TumblingWindow(
+            client,
+            criteria,
+            null,
+            matcher,
+            Collections.emptyList(),
+            randomBoolean(),
+            randomBoolean()
+        );
         window.execute(ActionTestUtils.assertNoFailureListener(p -> {}));
 
         CIRCUIT_BREAKER.startBreaking();
@@ -209,15 +217,13 @@ public class CircuitBreakerTests extends ESTestCase {
         TriFunction<ThreadPool, CircuitBreaker, Integer, ESMockClient> esClientSupplier
     ) {
         final int searchRequestsExpectedCount = 2;
-        try (
-            CircuitBreakerService service = new HierarchyCircuitBreakerService(
-                CircuitBreakerMetrics.NOOP,
-                Settings.EMPTY,
-                breakerSettings(),
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-            );
-            var threadPool = createThreadPool()
-        ) {
+        CircuitBreakerService service = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
+            Settings.EMPTY,
+            breakerSettings(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        try (var threadPool = createThreadPool()) {
             final var esClient = esClientSupplier.apply(threadPool, service.getBreaker(CIRCUIT_BREAKER_NAME), searchRequestsExpectedCount);
             CircuitBreaker eqlCircuitBreaker = service.getBreaker(CIRCUIT_BREAKER_NAME);
             QueryClient eqlClient = buildQueryClient(esClient, eqlCircuitBreaker);
@@ -230,7 +236,15 @@ public class CircuitBreakerTests extends ESTestCase {
                 booleanArrayOf(sequenceFiltersCount, false),
                 eqlCircuitBreaker
             );
-            TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher, Collections.emptyList());
+            TumblingWindow window = new TumblingWindow(
+                eqlClient,
+                criteria,
+                null,
+                matcher,
+                Collections.emptyList(),
+                randomBoolean(),
+                randomBoolean()
+            );
             window.execute(ActionListener.noop());
 
             assertTrue(esClient.searchRequestsRemainingCount() == 0); // ensure all the search requests have been asked for
@@ -245,17 +259,16 @@ public class CircuitBreakerTests extends ESTestCase {
         final int searchRequestsExpectedCount = 2;
 
         // let the parent circuit breaker fail, setting its limit to zero
-        Settings settings = Settings.builder().put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), 0).build();
-
-        try (
-            CircuitBreakerService service = new HierarchyCircuitBreakerService(
-                CircuitBreakerMetrics.NOOP,
-                settings,
-                breakerSettings(),
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-            );
-            var threadPool = createThreadPool()
-        ) {
+        Settings settings = Settings.builder()
+            .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "0%")
+            .build();
+        CircuitBreakerService service = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
+            settings,
+            breakerSettings(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        try (var threadPool = createThreadPool()) {
             final var esClient = new SuccessfulESMockClient(
                 threadPool,
                 service.getBreaker(CIRCUIT_BREAKER_NAME),
@@ -274,9 +287,18 @@ public class CircuitBreakerTests extends ESTestCase {
                 booleanArrayOf(sequenceFiltersCount, false),
                 eqlCircuitBreaker
             );
-            TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher, Collections.emptyList());
+            TumblingWindow window = new TumblingWindow(
+                eqlClient,
+                criteria,
+                null,
+                matcher,
+                Collections.emptyList(),
+                randomBoolean(),
+                randomBoolean()
+            );
             window.execute(wrap(p -> fail(), ex -> assertTrue(ex instanceof CircuitBreakingException)));
         }
+        assertCriticalWarnings("[indices.breaker.total.limit] setting of [0%] is below the recommended minimum of 50.0% of the heap");
     }
 
     private List<BreakerSettings> breakerSettings() {
@@ -331,6 +353,8 @@ public class CircuitBreakerTests extends ESTestCase {
             null,
             123,
             1,
+            randomBoolean(),
+            randomBoolean(),
             "",
             new TaskId("test", 123),
             new EqlSearchTask(
@@ -391,7 +415,7 @@ public class CircuitBreakerTests extends ESTestCase {
         ) {
             if (request instanceof OpenPointInTimeRequest) {
                 pitContextCounter.incrementAndGet();
-                OpenPointInTimeResponse response = new OpenPointInTimeResponse(pitId);
+                OpenPointInTimeResponse response = new OpenPointInTimeResponse(pitId, 1, 1, 0, 0);
                 listener.onResponse((Response) response);
             } else if (request instanceof ClosePointInTimeRequest) {
                 ClosePointInTimeResponse response = new ClosePointInTimeResponse(true, 1);

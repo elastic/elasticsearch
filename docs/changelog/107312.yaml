@@ -1,5 +1,0 @@
-pr: 107312
-summary: Fix NPE in ML assignment notifier
-area: Machine Learning
-type: bug
-issues: []

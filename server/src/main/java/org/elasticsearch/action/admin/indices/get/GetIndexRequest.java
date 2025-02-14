@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.get;
@@ -11,10 +12,10 @@ package org.elasticsearch.action.admin.indices.get;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.info.ClusterInfoRequest;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -93,16 +94,8 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
     private boolean humanReadable = false;
     private transient boolean includeDefaults = false;
 
-    public GetIndexRequest() {
-        super(
-            DataStream.isFailureStoreFeatureFlagEnabled()
-                ? IndicesOptions.builder(IndicesOptions.strictExpandOpen())
-                    .failureStoreOptions(
-                        IndicesOptions.FailureStoreOptions.builder().includeRegularIndices(true).includeFailureIndices(true)
-                    )
-                    .build()
-                : IndicesOptions.strictExpandOpen()
-        );
+    public GetIndexRequest(TimeValue masterTimeout) {
+        super(masterTimeout, IndicesOptions.strictExpandOpen());
     }
 
     public GetIndexRequest(StreamInput in) throws IOException {

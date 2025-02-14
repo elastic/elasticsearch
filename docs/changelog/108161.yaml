@@ -1,5 +1,0 @@
-pr: 108161
-summary: Refactor TextEmbeddingResults to use primitives rather than objects
-area: Machine Learning
-type: bug
-issues: []

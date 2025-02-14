@@ -1,0 +1,65 @@
+setup:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+
+  - do:
+      indices.create:
+        index: test_numeric
+        body:
+          mappings:
+            properties:
+              keyword:
+                type: long
+
+  - do:
+      indices.create:
+        index: test_constant
+        body:
+          mappings:
+            properties:
+              keyword:
+                type: constant_keyword
+                value: value
+
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          { "index": {"_index" : "test", "_id": 3} }
+          { "keyword": "abc" }
+          { "index": {"_index" : "test_numeric", "_id": 2} }
+          { "keyword": 42 }
+          { "index": {"_index" : "test_constant", "_id": 1} }
+          {}
+
+---
+"constant_keyword mixed sort":
+  - do:
+      search:
+        index: test,test_constant
+        body:
+          sort: keyword
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id:  "3" }
+  - match: { hits.hits.1._id:  "1" }
+
+---
+"constant_keyword invalid mixed sort":
+  - requires:
+      cluster_features: [ "gte_v8.15.0" ]
+      reason: Better error message in 8.15.0
+
+  - do:
+      catch: /Can't sort on field \[keyword\]\; the field has incompatible sort types/
+      search:
+        index: test*
+        body:
+          sort: keyword
+

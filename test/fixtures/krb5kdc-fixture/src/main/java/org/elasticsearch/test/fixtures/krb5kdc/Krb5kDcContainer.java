@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.fixtures.krb5kdc;
@@ -22,12 +23,13 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
 public final class Krb5kDcContainer extends DockerEnvironmentAwareTestContainer {
-    public static final String DOCKER_BASE_IMAGE = "docker.elastic.co/elasticsearch-dev/krb5dc-fixture:1.0";
+    public static final String DOCKER_BASE_IMAGE = "docker.elastic.co/elasticsearch-dev/krb5dc-fixture:1.1";
     private final TemporaryFolder temporaryFolder = new TemporaryFolder();
     private final ProvisioningId provisioningId;
     private Path krb5ConfFile;
@@ -37,14 +39,14 @@ public final class Krb5kDcContainer extends DockerEnvironmentAwareTestContainer 
     public enum ProvisioningId {
         HDFS(
             "hdfs",
-            "/fixture/src/main/resources/provision/hdfs.sh",
+            "/fixture/provision/hdfs.sh",
             "/fixture/build/keytabs/hdfs_hdfs.build.elastic.co.keytab",
             "/fixture/build/keytabs/elasticsearch.keytab",
             "hdfs/hdfs.build.elastic.co@BUILD.ELASTIC.CO"
         ),
         PEPPA(
             "peppa",
-            "/fixture/src/main/resources/provision/peppa.sh",
+            "/fixture/provision/peppa.sh",
             "/fixture/build/keytabs/peppa.keytab",
             "/fixture/build/keytabs/HTTP_localhost.keytab",
             "peppa@BUILD.ELASTIC.CO"
@@ -74,6 +76,7 @@ public final class Krb5kDcContainer extends DockerEnvironmentAwareTestContainer 
         this.provisioningId = provisioningId;
         withNetwork(Network.newNetwork());
         addExposedPorts(88, 4444);
+        withStartupTimeout(Duration.ofMinutes(2));
         withCreateContainerCmdModifier(cmd -> {
             // Add previously exposed ports and UDP port
             List<ExposedPort> exposedPorts = new ArrayList<>();
@@ -91,7 +94,7 @@ public final class Krb5kDcContainer extends DockerEnvironmentAwareTestContainer 
         withNetworkAliases("kerberos.build.elastic.co", "build.elastic.co");
         withCopyFileToContainer(MountableFile.forHostPath("/dev/urandom"), "/dev/random");
         withExtraHost("kerberos.build.elastic.co", "127.0.0.1");
-        withCommand("bash", provisioningId.scriptPath);
+        withCommand("sh", provisioningId.scriptPath);
     }
 
     @Override
@@ -119,7 +122,7 @@ public final class Krb5kDcContainer extends DockerEnvironmentAwareTestContainer 
             .findFirst();
         String hostPortSpec = bindings.get().getHostPortSpec();
         String s = copyFileFromContainer("/fixture/build/krb5.conf.template", i -> IOUtils.toString(i, StandardCharsets.UTF_8));
-        return s.replace("${MAPPED_PORT}", hostPortSpec);
+        return s.replace("#KDC_DOCKER_HOST", "kdc = 127.0.0.1:" + hostPortSpec);
     }
 
     public Path getKeytab() {

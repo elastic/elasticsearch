@@ -15,7 +15,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
-import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -25,7 +24,6 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
@@ -568,7 +566,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
             final String targetNode;
             if (seqNoRecovery) {
-                ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+                ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
                 IndexShardRoutingTable shardRoutingTable = clusterState.routingTable().index(indexName).shard(0);
                 String primaryNodeName = clusterState.nodes().resolveNode(shardRoutingTable.primaryShard().currentNodeId()).getName();
                 String replicaNodeName = clusterState.nodes()
@@ -599,7 +597,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                 );
 
             if (seqNoRecovery) {
-                ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+                ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
                 IndexShardRoutingTable shardRoutingTable = clusterState.routingTable().index(indexName).shard(0);
                 String primaryNodeName = clusterState.nodes().resolveNode(shardRoutingTable.primaryShard().currentNodeId()).getName();
 
@@ -625,7 +623,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
                 assertAcked(indicesAdmin().prepareDelete(indexName).get());
 
-                assertBusy(mockLog::assertAllExpectationsMatched);
+                mockLog.awaitAllExpectationsMatched();
             }
 
             respondToRecoverSnapshotFile.countDown();
@@ -771,7 +769,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         assertAcked(indicesAdmin().prepareDelete(indexName).get());
 
         List<String> restoredIndexDataNodes = internalCluster().startDataOnlyNodes(2);
-        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(repoName, "snap")
+        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap")
             .setIndices(indexName)
             .setIndexSettings(
                 Settings.builder()
@@ -998,7 +996,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         createRepo(repoName, repoType);
         createSnapshot(repoName, "snap", Collections.singletonList(indexName));
 
-        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+        ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         String primaryNodeId = clusterState.routingTable().index(indexName).shard(0).primaryShard().currentNodeId();
         String primaryNodeName = clusterState.nodes().resolveNode(primaryNodeId).getName();
 
@@ -1008,7 +1006,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
         ensureGreen(indexName);
 
-        ClusterState clusterStateAfterPrimaryFailOver = clusterAdmin().prepareState().get().getState();
+        ClusterState clusterStateAfterPrimaryFailOver = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         IndexShardRoutingTable shardRoutingTableAfterFailOver = clusterStateAfterPrimaryFailOver.routingTable().index(indexName).shard(0);
 
         String primaryNodeIdAfterFailOver = shardRoutingTableAfterFailOver.primaryShard().currentNodeId();
@@ -1318,7 +1316,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         createRepo(repoName, TestRepositoryPlugin.FILTER_TYPE);
         createSnapshot(repoName, "snap", Collections.singletonList(indexName));
 
-        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+        ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         String primaryNodeId = clusterState.routingTable().index(indexName).shard(0).primaryShard().currentNodeId();
         String primaryNodeName = clusterState.nodes().resolveNode(primaryNodeId).getName();
         String replicaNodeId = clusterState.routingTable().index(indexName).shard(0).replicaShards().get(0).currentNodeId();
@@ -1529,7 +1527,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
     }
 
     private Store.MetadataSnapshot getMetadataSnapshot(String nodeName, String indexName) throws IOException {
-        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+        ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeName);
         IndexService indexService = indicesService.indexService(clusterState.metadata().index(indexName).getIndex());
         IndexShard shard = indexService.getShard(0);
@@ -1541,7 +1539,9 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
     }
 
     private long getSnapshotSizeForIndex(String repository, String snapshot, String index) {
-        GetSnapshotsResponse getSnapshotsResponse = clusterAdmin().prepareGetSnapshots(repository).addSnapshots(snapshot).get();
+        GetSnapshotsResponse getSnapshotsResponse = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repository)
+            .addSnapshots(snapshot)
+            .get();
         for (SnapshotInfo snapshotInfo : getSnapshotsResponse.getSnapshots()) {
             SnapshotInfo.IndexSnapshotDetails indexSnapshotDetails = snapshotInfo.indexSnapshotDetails().get(index);
             assertThat(indexSnapshotDetails, is(notNullValue()));
@@ -1561,26 +1561,23 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
         // Ensure that the safe commit == latest commit
         assertBusy(() -> {
-            ShardStats stats = indicesAdmin().prepareStats(indexName)
-                .clear()
-                .get()
-                .asMap()
-                .entrySet()
-                .stream()
-                .filter(e -> e.getKey().shardId().getId() == 0)
-                .map(Map.Entry::getValue)
-                .findFirst()
-                .orElse(null);
-            assertThat(stats, is(notNullValue()));
-            assertThat(stats.getSeqNoStats(), is(notNullValue()));
+            ClusterState clusterState = client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
+            var indexShardRoutingTable = clusterState.routingTable().index(indexName).shard(0);
+            assertThat(indexShardRoutingTable, is(notNullValue()));
 
-            assertThat(stats.getSeqNoStats().getMaxSeqNo(), is(greaterThan(-1L)));
-            assertThat(stats.getSeqNoStats().getGlobalCheckpoint(), is(greaterThan(-1L)));
-            assertThat(
-                Strings.toString(stats.getSeqNoStats()),
-                stats.getSeqNoStats().getMaxSeqNo(),
-                equalTo(stats.getSeqNoStats().getGlobalCheckpoint())
-            );
+            var assignedNodeId = indexShardRoutingTable.primaryShard().currentNodeId();
+            var assignedNodeName = clusterState.nodes().resolveNode(assignedNodeId).getName();
+
+            var indexShard = internalCluster().getInstance(IndicesService.class, assignedNodeName)
+                .indexService(resolveIndex(indexName))
+                .getShard(0);
+            assertThat(indexShard, is(notNullValue()));
+
+            // The safe commit is determined using the last synced global checkpoint, hence we should wait until the translog is synced
+            // to cover cases where the translog is synced asynchronously
+            var lastSyncedGlobalCheckpoint = indexShard.getLastSyncedGlobalCheckpoint();
+            var maxSeqNo = indexShard.seqNoStats().getMaxSeqNo();
+            assertThat(lastSyncedGlobalCheckpoint, equalTo(maxSeqNo));
         }, 60, TimeUnit.SECONDS);
     }
 
@@ -1598,7 +1595,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                     int docIdToMatch = randomIntBetween(0, docCount - 1);
                     assertResponse(searchRequestBuilder.setQuery(QueryBuilders.termQuery("field", docIdToMatch)), searchResponse -> {
                         assertThat(searchResponse.getSuccessfulShards(), equalTo(1));
-                        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+                        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(1L));
                         SearchHit searchHit = searchResponse.getHits().getAt(0);
                         Map<String, Object> source = searchHit.getSourceAsMap();
                         assertThat(source, is(notNullValue()));
@@ -1616,7 +1613,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
     private void assertSearchResponseContainsAllIndexedDocs(SearchResponse searchResponse, long docCount) {
         assertThat(searchResponse.getSuccessfulShards(), equalTo(1));
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(docCount));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(docCount));
         for (int i = 0; i < searchResponse.getHits().getHits().length; i++) {
             SearchHit searchHit = searchResponse.getHits().getAt(i);
             Map<String, Object> source = searchHit.getSourceAsMap();

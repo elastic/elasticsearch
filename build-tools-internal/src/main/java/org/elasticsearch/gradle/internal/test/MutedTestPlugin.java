@@ -1,14 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.test;
 
-import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.file.RegularFile;
@@ -17,6 +18,8 @@ import org.gradle.api.tasks.testing.Test;
 
 import java.util.Arrays;
 import java.util.List;
+
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 public class MutedTestPlugin implements Plugin<Project> {
     private static final String ADDITIONAL_FILES_PROPERTY = "org.elasticsearch.additional.muted.tests";
@@ -30,6 +33,9 @@ public class MutedTestPlugin implements Plugin<Project> {
             .filter(p -> p.isEmpty() == false)
             .map(p -> project.getRootProject().getLayout().getProjectDirectory().file(p))
             .toList();
+
+        project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
+        var buildParams = loadBuildParams(project).get();
 
         Provider<MutedTestsBuildService> mutedTestsProvider = project.getGradle()
             .getSharedServices()
@@ -45,7 +51,7 @@ public class MutedTestPlugin implements Plugin<Project> {
                 }
 
                 // Don't fail when all tests are ignored when running in CI
-                filter.setFailOnNoMatchingTests(BuildParams.isCi() == false);
+                filter.setFailOnNoMatchingTests(buildParams.isCi() == false);
             });
         });
     }

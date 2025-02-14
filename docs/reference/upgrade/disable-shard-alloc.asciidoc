@@ -5,7 +5,7 @@ starting to replicate the shards on that node to other nodes in the cluster,
 which can involve a lot of I/O. Since the node is shortly going to be
 restarted, this I/O is unnecessary. You can avoid racing the clock by
 <<cluster-routing-allocation-enable,disabling allocation>> of replicas before
-shutting down <<data-node,data nodes>>:
+shutting down <<data-node-role,data nodes>>:
 
 [source,console]
 --------------------------------------------------
@@ -17,3 +17,7 @@ PUT _cluster/settings
 }
 --------------------------------------------------
 // TEST[skip:indexes don't assign]
+
+You can also consider <<modules-gateway,gateway settings>> when restarting 
+large clusters to reduce initial strain while nodes are processing 
+<<modules-discovery,through discovery>>. 

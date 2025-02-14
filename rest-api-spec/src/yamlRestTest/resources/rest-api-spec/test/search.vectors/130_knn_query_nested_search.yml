@@ -273,6 +273,7 @@ setup:
                 knn:
                   field: nested.vector
                   query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
+                  k: 5
                   num_candidates: 5
               inner_hits: { size: 2, "fields": [ "nested.paragraph_id" ], _source: false }
 
@@ -295,6 +296,7 @@ setup:
                 knn:
                   field: nested.vector
                   query_vector: [ -0.5, 90.0, -10, 14.8, -156.0 ]
+                  k: 5
                   num_candidates: 5
               inner_hits: { size: 2, "fields": [ "nested.paragraph_id" ], _source: false }
 

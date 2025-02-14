@@ -1,0 +1,6 @@
+pr: 116043
+summary: Support partial sort fields in TopN pushdown
+area: ES|QL
+type: enhancement
+issues:
+ - 114515

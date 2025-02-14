@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.Collections;
 import java.util.List;
@@ -16,6 +17,11 @@ public abstract class LeafExec extends PhysicalPlan {
 
     protected LeafExec(Source source) {
         super(source, Collections.emptyList());
+    }
+
+    @Override
+    protected AttributeSet computeReferences() {
+        return AttributeSet.EMPTY;
     }
 
     @Override

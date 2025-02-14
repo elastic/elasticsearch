@@ -10,7 +10,7 @@ The following specialized API is available in the Score context.
 ==== Static Methods
 The following methods are directly callable without a class/instance qualifier. Note parameters denoted by a (*) are treated as read-only values.
 
-* double cosineSimilarity(List *, String *)
+* double cosineSimilarity(Object *, String *)
 * double decayDateExp(String *, String *, String *, double *, ZonedDateTime)
 * double decayDateGauss(String *, String *, String *, double *, ZonedDateTime)
 * double decayDateLinear(String *, String *, String *, double *, ZonedDateTime)
@@ -20,9 +20,10 @@ The following methods are directly callable without a class/instance qualifier. 
 * double decayNumericExp(double *, double *, double *, double *, double)
 * double decayNumericGauss(double *, double *, double *, double *, double)
 * double decayNumericLinear(double *, double *, double *, double *, double)
-* double dotProduct(List *, String *)
-* double l1norm(List *, String *)
-* double l2norm(List *, String *)
+* double dotProduct(Object *, String *)
+* double l1norm(Object *, String *)
+* double l2norm(Object *, String *)
+* double hamming(Object *, String *)
 * double randomScore(int *)
 * double randomScore(int *, String *)
 * double saturation(double, double)

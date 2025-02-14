@@ -3,10 +3,14 @@
 = Create trained models API
 [subs="attributes"]
 ++++
-
 <titleabbrev>Create trained models</titleabbrev>
-
 ++++
+
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-trained-model[{ml-cap} trained model APIs].
+--
 
 Creates a trained model.
 
@@ -391,10 +395,10 @@ the model definition is not supplied.
 (Required, object)
 The default configuration for inference. This can be: `regression`,
 `classification`, `fill_mask`, `ner`, `question_answering`,
-`text_classification`, `text_embedding` or `zero_shot_classification`.
+`text_classification`, `text_embedding`, `text_expansion` or `zero_shot_classification`.
 If `regression` or `classification`, it must match the `target_type` of the
 underlying `definition.trained_model`. If `fill_mask`, `ner`,
-`question_answering`, `text_classification`, or `text_embedding`; the
+`question_answering`, `text_classification`, `text_embedding` or `text_expansion`; the
 `model_type` must be `pytorch`.
 +
 .Properties of `inference_config`
@@ -588,7 +592,26 @@ Refer to <<tokenization-properties>> to review the properties of the
 `tokenization` object.
 =====
 
-`text_similarity`::::
+`text_expansion`:::
+(Object, optional)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-expansion]
++
+.Properties of text_expansion inference
+[%collapsible%open]
+=====
+`results_field`::::
+(Optional, string)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
+
+`tokenization`::::
+(Optional, object)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
++
+Refer to <<tokenization-properties>> to review the properties of the
+`tokenization` object.
+=====
+
+`text_similarity`:::
 (Object, optional)
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-similarity]
 +
@@ -772,6 +795,37 @@ include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizatio
 `with_special_tokens`:::
 (Optional, boolean)
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-with-special-tokens]
+====
+`deberta_v2`::
+(Optional, object)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-deberta-v2]
++
+.Properties of deberta_v2
+[%collapsible%open]
+====
+`do_lower_case`:::
+(Optional, boolean)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-do-lower-case]
++
+--
+Defaults to `false`.
+--
+
+`max_sequence_length`:::
+(Optional, integer)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
+
+`span`:::
+(Optional, integer)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
+
+`truncate`:::
+(Optional, string)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate-deberta-v2]
+
+`with_special_tokens`:::
+(Optional, boolean)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-deberta-v2-with-special-tokens]
 ====
 `roberta`::
 (Optional, object)

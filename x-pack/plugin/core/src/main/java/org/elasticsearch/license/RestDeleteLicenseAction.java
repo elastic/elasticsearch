@@ -9,7 +9,6 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -27,7 +26,7 @@ public class RestDeleteLicenseAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.builder(DELETE, "/_license").replaces(DELETE, "/_xpack/license", RestApiVersion.V_7).build());
+        return List.of(new Route(DELETE, "/_license"));
     }
 
     @Override
@@ -37,10 +36,7 @@ public class RestDeleteLicenseAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        AcknowledgedRequest.Plain deleteLicenseRequest = new AcknowledgedRequest.Plain();
-        deleteLicenseRequest.ackTimeout(getAckTimeout(request));
-        deleteLicenseRequest.masterNodeTimeout(getMasterNodeTimeout(request));
-
+        final var deleteLicenseRequest = new AcknowledgedRequest.Plain(getMasterNodeTimeout(request), getAckTimeout(request));
         return channel -> client.admin()
             .cluster()
             .execute(TransportDeleteLicenseAction.TYPE, deleteLicenseRequest, new RestToXContentListener<>(channel));

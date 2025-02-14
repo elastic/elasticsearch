@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal;
@@ -20,8 +21,6 @@ import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.attributes.Attribute;
 
-import java.util.Arrays;
-
 /**
  * @deprecated We wanna get rid from this and custom jdk downloads via this plugin and
  * make leverage the gradle toolchain resolver capabilities.
@@ -37,8 +36,8 @@ public class JdkDownloadPlugin implements Plugin<Project> {
 
     private static final String REPO_NAME_PREFIX = "jdk_repo_";
     private static final String EXTENSION_NAME = "jdks";
-    public static final String JDK_TRIMMED_PREFIX = "(jdk-?\\d.*)|(zulu-?\\d.+).jdk";
-    public static final String ZULU_LINUX_AARCH_PATTERN = "zulu.*linux_aarch64";
+    public static final String JDK_TRIMMED_PREFIX = "(jdk-?\\d.*)|(zulu-?\\d.*).jdk";
+    public static final String ZULU_LINUX_AARCH_PATTERN = "zulu.*_aarch64";
 
     @Override
     public void apply(Project project) {
@@ -65,7 +64,8 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                 .attribute(jdkAttribute, true);
             transformSpec.parameters(parameters -> {
                 parameters.setTrimmedPrefixPattern(JDK_TRIMMED_PREFIX);
-                parameters.setKeepStructureFor(Arrays.asList(ZULU_LINUX_AARCH_PATTERN));
+                // parameters.setAsFiletreeOutput(true);
+                // parameters.setKeepStructureFor(Arrays.asList(ZULU_LINUX_AARCH_PATTERN));
             });
         });
 

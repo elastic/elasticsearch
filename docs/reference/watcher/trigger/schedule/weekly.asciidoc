@@ -80,3 +80,25 @@ Alternatively, you can specify days and times in an object that has `on` and
 }
 --------------------------------------------------
 // NOTCONSOLE
+
+==== Use a different time zone for a weekly schedule
+By default, weekly schedules are evaluated in the UTC time zone. To use a different time zone,
+you can specify the `timezone` parameter in the schedule. For example, the following
+`weekly` schedule triggers at 6:00 AM and 6:00 PM on Tuesdays and Fridays in the
+`America/Buenos_Aires` time zone:
+
+[source,js]
+--------------------------------------------------
+{
+  "trigger" : {
+    "schedule" : {
+      "timezone" : "America/Buenos_Aires",
+      "weekly" : {
+        "on" : [ "tuesday", "friday" ],
+        "at" : [ "6:00", "18:00" ]
+      }
+    }
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE

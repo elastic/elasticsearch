@@ -3,9 +3,9 @@ apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-test-artifact'
 
 esplugin {
-  name 'snapshot-repo-test-kit'
-  description 'A plugin for a test kit for snapshot repositories'
-  classname 'org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositoryTestKit'
+  name = 'snapshot-repo-test-kit'
+  description = 'A plugin for a test kit for snapshot repositories'
+  classname = 'org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositoryTestKit'
   extendedPlugins = ['x-pack-core']
 }
 base {

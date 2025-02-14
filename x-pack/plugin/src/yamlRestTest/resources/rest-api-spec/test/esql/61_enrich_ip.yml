@@ -115,7 +115,6 @@ teardown:
       esql.query:
         body:
           query: 'FROM events | eval ip_str = to_string(ip) | ENRICH networks-policy ON ip_str | sort @timestamp | KEEP ip, name, department, message'
-          version: 2024.04.01
 
   - match: { columns.0.name: "ip" }
   - match: { columns.0.type: "ip" }
@@ -144,7 +143,6 @@ teardown:
       esql.query:
         body:
           query: 'FROM events_text | ENRICH networks-policy ON ip_text | sort @timestamp | KEEP ip_text, name, department, message'
-          version: 2024.04.01
 
   - match: { columns.0.name: "ip_text" }
   - match: { columns.0.type: "text" }
@@ -164,15 +162,38 @@ teardown:
 ---
 "Invalid IP strings":
   - requires:
-      cluster_features: ["gte_v8.14.0"]
-      reason: "IP range ENRICH support was added in 8.14.0"
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [method, path, parameters, capabilities]
+          capabilities: [enrich_strict_range_types]
+      reason: "Runtime range type checking was added"
+      test_runner_features: [capabilities, allowed_warnings_regex, warnings_regex]
 
   - do:
-      catch: /'invalid_[\d\.]+' is not an IP string literal/
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+        - "Line (1:68|-1:-1): evaluation of \\[(ENRICH networks-policy ON ip_str|)\\] failed, treating result as null. Only first 20 failures recorded."
+        - "Line (1:68|-1:-1): java.lang.IllegalArgumentException: 'invalid_' is not an IP string literal."
+
       esql.query:
         body:
-          query: 'FROM events | eval ip_str = concat("invalid_", to_string(ip)) | ENRICH networks-policy ON ip_str | sort @timestamp | KEEP ip, name, department, message'
-          version: 2024.04.01
+          query: 'FROM events | eval ip_str = mv_concat("invalid_", to_string(ip)) | ENRICH networks-policy ON ip_str | sort @timestamp | KEEP ip, name, department, message'
+
+  - match: { columns.0.name: "ip" }
+  - match: { columns.0.type: "ip" }
+  - match: { columns.1.name: "name" }
+  - match: { columns.1.type: "keyword" }
+  - match: { columns.2.name: "department" }
+  - match: { columns.2.type: "keyword" }
+  - match: { columns.3.name: "message" }
+  - match: { columns.3.type: "keyword" }
+
+  - length: { values: 4 }
+  - match: { values.0: [ "10.100.0.21", null, null, "network connected" ] }
+  - match: { values.1: [ [ "10.100.0.21", "10.101.0.107" ], null, null, "sending messages" ] }
+  - match: { values.2: [ "10.101.0.107" , null, null, "network disconnected" ] }
+  - match: { values.3: [ "13.101.0.114" , null, null, "authentication failed" ] }
 
 ---
 "IP":
@@ -186,7 +207,6 @@ teardown:
       esql.query:
         body:
           query: 'FROM events | ENRICH networks-policy ON ip | sort @timestamp | KEEP ip, name, department, message'
-          version: 2024.04.01
 
   - match: { columns.0.name: "ip" }
   - match: { columns.0.type: "ip" }

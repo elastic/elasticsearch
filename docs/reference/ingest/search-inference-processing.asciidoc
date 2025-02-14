@@ -88,7 +88,7 @@ The `monitor_ml` <<security-privileges, Elasticsearch cluster privilege>> is req
 
 To create the index-specific ML inference pipeline, go to *Search -> Content -> Indices -> <your index> -> Pipelines* in the Kibana UI.
 
-If you only see the `ent-search-generic-ingestion` pipeline, you will need to click *Copy and customize* to create index-specific pipelines.
+If you only see the `search-default-ingestion` pipeline, you will need to click *Copy and customize* to create index-specific pipelines.
 This will create the `{index_name}@ml-inference` pipeline.
 
 Once your index-specific ML inference pipeline is ready, you can add inference processors that use your ML trained models.

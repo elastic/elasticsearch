@@ -105,14 +105,14 @@ final class ForUtil {
 
         for (int bpv = 1; bpv <= 32; ++bpv) {
             final FormatAndBits formatAndBits = PackedInts.fastestFormatAndBits(BLOCK_SIZE, bpv, acceptableOverheadRatio);
-            assert formatAndBits.format.isSupported(formatAndBits.bitsPerValue);
-            assert formatAndBits.bitsPerValue <= 32;
-            encodedSizes[bpv] = encodedSize(formatAndBits.format, PackedInts.VERSION_CURRENT, formatAndBits.bitsPerValue);
-            encoders[bpv] = PackedInts.getEncoder(formatAndBits.format, PackedInts.VERSION_CURRENT, formatAndBits.bitsPerValue);
-            decoders[bpv] = PackedInts.getDecoder(formatAndBits.format, PackedInts.VERSION_CURRENT, formatAndBits.bitsPerValue);
+            assert formatAndBits.format().isSupported(formatAndBits.bitsPerValue());
+            assert formatAndBits.bitsPerValue() <= 32;
+            encodedSizes[bpv] = encodedSize(formatAndBits.format(), PackedInts.VERSION_CURRENT, formatAndBits.bitsPerValue());
+            encoders[bpv] = PackedInts.getEncoder(formatAndBits.format(), PackedInts.VERSION_CURRENT, formatAndBits.bitsPerValue());
+            decoders[bpv] = PackedInts.getDecoder(formatAndBits.format(), PackedInts.VERSION_CURRENT, formatAndBits.bitsPerValue());
             iterations[bpv] = computeIterations(decoders[bpv]);
 
-            out.writeVInt(formatAndBits.format.getId() << 5 | (formatAndBits.bitsPerValue - 1));
+            out.writeVInt(formatAndBits.format().getId() << 5 | (formatAndBits.bitsPerValue() - 1));
         }
     }
 

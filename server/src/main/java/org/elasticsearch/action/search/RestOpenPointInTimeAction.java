@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -47,6 +48,7 @@ public class RestOpenPointInTimeAction extends BaseRestHandler {
         openRequest.routing(request.param("routing"));
         openRequest.preference(request.param("preference"));
         openRequest.keepAlive(TimeValue.parseTimeValue(request.param("keep_alive"), null, "keep_alive"));
+        openRequest.allowPartialSearchResults(request.paramAsBoolean("allow_partial_search_results", false));
         if (request.hasParam("max_concurrent_shard_requests")) {
             final int maxConcurrentShardRequests = request.paramAsInt(
                 "max_concurrent_shard_requests",

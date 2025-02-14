@@ -18,7 +18,7 @@ import java.util.BitSet;
 
 /**
  * Block implementation that stores values in a {@link IntArrayVector}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ArrayBlock.java.st} instead.
  */
 final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
 
@@ -101,7 +101,7 @@ final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
                 int valueCount = getValueCount(pos);
                 int first = getFirstValueIndex(pos);
                 if (valueCount == 1) {
-                    builder.appendInt(getInt(getFirstValueIndex(pos)));
+                    builder.appendInt(getInt(first));
                 } else {
                     builder.beginPositionEntry();
                     for (int c = 0; c < valueCount; c++) {
@@ -111,6 +111,47 @@ final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
                 }
             }
             return builder.mvOrdering(mvOrdering()).build();
+        }
+    }
+
+    @Override
+    public IntBlock keepMask(BooleanVector mask) {
+        if (getPositionCount() == 0) {
+            incRef();
+            return this;
+        }
+        if (mask.isConstant()) {
+            if (mask.getBoolean(0)) {
+                incRef();
+                return this;
+            }
+            return (IntBlock) blockFactory().newConstantNullBlock(getPositionCount());
+        }
+        try (IntBlock.Builder builder = blockFactory().newIntBlockBuilder(getPositionCount())) {
+            // TODO if X-ArrayBlock used BooleanVector for it's null mask then we could shuffle references here.
+            for (int p = 0; p < getPositionCount(); p++) {
+                if (false == mask.getBoolean(p)) {
+                    builder.appendNull();
+                    continue;
+                }
+                int valueCount = getValueCount(p);
+                if (valueCount == 0) {
+                    builder.appendNull();
+                    continue;
+                }
+                int start = getFirstValueIndex(p);
+                if (valueCount == 1) {
+                    builder.appendInt(getInt(start));
+                    continue;
+                }
+                int end = start + valueCount;
+                builder.beginPositionEntry();
+                for (int i = start; i < end; i++) {
+                    builder.appendInt(getInt(i));
+                }
+                builder.endPositionEntry();
+            }
+            return builder.build();
         }
     }
 

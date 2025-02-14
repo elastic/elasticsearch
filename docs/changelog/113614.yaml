@@ -1,0 +1,18 @@
+pr: 113614
+summary: The 'german2' stemmer is now an alias for the 'german' snowball stemmer
+area: Analysis
+type: breaking
+issues: []
+breaking:
+  title: The "german2" snowball stemmer is now an alias for the "german" stemmer
+  area: Analysis
+  details: >-
+    Lucene 10 has merged the improved "german2" snowball language stemmer with the
+    "german" stemmer. For Elasticsearch, "german2" is now a deprecated alias for
+    "german". This may results in slightly different tokens being generated for
+    terms with umlaut substitution (like "ue" for "ü" etc...)
+  impact: >-
+    Replace usages of "german2" with "german" in analysis configuration. Old
+    indices that use the "german" stemmer should be reindexed if possible.
+  notable: false
+

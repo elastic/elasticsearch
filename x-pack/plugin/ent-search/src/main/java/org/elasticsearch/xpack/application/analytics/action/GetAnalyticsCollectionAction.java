@@ -35,7 +35,7 @@ public class GetAnalyticsCollectionAction {
     public static class Request extends MasterNodeReadRequest<Request> implements ToXContentObject {
         private final String[] names;
 
-        public static ParseField NAMES_FIELD = new ParseField("names");
+        public static final ParseField NAMES_FIELD = new ParseField("names");
 
         public Request(TimeValue masterNodeTimeout, String[] names) {
             super(masterNodeTimeout);

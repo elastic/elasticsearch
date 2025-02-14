@@ -1,21 +1,28 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
@@ -26,6 +33,7 @@ import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Arrays;
@@ -33,11 +41,16 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.IntStream;
 
+import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric.INGEST;
+import static org.elasticsearch.action.admin.cluster.storedscripts.StoredScriptIntegTestUtils.putJsonStoredScript;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 // Ideally I like this test to live in the server module, but otherwise a large part of the ScriptProcessor
@@ -64,7 +77,7 @@ public class IngestRestartIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(1);
         internalCluster().startMasterOnlyNode();
         final String pipelineId = "foo";
-        clusterAdmin().preparePutPipeline(pipelineId, new BytesArray(Strings.format("""
+        putJsonPipeline(pipelineId, Strings.format("""
             {
               "processors": [
                 {
@@ -84,7 +97,7 @@ public class IngestRestartIT extends ESIntegTestCase {
                   }
                 }
               ]
-            }""", MockScriptEngine.NAME)), XContentType.JSON).get();
+            }""", MockScriptEngine.NAME));
 
         Exception e = expectThrows(
             Exception.class,
@@ -111,22 +124,16 @@ public class IngestRestartIT extends ESIntegTestCase {
         String pipelineIdWithScript = pipelineIdWithoutScript + "_script";
         internalCluster().startNode();
 
-        BytesReference pipelineWithScript = new BytesArray(Strings.format("""
+        putJsonPipeline(pipelineIdWithScript, Strings.format("""
             {
               "processors": [ { "script": { "lang": "%s", "source": "my_script" } } ]
             }""", MockScriptEngine.NAME));
-        BytesReference pipelineWithoutScript = new BytesArray("""
+        putJsonPipeline(pipelineIdWithoutScript, """
             {
               "processors": [ { "set": { "field": "y", "value": 0 } } ]
             }""");
 
-        Consumer<String> checkPipelineExists = (id) -> assertThat(
-            clusterAdmin().prepareGetPipeline(id).get().pipelines().get(0).getId(),
-            equalTo(id)
-        );
-
-        clusterAdmin().preparePutPipeline(pipelineIdWithScript, pipelineWithScript, XContentType.JSON).get();
-        clusterAdmin().preparePutPipeline(pipelineIdWithoutScript, pipelineWithoutScript, XContentType.JSON).get();
+        Consumer<String> checkPipelineExists = (id) -> assertThat(getPipelines(id).pipelines().get(0).getId(), equalTo(id));
 
         checkPipelineExists.accept(pipelineIdWithScript);
         checkPipelineExists.accept(pipelineIdWithoutScript);
@@ -179,17 +186,16 @@ public class IngestRestartIT extends ESIntegTestCase {
     public void testPipelineWithScriptProcessorThatHasStoredScript() throws Exception {
         internalCluster().startNode();
 
-        clusterAdmin().preparePutStoredScript().setId("1").setContent(new BytesArray(Strings.format("""
+        putJsonStoredScript("1", Strings.format("""
             {"script": {"lang": "%s", "source": "my_script"} }
-            """, MockScriptEngine.NAME)), XContentType.JSON).get();
-        BytesReference pipeline = new BytesArray("""
+            """, MockScriptEngine.NAME));
+        putJsonPipeline("_id", """
             {
               "processors" : [
                   {"set" : {"field": "y", "value": 0}},
                   {"script" : {"id": "1"}}
               ]
             }""");
-        clusterAdmin().preparePutPipeline("_id", pipeline, XContentType.JSON).get();
 
         prepareIndex("index").setId("1").setSource("x", 0).setPipeline("_id").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
@@ -217,13 +223,12 @@ public class IngestRestartIT extends ESIntegTestCase {
         String node = internalCluster().startNode();
         String ingestNode = internalCluster().startNode(onlyRole(DiscoveryNodeRole.INGEST_ROLE));
 
-        BytesReference pipeline = new BytesArray("""
+        putJsonPipeline("_id", """
             {
               "processors" : [
                   {"set" : {"field": "y", "value": 0}}
               ]
             }""");
-        clusterAdmin().preparePutPipeline("_id", pipeline, XContentType.JSON).get();
 
         prepareIndex("index").setId("1").setSource("x", 0).setPipeline("_id").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
@@ -249,7 +254,7 @@ public class IngestRestartIT extends ESIntegTestCase {
     public void testDefaultPipelineWaitForClusterStateRecovered() throws Exception {
         internalCluster().startNode();
 
-        final var pipeline = new BytesArray("""
+        putJsonPipeline("test_pipeline", """
             {
               "processors" : [
                 {
@@ -260,8 +265,8 @@ public class IngestRestartIT extends ESIntegTestCase {
                 }
               ]
             }""");
+
         final TimeValue timeout = TimeValue.timeValueSeconds(10);
-        client().admin().cluster().preparePutPipeline("test_pipeline", pipeline, XContentType.JSON).get(timeout);
         client().admin().indices().preparePutTemplate("pipeline_template").setPatterns(Collections.singletonList("*")).setSettings("""
             {
               "index" : {
@@ -325,5 +330,87 @@ public class IngestRestartIT extends ESIntegTestCase {
         // and make sure this failed doc didn't get through
         source = client().prepareGet("index", "fails").get(timeout).getSource();
         assertNull(source);
+    }
+
+    /**
+     * This test is for confirming that forwarded bulk requests do not use system_write thread pool
+     * for non-system indexes. Before this fix, we were using system_write thread pool for all forwarded
+     * bulk requests causing the system_write thread pool to get overloaded.
+     */
+    public void testForwardBulkWithSystemWritePoolDisabled() throws Exception {
+        // Create a node with master only role and a node with ingest role
+        final String masterOnlyNode = internalCluster().startMasterOnlyNode();
+        final String ingestNode = internalCluster().startNode();
+
+        ensureStableCluster(2);
+
+        // Create Bulk Request
+        createIndex("index");
+
+        putJsonPipeline("_id", """
+            {
+              "processors" : [
+                  {"set" : {"field": "y", "value": 0}}
+              ]
+            }""");
+
+        int numRequests = scaledRandomIntBetween(32, 128);
+        BulkRequest bulkRequest = new BulkRequest();
+        BulkResponse response;
+        for (int i = 0; i < numRequests; i++) {
+            IndexRequest indexRequest = new IndexRequest("index").id(Integer.toString(i)).setPipeline("_id");
+            indexRequest.source(Requests.INDEX_CONTENT_TYPE, "x", 1);
+            bulkRequest.add(indexRequest);
+        }
+        assertThat(numRequests, equalTo(bulkRequest.requests().size()));
+
+        // Block system_write thread pool on the ingest node
+        final ThreadPool ingestNodeThreadPool = internalCluster().getInstance(ThreadPool.class, ingestNode);
+        final var blockingLatch = new CountDownLatch(1);
+        try {
+            blockSystemWriteThreadPool(blockingLatch, ingestNodeThreadPool);
+            // Send bulk request to master only node, so it will forward it to the ingest node.
+            response = safeGet(client(masterOnlyNode).bulk(bulkRequest));
+        } finally {
+            blockingLatch.countDown();
+        }
+
+        // Make sure the requests are processed (even though we blocked system_write thread pool above).
+        assertThat(response.getItems().length, equalTo(numRequests));
+        assertFalse(response.hasFailures());
+
+        // Check Node Ingest stats
+        NodesStatsResponse nodesStatsResponse = clusterAdmin().nodesStats(new NodesStatsRequest(ingestNode).addMetric(INGEST)).actionGet();
+        assertThat(nodesStatsResponse.getNodes().size(), equalTo(1));
+
+        NodeStats stats = nodesStatsResponse.getNodes().get(0);
+        assertThat(stats.getIngestStats().totalStats().ingestCount(), equalTo((long) numRequests));
+        assertThat(stats.getIngestStats().totalStats().ingestFailedCount(), equalTo(0L));
+        final var pipelineStats = stats.getIngestStats().pipelineStats().get(0);
+        assertThat(pipelineStats.pipelineId(), equalTo("_id"));
+        assertThat(pipelineStats.stats().ingestCount(), equalTo((long) numRequests));
+
+        MultiGetResponse docListResponse = safeGet(
+            client().prepareMultiGet().addIds("index", IntStream.range(0, numRequests).mapToObj(String::valueOf).toList()).execute()
+        );
+
+        assertThat(docListResponse.getResponses().length, equalTo(numRequests));
+        Map<String, Object> document;
+        for (int i = 0; i < numRequests; i++) {
+            document = docListResponse.getResponses()[i].getResponse().getSourceAsMap();
+            assertThat(document.get("y"), equalTo(0));
+        }
+    }
+
+    private void blockSystemWriteThreadPool(CountDownLatch blockingLatch, ThreadPool threadPool) {
+        assertThat(blockingLatch.getCount(), greaterThan(0L));
+        final var executor = threadPool.executor(ThreadPool.Names.SYSTEM_WRITE);
+        // Add tasks repeatedly until we get an EsRejectedExecutionException which indicates that the threadpool and its queue are full.
+        expectThrows(EsRejectedExecutionException.class, () -> {
+            // noinspection InfiniteLoopStatement
+            while (true) {
+                executor.execute(() -> safeAwait(blockingLatch));
+            }
+        });
     }
 }

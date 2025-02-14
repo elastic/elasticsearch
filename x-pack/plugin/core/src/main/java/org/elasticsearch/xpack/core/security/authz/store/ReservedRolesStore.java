@@ -36,7 +36,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
@@ -44,9 +43,11 @@ import static java.util.Map.entry;
 public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>> {
     /** "Security Solutions" only legacy signals index */
     public static final String ALERTS_LEGACY_INDEX = ".siem-signals*";
+    public static final String ALERTS_LEGACY_INDEX_REINDEXED_V8 = ".reindexed-v8-siem-signals*";
 
     /** Alerts, Rules, Cases (RAC) index used by multiple solutions */
     public static final String ALERTS_BACKING_INDEX = ".internal.alerts*";
+    public static final String ALERTS_BACKING_INDEX_REINDEXED = ".reindexed-v8-internal.alerts*";
 
     /** Alerts, Rules, Cases (RAC) index used by multiple solutions */
     public static final String ALERTS_INDEX_ALIAS = ".alerts*";
@@ -55,13 +56,16 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
     public static final String PREVIEW_ALERTS_INDEX_ALIAS = ".preview.alerts*";
 
     /** Alerts, Rules, Cases (RAC) preview index used by multiple solutions */
-    public static final String PREVIEW_ALERTS_BACKING_INDEX_ALIAS = ".internal.preview.alerts*";
+    public static final String PREVIEW_ALERTS_BACKING_INDEX = ".internal.preview.alerts*";
+    public static final String PREVIEW_ALERTS_BACKING_INDEX_REINDEXED = ".reindexed-v8-internal.preview.alerts*";
 
     /** "Security Solutions" only lists index for value lists for detections */
     public static final String LISTS_INDEX = ".lists-*";
+    public static final String LISTS_INDEX_REINDEXED_V8 = ".reindexed-v8-lists-*";
 
     /** "Security Solutions" only lists index for value list items for detections */
     public static final String LISTS_ITEMS_INDEX = ".items-*";
+    public static final String LISTS_ITEMS_INDEX_REINDEXED_V8 = ".reindexed-v8-items-*";
 
     /** Index pattern for Universal Profiling */
     public static final String UNIVERSAL_PROFILING_ALIASES = "profiling-*";
@@ -112,10 +116,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
 
     private static final Map<String, RoleDescriptor> ALL_RESERVED_ROLES = initializeReservedRoles();
 
-    public static final Setting<List<String>> INCLUDED_RESERVED_ROLES_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> INCLUDED_RESERVED_ROLES_SETTING = Setting.stringListSetting(
         SecurityField.setting("reserved_roles.include"),
         List.copyOf(ALL_RESERVED_ROLES.keySet()),
-        Function.identity(),
         value -> {
             final Set<String> valueSet = Set.copyOf(value);
             if (false == valueSet.contains("superuser")) {
@@ -303,25 +306,40 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     "Grants access to manage all index templates and all ingest pipeline configurations."
                 )
             ),
-            // reporting_user doesn't have any privileges in Elasticsearch, and Kibana authorizes privileges based on this role
             entry(
                 "reporting_user",
                 new RoleDescriptor(
                     "reporting_user",
                     null,
                     null,
+                    new RoleDescriptor.ApplicationResourcePrivileges[] {
+                        RoleDescriptor.ApplicationResourcePrivileges.builder()
+                            .application("kibana-.kibana")
+                            .resources("*")
+                            .privileges(
+                                "feature_discover.minimal_read",
+                                "feature_discover.generate_report",
+                                "feature_dashboard.minimal_read",
+                                "feature_dashboard.generate_report",
+                                "feature_dashboard.download_csv_report",
+                                "feature_canvas.minimal_read",
+                                "feature_canvas.generate_report",
+                                "feature_visualize.minimal_read",
+                                "feature_visualize.generate_report"
+                            )
+                            .build() },
+                    null,
+                    null,
+                    MetadataUtils.DEFAULT_RESERVED_METADATA,
                     null,
                     null,
                     null,
-                    MetadataUtils.getDeprecatedReservedMetadata("Please use Kibana feature privileges instead"),
                     null,
-                    null,
-                    null,
-                    null,
-                    "Grants the specific privileges required for users of X-Pack reporting other than those required to use Kibana. "
-                        + "This role grants access to the reporting indices; each user has access to only their own reports. "
-                        + "Reporting users should also be assigned additional roles that grant access to Kibana as well as read access "
-                        + "to the indices that will be used to generate reports."
+                    "Grants the necessary privileges required to use reporting features in Kibana, "
+                        + "including generating and downloading reports. "
+                        + "This role implicitly grants access to all Kibana reporting features, "
+                        + "with each user having access only to their own reports. Note that reporting users should also be assigned "
+                        + "additional roles that grant read access to the indices that will be used to generate reports."
                 )
             ),
             entry(KibanaSystemUser.ROLE_NAME, kibanaSystemRoleDescriptor(KibanaSystemUser.ROLE_NAME)),
@@ -402,67 +420,6 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     null,
                     "Grants access necessary for the APM system user to send system-level data (such as monitoring) to Elasticsearch.\n"
-                )
-            ),
-            entry(
-                "apm_user",
-                new RoleDescriptor(
-                    "apm_user",
-                    null,
-                    new RoleDescriptor.IndicesPrivileges[] {
-                        // Self managed APM Server
-                        // Can be removed in 8.0
-                        RoleDescriptor.IndicesPrivileges.builder().indices("apm-*").privileges("read", "view_index_metadata").build(),
-
-                        // APM Server under fleet (data streams)
-                        RoleDescriptor.IndicesPrivileges.builder().indices("logs-apm.*").privileges("read", "view_index_metadata").build(),
-                        RoleDescriptor.IndicesPrivileges.builder().indices("logs-apm-*").privileges("read", "view_index_metadata").build(),
-                        RoleDescriptor.IndicesPrivileges.builder()
-                            .indices("metrics-apm.*")
-                            .privileges("read", "view_index_metadata")
-                            .build(),
-                        RoleDescriptor.IndicesPrivileges.builder()
-                            .indices("metrics-apm-*")
-                            .privileges("read", "view_index_metadata")
-                            .build(),
-                        RoleDescriptor.IndicesPrivileges.builder()
-                            .indices("traces-apm.*")
-                            .privileges("read", "view_index_metadata")
-                            .build(),
-                        RoleDescriptor.IndicesPrivileges.builder()
-                            .indices("traces-apm-*")
-                            .privileges("read", "view_index_metadata")
-                            .build(),
-
-                        // Machine Learning indices. Only needed for legacy reasons
-                        // Can be removed in 8.0
-                        RoleDescriptor.IndicesPrivileges.builder()
-                            .indices(".ml-anomalies*")
-                            .privileges("read", "view_index_metadata")
-                            .build(),
-
-                        // Annotations
-                        RoleDescriptor.IndicesPrivileges.builder()
-                            .indices("observability-annotations")
-                            .privileges("read", "view_index_metadata")
-                            .build() },
-                    new RoleDescriptor.ApplicationResourcePrivileges[] {
-                        RoleDescriptor.ApplicationResourcePrivileges.builder()
-                            .application("kibana-*")
-                            .resources("*")
-                            .privileges("reserved_ml_apm_user")
-                            .build() },
-                    null,
-                    null,
-                    MetadataUtils.getDeprecatedReservedMetadata(
-                        "This role will be removed in a future major release. Please use editor and viewer roles instead"
-                    ),
-                    null,
-                    null,
-                    null,
-                    null,
-                    "Grants the privileges required for APM users (such as read and view_index_metadata privileges "
-                        + "on the apm-* and .ml-anomalies* indices)."
                 )
             ),
             entry(
@@ -580,70 +537,6 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         + ".ml-meta* indices and write access to .ml-annotations* indices. "
                         + "Machine learning administrators also need index privileges for source and destination indices "
                         + "and roles that grant access to Kibana."
-                )
-            ),
-            // DEPRECATED: to be removed in 9.0.0
-            entry(
-                "data_frame_transforms_admin",
-                new RoleDescriptor(
-                    "data_frame_transforms_admin",
-                    new String[] { "manage_data_frame_transforms" },
-                    new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder()
-                            .indices(
-                                TransformInternalIndexConstants.AUDIT_INDEX_PATTERN,
-                                TransformInternalIndexConstants.AUDIT_INDEX_PATTERN_DEPRECATED,
-                                TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS
-                            )
-                            .privileges("view_index_metadata", "read")
-                            .build() },
-                    new RoleDescriptor.ApplicationResourcePrivileges[] {
-                        RoleDescriptor.ApplicationResourcePrivileges.builder()
-                            .application("kibana-*")
-                            .resources("*")
-                            .privileges("reserved_ml_user")
-                            .build() },
-                    null,
-                    null,
-                    MetadataUtils.getDeprecatedReservedMetadata("Please use the [transform_admin] role instead"),
-                    null,
-                    null,
-                    null,
-                    null,
-                    "Grants manage_data_frame_transforms cluster privileges, which enable you to manage transforms. "
-                        + "This role also includes all Kibana privileges for the machine learning features."
-                )
-            ),
-            // DEPRECATED: to be removed in 9.0.0
-            entry(
-                "data_frame_transforms_user",
-                new RoleDescriptor(
-                    "data_frame_transforms_user",
-                    new String[] { "monitor_data_frame_transforms" },
-                    new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder()
-                            .indices(
-                                TransformInternalIndexConstants.AUDIT_INDEX_PATTERN,
-                                TransformInternalIndexConstants.AUDIT_INDEX_PATTERN_DEPRECATED,
-                                TransformInternalIndexConstants.AUDIT_INDEX_READ_ALIAS
-                            )
-                            .privileges("view_index_metadata", "read")
-                            .build() },
-                    new RoleDescriptor.ApplicationResourcePrivileges[] {
-                        RoleDescriptor.ApplicationResourcePrivileges.builder()
-                            .application("kibana-*")
-                            .resources("*")
-                            .privileges("reserved_ml_user")
-                            .build() },
-                    null,
-                    null,
-                    MetadataUtils.getDeprecatedReservedMetadata("Please use the [transform_user] role instead"),
-                    null,
-                    null,
-                    null,
-                    null,
-                    "Grants monitor_data_frame_transforms cluster privileges, which enable you to use transforms. "
-                        + "This role also includes all Kibana privileges for the machine learning features. "
                 )
             ),
             entry(
@@ -868,9 +761,21 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .indices("/~(([.]|ilm-history-).*)/")
                     .privileges("read", "view_index_metadata")
                     .build(),
+                // Observability
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".slo-observability.*")
+                    .privileges("read", "view_index_metadata")
+                    .build(),
                 // Security
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(ReservedRolesStore.ALERTS_LEGACY_INDEX, ReservedRolesStore.LISTS_INDEX, ReservedRolesStore.LISTS_ITEMS_INDEX)
+                    .indices(
+                        ReservedRolesStore.ALERTS_LEGACY_INDEX,
+                        ReservedRolesStore.LISTS_INDEX,
+                        ReservedRolesStore.LISTS_ITEMS_INDEX,
+                        ReservedRolesStore.ALERTS_LEGACY_INDEX_REINDEXED_V8,
+                        ReservedRolesStore.LISTS_INDEX_REINDEXED_V8,
+                        ReservedRolesStore.LISTS_ITEMS_INDEX_REINDEXED_V8
+                    )
                     .privileges("read", "view_index_metadata")
                     .build(),
                 // Alerts-as-data
@@ -915,17 +820,30 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .indices("observability-annotations")
                     .privileges("read", "view_index_metadata", "write")
                     .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".slo-observability.*")
+                    .privileges("read", "view_index_metadata", "write", "manage")
+                    .build(),
                 // Security
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(ReservedRolesStore.ALERTS_LEGACY_INDEX, ReservedRolesStore.LISTS_INDEX, ReservedRolesStore.LISTS_ITEMS_INDEX)
+                    .indices(
+                        ReservedRolesStore.ALERTS_LEGACY_INDEX,
+                        ReservedRolesStore.LISTS_INDEX,
+                        ReservedRolesStore.LISTS_ITEMS_INDEX,
+                        ReservedRolesStore.ALERTS_LEGACY_INDEX_REINDEXED_V8,
+                        ReservedRolesStore.LISTS_INDEX_REINDEXED_V8,
+                        ReservedRolesStore.LISTS_ITEMS_INDEX_REINDEXED_V8
+                    )
                     .privileges("read", "view_index_metadata", "write", "maintenance")
                     .build(),
                 // Alerts-as-data
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
                         ReservedRolesStore.ALERTS_BACKING_INDEX,
+                        ReservedRolesStore.ALERTS_BACKING_INDEX_REINDEXED,
                         ReservedRolesStore.ALERTS_INDEX_ALIAS,
-                        ReservedRolesStore.PREVIEW_ALERTS_BACKING_INDEX_ALIAS,
+                        ReservedRolesStore.PREVIEW_ALERTS_BACKING_INDEX,
+                        ReservedRolesStore.PREVIEW_ALERTS_BACKING_INDEX_REINDEXED,
                         ReservedRolesStore.PREVIEW_ALERTS_INDEX_ALIAS
                     )
                     .privileges("read", "view_index_metadata", "write", "maintenance")

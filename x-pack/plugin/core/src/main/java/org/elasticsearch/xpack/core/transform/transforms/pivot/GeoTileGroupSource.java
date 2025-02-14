@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.core.transform.transforms.pivot;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -138,7 +137,7 @@ public class GeoTileGroupSource extends SingleGroupSource {
 
     @Override
     public String getMappingType() {
-        return GeoShapeFieldMapper.CONTENT_TYPE;
+        return "geo_shape";
     }
 
 }

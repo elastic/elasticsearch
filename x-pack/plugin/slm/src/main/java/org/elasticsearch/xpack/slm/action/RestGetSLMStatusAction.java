@@ -37,9 +37,7 @@ public class RestGetSLMStatusAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-        AcknowledgedRequest.Plain request = new AcknowledgedRequest.Plain();
-        request.ackTimeout(getAckTimeout(restRequest));
-        request.masterNodeTimeout(getMasterNodeTimeout(restRequest));
+        final var request = new AcknowledgedRequest.Plain(getMasterNodeTimeout(restRequest), getAckTimeout(restRequest));
         return channel -> client.execute(GetSLMStatusAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

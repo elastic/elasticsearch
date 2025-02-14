@@ -2,7 +2,7 @@
 [[autoscaling-proactive-storage-decider]]
 === Proactive storage decider
 
-The proactive storage decider (`proactive_storage`) calculates the storage required to contain
+The {cloud}/ec-autoscaling.html[autoscaling] proactive storage decider (`proactive_storage`) calculates the storage required to contain
 the current data set plus an estimated amount of expected additional data.
 
 The proactive storage decider is enabled for all policies governing nodes with the `data_hot` role.

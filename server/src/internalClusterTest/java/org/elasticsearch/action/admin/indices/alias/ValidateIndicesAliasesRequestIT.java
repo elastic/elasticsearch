@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.alias;
@@ -80,7 +81,10 @@ public class ValidateIndicesAliasesRequestIT extends ESSingleNodeTestCase {
         final IndicesAliasesRequest request = new IndicesAliasesRequest().origin("allowed");
         request.addAliasAction(IndicesAliasesRequest.AliasActions.add().index("index").alias("alias"));
         assertAcked(client().admin().indices().aliases(request).actionGet());
-        final GetAliasesResponse response = client().admin().indices().getAliases(new GetAliasesRequest("alias")).actionGet();
+        final GetAliasesResponse response = client().admin()
+            .indices()
+            .getAliases(new GetAliasesRequest(TEST_REQUEST_TIMEOUT, "alias"))
+            .actionGet();
         assertThat(response.getAliases().keySet().size(), equalTo(1));
         assertThat(response.getAliases().keySet().iterator().next(), equalTo("index"));
         final List<AliasMetadata> aliasMetadata = response.getAliases().get("index");
@@ -116,6 +120,8 @@ public class ValidateIndicesAliasesRequestIT extends ESSingleNodeTestCase {
         final Exception e = expectThrows(IllegalStateException.class, client().admin().indices().aliases(request));
         final String index = "foo_allowed".equals(origin) ? "bar" : "foo";
         assertThat(e, hasToString(containsString("origin [" + origin + "] not allowed for index [" + index + "]")));
-        assertTrue(client().admin().indices().getAliases(new GetAliasesRequest("alias")).actionGet().getAliases().isEmpty());
+        assertTrue(
+            client().admin().indices().getAliases(new GetAliasesRequest(TEST_REQUEST_TIMEOUT, "alias")).actionGet().getAliases().isEmpty()
+        );
     }
 }

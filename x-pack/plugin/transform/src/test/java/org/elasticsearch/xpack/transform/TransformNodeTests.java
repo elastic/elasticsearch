@@ -88,6 +88,7 @@ public class TransformNodeTests extends ESTestCase {
                 SHUTTING_DOWN_ID,
                 SingleNodeShutdownMetadata.builder()
                     .setNodeId(SHUTTING_DOWN_ID)
+                    .setNodeEphemeralId(SHUTTING_DOWN_ID)
                     .setReason("shutdown for a unit test")
                     .setType(SingleNodeShutdownMetadata.Type.RESTART)
                     .setStartedAtMillis(randomNonNegativeLong())

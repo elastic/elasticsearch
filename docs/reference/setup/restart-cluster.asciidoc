@@ -11,7 +11,7 @@ time, so the service remains uninterrupted.
 [WARNING]
 ====
 Nodes exceeding the low watermark threshold will be slow to restart. Reduce the disk
-usage below the <<cluster-routing-watermark-low,low watermark>> before to restarting nodes.
+usage below the <<cluster-routing-watermark-low,low watermark>> before restarting nodes.
 ====
 
 [discrete]

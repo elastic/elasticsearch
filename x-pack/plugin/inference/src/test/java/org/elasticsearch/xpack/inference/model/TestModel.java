@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -24,6 +25,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
@@ -37,13 +39,14 @@ public class TestModel extends Model {
     }
 
     public static TestModel createRandomInstance(TaskType taskType) {
-        var dimensions = taskType == TaskType.TEXT_EMBEDDING ? randomInt(1024) : null;
+        var dimensions = taskType == TaskType.TEXT_EMBEDDING ? randomInt(64) : null;
         var similarity = taskType == TaskType.TEXT_EMBEDDING ? randomFrom(SimilarityMeasure.values()) : null;
+        var elementType = taskType == TaskType.TEXT_EMBEDDING ? randomFrom(DenseVectorFieldMapper.ElementType.values()) : null;
         return new TestModel(
             randomAlphaOfLength(4),
             taskType,
             randomAlphaOfLength(10),
-            new TestModel.TestServiceSettings(randomAlphaOfLength(4), dimensions, similarity),
+            new TestModel.TestServiceSettings(randomAlphaOfLength(4), dimensions, similarity, elementType),
             new TestModel.TestTaskSettings(randomInt(3)),
             new TestModel.TestSecretSettings(randomAlphaOfLength(4))
         );
@@ -78,7 +81,12 @@ public class TestModel extends Model {
         return (TestSecretSettings) super.getSecretSettings();
     }
 
-    public record TestServiceSettings(String model, Integer dimensions, SimilarityMeasure similarity) implements ServiceSettings {
+    public record TestServiceSettings(
+        String model,
+        Integer dimensions,
+        SimilarityMeasure similarity,
+        DenseVectorFieldMapper.ElementType elementType
+    ) implements ServiceSettings {
 
         private static final String NAME = "test_service_settings";
 
@@ -95,11 +103,16 @@ public class TestModel extends Model {
                 throw validationException;
             }
 
-            return new TestServiceSettings(model, null, null);
+            return new TestServiceSettings(model, null, null, null);
         }
 
         public TestServiceSettings(StreamInput in) throws IOException {
-            this(in.readString(), in.readOptionalVInt(), in.readOptionalEnum(SimilarityMeasure.class));
+            this(
+                in.readString(),
+                in.readOptionalVInt(),
+                in.readOptionalEnum(SimilarityMeasure.class),
+                in.readOptionalEnum(DenseVectorFieldMapper.ElementType.class)
+            );
         }
 
         @Override
@@ -111,6 +124,9 @@ public class TestModel extends Model {
             }
             if (similarity != null) {
                 builder.field("similarity", similarity);
+            }
+            if (elementType != null) {
+                builder.field("element_type", elementType);
             }
             builder.endObject();
             return builder;
@@ -131,6 +147,7 @@ public class TestModel extends Model {
             out.writeString(model);
             out.writeOptionalVInt(dimensions);
             out.writeOptionalEnum(similarity);
+            out.writeOptionalEnum(elementType);
         }
 
         @Override
@@ -146,6 +163,16 @@ public class TestModel extends Model {
         @Override
         public Integer dimensions() {
             return dimensions;
+        }
+
+        @Override
+        public DenseVectorFieldMapper.ElementType elementType() {
+            return elementType;
+        }
+
+        @Override
+        public String modelId() {
+            return model;
         }
     }
 
@@ -168,6 +195,11 @@ public class TestModel extends Model {
         }
 
         @Override
+        public boolean isEmpty() {
+            return temperature == null;
+        }
+
+        @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             if (temperature != null) {
@@ -185,6 +217,11 @@ public class TestModel extends Model {
         @Override
         public TransportVersion getMinimalSupportedVersion() {
             return TransportVersion.current(); // fine for these tests but will not work for cluster upgrade tests
+        }
+
+        @Override
+        public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+            return TestTaskSettings.fromMap(new HashMap<>(newSettings));
         }
     }
 
@@ -233,6 +270,11 @@ public class TestModel extends Model {
         @Override
         public TransportVersion getMinimalSupportedVersion() {
             return TransportVersion.current(); // fine for these tests but will not work for cluster upgrade tests
+        }
+
+        @Override
+        public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
+            return new TestSecretSettings(newSecrets.get("api_key").toString());
         }
     }
 }

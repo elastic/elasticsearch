@@ -6,9 +6,8 @@ inside each Shard will be sorted. By default Lucene does not apply any sort.
 The `index.sort.*` settings define which fields should be used to sort the documents inside each Segment.
 
 [WARNING]
-nested fields are not compatible with index sorting because they rely on the assumption
-that nested documents are stored in contiguous doc ids, which can be broken by index sorting.
-An error will be thrown if index sorting is activated on an index that contains nested fields.
+It is allowed to apply index sorting to mappings with nested objects, so long as the
+`index.sort.*` setting contains no nested fields.
 
 For instance the following example shows how to define a sort on a single field:
 

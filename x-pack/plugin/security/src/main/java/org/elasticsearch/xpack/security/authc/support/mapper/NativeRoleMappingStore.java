@@ -397,6 +397,7 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
     @Override
     public void resolveRoles(UserData user, ActionListener<Set<String>> listener) {
         getRoleMappings(null, ActionListener.wrap(mappings -> {
+            logger.trace("Retrieved [{}] role mapping(s) from security index", mappings.size());
             listener.onResponse(ExpressionRoleMapping.resolveRoles(user, mappings, scriptService, logger));
         }, listener::onFailure));
     }

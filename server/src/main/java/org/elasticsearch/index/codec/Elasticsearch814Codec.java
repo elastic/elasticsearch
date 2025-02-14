@@ -1,22 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.codec;
 
+import org.apache.lucene.backward_codecs.lucene99.Lucene99Codec;
+import org.apache.lucene.backward_codecs.lucene99.Lucene99PostingsFormat;
 import org.apache.lucene.codecs.DocValuesFormat;
-import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.StoredFieldsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
-import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
-import org.apache.lucene.codecs.lucene99.Lucene99PostingsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
@@ -26,11 +26,11 @@ import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
  * Elasticsearch codec as of 8.14. This extends the Lucene 9.9 codec to compressed stored fields with ZSTD instead of LZ4/DEFLATE. See
  * {@link Zstd814StoredFieldsFormat}.
  */
-public class Elasticsearch814Codec extends FilterCodec {
+public class Elasticsearch814Codec extends CodecService.DeduplicateFieldInfosCodec {
 
     private final StoredFieldsFormat storedFieldsFormat;
 
-    private final PostingsFormat defaultPostingsFormat;
+    private static final PostingsFormat defaultPostingsFormat = new Lucene99PostingsFormat();
     private final PostingsFormat postingsFormat = new PerFieldPostingsFormat() {
         @Override
         public PostingsFormat getPostingsFormatForField(String field) {
@@ -38,7 +38,7 @@ public class Elasticsearch814Codec extends FilterCodec {
         }
     };
 
-    private final DocValuesFormat defaultDVFormat;
+    private static final DocValuesFormat defaultDVFormat = new Lucene90DocValuesFormat();
     private final DocValuesFormat docValuesFormat = new PerFieldDocValuesFormat() {
         @Override
         public DocValuesFormat getDocValuesFormatForField(String field) {
@@ -46,13 +46,15 @@ public class Elasticsearch814Codec extends FilterCodec {
         }
     };
 
-    private final KnnVectorsFormat defaultKnnVectorsFormat;
+    private static final KnnVectorsFormat defaultKnnVectorsFormat = new Lucene99HnswVectorsFormat();
     private final KnnVectorsFormat knnVectorsFormat = new PerFieldKnnVectorsFormat() {
         @Override
         public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
             return Elasticsearch814Codec.this.getKnnVectorsFormatForField(field);
         }
     };
+
+    private static final Lucene99Codec lucene99Codec = new Lucene99Codec();
 
     /** Public no-arg constructor, needed for SPI loading at read-time. */
     public Elasticsearch814Codec() {
@@ -64,11 +66,8 @@ public class Elasticsearch814Codec extends FilterCodec {
      * worse space-efficiency or vice-versa.
      */
     public Elasticsearch814Codec(Zstd814StoredFieldsFormat.Mode mode) {
-        super("Elasticsearch814", new Lucene99Codec());
-        this.storedFieldsFormat = new Zstd814StoredFieldsFormat(mode);
-        this.defaultPostingsFormat = new Lucene99PostingsFormat();
-        this.defaultDVFormat = new Lucene90DocValuesFormat();
-        this.defaultKnnVectorsFormat = new Lucene99HnswVectorsFormat();
+        super("Elasticsearch814", lucene99Codec);
+        this.storedFieldsFormat = mode.getFormat();
     }
 
     @Override
@@ -127,4 +126,5 @@ public class Elasticsearch814Codec extends FilterCodec {
     public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
         return defaultKnnVectorsFormat;
     }
+
 }

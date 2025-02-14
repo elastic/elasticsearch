@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.node;
@@ -56,7 +57,7 @@ public class InternalSettingsPreparerTests extends ESTestCase {
         assertEquals(defaultNodeName, settings.get("node.name"));
         assertNotNull(settings.get(ClusterName.CLUSTER_NAME_SETTING.getKey())); // a cluster name was set
         String home = Environment.PATH_HOME_SETTING.get(baseEnvSettings);
-        String configDir = env.configFile().toString();
+        String configDir = env.configDir().toString();
         assertTrue(configDir, configDir.startsWith(home));
         assertEquals("elasticsearch", settings.get("cluster.name"));
     }
@@ -82,6 +83,20 @@ public class InternalSettingsPreparerTests extends ESTestCase {
             );
         } catch (SettingsException e) {
             assertEquals("Failed to load settings from [elasticsearch.yml]", e.getMessage());
+        }
+    }
+
+    public void testReplacePlaceholderFailure() {
+        try {
+            InternalSettingsPreparer.prepareEnvironment(
+                Settings.builder().put(baseEnvSettings).put("cluster.name", "${ES_CLUSTER_NAME}").build(),
+                emptyMap(),
+                null,
+                () -> "default_node_name"
+            );
+            fail("Expected SettingsException");
+        } catch (SettingsException e) {
+            assertEquals("Failed to replace property placeholders from [elasticsearch.yml]", e.getMessage());
         }
     }
 

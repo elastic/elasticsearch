@@ -25,14 +25,15 @@ set.
 Refer to https://docs.cohere.com/docs/elasticsearch-and-cohere[Cohere's tutorial]
 for an example using a different data set.
 
+You can also review the https://colab.research.google.com/github/elastic/elasticsearch-labs/blob/main/notebooks/integrations/cohere/cohere-elasticsearch.ipynb[Colab notebook version of this tutorial].
+
 
 [discrete]
 [[cohere-es-req]]
 ==== Requirements
 
-* A https://cohere.com/[Cohere account],
-* an https://www.elastic.co/guide/en/cloud/current/ec-getting-started.html[Elastic Cloud]
-account,
+* A paid https://cohere.com/[Cohere account] is required to use the {infer-cap} API with the Cohere service as the Cohere free trial API usage is limited,
+* an https://www.elastic.co/guide/en/cloud/current/ec-getting-started.html[Elastic Cloud] account,
 * Python 3.7 or higher.
 
 
@@ -329,17 +330,12 @@ they were sent to the {infer} endpoint.
 [[cohere-es-rag]]
 ==== Retrieval Augmented Generation (RAG) with Cohere and {es}
 
-RAG is a method for generating text using additional information fetched from an
-external data source. With the ranked results, you can build a RAG system on the
-top of what you previously created by using 
-https://docs.cohere.com/docs/chat-api[Cohere's Chat API].
+https://docs.cohere.com/docs/retrieval-augmented-generation-rag[RAG] is a method for generating text using additional information fetched from an external data source.
+With the ranked results, you can build a RAG system on the top of what you previously created by using https://docs.cohere.com/docs/chat-api[Cohere's Chat API].
 
-Pass in the retrieved documents and the query to receive a grounded response
-using Cohere's newest generative model 
-https://docs.cohere.com/docs/command-r-plus[Command R+].
+Pass in the retrieved documents and the query to receive a grounded response using Cohere's newest generative model https://docs.cohere.com/docs/command-r-plus[Command R+].
 
-Then pass in the query and the documents to the Chat API, and print out the
-response. 
+Then pass in the query and the documents to the Chat API, and print out the response. 
 
 [source,py]
 --------------------------------------------------

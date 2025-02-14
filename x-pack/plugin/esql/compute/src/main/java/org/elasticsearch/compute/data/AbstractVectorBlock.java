@@ -32,11 +32,6 @@ abstract class AbstractVectorBlock extends AbstractNonThreadSafeRefCounted imple
     }
 
     @Override
-    public final int nullValuesCount() {
-        return 0;
-    }
-
-    @Override
     public final boolean mayHaveNulls() {
         return false;
     }
@@ -48,6 +43,11 @@ abstract class AbstractVectorBlock extends AbstractNonThreadSafeRefCounted imple
 
     @Override
     public final boolean mayHaveMultivaluedFields() {
+        return false;
+    }
+
+    @Override
+    public boolean doesHaveMultivaluedFields() {
         return false;
     }
 

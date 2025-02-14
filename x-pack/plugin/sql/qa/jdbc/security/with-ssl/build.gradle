@@ -1,4 +1,9 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
 
 apply plugin: 'elasticsearch.test-with-ssl'
 
@@ -11,5 +16,5 @@ testClusters.configureEach {
 
 // JDBC client can only be configured for SSL with keystores, but we can't use JKS/PKCS12 keystores in FIPS 140-2 mode.
 tasks.withType(Test).configureEach {
-  BuildParams.withFipsEnabledOnly(it)
+  buildParams.withFipsEnabledOnly(it)
 }

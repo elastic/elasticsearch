@@ -5,6 +5,12 @@
 <titleabbrev>Activate watch</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-watcher[{watcher} APIs].
+--
+
 A watch can be either <<watch-active-state,active or inactive>>. This
 API enables you to activate a currently inactive watch.
 

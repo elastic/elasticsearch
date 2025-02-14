@@ -64,14 +64,14 @@ actors that appear in each play:
 ----
 GET seats/_search
 {
-  "size": 2, 
+  "size": 2,
   "query": {
     "match_all": {}
   },
   "script_fields": {
     "day-of-week": {
       "script": {
-        "source": "doc['datetime'].value.getDayOfWeekEnum().getDisplayName(TextStyle.FULL, Locale.ROOT)"
+        "source": "doc['datetime'].value.getDayOfWeekEnum().getDisplayName(TextStyle.FULL, Locale.ENGLISH)"
       }
     },
     "number-of-actors": {

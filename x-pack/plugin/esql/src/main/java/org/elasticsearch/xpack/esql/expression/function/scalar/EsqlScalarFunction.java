@@ -7,16 +7,25 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar;
 
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
 
+/**
+ * A {@code ScalarFunction} is a {@code Function} that takes values from some
+ * operation and converts each to another value. An example would be
+ * {@code ABS()}, which takes one value at a time, applies a function to the
+ * value (abs) and returns a new value.
+ * <p>
+ *     We have a guide for writing these in the javadoc for
+ *     {@link org.elasticsearch.xpack.esql.expression.function.scalar}.
+ * </p>
+ */
 public abstract class EsqlScalarFunction extends ScalarFunction implements EvaluatorMapper {
-
     protected EsqlScalarFunction(Source source) {
         super(source);
     }
@@ -26,12 +35,7 @@ public abstract class EsqlScalarFunction extends ScalarFunction implements Evalu
     }
 
     @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
-    }
-
-    @Override
-    public final ScriptTemplate asScript() {
-        throw new UnsupportedOperationException("functions do not support scripting");
+    public Object fold(FoldContext ctx) {
+        return EvaluatorMapper.super.fold(source(), ctx);
     }
 }

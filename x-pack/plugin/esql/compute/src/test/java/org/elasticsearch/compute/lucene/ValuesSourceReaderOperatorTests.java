@@ -24,9 +24,11 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.mockfile.HandleLimitFS;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -43,14 +45,15 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.CannedSourceOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.OperatorTestCase;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.CannedSourceOperator;
+import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
@@ -167,7 +170,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             DataPartitioning.SHARD,
             randomIntBetween(1, 10),
             pageSize,
-            LuceneOperator.NO_LIMIT
+            LuceneOperator.NO_LIMIT,
+            false // no scoring
         );
         return luceneFactory.get(context);
     }
@@ -495,6 +499,14 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             @Override
             public String indexName() {
                 return "test_index";
+            }
+
+            @Override
+            public IndexSettings indexSettings() {
+                var imd = IndexMetadata.builder("test_index")
+                    .settings(ValueSourceReaderTypeConversionTests.indexSettings(IndexVersion.current(), 1, 1).put(Settings.EMPTY))
+                    .build();
+                return new IndexSettings(imd, Settings.EMPTY);
             }
 
             @Override
@@ -1290,10 +1302,12 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
             randomFrom(DataPartitioning.values()),
             randomIntBetween(1, 10),
             randomPageSize(),
-            LuceneOperator.NO_LIMIT
+            LuceneOperator.NO_LIMIT,
+            false // no scoring
         );
         try (
             Driver driver = new Driver(
+                "test",
                 driverContext,
                 luceneFactory.get(driverContext),
                 List.of(
@@ -1396,6 +1410,7 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
         int[] pages = new int[] { 0 };
         try (
             Driver d = new Driver(
+                "test",
                 driverContext,
                 simpleInput(driverContext.blockFactory(), 10),
                 List.of(
@@ -1513,7 +1528,8 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
                 DataPartitioning.SHARD,
                 randomIntBetween(1, 10),
                 1000,
-                LuceneOperator.NO_LIMIT
+                LuceneOperator.NO_LIMIT,
+                false // no scoring
             );
             MappedFieldType ft = mapperService.fieldType("key");
             var readerFactory = new ValuesSourceReaderOperator.Factory(

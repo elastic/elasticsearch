@@ -122,3 +122,53 @@ FROM employees | STATS COUNT(*), MIN(salary  * 10), MAX(languages)| DROP `COUNT(
 MIN(salary  * 10):i | MAX(languages):i
 253240              | 5
 ;
+
+// Not really shadowing, but let's keep the name consistent with the other command's tests
+shadowingInternal
+FROM employees
+| SORT emp_no ASC
+| KEEP emp_no, first_name, last_name
+| DROP last_name, last_name
+| LIMIT 2
+;
+
+emp_no:integer | first_name:keyword
+         10001 | Georgi
+         10002 | Bezalel
+;
+
+shadowingInternalWildcard
+FROM employees
+| SORT emp_no ASC
+| KEEP emp_no, first_name, last_name
+| DROP last*name, last*name, last*, last_name
+| LIMIT 2
+;
+
+emp_no:integer | first_name:keyword
+         10001 | Georgi
+         10002 | Bezalel
+;
+
+subfields
+FROM addresses
+| DROP city.country.continent.planet.name, city.country.continent.name, city.country.name, number, street, zip_code, city.country.continent.planet.name
+| SORT city.name
+;
+
+city.country.continent.planet.galaxy:keyword | city.name:keyword
+Milky Way                                    | Amsterdam
+Milky Way                                    | San Francisco
+Milky Way                                    | Tokyo
+;
+
+subfieldsWildcard
+FROM addresses
+| DROP *.name, number, street, zip_code, *ame
+;
+
+city.country.continent.planet.galaxy:keyword
+Milky Way
+Milky Way
+Milky Way
+;

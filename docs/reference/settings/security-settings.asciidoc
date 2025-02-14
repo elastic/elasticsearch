@@ -23,7 +23,9 @@ For more information about creating and updating the {es} keystore, see
 ==== General security settings
 `xpack.security.enabled`::
 (<<static-cluster-setting,Static>>)
-Defaults to `true`, which enables {es} {security-features} on the node. +
+Defaults to `true`, which enables {es} {security-features} on the node.
+This setting must be enabled to use Elasticsearch's authentication,
+authorization and audit features. +
 +
 --
 If set to `false`, {security-features} are disabled, which is not recommended.
@@ -227,7 +229,7 @@ Defaults to `7d`.
 
 --
 NOTE:  Large real-time clock inconsistency across cluster nodes can cause problems
-with evaluating the API key retention period. That is, if the clock on the node 
+with evaluating the API key retention period. That is, if the clock on the node
 invalidating the API key is significantly different than the one performing the deletion,
 the key may be retained for longer or shorter than the configured retention period.
 
@@ -250,7 +252,7 @@ Sets the timeout of the internal search and delete call.
 `xpack.security.authc.api_key.hashing.algorithm`::
 (<<static-cluster-setting,Static>>)
 Specifies the hashing algorithm that is used for securing API key credentials.
-See <<password-hashing-algorithms>>. Defaults to `pbkdf2`.
+See <<secure-token-hashing-algorithms>>. Defaults to `ssha256`.
 
 [discrete]
 [[security-domain-settings]]
@@ -1988,7 +1990,7 @@ idle for more than the specified timeout.
 
 The server can also set the `Keep-Alive` HTTP response header. The effective
 time-to-live value is the smaller value between this setting and the `Keep-Alive`
-reponse header. Configure this setting to `-1` to let the server dictate the value.
+response header. Configure this setting to `-1` to let the server dictate the value.
 If the header is not set by the server and the setting has value of `-1`,
 the time-to-live is infinite and connections never expire.
 // end::oidc-http-connection-pool-ttl-tag[]

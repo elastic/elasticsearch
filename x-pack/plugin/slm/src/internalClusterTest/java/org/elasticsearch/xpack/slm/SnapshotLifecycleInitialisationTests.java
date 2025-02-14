@@ -61,7 +61,7 @@ public class SnapshotLifecycleInitialisationTests extends ESSingleNodeTestCase {
     public void testSLMIsInRunningModeWhenILMIsDisabled() throws Exception {
         client().execute(
             TransportPutRepositoryAction.TYPE,
-            new PutRepositoryRequest().name("repo")
+            new PutRepositoryRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).name("repo")
                 .type("fs")
                 .settings(Settings.builder().put("repositories.fs.location", repositoryLocation).build())
         ).get(10, TimeUnit.SECONDS);
@@ -69,6 +69,8 @@ public class SnapshotLifecycleInitialisationTests extends ESSingleNodeTestCase {
         client().execute(
             PutSnapshotLifecycleAction.INSTANCE,
             new Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
                 "snapshot-policy",
                 new SnapshotLifecyclePolicy(
                     "test-policy",

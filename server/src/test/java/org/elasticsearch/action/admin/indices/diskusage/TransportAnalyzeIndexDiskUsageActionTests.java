@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.diskusage;
@@ -17,8 +18,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.PlainShardIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -131,7 +130,6 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
             assertBusy(() -> assertThat(transportService.getRequestsSentPerNode(), equalTo(expectedRequestCounts)));
             pendingRequests.addAll(transportService.getCapturedRequests(true));
         }
-        assertBusy(future::isDone);
         AnalyzeIndexDiskUsageResponse response = future.actionGet();
         assertThat(response.getTotalShards(), equalTo(numberOfShards));
         assertThat(response.getFailedShards(), equalTo(0));
@@ -299,16 +297,16 @@ public class TransportAnalyzeIndexDiskUsageActionTests extends ESTestCase {
             }
         ) {
             @Override
-            protected GroupShardsIterator<ShardIterator> shards(
+            protected List<ShardIterator> shards(
                 ClusterState clusterState,
                 AnalyzeIndexDiskUsageRequest request,
                 String[] concreteIndices
             ) {
                 final List<ShardIterator> shardIterators = new ArrayList<>(targetShards.size());
                 for (Map.Entry<ShardId, List<ShardRouting>> e : targetShards.entrySet()) {
-                    shardIterators.add(new PlainShardIterator(e.getKey(), e.getValue()));
+                    shardIterators.add(new ShardIterator(e.getKey(), e.getValue()));
                 }
-                return new GroupShardsIterator<>(shardIterators);
+                return shardIterators;
             }
         };
     }

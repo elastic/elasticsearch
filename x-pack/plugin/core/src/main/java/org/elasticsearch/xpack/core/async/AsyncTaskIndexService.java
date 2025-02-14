@@ -99,7 +99,6 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         return Settings.builder()
             .put("index.codec", "best_compression")
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             .build();
     }
@@ -145,7 +144,6 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             .setPrimaryIndex(XPackPlugin.ASYNC_RESULTS_INDEX)
             .setMappings(mappings())
             .setSettings(settings())
-            .setVersionMetaKey("version")
             .setOrigin(ASYNC_SEARCH_ORIGIN)
             .build();
     }
@@ -391,6 +389,22 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      */
     public <T extends AsyncTask> T getTaskAndCheckAuthentication(
         TaskManager taskManager,
+        AsyncExecutionId asyncExecutionId,
+        Class<T> tClass
+    ) throws IOException {
+        return getTaskAndCheckAuthentication(taskManager, security, asyncExecutionId, tClass);
+    }
+
+    /**
+    * Returns the {@link AsyncTask} if the provided <code>asyncTaskId</code>
+    * is registered in the task manager, <code>null</code> otherwise.
+    *
+    * This method throws a {@link ResourceNotFoundException} if the authenticated user
+    * is not the creator of the original task.
+    */
+    public static <T extends AsyncTask> T getTaskAndCheckAuthentication(
+        TaskManager taskManager,
+        AsyncSearchSecurity security,
         AsyncExecutionId asyncExecutionId,
         Class<T> tClass
     ) throws IOException {

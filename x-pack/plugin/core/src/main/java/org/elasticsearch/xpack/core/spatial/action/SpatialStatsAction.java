@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.spatial.action;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -46,7 +45,7 @@ public class SpatialStatsAction extends ActionType<SpatialStatsAction.Response> 
         CARTESIANBOUNDS
     }
 
-    public static class Request extends BaseNodesRequest<Request> implements ToXContentObject {
+    public static class Request extends BaseNodesRequest implements ToXContentObject {
 
         public Request() {
             super((String[]) null);
@@ -74,11 +73,6 @@ public class SpatialStatsAction extends ActionType<SpatialStatsAction.Response> 
                 return false;
             }
             return true;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            TransportAction.localOnly();
         }
     }
 

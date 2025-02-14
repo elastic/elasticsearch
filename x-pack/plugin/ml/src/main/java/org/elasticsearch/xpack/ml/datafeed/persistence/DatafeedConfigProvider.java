@@ -226,7 +226,7 @@ public class DatafeedConfigProvider {
             listener.<SearchResponse>delegateFailureAndWrap((delegate, response) -> {
                 Set<String> datafeedIds = new HashSet<>();
                 // There cannot be more than one datafeed per job
-                assert response.getHits().getTotalHits().value <= jobIds.size();
+                assert response.getHits().getTotalHits().value() <= jobIds.size();
                 SearchHit[] hits = response.getHits().getHits();
 
                 for (SearchHit hit : hits) {
@@ -259,7 +259,7 @@ public class DatafeedConfigProvider {
             listener.<SearchResponse>delegateFailureAndWrap((delegate, response) -> {
                 Map<String, DatafeedConfig.Builder> datafeedsByJobId = new HashMap<>();
                 // There cannot be more than one datafeed per job
-                assert response.getHits().getTotalHits().value <= jobIds.size();
+                assert response.getHits().getTotalHits().value() <= jobIds.size();
                 SearchHit[] hits = response.getHits().getHits();
                 for (SearchHit hit : hits) {
                     DatafeedConfig.Builder builder = parseLenientlyFromSource(hit.getSourceRef());

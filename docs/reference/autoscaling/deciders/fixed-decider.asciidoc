@@ -6,7 +6,7 @@ experimental[]
 [WARNING]
 The fixed decider is intended for testing only. Do not use this decider in production.
 
-The `fixed` decider responds with a fixed required capacity. It is not enabled
+The {cloud}/ec-autoscaling.html[autoscaling] `fixed` decider responds with a fixed required capacity. It is not enabled
 by default but can be enabled for any policy by explicitly configuring it.
 
 ==== Configuration settings

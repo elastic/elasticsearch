@@ -4,6 +4,12 @@
 <titleabbrev>Get component template</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-indices[Index APIs].
+--
+
 Retrieves information about one or more component templates.
 
 //////////////////////////
@@ -67,7 +73,7 @@ Wildcard (`*`) expressions are supported.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=local-deprecated-9.0.0]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 

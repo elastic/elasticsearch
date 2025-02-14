@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.xpack.ql.plan.QueryPlan;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.QueryPlan;
 
 import java.util.List;
 
@@ -19,7 +19,6 @@ import java.util.List;
  * PhysicalPlan = take Delta, DEN to SJC, then SJC to SFO
  */
 public abstract class PhysicalPlan extends QueryPlan<PhysicalPlan> {
-
     public PhysicalPlan(Source source, List<PhysicalPlan> children) {
         super(source, children);
     }

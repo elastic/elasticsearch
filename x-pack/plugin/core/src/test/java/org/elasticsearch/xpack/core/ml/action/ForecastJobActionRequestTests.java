@@ -34,7 +34,7 @@ public class ForecastJobActionRequestTests extends AbstractXContentSerializingTe
         }
         if (randomBoolean()) {
             request.setMaxModelMemory(
-                randomLongBetween(new ByteSizeValue(1, ByteSizeUnit.MB).getBytes(), new ByteSizeValue(499, ByteSizeUnit.MB).getBytes())
+                randomLongBetween(ByteSizeValue.of(1, ByteSizeUnit.MB).getBytes(), ByteSizeValue.of(499, ByteSizeUnit.MB).getBytes())
             );
         }
         return request;

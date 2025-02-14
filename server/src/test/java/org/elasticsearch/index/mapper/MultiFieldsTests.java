@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -15,6 +16,8 @@ import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
+
+import static org.elasticsearch.index.mapper.MapperService.MergeReason.MAPPING_UPDATE;
 
 public class MultiFieldsTests extends ESTestCase {
 
@@ -45,7 +48,11 @@ public class MultiFieldsTests extends ESTestCase {
             keywordFieldMapperBuilder
         ).build(MapperBuilderContext.root(false, false));
 
-        builder.merge(newField, new FieldMapper.Conflicts("TextFieldMapper"), MapperMergeContext.root(false, false, Long.MAX_VALUE));
+        builder.merge(
+            newField,
+            new FieldMapper.Conflicts("TextFieldMapper"),
+            MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE)
+        );
 
         var expected = hasNormalizer == false;
         assertEquals(expected, builder.multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField());
@@ -56,6 +63,7 @@ public class MultiFieldsTests extends ESTestCase {
             "field",
             IndexAnalyzers.of(Map.of(), Map.of("normalizer", Lucene.STANDARD_ANALYZER), Map.of()),
             ScriptCompiler.NONE,
+            Integer.MAX_VALUE,
             IndexVersion.current()
         );
         if (isStored) {

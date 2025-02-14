@@ -24,13 +24,12 @@ import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.parseIndexNameCounter;
 
 /**
- * After we performed the index rollover we wait for the the configured number of shards for the rolled over index (ie. newly created
+ * After we performed the index rollover we wait for the configured number of shards for the rolled over index (ie. newly created
  * index) to become available.
  */
 public class WaitForActiveShardsStep extends ClusterStateWaitStep {
@@ -54,8 +53,7 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
         IndexMetadata originalIndexMeta = metadata.index(index);
 
         if (originalIndexMeta == null) {
-            String errorMessage = String.format(
-                Locale.ROOT,
+            String errorMessage = Strings.format(
                 "[%s] lifecycle action for index [%s] executed but index no longer exists",
                 getKey().action(),
                 index.getName()
@@ -67,8 +65,7 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
 
         boolean indexingComplete = LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE_SETTING.get(originalIndexMeta.getSettings());
         if (indexingComplete) {
-            String message = String.format(
-                Locale.ROOT,
+            String message = Strings.format(
                 "index [%s] has lifecycle complete set, skipping [%s]",
                 originalIndexMeta.getIndex().getName(),
                 WaitForActiveShardsStep.NAME
@@ -84,10 +81,17 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
         if (dataStream != null) {
             IndexAbstraction dataStreamAbstraction = metadata.getIndicesLookup().get(dataStream.getName());
             assert dataStreamAbstraction != null : dataStream.getName() + " datastream is not present in the metadata indices lookup";
-            if (dataStreamAbstraction.getWriteIndex() == null) {
+            // Determine which write index we care about right now:
+            final Index rolledIndex;
+            if (dataStream.isFailureStoreIndex(index.getName())) {
+                rolledIndex = dataStream.getWriteFailureIndex();
+            } else {
+                rolledIndex = dataStream.getWriteIndex();
+            }
+            if (rolledIndex == null) {
                 return getErrorResultOnNullMetadata(getKey(), index);
             }
-            IndexMetadata rolledIndexMeta = metadata.index(dataStreamAbstraction.getWriteIndex());
+            IndexMetadata rolledIndexMeta = metadata.index(rolledIndex);
             rolledIndexName = rolledIndexMeta.getIndex().getName();
             waitForActiveShardsSettingValue = rolledIndexMeta.getSettings().get(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey());
         } else {
@@ -141,8 +145,7 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
     }
 
     private static Result getErrorResultOnNullMetadata(StepKey key, Index originalIndex) {
-        String errorMessage = String.format(
-            Locale.ROOT,
+        String errorMessage = Strings.format(
             "unable to find the index that was rolled over from [%s] as part of lifecycle action [%s]",
             originalIndex.getName(),
             key.action()

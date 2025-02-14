@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -103,8 +104,8 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
     public static class Request extends AcknowledgedRequest<Request> {
         private final String[] policyNames;
 
-        public Request(String... policyNames) {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+        public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, String... policyNames) {
+            super(masterNodeTimeout, ackTimeout);
             if (policyNames == null) {
                 throw new IllegalArgumentException("ids cannot be null");
             }
@@ -114,11 +115,6 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
         public Request(StreamInput in) throws IOException {
             super(in);
             policyNames = in.readStringArray();
-        }
-
-        public Request() {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
-            policyNames = Strings.EMPTY_ARRAY;
         }
 
         @Override

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.support;
@@ -51,6 +52,11 @@ public enum ValueType implements Writeable {
     private final byte id;
     private final String preferredName;
 
+    /**
+     * Name of the {@code value_type} field in the JSON. The name {@code valueType} has
+     * been deprecated since before #22160, but we have no plans to remove it so we don't
+     * break anyone that might be using it.
+     */
     public static final ParseField VALUE_TYPE = new ParseField("value_type", "valueType");
 
     ValueType(byte id, String description, String preferredName, ValuesSourceType valuesSourceType, DocValueFormat defaultFormat) {

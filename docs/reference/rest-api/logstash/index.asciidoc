@@ -2,6 +2,12 @@
 [[logstash-apis]]
 == {ls} APIs
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-logstash[{ls} APIs].
+--
+
 The following APIs are used to manage pipelines used by
 {logstash-ref}/logstash-centralized-pipeline-management.html[{ls} Central
 Management]:

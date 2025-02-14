@@ -1,5 +1,23 @@
+[[cluster-state-overview]]
+=== Cluster state
+
+The _cluster state_ is an internal data structure which keeps track of a
+variety of information needed by every node, including:
+
+* The identity and attributes of the other nodes in the cluster
+
+* Cluster-wide settings
+
+* Index metadata, including the mapping and settings for each index
+
+* The location and status of every shard copy in the cluster
+
+The elected master node ensures that every node in the cluster has a copy of
+the same cluster state. The <<cluster-state,cluster state API>> lets you retrieve a
+representation of this internal state for debugging or diagnostic purposes.
+
 [[cluster-state-publishing]]
-=== Publishing the cluster state
+==== Publishing the cluster state
 
 The elected master node is the only node in a cluster that can make changes to
 the cluster state. The elected master node processes one batch of cluster state
@@ -58,3 +76,16 @@ speed of the storage on each master-eligible node, as well as the reliability
 and latency of the network interconnections between all nodes in the cluster.
 You must therefore ensure that the storage and networking available to the
 nodes in your cluster are good enough to meet your performance goals.
+
+[[dangling-index]]
+==== Dangling indices
+
+When a node joins the cluster, if it finds any shards stored in its local
+data directory that do not already exist in the cluster state, it will consider
+those shards to belong to a "dangling" index. You can list, import or
+delete dangling indices using the <<dangling-indices-api,Dangling indices
+API>>.
+
+NOTE: The API cannot offer any guarantees as to whether the imported data
+truly represents the latest state of the data when the index was still part
+of the cluster.

@@ -5,6 +5,12 @@
 <titleabbrev>Repository analysis</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-snapshot[Snapshot and restore APIs].
+--
+
 Analyzes a repository, reporting its performance characteristics and any
 incorrect behaviour found.
 
@@ -38,9 +44,6 @@ POST /_snapshot/my_repository/_analyze?blob_count=10&max_blob_size=1mb&timeout=1
 * If the {es} {security-features} are enabled, you must have the `manage`
 <<privileges-list-cluster,cluster privilege>> to use this API. For more
 information, see <<security-privileges>>.
-
-* If the <<operator-privileges,{operator-feature}>> is enabled, only operator
-users can use this API.
 
 [[repo-analysis-api-desc]]
 ==== {api-description-title}

@@ -5,6 +5,12 @@
 <titleabbrev>Get jobs</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-anomaly[{ml-cap}  {anomaly-detect} APIs].
+--
+
 Retrieves configuration information for {anomaly-jobs}.
 
 [[ml-get-job-request]]
@@ -209,7 +215,7 @@ value.
 (string) Reserved for future use, currently set to `anomaly_detector`.
 
 `job_version`::
-(string) The {ml} configuration version number at which the the job was created.
+(string) The {ml} configuration version number at which the job was created.
 
 NOTE: From {es} 8.10.0,  a new version number is used to
 track the configuration and state changes in the {ml} plugin. This new

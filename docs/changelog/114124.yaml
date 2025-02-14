@@ -1,0 +1,18 @@
+pr: 114124
+summary: The Korean dictionary for Nori has been updated 
+area: Analysis
+type: breaking
+issues: []
+breaking:
+  title: The Korean dictionary for Nori has been updated
+  area: Analysis
+  details: >-
+    Lucene 10 ships with an updated Korean dictionary (mecab-ko-dic-2.1.1). 
+    For details see https://github.com/apache/lucene/issues/11452. Users
+    experiencing changes in search behaviour on existing data are advised to
+    reindex.
+  impact: >-
+    The change is small and should generally provide better analysis results.
+    Existing indices for full-text use cases should be reindexed though.
+  notable: false
+

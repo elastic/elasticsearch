@@ -5,6 +5,12 @@
 <titleabbrev>Get Security settings</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Retrieves settings for the security internal indices.
 
 [[security-api-get-settings-prereqs]]

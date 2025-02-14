@@ -46,6 +46,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
@@ -325,7 +326,11 @@ public class OrdinalsGroupingOperator implements Operator {
 
     @Override
     public String toString() {
-        return this.getClass().getSimpleName() + "[" + "aggregators=" + aggregatorFactories + "]";
+        String aggregatorDescriptions = aggregatorFactories.stream()
+            .map(factory -> "\"" + factory.describe() + "\"")
+            .collect(Collectors.joining(", "));
+
+        return this.getClass().getSimpleName() + "[" + "aggregators=[" + aggregatorDescriptions + "]]";
     }
 
     record SegmentID(int shardIndex, int segmentIndex) {
@@ -367,8 +372,8 @@ public class OrdinalsGroupingOperator implements Operator {
         }
 
         void addInput(IntVector docs, Page page) {
+            GroupingAggregatorFunction.AddInput[] prepared = new GroupingAggregatorFunction.AddInput[aggregators.size()];
             try {
-                GroupingAggregatorFunction.AddInput[] prepared = new GroupingAggregatorFunction.AddInput[aggregators.size()];
                 for (int i = 0; i < prepared.length; i++) {
                     prepared[i] = aggregators.get(i).prepareProcessPage(this, page);
                 }
@@ -387,7 +392,7 @@ public class OrdinalsGroupingOperator implements Operator {
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             } finally {
-                page.releaseBlocks();
+                Releasables.close(page::releaseBlocks, Releasables.wrap(prepared));
             }
         }
 
@@ -611,12 +616,12 @@ public class OrdinalsGroupingOperator implements Operator {
         @Override
         IntBlock readOrdinalsAdded1(IntVector docs) throws IOException {
             final int positionCount = docs.getPositionCount();
-            try (IntVector.Builder builder = blockFactory.newIntVectorFixedBuilder(positionCount)) {
+            try (IntVector.FixedBuilder builder = blockFactory.newIntVectorFixedBuilder(positionCount)) {
                 for (int p = 0; p < positionCount; p++) {
                     if (sortedDocValues.advanceExact(docs.getInt(p))) {
-                        builder.appendInt(sortedDocValues.ordValue() + 1);
+                        builder.appendInt(p, sortedDocValues.ordValue() + 1);
                     } else {
-                        builder.appendInt(0);
+                        builder.appendInt(p, 0);
                     }
                 }
                 return builder.build().asBlock();

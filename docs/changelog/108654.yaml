@@ -1,5 +1,0 @@
-pr: 108654
-summary: Update bundled JDK to Java 22 (again)
-area: Packaging
-type: upgrade
-issues: []

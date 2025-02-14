@@ -5,6 +5,12 @@
 <titleabbrev>Activate user profile</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 NOTE: The user profile feature is designed only for use by {kib} and
 Elastic’s {observability}, {ents}, and {elastic-sec} solutions. Individual
 users and external applications should not call this API directly. Elastic reserves

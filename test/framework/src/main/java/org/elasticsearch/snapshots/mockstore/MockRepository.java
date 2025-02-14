@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.snapshots.mockstore;
@@ -486,11 +487,11 @@ public class MockRepository extends FsRepository {
                         throw new IOException("Random IOException");
                     } else if (blockOnAnyFiles) {
                         blockExecutionAndMaybeWait(blobName);
-                    } else if (blobName.startsWith("snap-") && (blockAndFailOnWriteSnapFile || blockAndFailOnReadSnapFile)) {
+                    } else if (blobName.startsWith(SNAPSHOT_PREFIX) && (blockAndFailOnWriteSnapFile || blockAndFailOnReadSnapFile)) {
                         blockExecutionAndFail(blobName);
                     } else if (blobName.startsWith(INDEX_FILE_PREFIX) && blockAndFailOnReadIndexFile) {
                         blockExecutionAndFail(blobName);
-                    } else if (blockedIndexId != null && path().parts().contains(blockedIndexId) && blobName.startsWith("snap-")) {
+                    } else if (blockedIndexId != null && path().parts().contains(blockedIndexId) && blobName.startsWith(SNAPSHOT_PREFIX)) {
                         blockExecutionAndMaybeWait(blobName);
                     }
                 }
@@ -663,16 +664,17 @@ public class MockRepository extends FsRepository {
 
             @Override
             public void writeBlobAtomic(
-                final OperationPurpose purpose,
-                final String blobName,
-                final BytesReference bytes,
-                final boolean failIfAlreadyExists
+                OperationPurpose purpose,
+                String blobName,
+                InputStream inputStream,
+                long blobSize,
+                boolean failIfAlreadyExists
             ) throws IOException {
                 final Random random = beforeAtomicWrite(blobName);
                 if ((delegate() instanceof FsBlobContainer) && (random.nextBoolean())) {
                     // Simulate a failure between the write and move operation in FsBlobContainer
                     final String tempBlobName = FsBlobContainer.tempBlobName(blobName);
-                    super.writeBlob(purpose, tempBlobName, bytes, failIfAlreadyExists);
+                    super.writeBlob(purpose, tempBlobName, inputStream, blobSize, failIfAlreadyExists);
                     maybeIOExceptionOrBlock(blobName);
                     final FsBlobContainer fsBlobContainer = (FsBlobContainer) delegate();
                     fsBlobContainer.moveBlobAtomic(purpose, tempBlobName, blobName, failIfAlreadyExists);
@@ -680,8 +682,18 @@ public class MockRepository extends FsRepository {
                     // Atomic write since it is potentially supported
                     // by the delegating blob container
                     maybeIOExceptionOrBlock(blobName);
-                    super.writeBlobAtomic(purpose, blobName, bytes, failIfAlreadyExists);
+                    super.writeBlobAtomic(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
                 }
+            }
+
+            @Override
+            public void writeBlobAtomic(
+                final OperationPurpose purpose,
+                final String blobName,
+                final BytesReference bytes,
+                final boolean failIfAlreadyExists
+            ) throws IOException {
+                writeBlobAtomic(purpose, blobName, bytes.streamInput(), bytes.length(), failIfAlreadyExists);
             }
 
             private Random beforeAtomicWrite(String blobName) throws IOException {

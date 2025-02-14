@@ -101,7 +101,7 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
             )
             .build();
 
-        Request request = new Request("name1");
+        Request request = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "name1");
         AutoFollowMetadata result = TransportDeleteAutoFollowPatternAction.innerDelete(request, clusterState)
             .getMetadata()
             .custom(AutoFollowMetadata.TYPE);
@@ -154,7 +154,7 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
             )
             .build();
 
-        Request request = new Request("name2");
+        Request request = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "name2");
         Exception e = expectThrows(
             ResourceNotFoundException.class,
             () -> TransportDeleteAutoFollowPatternAction.innerDelete(request, clusterState)
@@ -165,7 +165,7 @@ public class TransportDeleteAutoFollowPatternActionTests extends ESTestCase {
     public void testInnerDeleteNoAutoFollowMetadata() {
         ClusterState clusterState = ClusterState.builder(new ClusterName("us_cluster")).metadata(Metadata.builder()).build();
 
-        Request request = new Request("name1");
+        Request request = new Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "name1");
         Exception e = expectThrows(
             ResourceNotFoundException.class,
             () -> TransportDeleteAutoFollowPatternAction.innerDelete(request, clusterState)

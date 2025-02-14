@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.datastreams.lifecycle;
@@ -54,7 +55,20 @@ public class DataStreamLifecycleFixtures {
         @Nullable DataStreamLifecycle lifecycle,
         Long now
     ) {
+        return createDataStream(builder, dataStreamName, backingIndicesCount, 0, backingIndicesSettings, lifecycle, now);
+    }
+
+    public static DataStream createDataStream(
+        Metadata.Builder builder,
+        String dataStreamName,
+        int backingIndicesCount,
+        int failureIndicesCount,
+        Settings.Builder backingIndicesSettings,
+        @Nullable DataStreamLifecycle lifecycle,
+        Long now
+    ) {
         final List<Index> backingIndices = new ArrayList<>();
+        final List<Index> failureIndices = new ArrayList<>();
         for (int k = 1; k <= backingIndicesCount; k++) {
             IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, k))
                 .settings(backingIndicesSettings)
@@ -70,7 +84,22 @@ public class DataStreamLifecycleFixtures {
             builder.put(indexMetadata, false);
             backingIndices.add(indexMetadata.getIndex());
         }
-        return newInstance(dataStreamName, backingIndices, backingIndicesCount, null, false, lifecycle);
+        for (int k = 1; k <= failureIndicesCount; k++) {
+            IndexMetadata.Builder indexMetaBuilder = IndexMetadata.builder(DataStream.getDefaultFailureStoreName(dataStreamName, k, now))
+                .settings(backingIndicesSettings)
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .creationDate(now - 3000L);
+            if (k < failureIndicesCount) {
+                // add rollover info only for non-write indices
+                MaxAgeCondition rolloverCondition = new MaxAgeCondition(TimeValue.timeValueMillis(now - 2000L));
+                indexMetaBuilder.putRolloverInfo(new RolloverInfo(dataStreamName, List.of(rolloverCondition), now - 2000L));
+            }
+            IndexMetadata indexMetadata = indexMetaBuilder.build();
+            builder.put(indexMetadata, false);
+            failureIndices.add(indexMetadata.getIndex());
+        }
+        return newInstance(dataStreamName, backingIndices, backingIndicesCount, null, false, lifecycle, failureIndices);
     }
 
     static void putComposableIndexTemplate(
@@ -85,7 +114,12 @@ public class DataStreamLifecycleFixtures {
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(patterns)
-                .template(new Template(settings, mappings == null ? null : CompressedXContent.fromJSON(mappings), null, lifecycle))
+                .template(
+                    Template.builder()
+                        .settings(settings)
+                        .mappings(mappings == null ? null : CompressedXContent.fromJSON(mappings))
+                        .lifecycle(lifecycle)
+                )
                 .metadata(metadata)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()

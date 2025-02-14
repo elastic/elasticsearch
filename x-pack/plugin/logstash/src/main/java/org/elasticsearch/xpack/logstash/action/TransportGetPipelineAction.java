@@ -21,12 +21,12 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
@@ -87,7 +87,7 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
             )
             .setScroll(TimeValue.timeValueMinutes(1L))
             .execute(ActionListener.wrap(searchResponse -> {
-                final int numHits = Math.toIntExact(searchResponse.getHits().getTotalHits().value);
+                final int numHits = Math.toIntExact(searchResponse.getHits().getTotalHits().value());
                 final Map<String, BytesReference> pipelineSources = Maps.newMapWithExpectedSize(numHits);
                 final Consumer<SearchResponse> clearScroll = (response) -> {
                     if (response != null && response.getScrollId() != null) {
@@ -148,14 +148,14 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
         ActionListener<GetPipelineResponse> listener
     ) {
         int numberOfHitsSeenSoFar = numberOfHitsSeenPreviously + searchResponse.getHits().getHits().length;
-        if (numberOfHitsSeenSoFar > searchResponse.getHits().getTotalHits().value) {
+        if (numberOfHitsSeenSoFar > searchResponse.getHits().getTotalHits().value()) {
             clearScroll.accept(searchResponse);
             listener.onFailure(
                 new IllegalStateException(
                     "scrolling returned more hits ["
                         + numberOfHitsSeenSoFar
                         + "] than expected ["
-                        + searchResponse.getHits().getTotalHits().value
+                        + searchResponse.getHits().getTotalHits().value()
                         + "] so bailing out to prevent unbounded "
                         + "memory consumption."
                 )
@@ -179,7 +179,7 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
             }
         }
 
-        if (numberOfHitsSeenSoFar == searchResponse.getHits().getTotalHits().value) {
+        if (numberOfHitsSeenSoFar == searchResponse.getHits().getTotalHits().value()) {
             clearScroll.accept(searchResponse);
             listener.onResponse(new GetPipelineResponse(pipelineSources));
         } else {

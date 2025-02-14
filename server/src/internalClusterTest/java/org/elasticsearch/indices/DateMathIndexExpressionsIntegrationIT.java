@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices;
@@ -177,7 +178,7 @@ public class DateMathIndexExpressionsIntegrationIT extends ESIntegTestCase {
             assertEquals(dateMathExp3, response.getSetting(index3, IndexMetadata.SETTING_INDEX_PROVIDED_NAME));
         });
 
-        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+        ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         assertThat(clusterState.metadata().index(index1), notNullValue());
         assertThat(clusterState.metadata().index(index2), notNullValue());
         assertThat(clusterState.metadata().index(index3), notNullValue());

@@ -19,11 +19,11 @@ import java.util.Map;
 
 public class PaginationAnalyticsEventField {
 
-    public static ParseField PAGINATION_FIELD = new ParseField("page");
+    public static final ParseField PAGINATION_FIELD = new ParseField("page");
 
-    public static ParseField CURRENT_PAGE_FIELD = new ParseField("current");
+    public static final ParseField CURRENT_PAGE_FIELD = new ParseField("current");
 
-    public static ParseField PAGE_SIZE_FIELD = new ParseField("size");
+    public static final ParseField PAGE_SIZE_FIELD = new ParseField("size");
 
     private static final ObjectParser<Map<String, Integer>, AnalyticsEvent.Context> PARSER = new ObjectParser<>(
         PAGINATION_FIELD.getPreferredName(),

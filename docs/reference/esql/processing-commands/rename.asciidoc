@@ -2,6 +2,8 @@
 [[esql-rename]]
 === `RENAME`
 
+The `RENAME` processing command renames one or more columns.
+
 **Syntax**
 
 [source,esql]
@@ -15,7 +17,9 @@ RENAME old_name1 AS new_name1[, ..., old_nameN AS new_nameN]
 The name of a column you want to rename.
 
 `new_nameX`::
-The new name of the column.
+The new name of the column. If it conflicts with an existing column name,
+the existing column is dropped. If multiple columns are renamed to the same
+name, all but the rightmost column with the same new name are dropped.
 
 *Description*
 

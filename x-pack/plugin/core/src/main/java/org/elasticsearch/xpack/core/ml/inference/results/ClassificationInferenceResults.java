@@ -22,7 +22,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class ClassificationInferenceResults extends SingleValueInferenceResults {
-    public static String PREDICTION_PROBABILITY = "prediction_probability";
+    public static final String PREDICTION_PROBABILITY = "prediction_probability";
 
     public static final String NAME = "classification";
 

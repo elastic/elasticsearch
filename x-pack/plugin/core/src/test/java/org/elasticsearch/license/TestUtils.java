@@ -20,6 +20,7 @@ import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.license.licensor.LicenseSigner;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -381,7 +382,9 @@ public class TestUtils {
         License license,
         final LicensesStatus expectedStatus
     ) {
-        PutLicenseRequest putLicenseRequest = new PutLicenseRequest().license(license).acknowledge(true);
+        PutLicenseRequest putLicenseRequest = new PutLicenseRequest(ESTestCase.TEST_REQUEST_TIMEOUT, ESTestCase.TEST_REQUEST_TIMEOUT)
+            .license(license)
+            .acknowledge(true);
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<LicensesStatus> status = new AtomicReference<>();
         licenseService.registerLicense(putLicenseRequest, new ActionListener<PutLicenseResponse>() {

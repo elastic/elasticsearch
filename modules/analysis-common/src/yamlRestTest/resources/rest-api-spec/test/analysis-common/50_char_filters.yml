@@ -9,7 +9,6 @@
             char_filter:
               - type: html_strip
                 escaped_tags: ["xxx", "yyy"]
-                read_ahead: 1024
     - length: { tokens: 1 }
     - match:  { tokens.0.token: "\ntest<yyy>foo</yyy>\n" }
 
@@ -26,6 +25,33 @@
                 replacement: replacedSample $1
     - length: { tokens: 1 }
     - match:  { tokens.0.token: "replacedSample 6 sample1" }
+
+---
+"pattern_replace error handling (too complex pattern)":
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_too_complex_regex_pattern
+        body:
+          settings:
+            index:
+              analysis:
+                analyzer:
+                  my_analyzer:
+                    tokenizer: standard
+                    char_filter:
+                      - my_char_filter
+                char_filter:
+                  my_char_filter:
+                    type: "pattern_replace"
+                    # This pattern intentionally uses special characters designed to throw an error.
+                    # It's expected that the pattern may not render correctly.
+                    pattern: "(\\d+)-(?=\\d\nͭͭͭͭͭͭͭͭͭͭͭͭͭͭͭ"
+                    flags: CASE_INSENSITIVE|MULTILINE|DOTALL|UNICODE_CASE|CANON_EQ
+                    replacement: "_$1"
+  - match: { status: 400 }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "Too complex regex pattern" }
 
 ---
 "mapping":

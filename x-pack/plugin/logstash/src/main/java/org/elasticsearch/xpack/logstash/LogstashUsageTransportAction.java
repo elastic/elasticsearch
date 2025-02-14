@@ -11,7 +11,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
@@ -35,14 +35,7 @@ public class LogstashUsageTransportAction extends XPackUsageFeatureTransportActi
         IndexNameExpressionResolver indexNameExpressionResolver,
         XPackLicenseState licenseState
     ) {
-        super(
-            XPackUsageFeatureAction.LOGSTASH.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.LOGSTASH.name(), transportService, clusterService, threadPool, actionFilters);
         this.licenseState = licenseState;
     }
 

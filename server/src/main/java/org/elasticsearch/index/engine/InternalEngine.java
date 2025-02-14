@@ -2848,6 +2848,13 @@ public class InternalEngine extends Engine {
         }
 
         @Override
+        protected long estimateMergeMemory(MergePolicy.OneMerge merge) {
+            try (Searcher searcher = acquireSearcher("merge_memory_estimation")) {
+                return SegmentMergeMemoryEstimator.estimateSegmentMemory(merge, searcher.getIndexReader());
+            }
+        }
+
+        @Override
         public synchronized void afterMerge(OnGoingMerge merge) {
             int maxNumMerges = getMaxMergeCount();
             if (numMergesInFlight.decrementAndGet() < maxNumMerges) {

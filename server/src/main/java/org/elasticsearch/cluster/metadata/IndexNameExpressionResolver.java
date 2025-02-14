@@ -93,7 +93,17 @@ public class IndexNameExpressionResolver {
      */
     public record ResolvedExpression(String resource, @Nullable IndexComponentSelector selector) {
         public ResolvedExpression(String indexAbstraction) {
-            this(indexAbstraction, null);
+            this(indexAbstraction, (IndexComponentSelector) null);
+        }
+
+        /**
+         * Constructs a ResolvedExpression with the DATA selector if the selectors are allowed
+         * or null otherwise.
+         * @param indexAbstraction
+         * @param options
+         */
+        public ResolvedExpression(String indexAbstraction, IndicesOptions options) {
+            this(indexAbstraction, options.allowSelectors() ? IndexComponentSelector.DATA : null);
         }
 
         public String combined() {
@@ -354,21 +364,9 @@ public class IndexNameExpressionResolver {
                 }
             } else {
                 if (isExclusion) {
-                    if (IndexComponentSelector.ALL_APPLICABLE.equals(selector)) {
-                        resources.remove(new ResolvedExpression(baseExpression, IndexComponentSelector.DATA));
-                        resources.remove(new ResolvedExpression(baseExpression, IndexComponentSelector.FAILURES));
-                    } else {
-                        resources.remove(new ResolvedExpression(baseExpression, selector));
-                    }
+                    resources.remove(new ResolvedExpression(baseExpression, selector));
                 } else if (ensureAliasOrIndexExists(context, baseExpression, selector)) {
-                    if (IndexComponentSelector.ALL_APPLICABLE.equals(selector)) {
-                        resources.add(new ResolvedExpression(baseExpression, IndexComponentSelector.DATA));
-                        if (context.getState().getMetadata().getIndicesLookup().get(baseExpression).isDataStreamRelated()) {
-                            resources.add(new ResolvedExpression(baseExpression, IndexComponentSelector.FAILURES));
-                        }
-                    } else {
-                        resources.add(new ResolvedExpression(baseExpression, selector));
-                    }
+                    resources.add(new ResolvedExpression(baseExpression, selector));
                 }
             }
         }
@@ -491,27 +489,28 @@ public class IndexNameExpressionResolver {
         for (ResolvedExpression expression : expressions) {
             final IndexAbstraction indexAbstraction = indicesLookup.get(expression.resource());
             assert indexAbstraction != null;
-            if (indexAbstraction.getType() == Type.ALIAS && context.isResolveToWriteIndex()) {
-                Index writeIndex = indexAbstraction.getWriteIndex();
-                if (writeIndex == null) {
-                    throw new IllegalArgumentException(
-                        "no write index is defined for alias ["
-                            + indexAbstraction.getName()
-                            + "]."
-                            + " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple"
-                            + " indices without one being designated as a write index"
-                    );
-                }
-                if (indexAbstraction.isDataStreamRelated()) {
-                    DataStream dataStream = indicesLookup.get(indexAbstraction.getWriteIndex().getName()).getParentDataStream();
-                    resolveWriteIndexForDataStreams(context, dataStream, concreteIndicesResult, expression.selector());
-                } else {
+            if (context.isResolveToWriteIndex()) {
+                if (shouldIncludeRegularIndices(context.getOptions(), expression.selector())) {
+                    Index writeIndex = indexAbstraction.getWriteIndex();
+                    if (writeIndex == null && indexAbstraction.getType() == Type.ALIAS) {
+                        throw new IllegalArgumentException(
+                            "no write index is defined for alias ["
+                                + indexAbstraction.getName()
+                                + "]."
+                                + " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple"
+                                + " indices without one being designated as a write index"
+                        );
+                    }
                     if (addIndex(writeIndex, null, context)) {
                         concreteIndicesResult.add(writeIndex);
                     }
                 }
-            } else if (indexAbstraction.getType() == Type.DATA_STREAM && context.isResolveToWriteIndex()) {
-                resolveWriteIndexForDataStreams(context, (DataStream) indexAbstraction, concreteIndicesResult, expression.selector());
+                if (shouldIncludeFailureIndices(context.getOptions(), expression.selector())) {
+                    Index failureStoreWriteIndex = indexAbstraction.getWriteFailureIndex(context.state.metadata());
+                    if (failureStoreWriteIndex != null && addIndex(failureStoreWriteIndex, null, context)) {
+                        concreteIndicesResult.add(failureStoreWriteIndex);
+                    }
+                }
             } else {
                 if (context.getOptions().allowAliasesToMultipleIndices() == false
                     && resolvesToMoreThanOneIndex(indexAbstraction, context, expression)) {
@@ -530,23 +529,17 @@ public class IndexNameExpressionResolver {
                     );
                 }
 
-                if (indexAbstraction.getType() == Type.DATA_STREAM) {
-                    resolveIndicesForDataStream(context, (DataStream) indexAbstraction, concreteIndicesResult, expression.selector());
-                } else if (indexAbstraction.getType() == Type.ALIAS
-                    && indexAbstraction.isDataStreamRelated()
-                    && shouldIncludeFailureIndices(context.getOptions(), expression.selector())) {
-                        for (DataStream dataStream : getAliasDataStreams(indexAbstraction, indicesLookup)) {
-                            resolveIndicesForDataStream(context, dataStream, concreteIndicesResult, expression.selector());
-                        }
-                    } else {
-                        List<Index> indices = indexAbstraction.getIndices();
-                        for (int i = 0, n = indices.size(); i < n; i++) {
-                            Index index = indices.get(i);
-                            if (shouldTrackConcreteIndex(context, index)) {
-                                concreteIndicesResult.add(index);
-                            }
+                if (indexAbstraction.isDataStreamRelated()) {
+                    resolveIndicesForDataStreamRelatedAbstraction(context, indexAbstraction, concreteIndicesResult, expression.selector());
+                } else {
+                    List<Index> indices = indexAbstraction.getIndices();
+                    for (int i = 0, n = indices.size(); i < n; i++) {
+                        Index index = indices.get(i);
+                        if (shouldTrackConcreteIndex(context, index)) {
+                            concreteIndicesResult.add(index);
                         }
                     }
+                }
             }
         }
 
@@ -558,30 +551,14 @@ public class IndexNameExpressionResolver {
         return resultArray;
     }
 
-    private static Set<DataStream> getAliasDataStreams(IndexAbstraction indexAbstraction, Map<String, IndexAbstraction> indicesLookup) {
-        // Collect the data streams involved with the alias
-        assert indexAbstraction.getType().equals(Type.ALIAS) && indexAbstraction.isDataStreamRelated()
-            : "Non data stream alias [" + indexAbstraction.getName() + "]";
-        Set<DataStream> aliasDataStreams = new HashSet<>();
-        List<Index> indices = indexAbstraction.getIndices();
-        for (int i = 0, n = indices.size(); i < n; i++) {
-            Index index = indices.get(i);
-            DataStream parentDataStream = indicesLookup.get(index.getName()).getParentDataStream();
-            if (parentDataStream != null) {
-                aliasDataStreams.add(parentDataStream);
-            }
-        }
-        return aliasDataStreams;
-    }
-
-    private static void resolveIndicesForDataStream(
+    private static void resolveIndicesForDataStreamRelatedAbstraction(
         Context context,
-        DataStream dataStream,
+        IndexAbstraction indexAbstraction,
         Set<Index> concreteIndicesResult,
         IndexComponentSelector selector
     ) {
         if (shouldIncludeRegularIndices(context.getOptions(), selector)) {
-            List<Index> indices = dataStream.getIndices();
+            List<Index> indices = indexAbstraction.getIndices();
             for (int i = 0, n = indices.size(); i < n; i++) {
                 Index index = indices.get(i);
                 if (shouldTrackConcreteIndex(context, index)) {
@@ -590,7 +567,7 @@ public class IndexNameExpressionResolver {
             }
         }
         if (shouldIncludeFailureIndices(context.getOptions(), selector)) {
-            List<Index> failureIndices = dataStream.getFailureIndices().getIndices();
+            List<Index> failureIndices = indexAbstraction.getFailureIndices(context.state.metadata());
             for (int i = 0, n = failureIndices.size(); i < n; i++) {
                 Index index = failureIndices.get(i);
                 if (shouldTrackConcreteIndex(context, index)) {
@@ -613,26 +590,26 @@ public class IndexNameExpressionResolver {
             }
         }
         if (shouldIncludeFailureIndices(context.getOptions(), selector)) {
-            Index failureStoreWriteIndex = dataStream.getFailureStoreWriteIndex();
+            Index failureStoreWriteIndex = dataStream.getWriteFailureIndex();
             if (failureStoreWriteIndex != null && addIndex(failureStoreWriteIndex, null, context)) {
                 concreteIndicesResult.add(failureStoreWriteIndex);
             }
         }
     }
 
-    private static boolean shouldIncludeRegularIndices(IndicesOptions indicesOptions, IndexComponentSelector expressionSelector) {
+    public static boolean shouldIncludeRegularIndices(IndicesOptions indicesOptions, IndexComponentSelector expressionSelector) {
         if (indicesOptions.allowSelectors()) {
             return expressionSelector == null || expressionSelector.shouldIncludeData();
         }
         return true;
     }
 
-    private static boolean shouldIncludeFailureIndices(IndicesOptions indicesOptions, IndexComponentSelector expressionSelector) {
+    public static boolean shouldIncludeFailureIndices(IndicesOptions indicesOptions, IndexComponentSelector expressionSelector) {
         // We return failure indices regardless of whether the data stream actually has the `failureStoreEnabled` flag set to true.
         if (indicesOptions.allowSelectors()) {
             return expressionSelector != null && expressionSelector.shouldIncludeFailures();
         }
-        return false;
+        return indicesOptions.includeFailureIndices();
     }
 
     private static boolean resolvesToMoreThanOneIndex(IndexAbstraction indexAbstraction, Context context, ResolvedExpression expression) {
@@ -652,7 +629,7 @@ public class IndexNameExpressionResolver {
                         count += parentDataStream.getIndices().size();
                     }
                     if (shouldIncludeFailureIndices(context.getOptions(), expression.selector())) {
-                        count += parentDataStream.getFailureIndices().getIndices().size();
+                        count += parentDataStream.getFailureIndices().size();
                     }
                     if (count > 1) {
                         // Early out if we already have more than one index accounted
@@ -669,7 +646,7 @@ public class IndexNameExpressionResolver {
                 count += dataStream.getIndices().size();
             }
             if (shouldIncludeFailureIndices(context.getOptions(), expression.selector())) {
-                count += dataStream.getFailureIndices().getIndices().size();
+                count += dataStream.getFailureIndices().size();
             }
             return count > 1;
         }
@@ -973,7 +950,7 @@ public class IndexNameExpressionResolver {
         IndexAbstraction ia = state.metadata().getIndicesLookup().get(index);
         DataStream dataStream = ia.getParentDataStream();
         if (dataStream != null) {
-            if (dataStream.getFailureIndices().containsIndex(index)) {
+            if (dataStream.getFailureComponent().containsIndex(index)) {
                 // Alias filters are not applied against indices in an abstraction's failure component.
                 // They do not match the mapping of the data stream nor are the documents mapped for searching.
                 return null;
@@ -1057,8 +1034,7 @@ public class IndexNameExpressionResolver {
 
     private static boolean resolvedExpressionsContainsAbstraction(Set<ResolvedExpression> resolvedExpressions, String abstractionName) {
         return resolvedExpressions.contains(new ResolvedExpression(abstractionName))
-            || resolvedExpressions.contains(new ResolvedExpression(abstractionName, IndexComponentSelector.DATA))
-            || resolvedExpressions.contains(new ResolvedExpression(abstractionName, IndexComponentSelector.ALL_APPLICABLE));
+            || resolvedExpressions.contains(new ResolvedExpression(abstractionName, IndexComponentSelector.DATA));
     }
 
     /**
@@ -1100,10 +1076,10 @@ public class IndexNameExpressionResolver {
                         aliasIndices.addAll(indexAbstraction.getIndices());
                     }
                     if (shouldIncludeFailureIndices(context.getOptions(), selector) && indexAbstraction.isDataStreamRelated()) {
-                        Set<DataStream> dataStreams = getAliasDataStreams(indexAbstraction, context.state.metadata().getIndicesLookup());
-                        aliasIndices = aliasIndices == null ? new ArrayList<>(dataStreams.size()) : aliasIndices;
-                        for (DataStream dataStream : dataStreams) {
-                            aliasIndices.addAll(dataStream.getFailureIndices().getIndices());
+                        List<Index> failureIndices = indexAbstraction.getFailureIndices(context.state.metadata());
+                        if (failureIndices.isEmpty() == false) {
+                            aliasIndices = aliasIndices == null ? new ArrayList<>(failureIndices.size()) : aliasIndices;
+                            aliasIndices.addAll(failureIndices);
                         }
                     }
                     aliasIndices = aliasIndices == null ? List.of() : aliasIndices;
@@ -1150,8 +1126,8 @@ public class IndexNameExpressionResolver {
                     }
                 }
                 if (shouldIncludeFailureIndices(context.getOptions(), resolvedExpression.selector())) {
-                    if (dataStream.getFailureIndices().getIndices() != null) {
-                        for (Index failureIndex : dataStream.getFailureIndices().getIndices()) {
+                    if (dataStream.getFailureIndices().isEmpty() == false) {
+                        for (Index failureIndex : dataStream.getFailureIndices()) {
                             String concreteIndex = failureIndex.getName();
                             routings = collectRoutings(routings, paramRouting, norouting, concreteIndex);
                         }
@@ -1353,8 +1329,7 @@ public class IndexNameExpressionResolver {
         if (context.options.allowSelectors()) {
             // Ensure that the selectors are present and that they are compatible with the abstractions they are used with
             assert selector != null : "Earlier logic should have parsed selectors or added the default selectors already";
-            // Check if ::failures has been explicitly requested, since requesting ::* for non-data-stream abstractions would just
-            // return their data components.
+            // Check if ::failures has been explicitly requested
             if (IndexComponentSelector.FAILURES.equals(selector) && indexAbstraction.isDataStreamRelated() == false) {
                 // If requested abstraction is not data stream related, then you cannot use ::failures
                 if (ignoreUnavailable) {
@@ -1711,75 +1686,33 @@ public class IndexNameExpressionResolver {
             final IndexMetadata.State excludeState = excludeState(context.getOptions());
             Set<ResolvedExpression> resources = new HashSet<>();
             if (context.isPreserveAliases() && indexAbstraction.getType() == Type.ALIAS) {
-                expandToApplicableSelectors(indexAbstraction, selector, resources);
+                resources.add(new ResolvedExpression(indexAbstraction.getName(), selector));
             } else if (context.isPreserveDataStreams() && indexAbstraction.getType() == Type.DATA_STREAM) {
-                expandToApplicableSelectors(indexAbstraction, selector, resources);
+                resources.add(new ResolvedExpression(indexAbstraction.getName(), selector));
             } else {
                 if (shouldIncludeRegularIndices(context.getOptions(), selector)) {
                     for (int i = 0, n = indexAbstraction.getIndices().size(); i < n; i++) {
                         Index index = indexAbstraction.getIndices().get(i);
                         IndexMetadata indexMetadata = context.state.metadata().index(index);
                         if (indexMetadata.getState() != excludeState) {
-                            resources.add(
-                                new ResolvedExpression(
-                                    index.getName(),
-                                    context.options.allowSelectors() ? IndexComponentSelector.DATA : null
-                                )
-                            );
+                            resources.add(new ResolvedExpression(index.getName(), context.getOptions()));
                         }
                     }
                 }
                 if (shouldIncludeFailureIndices(context.getOptions(), selector)) {
-                    if (indexAbstraction.getType() == Type.ALIAS && indexAbstraction.isDataStreamRelated()) {
-                        Set<DataStream> aliasDataStreams = getAliasDataStreams(
-                            indexAbstraction,
-                            context.state.metadata().getIndicesLookup()
-                        );
-                        for (DataStream ds : aliasDataStreams) {
-                            List<Index> failureIndices = ds.getFailureIndices().getIndices();
-                            for (int i = 0; i < failureIndices.size(); i++) {
-                                Index index = failureIndices.get(i);
-                                resources.add(new ResolvedExpression(index.getName(), IndexComponentSelector.DATA));
-                            }
-                        }
-                    } else if (indexAbstraction.getType() == Type.DATA_STREAM) {
-                        DataStream dataStream = (DataStream) indexAbstraction;
-                        for (int i = 0, n = dataStream.getFailureIndices().getIndices().size(); i < n; i++) {
-                            Index index = dataStream.getFailureIndices().getIndices().get(i);
+                    if (indexAbstraction.isDataStreamRelated()) {
+                        List<Index> failureIndices = indexAbstraction.getFailureIndices(context.state.metadata());
+                        for (int i = 0, n = failureIndices.size(); i < n; i++) {
+                            Index index = failureIndices.get(i);
                             IndexMetadata indexMetadata = context.state.metadata().index(index);
                             if (indexMetadata.getState() != excludeState) {
-                                resources.add(new ResolvedExpression(index.getName(), IndexComponentSelector.DATA));
+                                resources.add(new ResolvedExpression(index.getName(), context.getOptions()));
                             }
                         }
                     }
                 }
             }
             return resources;
-        }
-
-        /**
-         * Adds the abstraction and selector to the results when preserving data streams and aliases at wildcard resolution. If a selector
-         * is provided, the result is only added if the selector is applicable to the abstraction provided. If
-         * {@link IndexComponentSelector#ALL_APPLICABLE} is given, the selectors are expanded only to those which are applicable to the
-         * provided abstraction.
-         * @param indexAbstraction abstraction to add
-         * @param selector The selector to add
-         * @param resources Result collector which is updated with all applicable resolved expressions for a given abstraction and selector
-         *                  pair.
-         */
-        private static void expandToApplicableSelectors(
-            IndexAbstraction indexAbstraction,
-            IndexComponentSelector selector,
-            Set<ResolvedExpression> resources
-        ) {
-            if (IndexComponentSelector.ALL_APPLICABLE.equals(selector)) {
-                resources.add(new ResolvedExpression(indexAbstraction.getName(), IndexComponentSelector.DATA));
-                if (indexAbstraction.isDataStreamRelated()) {
-                    resources.add(new ResolvedExpression(indexAbstraction.getName(), IndexComponentSelector.FAILURES));
-                }
-            } else if (selector == null || indexAbstraction.isDataStreamRelated() || selector.shouldIncludeFailures() == false) {
-                resources.add(new ResolvedExpression(indexAbstraction.getName(), selector));
-            }
         }
 
         private static List<ResolvedExpression> resolveEmptyOrTrivialWildcard(Context context, IndexComponentSelector selector) {
@@ -2178,20 +2111,10 @@ public class IndexNameExpressionResolver {
                 String suffix = expression.substring(lastDoubleColon + SELECTOR_SEPARATOR.length());
                 IndexComponentSelector selector = IndexComponentSelector.getByKey(suffix);
                 if (selector == null) {
-                    // Do some work to surface a helpful error message for likely errors
-                    if (Regex.isSimpleMatchPattern(suffix)) {
-                        throw new InvalidIndexNameException(
-                            expression,
-                            "Invalid usage of :: separator, ["
-                                + suffix
-                                + "] contains a wildcard, but only the match all wildcard [*] is supported in a selector"
-                        );
-                    } else {
-                        throw new InvalidIndexNameException(
-                            expression,
-                            "Invalid usage of :: separator, [" + suffix + "] is not a recognized selector"
-                        );
-                    }
+                    throw new InvalidIndexNameException(
+                        expression,
+                        "invalid usage of :: separator, [" + suffix + "] is not a recognized selector"
+                    );
                 }
                 String expressionBase = expression.substring(0, lastDoubleColon);
                 ensureNoMoreSelectorSeparators(expressionBase, expression);

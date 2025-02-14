@@ -285,7 +285,7 @@ public class LogsDataStreamIT extends ESSingleNodeTestCase {
         final GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
             .actionGet();
         final DataStream dataStream = getDataStreamResponse.getDataStreams().get(0).getDataStream();
-        final DataStream.DataStreamIndices backingIndices = dataStream.getBackingIndices();
+        final DataStream.DataStreamIndices backingIndices = dataStream.getDataComponent();
         final Iterator<IndexMode> indexModesIterator = modes.iterator();
         assertThat(backingIndices.getIndices().size(), Matchers.equalTo(modes.size()));
         for (final Index index : backingIndices.getIndices()) {

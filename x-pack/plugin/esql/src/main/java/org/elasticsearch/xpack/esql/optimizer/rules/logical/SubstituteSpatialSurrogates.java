@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 
 /**
  * Currently this works similarly to SurrogateExpression, leaving the logic inside the expressions,
@@ -23,7 +24,7 @@ public final class SubstituteSpatialSurrogates extends OptimizerRules.OptimizerE
     }
 
     @Override
-    protected SpatialRelatesFunction rule(SpatialRelatesFunction function) {
+    protected SpatialRelatesFunction rule(SpatialRelatesFunction function, LogicalOptimizerContext ctx) {
         return function.surrogate();
     }
 }

@@ -1232,7 +1232,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         return randomBoolean() ? null : randomLong();
     }
 
-    public static Long randomPositiveLongOrNull() {
+    public static Long randomNonNegativeLongOrNull() {
         return randomBoolean() ? null : randomNonNegativeLong();
     }
 
@@ -1240,7 +1240,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         return randomBoolean() ? null : randomInt();
     }
 
-    public static Integer randomPositiveIntOrNull() {
+    public static Integer randomNonNegativeIntOrNull() {
         return randomBoolean() ? null : randomNonNegativeInt();
     }
 
@@ -2627,6 +2627,15 @@ public abstract class ESTestCase extends LuceneTestCase {
             "Expected exception " + expectedType.getSimpleName() + " but no exception was thrown",
             () -> builder.get().decRef() // dec ref if we unexpectedly fail to not leak transport response
         );
+    }
+
+    /**
+     * Checks a specific exception class with matched message is thrown by the given runnable, and returns it.
+     */
+    public static <T extends Throwable> T expectThrows(Class<T> expectedType, Matcher<String> messageMatcher, ThrowingRunnable runnable) {
+        var e = expectThrows(expectedType, runnable);
+        assertThat(e.getMessage(), messageMatcher);
+        return e;
     }
 
     /**

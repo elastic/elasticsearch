@@ -1,0 +1,5 @@
+pr: 120163
+summary: Filter deprecated settings when making dest index
+area: Data streams
+type: enhancement
+issues: []

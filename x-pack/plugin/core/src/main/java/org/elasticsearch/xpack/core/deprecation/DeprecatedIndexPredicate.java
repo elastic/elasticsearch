@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.deprecation;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -19,21 +20,37 @@ public class DeprecatedIndexPredicate {
 
     public static final IndexVersion MINIMUM_WRITEABLE_VERSION_AFTER_UPGRADE = IndexVersions.V_8_0_0;
 
-    /*
+    /**
      * This predicate allows through only indices that were created with a previous lucene version, meaning that they need to be reindexed
-     * in order to be writable in the _next_ lucene version.
+     * in order to be writable in the _next_ lucene version. It excludes searchable snapshots as they are not writable.
      *
      * It ignores searchable snapshots as they are not writable.
+     *
+     * @param metadata the cluster metadata
+     * @param filterToBlockedStatus if true, only indices that are write blocked will be returned,
+     *                              if false, only those without a block are returned
+     * @return a predicate that returns true for indices that need to be reindexed
      */
-    public static Predicate<Index> getReindexRequiredPredicate(Metadata metadata) {
+    public static Predicate<Index> getReindexRequiredPredicate(Metadata metadata, boolean filterToBlockedStatus) {
         return index -> {
             IndexMetadata indexMetadata = metadata.index(index);
-            return reindexRequired(indexMetadata);
+            return reindexRequired(indexMetadata, filterToBlockedStatus);
         };
     }
 
-    public static boolean reindexRequired(IndexMetadata indexMetadata) {
-        return creationVersionBeforeMinimumWritableVersion(indexMetadata) && isNotSearchableSnapshot(indexMetadata);
+    /**
+     * This method check if the indices that were created with a previous lucene version, meaning that they need to be reindexed
+     * in order to be writable in the _next_ lucene version. It excludes searchable snapshots as they are not writable.
+     *
+     * @param indexMetadata the index metadata
+     * @param filterToBlockedStatus if true, only indices that are write blocked will be returned,
+     *                              if false, only those without a block are returned
+     * @return a predicate that returns true for indices that need to be reindexed
+     */
+    public static boolean reindexRequired(IndexMetadata indexMetadata, boolean filterToBlockedStatus) {
+        return creationVersionBeforeMinimumWritableVersion(indexMetadata)
+            && isNotSearchableSnapshot(indexMetadata)
+            && matchBlockedStatus(indexMetadata, filterToBlockedStatus);
     }
 
     private static boolean isNotSearchableSnapshot(IndexMetadata indexMetadata) {
@@ -44,4 +61,7 @@ public class DeprecatedIndexPredicate {
         return metadata.getCreationVersion().before(MINIMUM_WRITEABLE_VERSION_AFTER_UPGRADE);
     }
 
+    private static boolean matchBlockedStatus(IndexMetadata indexMetadata, boolean filterToBlockedStatus) {
+        return MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.get(indexMetadata.getSettings()) == filterToBlockedStatus;
+    }
 }

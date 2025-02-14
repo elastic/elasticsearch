@@ -303,6 +303,55 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         );
     }
 
+    public void testDuplicateSuggestionsWithContexts() throws IOException {
+        DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "completion");
+            b.startArray("contexts");
+            {
+                b.startObject();
+                b.field("name", "place");
+                b.field("type", "category");
+                b.endObject();
+            }
+            b.endArray();
+        }));
+
+        ParsedDocument parsedDocument = defaultMapper.parse(source(b -> {
+            b.startArray("field");
+            {
+                b.startObject();
+                {
+                    b.array("input", "timmy", "starbucks");
+                    b.startObject("contexts").array("place", "cafe", "food").endObject();
+                    b.field("weight", 10);
+                }
+                b.endObject();
+                b.startObject();
+                {
+                    b.array("input", "timmy", "starbucks");
+                    b.startObject("contexts").array("place", "restaurant").endObject();
+                    b.field("weight", 1);
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+
+        List<IndexableField> indexedFields = parsedDocument.rootDoc().getFields("field");
+        assertThat(indexedFields, hasSize(4));
+
+        assertThat(
+            indexedFields,
+            containsInAnyOrder(
+                contextSuggestField("timmy"),
+                contextSuggestField("timmy"),
+                contextSuggestField("starbucks"),
+                contextSuggestField("starbucks")
+            )
+        );
+
+    }
+
     public void testCompletionWithContextAndSubCompletion() throws Exception {
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "completion");
@@ -399,7 +448,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         ParsedDocument parsedDocument = defaultMapper.parse(source(b -> b.field("field", "drm3btev3e86")));
 
         LuceneDocument indexableFields = parsedDocument.rootDoc();
-        assertThat(indexableFields.getFields("field"), hasSize(2));
+        assertThat(indexableFields.getFields("field"), hasSize(1));
         assertThat(indexableFields.getFields("field.analyzed"), containsInAnyOrder(suggestField("drm3btev3e86")));
         // unable to assert about geofield content, covered in a REST test
     }

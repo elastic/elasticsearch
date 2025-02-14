@@ -898,7 +898,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
                 Objects.requireNonNullElse(minNodeVersion, Version.CURRENT.minimumCompatibilityVersion()),
                 Objects.requireNonNullElse(maxDataNodeCompatibleIndexVersion, IndexVersion.current()),
                 Objects.requireNonNullElse(minSupportedIndexVersion, IndexVersions.MINIMUM_COMPATIBLE),
-                Objects.requireNonNullElse(minReadOnlySupportedIndexVersion, IndexVersions.MINIMUM_READONLY_COMPATIBLE),
+                Objects.requireNonNullElse(minReadOnlySupportedIndexVersion, IndexVersions.MINIMUM_COMPATIBLE),
                 computeTiersToNodesMap(dataNodes)
             );
         }

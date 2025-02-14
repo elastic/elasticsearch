@@ -1,0 +1,56 @@
+[[release-notes-8.16.3]]
+== {es} version 8.16.3
+
+Also see <<breaking-changes-8.16,Breaking changes in 8.16>>.
+
+[[bug-8.16.3]]
+[float]
+=== Bug fixes
+
+CCS::
+* Resolve/cluster should mark remotes as not connected when a security exception is thrown {es-pull}119793[#119793]
+
+Data streams::
+* Add missing traces ilm policy for OTel traces data streams {es-pull}119449[#119449]
+
+ES|QL::
+* Allow DATE_PARSE to read the timezones {es-pull}118603[#118603] (issue: {es-issue}117680[#117680])
+
+ILM+SLM::
+* Add missing timeouts to rest-api-spec ILM APIs {es-pull}118837[#118837]
+* Add missing timeouts to rest-api-spec SLM APIs {es-pull}118958[#118958]
+
+Ingest Node::
+* Add missing timeouts to rest-api-spec ingest APIs {es-pull}118844[#118844]
+* Expose BwC enrich cache setting in plugin {es-pull}119131[#119131]
+* Fixing `GetDatabaseConfigurationAction` response serialization {es-pull}119233[#119233]
+
+Machine Learning::
+* Fix loss of context in the inference API for streaming APIs {es-pull}118999[#118999] (issue: {es-issue}119000[#119000])
+* Fix spike detection for short spikes at the tail of the data {es-pull}119637[#119637]
+* Fix timeout ingesting an empty string into a `semantic_text` field {es-pull}117840[#117840]
+
+Search::
+* Fix: do not let `_resolve/cluster` hang if remote is unresponsive {es-pull}119516[#119516]
+* Handle exceptions in query phase can match {es-pull}117469[#117469] (issue: {es-issue}104994[#104994])
+
+[[enhancement-8.16.3]]
+[float]
+=== Enhancements
+
+Authorization::
+* Improve handling of nested fields in index reader wrappers {es-pull}118757[#118757]
+
+Packaging::
+* In this release we've introduced an image based on the hardened link:https://github.com/wolfi-dev/[Wolfi] 
+image to provide secure containers to our self-managed customers, help with compliance regulations, 
+and improve our supply chain security posture. {es-pull}118684[#118684]
+
+[[upgrade-8.16.3]]
+[float]
+=== Upgrades
+
+Security::
+* Upgrade Bouncy Castle FIPS dependencies {es-pull}112989[#112989]
+
+

@@ -467,7 +467,7 @@ public class RangeFieldMapper extends FieldMapper {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (hasDocValues) {
-            var loader = new BinaryDocValuesSyntheticFieldLoader(fullPath()) {
+            return new SyntheticSourceSupport.Native(() -> new BinaryDocValuesSyntheticFieldLoader(fullPath()) {
                 @Override
                 protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
                     List<Range> ranges = type.decodeRanges(value);
@@ -487,9 +487,7 @@ public class RangeFieldMapper extends FieldMapper {
                             b.endArray();
                     }
                 }
-            };
-
-            return new SyntheticSourceSupport.Native(loader);
+            });
         }
 
         return super.syntheticSourceSupport();

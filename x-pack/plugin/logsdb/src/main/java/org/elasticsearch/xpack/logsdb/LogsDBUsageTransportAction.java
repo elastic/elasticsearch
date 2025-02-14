@@ -45,14 +45,7 @@ public class LogsDBUsageTransportAction extends XPackUsageFeatureTransportAction
         Client client,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
-        super(
-            XPackUsageFeatureAction.LOGSDB.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.LOGSDB.name(), transportService, clusterService, threadPool, actionFilters);
         this.clusterService = clusterService;
         this.featureService = featureService;
         this.client = client;
@@ -76,7 +69,7 @@ public class LogsDBUsageTransportAction extends XPackUsageFeatureTransportAction
             }
         }
         final boolean enabled = LogsDBPlugin.CLUSTER_LOGSDB_ENABLED.get(clusterService.getSettings());
-        final boolean hasCustomCutoffDate = System.getProperty(SyntheticSourceLicenseService.CUTOFF_DATE_SYS_PROP_NAME) != null;
+        final boolean hasCustomCutoffDate = System.getProperty(LogsdbLicenseService.CUTOFF_DATE_SYS_PROP_NAME) != null;
         if (featureService.clusterHasFeature(state, XPackFeatures.LOGSDB_TELMETRY_STATS)) {
             final DiscoveryNode[] nodes = state.nodes().getDataNodes().values().toArray(DiscoveryNode[]::new);
             final var statsRequest = new IndexModeStatsActionType.StatsRequest(nodes);

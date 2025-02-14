@@ -333,6 +333,7 @@ final class ModelLoaderUtils {
      * in size. The separate range for the final chunk is because when streaming and
      * uploading a large model definition, writing the last part has to handled
      * as a special case.
+     * Less ranges may be returned in case the stream size is too small.
      * @param sizeInBytes The total size of the stream
      * @param numberOfStreams Divide the bulk of the size into this many streams.
      * @param chunkSizeBytes The size of each chunk
@@ -340,7 +341,9 @@ final class ModelLoaderUtils {
      */
     static List<RequestRange> split(long sizeInBytes, int numberOfStreams, long chunkSizeBytes) {
         int numberOfChunks = (int) ((sizeInBytes + chunkSizeBytes - 1) / chunkSizeBytes);
-
+        if (numberOfStreams > numberOfChunks) {
+            numberOfStreams = numberOfChunks;
+        }
         var ranges = new ArrayList<RequestRange>();
 
         int baseChunksPerStream = numberOfChunks / numberOfStreams;

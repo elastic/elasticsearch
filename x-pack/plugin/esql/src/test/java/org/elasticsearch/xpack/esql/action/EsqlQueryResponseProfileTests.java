@@ -63,7 +63,12 @@ public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCa
         String name = randomAlphaOfLength(4);
         Operator.Status status = randomBoolean()
             ? null
-            : new AbstractPageMappingOperator.Status(randomNonNegativeLong(), between(0, Integer.MAX_VALUE));
+            : new AbstractPageMappingOperator.Status(
+                randomNonNegativeLong(),
+                randomNonNegativeInt(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong()
+            );
         return new DriverStatus.OperatorStatus(name, status);
     }
 }

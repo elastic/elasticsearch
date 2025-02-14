@@ -73,6 +73,7 @@ SHOW : 'show'                 -> pushMode(SHOW_MODE);
 SORT : 'sort'                 -> pushMode(EXPRESSION_MODE);
 STATS : 'stats'               -> pushMode(EXPRESSION_MODE);
 WHERE : 'where'               -> pushMode(EXPRESSION_MODE);
+JOIN_LOOKUP : 'lookup'        -> pushMode(JOIN_MODE);
 //
 // in development
 //
@@ -88,11 +89,9 @@ DEV_INLINESTATS : {this.isDevVersion()}? 'inlinestats'   -> pushMode(EXPRESSION_
 DEV_LOOKUP :      {this.isDevVersion()}? 'lookup_🐔'      -> pushMode(LOOKUP_MODE);
 DEV_METRICS :     {this.isDevVersion()}? 'metrics'       -> pushMode(METRICS_MODE);
 // list of all JOIN commands
-DEV_JOIN :        {this.isDevVersion()}? 'join'          -> pushMode(JOIN_MODE);
 DEV_JOIN_FULL :   {this.isDevVersion()}? 'full'          -> pushMode(JOIN_MODE);
 DEV_JOIN_LEFT :   {this.isDevVersion()}? 'left'          -> pushMode(JOIN_MODE);
 DEV_JOIN_RIGHT :  {this.isDevVersion()}? 'right'         -> pushMode(JOIN_MODE);
-DEV_JOIN_LOOKUP : {this.isDevVersion()}? 'lookup'        -> pushMode(JOIN_MODE);
 
 
 //
@@ -216,6 +215,9 @@ ASTERISK : '*';
 SLASH : '/';
 PERCENT : '%';
 
+LEFT_BRACES : '{';
+RIGHT_BRACES : '}';
+
 NESTED_WHERE : WHERE -> type(WHERE);
 
 NAMED_OR_POSITIONAL_PARAM
@@ -312,8 +314,8 @@ mode PROJECT_MODE;
 PROJECT_PIPE : PIPE -> type(PIPE), popMode;
 PROJECT_DOT: DOT -> type(DOT);
 PROJECT_COMMA : COMMA -> type(COMMA);
-PROJECT_PARAM : {this.isDevVersion()}? PARAM -> type(PARAM);
-PROJECT_NAMED_OR_POSITIONAL_PARAM : {this.isDevVersion()}? NAMED_OR_POSITIONAL_PARAM -> type(NAMED_OR_POSITIONAL_PARAM);
+PROJECT_PARAM : PARAM -> type(PARAM);
+PROJECT_NAMED_OR_POSITIONAL_PARAM : NAMED_OR_POSITIONAL_PARAM -> type(NAMED_OR_POSITIONAL_PARAM);
 
 fragment UNQUOTED_ID_BODY_WITH_PATTERN
     : (LETTER | DIGIT | UNDERSCORE | ASTERISK)
@@ -347,8 +349,8 @@ RENAME_PIPE : PIPE -> type(PIPE), popMode;
 RENAME_ASSIGN : ASSIGN -> type(ASSIGN);
 RENAME_COMMA : COMMA -> type(COMMA);
 RENAME_DOT: DOT -> type(DOT);
-RENAME_PARAM : {this.isDevVersion()}? PARAM -> type(PARAM);
-RENAME_NAMED_OR_POSITIONAL_PARAM : {this.isDevVersion()}? NAMED_OR_POSITIONAL_PARAM -> type(NAMED_OR_POSITIONAL_PARAM);
+RENAME_PARAM : PARAM -> type(PARAM);
+RENAME_NAMED_OR_POSITIONAL_PARAM : NAMED_OR_POSITIONAL_PARAM -> type(NAMED_OR_POSITIONAL_PARAM);
 
 AS : 'as';
 
@@ -420,8 +422,8 @@ ENRICH_FIELD_QUOTED_IDENTIFIER
     : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER)
     ;
 
-ENRICH_FIELD_PARAM : {this.isDevVersion()}? PARAM -> type(PARAM);
-ENRICH_FIELD_NAMED_OR_POSITIONAL_PARAM : {this.isDevVersion()}? NAMED_OR_POSITIONAL_PARAM -> type(NAMED_OR_POSITIONAL_PARAM);
+ENRICH_FIELD_PARAM : PARAM -> type(PARAM);
+ENRICH_FIELD_NAMED_OR_POSITIONAL_PARAM : NAMED_OR_POSITIONAL_PARAM -> type(NAMED_OR_POSITIONAL_PARAM);
 
 ENRICH_FIELD_LINE_COMMENT
     : LINE_COMMENT -> channel(HIDDEN)
@@ -438,8 +440,8 @@ ENRICH_FIELD_WS
 mode MVEXPAND_MODE;
 MVEXPAND_PIPE : PIPE -> type(PIPE), popMode;
 MVEXPAND_DOT: DOT -> type(DOT);
-MVEXPAND_PARAM : {this.isDevVersion()}? PARAM -> type(PARAM);
-MVEXPAND_NAMED_OR_POSITIONAL_PARAM : {this.isDevVersion()}? NAMED_OR_POSITIONAL_PARAM -> type(NAMED_OR_POSITIONAL_PARAM);
+MVEXPAND_PARAM : PARAM -> type(PARAM);
+MVEXPAND_NAMED_OR_POSITIONAL_PARAM : NAMED_OR_POSITIONAL_PARAM -> type(NAMED_OR_POSITIONAL_PARAM);
 
 MVEXPAND_QUOTED_IDENTIFIER
     : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER)
@@ -553,10 +555,14 @@ LOOKUP_FIELD_WS
 //
 mode JOIN_MODE;
 JOIN_PIPE : PIPE -> type(PIPE), popMode;
-JOIN_JOIN : DEV_JOIN -> type(DEV_JOIN);
+JOIN : 'join';
 JOIN_AS : AS -> type(AS);
 JOIN_ON : ON -> type(ON), popMode, pushMode(EXPRESSION_MODE);
 USING : 'USING' -> popMode, pushMode(EXPRESSION_MODE);
+
+JOIN_UNQUOTED_SOURCE: UNQUOTED_SOURCE -> type(UNQUOTED_SOURCE);
+JOIN_QUOTED_SOURCE : QUOTED_STRING -> type(QUOTED_STRING);
+JOIN_COLON : COLON -> type(COLON);
 
 JOIN_UNQUOTED_IDENTIFER: UNQUOTED_IDENTIFIER -> type(UNQUOTED_IDENTIFIER);
 JOIN_QUOTED_IDENTIFIER : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER);

@@ -465,22 +465,6 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         );
     }
 
-    public void testWildcardSelectorsAreNotAllowedInShardLevelRequests() {
-        ShardSearchRequest request = mock(ShardSearchRequest.class);
-        when(request.indices()).thenReturn(new String[] { "index10::*" });
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> defaultIndicesResolver.resolveIndicesAndAliasesWithoutWildcards(TransportSearchAction.TYPE.name() + "[s]", request)
-        );
-        assertThat(
-            exception,
-            throwableWithMessage(
-                "the action indices:data/read/search[s] does not support wildcard selectors;"
-                    + " the provided index expression(s) [index10::*] are not allowed"
-            )
-        );
-    }
-
     public void testAllIsNotAllowedInShardLevelRequests() {
         ShardSearchRequest request = mock(ShardSearchRequest.class);
         final boolean literalAll = randomBoolean();
@@ -2387,7 +2371,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
                 assertThat(authorizedIndices.check(i.getName()), is(true));
             }
-            for (Index i : dataStream.getFailureIndices().getIndices()) {
+            for (Index i : dataStream.getFailureIndices()) {
                 assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
                 assertThat(authorizedIndices.check(i.getName()), is(true));
             }
@@ -2427,7 +2411,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
             assertThat(authorizedIndices.check(i.getName()), is(true));
         }
-        for (Index i : dataStream.getFailureIndices().getIndices()) {
+        for (Index i : dataStream.getFailureIndices()) {
             assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
             assertThat(authorizedIndices.check(i.getName()), is(true));
         }
@@ -2444,7 +2428,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         for (Index i : dataStream.getIndices()) {
             assertThat(resolvedIndices.getLocal(), hasItem(i.getName()));
         }
-        for (Index i : dataStream.getFailureIndices().getIndices()) {
+        for (Index i : dataStream.getFailureIndices()) {
             assertThat(resolvedIndices.getLocal(), hasItem(i.getName()));
         }
     }
@@ -2470,7 +2454,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
             assertThat(authorizedIndices.check(i.getName()), is(true));
         }
-        for (Index i : dataStream.getFailureIndices().getIndices()) {
+        for (Index i : dataStream.getFailureIndices()) {
             assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
             assertThat(authorizedIndices.check(i.getName()), is(true));
         }
@@ -2542,7 +2526,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
             assertThat(authorizedIndices.check(i.getName()), is(true));
         }
-        for (Index i : dataStream.getFailureIndices().getIndices()) {
+        for (Index i : dataStream.getFailureIndices()) {
             assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
             assertThat(authorizedIndices.check(i.getName()), is(true));
         }

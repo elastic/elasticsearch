@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.eql.session;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
@@ -32,6 +33,7 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     private final int maxSamplesPerKey;
     private final boolean allowPartialSearchResults;
     private final boolean allowPartialSequenceResults;
+    private final TransportVersion minTransportVersion;
 
     @Nullable
     private final QueryBuilder filter;
@@ -54,6 +56,7 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         int maxSamplesPerKey,
         boolean allowPartialSearchResults,
         boolean allowPartialSequenceResults,
+        TransportVersion minTransportVersion,
         String clientId,
         TaskId taskId,
         EqlSearchTask task
@@ -73,6 +76,7 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         this.maxSamplesPerKey = maxSamplesPerKey;
         this.allowPartialSearchResults = allowPartialSearchResults;
         this.allowPartialSequenceResults = allowPartialSequenceResults;
+        this.minTransportVersion = minTransportVersion;
     }
 
     public String[] indices() {
@@ -129,5 +133,9 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
 
     public TaskId getTaskId() {
         return taskId;
+    }
+
+    public TransportVersion minTransportVersion() {
+        return minTransportVersion;
     }
 }

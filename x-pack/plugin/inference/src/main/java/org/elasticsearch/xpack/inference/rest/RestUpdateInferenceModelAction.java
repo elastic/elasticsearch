@@ -7,13 +7,11 @@
 
 package org.elasticsearch.xpack.inference.rest;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
@@ -48,7 +46,8 @@ public class RestUpdateInferenceModelAction extends BaseRestHandler {
             inferenceEntityId = restRequest.param(INFERENCE_ID);
             taskType = TaskType.fromStringOrStatusException(restRequest.param(TASK_TYPE_OR_INFERENCE_ID));
         } else {
-            throw new ElasticsearchStatusException("Inference ID must be provided in the path", RestStatus.BAD_REQUEST);
+            inferenceEntityId = restRequest.param(TASK_TYPE_OR_INFERENCE_ID);
+            taskType = TaskType.ANY;
         }
 
         var content = restRequest.requiredContent();

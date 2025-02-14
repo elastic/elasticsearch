@@ -725,9 +725,9 @@ public class Security extends Plugin
      * ES has already checked the file is actually in the config directory
      */
     public static Path resolveSecuredConfigFile(Environment env, String file) {
-        Path config = env.configFile().resolve(file);
+        Path config = env.configDir().resolve(file);
         if (doPrivileged((PrivilegedAction<Boolean>) () -> Files.exists(config)) == false) {
-            Path legacyConfig = env.configFile().resolve("x-pack").resolve(file);
+            Path legacyConfig = env.configDir().resolve("x-pack").resolve(file);
             if (doPrivileged((PrivilegedAction<Boolean>) () -> Files.exists(legacyConfig))) {
                 DeprecationLogger.getLogger(XPackPlugin.class)
                     .warn(
@@ -1475,7 +1475,7 @@ public class Security extends Plugin
         settingsList.add(TokenService.DELETE_INTERVAL);
         settingsList.add(TokenService.DELETE_TIMEOUT);
         settingsList.addAll(SSLConfigurationSettings.getProfileSettings());
-        settingsList.add(ApiKeyService.PASSWORD_HASHING_ALGORITHM);
+        settingsList.add(ApiKeyService.STORED_HASH_ALGO_SETTING);
         settingsList.add(ApiKeyService.DELETE_TIMEOUT);
         settingsList.add(ApiKeyService.DELETE_INTERVAL);
         settingsList.add(ApiKeyService.DELETE_RETENTION_PERIOD);
@@ -1821,17 +1821,30 @@ public class Security extends Plugin
                     + " ] setting."
             );
         }
-        Stream.of(ApiKeyService.PASSWORD_HASHING_ALGORITHM, XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM).forEach((setting) -> {
-            final var storedHashAlgo = setting.get(settings);
-            if (storedHashAlgo.toLowerCase(Locale.ROOT).startsWith("pbkdf2") == false) {
-                // log instead of validation error for backwards compatibility
-                logger.warn(
-                    "Only PBKDF2 is allowed for stored credential hashing in a FIPS 140 JVM. "
-                        + "Please set the appropriate value for [{}] setting.",
-                    setting.getKey()
-                );
-            }
-        });
+
+        final var serviceTokenStoredHashSettings = XPackSettings.SERVICE_TOKEN_HASHING_ALGORITHM;
+        final var serviceTokenStoredHashAlgo = serviceTokenStoredHashSettings.get(settings);
+        if (serviceTokenStoredHashAlgo.toLowerCase(Locale.ROOT).startsWith("pbkdf2") == false) {
+            // log instead of validation error for backwards compatibility
+            logger.warn(
+                "Only PBKDF2 is allowed for stored credential hashing in a FIPS 140 JVM. "
+                    + "Please set the appropriate value for [{}] setting.",
+                serviceTokenStoredHashSettings.getKey()
+            );
+        }
+
+        final var apiKeyStoredHashSettings = ApiKeyService.STORED_HASH_ALGO_SETTING;
+        final var apiKeyStoredHashAlgo = apiKeyStoredHashSettings.get(settings);
+        if (apiKeyStoredHashAlgo.toLowerCase(Locale.ROOT).startsWith("ssha256") == false
+            && apiKeyStoredHashAlgo.toLowerCase(Locale.ROOT).startsWith("pbkdf2") == false) {
+            // log instead of validation error for backwards compatibility
+            logger.warn(
+                "[{}] is not recommended for stored API key hashing in a FIPS 140 JVM. The recommended hasher for [{}] is SSHA256.",
+                apiKeyStoredHashSettings,
+                apiKeyStoredHashSettings.getKey()
+            );
+        }
+
         final var cacheHashAlgoSettings = settings.filter(k -> k.endsWith(".cache.hash_algo"));
         cacheHashAlgoSettings.keySet().forEach((key) -> {
             final var setting = cacheHashAlgoSettings.get(key);

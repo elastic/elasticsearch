@@ -1093,12 +1093,12 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             this(b -> b.value(inputValue), b -> b.value(result), b -> b.value(blockLoaderResults), mapping);
         }
 
-        private void buildInput(XContentBuilder b) throws IOException {
+        public void buildInput(XContentBuilder b) throws IOException {
             b.field("field");
             inputValue.accept(b);
         }
 
-        private void buildInputArray(XContentBuilder b, int elementCount) throws IOException {
+        public void buildInputArray(XContentBuilder b, int elementCount) throws IOException {
             b.startArray("field");
             for (int i = 0; i < elementCount; i++) {
                 inputValue.accept(b);
@@ -1229,7 +1229,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             try (var indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                 int start = randomBoolean() ? 0 : randomIntBetween(1, maxDocs - 10);
                 var snapshot = new LuceneSyntheticSourceChangesSnapshot(
-                    mapperService.mappingLookup(),
+                    mapperService,
                     new Engine.Searcher(
                         "recovery",
                         indexReader,
@@ -1385,7 +1385,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertThat(syntheticSource(mapper, b -> b.startArray("field").endArray()), equalTo(expected));
     }
 
-    private boolean shouldUseIgnoreMalformed() {
+    protected boolean shouldUseIgnoreMalformed() {
         // 5% of test runs use ignore_malformed
         return supportsIgnoreMalformed() && randomDouble() <= 0.05;
     }

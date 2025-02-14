@@ -42,16 +42,11 @@ public class MvLastTests extends AbstractMultivalueFunctionTestCase {
         cartesianPoints(cases, "mv_last", "MvLast", DataType.CARTESIAN_POINT, (size, values) -> equalTo(values.reduce((f, s) -> s).get()));
         geoShape(cases, "mv_last", "MvLast", DataType.GEO_SHAPE, (size, values) -> equalTo(values.reduce((f, s) -> s).get()));
         cartesianShape(cases, "mv_last", "MvLast", DataType.CARTESIAN_SHAPE, (size, values) -> equalTo(values.reduce((f, s) -> s).get()));
-        return parameterSuppliersFromTypedDataWithDefaultChecks(false, cases, (v, p) -> "representable");
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(false, cases);
     }
 
     @Override
     protected Expression build(Source source, Expression field) {
         return new MvLast(source, field);
-    }
-
-    @Override
-    protected DataType expectedType(List<DataType> argTypes) {
-        return argTypes.get(0);
     }
 }

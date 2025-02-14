@@ -15,6 +15,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -25,6 +26,7 @@ import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SettingsConfiguration;
@@ -32,13 +34,13 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
-import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
@@ -109,8 +111,11 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     private static final Logger logger = LogManager.getLogger(ElasticsearchInternalService.class);
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(ElasticsearchInternalService.class);
 
+    private final Settings settings;
+
     public ElasticsearchInternalService(InferenceServiceExtension.InferenceServiceFactoryContext context) {
         super(context);
+        this.settings = context.settings();
     }
 
     // for testing
@@ -119,6 +124,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         Consumer<ActionListener<PreferredModelVariant>> platformArch
     ) {
         super(context, platformArch);
+        this.settings = context.settings();
     }
 
     @Override
@@ -561,6 +567,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             model.getServiceSettings().getNumThreads(),
             model.getServiceSettings().modelId(),
             model.getServiceSettings().getAdaptiveAllocationsSettings(),
+            model.getServiceSettings().getDeploymentId(),
             embeddingSize,
             model.getServiceSettings().similarity(),
             model.getServiceSettings().elementType()
@@ -828,9 +835,9 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
     public List<DefaultConfigId> defaultConfigIds() {
         return List.of(
-            new DefaultConfigId(DEFAULT_ELSER_ID, TaskType.SPARSE_EMBEDDING, this),
-            new DefaultConfigId(DEFAULT_E5_ID, TaskType.TEXT_EMBEDDING, this),
-            new DefaultConfigId(DEFAULT_RERANK_ID, TaskType.RERANK, this)
+            new DefaultConfigId(DEFAULT_ELSER_ID, ElserInternalServiceSettings.minimalServiceSettings(), this),
+            new DefaultConfigId(DEFAULT_E5_ID, MultilingualE5SmallInternalServiceSettings.minimalServiceSettings(), this),
+            new DefaultConfigId(DEFAULT_RERANK_ID, MinimalServiceSettings.rerank(), this)
         );
     }
 
@@ -841,12 +848,21 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             return;
         }
 
-        var modelsByDeploymentIds = new HashMap<String, ElasticsearchInternalModel>();
+        // if ML is disabled, do not update Deployment Stats (there won't be changes)
+        if (XPackSettings.MACHINE_LEARNING_ENABLED.get(settings) == false) {
+            listener.onResponse(models);
+            return;
+        }
+
+        var modelsByDeploymentIds = new HashMap<String, List<ElasticsearchInternalModel>>();
         for (var model : models) {
             assert model instanceof ElasticsearchInternalModel;
 
             if (model instanceof ElasticsearchInternalModel esModel) {
-                modelsByDeploymentIds.put(esModel.mlNodeDeploymentId(), esModel);
+                modelsByDeploymentIds.merge(esModel.mlNodeDeploymentId(), new ArrayList<>(List.of(esModel)), (a, b) -> {
+                    a.addAll(b);
+                    return a;
+                });
             } else {
                 listener.onFailure(
                     new ElasticsearchStatusException(
@@ -865,10 +881,13 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             new GetDeploymentStatsAction.Request(deploymentIds),
             ActionListener.wrap(stats -> {
                 for (var deploymentStats : stats.getStats().results()) {
-                    var model = modelsByDeploymentIds.get(deploymentStats.getDeploymentId());
-                    model.updateNumAllocations(deploymentStats.getNumberOfAllocations());
+                    var modelsForDeploymentId = modelsByDeploymentIds.get(deploymentStats.getDeploymentId());
+                    modelsForDeploymentId.forEach(model -> model.updateNumAllocations(deploymentStats.getNumberOfAllocations()));
                 }
-                listener.onResponse(new ArrayList<>(modelsByDeploymentIds.values()));
+                var updatedModels = new ArrayList<Model>();
+                modelsByDeploymentIds.values().forEach(updatedModels::addAll);
+
+                listener.onResponse(updatedModels);
             }, e -> {
                 logger.warn("Get deployment stats failed, cannot update the endpoint's number of allocations", e);
                 // continue with the original response
@@ -901,12 +920,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             DEFAULT_ELSER_ID,
             TaskType.SPARSE_EMBEDDING,
             NAME,
-            new ElserInternalServiceSettings(
-                null,
-                1,
-                useLinuxOptimizedModel ? ELSER_V2_MODEL_LINUX_X86 : ELSER_V2_MODEL,
-                new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 32)
-            ),
+            ElserInternalServiceSettings.defaultEndpointSettings(useLinuxOptimizedModel),
             ElserMlNodeTaskSettings.DEFAULT,
             ChunkingSettingsBuilder.DEFAULT_SETTINGS
         );
@@ -914,19 +928,14 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             DEFAULT_E5_ID,
             TaskType.TEXT_EMBEDDING,
             NAME,
-            new MultilingualE5SmallInternalServiceSettings(
-                null,
-                1,
-                useLinuxOptimizedModel ? MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86 : MULTILINGUAL_E5_SMALL_MODEL_ID,
-                new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 32)
-            ),
+            MultilingualE5SmallInternalServiceSettings.defaultEndpointSettings(useLinuxOptimizedModel),
             ChunkingSettingsBuilder.DEFAULT_SETTINGS
         );
         var defaultRerank = new ElasticRerankerModel(
             DEFAULT_RERANK_ID,
             TaskType.RERANK,
             NAME,
-            new ElasticRerankerServiceSettings(null, 1, RERANKER_ID, new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 32)),
+            ElasticRerankerServiceSettings.defaultEndpointSettings(),
             RerankTaskSettings.DEFAULT_SETTINGS
         );
         return List.of(defaultElser, defaultE5, defaultRerank);
@@ -1146,8 +1155,9 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
                 configurationMap.put(
                     MODEL_ID,
-                    new SettingsConfiguration.Builder().setDefaultValue(MULTILINGUAL_E5_SMALL_MODEL_ID)
-                        .setDescription("The name of the model to use for the inference task.")
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                        "The name of the model to use for the inference task."
+                    )
                         .setLabel("Model ID")
                         .setRequired(true)
                         .setSensitive(false)
@@ -1158,7 +1168,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
                 configurationMap.put(
                     NUM_ALLOCATIONS,
-                    new SettingsConfiguration.Builder().setDefaultValue(1)
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDefaultValue(1)
                         .setDescription("The total number of allocations this model is assigned across machine learning nodes.")
                         .setLabel("Number Allocations")
                         .setRequired(true)
@@ -1170,7 +1180,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
                 configurationMap.put(
                     NUM_THREADS,
-                    new SettingsConfiguration.Builder().setDefaultValue(2)
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDefaultValue(2)
                         .setDescription("Sets the number of threads used by each model allocation during inference.")
                         .setLabel("Number Threads")
                         .setRequired(true)

@@ -35,8 +35,7 @@ public abstract class InferenceMetadataFieldsMapper extends MetadataFieldMapper 
      */
     public static final Setting<Boolean> USE_LEGACY_SEMANTIC_TEXT_FORMAT = Setting.boolSetting(
         "index.mapping.semantic_text.use_legacy_format",
-        // don't use the new format by default yet
-        true,
+        false,
         Setting.Property.Final,
         Setting.Property.IndexScope,
         Setting.Property.InternalIndex

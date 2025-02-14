@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.core.expression.predicate.regex;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -62,7 +63,7 @@ public abstract class RegexMatch<T extends StringPattern> extends UnaryScalarFun
     }
 
     @Override
-    public Boolean fold() {
+    public Boolean fold(FoldContext ctx) {
         throw new UnsupportedOperationException();
     }
 

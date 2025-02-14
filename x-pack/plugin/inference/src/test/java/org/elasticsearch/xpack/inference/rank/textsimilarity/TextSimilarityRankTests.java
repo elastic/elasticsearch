@@ -20,7 +20,7 @@ import org.elasticsearch.search.rank.rerank.AbstractRerankerIT;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.inference.InferencePlugin;
+import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
 import org.junit.Before;
 
 import java.util.Collection;
@@ -108,7 +108,7 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(InferencePlugin.class, TextSimilarityTestPlugin.class);
+        return List.of(LocalStateInferencePlugin.class, TextSimilarityTestPlugin.class);
     }
 
     @Before
@@ -131,11 +131,12 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
                 // Verify order, rank and score of results
                 SearchHit[] hits = response.getHits().getHits();
                 assertEquals(5, hits.length);
-                assertHitHasRankScoreAndText(hits[0], 1, 4.0f, "4");
-                assertHitHasRankScoreAndText(hits[1], 2, 3.0f, "3");
-                assertHitHasRankScoreAndText(hits[2], 3, 2.0f, "2");
-                assertHitHasRankScoreAndText(hits[3], 4, 1.0f, "1");
-                assertHitHasRankScoreAndText(hits[4], 5, 0.0f, "0");
+                // we add + 1 to all expected scores due to the default normalization being applied which shifts positive scores to by 1
+                assertHitHasRankScoreAndText(hits[0], 1, 4.0f + 1f, "4");
+                assertHitHasRankScoreAndText(hits[1], 2, 3.0f + 1f, "3");
+                assertHitHasRankScoreAndText(hits[2], 3, 2.0f + 1f, "2");
+                assertHitHasRankScoreAndText(hits[3], 4, 1.0f + 1f, "1");
+                assertHitHasRankScoreAndText(hits[4], 5, 0.0f + 1f, "0");
             }
         );
     }
@@ -150,9 +151,9 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
                 // Verify order, rank and score of results
                 SearchHit[] hits = response.getHits().getHits();
                 assertEquals(3, hits.length);
-                assertHitHasRankScoreAndText(hits[0], 1, 4.0f, "4");
-                assertHitHasRankScoreAndText(hits[1], 2, 3.0f, "3");
-                assertHitHasRankScoreAndText(hits[2], 3, 2.0f, "2");
+                assertHitHasRankScoreAndText(hits[0], 1, 4.0f + 1f, "4");
+                assertHitHasRankScoreAndText(hits[1], 2, 3.0f + 1f, "3");
+                assertHitHasRankScoreAndText(hits[2], 3, 2.0f + 1f, "2");
             }
         );
     }

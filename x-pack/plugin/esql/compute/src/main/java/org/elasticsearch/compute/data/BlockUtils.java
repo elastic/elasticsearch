@@ -9,6 +9,7 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
@@ -233,6 +234,14 @@ public final class BlockUtils {
             case BYTES_REF -> blockFactory.newConstantBytesRefBlockWith(toBytesRef(val), size);
             case DOUBLE -> blockFactory.newConstantDoubleBlockWith((double) val, size);
             case BOOLEAN -> blockFactory.newConstantBooleanBlockWith((boolean) val, size);
+            case COMPOSITE -> {
+                if (val instanceof AggregateMetricDoubleLiteral aggregateMetricDoubleLiteral) {
+                    yield blockFactory.newConstantAggregateMetricDoubleBlock(aggregateMetricDoubleLiteral, size);
+                }
+                throw new UnsupportedOperationException(
+                    "Composite block but received value that wasn't AggregateMetricDoubleLiteral [" + val + "]"
+                );
+            }
             default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
         };
     }

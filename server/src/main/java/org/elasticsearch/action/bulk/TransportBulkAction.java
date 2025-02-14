@@ -331,11 +331,11 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             if (lazyRolloverFeature) {
                 DataStream dataStream = state.metadata().dataStreams().get(request.index());
                 if (dataStream != null) {
-                    if (writeToFailureStore == false && dataStream.getBackingIndices().isRolloverOnWrite()) {
+                    if (writeToFailureStore == false && dataStream.getDataComponent().isRolloverOnWrite()) {
                         dataStreamsToBeRolledOver.add(request.index());
                     } else if (lazyRolloverFailureStoreFeature
                         && writeToFailureStore
-                        && dataStream.getFailureIndices().isRolloverOnWrite()) {
+                        && dataStream.getFailureComponent().isRolloverOnWrite()) {
                             failureStoresToBeRolledOver.add(request.index());
                         }
                 }

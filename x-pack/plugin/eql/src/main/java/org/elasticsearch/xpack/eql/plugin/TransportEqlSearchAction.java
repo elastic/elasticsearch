@@ -240,6 +240,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
                 request.allowPartialSequenceResults() == null
                     ? defaultAllowPartialSequenceResults(clusterService)
                     : request.allowPartialSequenceResults(),
+                clusterService.state().getMinTransportVersion(),
                 clientId,
                 new TaskId(nodeId, task.getId()),
                 task

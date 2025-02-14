@@ -15,19 +15,14 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
-import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.query.QueryPhase;
-import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.search.sort.ShardDocSortField;
 import org.elasticsearch.search.sort.SortAndFormats;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -75,7 +70,7 @@ public class RescorePhase {
                 assert topDocsSortedByScore(topDocs) : "topdocs should be sorted after rescore";
                 ctx.setCancellationChecker(null);
             }
-            /**
+            /*
              * Since rescorers are building top docs with score only, we must reconstruct the {@link TopFieldGroups}
              * or {@link TopFieldDocs} using their original version before rescoring.
              */
@@ -89,12 +84,6 @@ public class RescorePhase {
                 .topDocs(new TopDocsAndMaxScore(topDocs, topDocs.scoreDocs[0].score), context.queryResult().sortValueFormats());
         } catch (IOException e) {
             throw new ElasticsearchException("Rescore Phase Failed", e);
-        } catch (ContextIndexSearcher.TimeExceededException e) {
-            SearchTimeoutException.handleTimeout(
-                context.request().allowPartialSearchResults(),
-                context.shardTarget(),
-                context.queryResult()
-            );
         }
     }
 
@@ -195,21 +184,7 @@ public class RescorePhase {
     }
 
     static Runnable getCancellationChecks(SearchContext context) {
-        List<Runnable> cancellationChecks = new ArrayList<>();
-        if (context.lowLevelCancellation()) {
-            cancellationChecks.add(() -> {
-                final SearchShardTask task = context.getTask();
-                if (task != null) {
-                    task.ensureNotCancelled();
-                }
-            });
-        }
-
-        final Runnable timeoutRunnable = QueryPhase.getTimeoutCheck(context);
-        if (timeoutRunnable != null) {
-            cancellationChecks.add(timeoutRunnable);
-        }
-
+        List<Runnable> cancellationChecks = context.getCancellationChecks();
         return () -> {
             for (var check : cancellationChecks) {
                 check.run();

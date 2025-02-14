@@ -42,6 +42,7 @@ import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.ENABLED;
 import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.MAX_NUMBER_OF_ALLOCATIONS;
 import static org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings.MIN_NUMBER_OF_ALLOCATIONS;
+import static org.elasticsearch.xpack.inference.rest.Paths.STREAM_SUFFIX;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 
 public final class ServiceUtils {
@@ -778,6 +779,25 @@ public final class ServiceUtils {
 
     public static void throwUnsupportedUnifiedCompletionOperation(String serviceName) {
         throw new UnsupportedOperationException(Strings.format("The %s service does not support unified completion", serviceName));
+    }
+
+    public static String unsupportedTaskTypeForInference(Model model, EnumSet<TaskType> supportedTaskTypes) {
+        return Strings.format(
+            "Inference entity [%s] does not support task type [%s] for inference, the task type must be one of %s.",
+            model.getInferenceEntityId(),
+            model.getTaskType(),
+            supportedTaskTypes
+        );
+    }
+
+    public static String useChatCompletionUrlMessage(Model model) {
+        return org.elasticsearch.common.Strings.format(
+            "The task type for the inference entity is %s, please use the _inference/%s/%s/%s URL.",
+            model.getTaskType(),
+            model.getTaskType(),
+            model.getInferenceEntityId(),
+            STREAM_SUFFIX
+        );
     }
 
     private ServiceUtils() {}

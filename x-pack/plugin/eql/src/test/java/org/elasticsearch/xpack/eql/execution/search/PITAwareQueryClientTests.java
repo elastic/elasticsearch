@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.eql.execution.search;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -104,6 +105,7 @@ public class PITAwareQueryClientTests extends ESTestCase {
                 1,
                 randomBoolean(),
                 randomBoolean(),
+                TransportVersion.current(),
                 "",
                 new TaskId("test", 123),
                 new EqlSearchTask(

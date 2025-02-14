@@ -307,7 +307,9 @@ public enum DataType {
      * loaded from the index and ESQL will load these fields as strings without their attached
      * chunks or embeddings.
      */
-    SEMANTIC_TEXT(builder().esType("semantic_text").unknownSize());
+    SEMANTIC_TEXT(builder().esType("semantic_text").unknownSize()),
+
+    AGGREGATE_METRIC_DOUBLE(builder().esType("aggregate_metric_double").estimatedSize(Double.BYTES * 3 + Integer.BYTES));
 
     /**
      * Types that are actively being built. These types are not returned
@@ -316,7 +318,8 @@ public enum DataType {
      * check that sending them to a function produces a sane error message.
      */
     public static final Map<DataType, FeatureFlag> UNDER_CONSTRUCTION = Map.ofEntries(
-        Map.entry(SEMANTIC_TEXT, EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG)
+        Map.entry(SEMANTIC_TEXT, EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG),
+        Map.entry(AGGREGATE_METRIC_DOUBLE, EsqlCorePlugin.AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG)
     );
 
     private final String typeName;
@@ -553,6 +556,7 @@ public enum DataType {
             && t != SOURCE
             && t != HALF_FLOAT
             && t != PARTIAL_AGG
+            && t != AGGREGATE_METRIC_DOUBLE
             && t.isCounter() == false;
     }
 

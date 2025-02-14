@@ -1,7 +1,7 @@
 setup:
   - requires:
-      cluster_features: "gte_v8.15.0"
-      reason: 'updatable dense vector field types was added in 8.15'
+      cluster_features: "search.vectors.k_param_supported"
+      reason: 'k param for knn as query is required'
   - requires:
       test_runner_features: [ contains ]
 ---

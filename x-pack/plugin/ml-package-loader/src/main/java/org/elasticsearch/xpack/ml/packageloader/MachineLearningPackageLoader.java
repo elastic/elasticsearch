@@ -109,7 +109,7 @@ public class MachineLearningPackageLoader extends Plugin implements ActionPlugin
             @Override
             public BootstrapCheckResult check(BootstrapContext context) {
                 try {
-                    validateModelRepository(MODEL_REPOSITORY.get(context.settings()), context.environment().configFile());
+                    validateModelRepository(MODEL_REPOSITORY.get(context.settings()), context.environment().configDir());
                 } catch (Exception e) {
                     return BootstrapCheckResult.failure(
                         "Found an invalid configuration for xpack.ml.model_repository. "

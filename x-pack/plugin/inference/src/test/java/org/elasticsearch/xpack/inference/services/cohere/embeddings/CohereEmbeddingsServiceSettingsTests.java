@@ -218,7 +218,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             is(
                 Strings.format(
                     "Validation Failed: 1: [service_settings] Invalid value [abc] received. "
-                        + "[embedding_type] must be one of [byte, float, int8];"
+                        + "[embedding_type] must be one of [binary, bit, byte, float, int8];"
                 )
             )
         );
@@ -238,7 +238,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             is(
                 Strings.format(
                     "Validation Failed: 1: [service_settings] Invalid value [abc] received. "
-                        + "[embedding_type] must be one of [byte, float];"
+                        + "[embedding_type] must be one of [bit, byte, float];"
                 )
             )
         );
@@ -289,6 +289,16 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         );
     }
 
+    public void testFromMap_ConvertsBit_ToCohereEmbeddingTypeBit() {
+        assertThat(
+            CohereEmbeddingsServiceSettings.fromMap(
+                new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, CohereEmbeddingType.BIT.toString())),
+                ConfigurationParseContext.REQUEST
+            ),
+            is(new CohereEmbeddingsServiceSettings(new CohereServiceSettings(), CohereEmbeddingType.BIT))
+        );
+    }
+
     public void testFromMap_PreservesEmbeddingTypeFloat() {
         assertThat(
             CohereEmbeddingsServiceSettings.fromMap(
@@ -314,6 +324,8 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         assertEquals(CohereEmbeddingType.BYTE, CohereEmbeddingsServiceSettings.fromCohereOrDenseVectorEnumValues("byte", validation));
         assertEquals(CohereEmbeddingType.INT8, CohereEmbeddingsServiceSettings.fromCohereOrDenseVectorEnumValues("int8", validation));
         assertEquals(CohereEmbeddingType.FLOAT, CohereEmbeddingsServiceSettings.fromCohereOrDenseVectorEnumValues("float", validation));
+        assertEquals(CohereEmbeddingType.BINARY, CohereEmbeddingsServiceSettings.fromCohereOrDenseVectorEnumValues("binary", validation));
+        assertEquals(CohereEmbeddingType.BIT, CohereEmbeddingsServiceSettings.fromCohereOrDenseVectorEnumValues("bit", validation));
         assertTrue(validation.validationErrors().isEmpty());
     }
 

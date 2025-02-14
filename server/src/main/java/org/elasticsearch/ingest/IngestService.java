@@ -290,7 +290,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         if (dataStream == null) {
             return false;
         }
-        return dataStream.getBackingIndices().isRolloverOnWrite();
+        return dataStream.getDataComponent().isRolloverOnWrite();
     }
 
     /**
@@ -1199,8 +1199,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         request.id(metadata.getId());
         request.routing(metadata.getRouting());
         request.version(metadata.getVersion());
-        if (metadata.getVersionType() != null) {
-            request.versionType(VersionType.fromString(metadata.getVersionType()));
+        String versionType;
+        if ((versionType = metadata.getVersionType()) != null) {
+            request.versionType(VersionType.fromString(versionType));
         }
         Number number;
         if ((number = metadata.getIfSeqNo()) != null) {

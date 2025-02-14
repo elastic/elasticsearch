@@ -25,12 +25,12 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.CannedSourceOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
+import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -48,7 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.compute.operator.OperatorTestCase.runDriver;
+import static org.elasticsearch.compute.test.OperatorTestCase.runDriver;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -143,7 +143,7 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
                 new HashAggregationOperator.HashAggregationOperatorFactory(
                     groupSpecs,
                     AggregatorMode.INITIAL,
-                    List.of(new ValuesBytesRefAggregatorFunctionSupplier(List.of(0)).groupingAggregatorFactory(AggregatorMode.INITIAL)),
+                    List.of(new ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(0))),
                     16 * 1024,
                     analysisRegistry
                 ).get(driverContext)
@@ -160,7 +160,7 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
                 new HashAggregationOperator.HashAggregationOperatorFactory(
                     groupSpecs,
                     AggregatorMode.INITIAL,
-                    List.of(new ValuesBytesRefAggregatorFunctionSupplier(List.of(0)).groupingAggregatorFactory(AggregatorMode.INITIAL)),
+                    List.of(new ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(0))),
                     16 * 1024,
                     analysisRegistry
                 ).get(driverContext)
@@ -179,7 +179,7 @@ public class CategorizePackedValuesBlockHashTests extends BlockHashTestCase {
                 new HashAggregationOperator.HashAggregationOperatorFactory(
                     groupSpecs,
                     AggregatorMode.FINAL,
-                    List.of(new ValuesBytesRefAggregatorFunctionSupplier(List.of(2)).groupingAggregatorFactory(AggregatorMode.FINAL)),
+                    List.of(new ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(2))),
                     16 * 1024,
                     analysisRegistry
                 ).get(driverContext)

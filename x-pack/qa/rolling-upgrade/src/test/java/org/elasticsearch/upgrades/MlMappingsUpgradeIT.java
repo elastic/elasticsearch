@@ -6,9 +6,15 @@
  */
 package org.elasticsearch.upgrades;
 
+import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.WarningsHandler;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -24,12 +30,19 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
 
     private static final String JOB_ID = "ml-mappings-upgrade-job";
+    private static final String RESULTS_INDEX_NAME = "mappings-upgrade-test";
 
     @BeforeClass
     public static void maybeSkip() {
@@ -66,6 +79,9 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                 assertUpgradedConfigMappings();
                 assertMlLegacyTemplatesDeleted();
                 IndexMappingTemplateAsserter.assertMlMappingsMatchTemplates(client());
+                assertLegacyIndicesRollover();
+                assertAnomalyIndicesRollover();
+                assertNotificationsIndexAliasCreated();
                 break;
             default:
                 throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
@@ -74,9 +90,9 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
 
     private void createAndOpenTestJob() throws IOException {
         // Use a custom index because other rolling upgrade tests meddle with the shared index
-        String jobConfig = """
+        String jobConfig = Strings.format("""
                         {
-                            "results_index_name":"mappings-upgrade-test",
+                            "results_index_name": "%s",
                             "analysis_config" : {
                                 "bucket_span": "600s",
                                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
@@ -84,7 +100,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                             "data_description" : {
                             }
                         }"
-            """;
+            """, RESULTS_INDEX_NAME);
 
         Request putJob = new Request("PUT", "_ml/anomaly_detectors/" + JOB_ID);
         putJob.setJsonEntity(jobConfig);
@@ -235,6 +251,128 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                 "boolean",
                 extractValue("mappings.properties.model_plot_config.properties.annotations_enabled.type", indexLevel)
             );
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertLegacyIndicesRollover() throws Exception {
+        if (isOriginalClusterVersionAtLeast(Version.V_8_0_0)) {
+            // not a legacy index
+            return;
+        }
+
+        assertBusy(() -> {
+            RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
+            builder.setWarningsHandler(WarningsHandler.PERMISSIVE); // ignore warnings about accessing system index
+            Request getIndices = new Request("GET", ".ml*");
+            getIndices.setOptions(builder);
+            Response getIndicesResponse = client().performRequest(getIndices);
+            assertOK(getIndicesResponse);
+            var asString = EntityUtils.toString(getIndicesResponse.getEntity());
+            // legacy -000001 index is rolled over creating -000002
+            assertThat(asString, containsString(".ml-state-000002"));
+
+            Request getAliases = new Request("GET", "_alias/.ml*");
+            getAliases.setOptions(builder);
+            Response getAliasesResponse = client().performRequest(getAliases);
+
+            // Check the write alias points to the new index
+            Map<String, Object> aliasesMap = entityAsMap(getAliasesResponse);
+            var stateAlias = (Map<String, Object>) aliasesMap.get(".ml-state-000002");
+            assertNotNull(stateAlias);
+            var isHidden = XContentMapValues.extractValue(stateAlias, "aliases", ".ml-state-write", "is_hidden");
+            assertEquals(Boolean.TRUE, isHidden);
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertAnomalyIndicesRollover() throws Exception {
+        if (isOriginalClusterVersionAtLeast(Version.V_8_0_0)) {
+            // not a legacy index
+            return;
+        }
+
+        assertBusy(() -> {
+            RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
+            builder.setWarningsHandler(WarningsHandler.PERMISSIVE); // ignore warnings about accessing system index
+            Request getIndices = new Request("GET", ".ml-anomalies*");
+            getIndices.setOptions(builder);
+            Response getIndicesResponse = client().performRequest(getIndices);
+            assertOK(getIndicesResponse);
+            var asString = EntityUtils.toString(getIndicesResponse.getEntity());
+            assertThat(asString, containsString(".ml-anomalies-custom-" + RESULTS_INDEX_NAME));
+            assertThat(asString, containsString(".ml-anomalies-custom-" + RESULTS_INDEX_NAME + "-000001"));
+
+            Request getAliases = new Request("GET", "_alias/.ml*");
+            getAliases.setOptions(builder);
+            Response getAliasesResponse = client().performRequest(getAliases);
+
+            // Check the write alias points to the new index
+            Map<String, Object> aliasesResponseMap = entityAsMap(getAliasesResponse);
+
+            String expectedReadAlias = ".ml-anomalies-ml-mappings-upgrade-job";
+            String expectedWriteAlias = ".ml-anomalies-.write-ml-mappings-upgrade-job";
+
+            {
+                var rolledCustomResultsIndex = (Map<String, Object>) aliasesResponseMap.get(
+                    ".ml-anomalies-custom-" + RESULTS_INDEX_NAME + "-000001"
+                );
+                assertNotNull(aliasesResponseMap.toString(), rolledCustomResultsIndex);
+
+                var aliases = (Map<String, Object>) rolledCustomResultsIndex.get("aliases");
+                assertThat(aliasesResponseMap.toString(), aliases.entrySet(), hasSize(2));
+                assertThat(aliasesResponseMap.toString(), aliases.keySet(), containsInAnyOrder(expectedReadAlias, expectedWriteAlias));
+
+                // Read alias
+                var isHidden = XContentMapValues.extractValue(rolledCustomResultsIndex, "aliases", expectedReadAlias, "is_hidden");
+                assertEquals(Boolean.TRUE, isHidden);
+                var isWrite = XContentMapValues.extractValue(rolledCustomResultsIndex, "aliases", expectedReadAlias, "is_write_index");
+                assertNull(isWrite); // not a write index
+                var filter = XContentMapValues.extractValue(rolledCustomResultsIndex, "aliases", expectedReadAlias, "filter");
+                assertNotNull(filter);
+
+                // Write alias
+                isHidden = XContentMapValues.extractValue(rolledCustomResultsIndex, "aliases", expectedWriteAlias, "is_hidden");
+                assertEquals(Boolean.TRUE, isHidden);
+                isWrite = XContentMapValues.extractValue(rolledCustomResultsIndex, "aliases", expectedWriteAlias, "is_write_index");
+                assertEquals(Boolean.TRUE, isWrite);
+                filter = XContentMapValues.extractValue(rolledCustomResultsIndex, "aliases", expectedReadAlias, "filter");
+                assertNotNull(filter);
+            }
+
+            {
+                var olcustomResultsIndex = (Map<String, Object>) aliasesResponseMap.get(".ml-anomalies-custom-" + RESULTS_INDEX_NAME);
+                assertNotNull(aliasesResponseMap.toString(), olcustomResultsIndex);
+                var aliases = (Map<String, Object>) olcustomResultsIndex.get("aliases");
+                assertThat(aliasesResponseMap.toString(), aliases.entrySet(), hasSize(1));
+                assertThat(aliasesResponseMap.toString(), aliases.keySet(), containsInAnyOrder(expectedReadAlias));
+
+                // Read alias
+                var isHidden = XContentMapValues.extractValue(olcustomResultsIndex, "aliases", expectedReadAlias, "is_hidden");
+                assertEquals(Boolean.TRUE, isHidden);
+                var isWrite = XContentMapValues.extractValue(olcustomResultsIndex, "aliases", expectedReadAlias, "is_write_index");
+                assertNull(isWrite); // not a write index
+                var filter = XContentMapValues.extractValue(olcustomResultsIndex, "aliases", expectedReadAlias, "filter");
+                assertNotNull(filter);
+            }
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    private void assertNotificationsIndexAliasCreated() throws Exception {
+        assertBusy(() -> {
+            Request getMappings = new Request("GET", "_alias/.ml-notifications-write");
+            Response response = client().performRequest(getMappings);
+            Map<String, Object> responseMap = entityAsMap(response);
+            assertThat(responseMap.entrySet(), hasSize(1));
+            var aliases = (Map<String, Object>) responseMap.get(".ml-notifications-000002");
+            assertThat(aliases.entrySet(), hasSize(1));
+            var allAliases = (Map<String, Object>) aliases.get("aliases");
+            var writeAlias = (Map<String, Object>) allAliases.get(".ml-notifications-write");
+
+            assertThat(writeAlias, hasEntry("is_hidden", Boolean.TRUE));
+            var isWriteIndex = (Boolean) writeAlias.get("is_write_index");
+            assertThat(isWriteIndex, anyOf(is(Boolean.TRUE), nullValue()));
         });
     }
 }

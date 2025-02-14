@@ -58,14 +58,7 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
         Client client,
         FeatureService featureService
     ) {
-        super(
-            XPackUsageFeatureAction.DATA_TIERS.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.DATA_TIERS.name(), transportService, clusterService, threadPool, actionFilters);
         this.client = client;
         this.featureService = featureService;
     }

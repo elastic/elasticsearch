@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MapperService;
@@ -19,6 +20,7 @@ import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
+import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
@@ -35,6 +37,7 @@ import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -43,6 +46,8 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ExtractAggregateCommonFilter;
@@ -68,9 +73,9 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.rule.Rule;
 import org.elasticsearch.xpack.esql.session.Configuration;
-import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
+import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.kql.query.KqlQueryBuilder;
 import org.junit.Before;
@@ -89,6 +94,7 @@ import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
 import static org.hamcrest.Matchers.contains;
@@ -402,7 +408,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     @SuppressWarnings("unchecked")
     public void testSingleCountWithStatsFilter() {
         // an optimizer that filters out the ExtractAggregateCommonFilter rule
-        var logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(config)) {
+        var logicalOptimizer = new LogicalPlanOptimizer(unboundLogicalOptimizerContext()) {
             @Override
             protected List<Batch<LogicalPlan>> batches() {
                 var oldBatches = super.batches();
@@ -481,7 +487,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var project = as(exchange.child(), ProjectExec.class);
         var field = as(project.child(), FieldExtractExec.class);
         var query = as(field.child(), EsQueryExec.class);
-        assertThat(query.limit().fold(), is(1000));
+        assertThat(as(query.limit(), Literal.class).value(), is(1000));
         var expected = QueryBuilders.queryStringQuery("last_name: Smith");
         assertThat(query.query().toString(), is(expected.toString()));
     }
@@ -510,7 +516,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var project = as(exchange.child(), ProjectExec.class);
         var field = as(project.child(), FieldExtractExec.class);
         var query = as(field.child(), EsQueryExec.class);
-        assertThat(query.limit().fold(), is(1000));
+        assertThat(as(query.limit(), Literal.class).value(), is(1000));
 
         Source filterSource = new Source(2, 37, "emp_no > 10000");
         var range = wrapWithSingleQuery(queryText, QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no", filterSource);
@@ -545,7 +551,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var project = as(exchange.child(), ProjectExec.class);
         var field = as(project.child(), FieldExtractExec.class);
         var query = as(field.child(), EsQueryExec.class);
-        assertThat(query.limit().fold(), is(1000));
+        assertThat(as(query.limit(), Literal.class).value(), is(1000));
 
         Source filterSource = new Source(2, 37, "cidr_match(ip, \"127.0.0.1/32\")");
         var terms = wrapWithSingleQuery(queryText, QueryBuilders.termsQuery("ip", "127.0.0.1/32"), "ip", filterSource);
@@ -580,7 +586,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var project = as(exchange.child(), ProjectExec.class);
         var field = as(project.child(), FieldExtractExec.class);
         var query = as(field.child(), EsQueryExec.class);
-        assertThat(query.limit().fold(), is(1000));
+        assertThat(as(query.limit(), Literal.class).value(), is(1000));
 
         Source filterSource = new Source(3, 8, "emp_no > 10000");
         var range = wrapWithSingleQuery(queryText, QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no", filterSource);
@@ -613,7 +619,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var project = as(exchange.child(), ProjectExec.class);
         var field = as(project.child(), FieldExtractExec.class);
         var query = as(field.child(), EsQueryExec.class);
-        assertThat(query.limit().fold(), is(1000));
+        assertThat(as(query.limit(), Literal.class).value(), is(1000));
 
         var queryStringLeft = QueryBuilders.queryStringQuery("last_name: Smith");
         var queryStringRight = QueryBuilders.queryStringQuery("emp_no: [10010 TO *]");
@@ -642,7 +648,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var project = as(exchange.child(), ProjectExec.class);
         var field = as(project.child(), FieldExtractExec.class);
         var query = as(field.child(), EsQueryExec.class);
-        assertThat(query.limit().fold(), is(1000));
+        assertThat(as(query.limit(), Literal.class).value(), is(1000));
         var expected = QueryBuilders.matchQuery("last_name", "Smith").lenient(true);
         assertThat(query.query().toString(), is(expected.toString()));
     }
@@ -671,7 +677,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var project = as(exchange.child(), ProjectExec.class);
         var field = as(project.child(), FieldExtractExec.class);
         var query = as(field.child(), EsQueryExec.class);
-        assertThat(query.limit().fold(), is(1000));
+        assertThat(as(query.limit(), Literal.class).value(), is(1000));
 
         Source filterSource = new Source(2, 38, "emp_no > 10000");
         var range = wrapWithSingleQuery(queryText, QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no", filterSource);
@@ -706,7 +712,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var project = as(exchange.child(), ProjectExec.class);
         var field = as(project.child(), FieldExtractExec.class);
         var query = as(field.child(), EsQueryExec.class);
-        assertThat(query.limit().fold(), is(1000));
+        assertThat(as(query.limit(), Literal.class).value(), is(1000));
 
         Source filterSource = new Source(2, 32, "cidr_match(ip, \"127.0.0.1/32\")");
         var terms = wrapWithSingleQuery(queryText, QueryBuilders.termsQuery("ip", "127.0.0.1/32"), "ip", filterSource);
@@ -740,7 +746,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var project = as(exchange.child(), ProjectExec.class);
         var field = as(project.child(), FieldExtractExec.class);
         var query = as(field.child(), EsQueryExec.class);
-        assertThat(query.limit().fold(), is(1000));
+        assertThat(as(query.limit(), Literal.class).value(), is(1000));
 
         Source filterSource = new Source(3, 8, "emp_no > 10000");
         var range = wrapWithSingleQuery(queryText, QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no", filterSource);
@@ -772,7 +778,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var project = as(exchange.child(), ProjectExec.class);
         var field = as(project.child(), FieldExtractExec.class);
         var query = as(field.child(), EsQueryExec.class);
-        assertThat(query.limit().fold(), is(1000));
+        assertThat(as(query.limit(), Literal.class).value(), is(1000));
 
         var queryStringLeft = QueryBuilders.matchQuery("last_name", "Smith").lenient(true);
         var queryStringRight = QueryBuilders.matchQuery("first_name", "John").lenient(true);
@@ -801,7 +807,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var project = as(exchange.child(), ProjectExec.class);
         var field = as(project.child(), FieldExtractExec.class);
         var query = as(field.child(), EsQueryExec.class);
-        assertThat(query.limit().fold(), is(1000));
+        assertThat(as(query.limit(), Literal.class).value(), is(1000));
         var expected = kqlQueryBuilder("last_name: Smith");
         assertThat(query.query().toString(), is(expected.toString()));
     }
@@ -830,7 +836,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var project = as(exchange.child(), ProjectExec.class);
         var field = as(project.child(), FieldExtractExec.class);
         var query = as(field.child(), EsQueryExec.class);
-        assertThat(query.limit().fold(), is(1000));
+        assertThat(as(query.limit(), Literal.class).value(), is(1000));
 
         Source filterSource = new Source(2, 36, "emp_no > 10000");
         var range = wrapWithSingleQuery(queryText, QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no", filterSource);
@@ -865,7 +871,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var project = as(exchange.child(), ProjectExec.class);
         var field = as(project.child(), FieldExtractExec.class);
         var query = as(field.child(), EsQueryExec.class);
-        assertThat(query.limit().fold(), is(1000));
+        assertThat(as(query.limit(), Literal.class).value(), is(1000));
 
         Source filterSource = new Source(2, 36, "cidr_match(ip, \"127.0.0.1/32\")");
         var terms = wrapWithSingleQuery(queryText, QueryBuilders.termsQuery("ip", "127.0.0.1/32"), "ip", filterSource);
@@ -900,7 +906,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var project = as(exchange.child(), ProjectExec.class);
         var field = as(project.child(), FieldExtractExec.class);
         var query = as(field.child(), EsQueryExec.class);
-        assertThat(query.limit().fold(), is(1000));
+        assertThat(as(query.limit(), Literal.class).value(), is(1000));
 
         Source filterSource = new Source(3, 8, "emp_no > 10000");
         var range = wrapWithSingleQuery(queryText, QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no", filterSource);
@@ -933,7 +939,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var project = as(exchange.child(), ProjectExec.class);
         var field = as(project.child(), FieldExtractExec.class);
         var query = as(field.child(), EsQueryExec.class);
-        assertThat(query.limit().fold(), is(1000));
+        assertThat(as(query.limit(), Literal.class).value(), is(1000));
 
         var kqlQueryLeft = kqlQueryBuilder("last_name: Smith");
         var kqlQueryRight = kqlQueryBuilder("emp_no > 10010");
@@ -999,7 +1005,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var project = as(exchange.child(), ProjectExec.class);
         var field = as(project.child(), FieldExtractExec.class);
         var query = as(field.child(), EsQueryExec.class);
-        assertThat(query.limit().fold(), is(1000));
+        assertThat(as(query.limit(), Literal.class).value(), is(1000));
         var expected = QueryBuilders.existsQuery("emp_no");
         assertThat(query.query().toString(), is(expected.toString()));
     }
@@ -1023,7 +1029,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var project = as(exchange.child(), ProjectExec.class);
         var field = as(project.child(), FieldExtractExec.class);
         var query = as(field.child(), EsQueryExec.class);
-        assertThat(query.limit().fold(), is(1000));
+        assertThat(as(query.limit(), Literal.class).value(), is(1000));
         var expected = QueryBuilders.boolQuery().mustNot(QueryBuilders.existsQuery("emp_no"));
         assertThat(query.query().toString(), is(expected.toString()));
     }
@@ -1526,6 +1532,36 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(actualLuceneQuery.toString(), is(expectedLuceneQuery.toString()));
     }
 
+    public void testMatchOptionsPushDown() {
+        String query = """
+            from test
+            | where match(first_name, "Anna", {"fuzziness": "AUTO", "prefix_length": 3, "max_expansions": 10,
+            "fuzzy_transpositions": false, "auto_generate_synonyms_phrase_query": true, "analyzer": "my_analyzer",
+            "boost": 2.1, "minimum_should_match": 2, "operator": "AND"})
+            """;
+        var plan = plannerOptimizer.plan(query);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var actualLuceneQuery = as(fieldExtract.child(), EsQueryExec.class).query();
+
+        Source filterSource = new Source(4, 8, "emp_no > 10000");
+        var expectedLuceneQuery = new MatchQueryBuilder("first_name", "Anna").fuzziness(Fuzziness.AUTO)
+            .prefixLength(3)
+            .maxExpansions(10)
+            .fuzzyTranspositions(false)
+            .autoGenerateSynonymsPhraseQuery(true)
+            .analyzer("my_analyzer")
+            .boost(2.1f)
+            .minimumShouldMatch("2")
+            .operator(Operator.AND)
+            .prefixLength(3)
+            .lenient(true);
+        assertThat(actualLuceneQuery.toString(), is(expectedLuceneQuery.toString()));
+    }
+
     /**
      * Expecting
      * LimitExec[1000[INTEGER]]
@@ -1550,7 +1586,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var project = as(exchange.child(), ProjectExec.class);
         var field = as(project.child(), FieldExtractExec.class);
         var query = as(field.child(), EsQueryExec.class);
-        assertThat(query.limit().fold(), is(1000));
+        assertThat(as(query.limit(), Literal.class).value(), is(1000));
         var expected = QueryBuilders.termQuery("last_name", "Smith");
         assertThat(query.query().toString(), is(expected.toString()));
     }
@@ -1579,6 +1615,63 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         var queryBuilder = as(queryExec.query(), MatchQueryBuilder.class);
         assertThat(queryBuilder.fieldName(), is("emp_no"));
         assertThat(queryBuilder.value(), is(123456));
+    }
+
+    public void testMatchFunctionWithPushableConjunction() {
+        String query = """
+            from test
+            | where match(last_name, "Smith") and length(first_name) > 10
+            """;
+        var plan = plannerOptimizer.plan(query);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var filterLimit = as(fieldExtract.child(), LimitExec.class);
+        var filter = as(filterLimit.child(), FilterExec.class);
+        assertThat(filter.condition(), instanceOf(GreaterThan.class));
+        var fieldFilterExtract = as(filter.child(), FieldExtractExec.class);
+        var esQuery = as(fieldFilterExtract.child(), EsQueryExec.class);
+        assertThat(esQuery.query(), instanceOf(MatchQueryBuilder.class));
+    }
+
+    public void testMatchFunctionWithNonPushableDisjunction() {
+        String query = """
+            from test
+            | where match(last_name, "Smith") or length(first_name) > 10
+            """;
+        var plan = plannerOptimizer.plan(query);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var field = as(project.child(), FieldExtractExec.class);
+        var filterLimit = as(field.child(), LimitExec.class);
+        var filter = as(filterLimit.child(), FilterExec.class);
+        Or or = as(filter.condition(), Or.class);
+        assertThat(or.left(), instanceOf(Match.class));
+        assertThat(or.right(), instanceOf(GreaterThan.class));
+        var fieldExtract = as(filter.child(), FieldExtractExec.class);
+        assertThat(fieldExtract.child(), instanceOf(EsQueryExec.class));
+    }
+
+    public void testMatchFunctionWithPushableDisjunction() {
+        String query = """
+            from test
+            | where match(last_name, "Smith") or emp_no > 10""";
+        var plan = plannerOptimizer.plan(query);
+
+        var limit = as(plan, LimitExec.class);
+        var exchange = as(limit.child(), ExchangeExec.class);
+        var project = as(exchange.child(), ProjectExec.class);
+        var fieldExtract = as(project.child(), FieldExtractExec.class);
+        var esQuery = as(fieldExtract.child(), EsQueryExec.class);
+        var boolQuery = as(esQuery.query(), BoolQueryBuilder.class);
+        Source source = new Source(2, 37, "emp_no > 10");
+        BoolQueryBuilder expected = new BoolQueryBuilder().should(new MatchQueryBuilder("last_name", "Smith").lenient(true))
+            .should(wrapWithSingleQuery(query, QueryBuilders.rangeQuery("emp_no").gt(10), "emp_no", source));
+        assertThat(esQuery.query().toString(), equalTo(expected.toString()));
     }
 
     private QueryBuilder wrapWithSingleQuery(String query, QueryBuilder inner, String fieldName, Source source) {

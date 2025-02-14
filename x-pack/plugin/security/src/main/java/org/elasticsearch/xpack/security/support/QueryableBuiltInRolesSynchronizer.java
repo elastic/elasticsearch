@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -54,6 +55,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toSet;
@@ -86,9 +88,9 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
     public static final boolean QUERYABLE_BUILT_IN_ROLES_ENABLED;
     static {
         final var propertyValue = System.getProperty("es.queryable_built_in_roles_enabled");
-        if (propertyValue == null || propertyValue.isEmpty() || "false".equals(propertyValue)) {
+        if ("false".equals(propertyValue)) {
             QUERYABLE_BUILT_IN_ROLES_ENABLED = false;
-        } else if ("true".equals(propertyValue)) {
+        } else if (propertyValue == null || propertyValue.isEmpty() || "true".equals(propertyValue)) {
             QUERYABLE_BUILT_IN_ROLES_ENABLED = true;
         } else {
             throw new IllegalStateException(
@@ -131,6 +133,16 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
     private final AtomicBoolean synchronizationInProgress = new AtomicBoolean(false);
 
     private volatile boolean securityIndexDeleted = false;
+
+    /**
+     * The max consecutive failed sync attempts before skipping further sync attempts.
+     */
+    static final int MAX_FAILED_SYNC_ATTEMPTS = 10;
+
+    /**
+     * The counter of unexpected sync failures. Reset to 0 when a successful sync occurs or when a master node is restarted.
+     */
+    private final AtomicInteger failedSyncAttempts = new AtomicInteger(0);
 
     /**
      * Constructs a new built-in roles synchronizer.
@@ -214,10 +226,12 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
                 final Map<String, String> indexedRolesDigests = readIndexedBuiltInRolesDigests(clusterService.state());
                 if (roles.rolesDigest().equals(indexedRolesDigests)) {
                     logger.debug("Security index already contains the latest built-in roles indexed, skipping roles synchronization");
+                    resetFailedSyncAttempts();
                     synchronizationInProgress.set(false);
                 } else {
                     executor.execute(() -> doSyncBuiltinRoles(indexedRolesDigests, roles, ActionListener.wrap(v -> {
-                        logger.info("Successfully synced [" + roles.roleDescriptors().size() + "] built-in roles to .security index");
+                        logger.info("Successfully synced [{}] built-in roles to .security index", roles.roleDescriptors().size());
+                        resetFailedSyncAttempts();
                         synchronizationInProgress.set(false);
                     }, e -> {
                         handleException(e);
@@ -226,12 +240,14 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
                 }
             } catch (Exception e) {
                 logger.error("Failed to sync built-in roles", e);
+                failedSyncAttempts.incrementAndGet();
                 synchronizationInProgress.set(false);
             }
         }
     }
 
-    private static void handleException(Exception e) {
+    private void handleException(Exception e) {
+        boolean isUnexpectedFailure = false;
         if (e instanceof BulkRolesResponseException bulkException) {
             final boolean isBulkDeleteFailure = bulkException instanceof BulkDeleteRolesResponseException;
             for (final Map.Entry<String, Exception> bulkFailure : bulkException.getFailures().entrySet()) {
@@ -243,14 +259,35 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
                 if (isExpectedFailure(bulkFailure.getValue())) {
                     logger.info(logMessage, bulkFailure.getValue());
                 } else {
+                    isUnexpectedFailure = true;
                     logger.warn(logMessage, bulkFailure.getValue());
                 }
             }
         } else if (isExpectedFailure(e)) {
             logger.info("Failed to sync built-in roles to .security index", e);
         } else {
+            isUnexpectedFailure = true;
             logger.warn("Failed to sync built-in roles to .security index due to unexpected exception", e);
         }
+        if (isUnexpectedFailure) {
+            failedSyncAttempts.incrementAndGet();
+        }
+    }
+
+    private void resetFailedSyncAttempts() {
+        if (failedSyncAttempts.get() > 0) {
+            logger.trace("resetting failed sync attempts to 0");
+            failedSyncAttempts.set(0);
+        }
+    }
+
+    /**
+     * Package protected for testing purposes.
+     *
+     * @return the number of failed sync attempts
+     */
+    int getFailedSyncAttempts() {
+        return failedSyncAttempts.get();
     }
 
     /**
@@ -273,7 +310,8 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
             || cause instanceof ResourceAlreadyExistsException
             || cause instanceof VersionConflictEngineException
             || cause instanceof DocumentMissingException
-            || cause instanceof FailedToMarkBuiltInRolesAsSyncedException;
+            || cause instanceof FailedToMarkBuiltInRolesAsSyncedException
+            || (e instanceof FailedToCommitClusterStateException && "node closed".equals(cause.getMessage()));
     }
 
     private static boolean isMixedVersionCluster(DiscoveryNodes nodes) {
@@ -291,6 +329,13 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
     private boolean shouldSyncBuiltInRoles(final ClusterState state) {
         if (false == state.nodes().isLocalNodeElectedMaster()) {
             logger.trace("Local node is not the master, skipping built-in roles synchronization");
+            return false;
+        }
+        if (failedSyncAttempts.get() >= MAX_FAILED_SYNC_ATTEMPTS) {
+            logger.debug(
+                "Failed to sync built-in roles to .security index [{}] times. Skipping built-in roles synchronization.",
+                failedSyncAttempts.get()
+            );
             return false;
         }
         if (false == state.clusterRecovered()) {

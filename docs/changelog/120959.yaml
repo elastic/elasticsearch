@@ -1,0 +1,5 @@
+pr: 120959
+summary: Remove unnecessary entitlement
+area: Infra/Plugins
+type: bug
+issues: []

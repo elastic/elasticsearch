@@ -130,6 +130,7 @@ The free-text description of the trained model.
 `model_size_bytes`:::
 (integer)
 The estimated model size in bytes to keep the trained model in memory.
+This parameter applies only to {dfanalytics} trained models.
 
 `estimated_operations`:::
 (integer)

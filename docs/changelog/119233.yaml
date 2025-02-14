@@ -1,5 +1,0 @@
-pr: 119233
-summary: Fixing `GetDatabaseConfigurationAction` response serialization
-area: Ingest Node
-type: bug
-issues: []

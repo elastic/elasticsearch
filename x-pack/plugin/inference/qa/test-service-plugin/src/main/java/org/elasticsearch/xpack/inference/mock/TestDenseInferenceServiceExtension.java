@@ -257,7 +257,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
 
                     configurationMap.put(
                         "model",
-                        new SettingsConfiguration.Builder().setDescription("")
+                        new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING)).setDescription("")
                             .setLabel("Model")
                             .setRequired(true)
                             .setSensitive(true)

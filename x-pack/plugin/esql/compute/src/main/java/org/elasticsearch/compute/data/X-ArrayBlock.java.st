@@ -29,7 +29,7 @@ import java.util.BitSet;
 $if(BytesRef)$
  * Does not take ownership of the given {@link BytesRefArray} and does not adjust circuit breakers to account for it.
 $endif$
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ArrayBlock.java.st} instead.
  */
 final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$Block {
 
@@ -149,7 +149,7 @@ $endif$
                 int valueCount = getValueCount(pos);
                 int first = getFirstValueIndex(pos);
                 if (valueCount == 1) {
-                    builder.append$Type$(get$Type$(getFirstValueIndex(pos)$if(BytesRef)$, scratch$endif$));
+                    builder.append$Type$(get$Type$(first$if(BytesRef)$, scratch$endif$));
                 } else {
                     builder.beginPositionEntry();
                     for (int c = 0; c < valueCount; c++) {

@@ -95,7 +95,6 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
             threadPool,
             actionFilters,
             PutRollupJobAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.persistentTasksService = persistentTasksService;

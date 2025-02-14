@@ -39,14 +39,7 @@ public class SearchableSnapshotsUsageTransportAction extends XPackUsageFeatureTr
         IndexNameExpressionResolver indexNameExpressionResolver,
         XPackLicenseState licenseState
     ) {
-        super(
-            XPackUsageFeatureAction.SEARCHABLE_SNAPSHOTS.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.SEARCHABLE_SNAPSHOTS.name(), transportService, clusterService, threadPool, actionFilters);
         this.licenseState = licenseState;
     }
 

@@ -32,6 +32,9 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
+import org.elasticsearch.entitlement.runtime.policy.Policy;
+import org.elasticsearch.entitlement.runtime.policy.PolicyParserUtils;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.jdk.JarHell;
@@ -54,8 +57,12 @@ import java.nio.file.Path;
 import java.security.Permission;
 import java.security.Security;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
@@ -178,7 +185,7 @@ class Elasticsearch {
 
         nodeEnv.validateNativesConfig(); // temporary directories are important for JNA
         initializeNatives(
-            nodeEnv.tmpFile(),
+            nodeEnv.tmpDir(),
             BootstrapSettings.MEMORY_LOCK_SETTING.get(args.nodeSettings()),
             true, // always install system call filters, not user-configurable since 8.0.0
             BootstrapSettings.CTRLHANDLER_SETTING.get(args.nodeSettings())
@@ -210,25 +217,36 @@ class Elasticsearch {
         );
 
         // load the plugin Java modules and layers now for use in entitlements
-        var pluginsLoader = PluginsLoader.createPluginsLoader(nodeEnv.modulesFile(), nodeEnv.pluginsFile());
-        bootstrap.setPluginsLoader(pluginsLoader);
+        var modulesBundles = PluginsLoader.loadModulesBundles(nodeEnv.modulesDir());
+        var pluginsBundles = PluginsLoader.loadPluginsBundles(nodeEnv.pluginsDir());
+
+        final PluginsLoader pluginsLoader;
 
         if (bootstrap.useEntitlements()) {
             LogManager.getLogger(Elasticsearch.class).info("Bootstrapping Entitlements");
 
-            List<EntitlementBootstrap.PluginData> pluginData = Stream.concat(
-                pluginsLoader.moduleBundles()
-                    .stream()
-                    .map(bundle -> new EntitlementBootstrap.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), false)),
-                pluginsLoader.pluginBundles()
-                    .stream()
-                    .map(bundle -> new EntitlementBootstrap.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), true))
+            var pluginData = Stream.concat(
+                modulesBundles.stream()
+                    .map(bundle -> new PolicyParserUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), false)),
+                pluginsBundles.stream()
+                    .map(bundle -> new PolicyParserUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), true))
             ).toList();
+            var pluginPolicies = PolicyParserUtils.createPluginPolicies(pluginData);
+
+            pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, findPluginsWithNativeAccess(pluginPolicies));
 
             var pluginsResolver = PluginsResolver.create(pluginsLoader);
-
-            EntitlementBootstrap.bootstrap(pluginData, pluginsResolver::resolveClassToPluginName);
-        } else if (RuntimeVersionFeature.isSecurityManagerAvailable()) {
+            EntitlementBootstrap.bootstrap(
+                pluginPolicies,
+                pluginsResolver::resolveClassToPluginName,
+                nodeEnv.dataDirs(),
+                nodeEnv.configDir(),
+                nodeEnv.tmpDir()
+            );
+        } else {
+            assert RuntimeVersionFeature.isSecurityManagerAvailable();
+            // no need to explicitly enable native access for legacy code
+            pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, Map.of());
             // install SM after natives, shutdown hooks, etc.
             LogManager.getLogger(Elasticsearch.class).info("Bootstrapping java SecurityManager");
             org.elasticsearch.bootstrap.Security.configure(
@@ -236,9 +254,9 @@ class Elasticsearch {
                 SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(args.nodeSettings()),
                 args.pidFile()
             );
-        } else {
-            LogManager.getLogger(Elasticsearch.class).warn("Bootstrapping without any protection");
         }
+
+        bootstrap.setPluginsLoader(pluginsLoader);
     }
 
     private static void ensureInitialized(Class<?>... classes) {
@@ -457,6 +475,19 @@ class Elasticsearch {
             builder.setSecureSettings(secureSettings);
         }
         return new Environment(builder.build(), configDir);
+    }
+
+    static Map<String, Set<String>> findPluginsWithNativeAccess(Map<String, Policy> policies) {
+        Map<String, Set<String>> pluginsWithNativeAccess = new HashMap<>();
+        for (var kv : policies.entrySet()) {
+            for (var scope : kv.getValue().scopes()) {
+                if (scope.entitlements().stream().anyMatch(entitlement -> entitlement instanceof LoadNativeLibrariesEntitlement)) {
+                    var modulesToEnable = pluginsWithNativeAccess.computeIfAbsent(kv.getKey(), k -> new HashSet<>());
+                    modulesToEnable.add(scope.moduleName());
+                }
+            }
+        }
+        return pluginsWithNativeAccess;
     }
 
     // -- instance

@@ -7,14 +7,19 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
-public final class SkipQueryOnLimitZero extends OptimizerRules.OptimizerRule<Limit> {
+public final class SkipQueryOnLimitZero extends OptimizerRules.ParameterizedOptimizerRule<Limit, LogicalOptimizerContext> {
+    public SkipQueryOnLimitZero() {
+        super(OptimizerRules.TransformDirection.DOWN);
+    }
+
     @Override
-    protected LogicalPlan rule(Limit limit) {
+    protected LogicalPlan rule(Limit limit, LogicalOptimizerContext ctx) {
         if (limit.limit().foldable()) {
-            if (Integer.valueOf(0).equals((limit.limit().fold()))) {
+            if (Integer.valueOf(0).equals((limit.limit().fold(ctx.foldCtx())))) {
                 return PruneEmptyPlans.skipPlan(limit);
             }
         }

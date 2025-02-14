@@ -614,7 +614,8 @@ public class AnthropicServiceTests extends ESTestCase {
                               "required": true,
                               "sensitive": true,
                               "updatable": true,
-                              "type": "str"
+                              "type": "str",
+                              "supported_task_types": ["completion"]
                           },
                           "rate_limit.requests_per_minute": {
                               "description": "By default, the anthropic service sets the number of requests allowed per minute to 50.",
@@ -622,7 +623,8 @@ public class AnthropicServiceTests extends ESTestCase {
                               "required": false,
                               "sensitive": false,
                               "updatable": false,
-                              "type": "int"
+                              "type": "int",
+                              "supported_task_types": ["completion"]
                           },
                           "model_id": {
                               "description": "The name of the model to use for the inference task.",
@@ -630,7 +632,8 @@ public class AnthropicServiceTests extends ESTestCase {
                               "required": true,
                               "sensitive": false,
                               "updatable": false,
-                              "type": "str"
+                              "type": "str",
+                              "supported_task_types": ["completion"]
                           }
                       }
                   }

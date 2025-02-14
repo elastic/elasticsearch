@@ -81,6 +81,10 @@ public class APMAgentSettings {
     /**
      * Copies a setting to the APM agent's system properties under <code>elastic.apm</code>, either
      * by setting the property if {@code value} has a value, or by deleting the property if it doesn't.
+     *
+     * All permitted agent properties must be covered by the <code>write_system_properties</code> entitlement,
+     * see the entitlement policy of this module!
+     *
      * @param key the config key to set, without any prefix
      * @param value the value to set, or <code>null</code>
      */
@@ -106,9 +110,11 @@ public class APMAgentSettings {
 
     /**
      * Allow-list of APM agent config keys users are permitted to configure.
+     * <p><b>WARNING</b>: Make sure to update the module entitlements if permitting additional agent keys
+     * </p>
      * @see <a href="https://www.elastic.co/guide/en/apm/agent/java/current/configuration.html">APM Java Agent Configuration</a>
      */
-    private static final Set<String> PERMITTED_AGENT_KEYS = Set.of(
+    public static final Set<String> PERMITTED_AGENT_KEYS = Set.of(
         // Circuit-Breaker:
         "circuit_breaker_enabled",
         "stress_monitoring_interval",

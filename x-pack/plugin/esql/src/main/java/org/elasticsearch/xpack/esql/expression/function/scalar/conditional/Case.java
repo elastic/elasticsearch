@@ -23,6 +23,7 @@ import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -227,7 +228,7 @@ public final class Case extends EsqlScalarFunction {
             if (condition.condition.foldable() == false) {
                 return false;
             }
-            if (Boolean.TRUE.equals(condition.condition.fold())) {
+            if (Boolean.TRUE.equals(condition.condition.fold(FoldContext.small() /* TODO remove me - use literal true?*/))) {
                 /*
                  * `fold` can make four things here:
                  * 1. `TRUE`
@@ -264,7 +265,8 @@ public final class Case extends EsqlScalarFunction {
      * And those two combine so {@code EVAL c=CASE(false, foo, b, bar, true, bort, el)} becomes
      * {@code EVAL c=CASE(b, bar, bort)}.
      */
-    public Expression partiallyFold() {
+    public Expression partiallyFold(FoldContext ctx) {
+        // TODO don't throw away the results of any `fold`. That might mean looking for literal TRUE on the conditions.
         List<Expression> newChildren = new ArrayList<>(children().size());
         boolean modified = false;
         for (Condition condition : conditions) {
@@ -274,7 +276,7 @@ public final class Case extends EsqlScalarFunction {
                 continue;
             }
             modified = true;
-            if (Boolean.TRUE.equals(condition.condition.fold())) {
+            if (Boolean.TRUE.equals(condition.condition.fold(ctx))) {
                 /*
                  * `fold` can make four things here:
                  * 1. `TRUE`
@@ -522,6 +524,9 @@ public final class Case extends EsqlScalarFunction {
                 ) {
                     for (int p = 0; p < lhs.getPositionCount(); p++) {
                         if (lhsOrRhs.mask().getBoolean(p)) {
+                            // TODO Copy the per-type specialization that COALESCE has.
+                            // There's also a slowdown because copying from a block checks to see if there are any nulls and that's slow.
+                            // Vectors do not, so this still shows as fairly fast. But not as fast as the per-type unrolling.
                             builder.copyFrom(lhs, p, p + 1);
                         } else {
                             builder.copyFrom(rhs, p, p + 1);

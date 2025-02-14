@@ -1,7 +1,7 @@
 setup:
   - requires:
-      cluster_features: "gte_v8.13.0"
-      reason: '[k] and [num_candidates] were made optional for kNN query in 8.13.0'
+      cluster_features: "search.vectors.k_param_supported"
+      reason: 'k param for knn as query is required'
   - do:
       indices.create:
         index: knn_query_test_index

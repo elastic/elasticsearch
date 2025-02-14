@@ -50,7 +50,6 @@ public class TransportPendingClusterTasksAction extends TransportMasterNodeReadA
             threadPool,
             actionFilters,
             PendingClusterTasksRequest::new,
-            indexNameExpressionResolver,
             PendingClusterTasksResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

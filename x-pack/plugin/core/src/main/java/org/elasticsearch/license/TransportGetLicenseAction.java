@@ -42,7 +42,6 @@ public class TransportGetLicenseAction extends TransportMasterNodeReadAction<Get
             threadPool,
             actionFilters,
             GetLicenseRequest::new,
-            indexNameExpressionResolver,
             GetLicenseResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 
 public class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression> {
 
@@ -23,7 +24,7 @@ public class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression>
     }
 
     @Override
-    public Expression rule(Expression e) {
+    public Expression rule(Expression e, LogicalOptimizerContext ctx) {
         Expression result = tryReplaceIsNullIsNotNull(e);
 
         // convert an aggregate null filter into a false

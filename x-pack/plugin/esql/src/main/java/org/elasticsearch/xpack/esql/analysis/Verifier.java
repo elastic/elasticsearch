@@ -32,8 +32,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.stats.FeatureMetric;
-import org.elasticsearch.xpack.esql.stats.Metrics;
+import org.elasticsearch.xpack.esql.telemetry.FeatureMetric;
+import org.elasticsearch.xpack.esql.telemetry.Metrics;
 
 import java.util.ArrayList;
 import java.util.BitSet;

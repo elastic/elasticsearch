@@ -9,7 +9,9 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
@@ -135,13 +137,21 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
         context.doc().add(new SortedDocValuesField(fieldType().name(), timeSeriesId));
 
-        TsidExtractingIdFieldMapper.createField(
+        BytesRef uidEncoded = TsidExtractingIdFieldMapper.createField(
             context,
             getIndexVersionCreated(context).before(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)
                 ? routingPathFields.routingBuilder()
                 : null,
             timeSeriesId
         );
+
+        // We need to add the uid or id to nested Lucene documents so that when a document gets deleted, the nested documents are
+        // also deleted. Usually this happens when the nested document is created (in DocumentParserContext#createNestedContext), but
+        // for time-series indices the _id isn't available at that point.
+        for (LuceneDocument doc : context.nonRootDocuments()) {
+            assert doc.getField(IdFieldMapper.NAME) == null;
+            doc.add(new StringField(IdFieldMapper.NAME, uidEncoded, Field.Store.NO));
+        }
     }
 
     private IndexVersion getIndexVersionCreated(final DocumentParserContext context) {

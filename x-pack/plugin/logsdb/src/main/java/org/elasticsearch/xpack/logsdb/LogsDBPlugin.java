@@ -31,7 +31,6 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.logsdb.LogsPatternUsageService.LOGSDB_PRIOR_LOGS_USAGE;
 import static org.elasticsearch.xpack.logsdb.LogsPatternUsageService.USAGE_CHECK_MAX_PERIOD;
-import static org.elasticsearch.xpack.logsdb.SyntheticSourceLicenseService.FALLBACK_SETTING;
 import static org.elasticsearch.xpack.logsdb.LogsdbLicenseService.FALLBACK_SETTING;
 
 public class LogsDBPlugin extends Plugin implements ActionPlugin {
@@ -75,7 +74,7 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
                 historicLogsUsageService.offMaster();
             }
         });
-        
+
         // Nothing to share here:
         return super.createComponents(services);
     }

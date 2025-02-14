@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import joptsimple.internal.Strings;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;

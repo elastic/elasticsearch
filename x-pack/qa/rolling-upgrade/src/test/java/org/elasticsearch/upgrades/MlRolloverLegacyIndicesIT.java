@@ -287,8 +287,8 @@ public class MlRolloverLegacyIndicesIT extends AbstractUpgradeTestCase {
         }
 
         var searchUrl = checkCustomIndex
-            ? ".ml-anomalies-custom-" + CUSTOM_RESULTS_INDEX_NAME + "-000001/_search" :
-            ".ml-anomalies-shared-000001/_search";
+            ? ".ml-anomalies-custom-" + CUSTOM_RESULTS_INDEX_NAME + "-000001/_search"
+            : ".ml-anomalies-shared-000001/_search";
 
         RequestOptions.Builder builder = RequestOptions.DEFAULT.toBuilder();
         builder.setWarningsHandler(WarningsHandler.PERMISSIVE); // ignore warnings about accessing hidden index

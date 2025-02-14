@@ -307,25 +307,10 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             }
             int currentBatchSize = Math.min(requests.size(), batchSize);
             ChunkingSettings chunkingSettings = requests.get(0).chunkingSettings;
-            List<FieldInferenceRequest> currentBatch = new ArrayList<>();
-            List<FieldInferenceRequest> others = new ArrayList<>();
-            for (int i = 0; i < currentBatchSize; i++) {
-                FieldInferenceRequest request = requests.get(i);
-                if ((chunkingSettings == null && request.chunkingSettings == null) || request.chunkingSettings.equals(chunkingSettings)) {
-                    currentBatch.add(request);
-                } else {
-                    others.add(request);
-                }
-            }
-
+            final List<FieldInferenceRequest> currentBatch = requests.subList(0, currentBatchSize);
             final List<FieldInferenceRequest> nextBatch = requests.subList(currentBatchSize, requests.size());
-            nextBatch.addAll(others);
-
-            // We can assume current batch has all the same chunking settings
-            ChunkedInputs chunkedInputs = new ChunkedInputs(
-                chunkingSettings,
-                currentBatch.stream().map(r -> r.input).collect(Collectors.toList())
-            );
+            final List<String> inputs = currentBatch.stream().map(FieldInferenceRequest::input).toList();
+            // TODO create ChunkedInputs here, so we send chunkingSettings in
 
             ActionListener<List<ChunkedInference>> completionListener = new ActionListener<>() {
                 @Override
@@ -395,9 +380,9 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 .chunkedInfer(
                     inferenceProvider.model(),
                     null,
-                    chunkedInputs.inputs(),
+                    inputs,
                     Map.of(),
-                    chunkedInputs.chunkingSettings(),
+                    null, // TODO add chunking settings
                     InputType.INGEST,
                     TimeValue.MAX_VALUE,
                     completionListener

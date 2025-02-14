@@ -46,7 +46,6 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
     private final String[] sourceFields;
     private final Map<String, Object> chunkingSettings;
 
-    // TODO can this be ChunkingSettings instead of Map<String, Object>?
     public InferenceFieldMetadata(String name, String inferenceId, String[] sourceFields, Map<String, Object> chunkingSettings) {
         this(name, inferenceId, inferenceId, sourceFields, chunkingSettings);
     }
@@ -63,11 +62,6 @@ public final class InferenceFieldMetadata implements SimpleDiffable<InferenceFie
         this.searchInferenceId = Objects.requireNonNull(searchInferenceId);
         this.sourceFields = Objects.requireNonNull(sourceFields);
         this.chunkingSettings = chunkingSettings;
-
-        // TODO remove this, trying to get stack traces where this called
-        if (chunkingSettings != null && chunkingSettings.size() != 3) {
-            throw new IllegalArgumentException("Chunking settings must contain exactly 3 settings");
-        }
     }
 
     public InferenceFieldMetadata(StreamInput input) throws IOException {

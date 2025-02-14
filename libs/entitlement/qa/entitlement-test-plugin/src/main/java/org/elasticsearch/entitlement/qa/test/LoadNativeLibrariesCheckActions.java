@@ -12,7 +12,7 @@ package org.elasticsearch.entitlement.qa.test;
 class LoadNativeLibrariesCheckActions {
     static void runtimeLoad() {
         try {
-            Runtime.getRuntime().load("libSomeLibFile.so");
+            Runtime.getRuntime().load(FileCheckActions.readDir().resolve("libSomeLibFile.so").toString());
         } catch (UnsatisfiedLinkError ignored) {
             // The library does not exist, so we expect to fail loading it
         }
@@ -20,7 +20,7 @@ class LoadNativeLibrariesCheckActions {
 
     static void systemLoad() {
         try {
-            System.load("libSomeLibFile.so");
+            System.load(FileCheckActions.readDir().resolve("libSomeLibFile.so").toString());
         } catch (UnsatisfiedLinkError ignored) {
             // The library does not exist, so we expect to fail loading it
         }

@@ -1,0 +1,5 @@
+pr: 122579
+summary: Add merge memory estimation for HNSW based merges
+area: Search
+type: enhancement
+issues: []

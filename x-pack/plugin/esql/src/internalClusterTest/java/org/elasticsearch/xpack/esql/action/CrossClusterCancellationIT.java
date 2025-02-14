@@ -304,9 +304,11 @@ public class CrossClusterCancellationIT extends AbstractMultiClustersTestCase {
         request.pragmas(randomPragmas());
         var requestFuture = client().execute(EsqlQueryAction.INSTANCE, request);
         assertTrue(SimplePauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS));
+        // Disconnect the remotes
+        for (var transportService : cluster(LOCAL_CLUSTER).getInstances(TransportService.class)) {
+            transportService.getRemoteClusterService().getRemoteClusterConnection(REMOTE_CLUSTER).close();
+        }
         SimplePauseFieldPlugin.allowEmitting.countDown();
-        cluster(REMOTE_CLUSTER).close();
-        removeClusterFromGroup(REMOTE_CLUSTER);
         try (var resp = requestFuture.actionGet()) {
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
             assertNotNull(executionInfo);

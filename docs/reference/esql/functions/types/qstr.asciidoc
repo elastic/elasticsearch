@@ -5,6 +5,6 @@
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
 query | options | result
-keyword | | boolean
-text | | boolean
+keyword | named parameters | boolean
+text | named parameters | boolean
 |===

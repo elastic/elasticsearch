@@ -24,7 +24,6 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
@@ -177,10 +176,8 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     }
 
     public void addPartialResult(TopDocsStats topDocsStats, MergeResult mergeResult) {
-        if (mergeResult.processedShards.isEmpty() == false) {
-            synchronized (batchedResults) {
-                batchedResults.add(new Tuple<>(topDocsStats, mergeResult));
-            }
+        synchronized (batchedResults) {
+            batchedResults.add(new Tuple<>(topDocsStats, mergeResult));
         }
     }
 
@@ -596,7 +593,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
         static MergeResult readFrom(StreamInput in) throws IOException {
             return new MergeResult(
-                in.readCollectionAsImmutableList(i -> new SearchShard(i.readOptionalString(), new ShardId(i))),
+                List.of(),
                 Lucene.readTopDocsOnly(in),
                 in.readOptionalWriteable(InternalAggregations::readFrom),
                 in.readVLong()
@@ -605,10 +602,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeCollection(processedShards, (o, s) -> {
-                o.writeOptionalString(s.clusterAlias());
-                s.shardId().writeTo(o);
-            });
             Lucene.writeTopDocsIncludingShardIndex(out, reducedTopDocs);
             out.writeOptionalWriteable(reducedAggs);
             out.writeVLong(estimatedSize);

@@ -218,11 +218,24 @@ swappingNames
 FROM employees
 | SORT emp_no ASC
 | KEEP first_name, last_name
-| RENAME first_name AS last_name, last_name AS first_name
+| RENAME first_name AS last_name, last_name AS first_name, first_name as name
 | LIMIT 2
 ;
 
-last_name:keyword   | first_name:keyword
+last_name:keyword   | name:keyword
 Georgi              | Facello
 Bezalel             | Simmel
+;
+
+complexSwappingNames
+FROM employees
+| SORT emp_no ASC
+| KEEP first_name, last_name, emp_no
+| RENAME first_name AS last_name, last_name AS first_name, first_name as emp_no, emp_no AS first_name
+| LIMIT 2
+;
+
+last_name:keyword   | emp_no:keyword    | first_name:INTEGER
+Georgi              | Facello           | 10001
+Bezalel             | Simmel            | 10002
 ;

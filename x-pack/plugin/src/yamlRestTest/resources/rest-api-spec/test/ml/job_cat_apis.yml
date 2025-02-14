@@ -87,6 +87,8 @@ setup:
           {"airline":"JZA","responsetime":"244.1276","time":"1403485200"}
 
   - do:
+      warnings:
+        - 'Forcing any buffered data to be processed is deprecated, in a future major version it will be compulsory to use a datafeed'
       ml.flush_job:
         job_id: job-stats-test
   - match: { flushed: true }

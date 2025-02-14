@@ -2265,7 +2265,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     public static Path randomRepoPath(Settings settings) {
         Environment environment = TestEnvironment.newEnvironment(settings);
-        Path[] repoFiles = environment.repoFiles();
+        Path[] repoFiles = environment.repoDirs();
         assert repoFiles.length > 0;
         Path path;
         do {

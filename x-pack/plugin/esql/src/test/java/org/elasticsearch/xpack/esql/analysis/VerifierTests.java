@@ -2155,6 +2155,15 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testInsistNotOnTopOfFrom() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        assertThat(
+            error("FROM test | EVAL foo = 42 | INSIST_🐔 bar"),
+            containsString("1:29: [insist] can only be used after [from] or [insist] commands, but was [EVAL foo = 42]")
+        );
+    }
+
     private void query(String query) {
         query(query, defaultAnalyzer);
     }

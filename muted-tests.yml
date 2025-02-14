@@ -199,9 +199,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
   method: testSnapshotRestore {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/111799
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search/380_sort_segments_on_timestamp/Test that index segments are NOT sorted on timestamp field when @timestamp field is dynamically added}
-  issue: https://github.com/elastic/elasticsearch/issues/116221
 - class: org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderIT
   method: testEnterpriseDownloaderTask
   issue: https://github.com/elastic/elasticsearch/issues/115163
@@ -211,12 +208,6 @@ tests:
 - class: org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT
   method: test {yaml=/10_apm/Test template reinstallation}
   issue: https://github.com/elastic/elasticsearch/issues/116445
-- class: org.elasticsearch.action.admin.HotThreadsIT
-  method: testHotThreadsDontFail
-  issue: https://github.com/elastic/elasticsearch/issues/115754
-- class: org.elasticsearch.action.search.PointInTimeIT
-  method: testPITTiebreak
-  issue: https://github.com/elastic/elasticsearch/issues/115810
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/61_enrich_ip/IP strings}
   issue: https://github.com/elastic/elasticsearch/issues/116529
@@ -229,15 +220,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/60_enrich/Enrich on keyword with fields}
   issue: https://github.com/elastic/elasticsearch/issues/116593
-- class: org.elasticsearch.xpack.spatial.search.GeoGridAggAndQueryConsistencyIT
-  method: testGeoShapeGeoTile
-  issue: https://github.com/elastic/elasticsearch/issues/115717
 - class: org.elasticsearch.search.StressSearchServiceReaperIT
   method: testStressReaper
   issue: https://github.com/elastic/elasticsearch/issues/115816
-- class: org.elasticsearch.xpack.spatial.search.GeoGridAggAndQueryConsistencyIT
-  method: testGeoShapeGeoHex
-  issue: https://github.com/elastic/elasticsearch/issues/115705
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNoDocValues SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/116945
@@ -459,9 +444,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.integration.TransformAuditorIT
   method: testAuditorWritesAudits
   issue: https://github.com/elastic/elasticsearch/issues/121241
-- class: org.elasticsearch.ingest.geoip.FullClusterRestartIT
-  method: testGeoIpSystemFeaturesMigration {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/121115
 - class: org.elasticsearch.xpack.security.authc.jwt.JwtRealmSingleNodeTests
   method: testGrantApiKeyForJWT
   issue: https://github.com/elastic/elasticsearch/issues/121039
@@ -516,3 +498,6 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
   method: testSearcherId
   issue: https://github.com/elastic/elasticsearch/issues/118374
+- class: org.elasticsearch.upgrades.VectorSearchIT
+  method: testBBQVectorSearch {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/121272

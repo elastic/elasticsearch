@@ -249,7 +249,8 @@ class Elasticsearch {
                 nodeEnv.configDir(),
                 nodeEnv.tmpDir()
             );
-        } else if (RuntimeVersionFeature.isSecurityManagerAvailable()) {
+        } else {
+            assert RuntimeVersionFeature.isSecurityManagerAvailable();
             // no need to explicitly enable native access for legacy code
             pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, Map.of());
             // install SM after natives, shutdown hooks, etc.
@@ -259,10 +260,6 @@ class Elasticsearch {
                 SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(args.nodeSettings()),
                 args.pidFile()
             );
-        } else {
-            // TODO: should we throw/interrupt startup in this case?
-            pluginsLoader = PluginsLoader.createPluginsLoader(modulesBundles, pluginsBundles, Map.of());
-            LogManager.getLogger(Elasticsearch.class).warn("Bootstrapping without any protection");
         }
 
         bootstrap.setPluginsLoader(pluginsLoader);

@@ -45,9 +45,9 @@ public class SimpleNodesCapabilitiesIT extends ESIntegTestCase {
         assertThat(response.isSupported(), isPresentWith(true));
 
         // check we support REST API version parameters of the capabilities API
-        response = clusterAdmin().nodesCapabilities(new NodesCapabilitiesRequest().path("_capabilities").parameters("method", "path")
-                .restApiVersion(RestApiVersion.current()))
-            .actionGet();
+        response = clusterAdmin().nodesCapabilities(
+            new NodesCapabilitiesRequest().path("_capabilities").parameters("method", "path").restApiVersion(RestApiVersion.current())
+        ).actionGet();
         assertThat(response.getNodes(), hasSize(2));
         assertThat(response.isSupported(), isPresentWith(true));
 

@@ -141,8 +141,6 @@ public class Configuration implements Writeable {
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_SUPPORT_PARTIAL_RESULTS)) {
             out.writeBoolean(allowPartialResults);
-        } else if (allowPartialResults) {
-            throw new IllegalArgumentException("allow_partial_result is not supported in this version");
         }
     }
 

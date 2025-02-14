@@ -115,17 +115,19 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
             request.path,
             request.parameters,
             request.capabilities,
-            request.restApiVersion
+            request.restApiVersionMajor
         );
         return new NodeCapability(supported, transportService.getLocalNode());
     }
 
     public static class NodeCapabilitiesRequest extends TransportRequest {
+        private static final int IMPLICIT_REST_API_VERSION = 0;
+
         private final RestRequest.Method method;
         private final String path;
         private final Set<String> parameters;
         private final Set<String> capabilities;
-        private final RestApiVersion restApiVersion;
+        private final Byte restApiVersionMajor;
 
         public NodeCapabilitiesRequest(StreamInput in) throws IOException {
             super(in);
@@ -134,7 +136,9 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
             path = in.readString();
             parameters = in.readCollectionAsImmutableSet(StreamInput::readString);
             capabilities = in.readCollectionAsImmutableSet(StreamInput::readString);
-            restApiVersion = RestApiVersion.forMajor(in.readVInt());
+            byte versionFromMessage = (byte) in.readVInt();
+            // V9 can send IMPLICIT_REST_API_VERSION
+            restApiVersionMajor = (versionFromMessage != IMPLICIT_REST_API_VERSION) ? versionFromMessage : null;
         }
 
         public NodeCapabilitiesRequest(
@@ -148,7 +152,7 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
             this.path = path;
             this.parameters = Set.copyOf(parameters);
             this.capabilities = Set.copyOf(capabilities);
-            this.restApiVersion = restApiVersion;
+            this.restApiVersionMajor = (restApiVersion != null) ? restApiVersion.major : null;
         }
 
         @Override
@@ -159,7 +163,7 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
             out.writeString(path);
             out.writeCollection(parameters, StreamOutput::writeString);
             out.writeCollection(capabilities, StreamOutput::writeString);
-            out.writeVInt(restApiVersion.major);
+            out.writeVInt(restApiVersionMajor);
         }
     }
 }

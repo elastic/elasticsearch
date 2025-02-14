@@ -305,9 +305,6 @@ tests:
 - class: org.elasticsearch.env.NodeEnvironmentTests
   method: testGetBestDowngradeVersion
   issue: https://github.com/elastic/elasticsearch/issues/121316
-- class: org.elasticsearch.ingest.geoip.FullClusterRestartIT
-  method: testGeoIpSystemFeaturesMigration {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/121115
 - class: org.elasticsearch.index.engine.ShuffleForcedMergePolicyTests
   method: testDiagnostics
   issue: https://github.com/elastic/elasticsearch/issues/121336
@@ -329,8 +326,6 @@ tests:
 - class: org.elasticsearch.search.CrossClusterSearchUnavailableClusterIT
   method: testSearchSkipUnavailable
   issue: https://github.com/elastic/elasticsearch/issues/121497
-- class: org.elasticsearch.ingest.geoip.FullClusterRestartIT
-  issue: https://github.com/elastic/elasticsearch/issues/121935
 - class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
   method: testExchangeSourceContinueOnFailure
   issue: https://github.com/elastic/elasticsearch/issues/122408

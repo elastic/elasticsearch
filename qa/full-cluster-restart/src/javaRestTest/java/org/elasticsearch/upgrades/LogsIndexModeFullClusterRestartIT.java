@@ -43,6 +43,9 @@ public class LogsIndexModeFullClusterRestartIT extends ParameterizedFullClusterR
         .module("x-pack-stack")
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
+        // TODO: add version check
+        .jvmArg("-da:org.elasticsearch.index.mapper.DocumentMapper")
+        .jvmArg("-da:org.elasticsearch.index.mapper.MapperService")
         .build();
 
     public LogsIndexModeFullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {

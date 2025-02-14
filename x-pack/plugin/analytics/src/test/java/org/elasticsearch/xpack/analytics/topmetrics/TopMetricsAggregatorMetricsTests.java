@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.analytics.topmetrics;
 
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedConsumer;
@@ -67,6 +69,10 @@ public class TopMetricsAggregatorMetricsTests extends ESTestCase {
         assertNoValues(toConfig(null, CoreValuesSourceType.KEYWORD, DocValueFormat.RAW, false));
     }
 
+    public void testNoGeoPoints() throws IOException {
+        assertNoValues(toConfig(null, CoreValuesSourceType.GEOPOINT, DocValueFormat.RAW, false));
+    }
+
     private void assertNoValues(ValuesSourceConfig config) throws IOException {
         withMetric(config, m -> {
             // Load from doc is a noop
@@ -95,6 +101,16 @@ public class TopMetricsAggregatorMetricsTests extends ESTestCase {
         });
     }
 
+    public void testEmptyGeoPoint() throws IOException {
+        SortedNumericDocValues values = mock(SortedNumericDocValues.class);
+        when(values.advanceExact(0)).thenReturn(false);
+        ValuesSourceConfig config = toGeoPointConfig(values);
+        withMetric(config, m -> {
+            m.loader(null).loadFromDoc(0, 0);
+            assertNullMetric(m, config, 0, false);
+        });
+    }
+
     public void testLoadLong() throws IOException {
         long value = randomLong();
         SortedNumericDocValues values = mock(SortedNumericDocValues.class);
@@ -118,6 +134,23 @@ public class TopMetricsAggregatorMetricsTests extends ESTestCase {
         withMetric(config, m -> {
             m.loader(null).loadFromDoc(0, 0);
             assertMetricValue(m, 0, config, SortValue.from(value), true);
+        });
+    }
+
+    public void testLoadGeoPoint() throws IOException {
+        long value = randomLong();
+        SortedNumericDocValues values = mock(SortedNumericDocValues.class);
+        when(values.advanceExact(0)).thenReturn(true);
+        when(values.docValueCount()).thenReturn(1);
+        when(values.nextValue()).thenReturn(value);
+        ValuesSourceConfig config = toGeoPointConfig(values);
+        withMetric(config, m -> {
+            m.loader(null).loadFromDoc(0, 0);
+            GeoPoint point = new GeoPoint(
+                GeoEncodingUtils.decodeLatitude((int) (value >>> 32)),
+                GeoEncodingUtils.decodeLongitude((int) value)
+            );
+            assertMetricValue(m, 0, config, SortValue.from(new BytesRef(point.toString())), false);
         });
     }
 
@@ -173,6 +206,35 @@ public class TopMetricsAggregatorMetricsTests extends ESTestCase {
         withMetric(config, m -> assertLoadTwoAndSwap(m, config, SortValue.from(firstValue), SortValue.from(secondValue), false));
     }
 
+    public void testLoadAndSwapGeoPoint() throws IOException {
+        long firstValue = randomLong();
+        long secondValue = randomLong();
+        SortedNumericDocValues values = mock(SortedNumericDocValues.class);
+        when(values.advanceExact(0)).thenReturn(true);
+        when(values.advanceExact(1)).thenReturn(true);
+        when(values.docValueCount()).thenReturn(1);
+        when(values.nextValue()).thenReturn(firstValue, secondValue);
+        ValuesSourceConfig config = toGeoPointConfig(values);
+        GeoPoint firstPoint = new GeoPoint(
+            GeoEncodingUtils.decodeLatitude((int) (firstValue >>> 32)),
+            GeoEncodingUtils.decodeLongitude((int) firstValue)
+        );
+        GeoPoint secondPoint = new GeoPoint(
+            GeoEncodingUtils.decodeLatitude((int) (secondValue >>> 32)),
+            GeoEncodingUtils.decodeLongitude((int) secondValue)
+        );
+        withMetric(
+            config,
+            m -> assertLoadTwoAndSwap(
+                m,
+                config,
+                SortValue.from(new BytesRef(firstPoint.toString())),
+                SortValue.from(new BytesRef(secondPoint.toString())),
+                false
+            )
+        );
+    }
+
     public void testManyValues() throws IOException {
         long[] values = IntStream.range(0, between(2, 100)).mapToLong(i -> randomLong()).toArray();
         List<ValuesSourceConfig> configs = Arrays.stream(values).mapToObj(v -> {
@@ -196,6 +258,12 @@ public class TopMetricsAggregatorMetricsTests extends ESTestCase {
                 assertThat(metric.getMetricValues(), hasItem(new MetricValue(config.format(), SortValue.from(values[i]))));
             }
         });
+    }
+
+    private ValuesSourceConfig toGeoPointConfig(SortedNumericDocValues values) throws IOException {
+        ValuesSource.GeoPoint source = mock(ValuesSource.GeoPoint.class);
+        when(source.geoSortedNumericDocValues(null)).thenReturn(values);
+        return toConfig(source, CoreValuesSourceType.GEOPOINT, DocValueFormat.RAW, true);
     }
 
     private ValuesSourceConfig toConfig(SortedNumericDocValues values) throws IOException {

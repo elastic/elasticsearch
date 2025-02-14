@@ -23,8 +23,7 @@ import java.util.Set;
 
 import static org.elasticsearch.test.SecuritySettingsSource.SECURITY_REQUEST_OPTIONS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -82,11 +81,8 @@ public class GeRoleDescriptorsTests extends NativeRealmIntegTestCase {
         for (NativeRolesStore rolesStore : internalCluster().getInstances(NativeRolesStore.class)) {
             PlainActionFuture<RoleRetrievalResult> future = new PlainActionFuture<>();
             Set<String> reservedRoles = randomUnique(() -> randomFrom(ReservedRolesStore.names()), randomIntBetween(1, 5));
-            rolesStore.getRoleDescriptors(reservedRoles, future);
-            RoleRetrievalResult result = future.actionGet();
-            assertThat(result, notNullValue());
-            assertTrue(result.isSuccess());
-            assertThat(result.getDescriptors(), is(empty()));
+            AssertionError error = expectThrows(AssertionError.class, () -> rolesStore.getRoleDescriptors(reservedRoles, future));
+            assertThat(error.getMessage(), containsString("native roles store should not be called with reserved role names"));
         }
     }
 

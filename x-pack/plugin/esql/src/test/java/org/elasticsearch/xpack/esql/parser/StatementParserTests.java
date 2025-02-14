@@ -1256,15 +1256,23 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         expectError("from test | where x < ?#1", List.of(paramAsConstant("#1", 5)), "token recognition error at: '#'");
 
-        expectError(
-            "from test | where x < ???",
-            List.of(paramAsConstant("n_1", 5), paramAsConstant("n_2", 5)),
-            "extraneous input '?' expecting <EOF>"
-        );
-
         expectError("from test | where x < ?Å", List.of(paramAsConstant("Å", 5)), "line 1:24: token recognition error at: 'Å'");
 
         expectError("from test | eval x = ?Å", List.of(paramAsConstant("Å", 5)), "line 1:23: token recognition error at: 'Å'");
+
+        if (EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()) {
+            expectError(
+                "from test | where x < ???",
+                List.of(paramAsConstant("n_1", 5), paramAsConstant("n_2", 5)),
+                "extraneous input '?' expecting <EOF>"
+            );
+        } else {
+            expectError(
+                "from test | where x < ??",
+                List.of(paramAsConstant("n_1", 5), paramAsConstant("n_2", 5)),
+                "extraneous input '?' expecting <EOF>"
+            );
+        }
     }
 
     public void testPositionalParams() {

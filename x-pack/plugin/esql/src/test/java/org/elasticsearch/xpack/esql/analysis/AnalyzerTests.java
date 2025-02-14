@@ -2511,6 +2511,10 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testNamedDoubleParamsForIdentifiers() {
+        assumeTrue(
+            "double parameters markers for identifiers requires snapshot build",
+            EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()
+        );
         assertProjectionWithMapping(
             """
                 from test

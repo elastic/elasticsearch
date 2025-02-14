@@ -7,20 +7,33 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.mapper.blockloader;
+package org.elasticsearch.xpack.unsignedlong;
 
 import org.elasticsearch.index.mapper.NumberFieldBlockLoaderTestCase;
 import org.elasticsearch.logsdb.datageneration.FieldType;
+import org.elasticsearch.plugins.Plugin;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
-public class LongFieldBlockLoaderTests extends NumberFieldBlockLoaderTestCase<Long> {
-    public LongFieldBlockLoaderTests() {
-        super(FieldType.LONG);
+public class UnsignedLongFieldBlockLoaderTests extends NumberFieldBlockLoaderTestCase<Long> {
+    private static final long MASK_2_63 = 0x8000000000000000L;
+
+    public UnsignedLongFieldBlockLoaderTests() {
+        super(FieldType.UNSIGNED_LONG);
     }
 
     @Override
     protected Long convert(Number value, Map<String, Object> fieldMapping) {
-        return value.longValue();
+        // Adjust values coming from source to the way they are stored in doc_values.
+        // See mapper implementation.
+        var unsigned = value.longValue();
+        return unsigned ^ MASK_2_63;
+    }
+
+    @Override
+    protected Collection<? extends Plugin> getPlugins() {
+        return List.of(new UnsignedLongMapperPlugin());
     }
 }

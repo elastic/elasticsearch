@@ -198,6 +198,13 @@ public class RestClientDocumentation {
                 });
             //end::rest-client-init-client-config-callback
         }
+        {
+            //tag::rest-client-init-client-config-reverse-proxy
+            RestClientBuilder builder = RestClient.builder(
+                new HttpHost("proxy", 9000, "http"))
+                .setPathPrefix("/elastic"); // <1>
+            //end::rest-client-init-client-config-reverse-proxy
+        }
 
         {
             //tag::rest-client-sync

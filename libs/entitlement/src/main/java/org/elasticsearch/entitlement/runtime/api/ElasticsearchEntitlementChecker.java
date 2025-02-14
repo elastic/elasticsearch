@@ -1164,7 +1164,7 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void check$java_nio_file_Files$$createTempFile(Class<?> callerClass, String prefix, String suffix, FileAttribute<?>... attrs) {
-        // TODO
+        policyManager.checkCreateTempFile(callerClass);
     }
 
     @Override
@@ -1174,7 +1174,7 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void check$java_nio_file_Files$$createTempDirectory(Class<?> callerClass, String prefix, FileAttribute<?>... attrs) {
-        // TODO
+        policyManager.checkCreateTempFile(callerClass);
     }
 
     @Override

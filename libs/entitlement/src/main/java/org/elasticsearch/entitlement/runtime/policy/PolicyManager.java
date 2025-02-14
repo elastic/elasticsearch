@@ -305,6 +305,10 @@ public class PolicyManager {
         }
     }
 
+    public void checkCreateTempFile(Class<?> callerClass) {
+        checkFileWrite(callerClass, tempDir);
+    }
+
     /**
      * Invoked when we try to get an arbitrary {@code FileAttributeView} class. Such a class can modify attributes, like owner etc.;
      * we could think about introducing checks for each of the operations, but for now we over-approximate this and simply deny when it is

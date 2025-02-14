@@ -59,6 +59,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ_WRITE;
 
 /**
@@ -153,6 +154,7 @@ public class EntitlementInitialization {
                                 Stream.of(new FilesEntitlement.FileData(tempDir.toString(), READ_WRITE)),
                                 Stream.of(new FilesEntitlement.FileData(configDir.toString(), READ_WRITE)),
                                 Stream.of(new FilesEntitlement.FileData(logsDir.toString(), READ_WRITE)),
+                                Stream.of(new FilesEntitlement.FileData("/etc/os-release", READ)), // for OsProbe
                                 Arrays.stream(dataDirs).map(d -> new FileData(d.toString(), READ_WRITE))
                             ).flatMap(Function.identity()).toList()
                         )

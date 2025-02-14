@@ -181,6 +181,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         CircuitBreakerService circuitBreakerService,
         BigArrays bigArrays,
         ThreadPool threadPool,
+        ThreadPoolMergeQueue threadPoolMergeQueue,
         ScriptService scriptService,
         ClusterService clusterService,
         Client client,
@@ -264,7 +265,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.indexFoldersDeletionListener = indexFoldersDeletionListener;
         this.bigArrays = bigArrays;
         this.threadPool = threadPool;
-        this.threadPoolMergeQueue = ThreadPoolMergeQueue.maybeCreateThreadPoolMergeQueue(threadPool, indexSettings.getNodeSettings());
+        this.threadPoolMergeQueue = threadPoolMergeQueue;
         this.scriptService = scriptService;
         this.clusterService = clusterService;
         this.client = client;

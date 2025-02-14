@@ -147,4 +147,10 @@ public class ThreadPoolMergeQueue {
     double getTargetMBPerSec() {
         return targetMBPerSec.get();
     }
+
+    public boolean isEmpty() {
+        boolean isEmpty = queuedMergeTasks.isEmpty() && currentlyRunningMergeTasks.isEmpty();
+        assert isEmpty == false || activeIOThrottledMergeTasksCount.get() == 0L;
+        return isEmpty;
+    }
 }

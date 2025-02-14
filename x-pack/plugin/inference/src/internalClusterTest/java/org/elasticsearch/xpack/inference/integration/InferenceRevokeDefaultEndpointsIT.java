@@ -280,7 +280,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
         return new ElasticInferenceService(
             senderFactory,
             createWithEmptySettings(threadPool),
-            new ElasticInferenceServiceComponents(gatewayUrl),
+            ElasticInferenceServiceComponents.withNoRevokeDelay(gatewayUrl),
             modelRegistry,
             new ElasticInferenceServiceAuthorizationHandler(gatewayUrl, threadPool)
         );

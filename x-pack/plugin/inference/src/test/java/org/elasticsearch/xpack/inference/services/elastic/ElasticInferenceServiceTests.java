@@ -1046,7 +1046,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 new ElasticInferenceServiceCompletionServiceSettings("model_id", new RateLimitSettings(100)),
                 EmptyTaskSettings.INSTANCE,
                 EmptySecretSettings.INSTANCE,
-                new ElasticInferenceServiceComponents(eisGatewayUrl)
+                ElasticInferenceServiceComponents.withNoRevokeDelay(eisGatewayUrl)
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
@@ -1099,7 +1099,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         return new ElasticInferenceService(
             mock(HttpRequestSender.Factory.class),
             createWithEmptySettings(threadPool),
-            new ElasticInferenceServiceComponents(null),
+            ElasticInferenceServiceComponents.EMPTY_INSTANCE,
             mockModelRegistry(),
             mockAuthHandler
         );
@@ -1128,7 +1128,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         return new ElasticInferenceService(
             senderFactory,
             createWithEmptySettings(threadPool),
-            new ElasticInferenceServiceComponents(gatewayUrl),
+            ElasticInferenceServiceComponents.withNoRevokeDelay(gatewayUrl),
             mockModelRegistry(),
             mockAuthHandler
         );
@@ -1138,7 +1138,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         return new ElasticInferenceService(
             senderFactory,
             createWithEmptySettings(threadPool),
-            new ElasticInferenceServiceComponents(eisGatewayUrl),
+            ElasticInferenceServiceComponents.withNoRevokeDelay(eisGatewayUrl),
             mockModelRegistry(),
             new ElasticInferenceServiceAuthorizationHandler(eisGatewayUrl, threadPool)
         );

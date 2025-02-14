@@ -4563,11 +4563,9 @@ public class IndexShardTests extends IndexShardTestCase {
         var newEngineCreated = new CountDownLatch(2);
         var indexShard = newStartedShard(true, Settings.EMPTY, config -> {
             try {
-                return new ReadOnlyEngine(config, null, null, true, Function.identity(), true, true) {
+                return new ReadOnlyEngine(config, null, new TranslogStats(), false, Function.identity(), true, true) {
                     @Override
-                    public void prepareForEngineReset() throws IOException {
-                        ;
-                    }
+                    public void prepareForEngineReset() throws IOException {}
                 };
             } finally {
                 newEngineCreated.countDown();

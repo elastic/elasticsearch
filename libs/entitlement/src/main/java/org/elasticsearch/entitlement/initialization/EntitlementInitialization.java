@@ -129,6 +129,7 @@ public class EntitlementInitialization {
         Map<String, Policy> pluginPolicies = EntitlementBootstrap.bootstrapArgs().pluginPolicies();
         Path[] dataDirs = EntitlementBootstrap.bootstrapArgs().dataDirs();
         Path tempDir = EntitlementBootstrap.bootstrapArgs().tempDir();
+        Path logsDir = EntitlementBootstrap.bootstrapArgs().logsDir();
 
         // TODO(ES-10031): Decide what goes in the elasticsearch default policy and extend it
         var serverPolicy = new Policy(
@@ -147,7 +148,10 @@ public class EntitlementInitialization {
                         new LoadNativeLibrariesEntitlement(),
                         new ManageThreadsEntitlement(),
                         new FilesEntitlement(
-                            List.of(new FilesEntitlement.FileData(EntitlementBootstrap.bootstrapArgs().tempDir().toString(), READ_WRITE))
+                            List.of(
+                                new FilesEntitlement.FileData(tempDir.toString(), READ_WRITE),
+                                new FilesEntitlement.FileData(logsDir.toString(), READ_WRITE)
+                            )
                         )
                     )
                 ),

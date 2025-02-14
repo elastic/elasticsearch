@@ -70,21 +70,29 @@ public class LogsDBUsageTransportAction extends XPackUsageFeatureTransportAction
         }
         final boolean enabled = LogsDBPlugin.CLUSTER_LOGSDB_ENABLED.get(clusterService.getSettings());
         final boolean hasCustomCutoffDate = System.getProperty(LogsdbLicenseService.CUTOFF_DATE_SYS_PROP_NAME) != null;
-        final DiscoveryNode[] nodes = state.nodes().getDataNodes().values().toArray(DiscoveryNode[]::new);
-        final var statsRequest = new IndexModeStatsActionType.StatsRequest(nodes);
-        final int finalNumIndices = numIndices;
-        final int finalNumIndicesWithSyntheticSources = numIndicesWithSyntheticSources;
-        client.execute(IndexModeStatsActionType.TYPE, statsRequest, listener.map(statsResponse -> {
-            final var indexStats = statsResponse.stats().get(IndexMode.LOGSDB);
-            return new XPackUsageFeatureResponse(
-                new LogsDBFeatureSetUsage(
-                    true,
-                    enabled,
-                    finalNumIndices,
-                    finalNumIndicesWithSyntheticSources,
-                    indexStats.numDocs(),
-                    indexStats.numBytes(),
-                    hasCustomCutoffDate
+        if (featureService.clusterHasFeature(state, XPackFeatures.LOGSDB_TELMETRY_STATS)) {
+            final DiscoveryNode[] nodes = state.nodes().getDataNodes().values().toArray(DiscoveryNode[]::new);
+            final var statsRequest = new IndexModeStatsActionType.StatsRequest(nodes);
+            final int finalNumIndices = numIndices;
+            final int finalNumIndicesWithSyntheticSources = numIndicesWithSyntheticSources;
+            client.execute(IndexModeStatsActionType.TYPE, statsRequest, listener.map(statsResponse -> {
+                final var indexStats = statsResponse.stats().get(IndexMode.LOGSDB);
+                return new XPackUsageFeatureResponse(
+                    new LogsDBFeatureSetUsage(
+                        true,
+                        enabled,
+                        finalNumIndices,
+                        finalNumIndicesWithSyntheticSources,
+                        indexStats.numDocs(),
+                        indexStats.numBytes(),
+                        hasCustomCutoffDate
+                    )
+                );
+            }));
+        } else {
+            listener.onResponse(
+                new XPackUsageFeatureResponse(
+                    new LogsDBFeatureSetUsage(true, enabled, numIndices, numIndicesWithSyntheticSources, 0L, 0L, hasCustomCutoffDate)
                 )
             );
         }

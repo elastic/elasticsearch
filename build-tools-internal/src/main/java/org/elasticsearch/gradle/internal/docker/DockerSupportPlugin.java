@@ -40,7 +40,7 @@ public class DockerSupportPlugin implements Plugin<Project> {
             .getSharedServices()
             .registerIfAbsent(DOCKER_SUPPORT_SERVICE_NAME, DockerSupportService.class, spec -> spec.parameters(params -> {
                 params.setExclusionsFile(new File(project.getRootDir(), DOCKER_ON_LINUX_EXCLUSIONS_FILE));
-                params.getIsCI().set(buildParams.isCi());
+                params.getIsCI().set(buildParams.getCi());
             }));
 
         // Ensure that if we are trying to run any DockerBuildTask tasks, we assert an available Docker installation exists

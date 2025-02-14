@@ -1081,15 +1081,28 @@ public class StatementParserTests extends AbstractStatementParserTests {
             processingCommand("enrich _" + mode.name() + ":countries ON country_code")
         );
 
-        expectError("from a | enrich countries on foo* ", "Using wildcards [*] in ENRICH WITH projections is not allowed [foo*]");
-        expectError("from a | enrich countries on foo with bar*", "Using wildcards [*] in ENRICH WITH projections is not allowed [bar*]");
+        expectError("from a | enrich countries on foo* ", "Using wildcards [*] in ENRICH WITH projections is not allowed, found [foo*]");
+        expectError("from a | enrich countries on * ", "Using wildcards [*] in ENRICH WITH projections is not allowed, found [*]");
+        expectError(
+            "from a | enrich countries on foo with bar*",
+            "Using wildcards [*] in ENRICH WITH projections is not allowed, found [bar*]"
+        );
+        expectError("from a | enrich countries on foo with *", "Using wildcards [*] in ENRICH WITH projections is not allowed, found [*]");
         expectError(
             "from a | enrich countries on foo with x = bar* ",
-            "Using wildcards [*] in ENRICH WITH projections is not allowed [bar*]"
+            "Using wildcards [*] in ENRICH WITH projections is not allowed, found [bar*]"
+        );
+        expectError(
+            "from a | enrich countries on foo with x = * ",
+            "Using wildcards [*] in ENRICH WITH projections is not allowed, found [*]"
         );
         expectError(
             "from a | enrich countries on foo with x* = bar ",
-            "Using wildcards [*] in ENRICH WITH projections is not allowed [x*]"
+            "Using wildcards [*] in ENRICH WITH projections is not allowed, found [x*]"
+        );
+        expectError(
+            "from a | enrich countries on foo with * = bar ",
+            "Using wildcards [*] in ENRICH WITH projections is not allowed, found [*]"
         );
         expectError(
             "from a | enrich typo:countries on foo",
@@ -1973,7 +1986,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             expectError(
                 "from idx1 | " + enrich,
                 List.of(paramAsPattern("f1", pattern), paramAsIdentifier("f2", "f.2"), paramAsIdentifier("f3", "f.3*")),
-                "Using wildcards [*] in ENRICH WITH projections is not allowed [" + pattern + "]"
+                "Using wildcards [*] in ENRICH WITH projections is not allowed, found [" + pattern + "]"
             );
             expectError(
                 "from idx1 | " + enrich,
@@ -2968,5 +2981,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 "invalid index pattern [" + unquoteIndexPattern(fromPatterns) + "], remote clusters are not supported in LOOKUP JOIN"
             );
         }
+    }
+
+    public void testInvalidInsistAsterisk() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        expectError("FROM text | EVAL x = 4 | INSIST_🐔 *", "INSIST doesn't support wildcards, found [*]");
+        expectError("FROM text | EVAL x = 4 | INSIST_🐔 foo*", "INSIST doesn't support wildcards, found [foo*]");
     }
 }

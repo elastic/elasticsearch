@@ -311,7 +311,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
         return copyWriteable(
             original,
             namedWriteableRegistry,
-            (Writeable.Reader<SB>) namedWriteableRegistry.getReader(SuggestionBuilder.class, original.getWriteableName())
+            (Writeable.Reader<SB>) namedWriteableRegistry.getReader(SuggestionBuilder.class, original.getNameSymbol())
         );
     }
 

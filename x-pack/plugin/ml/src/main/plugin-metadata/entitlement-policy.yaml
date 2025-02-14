@@ -2,3 +2,4 @@ org.elasticsearch.ml:
   - files:
       - path: "tmp/"
         mode: "read"
+  - manage_threads

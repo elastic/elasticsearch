@@ -1,6 +1,7 @@
 io.netty.transport:
   - inbound_network
   - outbound_network
+  - manage_threads
 io.netty.common:
   - inbound_network
   - outbound_network
@@ -9,3 +10,4 @@ io.netty.common:
         mode: "read"
       - path: "/usr/lib/os-release"
         mode: "read"
+  - manage_threads

@@ -14,14 +14,24 @@ import org.elasticsearch.core.SuppressForbidden;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.attribute.UserPrincipal;
+import java.security.SecureRandom;
 
+@SuppressForbidden(reason = "Exposes forbidden APIs for testing purposes")
 public final class EntitledActions {
     private EntitledActions() {}
 
-    @SuppressForbidden(reason = "Exposes forbidden APIs for testing purposes")
-    static void System_clearProperty(String key) {
-        System.clearProperty(key);
+    private static final SecureRandom random = new SecureRandom();
+
+    private static final Path testRootDir = Paths.get(System.getProperty("es.entitlements.testdir"));
+
+    private static Path readDir() {
+        return testRootDir.resolve("read_dir");
+    }
+
+    private static Path readWriteDir() {
+        return testRootDir.resolve("read_write_dir");
     }
 
     public static UserPrincipal getFileOwner(Path path) throws IOException {
@@ -30,5 +40,21 @@ public final class EntitledActions {
 
     public static void createFile(Path path) throws IOException {
         Files.createFile(path);
+    }
+
+    public static Path createTempFileForRead() throws IOException {
+        return Files.createFile(readDir().resolve("entitlements-" + random.nextLong() + ".tmp"));
+    }
+
+    public static Path createTempFileForWrite() throws IOException {
+        return Files.createFile(readWriteDir().resolve("entitlements-" + random.nextLong() + ".tmp"));
+    }
+
+    public static Path createTempDirectoryForWrite() throws IOException {
+        return Files.createDirectory(readWriteDir().resolve("entitlements-dir-" + random.nextLong()));
+    }
+
+    public static Path createTempSymbolicLink() throws IOException {
+        return Files.createSymbolicLink(readDir().resolve("entitlements-link-" + random.nextLong()), readWriteDir());
     }
 }

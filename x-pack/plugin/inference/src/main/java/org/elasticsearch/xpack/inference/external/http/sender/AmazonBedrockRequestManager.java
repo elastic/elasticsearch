@@ -11,6 +11,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockService;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.util.Objects;
@@ -50,5 +51,9 @@ public abstract class AmazonBedrockRequestManager implements RequestManager {
     @Override
     public Object rateLimitGrouping() {
         return RateLimitGrouping.of(this.baseModel);
+    }
+
+    public String service() {
+        return AmazonBedrockService.NAME;
     }
 }

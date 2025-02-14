@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiModel;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiService;
 
 import java.util.Objects;
 
@@ -26,5 +27,10 @@ public abstract class AzureOpenAiRequestManager extends BaseRequestManager {
                 model.rateLimitServiceSettings().deploymentId().hashCode()
             );
         }
+    }
+
+    @Override
+    public String service() {
+        return AzureOpenAiService.NAME;
     }
 }

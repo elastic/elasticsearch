@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.anthropic.AnthropicResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
@@ -21,6 +22,8 @@ import org.elasticsearch.xpack.inference.services.anthropic.completion.Anthropic
 
 import java.util.Objects;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.inference.TaskType.COMPLETION;
 
 public class AnthropicCompletionRequestManager extends AnthropicRequestManager {
 
@@ -56,5 +59,10 @@ public class AnthropicCompletionRequestManager extends AnthropicRequestManager {
 
     private static ResponseHandler createCompletionHandler() {
         return new AnthropicResponseHandler("anthropic completions", AnthropicChatCompletionResponseEntity::fromResponse, true);
+    }
+
+    @Override
+    public TaskType taskType() {
+        return COMPLETION;
     }
 }

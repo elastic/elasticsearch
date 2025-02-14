@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxModel;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxService;
 
 import java.util.Objects;
 
@@ -23,5 +24,10 @@ public abstract class IbmWatsonxRequestManager extends BaseRequestManager {
 
             return new RateLimitGrouping(model.rateLimitServiceSettings().modelId().hashCode());
         }
+    }
+
+    @Override
+    public String service() {
+        return IbmWatsonxService.NAME;
     }
 }

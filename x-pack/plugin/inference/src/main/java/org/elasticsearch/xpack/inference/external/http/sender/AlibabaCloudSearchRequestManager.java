@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.external.request.alibabacloudsearch.AlibabaCloudSearchUtils;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchModel;
 
 import java.util.Objects;
@@ -24,5 +25,10 @@ abstract class AlibabaCloudSearchRequestManager extends BaseRequestManager {
 
             return new RateLimitGrouping(model.rateLimitServiceSettings().hashCode());
         }
+    }
+
+    @Override
+    public String service() {
+        return AlibabaCloudSearchUtils.SERVICE_NAME;
     }
 }

@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
@@ -19,12 +20,14 @@ import org.elasticsearch.xpack.inference.external.request.mistral.MistralEmbeddi
 import org.elasticsearch.xpack.inference.external.response.AzureMistralOpenAiExternalResponseHandler;
 import org.elasticsearch.xpack.inference.external.response.ErrorMessageResponseEntity;
 import org.elasticsearch.xpack.inference.external.response.mistral.MistralEmbeddingsResponseEntity;
+import org.elasticsearch.xpack.inference.services.mistral.MistralService;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsModel;
 
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
 
 public class MistralEmbeddingsRequestManager extends BaseRequestManager {
@@ -70,5 +73,15 @@ public class MistralEmbeddingsRequestManager extends BaseRequestManager {
 
             return new RateLimitGrouping(model.getSecretSettings().apiKey().hashCode());
         }
+    }
+
+    @Override
+    public String service() {
+        return MistralService.NAME;
+    }
+
+    @Override
+    public TaskType taskType() {
+        return TEXT_EMBEDDING;
     }
 }

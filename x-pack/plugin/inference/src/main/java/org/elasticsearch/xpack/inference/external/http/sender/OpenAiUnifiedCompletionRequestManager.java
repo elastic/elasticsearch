@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
@@ -21,6 +22,8 @@ import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCo
 
 import java.util.Objects;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.inference.TaskType.COMPLETION;
 
 public class OpenAiUnifiedCompletionRequestManager extends OpenAiRequestManager {
 
@@ -57,5 +60,10 @@ public class OpenAiUnifiedCompletionRequestManager extends OpenAiRequestManager 
 
     private static ResponseHandler createCompletionHandler() {
         return new OpenAiUnifiedChatCompletionResponseHandler("openai completion", OpenAiChatCompletionResponseEntity::fromResponse);
+    }
+
+    @Override
+    public TaskType taskType() {
+        return COMPLETION;
     }
 }

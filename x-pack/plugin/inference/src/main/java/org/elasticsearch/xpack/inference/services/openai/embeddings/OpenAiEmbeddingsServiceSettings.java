@@ -96,7 +96,6 @@ public class OpenAiEmbeddingsServiceSettings extends FilteredXContentObject impl
         ValidationException validationException,
         ConfigurationParseContext context
     ) {
-
         String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String organizationId = extractOptionalString(map, ORGANIZATION, ModelConfigurations.SERVICE_SETTINGS, validationException);
         SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);

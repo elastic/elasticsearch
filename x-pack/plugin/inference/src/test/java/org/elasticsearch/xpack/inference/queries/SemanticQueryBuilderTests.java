@@ -354,8 +354,9 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     ) throws IOException {
         var modelSettings = switch (inferenceResultType) {
             case NONE -> null;
-            case SPARSE_EMBEDDING -> new MinimalServiceSettings(TaskType.SPARSE_EMBEDDING, null, null, null);
+            case SPARSE_EMBEDDING -> new MinimalServiceSettings("my-service", TaskType.SPARSE_EMBEDDING, null, null, null);
             case TEXT_EMBEDDING -> new MinimalServiceSettings(
+                "my-service",
                 TaskType.TEXT_EMBEDDING,
                 TEXT_EMBEDDING_DIMENSION_COUNT,
                 SimilarityMeasure.COSINE,

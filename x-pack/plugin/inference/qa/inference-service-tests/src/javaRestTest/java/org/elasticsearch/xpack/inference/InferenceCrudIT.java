@@ -51,7 +51,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
             putModel("se_model_" + i, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
         }
         for (int i = 0; i < 4; i++) {
-            putModel("te_model_" + i, mockSparseServiceModelConfig(), TaskType.TEXT_EMBEDDING);
+            putModel("te_model_" + i, mockDenseServiceModelConfig(), TaskType.TEXT_EMBEDDING);
         }
 
         var getAllModels = getAllModels();
@@ -147,7 +147,9 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
             {
                 "service": "openai",
                 "service_settings": {
-                    "api_key": "XXXX"
+                    "api_key": "XXXX",
+                    "dimensions": 128,
+                    "similarity": "cosine"
                 },
                 "task_settings": {
                    "model": "text-embedding-ada-002"

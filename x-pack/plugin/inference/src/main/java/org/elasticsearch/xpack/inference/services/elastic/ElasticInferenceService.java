@@ -153,7 +153,7 @@ public class ElasticInferenceService extends SenderService {
                     EmptySecretSettings.INSTANCE,
                     elasticInferenceServiceComponents
                 ),
-                MinimalServiceSettings.chatCompletion()
+                MinimalServiceSettings.chatCompletion(NAME)
             ),
             DEFAULT_ELSER_MODEL_ID_V2,
             new DefaultModelConfig(
@@ -166,7 +166,7 @@ public class ElasticInferenceService extends SenderService {
                     EmptySecretSettings.INSTANCE,
                     elasticInferenceServiceComponents
                 ),
-                MinimalServiceSettings.sparseEmbedding()
+                MinimalServiceSettings.sparseEmbedding(NAME)
             )
         );
     }

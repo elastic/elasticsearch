@@ -79,7 +79,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             .build();
         DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            "Old index with a compatibility version < 9.0",
+            "Old index with a compatibility version < 8.0",
             "https://www.elastic.co/guide/en/elasticsearch/reference/current/migrating-9.0.html",
             "This index has version: " + OLD_VERSION.toReleaseVersion(),
             false,
@@ -103,7 +103,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             .build();
         var expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            "One or more Transforms write to this index with a compatibility version < 9.0",
+            "One or more Transforms write to this index with a compatibility version < 8.0",
             "https://www.elastic.co/guide/en/elasticsearch/reference/current/migrating-9.0.html"
                 + "#breaking_90_transform_destination_index",
             "This index was created in version ["
@@ -130,7 +130,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             .build();
         var expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
-            "One or more Transforms write to this index with a compatibility version < 9.0",
+            "One or more Transforms write to this index with a compatibility version < 8.0",
             "https://www.elastic.co/guide/en/elasticsearch/reference/current/migrating-9.0.html"
                 + "#breaking_90_transform_destination_index",
             "This index was created in version ["
@@ -161,7 +161,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             List.of(
                 new DeprecationIssue(
                     DeprecationIssue.Level.CRITICAL,
-                    "One or more Transforms write to this index with a compatibility version < 9.0",
+                    "One or more Transforms write to this index with a compatibility version < 8.0",
                     "https://www.elastic.co/guide/en/elasticsearch/reference/current/migrating-9.0.html"
                         + "#breaking_90_transform_destination_index",
                     "This index was created in version ["
@@ -177,7 +177,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             List.of(
                 new DeprecationIssue(
                     DeprecationIssue.Level.CRITICAL,
-                    "One or more Transforms write to this index with a compatibility version < 9.0",
+                    "One or more Transforms write to this index with a compatibility version < 8.0",
                     "https://www.elastic.co/guide/en/elasticsearch/reference/current/migrating-9.0.html"
                         + "#breaking_90_transform_destination_index",
                     "This index was created in version ["
@@ -284,7 +284,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             .build();
         DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
-            "Old index with a compatibility version < 9.0 has been ignored",
+            "Old index with a compatibility version < 8.0 has been ignored",
             "https://www.elastic.co/guide/en/elasticsearch/reference/current/breaking-changes-9.0.html",
             "This read-only index has version: " + OLD_VERSION.toReleaseVersion() + " and will be supported as read-only in 9.0",
             false,
@@ -313,7 +313,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             .build();
         var expected = new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
-            "One or more Transforms write to this old index with a compatibility version < 9.0",
+            "One or more Transforms write to this old index with a compatibility version < 8.0",
             "https://www.elastic.co/guide/en/elasticsearch/reference/current/migrating-9.0.html"
                 + "#breaking_90_transform_destination_index",
             "This index was created in version ["
@@ -340,7 +340,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             .build();
         var expected = new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
-            "One or more Transforms write to this old index with a compatibility version < 9.0",
+            "One or more Transforms write to this old index with a compatibility version < 8.0",
             "https://www.elastic.co/guide/en/elasticsearch/reference/current/migrating-9.0.html"
                 + "#breaking_90_transform_destination_index",
             "This index was created in version ["
@@ -371,7 +371,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             List.of(
                 new DeprecationIssue(
                     DeprecationIssue.Level.WARNING,
-                    "One or more Transforms write to this old index with a compatibility version < 9.0",
+                    "One or more Transforms write to this old index with a compatibility version < 8.0",
                     "https://www.elastic.co/guide/en/elasticsearch/reference/current/migrating-9.0.html"
                         + "#breaking_90_transform_destination_index",
                     "This index was created in version ["
@@ -387,7 +387,7 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
             List.of(
                 new DeprecationIssue(
                     DeprecationIssue.Level.WARNING,
-                    "One or more Transforms write to this old index with a compatibility version < 9.0",
+                    "One or more Transforms write to this old index with a compatibility version < 8.0",
                     "https://www.elastic.co/guide/en/elasticsearch/reference/current/migrating-9.0.html"
                         + "#breaking_90_transform_destination_index",
                     "This index was created in version ["

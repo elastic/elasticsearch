@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationDiagnosticsService;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
+import org.elasticsearch.cluster.coordination.SearchIndexTimeTrackingCleanupService;
 import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
 import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
@@ -79,6 +80,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -235,6 +237,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
@@ -699,6 +703,10 @@ class NodeConstruction {
 
         ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager);
         clusterService.addStateApplier(scriptService);
+
+        var executor = (TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor) threadPool.executor(ThreadPool.Names.SEARCH);
+        clusterService.addListener(new SearchIndexTimeTrackingCleanupService(executor));
+        searchLoadMetricsReporter(executor);
 
         modules.bindToInstance(DocumentParsingProvider.class, documentParsingProvider);
 
@@ -1251,6 +1259,26 @@ class NodeConstruction {
         injector = modules.createInjector();
 
         postInjection(clusterModule, actionModule, clusterService, transportService, featureService);
+    }
+
+    private void searchLoadMetricsReporter(TaskExecutionTimeTrackingPerIndexEsThreadPoolExecutor executor) {
+        Timer timer = new Timer();
+        TimerTask task = new TimerTask() {
+            @Override
+            public void run() {
+                if (executor.getIndexExecutionTime().size() > 0) {
+                    logger.info("Number of reported indices: {}", executor.getIndexExecutionTime().size());
+                    logger.info("Number of runnables: {}", executor.getRunnableToIndexName().size());
+                    executor.getIndexExecutionTime().forEach((index, tuple) -> {
+                        logger.info("Index: {}, Total execution time: {}, EWMA: {}", index, tuple.v1().sum(), tuple.v2().getAverage());
+                    });
+                    logger.info("Total task execution time: {}", executor.getTotalTaskExecutionTime());
+                    logger.info("----------------------------------------------------------------------------------");
+                }
+            }
+        };
+
+        timer.scheduleAtFixedRate(task, 0, 4000);
     }
 
     /**

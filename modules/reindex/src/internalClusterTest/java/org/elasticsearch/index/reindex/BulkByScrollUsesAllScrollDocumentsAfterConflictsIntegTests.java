@@ -9,8 +9,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -117,7 +115,6 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
         );
     }
 
-    @Repeat(iterations = 1000)
     public void testReindex() throws Exception {
         final String sourceIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final String targetIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);

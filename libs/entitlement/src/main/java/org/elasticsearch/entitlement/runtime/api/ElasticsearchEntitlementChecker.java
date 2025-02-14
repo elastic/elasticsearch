@@ -68,6 +68,7 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ForkJoinPool;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
@@ -1219,4 +1220,51 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     public void checkType(Class<?> callerClass, FileStore that) {
         policyManager.checkReadStoreAttributes(callerClass);
     }
+
+    // Thread management
+
+    @Override
+    public void check$java_lang_Thread$start(Class<?> callerClass, Thread thread) {
+        policyManager.checkManageThreadsEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_Thread$setDaemon(Class<?> callerClass, Thread thread, boolean on) {
+        policyManager.checkManageThreadsEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_ThreadGroup$setDaemon(Class<?> callerClass, ThreadGroup threadGroup, boolean daemon) {
+        policyManager.checkManageThreadsEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_util_concurrent_ForkJoinPool$setParallelism(Class<?> callerClass, ForkJoinPool forkJoinPool, int size) {
+        policyManager.checkManageThreadsEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_Thread$setName(Class<?> callerClass, Thread thread, String name) {
+        policyManager.checkManageThreadsEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_Thread$setPriority(Class<?> callerClass, Thread thread, int newPriority) {
+        policyManager.checkManageThreadsEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_Thread$setUncaughtExceptionHandler(
+        Class<?> callerClass,
+        Thread thread,
+        Thread.UncaughtExceptionHandler ueh
+    ) {
+        policyManager.checkManageThreadsEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_ThreadGroup$setMaxPriority(Class<?> callerClass, ThreadGroup threadGroup, int pri) {
+        policyManager.checkManageThreadsEntitlement(callerClass);
+    }
+
 }

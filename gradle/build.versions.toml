@@ -11,7 +11,7 @@ apache-compress = "org.apache.commons:commons-compress:1.26.1"
 apache-rat = "org.apache.rat:apache-rat:0.11"
 asm = { group = "org.ow2.asm", name="asm", version.ref="asm" }
 asm-tree = { group = "org.ow2.asm", name="asm-tree", version.ref="asm" }
-bytebuddy = "net.bytebuddy:byte-buddy:1.14.12"
+bytebuddy = "net.bytebuddy:byte-buddy:1.15.11"
 checkstyle = "com.puppycrawl.tools:checkstyle:10.3"
 commons-codec = "commons-codec:commons-codec:1.11"
 commmons-io = "commons-io:commons-io:2.2"

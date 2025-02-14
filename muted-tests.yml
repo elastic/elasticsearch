@@ -17,12 +17,6 @@ tests:
 - class: org.elasticsearch.upgrades.SecurityIndexRolesMetadataMigrationIT
   method: testMetadataMigratedAfterUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/110232
-- class: org.elasticsearch.backwards.SearchWithMinCompatibleSearchNodeIT
-  method: testMinVersionAsNewVersion
-  issue: https://github.com/elastic/elasticsearch/issues/95384
-- class: org.elasticsearch.backwards.SearchWithMinCompatibleSearchNodeIT
-  method: testCcsMinimizeRoundtripsIsFalse
-  issue: https://github.com/elastic/elasticsearch/issues/101974
 - class: "org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests"
   issue: "https://github.com/elastic/elasticsearch/issues/110408"
   method: "testCreateAndRestorePartialSearchableSnapshot"
@@ -275,9 +269,6 @@ tests:
 - class: org.elasticsearch.threadpool.SimpleThreadPoolIT
   method: testThreadPoolMetrics
   issue: https://github.com/elastic/elasticsearch/issues/108320
-- class: org.elasticsearch.xpack.esql.plugin.ClusterRequestTests
-  method: testFallbackIndicesOptions
-  issue: https://github.com/elastic/elasticsearch/issues/117937
 - class: org.elasticsearch.gradle.internal.info.BuildParameterExtensionSpec
   method: getBwcVersionsProvider is cached anc concurrently accessible
   issue: https://github.com/elastic/elasticsearch/issues/119172
@@ -309,6 +300,13 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/esql/esql-across-clusters/line_192}
   issue: https://github.com/elastic/elasticsearch/issues/120470
+- class: org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT
+  method: test {yaml=/20_metrics_ingest/Test metrics-apm.app-* setting event.ingested via ingest pipeline}
+  issue: https://github.com/elastic/elasticsearch/issues/118875
+- class: org.elasticsearch.gradle.internal.InternalDistributionBwcSetupPluginFuncTest
+  method: "builds distribution from branches via archives extractedAssemble [bwcDistVersion: 8.2.1, bwcProject: bugfix, expectedAssembleTaskName:
+    extractedAssemble, #2]"
+  issue: https://github.com/elastic/elasticsearch/issues/119871
 
 # Examples:
 #

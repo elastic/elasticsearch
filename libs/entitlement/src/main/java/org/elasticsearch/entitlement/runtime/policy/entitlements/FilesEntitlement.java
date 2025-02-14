@@ -41,6 +41,33 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
 
     public sealed interface FileData {
 
+        sealed interface RelativeFileData extends FileData {
+            BaseDir baseDir();
+
+            Stream<Path> resolveRelativePaths(PathLookup pathLookup);
+
+            @Override
+            default Stream<Path> resolvePaths(PathLookup pathLookup) {
+                Objects.requireNonNull(pathLookup);
+                var relativePaths = resolveRelativePaths(pathLookup);
+                switch (baseDir()) {
+                    case CONFIG:
+                        return relativePaths.map(relativePath -> pathLookup.configDir().resolve(relativePath));
+                    case DATA:
+                        // multiple data dirs are a pain...we need the combination of relative paths and data dirs
+                        List<Path> paths = new ArrayList<>();
+                        for (var relativePath : relativePaths.toList()) {
+                            for (var dataDir : pathLookup.dataDirs()) {
+                                paths.add(dataDir.resolve(relativePath));
+                            }
+                        }
+                        return paths.stream();
+                    default:
+                        throw new IllegalArgumentException();
+                }
+            }
+        }
+
         final class AbsolutePathFileData implements FileData {
             private final Path path;
             private final Mode mode;
@@ -122,12 +149,23 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         record PathSettingFileData(String setting, Mode mode) implements FileData {
             @Override
             public Stream<Path> resolvePaths(PathLookup pathLookup) {
-                if (setting.contains("*")) {
-                    return pathLookup.settingGlobResolver().apply(setting).map(Path::of);
-                }
-                String path = pathLookup.settingResolver().apply(setting);
-                return path == null ? Stream.of() : Stream.of(Path.of(path));
+                return FileData.resolvePathSettings(pathLookup, setting);
             }
+        }
+
+        record RelativePathSettingFileData(String setting, BaseDir baseDir, Mode mode) implements FileData, RelativeFileData {
+            @Override
+            public Stream<Path> resolveRelativePaths(PathLookup pathLookup) {
+                return FileData.resolvePathSettings(pathLookup, setting);
+            }
+        }
+
+        private static Stream<Path> resolvePathSettings(PathLookup pathLookup, String setting) {
+            if (setting.contains("*")) {
+                return pathLookup.settingGlobResolver().apply(setting).map(Path::of);
+            }
+            String path = pathLookup.settingResolver().apply(setting);
+            return path == null ? Stream.of() : Stream.of(Path.of(path));
         }
 
         static FileData ofPath(Path path, Mode mode) {
@@ -142,6 +180,10 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
 
         static FileData ofPathSetting(String setting, Mode mode) {
             return new PathSettingFileData(setting, mode);
+        }
+
+        static FileData ofRelativePathSetting(String setting, BaseDir baseDir, Mode mode) {
+            return new RelativePathSettingFileData(setting, baseDir, mode);
         }
 
         Stream<Path> resolvePaths(PathLookup pathLookup);
@@ -181,15 +223,16 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
             String relativePathAsString = file.remove("relative_path");
             String relativeTo = file.remove("relative_to");
             String pathSetting = file.remove("path_setting");
+            String relativePathSetting = file.remove("relative_path_setting");
             String modeAsString = file.remove("mode");
 
             if (file.isEmpty() == false) {
                 throw new PolicyValidationException("unknown key(s) [" + file + "] in a listed file for files entitlement");
             }
-            int foundKeys = (pathAsString != null ? 1 : 0) + (relativePathAsString != null ? 1 : 0) + (pathSetting != null ? 1 : 0);
+            int foundKeys = (pathAsString != null ? 1 : 0) + (relativePathAsString != null ? 1 : 0) + (pathSetting != null ? 1 : 0) + (relativePathSetting != null ? 1 : 0) + (modeAsString != null ? 1 : 0);
             if (foundKeys != 1) {
                 throw new PolicyValidationException(
-                    "files entitlement must contain one of [path, relative_path, path_setting] for every entry"
+                    "files entitlement must contain one of [path, relative_path, path_setting, relative_path_setting] for every entry"
                 );
             }
 
@@ -198,11 +241,15 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
             }
             Mode mode = parseMode(modeAsString);
 
+            BaseDir baseDir = null;
+            if (relativeTo != null) {
+                baseDir = parseBaseDir(relativeTo);
+            }
+
             if (relativePathAsString != null) {
-                if (relativeTo == null) {
+                if (baseDir == null) {
                     throw new PolicyValidationException("files entitlement with a 'relative_path' must specify 'relative_to'");
                 }
-                final BaseDir baseDir = parseBaseDir(relativeTo);
 
                 Path relativePath = Path.of(relativePathAsString);
                 if (relativePath.isAbsolute()) {
@@ -217,6 +264,11 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
                 filesData.add(FileData.ofPath(path, mode));
             } else if (pathSetting != null) {
                 filesData.add(FileData.ofPathSetting(pathSetting, mode));
+            } else if (relativePathSetting != null) {
+                if (baseDir == null) {
+                    throw new PolicyValidationException("files entitlement with a 'relative_path_setting' must specify 'relative_to'");
+                }
+                filesData.add(FileData.ofRelativePathSetting(relativePathSetting, baseDir, mode));
             } else {
                 throw new AssertionError("File entry validation error");
             }

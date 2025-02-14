@@ -166,6 +166,9 @@ public class PolicyParserTests extends ESTestCase {
                   mode: "read_write"
                 - path_setting: foo.bar
                   mode: read
+                - relative_path_setting: foo.bar
+                  relative_to: config
+                  mode: read
             """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", false).parsePolicy();
         expected = new Policy(
             "test-policy.yaml",
@@ -178,7 +181,8 @@ public class PolicyParserTests extends ESTestCase {
                                 Map.of("relative_path", "test/path/to/file", "mode", "read_write", "relative_to", "data"),
                                 Map.of("relative_path", "test/path/to/read-dir/", "mode", "read", "relative_to", "config"),
                                 Map.of("path", "/path/to/file", "mode", "read_write"),
-                                Map.of("path_setting", "foo.bar", "mode", "read")
+                                Map.of("path_setting", "foo.bar", "mode", "read"),
+                                Map.of("relative_path_setting", "foo.bar", "relative_to", "config", "mode", "read")
                             )
                         )
                     )

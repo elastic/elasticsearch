@@ -56,4 +56,8 @@ public class OnGoingMerge {
     public MergePolicy.OneMerge getMerge() {
         return oneMerge;
     }
+
+    public long getMemoryBytesNeeded() {
+        return memoryBytesNeeded;
+    }
 }

@@ -25,20 +25,20 @@ import java.util.List;
 
 public class SegmentMergeMemoryEstimator {
 
-    public static long estimateSegmentMemory(MergePolicy.OneMerge merge, IndexReader indexReader) {
+    public static long estimateMergeMemory(MergePolicy.OneMerge merge, IndexReader indexReader) {
         long memoryNeeded = 0;
         for (SegmentCommitInfo mergedSegment : merge.segments) {
-            memoryNeeded += estimateSegmentMemory(mergedSegment.info.name, indexReader);
+            memoryNeeded += estimateMergeMemory(mergedSegment.info.name, indexReader);
         }
         return memoryNeeded;
     }
 
-    private static long estimateSegmentMemory(String segmentName, IndexReader indexReader) {
+    private static long estimateMergeMemory(String segmentName, IndexReader indexReader) {
         List<LeafReaderContext> leaves = indexReader.leaves();
         for (LeafReaderContext leafReaderContext : leaves) {
             SegmentReader segmentReader = Lucene.segmentReader(leafReaderContext.reader());
             if (segmentReader.getSegmentName().equals(segmentName)) {
-                return estimateSegmentMemory(segmentReader);
+                return estimateMergeMemory(segmentReader);
             }
         }
 
@@ -46,7 +46,7 @@ public class SegmentMergeMemoryEstimator {
         return 0;
     }
 
-    private static long estimateSegmentMemory(SegmentReader reader) {
+    private static long estimateMergeMemory(SegmentReader reader) {
         long maxMem = 0;
         for (FieldInfo fieldInfo : reader.getFieldInfos()) {
             maxMem = Math.max(maxMem, estimateFieldMemory(fieldInfo, reader));

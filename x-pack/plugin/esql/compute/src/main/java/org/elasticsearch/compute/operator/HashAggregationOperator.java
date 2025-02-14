@@ -22,6 +22,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -58,12 +59,14 @@ public class HashAggregationOperator implements Operator {
                         analysisRegistry,
                         maxPageSize
                     ),
+                    Integer.MAX_VALUE, // TODO: doesn't support chunk yet
                     driverContext
                 );
             }
             return new HashAggregationOperator(
                 aggregators,
                 () -> BlockHash.build(groups, driverContext.blockFactory(), maxPageSize, false),
+                maxPageSize,
                 driverContext
             );
         }
@@ -78,9 +81,10 @@ public class HashAggregationOperator implements Operator {
         }
     }
 
-    private boolean finished;
-    private Page output;
+    private final int maxPageSize;
+    private Emitter emitter;
 
+    private boolean blockHashClosed = false;
     private final BlockHash blockHash;
 
     private final List<GroupingAggregator> aggregators;
@@ -112,8 +116,10 @@ public class HashAggregationOperator implements Operator {
     public HashAggregationOperator(
         List<GroupingAggregator.Factory> aggregators,
         Supplier<BlockHash> blockHash,
+        int maxPageSize,
         DriverContext driverContext
     ) {
+        this.maxPageSize = maxPageSize;
         this.aggregators = new ArrayList<>(aggregators.size());
         this.driverContext = driverContext;
         boolean success = false;
@@ -132,7 +138,7 @@ public class HashAggregationOperator implements Operator {
 
     @Override
     public boolean needsInput() {
-        return finished == false;
+        return emitter == null;
     }
 
     @Override
@@ -201,59 +207,98 @@ public class HashAggregationOperator implements Operator {
 
     @Override
     public Page getOutput() {
-        Page p = output;
-        if (p != null) {
-            rowsEmitted += p.getPositionCount();
+        if (emitter == null) {
+            return null;
         }
-        output = null;
-        return p;
+        return emitter.nextPage();
+    }
+
+    private class Emitter implements Releasable {
+        private final int[] aggBlockCounts;
+        private int position = -1;
+        private IntVector allSelected = null;
+        private Block[] allKeys;
+
+        Emitter(int[] aggBlockCounts) {
+            this.aggBlockCounts = aggBlockCounts;
+        }
+
+        Page nextPage() {
+            if (position == -1) {
+                position = 0;
+                // TODO: chunk selected and keys
+                allKeys = blockHash.getKeys();
+                allSelected = blockHash.nonEmpty();
+                blockHashClosed = true;
+                blockHash.close();
+            }
+            final int endPosition = Math.toIntExact(Math.min(position + (long) maxPageSize, allSelected.getPositionCount()));
+            if (endPosition == position) {
+                return null;
+            }
+            final boolean singlePage = position == 0 && endPosition == allSelected.getPositionCount();
+            final Block[] blocks = new Block[allKeys.length + Arrays.stream(aggBlockCounts).sum()];
+            IntVector selected = null;
+            boolean success = false;
+            try {
+                if (singlePage) {
+                    this.allSelected.incRef();
+                    selected = this.allSelected;
+                    for (int i = 0; i < allKeys.length; i++) {
+                        allKeys[i].incRef();
+                        blocks[i] = allKeys[i];
+                    }
+                } else {
+                    final int[] positions = new int[endPosition - position];
+                    for (int i = 0; i < positions.length; i++) {
+                        positions[i] = position + i;
+                    }
+                    // TODO: allow to filter with IntVector
+                    selected = allSelected.filter(positions);
+                    for (int keyIndex = 0; keyIndex < allKeys.length; keyIndex++) {
+                        blocks[keyIndex] = allKeys[keyIndex].filter(positions);
+                    }
+                }
+                int blockOffset = allKeys.length;
+                for (int i = 0; i < aggregators.size(); i++) {
+                    aggregators.get(i).evaluate(blocks, blockOffset, selected, driverContext);
+                    blockOffset += aggBlockCounts[i];
+                }
+                var output = new Page(blocks);
+                rowsEmitted += output.getPositionCount();
+                success = true;
+                return output;
+            } finally {
+                position = endPosition;
+                Releasables.close(selected, success ? null : Releasables.wrap(blocks));
+            }
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(allSelected, allKeys != null ? Releasables.wrap(allKeys) : null);
+        }
+
+        boolean doneEmitting() {
+            return allSelected != null && position >= allSelected.getPositionCount();
+        }
     }
 
     @Override
     public void finish() {
-        if (finished) {
-            return;
-        }
-        finished = true;
-        Block[] blocks = null;
-        IntVector selected = null;
-        boolean success = false;
-        try {
-            selected = blockHash.nonEmpty();
-            Block[] keys = blockHash.getKeys();
-            int[] aggBlockCounts = aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray();
-            blocks = new Block[keys.length + Arrays.stream(aggBlockCounts).sum()];
-            System.arraycopy(keys, 0, blocks, 0, keys.length);
-            int offset = keys.length;
-            for (int i = 0; i < aggregators.size(); i++) {
-                var aggregator = aggregators.get(i);
-                aggregator.evaluate(blocks, offset, selected, driverContext);
-                offset += aggBlockCounts[i];
-            }
-            output = new Page(blocks);
-            success = true;
-        } finally {
-            // selected should always be closed
-            if (selected != null) {
-                selected.close();
-            }
-            if (success == false && blocks != null) {
-                Releasables.closeExpectNoException(blocks);
-            }
+        if (emitter == null) {
+            emitter = new Emitter(aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray());
         }
     }
 
     @Override
     public boolean isFinished() {
-        return finished && output == null;
+        return emitter != null && emitter.doneEmitting();
     }
 
     @Override
     public void close() {
-        if (output != null) {
-            output.releaseBlocks();
-        }
-        Releasables.close(blockHash, () -> Releasables.close(aggregators));
+        Releasables.close(emitter, blockHashClosed ? null : blockHash, () -> Releasables.close(aggregators));
     }
 
     @Override

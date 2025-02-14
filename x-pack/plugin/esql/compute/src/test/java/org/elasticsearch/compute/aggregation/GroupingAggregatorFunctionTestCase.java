@@ -42,6 +42,7 @@ import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.Function;
@@ -102,13 +103,25 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         if (randomBoolean()) {
             supplier = chunkGroups(emitChunkSize, supplier);
         }
-        return new HashAggregationOperator.HashAggregationOperatorFactory(
+        final int maxPageSize = randomPageSize();
+        final var hashOperatorFactory = new HashAggregationOperator.HashAggregationOperatorFactory(
             List.of(new BlockHash.GroupSpec(0, ElementType.LONG)),
             mode,
             List.of(supplier.groupingAggregatorFactory(mode, channels(mode))),
-            randomPageSize(),
+            maxPageSize,
             null
         );
+        return new Operator.OperatorFactory() {
+            @Override
+            public Operator get(DriverContext driverContext) {
+                return assertingOutputPageSize(hashOperatorFactory.get(driverContext), driverContext.blockFactory(), maxPageSize);
+            }
+
+            @Override
+            public String describe() {
+                return hashOperatorFactory.describe();
+            }
+        };
     }
 
     @Override
@@ -757,6 +770,81 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
             @Override
             public String describe() {
                 return supplier.describe();
+            }
+        };
+    }
+
+    static Operator assertingOutputPageSize(Operator operator, BlockFactory blockFactory, int maxPageSize) {
+        return new Operator() {
+            private final List<Page> pages = new ArrayList<>();
+
+            @Override
+            public boolean needsInput() {
+                return operator.needsInput();
+            }
+
+            @Override
+            public void addInput(Page page) {
+                operator.addInput(page);
+            }
+
+            @Override
+            public void finish() {
+                operator.finish();
+            }
+
+            @Override
+            public boolean isFinished() {
+                return operator.isFinished();
+            }
+
+            @Override
+            public Page getOutput() {
+                final Page page = operator.getOutput();
+                if (page != null && page.getPositionCount() > maxPageSize) {
+                    page.releaseBlocks();
+                    throw new AssertionError(
+                        String.format(
+                            Locale.ROOT,
+                            "Operator %s didn't chunk output pages properly; got an output page with %s positions, max_page_size=%s",
+                            operator,
+                            page.getPositionCount(),
+                            maxPageSize
+                        )
+                    );
+                }
+                if (page != null) {
+                    pages.add(page);
+                }
+                if (operator.isFinished()) {
+                    // TODO: Remove this workaround. We need to merge pages since we have many existing assertions expect a single out page.
+                    try {
+                        return BlockTestUtils.mergePages(blockFactory, pages);
+                    } finally {
+                        pages.forEach(Page::releaseBlocks);
+                        pages.clear();
+                    }
+                } else {
+                    return null;
+                }
+            }
+
+            @Override
+            public Status status() {
+                return operator.status();
+            }
+
+            @Override
+            public String toString() {
+                return operator.toString();
+            }
+
+            @Override
+            public void close() {
+                for (Page p : pages) {
+                    p.releaseBlocks();
+                }
+                operator.close();
             }
         };
     }

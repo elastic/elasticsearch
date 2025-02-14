@@ -82,4 +82,5 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
     "cluster.desired_nodes/10_basic/Test update desired nodes with node_version generates a warning",
     "node_version warning is removed in 9.0"
   )
+  task.skipTest("tsdb/20_mapping/nested fields", "nested field support in tsdb indices is now supported")
 })

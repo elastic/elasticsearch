@@ -1375,10 +1375,6 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void checkPathToRealPath(Class<?> callerClass, Path that, LinkOption... options) {
-        if (EntitlementChecker.class.isAssignableFrom(callerClass)) {
-            return;
-        }
-
         boolean followLinks = true;
         for (LinkOption option : options) {
             if (option == LinkOption.NOFOLLOW_LINKS) {
@@ -1387,8 +1383,11 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
         }
         if (followLinks) {
             try {
-                policyManager.checkFileRead(callerClass, that.toRealPath());
-            } catch (IOException e) {}
+                FileSystemProvider provider = that.getFileSystem().provider();
+                policyManager.checkFileRead(callerClass, provider.readSymbolicLink(that));
+            } catch (IOException | UnsupportedOperationException e) {
+                // that is not a link, or unrelated IOException or unsupported
+            }
         }
         policyManager.checkFileRead(callerClass, that);
     }

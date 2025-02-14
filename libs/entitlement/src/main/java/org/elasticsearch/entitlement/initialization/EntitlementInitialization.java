@@ -129,6 +129,8 @@ public class EntitlementInitialization {
         Map<String, Policy> pluginPolicies = EntitlementBootstrap.bootstrapArgs().pluginPolicies();
         Path[] dataDirs = EntitlementBootstrap.bootstrapArgs().dataDirs();
         Path tempDir = EntitlementBootstrap.bootstrapArgs().tempDir();
+        Path configDir = EntitlementBootstrap.bootstrapArgs().configDir();
+        Path logsDir = EntitlementBootstrap.bootstrapArgs().logsDir();
 
         // TODO(ES-10031): Decide what goes in the elasticsearch default policy and extend it
         var serverPolicy = new Policy(
@@ -147,13 +149,25 @@ public class EntitlementInitialization {
                         new LoadNativeLibrariesEntitlement(),
                         new ManageThreadsEntitlement(),
                         new FilesEntitlement(
-                            List.of(new FilesEntitlement.FileData(EntitlementBootstrap.bootstrapArgs().tempDir().toString(), READ_WRITE))
+                            Stream.of(
+                                Stream.of(new FilesEntitlement.FileData(tempDir.toString(), READ_WRITE)),
+                                Stream.of(new FilesEntitlement.FileData(configDir.toString(), READ_WRITE)),
+                                Stream.of(new FilesEntitlement.FileData(logsDir.toString(), READ_WRITE)),
+                                Arrays.stream(dataDirs).map(d -> new FileData(d.toString(), READ_WRITE))
+                            ).flatMap(Function.identity()).toList()
                         )
                     )
                 ),
                 new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),
                 new Scope("io.netty.transport", List.of(new InboundNetworkEntitlement(), new OutboundNetworkEntitlement())),
-                new Scope("org.apache.lucene.core", List.of(new LoadNativeLibrariesEntitlement(), new ManageThreadsEntitlement())),
+                new Scope(
+                    "org.apache.lucene.core",
+                    List.of(
+                        new LoadNativeLibrariesEntitlement(),
+                        new ManageThreadsEntitlement(),
+                        new FilesEntitlement(Arrays.stream(dataDirs).map(d -> new FileData(d.toString(), READ_WRITE)).toList())
+                    )
+                ),
                 new Scope("org.apache.logging.log4j.core", List.of(new ManageThreadsEntitlement())),
                 new Scope(
                     "org.elasticsearch.nativeaccess",

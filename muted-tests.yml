@@ -323,9 +323,6 @@ tests:
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testSuggestProfileWithData
   issue: https://github.com/elastic/elasticsearch/issues/121258
-- class: org.elasticsearch.ingest.geoip.FullClusterRestartIT
-  method: testGeoIpSystemFeaturesMigration {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/121115
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/cat/health/cat-health-no-timestamp-example}
   issue: https://github.com/elastic/elasticsearch/issues/121867

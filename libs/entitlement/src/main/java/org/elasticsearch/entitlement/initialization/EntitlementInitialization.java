@@ -128,6 +128,7 @@ public class EntitlementInitialization {
     private static PolicyManager createPolicyManager() {
         Map<String, Policy> pluginPolicies = EntitlementBootstrap.bootstrapArgs().pluginPolicies();
         Path[] dataDirs = EntitlementBootstrap.bootstrapArgs().dataDirs();
+        Path tempDir = EntitlementBootstrap.bootstrapArgs().tempDir();
 
         // TODO(ES-10031): Decide what goes in the elasticsearch default policy and extend it
         var serverPolicy = new Policy(
@@ -167,7 +168,15 @@ public class EntitlementInitialization {
         // this should be removed once https://github.com/elastic/elasticsearch/issues/109335 is completed
         List<Entitlement> agentEntitlements = List.of(new CreateClassLoaderEntitlement(), new ManageThreadsEntitlement());
         var resolver = EntitlementBootstrap.bootstrapArgs().pluginResolver();
-        return new PolicyManager(serverPolicy, agentEntitlements, pluginPolicies, resolver, AGENTS_PACKAGE_NAME, ENTITLEMENTS_MODULE);
+        return new PolicyManager(
+            serverPolicy,
+            agentEntitlements,
+            pluginPolicies,
+            resolver,
+            AGENTS_PACKAGE_NAME,
+            ENTITLEMENTS_MODULE,
+            tempDir
+        );
     }
 
     private static Stream<InstrumentationService.InstrumentationInfo> fileSystemProviderChecks() throws ClassNotFoundException,

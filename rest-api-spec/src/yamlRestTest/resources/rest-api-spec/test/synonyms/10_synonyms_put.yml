@@ -17,10 +17,8 @@ setup:
 
   - do:
       cluster.health:
-        index: .synonyms-2
-        timeout: 2s
+        index: .synonyms
         wait_for_status: green
-        ignore: 408
 
   - do:
       synonyms.get_synonym:
@@ -67,10 +65,8 @@ setup:
 
   - do:
       cluster.health:
-        index: .synonyms-2
-        timeout: 2s
+        index: .synonyms
         wait_for_status: green
-        ignore: 408
 
   - do:
       synonyms.get_synonym:

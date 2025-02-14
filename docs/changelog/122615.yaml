@@ -1,5 +1,5 @@
 pr: 122615
-summary: Remove synthetic recovery source feature flag
-area: "Mapping, Recovery"
+summary: Enable synthetic recovery source by default when synthetic source is enabled. Using synthetic recovery source significantly improves indexing performance compared to regular recovery source.
+area: "Mapping"
 type: enhancement
 issues: []

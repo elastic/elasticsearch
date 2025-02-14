@@ -113,13 +113,15 @@ abstract class DataNodeRequestSender {
                         break;
                     }
                     for (ShardId shardId : pendingShardIds) {
-                        if (targetShards.getShard(shardId).remainingNodes.isEmpty()) shardFailures.compute(
-                            shardId,
-                            (k, v) -> new ShardFailure(
-                                true,
-                                v == null ? new NoShardAvailableActionException(shardId, "no shard copies found") : v.failure
-                            )
-                        );
+                        if (targetShards.getShard(shardId).remainingNodes.isEmpty()) {
+                            shardFailures.compute(
+                                shardId,
+                                (k, v) -> new ShardFailure(
+                                    true,
+                                    v == null ? new NoShardAvailableActionException(shardId, "no shard copies found") : v.failure
+                                )
+                            );
+                        }
                     }
                     if (reportedFailure
                         || (allowPartialResults == false && shardFailures.values().stream().anyMatch(shardFailure -> shardFailure.fatal))) {

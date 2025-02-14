@@ -26,7 +26,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.core.Strings.format;
@@ -149,7 +148,7 @@ public class HttpClient implements Closeable {
         threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> listener.onFailure(exception));
     }
 
-    public void stream(HttpRequest request, HttpContext context, ActionListener<Flow.Publisher<HttpResult>> listener) throws IOException {
+    public void stream(HttpRequest request, HttpContext context, ActionListener<StreamingHttpResult> listener) throws IOException {
         // The caller must call start() first before attempting to send a request
         assert status.get() == Status.STARTED : "call start() before attempting to send a request";
 
@@ -157,7 +156,7 @@ public class HttpClient implements Closeable {
 
         SocketAccess.doPrivileged(() -> client.execute(request.requestProducer(), streamingProcessor, context, new FutureCallback<>() {
             @Override
-            public void completed(HttpResponse response) {
+            public void completed(Void response) {
                 streamingProcessor.close();
             }
 

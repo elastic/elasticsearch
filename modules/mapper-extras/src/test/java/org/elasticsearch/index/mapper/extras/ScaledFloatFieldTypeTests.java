@@ -95,7 +95,9 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             0.1 + randomDouble() * 100,
             null,
             null,
-            null
+            null,
+            false,
+            false
         );
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));

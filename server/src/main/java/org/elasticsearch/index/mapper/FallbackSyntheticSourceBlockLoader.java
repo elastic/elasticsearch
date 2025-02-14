@@ -293,6 +293,6 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
             parseNonNullValue(parser, accumulator);
         }
 
-        abstract void parseNonNullValue(XContentParser parser, List<T> accumulator) throws IOException;
+        protected abstract void parseNonNullValue(XContentParser parser, List<T> accumulator) throws IOException;
     }
 }

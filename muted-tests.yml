@@ -495,3 +495,6 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
   method: testSearcherId
   issue: https://github.com/elastic/elasticsearch/issues/118374
+- class: org.elasticsearch.upgrades.VectorSearchIT
+  method: testBBQVectorSearch {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/121272

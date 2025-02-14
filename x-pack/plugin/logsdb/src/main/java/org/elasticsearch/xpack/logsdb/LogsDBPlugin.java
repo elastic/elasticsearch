@@ -29,6 +29,9 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.logsdb.LogsPatternUsageService.LOGSDB_PRIOR_LOGS_USAGE;
+import static org.elasticsearch.xpack.logsdb.LogsPatternUsageService.USAGE_CHECK_MAX_PERIOD;
+import static org.elasticsearch.xpack.logsdb.SyntheticSourceLicenseService.FALLBACK_SETTING;
 import static org.elasticsearch.xpack.logsdb.LogsdbLicenseService.FALLBACK_SETTING;
 
 public class LogsDBPlugin extends Plugin implements ActionPlugin {
@@ -60,6 +63,19 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
             CLUSTER_LOGSDB_ENABLED,
             logsdbIndexModeSettingsProvider::updateClusterIndexModeLogsdbEnabled
         );
+
+        var clusterService = services.clusterService();
+        Supplier<Metadata> metadataSupplier = () -> clusterService.state().metadata();
+        var historicLogsUsageService = new LogsPatternUsageService(services.client(), settings, services.threadPool(), metadataSupplier);
+        clusterService.addLocalNodeMasterListener(historicLogsUsageService);
+        clusterService.addLifecycleListener(new LifecycleListener() {
+
+            @Override
+            public void beforeStop() {
+                historicLogsUsageService.offMaster();
+            }
+        });
+        
         // Nothing to share here:
         return super.createComponents(services);
     }

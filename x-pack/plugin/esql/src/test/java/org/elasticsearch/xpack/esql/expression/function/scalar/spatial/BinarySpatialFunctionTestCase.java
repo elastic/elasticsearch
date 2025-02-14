@@ -285,10 +285,4 @@ public abstract class BinarySpatialFunctionTestCase extends AbstractScalarFuncti
         }
         return count;
     }
-
-    @Override
-    protected Expression serializeDeserializeExpression(Expression expression) {
-        // TODO: Functions inheriting from this superclass don't serialize the Source, and must be fixed.
-        return expression;
-    }
 }

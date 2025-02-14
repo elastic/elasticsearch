@@ -87,10 +87,4 @@ public class MvSumTests extends AbstractMultivalueFunctionTestCase {
     protected Expression build(Source source, Expression field) {
         return new MvSum(source, field);
     }
-
-    @Override
-    protected Expression serializeDeserializeExpression(Expression expression) {
-        // TODO: This function doesn't serialize the Source, and must be fixed.
-        return expression;
-    }
 }

@@ -317,10 +317,4 @@ public class TopTests extends AbstractAggregationTestCase {
             );
         });
     }
-
-    @Override
-    protected Expression serializeDeserializeExpression(Expression expression) {
-        // TODO: This aggregation doesn't serialize the Source, and must be fixed.
-        return expression;
-    }
 }

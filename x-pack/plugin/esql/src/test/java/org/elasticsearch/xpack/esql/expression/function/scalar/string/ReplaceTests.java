@@ -139,10 +139,4 @@ public class ReplaceTests extends AbstractScalarFunctionTestCase {
     protected Expression build(Source source, List<Expression> args) {
         return new Replace(source, args.get(0), args.get(1), args.get(2));
     }
-
-    @Override
-    protected Expression serializeDeserializeExpression(Expression expression) {
-        // TODO: This function doesn't serialize the Source, and must be fixed.
-        return expression;
-    }
 }

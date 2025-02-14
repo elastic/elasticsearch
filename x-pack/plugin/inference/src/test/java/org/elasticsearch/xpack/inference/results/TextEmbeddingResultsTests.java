@@ -108,6 +108,17 @@ public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<I
         );
     }
 
+    public void testGetFirstEmbeddingSize() {
+        var firstEmbeddingSize = new InferenceTextEmbeddingFloatResults(
+            List.of(
+                new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { 0.1F, 0.2F }),
+                new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { 0.3F, 0.4F })
+            )
+        ).getFirstEmbeddingSize();
+
+        assertThat(firstEmbeddingSize, is(2));
+    }
+
     @Override
     protected Writeable.Reader<InferenceTextEmbeddingFloatResults> instanceReader() {
         return InferenceTextEmbeddingFloatResults::new;

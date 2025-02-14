@@ -1,12 +1,16 @@
 {
-  "template": {
-    "aliases": {
-      ".elastic-connectors-sync-jobs":  {}
-    },
-    "mappings": {
-      "dynamic": "false",
+  "settings": {
+    "index": {
+      "number_of_shards": "1",
+      "auto_expand_replicas": "0-1"
+    }
+  },
+  "mappings": {
+    "_doc": {
+      "dynamic": "strict",
       "_meta": {
-        "version": ${xpack.application.connector.template.version}
+        "version": "${elastic-connectors-sync-jobs.version}",
+        "managed_index_mappings_version": ${elastic-connectors-sync-jobs.managed.index.version}
       },
       "properties": {
         "cancelation_requested_at": {
@@ -21,9 +25,11 @@
         "connector": {
           "properties": {
             "configuration": {
+              "dynamic": "false",
               "type": "object"
             },
             "filtering": {
+              "dynamic": "false",
               "properties": {
                 "advanced_snippet": {
                   "properties": {
@@ -91,6 +97,7 @@
               "type": "keyword"
             },
             "pipeline": {
+              "dynamic": "false",
               "properties": {
                 "extract_binary_content": {
                   "type": "boolean"
@@ -110,6 +117,7 @@
               "type": "keyword"
             },
             "sync_cursor": {
+              "dynamic": "false",
               "type": "object"
             }
           }
@@ -136,6 +144,7 @@
           "type": "date"
         },
         "metadata": {
+          "dynamic": "false",
           "type": "object"
         },
         "started_at": {
@@ -155,10 +164,5 @@
         }
       }
     }
-  },
-  "_meta": {
-    "description": "Built-in mappings applied by default to elastic-connectors indices",
-    "managed": true
-  },
-  "version": ${xpack.application.connector.template.version}
+  }
 }

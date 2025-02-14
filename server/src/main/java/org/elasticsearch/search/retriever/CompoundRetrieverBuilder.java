@@ -78,7 +78,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
     /**
      * Combines the provided {@code rankResults} to return the final top documents.
      */
-    protected abstract RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults);
+    protected abstract RankDoc[] combineInnerRetrieverResults(List<ScoreDoc[]> rankResults, boolean explain);
 
     @Override
     public final boolean isCompound() {
@@ -181,7 +181,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                         failures.forEach(ex::addSuppressed);
                         listener.onFailure(ex);
                     } else {
-                        results.set(combineInnerRetrieverResults(topDocs));
+                        results.set(combineInnerRetrieverResults(topDocs, ctx.isExplain()));
                         listener.onResponse(null);
                     }
                 }
@@ -192,8 +192,13 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                 }
             });
         });
-
-        return new RankDocsRetrieverBuilder(rankWindowSize, newRetrievers.stream().map(s -> s.retriever).toList(), results::get);
+        RankDocsRetrieverBuilder rankDocsRetrieverBuilder = new RankDocsRetrieverBuilder(
+            rankWindowSize,
+            newRetrievers.stream().map(s -> s.retriever).toList(),
+            results::get
+        );
+        rankDocsRetrieverBuilder.retrieverName(retrieverName());
+        return rankDocsRetrieverBuilder;
     }
 
     @Override
@@ -219,7 +224,8 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         boolean allowPartialSearchResults
     ) {
         validationException = super.validate(source, validationException, isScroll, allowPartialSearchResults);
-        if (source.size() > rankWindowSize) {
+        final int size = source.size();
+        if (size > rankWindowSize) {
             validationException = addValidationError(
                 String.format(
                     Locale.ROOT,
@@ -227,7 +233,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                     getName(),
                     getRankWindowSizeField().getPreferredName(),
                     rankWindowSize,
-                    source.size()
+                    size
                 ),
                 validationException
             );

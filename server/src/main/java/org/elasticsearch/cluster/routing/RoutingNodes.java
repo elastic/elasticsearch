@@ -16,14 +16,19 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -44,6 +49,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
+
 /**
  * {@link RoutingNodes} represents a copy the routing information contained in the {@link ClusterState cluster state}.
  * It can be either initialized as mutable or immutable allowing or disallowing changes to its elements.
@@ -59,6 +66,13 @@ import java.util.stream.StreamSupport;
  * </ul>
  */
 public class RoutingNodes implements Iterable<RoutingNode> {
+
+    private static final Logger logger = LogManager.getLogger(RoutingNodes.class);
+    public static final String RESET_FAILED_ALLOCATION_COUNTER_LOG_MSG =
+        "Resetting failure counter for %d shard(s) that have reached their max allocation retires (%s)";
+    public static final String RESET_FAILED_RELOCATION_COUNTER_LOG_MSG =
+        "Resetting failure counter for %d shard(s) that have reached their max relocation retries (%s)";
+    private static final int MAX_SHARDS_IN_LOG_MSG = 20;
 
     private final Map<String, RoutingNode> nodesToShards;
 
@@ -1298,14 +1312,47 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         }));
     }
 
-    public void resetFailedCounter(RoutingChangesObserver routingChangesObserver) {
+    public boolean hasRelocationFailures() {
+        for (var shardRoutings : assignedShards.values()) {
+            for (var routing : shardRoutings) {
+                if (routing.relocationFailureInfo() != null && routing.relocationFailureInfo().failedRelocations() > 0) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public void resetFailedCounter(RoutingAllocation allocation) {
+        final var observer = allocation.changes();
+        int shardsWithMaxFailedAllocations = 0;
+        int shardsWithMaxFailedRelocations = 0;
+        List<ShardId> topShardIdsWithFailedAllocations = new ArrayList<>();
+        List<ShardId> topShardIdsWithFailedRelocations = new ArrayList<>();
+
         final var unassignedIterator = unassigned().iterator();
         while (unassignedIterator.hasNext()) {
             ShardRouting shardRouting = unassignedIterator.next();
             UnassignedInfo unassignedInfo = shardRouting.unassignedInfo();
+            int failedAllocations = unassignedInfo.failedAllocations();
+            if (failedAllocations > 0) {
+                try {
+                    final var maxRetry = SETTING_ALLOCATION_MAX_RETRY.get(
+                        allocation.metadata().getIndexSafe(shardRouting.index()).getSettings()
+                    );
+                    if (failedAllocations >= maxRetry) {
+                        shardsWithMaxFailedAllocations++;
+                        if (topShardIdsWithFailedAllocations.size() <= MAX_SHARDS_IN_LOG_MSG) {
+                            topShardIdsWithFailedAllocations.add(shardRouting.shardId());
+                        }
+                    }
+                } catch (IndexNotFoundException e) {
+                    // ignore
+                }
+            }
             unassignedIterator.updateUnassigned(
                 new UnassignedInfo(
-                    unassignedInfo.failedAllocations() > 0 ? UnassignedInfo.Reason.MANUAL_ALLOCATION : unassignedInfo.reason(),
+                    failedAllocations > 0 ? UnassignedInfo.Reason.MANUAL_ALLOCATION : unassignedInfo.reason(),
                     unassignedInfo.message(),
                     unassignedInfo.failure(),
                     0,
@@ -1317,7 +1364,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                     unassignedInfo.lastAllocatedNodeId()
                 ),
                 shardRouting.recoverySource(),
-                routingChangesObserver
+                observer
             );
         }
 
@@ -1326,6 +1373,20 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             for (ShardRouting shardRouting : routingNode) {
                 if (shardRouting.relocationFailureInfo() != null && shardRouting.relocationFailureInfo().failedRelocations() > 0) {
                     shardsWithRelocationFailures.add(shardRouting);
+                    try {
+                        int failedRelocations = shardRouting.relocationFailureInfo().failedRelocations();
+                        final var maxRetry = SETTING_ALLOCATION_MAX_RETRY.get(
+                            allocation.metadata().getIndexSafe(shardRouting.index()).getSettings()
+                        );
+                        if (failedRelocations >= maxRetry) {
+                            shardsWithMaxFailedRelocations++;
+                            if (topShardIdsWithFailedRelocations.size() <= MAX_SHARDS_IN_LOG_MSG) {
+                                topShardIdsWithFailedRelocations.add(shardRouting.shardId());
+                            }
+                        }
+                    } catch (IndexNotFoundException e) {
+                        // ignore
+                    }
                 }
             }
 
@@ -1335,6 +1396,17 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 assignedShardsRemove(original);
                 assignedShardsAdd(updated);
             }
+        }
+
+        if (shardsWithMaxFailedAllocations > 0) {
+            logger.info(
+                Strings.format(RESET_FAILED_ALLOCATION_COUNTER_LOG_MSG, shardsWithMaxFailedAllocations, topShardIdsWithFailedAllocations)
+            );
+        }
+        if (shardsWithMaxFailedRelocations > 0) {
+            logger.info(
+                Strings.format(RESET_FAILED_RELOCATION_COUNTER_LOG_MSG, shardsWithMaxFailedRelocations, topShardIdsWithFailedRelocations)
+            );
         }
     }
 

@@ -1,4 +1,7 @@
 ALL-UNNAMED:
-  - network:
-      actions:
-        - connect
+  - manage_threads
+  - outbound_network
+  - load_native_libraries
+  - write_system_properties:
+      properties:
+        - hadoop.home.dir

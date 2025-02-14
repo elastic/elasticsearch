@@ -41,6 +41,7 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
+import org.elasticsearch.search.fetch.subphase.highlight.DefaultHighlighter;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -215,6 +216,13 @@ public abstract class MappedFieldType {
      */
     public TimeSeriesParams.MetricType getMetricType() {
         return null;
+    }
+
+    /**
+     * Returns the default highlighter type to use when highlighting the field.
+     */
+    public String getDefaultHighlighter() {
+        return DefaultHighlighter.NAME;
     }
 
     /** Generates a query that will only match documents that contain the given value.

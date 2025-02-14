@@ -183,8 +183,8 @@ public class LuceneQueryExpressionEvaluatorTests extends ComputeTestCase {
             );
             LuceneQueryExpressionEvaluator luceneQueryEvaluator = new LuceneQueryExpressionEvaluator(
                 blockFactory,
-                new LuceneQueryExpressionEvaluator.ShardConfig[] { shard },
-                0
+                new LuceneQueryExpressionEvaluator.ShardConfig[] { shard }
+
             );
 
             List<Operator> operators = new ArrayList<>();
@@ -210,6 +210,7 @@ public class LuceneQueryExpressionEvaluatorTests extends ComputeTestCase {
             operators.add(new EvalOperator(blockFactory, luceneQueryEvaluator));
             List<Page> results = new ArrayList<>();
             Driver driver = new Driver(
+                "test",
                 driverContext,
                 luceneOperatorFactory(reader, new MatchAllDocsQuery(), LuceneOperator.NO_LIMIT, scoring).get(driverContext),
                 operators,

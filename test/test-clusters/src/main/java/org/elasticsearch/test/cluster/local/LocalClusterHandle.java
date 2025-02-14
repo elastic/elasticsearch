@@ -15,6 +15,7 @@ import org.elasticsearch.test.cluster.MutableSettingsProvider;
 import org.elasticsearch.test.cluster.util.Version;
 
 import java.io.InputStream;
+import java.util.List;
 
 public interface LocalClusterHandle extends ClusterHandle {
 
@@ -53,6 +54,11 @@ public interface LocalClusterHandle extends ClusterHandle {
      * @return cluster node TCP transport endpoints
      */
     String getTransportEndpoints();
+
+    /**
+     * @return a list of all available TCP transport endpoints, which may be empty if none of the nodes in this cluster are started.
+     */
+    List<String> getAvailableTransportEndpoints();
 
     /**
      * Returns the TCP transport endpoint for the node at the given index. If this method is called on an unstarted cluster, the cluster

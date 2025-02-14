@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.info.ClusterInfoRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,7 +30,7 @@ public class ExplainLifecycleRequest extends ClusterInfoRequest<ExplainLifecycle
     private boolean onlyManaged = false;
 
     public ExplainLifecycleRequest(TimeValue masterTimeout) {
-        super(masterTimeout);
+        super(masterTimeout, IndicesOptions.strictExpandOpen());
     }
 
     public ExplainLifecycleRequest(StreamInput in) throws IOException {

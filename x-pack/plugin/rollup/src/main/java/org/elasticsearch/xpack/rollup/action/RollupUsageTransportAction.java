@@ -34,14 +34,7 @@ public class RollupUsageTransportAction extends XPackUsageFeatureTransportAction
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
-        super(
-            XPackUsageFeatureAction.ROLLUP.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.ROLLUP.name(), transportService, clusterService, threadPool, actionFilters);
     }
 
     @Override

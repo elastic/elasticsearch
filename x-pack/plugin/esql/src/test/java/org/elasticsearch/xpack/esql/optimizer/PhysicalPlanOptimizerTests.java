@@ -2603,10 +2603,16 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | where round(emp_no) > 10
             """));
         // Transform the verified plan so that it is invalid (i.e. no source attributes)
-        List<Attribute> emptyAttrList = List.of();
         var badPlan = verifiedPlan.transformDown(
             EsQueryExec.class,
-            node -> new EsSourceExec(node.source(), node.index(), emptyAttrList, node.query(), IndexMode.STANDARD)
+            node -> new EsSourceExec(
+                node.source(),
+                node.indexPattern(),
+                IndexMode.STANDARD,
+                node.indexNameWithModes(),
+                List.of(),
+                node.query()
+            )
         );
 
         var e = expectThrows(VerificationException.class, () -> physicalPlanOptimizer.verify(badPlan));
@@ -2643,7 +2649,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testVerifierOnMissingReferencesWithBinaryPlans() throws Exception {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 
         // Do not assert serialization:
         // This will have a LookupJoinExec, which is not serializable because it doesn't leave the coordinator.
@@ -2728,8 +2734,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
                     new EsField("some_field2", DataType.KEYWORD, Map.of(), true)
                 )
             ),
-            IndexMode.STANDARD,
-            false
+            IndexMode.STANDARD
         );
         Attribute some_field1 = relation.output().get(0);
         Attribute some_field2 = relation.output().get(1);
@@ -7331,7 +7336,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLookupJoinFieldLoading() throws Exception {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 
         TestDataSource data = dataSetWithLookupIndices(Map.of("lookup_index", List.of("first_name", "foo", "bar", "baz")));
 
@@ -7408,7 +7413,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testLookupJoinFieldLoadingTwoLookups() throws Exception {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 
         TestDataSource data = dataSetWithLookupIndices(
             Map.of(
@@ -7462,7 +7467,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/119082")
     public void testLookupJoinFieldLoadingTwoLookupsProjectInBetween() throws Exception {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 
         TestDataSource data = dataSetWithLookupIndices(
             Map.of(
@@ -7503,7 +7508,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/118778")
     public void testLookupJoinFieldLoadingDropAllFields() throws Exception {
-        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V11.isEnabled());
+        assumeTrue("Requires LOOKUP JOIN", EsqlCapabilities.Cap.JOIN_LOOKUP_V12.isEnabled());
 
         TestDataSource data = dataSetWithLookupIndices(Map.of("lookup_index", List.of("first_name", "foo", "bar", "baz")));
 
@@ -7582,6 +7587,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(EstimatesRowSize.estimateRowSize(0, plan), config);
         plan = useDataNodePlan ? plans.v2() : plans.v1();
         plan = PlannerUtils.localPlan(List.of(), config, FoldContext.small(), plan);
+        ExchangeSinkHandler exchangeSinkHandler = new ExchangeSinkHandler(null, 10, () -> 10);
         LocalExecutionPlanner planner = new LocalExecutionPlanner(
             "test",
             "",
@@ -7590,14 +7596,15 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             TestBlockFactory.getNonBreakingInstance(),
             Settings.EMPTY,
             config,
-            new ExchangeSourceHandler(10, null, null),
-            new ExchangeSinkHandler(null, 10, () -> 10),
+            new ExchangeSourceHandler(10, null)::createExchangeSource,
+            () -> exchangeSinkHandler.createExchangeSink(() -> {}),
             null,
             null,
-            new EsPhysicalOperationProviders(FoldContext.small(), List.of(), null)
+            new EsPhysicalOperationProviders(FoldContext.small(), List.of(), null),
+            List.of()
         );
 
-        return planner.plan(FoldContext.small(), plan);
+        return planner.plan("test", FoldContext.small(), plan);
     }
 
     private List<Set<String>> findFieldNamesInLookupJoinDescription(LocalExecutionPlanner.LocalExecutionPlan physicalOperations) {
@@ -7624,7 +7631,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testScore() {
-        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
         var plan = physicalPlan("""
             from test metadata _score
             | where match(first_name, "john")
@@ -7651,7 +7657,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testScoreTopN() {
-        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
         var plan = physicalPlan("""
             from test metadata _score
             | where match(first_name, "john")

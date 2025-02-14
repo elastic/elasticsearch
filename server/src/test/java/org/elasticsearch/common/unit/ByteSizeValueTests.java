@@ -533,6 +533,10 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
         }
     }
 
+    /**
+     * @see TransportVersions#REVERT_BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1
+     */
+    @AwaitsFix(bugUrl = "https://elasticco.atlassian.net/browse/ES-10585")
     public void testTwoDigitTransportRoundTrips() throws IOException {
         TransportVersion tv = TransportVersion.current();
         for (var desiredUnit : ByteSizeUnit.values()) {

@@ -436,7 +436,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
                 """;
             boolean result = provider.getMappingHints(indexName, null, settings, List.of(new CompressedXContent(mapping)))
                 .hasSyntheticSourceUsage();
-            assertTrue(result);
+            assertFalse("_source.mode is a noop", result);
             assertThat(newMapperServiceCounter.get(), equalTo(1));
             assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
         }

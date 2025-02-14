@@ -32,6 +32,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Function;
 
 // TODO rename package
 public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndexOperator.OngoingJoin> {
@@ -40,7 +41,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         CancellableTask parentTask,
         int maxOutstandingRequests,
         int inputChannel,
-        LookupFromIndexService lookupService,
+        Function<DriverContext, LookupFromIndexService> lookupService,
         DataType inputDataType,
         String lookupIndex,
         String matchField,
@@ -51,6 +52,8 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         public String describe() {
             return "LookupOperator[index="
                 + lookupIndex
+                + " input_type="
+                + inputDataType
                 + " match_field="
                 + matchField
                 + " load_fields="
@@ -68,7 +71,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
                 parentTask,
                 maxOutstandingRequests,
                 inputChannel,
-                lookupService,
+                lookupService.apply(driverContext),
                 inputDataType,
                 lookupIndex,
                 matchField,
@@ -110,7 +113,7 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
         List<NamedExpression> loadFields,
         Source source
     ) {
-        super(driverContext, maxOutstandingRequests);
+        super(driverContext, lookupService.getThreadContext(), maxOutstandingRequests);
         this.sessionId = sessionId;
         this.parentTask = parentTask;
         this.inputChannel = inputChannel;
@@ -214,8 +217,8 @@ public final class LookupFromIndexOperator extends AsyncOperator<LookupFromIndex
     }
 
     @Override
-    protected Operator.Status status(long receivedPages, long completedPages, long totalTimeInMillis) {
-        return new LookupFromIndexOperator.Status(receivedPages, completedPages, totalTimeInMillis, totalTerms, emittedPages);
+    protected Operator.Status status(long receivedPages, long completedPages, long processNanos) {
+        return new LookupFromIndexOperator.Status(receivedPages, completedPages, processNanos, totalTerms, emittedPages);
     }
 
     public static class Status extends AsyncOperator.Status {

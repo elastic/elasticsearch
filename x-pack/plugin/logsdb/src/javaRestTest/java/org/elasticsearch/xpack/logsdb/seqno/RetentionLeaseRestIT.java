@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.logsdb.seqno;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -20,6 +21,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.junit.Before;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -34,6 +36,11 @@ public class RetentionLeaseRestIT extends ESRestTestCase {
     private static final String ADD_RETENTION_LEASE_ENDPOINT = "/%s/seq_no/add_retention_lease";
     private static final String BULK_INDEX_ENDPOINT = "/%s/_bulk";
     private static final String[] DOCUMENT_NAMES = { "alpha", "beta", "gamma", "delta" };
+
+    @Before
+    public void assumeSnapshotBuild() {
+        assumeTrue("/{index}/seq_no/add_retention_lease endpoint only available in snapshot builds", Build.current().isSnapshot());
+    }
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()

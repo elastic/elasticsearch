@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.countedkeyword;
 
-import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
@@ -19,6 +18,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -31,6 +31,7 @@ import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.AbstractIndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
+import org.elasticsearch.index.mapper.CustomDocValuesField;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -76,8 +77,7 @@ import static org.elasticsearch.common.lucene.Lucene.KEYWORD_ANALYZER;
  * 2 for each key (one per document), a <code>counted_terms</code> aggregation on a <code>counted_keyword</code> field will consider
  * the actual count and report a count of 3 for each key.</p>
  *
- * <p>Synthetic source is supported, but uses the fallback "ignore source" infrastructure unless the <code>source_keep_mode</code> is
- *  explicitly set to <code>none</code> in the field mapping parameters.</p>
+ * <p>Synthetic source is fully supported.</p>
  */
 public class CountedKeywordFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "counted_keyword";
@@ -274,9 +274,11 @@ public class CountedKeywordFieldMapper extends FieldMapper {
     public static class Builder extends FieldMapper.Builder {
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).mappedFieldType.isIndexed(), true);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
+        private final SourceKeepMode indexSourceKeepMode;
 
-        protected Builder(String name) {
+        protected Builder(String name, SourceKeepMode indexSourceKeepMode) {
             super(name);
+            this.indexSourceKeepMode = indexSourceKeepMode;
         }
 
         @Override
@@ -306,7 +308,8 @@ public class CountedKeywordFieldMapper extends FieldMapper {
                     countFieldMapper.fieldType()
                 ),
                 builderParams(this, context),
-                countFieldMapper
+                countFieldMapper,
+                indexSourceKeepMode
             );
         }
     }
@@ -386,21 +389,26 @@ public class CountedKeywordFieldMapper extends FieldMapper {
         }
     }
 
-    public static TypeParser PARSER = new TypeParser((n, c) -> new CountedKeywordFieldMapper.Builder(n));
+    public static TypeParser PARSER = new TypeParser(
+        (n, c) -> new CountedKeywordFieldMapper.Builder(n, c.getIndexSettings().sourceKeepMode())
+    );
 
     private final FieldType fieldType;
     private final BinaryFieldMapper countFieldMapper;
+    private final SourceKeepMode indexSourceKeepMode;
 
     protected CountedKeywordFieldMapper(
         String simpleName,
         FieldType fieldType,
         MappedFieldType mappedFieldType,
         BuilderParams builderParams,
-        BinaryFieldMapper countFieldMapper
+        BinaryFieldMapper countFieldMapper,
+        SourceKeepMode indexSourceKeepMode
     ) {
         super(simpleName, mappedFieldType, builderParams);
         this.fieldType = fieldType;
         this.countFieldMapper = countFieldMapper;
+        this.indexSourceKeepMode = indexSourceKeepMode;
     }
 
     @Override
@@ -427,15 +435,17 @@ public class CountedKeywordFieldMapper extends FieldMapper {
             return;
         }
 
-        int i = 0;
-        int[] counts = new int[values.size()];
-        for (Map.Entry<String, Integer> value : values.entrySet()) {
-            context.doc().add(new KeywordFieldMapper.KeywordField(fullPath(), new BytesRef(value.getKey()), fieldType));
-            counts[i++] = value.getValue();
+        for (String value : values.keySet()) {
+            context.doc().add(new KeywordFieldMapper.KeywordField(fullPath(), new BytesRef(value), fieldType));
         }
-        BytesStreamOutput streamOutput = new BytesStreamOutput();
-        streamOutput.writeVIntArray(counts);
-        context.doc().add(new BinaryDocValuesField(countFieldMapper.fullPath(), streamOutput.bytes().toBytesRef()));
+        CountsBinaryDocValuesField field = (CountsBinaryDocValuesField) context.doc().getByKey(countFieldMapper.fieldType().name());
+        if (field == null) {
+            field = new CountsBinaryDocValuesField(countFieldMapper.fieldType().name());
+            field.add(values);
+            context.doc().addWithKey(countFieldMapper.fieldType().name(), field);
+        } else {
+            field.add(values);
+        }
     }
 
     private void parseArray(DocumentParserContext context, SortedMap<String, Integer> values) throws IOException {
@@ -482,7 +492,7 @@ public class CountedKeywordFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName()).init(this);
+        return new Builder(leafName(), indexSourceKeepMode).init(this);
     }
 
     @Override
@@ -492,13 +502,47 @@ public class CountedKeywordFieldMapper extends FieldMapper {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        var keepMode = sourceKeepMode();
-        if (keepMode.isPresent() == false || keepMode.get() != SourceKeepMode.NONE) {
+        var keepMode = sourceKeepMode().orElse(indexSourceKeepMode);
+        if (keepMode != SourceKeepMode.NONE) {
             return super.syntheticSourceSupport();
         }
 
-        var loader = new CountedKeywordFieldSyntheticSourceLoader(fullPath(), countFieldMapper.fullPath(), leafName());
-        return new SyntheticSourceSupport.Native(loader);
+        return new SyntheticSourceSupport.Native(
+            () -> new CountedKeywordFieldSyntheticSourceLoader(fullPath(), countFieldMapper.fullPath(), leafName())
+        );
+    }
+
+    private class CountsBinaryDocValuesField extends CustomDocValuesField {
+        private final SortedMap<String, Integer> counts;
+
+        CountsBinaryDocValuesField(String name) {
+            super(name);
+            counts = new TreeMap<>();
+        }
+
+        public void add(SortedMap<String, Integer> newCounts) {
+            for (Map.Entry<String, Integer> currCount : newCounts.entrySet()) {
+                this.counts.put(currCount.getKey(), this.counts.getOrDefault(currCount.getKey(), 0) + currCount.getValue());
+            }
+        }
+
+        @Override
+        public BytesRef binaryValue() {
+            try {
+                int maxBytesPerVInt = 5;
+                int bytesSize = (counts.size() + 1) * maxBytesPerVInt;
+                BytesStreamOutput out = new BytesStreamOutput(bytesSize);
+                int countsArr[] = new int[counts.size()];
+                int i = 0;
+                for (Integer currCount : counts.values()) {
+                    countsArr[i++] = currCount;
+                }
+                out.writeVIntArray(countsArr);
+                return out.bytes().toBytesRef();
+            } catch (IOException e) {
+                throw new ElasticsearchException("Failed to get binary value", e);
+            }
+        }
     }
 
 }

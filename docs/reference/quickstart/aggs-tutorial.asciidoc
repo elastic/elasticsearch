@@ -524,7 +524,7 @@ GET kibana_sample_data_ecommerce/_search
 ----
 // TEST[skip:Using Kibana sample data]
 <1> Descriptive name for the time-series aggregation results.
-<2> The `date_histogram` aggregration groups documents into time-based buckets, similar to terms aggregation but for dates.
+<2> The `date_histogram` aggregation groups documents into time-based buckets, similar to terms aggregation but for dates.
 <3> Uses <<calendar_and_fixed_intervals,calendar and fixed time intervals>> to handle months with different lengths. `"day"` ensures consistent daily grouping regardless of timezone.
 <4> Formats dates in response using <<mapping-date-format,date patterns>> (e.g. "yyyy-MM-dd"). Refer to <<date-math,date math expressions>> for additional options.
 <5> When `min_doc_count` is 0, returns buckets for days with no orders, useful for continuous time series visualization.

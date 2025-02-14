@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -96,6 +97,9 @@ public class EvalBenchmark {
             "add_double",
             "case_1_eager",
             "case_1_lazy",
+            "coalesce_2_noop",
+            "coalesce_2_eager",
+            "coalesce_2_lazy",
             "date_trunc",
             "equal_to_const",
             "long_equal_to_long",
@@ -142,8 +146,34 @@ public class EvalBenchmark {
                     lhs = new Add(Source.EMPTY, lhs, new Literal(Source.EMPTY, 1L, DataType.LONG));
                     rhs = new Add(Source.EMPTY, rhs, new Literal(Source.EMPTY, 1L, DataType.LONG));
                 }
-                yield EvalMapper.toEvaluator(FOLD_CONTEXT, new Case(Source.EMPTY, condition, List.of(lhs, rhs)), layout(f1, f2))
-                    .get(driverContext);
+                EvalOperator.ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
+                    FOLD_CONTEXT,
+                    new Case(Source.EMPTY, condition, List.of(lhs, rhs)),
+                    layout(f1, f2)
+                ).get(driverContext);
+                String desc = operation.endsWith("lazy") ? "CaseLazyEvaluator" : "CaseEagerEvaluator";
+                if (evaluator.toString().contains(desc) == false) {
+                    throw new IllegalArgumentException("Evaluator was [" + evaluator + "] but expected one containing [" + desc + "]");
+                }
+                yield evaluator;
+            }
+            case "coalesce_2_noop", "coalesce_2_eager", "coalesce_2_lazy" -> {
+                FieldAttribute f1 = longField();
+                FieldAttribute f2 = longField();
+                Expression lhs = f1;
+                if (operation.endsWith("lazy")) {
+                    lhs = new Add(Source.EMPTY, lhs, new Literal(Source.EMPTY, 1L, DataType.LONG));
+                }
+                EvalOperator.ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
+                    FOLD_CONTEXT,
+                    new Coalesce(Source.EMPTY, lhs, List.of(f2)),
+                    layout(f1, f2)
+                ).get(driverContext);
+                String desc = operation.endsWith("lazy") ? "CoalesceLazyEvaluator" : "CoalesceEagerEvaluator";
+                if (evaluator.toString().contains(desc) == false) {
+                    throw new IllegalArgumentException("Evaluator was [" + evaluator + "] but expected one containing [" + desc + "]");
+                }
+                yield evaluator;
             }
             case "date_trunc" -> {
                 FieldAttribute timestamp = new FieldAttribute(
@@ -260,6 +290,38 @@ public class EvalBenchmark {
                     }
                 }
             }
+            case "coalesce_2_noop" -> {
+                LongVector f1 = actual.<LongBlock>getBlock(0).asVector();
+                LongVector result = actual.<LongBlock>getBlock(2).asVector();
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    long expected = f1.getLong(i);
+                    if (result.getLong(i) != expected) {
+                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + result.getLong(i) + "]");
+                    }
+                }
+            }
+            case "coalesce_2_eager" -> {
+                LongBlock f1 = actual.<LongBlock>getBlock(0);
+                LongVector f2 = actual.<LongBlock>getBlock(1).asVector();
+                LongVector result = actual.<LongBlock>getBlock(2).asVector();
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    long expected = i % 5 == 0 ? f2.getLong(i) : f1.getLong(f1.getFirstValueIndex(i));
+                    if (result.getLong(i) != expected) {
+                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + result.getLong(i) + "]");
+                    }
+                }
+            }
+            case "coalesce_2_lazy" -> {
+                LongBlock f1 = actual.<LongBlock>getBlock(0);
+                LongVector f2 = actual.<LongBlock>getBlock(1).asVector();
+                LongVector result = actual.<LongBlock>getBlock(2).asVector();
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    long expected = i % 5 == 0 ? f2.getLong(i) : f1.getLong(f1.getFirstValueIndex(i)) + 1;
+                    if (result.getLong(i) != expected) {
+                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + result.getLong(i) + "]");
+                    }
+                }
+            }
             case "date_trunc" -> {
                 LongVector v = actual.<LongBlock>getBlock(1).asVector();
                 long oneDay = TimeValue.timeValueHours(24).millis();
@@ -304,7 +366,7 @@ public class EvalBenchmark {
                     }
                 }
             }
-            default -> throw new UnsupportedOperationException();
+            default -> throw new UnsupportedOperationException(operation);
         }
     }
 
@@ -324,11 +386,24 @@ public class EvalBenchmark {
                 }
                 yield new Page(builder.build());
             }
-            case "case_1_eager", "case_1_lazy" -> {
+            case "case_1_eager", "case_1_lazy", "coalesce_2_noop" -> {
                 var f1 = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
                 var f2 = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     f1.appendLong(i);
+                    f2.appendLong(-i);
+                }
+                yield new Page(f1.build(), f2.build());
+            }
+            case "coalesce_2_eager", "coalesce_2_lazy" -> {
+                var f1 = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
+                var f2 = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    if (i % 5 == 0) {
+                        f1.appendNull();
+                    } else {
+                        f1.appendLong(i);
+                    }
                     f2.appendLong(-i);
                 }
                 yield new Page(f1.build(), f2.build());

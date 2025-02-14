@@ -1,11 +1,14 @@
 org.elasticsearch.security:
   - set_https_connection_properties # for CommandLineHttpClient
 io.netty.transport:
-  - network:
-      actions:
-        - listen
+  - manage_threads
+  - inbound_network
+  - outbound_network
 io.netty.common:
-  - network:
-      actions:
-        - accept
-        - connect
+  - manage_threads
+  - inbound_network
+  - outbound_network
+org.opensaml.xmlsec.impl:
+  - write_system_properties:
+      properties:
+        - org.apache.xml.security.ignoreLineBreaks

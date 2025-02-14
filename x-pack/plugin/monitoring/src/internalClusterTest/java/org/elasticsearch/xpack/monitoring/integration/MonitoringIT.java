@@ -166,19 +166,18 @@ public class MonitoringIT extends ESSingleNodeTestCase {
                 final SearchHits hits = response.getHits();
 
                 assertThat(response.getHits().getTotalHits().value(), equalTo(3L));
-                assertThat(
-                    "Monitoring documents must have the same timestamp",
-                    Arrays.stream(hits.getHits()).map(hit -> extractValue("timestamp", hit.getSourceAsMap())).distinct().count(),
-                    equalTo(1L)
-                );
-                assertThat(
-                    "Monitoring documents must have the same source_node timestamp",
-                    Arrays.stream(hits.getHits())
-                        .map(hit -> extractValue("source_node.timestamp", hit.getSourceAsMap()))
-                        .distinct()
-                        .count(),
-                    equalTo(1L)
-                );
+                Map<String, Object> sourceHit = hits.getHits()[0].getSourceAsMap();
+                Object ts = extractValue("timestamp", sourceHit);
+                Object sn_ts = extractValue("source_node.timestamp", sourceHit);
+                for (int i = 1; i < hits.getHits().length; i++) {
+                    sourceHit = hits.getHits()[i].getSourceAsMap();
+                    assertThat("Monitoring documents must have the same timestamp", extractValue("timestamp", sourceHit), equalTo(ts));
+                    assertThat(
+                        "Monitoring documents must have the same source_node timestamp",
+                        extractValue("source_node.timestamp", sourceHit),
+                        equalTo(sn_ts)
+                    );
+                }
 
                 for (final SearchHit hit : hits.getHits()) {
                     assertMonitoringDoc(toMap(hit), system, interval);

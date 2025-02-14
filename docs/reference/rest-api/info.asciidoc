@@ -95,10 +95,6 @@ Example response:
           "available" : true,
           "enabled" : true
       },
-      "frozen_indices" : {
-         "available" : true,
-         "enabled" : true
-      },
       "graph" : {
          "available" : true,
          "enabled" : true
@@ -181,7 +177,7 @@ Example response:
       },
       "logsdb": {
         "available": true,
-        "enabled": false
+        "enabled": true
       }
    },
    "tagline" : "You know, for X"

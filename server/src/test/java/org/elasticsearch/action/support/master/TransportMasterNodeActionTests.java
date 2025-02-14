@@ -257,7 +257,6 @@ public class TransportMasterNodeActionTests extends ESTestCase {
                 threadPool,
                 new ActionFilters(new HashSet<>()),
                 Request::new,
-                TestIndexNameExpressionResolver.newInstance(),
                 Response::new,
                 executor
             );
@@ -300,7 +299,6 @@ public class TransportMasterNodeActionTests extends ESTestCase {
                 threadPool,
                 new ActionFilters(new HashSet<>()),
                 ClusterUpdateSettingsRequest::new,
-                TestIndexNameExpressionResolver.newInstance(),
                 Response::new,
                 executor
             );

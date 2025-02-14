@@ -59,7 +59,6 @@ public class PromoteDataStreamTransportAction extends AcknowledgedTransportMaste
             threadPool,
             actionFilters,
             PromoteDataStreamAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.systemIndices = systemIndices;

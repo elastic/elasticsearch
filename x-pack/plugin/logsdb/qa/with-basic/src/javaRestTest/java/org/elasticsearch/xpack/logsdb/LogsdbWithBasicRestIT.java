@@ -61,14 +61,7 @@ public class LogsdbWithBasicRestIT extends ESRestTestCase {
                 var settings = Settings.builder().put("index.mode", "time_series").put("index.routing_path", "field1").build();
                 createIndex("test-index", settings, mapping);
             } else {
-                String mapping = """
-                    {
-                        "_source": {
-                            "mode": "synthetic"
-                        }
-                    }
-                    """;
-                createIndex("test-index", Settings.EMPTY, mapping);
+                createIndex("test-index", Settings.builder().put("index.mapping.source.mode", "synthetic").build());
             }
             var response = getAsMap("/_license/feature_usage");
             @SuppressWarnings("unchecked")
@@ -80,21 +73,6 @@ public class LogsdbWithBasicRestIT extends ESRestTestCase {
     public void testLogsdbIndexGetsStoredSource() throws IOException {
         final String index = "test-index";
         createIndex(index, Settings.builder().put("index.mode", "logsdb").build());
-        var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(index).get(index)).get("settings");
-        assertEquals("logsdb", settings.get("index.mode"));
-        assertEquals(SourceFieldMapper.Mode.STORED.toString(), settings.get("index.mapping.source.mode"));
-    }
-
-    public void testLogsdbOverrideSyntheticSourceModeInMapping() throws IOException {
-        final String index = "test-index";
-        String mapping = """
-            {
-                "_source": {
-                    "mode": "synthetic"
-                }
-            }
-            """;
-        createIndex(index, Settings.builder().put("index.mode", "logsdb").build(), mapping);
         var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(index).get(index)).get("settings");
         assertEquals("logsdb", settings.get("index.mode"));
         assertEquals(SourceFieldMapper.Mode.STORED.toString(), settings.get("index.mapping.source.mode"));

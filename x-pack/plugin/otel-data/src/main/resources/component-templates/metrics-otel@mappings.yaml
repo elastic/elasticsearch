@@ -5,6 +5,7 @@ _meta:
 template:
   settings:
     index.mapping.ignore_malformed: true
+    index.mapping.total_fields.limit: 10000
   mappings:
     properties:
       start_timestamp:

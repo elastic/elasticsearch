@@ -36,14 +36,7 @@ public class SpatialUsageTransportAction extends XPackUsageFeatureTransportActio
         IndexNameExpressionResolver indexNameExpressionResolver,
         Client client
     ) {
-        super(
-            XPackUsageFeatureAction.SPATIAL.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.SPATIAL.name(), transportService, clusterService, threadPool, actionFilters);
         this.client = client;
     }
 

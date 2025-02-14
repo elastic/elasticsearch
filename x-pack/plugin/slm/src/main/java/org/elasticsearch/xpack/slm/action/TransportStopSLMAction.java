@@ -44,7 +44,6 @@ public class TransportStopSLMAction extends AcknowledgedTransportMasterNodeActio
             threadPool,
             actionFilters,
             StopSLMAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
     }

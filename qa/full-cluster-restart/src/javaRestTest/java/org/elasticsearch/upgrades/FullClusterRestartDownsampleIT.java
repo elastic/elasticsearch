@@ -18,6 +18,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.Version;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -45,7 +46,7 @@ public class FullClusterRestartDownsampleIT extends ParameterizedFullClusterRest
 
     private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        .version(getOldClusterTestVersion())
+        .version(Version.fromString(OLD_CLUSTER_VERSION))
         .nodes(2)
         .setting("xpack.security.enabled", "false")
         .setting("indices.lifecycle.poll_interval", "5s")

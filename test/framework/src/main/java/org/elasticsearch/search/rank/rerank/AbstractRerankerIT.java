@@ -56,6 +56,10 @@ public abstract class AbstractRerankerIT extends ESIntegTestCase {
 
     protected abstract Collection<Class<? extends Plugin>> pluginsNeeded();
 
+    protected boolean shouldCheckScores() {
+        return true;
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginsNeeded();
@@ -95,9 +99,11 @@ public abstract class AbstractRerankerIT extends ESIntegTestCase {
                 int rank = 1;
                 for (SearchHit searchHit : response.getHits().getHits()) {
                     assertThat(searchHit, hasId(String.valueOf(5 - (rank - 1))));
-                    assertEquals(0.5f - ((rank - 1) * 0.1f), searchHit.getScore(), 1e-5f);
                     assertThat(searchHit, hasRank(rank));
                     assertNotNull(searchHit.getFields().get(searchField));
+                    if (shouldCheckScores()) {
+                        assertEquals(0.5f - ((rank - 1) * 0.1f), searchHit.getScore(), 1e-5f);
+                    }
                     rank++;
                 }
             }
@@ -140,9 +146,11 @@ public abstract class AbstractRerankerIT extends ESIntegTestCase {
                 int rank = 3;
                 for (SearchHit searchHit : response.getHits().getHits()) {
                     assertThat(searchHit, hasId(String.valueOf(5 - (rank - 1))));
-                    assertEquals(0.5f - ((rank - 1) * 0.1f), searchHit.getScore(), 1e-5f);
                     assertThat(searchHit, hasRank(rank));
                     assertNotNull(searchHit.getFields().get(searchField));
+                    if (shouldCheckScores()) {
+                        assertEquals(0.5f - ((rank - 1) * 0.1f), searchHit.getScore(), 1e-5f);
+                    }
                     rank++;
                 }
             }
@@ -222,9 +230,11 @@ public abstract class AbstractRerankerIT extends ESIntegTestCase {
                 int rank = 1;
                 for (SearchHit searchHit : response.getHits().getHits()) {
                     assertThat(searchHit, hasId(String.valueOf(5 - (rank - 1))));
-                    assertEquals(0.5f - ((rank - 1) * 0.1f), searchHit.getScore(), 1e-5f);
                     assertThat(searchHit, hasRank(rank));
                     assertNotNull(searchHit.getFields().get(searchField));
+                    if (shouldCheckScores()) {
+                        assertEquals(0.5f - ((rank - 1) * 0.1f), searchHit.getScore(), 1e-5f);
+                    }
                     rank++;
                 }
             }

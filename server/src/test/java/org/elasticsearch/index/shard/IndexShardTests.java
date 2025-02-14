@@ -790,21 +790,6 @@ public class IndexShardTests extends IndexShardTestCase {
                 }
             }, TimeValue.timeValueSeconds(30));
             latch.await();
-
-            // It's possible to acquire permits if we skip the primary mode check
-            var permitAcquiredLatch = new CountDownLatch(1);
-            indexShard.acquirePrimaryOperationPermit(ActionListener.wrap(r -> {
-                r.close();
-                permitAcquiredLatch.countDown();
-            }, Assert::assertNotNull), EsExecutors.DIRECT_EXECUTOR_SERVICE, false, IndexShard.PrimaryPermitCheck.NONE);
-            safeAwait(permitAcquiredLatch);
-
-            var allPermitsAcquiredLatch = new CountDownLatch(1);
-            indexShard.acquireAllPrimaryOperationsPermits(ActionListener.wrap(r -> {
-                r.close();
-                allPermitsAcquiredLatch.countDown();
-            }, Assert::assertNotNull), TimeValue.timeValueSeconds(30), IndexShard.PrimaryPermitCheck.NONE);
-            safeAwait(allPermitsAcquiredLatch);
         }
 
         if (Assertions.ENABLED && indexShard.routingEntry().isRelocationTarget() == false) {
@@ -4512,7 +4497,7 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
-    public void testResetEngine() throws Exception {
+    public void testResetEngineToGlobalCheckpoint() throws Exception {
         IndexShard shard = newStartedShard(false);
         indexOnReplicaWithGaps(shard, between(0, 1000), Math.toIntExact(shard.getLocalCheckpoint()));
         long maxSeqNoBeforeRollback = shard.seqNoStats().getMaxSeqNo();
@@ -4572,6 +4557,31 @@ public class IndexShardTests extends IndexShardTestCase {
         done.set(true);
         thread.join();
         closeShard(shard, false);
+    }
+
+    public void testResetEngine() throws Exception {
+        var newEngineCreated = new CountDownLatch(2);
+        var indexShard = newStartedShard(true, Settings.EMPTY, config -> {
+            try {
+                return new ReadOnlyEngine(config, null, new TranslogStats(), false, Function.identity(), true, true) {
+                    @Override
+                    public void prepareForEngineReset() throws IOException {}
+                };
+            } finally {
+                newEngineCreated.countDown();
+            }
+        });
+        var newEngineNotification = new CountDownLatch(1);
+        indexShard.waitForEngineOrClosedShard(ActionListener.running(newEngineNotification::countDown));
+
+        var onAcquired = new PlainActionFuture<Releasable>();
+        indexShard.acquireAllPrimaryOperationsPermits(onAcquired, TimeValue.timeValueMinutes(1L));
+        try (var permits = safeGet(onAcquired)) {
+            indexShard.resetEngine();
+        }
+        safeAwait(newEngineCreated);
+        safeAwait(newEngineNotification);
+        closeShard(indexShard, false);
     }
 
     /**

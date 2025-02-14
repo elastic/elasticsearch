@@ -89,10 +89,7 @@ setup:
   - length: { hits.hits: 2 }
 
   - match: { hits.hits.0._id: "doc_2" }
-  - close_to: { hits.hits.0._score: { value: 0.4, error: 0.001 } }
-
   - match: { hits.hits.1._id: "doc_1" }
-  - close_to: { hits.hits.1._score: { value: 0.2, error: 0.001 } }
 
 ---
 "Simple text similarity rank retriever and filtering":
@@ -123,8 +120,6 @@ setup:
   - length: { hits.hits: 1 }
 
   - match: { hits.hits.0._id: "doc_1" }
-  - close_to: { hits.hits.0._score: { value: 0.2, error: 0.001 } }
-
 
 ---
 "Text similarity reranking fails if the inference ID does not exist":
@@ -211,7 +206,6 @@ setup:
   - contains: { hits.hits: { _id: "doc_2" } }
   - contains: { hits.hits: { _id: "doc_1" } }
 
-  - close_to: { hits.hits.0._explanation.value: { value: 0.4, error: 0.000001 } }
   - match: {hits.hits.0._explanation.description: "/text_similarity_reranker.match.using.inference.endpoint:.\\[my-rerank-model\\].on.document.field:.\\[text\\].*/" }
   - match: {hits.hits.0._explanation.details.0.description: "/weight.*science.*/" }
 

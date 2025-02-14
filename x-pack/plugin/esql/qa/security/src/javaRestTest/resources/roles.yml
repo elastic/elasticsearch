@@ -93,6 +93,53 @@ fls_user:
       field_security:
         grant: [ value ]
 
+fls_user2:
+  cluster: []
+  indices:
+    - names: [ 'lookup-user2' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ "org", "value" ]
+
+fls_user3:
+  cluster: []
+  indices:
+    - names: [ 'lookup-user2' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ "org", "value", "other" ]
+
+fls_user4_1:
+  cluster: []
+  indices:
+    - names: [ 'lookup-user2' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ "org" ]
+
+fls_user4_2:
+  cluster: []
+  indices:
+    - names: [ 'lookup-user2' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ "value" ]
+
+dls_user:
+  cluster: []
+  indices:
+    - names: [ 'lookup-user2' ]
+      privileges: [ 'read' ]
+      query: '{"match": {"org": "marketing"}}'
+
+dls_user2:
+  cluster: []
+  indices:
+    - names: [ 'lookup-user2' ]
+      privileges: [ 'read' ]
+      query: '{"match": {"org": "sales"}}'
+
+
 logs_foo_all:
   cluster: []
   indices:

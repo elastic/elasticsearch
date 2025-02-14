@@ -104,7 +104,6 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
             threadPool,
             actionFilters,
             DeleteJobAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;

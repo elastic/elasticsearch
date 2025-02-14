@@ -29,6 +29,8 @@ dependencies {
   api "joda-time:joda-time:2.10.10"
 
   javaRestTestImplementation project(':plugins:discovery-ec2')
+  javaRestTestImplementation project(':test:fixtures:aws-fixture-utils')
+  javaRestTestImplementation project(':test:fixtures:aws-ec2-fixture')
   javaRestTestImplementation project(':test:fixtures:ec2-imds-fixture')
 
   internalClusterTestImplementation project(':test:fixtures:ec2-imds-fixture')
@@ -97,11 +99,6 @@ tasks.withType(Test).configureEach {
   } else {
     nonInputProperties.systemProperty 'java.security.policy', "file://${buildDir}/tmp/java.policy"
   }
-}
-
-tasks.named("check").configure {
-  // also execute the QA tests when testing the plugin
-  dependsOn 'qa:amazon-ec2:check'
 }
 
 tasks.named("thirdPartyAudit").configure {

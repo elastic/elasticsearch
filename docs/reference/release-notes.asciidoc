@@ -6,9 +6,11 @@
 
 This section summarizes the changes in each release.
 
+* <<release-notes-9.1.0>>
 * <<release-notes-9.0.0>>
 
 --
 
+include::release-notes/9.1.0.asciidoc[]
 include::release-notes/9.0.0.asciidoc[]
 

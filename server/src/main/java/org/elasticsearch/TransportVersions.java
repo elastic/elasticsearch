@@ -206,6 +206,7 @@ public class TransportVersions {
     public static final TransportVersion INGEST_PIPELINE_CONFIGURATION_AS_MAP = def(8_797_0_00);
     public static final TransportVersion LOGSDB_TELEMETRY_CUSTOM_CUTOFF_DATE_FIX_8_17 = def(8_797_0_01);
     public static final TransportVersion SOURCE_MODE_TELEMETRY_FIX_8_17 = def(8_797_0_02);
+    public static final TransportVersion INITIAL_ELASTICSEARCH_8_17_3 = def(8_797_0_03);
 
     /*
      * STOP! READ THIS FIRST! No, really,

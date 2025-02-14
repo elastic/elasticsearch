@@ -1196,9 +1196,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             processor = conditionalProcessor.getInnerProcessor();
         }
 
-        // if there's a tag, OR if it's a pipeline processor, then the processor name is a compound thing,
-        // BUT if neither of those apply, then it's just the type -- so we can return the type itself without
-        // allocating a new String object
         String tag = processor.getTag();
         if (tag != null && tag.isEmpty()) {
             tag = null; // it simplifies the rest of the logic slightly to coalesce to null
@@ -1209,6 +1206,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             pipelineName = pipelineProcessor.getPipelineTemplate().newInstance(Map.of()).execute();
         }
 
+        // if there's a tag, OR if it's a pipeline processor, then the processor name is a compound thing,
+        // BUT if neither of those apply, then it's just the type -- so we can return the type itself without
+        // allocating a new String object
         if (tag == null && pipelineName == null) {
             return processor.getType();
         } else {

@@ -35,6 +35,12 @@ public class FileAccessTreeTests extends ESTestCase {
         return root.resolve(s);
     }
 
+    private static final PathLookup TEST_PATH_LOOKUP = new PathLookup(
+        Path.of("/config"),
+        new Path[] { Path.of("/data1"), Path.of("/data2") },
+        Path.of("/tmp")
+    );
+
     public void testEmpty() {
         var tree = accessTree(FilesEntitlement.EMPTY);
         assertThat(tree.canRead(path("path")), is(false));
@@ -84,6 +90,53 @@ public class FileAccessTreeTests extends ESTestCase {
         assertThat(tree.canWrite(path("foo/bar")), is(true));
     }
 
+    public void testReadWithRelativePath() {
+        var tree = accessTree(entitlement(Map.of("relative_path", "foo", "mode", "read", "relative_to", "config")));
+        assertThat(tree.canRead(path("foo")), is(false));
+
+        assertThat(tree.canRead(path("/config/foo")), is(true));
+
+        assertThat(tree.canRead(path("/config/foo/subdir")), is(true));
+        assertThat(tree.canRead(path("/config/food")), is(false));
+        assertThat(tree.canWrite(path("/config/foo")), is(false));
+
+        assertThat(tree.canRead(path("/config")), is(false));
+        assertThat(tree.canRead(path("/config/before")), is(false));
+        assertThat(tree.canRead(path("/config/later")), is(false));
+    }
+
+    public void testWriteWithRelativePath() {
+        var tree = accessTree(entitlement(Map.of("relative_path", "foo", "mode", "read_write", "relative_to", "config")));
+        assertThat(tree.canWrite(path("/config/foo")), is(true));
+        assertThat(tree.canWrite(path("/config/foo/subdir")), is(true));
+        assertThat(tree.canWrite(path("foo")), is(false));
+        assertThat(tree.canWrite(path("/config/food")), is(false));
+        assertThat(tree.canRead(path("/config/foo")), is(true));
+        assertThat(tree.canRead(path("foo")), is(false));
+
+        assertThat(tree.canWrite(path("/config")), is(false));
+        assertThat(tree.canWrite(path("/config/before")), is(false));
+        assertThat(tree.canWrite(path("/config/later")), is(false));
+    }
+
+    public void testMultipleDataDirs() {
+        var tree = accessTree(entitlement(Map.of("relative_path", "foo", "mode", "read_write", "relative_to", "data")));
+        assertThat(tree.canWrite(path("/data1/foo")), is(true));
+        assertThat(tree.canWrite(path("/data2/foo")), is(true));
+        assertThat(tree.canWrite(path("/data3/foo")), is(false));
+        assertThat(tree.canWrite(path("/data1/foo/subdir")), is(true));
+        assertThat(tree.canWrite(path("foo")), is(false));
+        assertThat(tree.canWrite(path("/data1/food")), is(false));
+        assertThat(tree.canRead(path("/data1/foo")), is(true));
+        assertThat(tree.canRead(path("/data2/foo")), is(true));
+        assertThat(tree.canRead(path("foo")), is(false));
+
+        assertThat(tree.canWrite(path("/data1")), is(false));
+        assertThat(tree.canWrite(path("/data2")), is(false));
+        assertThat(tree.canWrite(path("/config/before")), is(false));
+        assertThat(tree.canWrite(path("/config/later")), is(false));
+    }
+
     public void testNormalizePath() {
         var tree = accessTree(entitlement("foo/../bar", "read"));
         assertThat(tree.canRead(path("foo/../bar")), is(true));
@@ -106,17 +159,19 @@ public class FileAccessTreeTests extends ESTestCase {
 
     public void testTempDirAccess() {
         Path tempDir = createTempDir();
-        var tree = FileAccessTree.of(FilesEntitlement.EMPTY, tempDir);
-
+        var tree = FileAccessTree.of(
+            FilesEntitlement.EMPTY,
+            new PathLookup(Path.of("/config"), new Path[] { Path.of("/data1"), Path.of("/data2") }, tempDir)
+        );
         assertThat(tree.canRead(tempDir), is(true));
         assertThat(tree.canWrite(tempDir), is(true));
     }
 
     FileAccessTree accessTree(FilesEntitlement entitlement) {
-        return FileAccessTree.of(entitlement, createTempDir());
+        return FileAccessTree.of(entitlement, TEST_PATH_LOOKUP);
     }
 
-    FilesEntitlement entitlement(String... values) {
+    static FilesEntitlement entitlement(String... values) {
         List<Object> filesData = new ArrayList<>();
         for (int i = 0; i < values.length; i += 2) {
             Map<String, String> fileData = new HashMap<>();
@@ -125,5 +180,9 @@ public class FileAccessTreeTests extends ESTestCase {
             filesData.add(fileData);
         }
         return FilesEntitlement.build(filesData);
+    }
+
+    static FilesEntitlement entitlement(Map<String, String> value) {
+        return FilesEntitlement.build(List.of(value));
     }
 }

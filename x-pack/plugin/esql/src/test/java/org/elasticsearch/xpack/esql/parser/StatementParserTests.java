@@ -919,6 +919,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
                 "line 1:22: is_null function is not supported anymore, please use 'is null'/'is not null' predicates instead"
             );
         }
+        if (EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()) {
+            expectError(
+                "from test | eval x = ??fn1(f)",
+                List.of(paramAsConstant("fn1", "IS_NULL")),
+                "line 1:22: is_null function is not supported anymore, please use 'is null'/'is not null' predicates instead"
+            );
+        }
     }
 
     public void testMetadataFieldOnOtherSources() {

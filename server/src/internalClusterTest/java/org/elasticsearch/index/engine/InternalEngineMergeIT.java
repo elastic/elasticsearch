@@ -20,7 +20,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.BeforeClass;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -33,15 +32,11 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 @ClusterScope(supportsDedicatedMasters = false, numDataNodes = 1, numClientNodes = 0, scope = Scope.TEST)
 public class InternalEngineMergeIT extends ESIntegTestCase {
 
-    private static boolean useThreadPoolMerging;
-
-    @BeforeClass
-    public static void selectRealmConfig() {
-        useThreadPoolMerging = randomBoolean();
-    }
+    private boolean useThreadPoolMerging;
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        useThreadPoolMerging = randomBoolean();
         Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         settings.put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), useThreadPoolMerging);
         return settings.build();

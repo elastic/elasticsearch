@@ -222,8 +222,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         }))) {
             var exchangeSource = new ExchangeSourceHandler(
                 configuration.pragmas().exchangeBufferSize(),
-                transportService.getThreadPool().executor(ThreadPool.Names.SEARCH),
-                computeListener.acquireAvoid()
+                transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
             );
             try (Releasable ignored = exchangeSource.addEmptySink()) {
                 exchangeSink.addCompletionListener(computeListener.acquireAvoid());

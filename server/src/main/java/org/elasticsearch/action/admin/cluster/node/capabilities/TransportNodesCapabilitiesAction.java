@@ -152,7 +152,9 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
             this.path = path;
             this.parameters = Set.copyOf(parameters);
             this.capabilities = Set.copyOf(capabilities);
-            this.restApiVersionMajor = (restApiVersion != null) ? restApiVersion.major : null;
+            assert restApiVersion != null;
+            // restApiVersionMajor can be null only if it is received as part of transport message from v9 node
+            this.restApiVersionMajor = restApiVersion.major;
         }
 
         @Override

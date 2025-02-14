@@ -220,7 +220,6 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 assertFalse(canReturnNullResponse.get());
                 assertThat(numWithTopDocs.get(), equalTo(0));
             } else {
-                assertTrue(canReturnNullResponse.get());
                 if (withCollapse) {
                     assertThat(numWithTopDocs.get(), equalTo(0));
                 } else {

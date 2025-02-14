@@ -95,11 +95,12 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
 
     @Override
     protected EsqlQueryResponse run(EsqlQueryRequest request) {
+        if (randomBoolean()) {
+            request.allowPartialResults(randomBoolean());
+        }
+        Exception failure = null;
         try {
-            if (randomBoolean()) {
-                request.allowPartialResults(randomBoolean());
-            }
-            var resp = runWithBreaking(request);
+            final EsqlQueryResponse resp = runWithBreaking(request);
             if (resp.isPartial() == false) {
                 return resp;
             }
@@ -107,14 +108,18 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
                 assertTrue(request.allowPartialResults());
             }
         } catch (Exception e) {
-            try (EsqlQueryResponse resp = super.run(request)) {
-                assertThat(e, instanceOf(CircuitBreakingException.class));
-                assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.TOO_MANY_REQUESTS));
-                resp.incRef();
-                return resp;
-            }
+            failure = e;
         }
-        return super.run(request);
+        // Re-run if the previous query failed or returned partial results
+        // Only check the previous failure if the second query succeeded
+        try (EsqlQueryResponse resp = super.run(request)) {
+            if (failure != null) {
+                assertThat(failure, instanceOf(CircuitBreakingException.class));
+                assertThat(ExceptionsHelper.status(failure), equalTo(RestStatus.TOO_MANY_REQUESTS));
+            }
+            resp.incRef();
+            return resp;
+        }
     }
 
     /**

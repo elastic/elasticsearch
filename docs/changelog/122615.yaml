@@ -1,0 +1,5 @@
+pr: 122615
+summary: Remove synthetic recovery source feature flag
+area: "Mapping, Recovery"
+type: enhancement
+issues: []

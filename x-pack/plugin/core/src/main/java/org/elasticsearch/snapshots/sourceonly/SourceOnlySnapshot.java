@@ -9,6 +9,7 @@ package org.elasticsearch.snapshots.sourceonly;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesSkipIndexType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
@@ -252,7 +253,7 @@ public class SourceOnlySnapshot {
                             false,
                             IndexOptions.NONE,
                             DocValuesType.NONE,
-                            fieldInfo.docValuesSkipIndexType(),
+                            DocValuesSkipIndexType.NONE,
                             -1,
                             fieldInfo.attributes(),
                             0,

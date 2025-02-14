@@ -160,6 +160,9 @@ public class ServerUtils {
             retries -= 1;
             try (Socket ignored = new Socket(InetAddress.getLoopbackAddress(), installation.port)) {
                 logger.info("Connection established on retry {}", 60 - retries);
+                if (installation != null) {
+                    FileUtils.logAllLogs(installation.logs, logger);
+                }
                 return;
             } catch (IOException e) {
                 // ignore, only want to establish a connection

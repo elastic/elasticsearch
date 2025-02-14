@@ -119,6 +119,17 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
             }
         }
 
+        record PathSettingFileData(String setting, Mode mode) implements FileData {
+            @Override
+            public Stream<Path> resolvePaths(PathLookup pathLookup) {
+                if (setting.contains("*")) {
+                    return pathLookup.settingGlobResolver().apply(setting).map(Path::of);
+                }
+                String path = pathLookup.settingResolver().apply(setting);
+                return path == null ? Stream.of() : Stream.of(Path.of(path));
+            }
+        }
+
         static FileData ofPath(Path path, Mode mode) {
             assert path.isAbsolute();
             return new AbsolutePathFileData(path, mode);
@@ -127,6 +138,10 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         static FileData ofRelativePath(Path relativePath, BaseDir baseDir, Mode mode) {
             assert relativePath.isAbsolute() == false;
             return new RelativePathFileData(relativePath, baseDir, mode);
+        }
+
+        static FileData ofPathSetting(String setting, Mode mode) {
+            return new PathSettingFileData(setting, mode);
         }
 
         Stream<Path> resolvePaths(PathLookup pathLookup);
@@ -165,17 +180,23 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
             String pathAsString = file.remove("path");
             String relativePathAsString = file.remove("relative_path");
             String relativeTo = file.remove("relative_to");
-            String mode = file.remove("mode");
+            String pathSetting = file.remove("path_setting");
+            String modeAsString = file.remove("mode");
 
             if (file.isEmpty() == false) {
                 throw new PolicyValidationException("unknown key(s) [" + file + "] in a listed file for files entitlement");
             }
-            if (mode == null) {
+            int foundKeys = (pathAsString != null ? 1 : 0) + (relativePathAsString != null ? 1 : 0) + (pathSetting != null ? 1 : 0);
+            if (foundKeys != 1) {
+                throw new PolicyValidationException(
+                    "files entitlement must contain one of [path, relative_path, path_setting] for every entry"
+                );
+            }
+
+            if (modeAsString == null) {
                 throw new PolicyValidationException("files entitlement must contain 'mode' for every listed file");
             }
-            if (pathAsString != null && relativePathAsString != null) {
-                throw new PolicyValidationException("a files entitlement entry cannot contain both 'path' and 'relative_path'");
-            }
+            Mode mode = parseMode(modeAsString);
 
             if (relativePathAsString != null) {
                 if (relativeTo == null) {
@@ -187,15 +208,17 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
                 if (relativePath.isAbsolute()) {
                     throw new PolicyValidationException("'relative_path' [" + relativePathAsString + "] must be relative");
                 }
-                filesData.add(FileData.ofRelativePath(relativePath, baseDir, parseMode(mode)));
+                filesData.add(FileData.ofRelativePath(relativePath, baseDir, mode));
             } else if (pathAsString != null) {
                 Path path = Path.of(pathAsString);
                 if (path.isAbsolute() == false) {
                     throw new PolicyValidationException("'path' [" + pathAsString + "] must be absolute");
                 }
-                filesData.add(FileData.ofPath(path, parseMode(mode)));
+                filesData.add(FileData.ofPath(path, mode));
+            } else if (pathSetting != null) {
+                filesData.add(FileData.ofPathSetting(pathSetting, mode));
             } else {
-                throw new PolicyValidationException("files entitlement must contain either 'path' or 'relative_path' for every entry");
+                throw new AssertionError("File entry validation error");
             }
         }
         return new FilesEntitlement(filesData);

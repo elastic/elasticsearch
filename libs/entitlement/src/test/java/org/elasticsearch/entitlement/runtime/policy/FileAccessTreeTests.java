@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
@@ -25,10 +26,12 @@ import static org.hamcrest.Matchers.is;
 public class FileAccessTreeTests extends ESTestCase {
 
     static Path root;
+    static Settings settings;
 
     @BeforeClass
     public static void setupRoot() {
         root = createTempDir();
+        settings = Settings.EMPTY;
     }
 
     private static Path path(String s) {
@@ -38,7 +41,9 @@ public class FileAccessTreeTests extends ESTestCase {
     private static final PathLookup TEST_PATH_LOOKUP = new PathLookup(
         Path.of("/config"),
         new Path[] { Path.of("/data1"), Path.of("/data2") },
-        Path.of("/tmp")
+        Path.of("/tmp"),
+        setting -> settings.get(setting),
+        glob -> settings.getGlobValues(glob)
     );
 
     public void testEmpty() {
@@ -159,10 +164,7 @@ public class FileAccessTreeTests extends ESTestCase {
 
     public void testTempDirAccess() {
         Path tempDir = createTempDir();
-        var tree = FileAccessTree.of(
-            FilesEntitlement.EMPTY,
-            new PathLookup(Path.of("/config"), new Path[] { Path.of("/data1"), Path.of("/data2") }, tempDir)
-        );
+        var tree = FileAccessTree.of(FilesEntitlement.EMPTY, TEST_PATH_LOOKUP);
         assertThat(tree.canRead(tempDir), is(true));
         assertThat(tree.canWrite(tempDir), is(true));
     }

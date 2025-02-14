@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager.ModuleEntitlements;
 import org.elasticsearch.entitlement.runtime.policy.agent.TestAgent;
 import org.elasticsearch.entitlement.runtime.policy.agent.inner.TestInnerAgent;
@@ -56,7 +57,9 @@ public class PolicyManagerTests extends ESTestCase {
     private static final PathLookup TEST_PATH_LOOKUP = new PathLookup(
         Path.of("/config"),
         new Path[] { Path.of("/data1/"), Path.of("/data2") },
-        Path.of("/temp")
+        Path.of("/temp"),
+        Settings.EMPTY::get,
+        Settings.EMPTY::getGlobValues
     );
 
     @BeforeClass

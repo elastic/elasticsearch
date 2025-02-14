@@ -153,7 +153,7 @@ public class PolicyParserTests extends ESTestCase {
         );
         assertEquals(expected, policyWithTwoPaths);
 
-        Policy policyWithMultiplePathsAndBaseDir = new PolicyParser(new ByteArrayInputStream("""
+        Policy policyWithMultiplePathTypes = new PolicyParser(new ByteArrayInputStream("""
             entitlement-module-name:
               - files:
                 - relative_path: "test/path/to/file"
@@ -164,6 +164,8 @@ public class PolicyParserTests extends ESTestCase {
                   mode: "read"
                 - path: "/path/to/file"
                   mode: "read_write"
+                - path_setting: foo.bar
+                  mode: read
             """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", false).parsePolicy();
         expected = new Policy(
             "test-policy.yaml",
@@ -175,14 +177,15 @@ public class PolicyParserTests extends ESTestCase {
                             List.of(
                                 Map.of("relative_path", "test/path/to/file", "mode", "read_write", "relative_to", "data"),
                                 Map.of("relative_path", "test/path/to/read-dir/", "mode", "read", "relative_to", "config"),
-                                Map.of("path", "/path/to/file", "mode", "read_write")
+                                Map.of("path", "/path/to/file", "mode", "read_write"),
+                                Map.of("path_setting", "foo.bar", "mode", "read")
                             )
                         )
                     )
                 )
             )
         );
-        assertEquals(expected, policyWithMultiplePathsAndBaseDir);
+        assertEquals(expected, policyWithMultiplePathTypes);
     }
 
     public void testParseNetwork() throws IOException {

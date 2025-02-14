@@ -96,7 +96,16 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
     @Override
     protected EsqlQueryResponse run(EsqlQueryRequest request) {
         try {
-            return runWithBreaking(request);
+            if (randomBoolean()) {
+                request.allowPartialResults(randomBoolean());
+            }
+            var resp = runWithBreaking(request);
+            if (resp.isPartial() == false) {
+                return resp;
+            }
+            try (resp) {
+                assertTrue(request.allowPartialResults());
+            }
         } catch (Exception e) {
             try (EsqlQueryResponse resp = super.run(request)) {
                 assertThat(e, instanceOf(CircuitBreakingException.class));
@@ -105,6 +114,7 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
                 return resp;
             }
         }
+        return super.run(request);
     }
 
     /**

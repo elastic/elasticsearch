@@ -83,16 +83,31 @@ public class EsqlDisruptionIT extends EsqlActionIT {
         logger.info("--> start disruption scheme [{}]", disruptionScheme);
         disruptionScheme.startDisrupting();
         logger.info("--> executing esql query with disruption {} ", request.query());
+        if (randomBoolean()) {
+            request.allowPartialResults(randomBoolean());
+        }
         ActionFuture<EsqlQueryResponse> future = client().execute(EsqlQueryAction.INSTANCE, request);
         try {
-            return future.actionGet(2, TimeUnit.MINUTES);
+            var resp = future.actionGet(2, TimeUnit.MINUTES);
+            if (resp.isPartial() == false) {
+                return resp;
+            }
+            try (resp) {
+                assertTrue(request.allowPartialResults());
+            }
         } catch (Exception ignored) {
 
         } finally {
             clearDisruption();
         }
         try {
-            return future.actionGet(2, TimeUnit.MINUTES);
+            var resp = future.actionGet(2, TimeUnit.MINUTES);
+            if (resp.isPartial() == false) {
+                return resp;
+            }
+            try (resp) {
+                assertTrue(request.allowPartialResults());
+            }
         } catch (Exception e) {
             logger.info(
                 "running tasks: {}",
@@ -113,8 +128,8 @@ public class EsqlDisruptionIT extends EsqlActionIT {
             ensureBlocksReleased();
             logger.info("--> failed to execute esql query with disruption; retrying...", e);
             EsqlTestUtils.assertEsqlFailure(e);
-            return client().execute(EsqlQueryAction.INSTANCE, request).actionGet(2, TimeUnit.MINUTES);
         }
+        return super.run(request);
     }
 
     private ServiceDisruptionScheme addRandomDisruptionScheme() {

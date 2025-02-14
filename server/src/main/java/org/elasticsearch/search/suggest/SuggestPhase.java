@@ -44,13 +44,8 @@ public class SuggestPhase {
                 Suggester<SuggestionContext> suggester = suggestion.getSuggester();
                 Suggestion<? extends Entry<? extends Option>> result;
                 try {
-                    result = suggester.execute(
-                        entry.getKey(),
-                        suggestion,
-                        context.searcher(),
-                        spare
-                    );
-                } catch(ContextIndexSearcher.TimeExceededException timeExceededException) {
+                    result = suggester.execute(entry.getKey(), suggestion, context.searcher(), spare);
+                } catch (ContextIndexSearcher.TimeExceededException timeExceededException) {
                     SearchTimeoutException.handleTimeout(
                         context.request().allowPartialSearchResults(),
                         context.shardTarget(),

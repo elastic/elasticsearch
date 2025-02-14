@@ -92,7 +92,7 @@ public class RescorePhase {
                 context.shardTarget(),
                 context.queryResult()
             );
-            //if the rescore phase times out and partial results are allowed, the returned top docs from this shard won't be rescored
+            // if the rescore phase times out and partial results are allowed, the returned top docs from this shard won't be rescored
         }
     }
 

@@ -2601,6 +2601,10 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testInvalidNamedDoubleParamsForIdentifiers() {
+        assumeTrue(
+            "double parameters markers for identifiers requires snapshot build",
+            EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()
+        );
         // missing field
         assertError(
             """

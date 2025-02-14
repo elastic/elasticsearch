@@ -394,6 +394,8 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/122566
 - class: org.elasticsearch.entitlement.qa.EntitlementsAllowedIT
   issue: https://github.com/elastic/elasticsearch/issues/122567
+- class: org.elasticsearch.entitlement.qa.EntitlementsAllowedNonModularIT
+  issue: https://github.com/elastic/elasticsearch/issues/122568
 
 # Examples:
 #

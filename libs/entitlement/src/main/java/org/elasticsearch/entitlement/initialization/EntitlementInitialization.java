@@ -28,6 +28,7 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlemen
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.FileData;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.InboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.ManageThreadsEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ReadStoreAttributesEntitlement;
 
@@ -131,6 +132,7 @@ public class EntitlementInitialization {
     private static PolicyManager createPolicyManager() {
         Map<String, Policy> pluginPolicies = EntitlementBootstrap.bootstrapArgs().pluginPolicies();
         Path[] dataDirs = EntitlementBootstrap.bootstrapArgs().dataDirs();
+        Path tempDir = EntitlementBootstrap.bootstrapArgs().tempDir();
 
         // TODO(ES-10031): Decide what goes in the elasticsearch default policy and extend it
         var serverPolicy = new Policy(
@@ -147,6 +149,7 @@ public class EntitlementInitialization {
                         new InboundNetworkEntitlement(),
                         new OutboundNetworkEntitlement(),
                         new LoadNativeLibrariesEntitlement(),
+                        new ManageThreadsEntitlement(),
                         new FilesEntitlement(
                             Stream.concat(
                                 Stream.of(
@@ -164,6 +167,7 @@ public class EntitlementInitialization {
                     "org.apache.lucene.core",
                     List.of(
                         new LoadNativeLibrariesEntitlement(),
+                        new ManageThreadsEntitlement(),
                         new FilesEntitlement(
                             Stream.concat(
                                 Stream.of(new FileData(EntitlementBootstrap.bootstrapArgs().configDir().toString(), READ)),
@@ -172,6 +176,7 @@ public class EntitlementInitialization {
                         )
                     )
                 ),
+                new Scope("org.apache.logging.log4j.core", List.of(new ManageThreadsEntitlement())),
                 new Scope(
                     "org.elasticsearch.nativeaccess",
                     List.of(
@@ -183,9 +188,17 @@ public class EntitlementInitialization {
         );
         // agents run without a module, so this is a special hack for the apm agent
         // this should be removed once https://github.com/elastic/elasticsearch/issues/109335 is completed
-        List<Entitlement> agentEntitlements = List.of(new CreateClassLoaderEntitlement());
+        List<Entitlement> agentEntitlements = List.of(new CreateClassLoaderEntitlement(), new ManageThreadsEntitlement());
         var resolver = EntitlementBootstrap.bootstrapArgs().pluginResolver();
-        return new PolicyManager(serverPolicy, agentEntitlements, pluginPolicies, resolver, AGENTS_PACKAGE_NAME, ENTITLEMENTS_MODULE);
+        return new PolicyManager(
+            serverPolicy,
+            agentEntitlements,
+            pluginPolicies,
+            resolver,
+            AGENTS_PACKAGE_NAME,
+            ENTITLEMENTS_MODULE,
+            tempDir
+        );
     }
 
     private static Stream<InstrumentationService.InstrumentationInfo> fileSystemProviderChecks() throws ClassNotFoundException,

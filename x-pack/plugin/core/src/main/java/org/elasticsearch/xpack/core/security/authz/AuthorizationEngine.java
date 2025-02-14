@@ -295,7 +295,11 @@ public interface AuthorizationEngine {
         /**
          * Checks if an index-like resource name is authorized, for an action by a user. The resource might or might not exist.
          */
-        boolean check(String name);
+        default boolean check(String name) {
+            return check(name, null);
+        }
+
+        boolean check(String name, String selector);
     }
 
     /**

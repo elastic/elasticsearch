@@ -296,7 +296,8 @@ public class RedactProcessor extends AbstractProcessor {
             var merged = mergeOverlappingReplacements(replacementPositions);
             int longestPatternName = merged.stream().mapToInt(r -> r.patternName.getBytes(StandardCharsets.UTF_8).length).max().getAsInt();
 
-            int maxPossibleLength = longestPatternName * merged.size() + utf8Bytes.length;
+            int maxPossibleLength = (redactStartToken.length() + longestPatternName + redactEndToken.length()) * merged.size()
+                + utf8Bytes.length;
             byte[] redact = new byte[maxPossibleLength];
 
             int readOffset = 0;

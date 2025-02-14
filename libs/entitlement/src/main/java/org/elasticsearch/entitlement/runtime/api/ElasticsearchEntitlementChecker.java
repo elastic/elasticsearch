@@ -14,6 +14,7 @@ import org.elasticsearch.entitlement.bridge.EntitlementChecker;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 
 import java.io.File;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
@@ -1374,8 +1375,21 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void checkPathToRealPath(Class<?> callerClass, Path that, LinkOption... options) {
-        // We deliberately don't check read permissions on the returned read path if following links.
-        // While this allows for an "exists" check on the real target, any file operation still require adequate read permissions.
+        if (EntitlementChecker.class.isAssignableFrom(callerClass)) {
+            return;
+        }
+
+        boolean followLinks = true;
+        for (LinkOption option : options) {
+            if (option == LinkOption.NOFOLLOW_LINKS) {
+                followLinks = false;
+            }
+        }
+        if (followLinks) {
+            try {
+                policyManager.checkFileRead(callerClass, that.toRealPath());
+            } catch (IOException e) {}
+        }
         policyManager.checkFileRead(callerClass, that);
     }
 

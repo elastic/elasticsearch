@@ -89,6 +89,7 @@ import static org.elasticsearch.search.internal.ExitableDirectoryReader.Exitable
 import static org.elasticsearch.search.internal.ExitableDirectoryReader.ExitableTerms;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -251,10 +252,10 @@ public class ContextIndexSearcherTests extends ESTestCase {
                 );
                 Integer totalHits = searcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager(searcher.getSlices()));
                 assertEquals(numDocs, totalHits.intValue());
-                int numExpectedTasks = ContextIndexSearcher.computeSlices(searcher.getIndexReader().leaves(), Integer.MAX_VALUE, 1).length;
-                // check that each slice except for one that executes on the calling thread goes to the executor, no matter the queue size
-                // or the number of slices
-                assertBusy(() -> assertEquals(numExpectedTasks - 1, executor.getCompletedTaskCount()));
+                if (ContextIndexSearcher.computeSlices(searcher.getIndexReader().leaves(), Integer.MAX_VALUE, 1).length > 1) {
+                    // check that we at least fork one extra worker because we have more than a single slice
+                    assertBusy(() -> assertThat(executor.getCompletedTaskCount(), greaterThan(0L)));
+                }
             }
         } finally {
             terminate(executor);

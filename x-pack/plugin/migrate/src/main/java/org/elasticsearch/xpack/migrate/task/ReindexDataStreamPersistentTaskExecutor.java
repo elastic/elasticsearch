@@ -18,11 +18,13 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.support.CountDownActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Nullable;
@@ -35,6 +37,7 @@ import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.migrate.action.ReindexDataStreamIndexAction;
+import org.elasticsearch.xpack.migrate.action.ReindexDataStreamIndexTransportAction;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -59,6 +62,7 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
     );
     private static final Logger logger = LogManager.getLogger(ReindexDataStreamPersistentTaskExecutor.class);
     private static final TimeValue TASK_KEEP_ALIVE_TIME = TimeValue.timeValueDays(1);
+    private static final IndicesOptions IGNORE_MISSING_OPTIONS = IndicesOptions.fromOptions(true, true, false, false);
     private final Client client;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
@@ -224,9 +228,26 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
                 listener.onResponse(null);
                 maybeProcessNextIndex(indicesRemaining, reindexDataStreamTask, sourceDataStream, listener, parentTaskId);
             }, e -> {
-                reindexDataStreamTask.reindexFailed(index.getName(), e);
-                listener.onResponse(null);
-                maybeProcessNextIndex(indicesRemaining, reindexDataStreamTask, sourceDataStream, listener, parentTaskId);
+                /*
+                 * One possible cause of exception here is that the source index no longer exists. This can happen if ILM performs certain
+                 * actions while reindex is happening, or if a user manually deletes it. In this case we don't want to fail the task. We
+                 * treat it as a success and move on after making an attempt at deleting the destination index if it has been created yet.
+                 */
+                IndexMetadata sourceIndex = clusterService.state().getMetadata().index(index.getName());
+                if (sourceIndex == null) {
+                    String destIndexName = ReindexDataStreamIndexTransportAction.generateDestIndexName(index.getName());
+                    logMissingSourceIndex(sourceDataStream, index.getName(), destIndexName);
+                    deleteIndex(destIndexName, parentTaskId, ActionListener.wrap(acknowledgedResponse -> {
+                        reindexDataStreamTask.reindexSucceeded(index.getName());
+                        listener.onResponse(null);
+                        maybeProcessNextIndex(indicesRemaining, reindexDataStreamTask, sourceDataStream, listener, parentTaskId);
+                    }, listener::onFailure));
+                } else {
+                    // The source index still exists, so this is a real problem we want to record
+                    reindexDataStreamTask.reindexFailed(index.getName(), e);
+                    listener.onResponse(null);
+                    maybeProcessNextIndex(indicesRemaining, reindexDataStreamTask, sourceDataStream, listener, parentTaskId);
+                }
             }));
     }
 
@@ -237,17 +258,32 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         ActionListener<AcknowledgedResponse> listener,
         TaskId parentTaskId
     ) {
-        ModifyDataStreamsAction.Request modifyDataStreamRequest = new ModifyDataStreamsAction.Request(
-            TimeValue.MAX_VALUE,
-            TimeValue.MAX_VALUE,
-            List.of(DataStreamAction.removeBackingIndex(dataStream, oldIndex), DataStreamAction.addBackingIndex(dataStream, newIndex))
+        IndexMetadata sourceIndex = clusterService.state().getMetadata().index(oldIndex);
+        if (sourceIndex == null) {
+            logMissingSourceIndex(dataStream, oldIndex, newIndex);
+            deleteIndex(newIndex, parentTaskId, listener);
+        } else {
+            ModifyDataStreamsAction.Request modifyDataStreamRequest = new ModifyDataStreamsAction.Request(
+                TimeValue.MAX_VALUE,
+                TimeValue.MAX_VALUE,
+                List.of(DataStreamAction.removeBackingIndex(dataStream, oldIndex), DataStreamAction.addBackingIndex(dataStream, newIndex))
+            );
+            modifyDataStreamRequest.setParentTask(parentTaskId);
+            client.execute(ModifyDataStreamsAction.INSTANCE, modifyDataStreamRequest, listener);
+        }
+    }
+
+    private void logMissingSourceIndex(String dataStreamName, String sourceIndexName, String destinationIndexName) {
+        logger.debug(
+            "Index {} in data stream {} no longer exists after reindexing completed. Deleting reindexed index {}",
+            sourceIndexName,
+            dataStreamName,
+            destinationIndexName
         );
-        modifyDataStreamRequest.setParentTask(parentTaskId);
-        client.execute(ModifyDataStreamsAction.INSTANCE, modifyDataStreamRequest, listener);
     }
 
     private void deleteIndex(String indexName, TaskId parentTaskId, ActionListener<AcknowledgedResponse> listener) {
-        DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(indexName);
+        DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(indexName).indicesOptions(IGNORE_MISSING_OPTIONS);
         deleteIndexRequest.setParentTask(parentTaskId);
         client.execute(TransportDeleteIndexAction.TYPE, deleteIndexRequest, listener);
     }

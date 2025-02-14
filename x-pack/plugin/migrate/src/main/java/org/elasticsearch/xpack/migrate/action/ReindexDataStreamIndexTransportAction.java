@@ -364,7 +364,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         }
     }
 
-    static String generateDestIndexName(String sourceIndex) {
+    public static String generateDestIndexName(String sourceIndex) {
         String prefix = "migrated-";
         if (sourceIndex.startsWith(".")) {
             return "." + prefix + sourceIndex.substring(1);

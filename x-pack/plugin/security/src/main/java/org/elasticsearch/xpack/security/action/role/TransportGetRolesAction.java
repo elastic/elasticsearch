@@ -66,13 +66,10 @@ public class TransportGetRolesAction extends TransportAction<GetRolesRequest, Ge
         final Set<RoleDescriptor> reservedRoles = new LinkedHashSet<>();
         if (specificRolesRequested) {
             for (String role : requestedRoles) {
-                if (ReservedRolesStore.isReserved(role)) {
+                if (reservedRoleNameChecker.isReserved(role)) {
                     RoleDescriptor rd = ReservedRolesStore.roleDescriptor(role);
                     if (rd != null) {
                         reservedRoles.add(rd);
-                    } else {
-                        listener.onFailure(new IllegalStateException("unable to obtain reserved role [" + role + "]"));
-                        return;
                     }
                 } else {
                     rolesToSearchFor.add(role);

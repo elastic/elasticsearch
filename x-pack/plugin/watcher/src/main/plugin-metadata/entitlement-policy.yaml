@@ -1,2 +1,6 @@
 ALL-UNNAMED:
   - manage_threads
+  - files:
+    - relative_path: ".mime.types"
+      relative_to: "home"
+      mode: "read"

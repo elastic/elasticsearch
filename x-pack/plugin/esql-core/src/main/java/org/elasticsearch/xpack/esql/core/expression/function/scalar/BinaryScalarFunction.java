@@ -46,7 +46,7 @@ public abstract class BinaryScalarFunction extends ScalarFunction {
         Expression newLeft = newChildren.get(0);
         Expression newRight = newChildren.get(1);
 
-        return replaceChildren(newLeft, newRight);
+        return left.equals(newLeft) && right.equals(newRight) ? this : replaceChildren(newLeft, newRight);
     }
 
     protected abstract BinaryScalarFunction replaceChildren(Expression newLeft, Expression newRight);

@@ -538,7 +538,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     private Expression randomSerializeDeserialize(Expression expression) {
-        if (false && randomBoolean()) {
+        if (randomBoolean()) {
             return expression;
         }
 
@@ -561,8 +561,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             in -> in.readNamedWriteable(Expression.class),
             testCase.getConfiguration() // The configuration query should be == to the source text of the function for this to work
         );
-        // Fields use synthetic sources, which can't be serialized. So we use the originals instead.
-        return newExpression.replaceChildrenSameSize(expression.children());
+
+        // Fields use synthetic sources, which can't be serialized. So we replace with the originals instead.
+        var dummyChildren = newExpression.children()
+            .stream()
+            .<Expression>map(c -> new Literal(Source.EMPTY, "anything that won't match any test case", c.dataType()))
+            .toList();
+        // We first replace them with other unrelated expressions to force a replace, as some replaceChildren() will check for equality
+        return newExpression.replaceChildrenSameSize(dummyChildren).replaceChildrenSameSize(expression.children());
     }
 
     protected final Expression buildLiteralExpression(TestCaseSupplier.TestCase testCase) {

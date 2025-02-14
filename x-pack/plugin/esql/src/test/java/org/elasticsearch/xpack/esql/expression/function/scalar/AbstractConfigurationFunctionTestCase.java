@@ -35,13 +35,10 @@ public abstract class AbstractConfigurationFunctionTestCase extends AbstractScal
 
         assertSerialization(expr, config);
 
-        Configuration differentConfig;
-        do {
-            differentConfig = randomConfiguration();
-        } while (config.equals(differentConfig));
+        Configuration differentConfig = randomValueOtherThan(config, AbstractConfigurationFunctionTestCase::randomConfiguration);
 
         Expression differentExpr = buildWithConfiguration(testCase.getSource(), testCase.getDataAsFields(), differentConfig);
-        assertFalse(expr.equals(differentExpr));
+        assertNotEquals(expr, differentExpr);
     }
 
     private static Configuration randomConfiguration() {

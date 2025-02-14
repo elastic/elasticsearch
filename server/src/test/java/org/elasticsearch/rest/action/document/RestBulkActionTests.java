@@ -42,7 +42,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Tests for {@link RestBulkAction}.
@@ -224,10 +228,12 @@ public class RestBulkActionTests extends ESTestCase {
             .build();
         FakeRestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
 
-        RestBulkAction.ChunkHandler chunkHandler = new RestBulkAction.ChunkHandler(
-            true,
-            request,
-            () -> new IncrementalBulkService.Handler(null, null, null, null, null) {
+        IndexingPressure indexingPressure = mock(IndexingPressure.class);
+        when(indexingPressure.markCoordinatingOperationStarted(anyInt(), anyLong(), anyBoolean())).thenReturn(
+            mock(IndexingPressure.Coordinating.class)
+        );
+        RestBulkAction.ChunkHandler chunkHandler = new RestBulkAction.ChunkHandler(true, request, () -> {
+            return new IncrementalBulkService.Handler(null, indexingPressure, null, null, null) {
 
                 @Override
                 public void addItems(List<DocWriteRequest<?>> items, Releasable releasable, Runnable nextItems) {
@@ -241,8 +247,8 @@ public class RestBulkActionTests extends ESTestCase {
                     docs.addAll(items);
                     isLast.set(true);
                 }
-            }
-        );
+            };
+        });
 
         chunkHandler.accept(channel);
         ReleasableBytesReference r1 = new ReleasableBytesReference(new BytesArray("{\"index\":{\"_index\":\"index_name\"}}\n"), () -> {});

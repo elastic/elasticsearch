@@ -18,9 +18,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
-import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.search.sort.ShardDocSortField;
 import org.elasticsearch.search.sort.SortAndFormats;
 
@@ -72,7 +70,7 @@ public class RescorePhase {
                 assert topDocsSortedByScore(topDocs) : "topdocs should be sorted after rescore";
                 ctx.setCancellationChecker(null);
             }
-            /**
+            /*
              * Since rescorers are building top docs with score only, we must reconstruct the {@link TopFieldGroups}
              * or {@link TopFieldDocs} using their original version before rescoring.
              */
@@ -86,12 +84,6 @@ public class RescorePhase {
                 .topDocs(new TopDocsAndMaxScore(topDocs, topDocs.scoreDocs[0].score), context.queryResult().sortValueFormats());
         } catch (IOException e) {
             throw new ElasticsearchException("Rescore Phase Failed", e);
-        } catch (ContextIndexSearcher.TimeExceededException e) {
-            SearchTimeoutException.handleTimeout(
-                context.request().allowPartialSearchResults(),
-                context.shardTarget(),
-                context.queryResult()
-            );
         }
     }
 

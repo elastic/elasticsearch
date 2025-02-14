@@ -56,6 +56,7 @@ processingCommand
     | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? changePointCommand
+    | {this.isDevVersion()}? insistCommand
     ;
 
 whereCommand
@@ -350,4 +351,8 @@ joinPredicate
 
 changePointCommand
     : DEV_CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)?
+    ;
+
+insistCommand
+    : DEV_INSIST qualifiedNamePatterns
     ;

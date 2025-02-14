@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.session;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -111,7 +110,7 @@ public class Configuration implements Writeable {
         } else {
             this.queryStartTimeNanos = -1;
         }
-        if (supportPartialResults(in.getTransportVersion())) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_SUPPORT_PARTIAL_RESULTS)) {
             this.allowPartialResults = in.readBoolean();
         } else {
             this.allowPartialResults = false;
@@ -140,7 +139,7 @@ public class Configuration implements Writeable {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeLong(queryStartTimeNanos);
         }
-        if (supportPartialResults(out.getTransportVersion())) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_SUPPORT_PARTIAL_RESULTS)) {
             out.writeBoolean(allowPartialResults);
         } else if (allowPartialResults) {
             throw new IllegalArgumentException("allow_partial_result is not supported in this version");
@@ -310,7 +309,4 @@ public class Configuration implements Writeable {
             + '}';
     }
 
-    public static boolean supportPartialResults(TransportVersion transportVersion) {
-        return transportVersion.onOrAfter(TransportVersions.ESQL_SUPPORT_PARTIAL_RESULTS);
-    }
 }

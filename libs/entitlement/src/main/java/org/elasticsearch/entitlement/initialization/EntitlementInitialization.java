@@ -45,6 +45,8 @@ import java.nio.file.FileSystems;
 import java.nio.file.LinkOption;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
+import java.nio.file.WatchEvent;
+import java.nio.file.WatchService;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.spi.FileSystemProvider;
 import java.util.ArrayList;
@@ -59,6 +61,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ_WRITE;
 
 /**
@@ -95,6 +98,7 @@ public class EntitlementInitialization {
         Stream.of(
             fileSystemProviderChecks(),
             fileStoreChecks(),
+            pathChecks(),
             Stream.of(
                 INSTRUMENTATION_SERVICE.lookupImplementationMethod(
                     SelectorProvider.class,
@@ -147,13 +151,31 @@ public class EntitlementInitialization {
                         new LoadNativeLibrariesEntitlement(),
                         new ManageThreadsEntitlement(),
                         new FilesEntitlement(
-                            List.of(new FilesEntitlement.FileData(EntitlementBootstrap.bootstrapArgs().tempDir().toString(), READ_WRITE))
+                            Stream.concat(
+                                Stream.of(
+                                    new FileData(EntitlementBootstrap.bootstrapArgs().tempDir().toString(), READ_WRITE),
+                                    new FileData(EntitlementBootstrap.bootstrapArgs().configDir().toString(), READ)
+                                ),
+                                Arrays.stream(dataDirs).map(d -> new FileData(d.toString(), READ))
+                            ).toList()
                         )
                     )
                 ),
                 new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),
                 new Scope("io.netty.transport", List.of(new InboundNetworkEntitlement(), new OutboundNetworkEntitlement())),
-                new Scope("org.apache.lucene.core", List.of(new LoadNativeLibrariesEntitlement(), new ManageThreadsEntitlement())),
+                new Scope(
+                    "org.apache.lucene.core",
+                    List.of(
+                        new LoadNativeLibrariesEntitlement(),
+                        new ManageThreadsEntitlement(),
+                        new FilesEntitlement(
+                            Stream.concat(
+                                Stream.of(new FileData(EntitlementBootstrap.bootstrapArgs().configDir().toString(), READ)),
+                                Arrays.stream(dataDirs).map(d -> new FileData(d.toString(), READ_WRITE))
+                            ).toList()
+                        )
+                    )
+                ),
                 new Scope("org.apache.logging.log4j.core", List.of(new ManageThreadsEntitlement())),
                 new Scope(
                     "org.elasticsearch.nativeaccess",
@@ -260,6 +282,33 @@ public class EntitlementInitialization {
                     instrumentation.of("name"),
                     instrumentation.of("type")
 
+                );
+            } catch (NoSuchMethodException | ClassNotFoundException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    private static Stream<InstrumentationService.InstrumentationInfo> pathChecks() {
+        var pathClasses = StreamSupport.stream(FileSystems.getDefault().getRootDirectories().spliterator(), false)
+            .map(Path::getClass)
+            .distinct();
+        return pathClasses.flatMap(pathClass -> {
+            InstrumentationInfoFactory instrumentation = (String methodName, Class<?>... parameterTypes) -> INSTRUMENTATION_SERVICE
+                .lookupImplementationMethod(
+                    Path.class,
+                    methodName,
+                    pathClass,
+                    EntitlementChecker.class,
+                    "checkPath" + Character.toUpperCase(methodName.charAt(0)) + methodName.substring(1),
+                    parameterTypes
+                );
+
+            try {
+                return Stream.of(
+                    instrumentation.of("toRealPath", LinkOption[].class),
+                    instrumentation.of("register", WatchService.class, WatchEvent.Kind[].class),
+                    instrumentation.of("register", WatchService.class, WatchEvent.Kind[].class, WatchEvent.Modifier[].class)
                 );
             } catch (NoSuchMethodException | ClassNotFoundException e) {
                 throw new RuntimeException(e);

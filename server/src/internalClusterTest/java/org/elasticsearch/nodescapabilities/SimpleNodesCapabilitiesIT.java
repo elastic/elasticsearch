@@ -12,6 +12,7 @@ package org.elasticsearch.nodescapabilities;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.capabilities.NodesCapabilitiesRequest;
 import org.elasticsearch.action.admin.cluster.node.capabilities.NodesCapabilitiesResponse;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.io.IOException;
@@ -39,6 +40,13 @@ public class SimpleNodesCapabilitiesIT extends ESIntegTestCase {
 
         // check we support some parameters of the capabilities API
         response = clusterAdmin().nodesCapabilities(new NodesCapabilitiesRequest().path("_capabilities").parameters("method", "path"))
+            .actionGet();
+        assertThat(response.getNodes(), hasSize(2));
+        assertThat(response.isSupported(), isPresentWith(true));
+
+        // check we support REST API version parameters of the capabilities API
+        response = clusterAdmin().nodesCapabilities(new NodesCapabilitiesRequest().path("_capabilities").parameters("method", "path")
+                .restApiVersion(RestApiVersion.current()))
             .actionGet();
         assertThat(response.getNodes(), hasSize(2));
         assertThat(response.isSupported(), isPresentWith(true));

@@ -22,7 +22,7 @@ public class NodesCapabilitiesRequest extends BaseNodesRequest {
     private String path = "/";
     private Set<String> parameters = Set.of();
     private Set<String> capabilities = Set.of();
-    private RestApiVersion restApiVersion = RestApiVersion.current();
+    private RestApiVersion restApiVersion = null;
 
     public NodesCapabilitiesRequest() {
         // send to all nodes

@@ -175,7 +175,14 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         assert relativeStartNanos != null : "Relative start time must be set when markEndQuery is called";
         overallTook = new TimeValue(System.nanoTime() - relativeStartNanos, TimeUnit.NANOSECONDS);
         if (isPartial == false) {
-            isPartial = clusterInfo.values().stream().anyMatch(c -> c.failedShards != null && c.failedShards > 0);
+            // TODO: Mark individual clusters as partial if failed shards exist
+            isPartial = clusterInfo.values()
+                .stream()
+                .anyMatch(
+                    c -> c.status == Cluster.Status.PARTIAL
+                        || c.status == Cluster.Status.SKIPPED
+                        || c.failedShards != null && c.failedShards > 0
+                );
         }
     }
 

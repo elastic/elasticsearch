@@ -318,7 +318,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeCollection(shards);
-            searchRequest.writeTo(out);
+            searchRequest.writeTo(out, true);
             out.writeMap(aliasFilters, (o, v) -> v.writeTo(o));
             out.writeVInt(totalShards);
             out.writeLong(absoluteStartMillis);

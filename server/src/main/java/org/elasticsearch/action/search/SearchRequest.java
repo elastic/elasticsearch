@@ -270,9 +270,13 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        writeTo(out, false);
+    }
+
+    public void writeTo(StreamOutput out, boolean skipIndices) throws IOException {
         super.writeTo(out);
         out.writeByte(searchType.id());
-        out.writeStringArray(indices);
+        out.writeStringArray(skipIndices ? Strings.EMPTY_ARRAY : indices);
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
         out.writeOptionalTimeValue(scrollKeepAlive);

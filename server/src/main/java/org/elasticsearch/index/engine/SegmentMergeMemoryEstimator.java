@@ -45,7 +45,8 @@ public class SegmentMergeMemoryEstimator {
             }
         }
 
-        throw new IllegalArgumentException("Segment not found: " + segmentName);
+        // Segment not found, we can't estimate it
+        return 0;
     }
 
     private static long estimateSegmentMemory(SegmentReader reader) {

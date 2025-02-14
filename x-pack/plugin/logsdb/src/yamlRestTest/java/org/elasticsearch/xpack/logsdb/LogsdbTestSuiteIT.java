@@ -24,7 +24,6 @@ public class LogsdbTestSuiteIT extends ESClientYamlSuiteTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
-        .feature(FeatureFlag.INDEX_RECOVERY_USE_SYNTHETIC_SOURCE)
         .build();
 
     public LogsdbTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

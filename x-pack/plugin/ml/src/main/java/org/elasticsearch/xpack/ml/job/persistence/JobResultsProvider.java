@@ -125,6 +125,7 @@ import org.elasticsearch.xpack.core.ml.stats.CountAccumulator;
 import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
 import org.elasticsearch.xpack.core.ml.stats.StatsAccumulator;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.ml.job.categorization.GrokPatternCreator;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder.InfluencersQuery;
@@ -305,11 +306,15 @@ public class JobResultsProvider {
         String readAliasName = AnomalyDetectorsIndex.jobResultsAliasedName(job.getId());
         String writeAliasName = AnomalyDetectorsIndex.resultsWriteAlias(job.getId());
         String tempIndexName = job.getInitialResultsIndexName();
+        // Find all indices starting with this name and pick the latest one
+        String[] concreteIndices = resolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpen(), tempIndexName + "*");
+        if (concreteIndices.length > 0) {
+            tempIndexName = MlIndexAndAlias.latestIndex(concreteIndices);
+        }
 
         // Our read/write aliases should point to the concrete index
         // If the initial index is NOT an alias, either it is already a concrete index, or it does not exist yet
         if (state.getMetadata().hasAlias(tempIndexName)) {
-            String[] concreteIndices = resolver.concreteIndexNames(state, IndicesOptions.lenientExpandOpen(), tempIndexName);
 
             // SHOULD NOT be closed as in typical call flow checkForLeftOverDocuments already verified this
             // if it is closed, we bailout and return an error
@@ -323,8 +328,8 @@ public class JobResultsProvider {
                 );
                 return;
             }
-            tempIndexName = concreteIndices[0];
         }
+
         final String indexName = tempIndexName;
 
         ActionListener<Boolean> indexAndMappingsListener = ActionListener.wrap(success -> {

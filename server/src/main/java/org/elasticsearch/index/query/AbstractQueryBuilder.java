@@ -306,7 +306,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         if (queryRewriteContext == null) {
             return this;
         }
-        final InnerHitsRewriteContext ihrc = queryRewriteContext.convertToInnerHitsRewriteContext();
+        final PerDocumentQueryRewriteContext ihrc = queryRewriteContext.convertToPerDocumentQueryRewriteContext();
         if (ihrc != null) {
             return doInnerHitsRewrite(ihrc);
         }
@@ -358,11 +358,11 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
 
     /**
      * Optional rewrite logic that allows for optimization for extracting inner hits
-     * @param context an {@link InnerHitsRewriteContext} instance
+     * @param context an {@link PerDocumentQueryRewriteContext} instance
      * @return A {@link QueryBuilder} representing the rewritten query optimized for inner hit extraction
      * @throws IOException if an error occurs while rewriting the query
      */
-    protected QueryBuilder doInnerHitsRewrite(final InnerHitsRewriteContext context) throws IOException {
+    protected QueryBuilder doInnerHitsRewrite(final PerDocumentQueryRewriteContext context) throws IOException {
         return this;
     }
 

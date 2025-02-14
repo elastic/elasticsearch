@@ -151,4 +151,9 @@ public class SentenceBoundaryChunkingSettings implements ChunkingSettings {
     public int hashCode() {
         return Objects.hash(maxChunkSize);
     }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
+    }
 }

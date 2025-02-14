@@ -140,4 +140,9 @@ public class WordBoundaryChunkingSettings implements ChunkingSettings {
     public int hashCode() {
         return Objects.hash(maxChunkSize, overlap);
     }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
+    }
 }

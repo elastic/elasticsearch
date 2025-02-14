@@ -58,6 +58,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -136,8 +137,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     }
 
     private record InferenceProvider(InferenceService service, Model model) {}
-
-    private record ChunkedInputs(ChunkingSettings chunkingSettings, List<String> inputs) {}
 
     /**
      * A field inference request on a single input.
@@ -306,11 +305,17 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 return;
             }
             int currentBatchSize = Math.min(requests.size(), batchSize);
-            ChunkingSettings chunkingSettings = requests.get(0).chunkingSettings;
-            final List<FieldInferenceRequest> currentBatch = requests.subList(0, currentBatchSize);
-            final List<FieldInferenceRequest> nextBatch = requests.subList(currentBatchSize, requests.size());
-            final List<String> inputs = currentBatch.stream().map(FieldInferenceRequest::input).toList();
-            // TODO create ChunkedInputs here, so we send chunkingSettings in
+
+            final ChunkingSettings chunkingSettings = requests.getFirst().chunkingSettings;
+            final List<FieldInferenceRequest> nextBatch = new ArrayList<>();
+            final List<String> inputs = new ArrayList<>();
+            for (FieldInferenceRequest request : requests) {
+                if (Objects.equals(chunkingSettings, request.chunkingSettings) && inputs.size() < currentBatchSize) {
+                    inputs.add(request.input);
+                } else {
+                    nextBatch.add(request);
+                }
+            }
 
             ActionListener<List<ChunkedInference>> completionListener = new ActionListener<>() {
                 @Override
@@ -382,7 +387,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     null,
                     inputs,
                     Map.of(),
-                    null, // TODO add chunking settings
+                    chunkingSettings,
                     InputType.INGEST,
                     TimeValue.MAX_VALUE,
                     completionListener

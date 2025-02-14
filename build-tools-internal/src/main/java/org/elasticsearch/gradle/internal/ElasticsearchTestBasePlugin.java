@@ -112,6 +112,7 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 "-Xms" + System.getProperty("tests.heap.size", "512m"),
                 "-Dtests.testfeatures.enabled=true",
                 "--add-opens=java.base/java.util=ALL-UNNAMED",
+                "--add-opens=java.base/java.util.concurrent=ALL-UNNAMED",
                 // TODO: only open these for mockito when it is modularized
                 "--add-opens=java.base/java.security.cert=ALL-UNNAMED",
                 "--add-opens=java.base/java.nio.channels=ALL-UNNAMED",

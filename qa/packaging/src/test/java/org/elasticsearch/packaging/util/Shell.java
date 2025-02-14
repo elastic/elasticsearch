@@ -171,7 +171,7 @@ public class Shell {
 
         try {
             Process process = builder.start();
-            if (process.waitFor(20, TimeUnit.MINUTES) == false) {
+            if (process.waitFor(10, TimeUnit.MINUTES) == false) {
                 if (process.isAlive()) {
                     process.destroyForcibly();
                 }

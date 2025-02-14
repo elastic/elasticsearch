@@ -158,21 +158,15 @@ public class ServerUtils {
         int retries = 60;
         while (retries > 0) {
             retries -= 1;
-            try (Socket ignored = new Socket(InetAddress.getLoopbackAddress(), installation.port)) {
-                logger.info("Connection established on retry {}", 60 - retries);
-                if (installation != null) {
-                    FileUtils.logAllLogs(installation.logs, logger);
-                }
+            try (Socket s = new Socket(InetAddress.getLoopbackAddress(), installation.port)) {
                 return;
             } catch (IOException e) {
                 // ignore, only want to establish a connection
-                logger.error("IOException while trying to connect to Elasticsearch", e);
             }
 
             try {
                 Thread.sleep(2000);
             } catch (InterruptedException interrupted) {
-                logger.error("Interrupted!");
                 Thread.currentThread().interrupt();
                 return;
             }
@@ -180,8 +174,6 @@ public class ServerUtils {
         if (installation != null) {
             FileUtils.logAllLogs(installation.logs, logger);
         }
-
-        logger.error("Elasticsearch (with x-pack) did not start");
 
         throw new RuntimeException("Elasticsearch (with x-pack) did not start");
     }

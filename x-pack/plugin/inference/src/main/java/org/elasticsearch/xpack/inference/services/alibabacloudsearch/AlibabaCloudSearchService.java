@@ -293,6 +293,7 @@ public class AlibabaCloudSearchService extends SenderService {
         Model model,
         DocumentsOnlyInput inputs,
         Map<String, Object> taskSettings,
+        ChunkingSettings chunkingSettings,
         InputType inputType,
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
@@ -309,7 +310,7 @@ public class AlibabaCloudSearchService extends SenderService {
             inputs.getInputs(),
             EMBEDDING_MAX_BATCH_SIZE,
             getEmbeddingTypeFromTaskType(alibabaCloudSearchModel.getTaskType()),
-            alibabaCloudSearchModel.getConfigurations().getChunkingSettings()
+            chunkingSettings != null ? chunkingSettings : alibabaCloudSearchModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {

@@ -703,7 +703,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
     ) {
-        chunkedInfer(model, null, input, taskSettings, inputType, timeout, listener);
+        chunkedInfer(model, null, input, taskSettings, null, inputType, timeout, listener);
     }
 
     @Override
@@ -712,6 +712,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         @Nullable String query,
         List<String> input,
         Map<String, Object> taskSettings,
+        ChunkingSettings chunkingSettings,
         InputType inputType,
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
@@ -729,7 +730,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 input,
                 EMBEDDING_MAX_BATCH_SIZE,
                 embeddingTypeFromTaskTypeAndSettings(model.getTaskType(), esModel.internalServiceSettings),
-                esModel.getConfigurations().getChunkingSettings()
+                chunkingSettings != null ? chunkingSettings : esModel.getConfigurations().getChunkingSettings()
             ).batchRequestsWithListeners(listener);
 
             if (batchedRequests.isEmpty()) {

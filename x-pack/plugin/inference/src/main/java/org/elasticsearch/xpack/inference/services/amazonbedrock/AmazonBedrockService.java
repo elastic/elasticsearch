@@ -121,6 +121,7 @@ public class AmazonBedrockService extends SenderService {
         Model model,
         DocumentsOnlyInput inputs,
         Map<String, Object> taskSettings,
+        ChunkingSettings chunkingSettings,
         InputType inputType,
         TimeValue timeout,
         ActionListener<List<ChunkedInference>> listener
@@ -133,7 +134,7 @@ public class AmazonBedrockService extends SenderService {
                 inputs.getInputs(),
                 maxBatchSize,
                 EmbeddingRequestChunker.EmbeddingType.FLOAT,
-                baseAmazonBedrockModel.getConfigurations().getChunkingSettings()
+                chunkingSettings != null ? chunkingSettings : baseAmazonBedrockModel.getConfigurations().getChunkingSettings()
             ).batchRequestsWithListeners(listener);
 
             for (var request : batchedRequests) {

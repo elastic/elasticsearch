@@ -9,6 +9,8 @@
 
 package org.elasticsearch.index.reindex;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -97,6 +99,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
         // Use a single thread pool for writes so we can enforce a consistent ordering
         internalCluster().startDataOnlyNode(Settings.builder().put("thread_pool.write.size", 1).build());
         internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
+        ensureStableCluster(3);
     }
 
     public void testUpdateByQuery() throws Exception {
@@ -114,6 +117,7 @@ public class BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests extends 
         );
     }
 
+    @Repeat(iterations = 1000)
     public void testReindex() throws Exception {
         final String sourceIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final String targetIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);

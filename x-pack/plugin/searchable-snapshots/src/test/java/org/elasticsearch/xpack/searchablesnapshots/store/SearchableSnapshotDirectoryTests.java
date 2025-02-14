@@ -566,8 +566,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
             }
 
             final Store store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
-            store.incRef();
-            releasables.add(store::decRef);
+            releasables.add(store::close);
             try {
                 final SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
                 final IndexCommit indexCommit = Lucene.getIndexCommit(segmentInfos, store.directory());

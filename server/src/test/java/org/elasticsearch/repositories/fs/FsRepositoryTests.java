@@ -45,6 +45,8 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -73,6 +75,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
@@ -88,6 +91,7 @@ import static org.hamcrest.Matchers.not;
 public class FsRepositoryTests extends ESTestCase {
 
     public void testSnapshotAndRestore() throws IOException {
+        final List<Releasable> releasables = new ArrayList<>();
         try (Directory directory = newDirectory()) {
             Path repo = createTempDir();
             Settings settings = Settings.builder()
@@ -114,6 +118,7 @@ public class FsRepositoryTests extends ESTestCase {
             IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("myindex", indexSettings);
             ShardId shardId = new ShardId(idxSettings.getIndex(), 1);
             Store store = new Store(shardId, idxSettings, directory, new DummyShardLock(shardId));
+            releasables.add(store::close);
             SnapshotId snapshotId = new SnapshotId("test", "test");
             IndexId indexId = new IndexId(idxSettings.getIndex().getName(), idxSettings.getUUID());
 
@@ -207,10 +212,13 @@ public class FsRepositoryTests extends ESTestCase {
                 .toList();
             assertTrue(recoveredFiles.get(0).name(), recoveredFiles.get(0).name().endsWith(".liv"));
             assertTrue(recoveredFiles.get(1).name(), recoveredFiles.get(1).name().endsWith("segments_" + incIndexCommit.getGeneration()));
+        } finally {
+            Releasables.close(releasables);
         }
     }
 
     public void testCleanUpWhenShardDataFilesFailToWrite() throws IOException {
+        final List<Releasable> releasables = new ArrayList<>();
         try (Directory directory = newDirectory()) {
             Path repo = createTempDir();
             Settings settings = Settings.builder()
@@ -292,6 +300,7 @@ public class FsRepositoryTests extends ESTestCase {
             );
             final ShardId shardId1 = new ShardId(idxSettings.getIndex(), 1);
             final Store store1 = new Store(shardId1, idxSettings, directory, new DummyShardLock(shardId1));
+            releasables.add(store1::close);
             final SnapshotId snapshotId = new SnapshotId("test", "test");
             final IndexId indexId = new IndexId(idxSettings.getIndex().getName(), idxSettings.getUUID());
             IndexCommit indexCommit1 = Lucene.getIndexCommit(Lucene.readSegmentInfos(store1.directory()), store1.directory());
@@ -332,6 +341,7 @@ public class FsRepositoryTests extends ESTestCase {
             // Scenario 2 - Shard data files will not be cleaned up if shard level snap file fails to write
             final ShardId shardId2 = new ShardId(idxSettings.getIndex(), 2);
             final Store store2 = new Store(shardId2, idxSettings, directory, new DummyShardLock(shardId2));
+            releasables.add(store2::close);
             final IndexCommit indexCommit2 = Lucene.getIndexCommit(Lucene.readSegmentInfos(store2.directory()), store2.directory());
             final PlainActionFuture<ShardSnapshotResult> snapshot2Future = new PlainActionFuture<>();
             canErrorForWriteBlob.set(false);
@@ -358,6 +368,8 @@ public class FsRepositoryTests extends ESTestCase {
                 final List<Path> files = pathStream.filter(p -> p.getFileName().toString().startsWith("__")).toList();
                 assertThat(files, not(empty()));
             }
+        } finally {
+            Releasables.close(releasables);
         }
     }
 

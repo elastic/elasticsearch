@@ -62,6 +62,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
+import org.junit.Rule;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -103,6 +104,9 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
 
     static final String REPO_TYPE = "fs";
     private static final String TEST_REPO_NAME = "test-repo";
+
+    @Rule
+    public ShardSnapshotTaskRunnerTests.DummyContextFactory dummyContextFactory = new ShardSnapshotTaskRunnerTests.DummyContextFactory();
 
     public void testRetrieveSnapshots() {
         final Client client = client();
@@ -454,7 +458,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         repository.updateState(clusterService.state());
         repository.start();
         // Generate some FileInfo, as the files that get uploaded as part of the shard snapshot
-        SnapshotShardContext context = ShardSnapshotTaskRunnerTests.dummyContext();
+        SnapshotShardContext context = dummyContextFactory.dummyContext();
         int noOfFiles = randomIntBetween(10, 100);
         BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> files = new LinkedBlockingQueue<>(noOfFiles);
         PlainActionFuture<Void> listenerCalled = new PlainActionFuture<>();

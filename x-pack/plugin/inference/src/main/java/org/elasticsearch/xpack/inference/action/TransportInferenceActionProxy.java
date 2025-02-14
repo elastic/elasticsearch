@@ -57,6 +57,7 @@ public class TransportInferenceActionProxy extends HandledTransportAction<Infere
 
     @Override
     protected void doExecute(Task task, InferenceActionProxy.Request request, ActionListener<InferenceAction.Response> listener) {
+        System.out.println("TransportInferenceActionProxy.doExecute");
         try {
             ActionListener<UnparsedModel> getModelListener = listener.delegateFailureAndWrap((l, unparsedModel) -> {
                 if (unparsedModel.taskType() == TaskType.CHAT_COMPLETION) {

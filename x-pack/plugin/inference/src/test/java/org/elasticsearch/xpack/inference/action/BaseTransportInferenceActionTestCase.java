@@ -308,7 +308,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             }
 
             @Override
-            public void onNext(ChunkedToXContent item) {
+            public void onNext(InferenceServiceResults.Result item) {
 
             }
 
@@ -332,7 +332,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         }));
     }
 
-    protected Flow.Publisher<ChunkedToXContent> mockStreamResponse(Consumer<Flow.Processor<?, ?>> action) {
+    protected Flow.Publisher<InferenceServiceResults.Result> mockStreamResponse(Consumer<Flow.Processor<?, ?>> action) {
         mockService(true, Set.of(), listener -> {
             Flow.Processor<ChunkedToXContent, ChunkedToXContent> taskProcessor = mock();
             doAnswer(innerAns -> {

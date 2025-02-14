@@ -387,7 +387,7 @@ final class CanMatchPreFilterSearchPhase {
     }
 
     public void start() {
-        if (shardsIts.size() == 0) {
+        if (shardsIts.isEmpty()) {
             finishPhase();
             return;
         }

@@ -225,7 +225,6 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
         // skip one to avoid the "all shards failed" failure.
         SearchShardIterator skipIterator = new SearchShardIterator(null, null, Collections.emptyList(), null);
         skipIterator.skip(true);
-        skipIterator.reset();
         action.skipShard(skipIterator);
         assertThat(exception.get(), instanceOf(SearchPhaseExecutionException.class));
         SearchPhaseExecutionException searchPhaseExecutionException = (SearchPhaseExecutionException) exception.get();

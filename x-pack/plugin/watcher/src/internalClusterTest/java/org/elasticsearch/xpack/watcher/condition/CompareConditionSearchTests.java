@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.watcher.condition;
 
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -104,22 +104,9 @@ public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestC
         hit.score(1f);
         hit.shard(new SearchShardTarget("a", new ShardId("a", "indexUUID", 0), null));
 
-        SearchResponse response = new SearchResponse(
-            SearchHits.unpooled(new SearchHit[] { hit }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1f),
-            null,
-            null,
-            false,
-            false,
-            null,
-            1,
-            "",
-            3,
-            3,
-            0,
-            500L,
-            ShardSearchFailure.EMPTY_ARRAY,
-            SearchResponse.Clusters.EMPTY
-        );
+        SearchResponse response = SearchResponseUtils.response(
+            SearchHits.unpooled(new SearchHit[] { hit }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1f)
+        ).shards(3, 3, 0).build();
         try {
             WatchExecutionContext ctx = mockExecutionContext("_watch_name", new Payload.XContent(response, ToXContent.EMPTY_PARAMS));
             assertThat(condition.execute(ctx).met(), is(true));

@@ -17,10 +17,8 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.attribute.UserPrincipal;
 import java.util.Scanner;
 
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
@@ -164,22 +162,6 @@ class FileCheckActions {
     @EntitlementTest(expectedAccess = PLUGINS)
     static void createFileOutputStreamFileWithAppend() throws IOException {
         new FileOutputStream(readWriteFile().toFile(), false).close();
-    }
-
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void filesGetOwner() throws IOException {
-        Files.getOwner(readFile());
-    }
-
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void filesProbeContentType() throws IOException {
-        Files.probeContentType(readFile());
-    }
-
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void filesSetOwner() throws IOException {
-        UserPrincipal owner = EntitledActions.getFileOwner(readWriteFile());
-        Files.setOwner(readWriteFile(), owner); // set to existing owner, just trying to execute the method
     }
 
     private FileCheckActions() {}

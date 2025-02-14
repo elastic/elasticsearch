@@ -163,6 +163,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
             .<AcknowledgedResponse>andThen(l -> createIndex(sourceIndex, destIndexName, l, taskId))
             .<BulkByScrollResponse>andThen(l -> reindex(sourceIndexName, destIndexName, l, taskId))
             .<AcknowledgedResponse>andThen(l -> copyOldSourceSettingsToDest(settingsBefore, destIndexName, l, taskId))
+            .<AcknowledgedResponse>andThen(l -> copyIndexMetadataToDest(sourceIndexName, destIndexName, l, taskId))
             .<AcknowledgedResponse>andThen(l -> sanityCheck(sourceIndexName, destIndexName, l, taskId))
             .<CloseIndexResponse>andThen(l -> closeIndexIfWasClosed(destIndexName, wasClosed, l, taskId))
             .andThenApply(ignored -> new ReindexDataStreamIndexAction.Response(destIndexName))
@@ -332,6 +333,24 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         copySettingOrUnset(settingsBefore, settings, IndexMetadata.SETTING_NUMBER_OF_REPLICAS);
         copySettingOrUnset(settingsBefore, settings, IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey());
         updateSettings(destIndexName, settings, listener, parentTaskId);
+    }
+
+    private void copyIndexMetadataToDest(
+        String sourceIndexName,
+        String destIndexName,
+        ActionListener<AcknowledgedResponse> listener,
+        TaskId parentTaskId
+    ) {
+        logger.debug("Copying index metadata to destination index [{}] from source index [{}]", destIndexName, sourceIndexName);
+        var request = new CopyLifecycleIndexMetadataAction.Request(TimeValue.MAX_VALUE, sourceIndexName, destIndexName);
+        request.setParentTask(parentTaskId);
+        var errorMessage = String.format(
+            Locale.ROOT,
+            "Failed to acknowledge copying index metadata from source [%s] to dest [%s]",
+            sourceIndexName,
+            destIndexName
+        );
+        client.execute(CopyLifecycleIndexMetadataAction.INSTANCE, request, failIfNotAcknowledged(listener, errorMessage));
     }
 
     private static void copySettingOrUnset(Settings settingsBefore, Settings.Builder builder, String setting) {

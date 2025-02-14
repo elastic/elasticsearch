@@ -72,9 +72,6 @@ tests:
 - class: org.elasticsearch.action.search.SearchPhaseControllerTests
   method: testProgressListener
   issue: https://github.com/elastic/elasticsearch/issues/116149
-- class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
-  method: testSearchWithRandomDisconnects
-  issue: https://github.com/elastic/elasticsearch/issues/116175
 - class: org.elasticsearch.xpack.deprecation.DeprecationHttpIT
   method: testDeprecatedSettingsReturnWarnings
   issue: https://github.com/elastic/elasticsearch/issues/108628
@@ -190,9 +187,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/120482
 - class: org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeToCharProcessorTests
   issue: https://github.com/elastic/elasticsearch/issues/120575
-- class: org.elasticsearch.index.reindex.BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests
-  method: testReindex
-  issue: https://github.com/elastic/elasticsearch/issues/120605
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testMultipleInferencesTriggeringDownloadAndDeploy
   issue: https://github.com/elastic/elasticsearch/issues/120668
@@ -201,8 +195,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/3rd_party_deployment/Test start deployment fails while model download in progress}
   issue: https://github.com/elastic/elasticsearch/issues/120810
-- class: org.elasticsearch.indices.mapping.UpdateMappingIntegrationIT
-  issue: https://github.com/elastic/elasticsearch/issues/116126
 - class: org.elasticsearch.xpack.security.authc.service.ServiceAccountIT
   method: testAuthenticateShouldNotFallThroughInCaseOfFailure
   issue: https://github.com/elastic/elasticsearch/issues/120902
@@ -323,9 +315,6 @@ tests:
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testSuggestProfileWithData
   issue: https://github.com/elastic/elasticsearch/issues/121258
-- class: org.elasticsearch.ingest.geoip.FullClusterRestartIT
-  method: testGeoIpSystemFeaturesMigration {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/121115
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/cat/health/cat-health-no-timestamp-example}
   issue: https://github.com/elastic/elasticsearch/issues/121867
@@ -379,9 +368,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/122378
 - class: org.elasticsearch.telemetry.apm.ApmAgentSettingsIT
   issue: https://github.com/elastic/elasticsearch/issues/122546
-- class: org.elasticsearch.search.SearchTimeoutIT
-  method: testSuggestTimeoutWithPartialResults
-  issue: https://github.com/elastic/elasticsearch/issues/122548
 - class: org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsRecoveryTests
   method: testSnapshotRecovery {p0=false p1=false}
   issue: https://github.com/elastic/elasticsearch/issues/122549

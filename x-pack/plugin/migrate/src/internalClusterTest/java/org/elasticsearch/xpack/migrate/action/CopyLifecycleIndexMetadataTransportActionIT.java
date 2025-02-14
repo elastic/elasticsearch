@@ -132,7 +132,7 @@ public class CopyLifecycleIndexMetadataTransportActionIT extends ESIntegTestCase
         createDocument(dataStream);
         assertAcked(safeGet(client().execute(ILMActions.START, new StartILMRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))));
         assertBusy(() -> {
-            var getIndexResponse = safeGet(indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(dataStream)));
+            var getIndexResponse = safeGet(indicesAdmin().getIndex(new GetIndexRequest().indices(dataStream)));
             assertTrue(getIndexResponse.indices().length > 1);
         });
         // stop ILM so source does not change after copying metadata
@@ -144,7 +144,7 @@ public class CopyLifecycleIndexMetadataTransportActionIT extends ESIntegTestCase
             assertEquals(OperationMode.STOPPED, statusResponse.getMode());
         });
 
-        var getIndexResponse = safeGet(indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(dataStream)));
+        var getIndexResponse = safeGet(indicesAdmin().getIndex(new GetIndexRequest().indices(dataStream)));
         for (var backingIndex : getIndexResponse.indices()) {
             var destIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
             safeGet(indicesAdmin().create(new CreateIndexRequest(destIndex)));
@@ -178,7 +178,7 @@ public class CopyLifecycleIndexMetadataTransportActionIT extends ESIntegTestCase
         createDocument(dataStream);
         var writeIndex = rollover(dataStream);
 
-        var getIndexResponse = safeGet(indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(dataStream)));
+        var getIndexResponse = safeGet(indicesAdmin().getIndex(new GetIndexRequest().indices(dataStream)));
         for (var backingIndex : getIndexResponse.indices()) {
 
             var destIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);

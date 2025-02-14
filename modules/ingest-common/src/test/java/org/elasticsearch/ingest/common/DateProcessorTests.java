@@ -222,7 +222,7 @@ public class DateProcessorTests extends ESTestCase {
         dateProcessor.execute(ingestDocument);
         assertThat(
             ingestDocument.getFieldValue("date_as_date", String.class),
-            equalTo(ZonedDateTime.now().getYear() + "-06-12T00:00:00.000+02:00")
+            equalTo(ZonedDateTime.now(ZoneId.of("Europe/Amsterdam")).getYear() + "-06-12T00:00:00.000+02:00")
         );
     }
 

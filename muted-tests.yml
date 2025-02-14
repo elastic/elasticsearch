@@ -72,9 +72,6 @@ tests:
 - class: org.elasticsearch.action.search.SearchPhaseControllerTests
   method: testProgressListener
   issue: https://github.com/elastic/elasticsearch/issues/116149
-- class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
-  method: testSearchWithRandomDisconnects
-  issue: https://github.com/elastic/elasticsearch/issues/116175
 - class: org.elasticsearch.xpack.deprecation.DeprecationHttpIT
   method: testDeprecatedSettingsReturnWarnings
   issue: https://github.com/elastic/elasticsearch/issues/108628
@@ -385,16 +382,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsRecoveryTests
   method: testSnapshotRecovery {p0=false p1=true}
   issue: https://github.com/elastic/elasticsearch/issues/122551
-- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
-  issue: https://github.com/elastic/elasticsearch/issues/121411
-- class: org.elasticsearch.entitlement.qa.EntitlementsDeniedIT
-  issue: https://github.com/elastic/elasticsearch/issues/122566
-- class: org.elasticsearch.entitlement.qa.EntitlementsAllowedIT
-  issue: https://github.com/elastic/elasticsearch/issues/122567
-- class: org.elasticsearch.entitlement.qa.EntitlementsAllowedNonModularIT
-  issue: https://github.com/elastic/elasticsearch/issues/122568
-- class: org.elasticsearch.entitlement.qa.EntitlementsDeniedNonModularIT
-  issue: https://github.com/elastic/elasticsearch/issues/122569
 
 # Examples:
 #

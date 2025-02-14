@@ -84,9 +84,13 @@ public class PolicyManagerTests extends ESTestCase {
         var callerClass = this.getClass();
         var requestingModule = callerClass.getModule();
 
-        assertEquals("No policy for the unnamed module", ModuleEntitlements.none("plugin1"), policyManager.getEntitlements(callerClass));
+        assertEquals(
+            "No policy for the unnamed module",
+            policyManager.defaultEntitlements("plugin1"),
+            policyManager.getEntitlements(callerClass)
+        );
 
-        assertEquals(Map.of(requestingModule, ModuleEntitlements.none("plugin1")), policyManager.moduleEntitlementsMap);
+        assertEquals(Map.of(requestingModule, policyManager.defaultEntitlements("plugin1")), policyManager.moduleEntitlementsMap);
     }
 
     public void testGetEntitlementsThrowsOnMissingPolicyForPlugin() {
@@ -104,9 +108,9 @@ public class PolicyManagerTests extends ESTestCase {
         var callerClass = this.getClass();
         var requestingModule = callerClass.getModule();
 
-        assertEquals("No policy for this plugin", ModuleEntitlements.none("plugin1"), policyManager.getEntitlements(callerClass));
+        assertEquals("No policy for this plugin", policyManager.defaultEntitlements("plugin1"), policyManager.getEntitlements(callerClass));
 
-        assertEquals(Map.of(requestingModule, ModuleEntitlements.none("plugin1")), policyManager.moduleEntitlementsMap);
+        assertEquals(Map.of(requestingModule, policyManager.defaultEntitlements("plugin1")), policyManager.moduleEntitlementsMap);
     }
 
     public void testGetEntitlementsFailureIsCached() {
@@ -124,14 +128,14 @@ public class PolicyManagerTests extends ESTestCase {
         var callerClass = this.getClass();
         var requestingModule = callerClass.getModule();
 
-        assertEquals(ModuleEntitlements.none("plugin1"), policyManager.getEntitlements(callerClass));
-        assertEquals(Map.of(requestingModule, ModuleEntitlements.none("plugin1")), policyManager.moduleEntitlementsMap);
+        assertEquals(policyManager.defaultEntitlements("plugin1"), policyManager.getEntitlements(callerClass));
+        assertEquals(Map.of(requestingModule, policyManager.defaultEntitlements("plugin1")), policyManager.moduleEntitlementsMap);
 
         // A second time
-        assertEquals(ModuleEntitlements.none("plugin1"), policyManager.getEntitlements(callerClass));
+        assertEquals(policyManager.defaultEntitlements("plugin1"), policyManager.getEntitlements(callerClass));
 
         // Nothing new in the map
-        assertEquals(Map.of(requestingModule, ModuleEntitlements.none("plugin1")), policyManager.moduleEntitlementsMap);
+        assertEquals(Map.of(requestingModule, policyManager.defaultEntitlements("plugin1")), policyManager.moduleEntitlementsMap);
     }
 
     public void testGetEntitlementsReturnsEntitlementsForPluginUnnamedModule() {
@@ -172,11 +176,14 @@ public class PolicyManagerTests extends ESTestCase {
 
         assertEquals(
             "No policy for this module in server",
-            ModuleEntitlements.none(SERVER_COMPONENT_NAME),
+            policyManager.defaultEntitlements(SERVER_COMPONENT_NAME),
             policyManager.getEntitlements(mockServerClass)
         );
 
-        assertEquals(Map.of(requestingModule, ModuleEntitlements.none(SERVER_COMPONENT_NAME)), policyManager.moduleEntitlementsMap);
+        assertEquals(
+            Map.of(requestingModule, policyManager.defaultEntitlements(SERVER_COMPONENT_NAME)),
+            policyManager.moduleEntitlementsMap
+        );
     }
 
     public void testGetEntitlementsReturnsEntitlementsForServerModule() throws ClassNotFoundException {

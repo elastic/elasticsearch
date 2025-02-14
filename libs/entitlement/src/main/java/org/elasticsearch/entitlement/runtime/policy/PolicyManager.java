@@ -70,24 +70,6 @@ public class PolicyManager {
             entitlementsByType = Map.copyOf(entitlementsByType);
         }
 
-        public static ModuleEntitlements none(String componentName) {
-            return new ModuleEntitlements(componentName, Map.of(), FileAccessTree.EMPTY);
-        }
-
-        public static ModuleEntitlements from(String componentName, List<Entitlement> entitlements, PathLookup pathLookup) {
-            FilesEntitlement filesEntitlement = FilesEntitlement.EMPTY;
-            for (Entitlement entitlement : entitlements) {
-                if (entitlement instanceof FilesEntitlement) {
-                    filesEntitlement = (FilesEntitlement) entitlement;
-                }
-            }
-            return new ModuleEntitlements(
-                componentName,
-                entitlements.stream().collect(groupingBy(Entitlement::getClass)),
-                FileAccessTree.of(filesEntitlement, pathLookup)
-            );
-        }
-
         public boolean hasEntitlement(Class<? extends Entitlement> entitlementClass) {
             return entitlementsByType.containsKey(entitlementClass);
         }
@@ -101,6 +83,26 @@ public class PolicyManager {
         }
     }
 
+    // pkg private for testing
+    ModuleEntitlements defaultEntitlements(String componentName) {
+        return new ModuleEntitlements(componentName, Map.of(), defaultFileAccess);
+    }
+
+    // pkg private for testing
+    ModuleEntitlements policyEntitlements(String componentName, List<Entitlement> entitlements) {
+        FilesEntitlement filesEntitlement = FilesEntitlement.EMPTY;
+        for (Entitlement entitlement : entitlements) {
+            if (entitlement instanceof FilesEntitlement) {
+                filesEntitlement = (FilesEntitlement) entitlement;
+            }
+        }
+        return new ModuleEntitlements(
+            componentName,
+            entitlements.stream().collect(groupingBy(Entitlement::getClass)),
+            FileAccessTree.of(filesEntitlement, pathLookup)
+        );
+    }
+
     final Map<Module, ModuleEntitlements> moduleEntitlementsMap = new ConcurrentHashMap<>();
 
     private final Map<String, List<Entitlement>> serverEntitlements;
@@ -108,6 +110,7 @@ public class PolicyManager {
     private final Map<String, Map<String, List<Entitlement>>> pluginsEntitlements;
     private final Function<Class<?>, String> pluginResolver;
     private final PathLookup pathLookup;
+    private final FileAccessTree defaultFileAccess;
 
     public static final String ALL_UNNAMED = "ALL-UNNAMED";
 
@@ -154,6 +157,7 @@ public class PolicyManager {
         this.apmAgentPackageName = apmAgentPackageName;
         this.entitlementsModule = entitlementsModule;
         this.pathLookup = requireNonNull(pathLookup);
+        this.defaultFileAccess = FileAccessTree.of(FilesEntitlement.EMPTY, pathLookup);
 
         for (var e : serverEntitlements.entrySet()) {
             validateEntitlementsPerModule(SERVER_COMPONENT_NAME, e.getKey(), e.getValue());
@@ -428,7 +432,7 @@ public class PolicyManager {
         if (pluginName != null) {
             var pluginEntitlements = pluginsEntitlements.get(pluginName);
             if (pluginEntitlements == null) {
-                return ModuleEntitlements.none(pluginName);
+                return defaultEntitlements(pluginName);
             } else {
                 final String scopeName;
                 if (requestingModule.isNamed() == false) {
@@ -442,10 +446,10 @@ public class PolicyManager {
 
         if (requestingModule.isNamed() == false && requestingClass.getPackageName().startsWith(apmAgentPackageName)) {
             // The APM agent is the only thing running non-modular in the system classloader
-            return ModuleEntitlements.from(APM_AGENT_COMPONENT_NAME, apmAgentEntitlements, pathLookup);
+            return policyEntitlements(APM_AGENT_COMPONENT_NAME, apmAgentEntitlements);
         }
 
-        return ModuleEntitlements.none(UNKNOWN_COMPONENT_NAME);
+        return defaultEntitlements(UNKNOWN_COMPONENT_NAME);
     }
 
     private ModuleEntitlements getModuleScopeEntitlements(
@@ -455,9 +459,9 @@ public class PolicyManager {
     ) {
         var entitlements = scopeEntitlements.get(moduleName);
         if (entitlements == null) {
-            return ModuleEntitlements.none(componentName);
+            return defaultEntitlements(componentName);
         }
-        return ModuleEntitlements.from(componentName, entitlements, pathLookup);
+        return policyEntitlements(componentName, entitlements);
     }
 
     private static boolean isServerModule(Module requestingModule) {

@@ -128,9 +128,7 @@ public class EntitlementInitialization {
     private static PolicyManager createPolicyManager() {
         EntitlementBootstrap.BootstrapArgs bootstrapArgs = EntitlementBootstrap.bootstrapArgs();
         Map<String, Policy> pluginPolicies = bootstrapArgs.pluginPolicies();
-        Path[] dataDirs = EntitlementBootstrap.bootstrapArgs().dataDirs();
-
-        var pathLookup = new PathLookup(bootstrapArgs.configDir(), bootstrapArgs.dataDirs(), bootstrapArgs.configDir());
+        var pathLookup = new PathLookup(bootstrapArgs.configDir(), bootstrapArgs.dataDirs(), bootstrapArgs.tempDir());
 
         // TODO(ES-10031): Decide what goes in the elasticsearch default policy and extend it
         var serverPolicy = new Policy(

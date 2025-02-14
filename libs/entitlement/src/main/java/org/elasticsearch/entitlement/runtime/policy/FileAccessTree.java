@@ -21,7 +21,6 @@ import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
 
 public final class FileAccessTree {
 
-    public static final FileAccessTree EMPTY = new FileAccessTree(FilesEntitlement.EMPTY, null);
     private static final String FILE_SEPARATOR = getDefaultFileSystem().getSeparator();
 
     private final String[] readPaths;
@@ -41,6 +40,10 @@ public final class FileAccessTree {
                 readPaths.add(normalized);
             });
         }
+
+        // everything has access to the temp dir
+        readPaths.add(pathLookup.tempDir().toString());
+        writePaths.add(pathLookup.tempDir().toString());
 
         readPaths.sort(String::compareTo);
         writePaths.sort(String::compareTo);

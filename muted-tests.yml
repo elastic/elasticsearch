@@ -291,9 +291,6 @@ tests:
 - class: org.elasticsearch.env.NodeEnvironmentTests
   method: testGetBestDowngradeVersion
   issue: https://github.com/elastic/elasticsearch/issues/121316
-- class: org.elasticsearch.index.engine.ShuffleForcedMergePolicyTests
-  method: testDiagnostics
-  issue: https://github.com/elastic/elasticsearch/issues/121336
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/rest-api/security/invalidate-tokens/line_194}
   issue: https://github.com/elastic/elasticsearch/issues/121337
@@ -326,15 +323,6 @@ tests:
 - class: org.elasticsearch.xpack.security.profile.ProfileIntegTests
   method: testSuggestProfileWithData
   issue: https://github.com/elastic/elasticsearch/issues/121258
-- class: org.elasticsearch.ingest.geoip.FullClusterRestartIT
-  method: testGeoIpSystemFeaturesMigration {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/121115
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=search.vectors/42_knn_search_int4_flat/Vector similarity with filter only}
-  issue: https://github.com/elastic/elasticsearch/issues/121412
-- class: org.elasticsearch.search.CrossClusterSearchUnavailableClusterIT
-  method: testSearchSkipUnavailable
-  issue: https://github.com/elastic/elasticsearch/issues/121497
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/cat/health/cat-health-no-timestamp-example}
   issue: https://github.com/elastic/elasticsearch/issues/121867
@@ -343,9 +331,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/121625
 - class: org.elasticsearch.xpack.searchablesnapshots.hdfs.SecureHdfsSearchableSnapshotsIT
   issue: https://github.com/elastic/elasticsearch/issues/121967
-- class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
-  method: testBottomFieldSort
-  issue: https://github.com/elastic/elasticsearch/issues/121503
 - class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
   issue: https://github.com/elastic/elasticsearch/issues/121537
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
@@ -389,6 +374,28 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/122377
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.HdfsRepositoryAnalysisRestIT
   issue: https://github.com/elastic/elasticsearch/issues/122378
+- class: org.elasticsearch.telemetry.apm.ApmAgentSettingsIT
+  issue: https://github.com/elastic/elasticsearch/issues/122546
+- class: org.elasticsearch.search.SearchTimeoutIT
+  method: testSuggestTimeoutWithPartialResults
+  issue: https://github.com/elastic/elasticsearch/issues/122548
+- class: org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsRecoveryTests
+  method: testSnapshotRecovery {p0=false p1=false}
+  issue: https://github.com/elastic/elasticsearch/issues/122549
+- class: org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsRecoveryTests
+  method: testSnapshotRecovery {p0=true p1=false}
+  issue: https://github.com/elastic/elasticsearch/issues/122550
+- class: org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsRecoveryTests
+  method: testSnapshotRecovery {p0=false p1=true}
+  issue: https://github.com/elastic/elasticsearch/issues/122551
+- class: org.elasticsearch.entitlement.qa.EntitlementsDeniedIT
+  issue: https://github.com/elastic/elasticsearch/issues/122566
+- class: org.elasticsearch.entitlement.qa.EntitlementsAllowedIT
+  issue: https://github.com/elastic/elasticsearch/issues/122567
+- class: org.elasticsearch.entitlement.qa.EntitlementsAllowedNonModularIT
+  issue: https://github.com/elastic/elasticsearch/issues/122568
+- class: org.elasticsearch.entitlement.qa.EntitlementsDeniedNonModularIT
+  issue: https://github.com/elastic/elasticsearch/issues/122569
 
 # Examples:
 #

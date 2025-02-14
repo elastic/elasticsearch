@@ -134,8 +134,6 @@ public class ElasticInferenceService extends SenderService {
 
         configuration = new Configuration(authRef.get().taskTypesAndModels.getAuthorizedTaskTypes());
         defaultModelsConfigs = initDefaultEndpoints(elasticInferenceServiceComponents);
-
-        getAuthorization();
     }
 
     private static Map<String, DefaultModelConfig> initDefaultEndpoints(
@@ -285,6 +283,11 @@ public class ElasticInferenceService extends SenderService {
         getServiceComponents().threadPool()
             .executor(UTILITY_THREAD_POOL_NAME)
             .execute(() -> modelRegistry.removeDefaultConfigs(unauthorizedDefaultInferenceEndpointIds, deleteInferenceEndpointsListener));
+    }
+
+    @Override
+    public void onNodeStarted() {
+        getServiceComponents().threadPool().executor(UTILITY_THREAD_POOL_NAME).execute(this::getAuthorization);
     }
 
     /**

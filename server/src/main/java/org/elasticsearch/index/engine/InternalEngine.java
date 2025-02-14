@@ -67,6 +67,7 @@ import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -106,7 +107,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -1021,16 +1021,17 @@ public class InternalEngine extends Engine {
         VersionValue versionValue = getVersionFromMap(op.uid());
         if (versionValue == null) {
             assert incrementIndexVersionLookup(); // used for asserting in tests
-            final VersionsAndSeqNoResolver.DocIdAndVersion docIdAndVersion;
-            try (var directoryReaderSupplier = acquireDirectoryReaderSupplier(SearcherScope.INTERNAL)) {
-                var indexReader = directoryReaderSupplier.getDirectoryReader();
-                if (engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
-                    assert engineConfig.getLeafSorter() == DataStream.TIMESERIES_LEAF_READERS_SORTER;
-                    docIdAndVersion = VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(indexReader, op.uid(), op.id(), loadSeqNo);
-                } else {
-                    docIdAndVersion = VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(indexReader, op.uid(), loadSeqNo);
+            final VersionsAndSeqNoResolver.DocIdAndVersion docIdAndVersion = performActionWithDirectoryReader(
+                SearcherScope.INTERNAL,
+                directoryReader -> {
+                    if (engineConfig.getIndexSettings().getMode() == IndexMode.TIME_SERIES) {
+                        assert engineConfig.getLeafSorter() == DataStream.TIMESERIES_LEAF_READERS_SORTER;
+                        return VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(directoryReader, op.uid(), op.id(), loadSeqNo);
+                    } else {
+                        return VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(directoryReader, op.uid(), loadSeqNo);
+                    }
                 }
-            }
+            );
             if (docIdAndVersion != null) {
                 versionValue = new IndexVersionValue(null, docIdAndVersion.version, docIdAndVersion.seqNo, docIdAndVersion.primaryTerm);
             }
@@ -3464,57 +3465,25 @@ public class InternalEngine extends Engine {
         return preCommitSegmentGeneration.get();
     }
 
-    DirectoryReaderSupplier acquireDirectoryReaderSupplier(SearcherScope scope) throws EngineException {
-        assert scope == SearcherScope.INTERNAL : "acquireDirectoryReaderSupplier(...) isn't prepared for external usage";
+    <T> T performActionWithDirectoryReader(SearcherScope scope, CheckedFunction<DirectoryReader, T, IOException> action)
+        throws EngineException {
+        assert scope == SearcherScope.INTERNAL : "performActionWithDirectoryReader(...) isn't prepared for external usage";
         assert store.hasReferences();
         try {
             ReferenceManager<ElasticsearchDirectoryReader> referenceManager = getReferenceManager(scope);
             ElasticsearchDirectoryReader acquire = referenceManager.acquire();
-            return new DirectoryReaderSupplier(acquire) {
-
-                @Override
-                void doClose() {
-                    try {
-                        referenceManager.release(acquire);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException("failed to close", e);
-                    } catch (AlreadyClosedException e) {
-                        // This means there's a bug somewhere: don't suppress it
-                        throw new AssertionError(e);
-                    }
-                }
-            };
+            try {
+                return action.apply(acquire);
+            } finally {
+                referenceManager.release(acquire);
+            }
         } catch (AlreadyClosedException ex) {
             throw ex;
         } catch (Exception ex) {
-            maybeFailEngine("acquire_directory_reader", ex);
+            maybeFailEngine("perform_action_directory_reader", ex);
             ensureOpen(ex); // throw EngineCloseException here if we are already closed
-            logger.error("failed to acquire directory reader", ex);
-            throw new EngineException(shardId, "failed to acquire directory reader", ex);
+            logger.error("failed to perform action with directory reader", ex);
+            throw new EngineException(shardId, "failed to perform action with directory reader", ex);
         }
-    }
-
-    abstract static class DirectoryReaderSupplier implements Releasable {
-        private final DirectoryReader directoryReader;
-        private final AtomicBoolean released = new AtomicBoolean(false);
-
-        DirectoryReaderSupplier(DirectoryReader directoryReader) {
-            this.directoryReader = directoryReader;
-        }
-
-        public DirectoryReader getDirectoryReader() {
-            return directoryReader;
-        }
-
-        @Override
-        public final void close() {
-            if (released.compareAndSet(false, true)) {
-                doClose();
-            } else {
-                assert false : "DirectoryReaderSupplier was released twice";
-            }
-        }
-
-        abstract void doClose();
     }
 }

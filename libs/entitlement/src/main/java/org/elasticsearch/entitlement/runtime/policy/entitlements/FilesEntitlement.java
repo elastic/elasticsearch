@@ -185,13 +185,13 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
 
                 Path relativePath = Path.of(relativePathAsString);
                 if (relativePath.isAbsolute()) {
-                    throw new PolicyValidationException("'relative_path' must be relative");
+                    throw new PolicyValidationException("'relative_path' [" + relativePathAsString + "] must be relative");
                 }
                 filesData.add(FileData.ofRelativePath(relativePath, baseDir, parseMode(mode)));
             } else if (pathAsString != null) {
                 Path path = Path.of(pathAsString);
                 if (path.isAbsolute() == false) {
-                    throw new PolicyValidationException("'path' must be absolute");
+                    throw new PolicyValidationException("'path' [" + pathAsString + "] must be absolute");
                 }
                 filesData.add(FileData.ofPath(path, parseMode(mode)));
             } else {

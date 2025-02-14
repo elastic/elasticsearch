@@ -9,12 +9,16 @@
 
 package org.elasticsearch.entitlement.runtime.policy.entitlements;
 
+import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.PolicyValidationException;
 import org.elasticsearch.test.ESTestCase;
 
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ_WRITE;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.is;
 
 public class FilesEntitlementTests extends ESTestCase {
@@ -32,5 +36,13 @@ public class FilesEntitlementTests extends ESTestCase {
             () -> FilesEntitlement.build(List.of((Map.of("relative_path", "foo", "mode", "read", "relative_to", "bar"))))
         );
         assertThat(ex.getMessage(), is("invalid relative directory: bar, valid values: [config, data]"));
+    }
+
+    public void testFileDataRelativeWithEmptyDirectory() {
+        var fileData = FilesEntitlement.FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE);
+        var dataDirs = fileData.resolvePaths(
+            new PathLookup(Path.of("/config"), new Path[] { Path.of("/data1/"), Path.of("/data2") }, Path.of("/temp"))
+        );
+        assertThat(dataDirs.toList(), contains(Path.of("/data1/"), Path.of("/data2")));
     }
 }

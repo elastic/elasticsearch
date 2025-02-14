@@ -73,7 +73,7 @@ public class PolicyParserFailureTests extends ESTestCase {
             """.getBytes(StandardCharsets.UTF_8)), "test-failure-policy.yaml", false).parsePolicy());
         assertEquals(
             "[2:5] policy parsing error for [test-failure-policy.yaml] in scope [entitlement-module-name] "
-                + "for entitlement type [files]: 'path' must be absolute",
+                + "for entitlement type [files]: 'path' [test-path] must be absolute",
             ppe.getMessage()
         );
     }
@@ -88,7 +88,7 @@ public class PolicyParserFailureTests extends ESTestCase {
             """.getBytes(StandardCharsets.UTF_8)), "test-failure-policy.yaml", false).parsePolicy());
         assertEquals(
             "[2:5] policy parsing error for [test-failure-policy.yaml] in scope [entitlement-module-name] "
-                + "for entitlement type [files]: 'relative_path' must be relative",
+                + "for entitlement type [files]: 'relative_path' [/test-path] must be relative",
             ppe.getMessage()
         );
     }

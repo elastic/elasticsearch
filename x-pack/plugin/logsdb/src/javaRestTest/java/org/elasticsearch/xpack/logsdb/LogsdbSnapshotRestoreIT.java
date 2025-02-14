@@ -50,6 +50,7 @@ public class LogsdbSnapshotRestoreIT extends ESRestTestCase {
     private static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .setting("path.repo", () -> getRepoPath())
+        .setting("cluster.logsdb.enabled", "true")
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         // TODO: remove when initializing / serializing default SourceFieldMapper instance have been fixed:

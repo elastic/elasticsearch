@@ -291,7 +291,7 @@ public class TransportGetRolesActionTests extends ESTestCase {
             requestedNames.addAll(requestedStoreNames);
         }
 
-        final NativeRolesStore rolesStore = mockNativeRolesStore(requestedNames, storeRoleDescriptors);
+        final NativeRolesStore rolesStore = mockNativeRolesStore(requestedStoreNames, storeRoleDescriptors);
 
         final TransportService transportService = new TransportService(
             Settings.EMPTY,
@@ -319,7 +319,7 @@ public class TransportGetRolesActionTests extends ESTestCase {
             verify(rolesStore, times(1)).getRoleDescriptors(eq(new HashSet<>()), anyActionListener());
         } else {
             assertThat(actualRoleNames, containsInAnyOrder(requestedStoreNames.toArray(Strings.EMPTY_ARRAY)));
-            verify(rolesStore, times(1)).getRoleDescriptors(eq(new HashSet<>(requestedNames)), anyActionListener());
+            verify(rolesStore, times(1)).getRoleDescriptors(eq(new HashSet<>(requestedStoreNames)), anyActionListener());
         }
     }
 

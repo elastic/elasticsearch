@@ -12,9 +12,7 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsReader;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
-import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MergePolicy;
@@ -68,18 +66,12 @@ public class SegmentMergeMemoryEstimator {
     }
 
     private static long estimateVectorFieldMemory(FieldInfo fieldInfo, SegmentReader segmentReader) {
-        long maxMem = 0;
-        for (LeafReaderContext ctx : segmentReader.leaves()) {
-            CodecReader codecReader = (CodecReader) FilterLeafReader.unwrap(ctx.reader());
-            KnnVectorsReader vectorsReader = codecReader.getVectorReader();
-            if (vectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader perFieldKnnVectorsFormat) {
-                vectorsReader = perFieldKnnVectorsFormat.getFieldReader(fieldInfo.getName());
-            }
-
-            final long estimation = getVectorFieldEstimation(fieldInfo, segmentReader, vectorsReader);
-            maxMem = Math.max(maxMem, estimation);
+        KnnVectorsReader vectorsReader = segmentReader.getVectorReader();
+        if (vectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader perFieldKnnVectorsFormat) {
+            vectorsReader = perFieldKnnVectorsFormat.getFieldReader(fieldInfo.getName());
         }
-        return maxMem;
+
+        return getVectorFieldEstimation(fieldInfo, segmentReader, vectorsReader);
     }
 
     private static long getVectorFieldEstimation(FieldInfo fieldInfo, SegmentReader segmentReader, KnnVectorsReader vectorsReader) {

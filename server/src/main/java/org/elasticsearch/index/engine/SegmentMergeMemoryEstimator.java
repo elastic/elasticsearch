@@ -22,7 +22,6 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.VectorEncoding;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.util.List;
 
@@ -52,12 +51,12 @@ public class SegmentMergeMemoryEstimator {
     private static long estimateSegmentMemory(SegmentReader reader) {
         long maxMem = 0;
         for (FieldInfo fieldInfo : reader.getFieldInfos()) {
-            maxMem = Math.max(maxMem, estimateFieldMemory(fieldInfo, reader).getBytes());
+            maxMem = Math.max(maxMem, estimateFieldMemory(fieldInfo, reader));
         }
         return maxMem;
     }
 
-    private static ByteSizeValue estimateFieldMemory(FieldInfo fieldInfo, SegmentReader segmentReader) {
+    private static long estimateFieldMemory(FieldInfo fieldInfo, SegmentReader segmentReader) {
 
         long maxMem = 0;
         if (fieldInfo.hasVectorValues()) {
@@ -65,7 +64,7 @@ public class SegmentMergeMemoryEstimator {
         }
         // TODO Work on estimations on other field infos when / if needed
 
-        return ByteSizeValue.ofBytes(maxMem);
+        return maxMem;
     }
 
     private static long estimateVectorFieldMemory(FieldInfo fieldInfo, SegmentReader segmentReader) {

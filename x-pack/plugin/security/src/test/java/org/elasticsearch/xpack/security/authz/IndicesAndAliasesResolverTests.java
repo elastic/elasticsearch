@@ -465,22 +465,6 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         );
     }
 
-    public void testWildcardSelectorsAreNotAllowedInShardLevelRequests() {
-        ShardSearchRequest request = mock(ShardSearchRequest.class);
-        when(request.indices()).thenReturn(new String[] { "index10::*" });
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> defaultIndicesResolver.resolveIndicesAndAliasesWithoutWildcards(TransportSearchAction.TYPE.name() + "[s]", request)
-        );
-        assertThat(
-            exception,
-            throwableWithMessage(
-                "the action indices:data/read/search[s] does not support wildcard selectors;"
-                    + " the provided index expression(s) [index10::*] are not allowed"
-            )
-        );
-    }
-
     public void testAllIsNotAllowedInShardLevelRequests() {
         ShardSearchRequest request = mock(ShardSearchRequest.class);
         final boolean literalAll = randomBoolean();

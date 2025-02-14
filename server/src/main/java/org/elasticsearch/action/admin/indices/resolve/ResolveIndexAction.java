@@ -646,10 +646,6 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                             : switch (resolvedExpression.selector()) {
                                 case DATA -> dataStream.getDataComponent().getIndices().stream();
                                 case FAILURES -> dataStream.getFailureIndices().stream();
-                                case ALL_APPLICABLE -> Stream.concat(
-                                    dataStream.getIndices().stream(),
-                                    dataStream.getFailureIndices().stream()
-                                );
                             };
                         String[] backingIndices = dataStreamIndices.map(Index::getName).toArray(String[]::new);
                         dataStreams.add(new ResolvedDataStream(dataStream.getName(), backingIndices, DataStream.TIMESTAMP_FIELD_NAME));
@@ -669,13 +665,6 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                     case FAILURES -> {
                         assert ia.isDataStreamRelated() : "Illegal selector [failures] used on non data stream alias";
                         yield ia.getFailureIndices(metadata).stream();
-                    }
-                    case ALL_APPLICABLE -> {
-                        if (ia.isDataStreamRelated()) {
-                            yield Stream.concat(ia.getIndices().stream(), ia.getFailureIndices(metadata).stream());
-                        } else {
-                            yield ia.getIndices().stream();
-                        }
                     }
                 };
             }

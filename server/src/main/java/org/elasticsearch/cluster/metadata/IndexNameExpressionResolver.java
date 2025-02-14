@@ -364,21 +364,9 @@ public class IndexNameExpressionResolver {
                 }
             } else {
                 if (isExclusion) {
-                    if (IndexComponentSelector.ALL_APPLICABLE.equals(selector)) {
-                        resources.remove(new ResolvedExpression(baseExpression, IndexComponentSelector.DATA));
-                        resources.remove(new ResolvedExpression(baseExpression, IndexComponentSelector.FAILURES));
-                    } else {
-                        resources.remove(new ResolvedExpression(baseExpression, selector));
-                    }
+                    resources.remove(new ResolvedExpression(baseExpression, selector));
                 } else if (ensureAliasOrIndexExists(context, baseExpression, selector)) {
-                    if (IndexComponentSelector.ALL_APPLICABLE.equals(selector)) {
-                        resources.add(new ResolvedExpression(baseExpression, IndexComponentSelector.DATA));
-                        if (context.getState().getMetadata().getIndicesLookup().get(baseExpression).isDataStreamRelated()) {
-                            resources.add(new ResolvedExpression(baseExpression, IndexComponentSelector.FAILURES));
-                        }
-                    } else {
-                        resources.add(new ResolvedExpression(baseExpression, selector));
-                    }
+                    resources.add(new ResolvedExpression(baseExpression, selector));
                 }
             }
         }
@@ -1046,8 +1034,7 @@ public class IndexNameExpressionResolver {
 
     private static boolean resolvedExpressionsContainsAbstraction(Set<ResolvedExpression> resolvedExpressions, String abstractionName) {
         return resolvedExpressions.contains(new ResolvedExpression(abstractionName))
-            || resolvedExpressions.contains(new ResolvedExpression(abstractionName, IndexComponentSelector.DATA))
-            || resolvedExpressions.contains(new ResolvedExpression(abstractionName, IndexComponentSelector.ALL_APPLICABLE));
+            || resolvedExpressions.contains(new ResolvedExpression(abstractionName, IndexComponentSelector.DATA));
     }
 
     /**
@@ -1342,8 +1329,7 @@ public class IndexNameExpressionResolver {
         if (context.options.allowSelectors()) {
             // Ensure that the selectors are present and that they are compatible with the abstractions they are used with
             assert selector != null : "Earlier logic should have parsed selectors or added the default selectors already";
-            // Check if ::failures has been explicitly requested, since requesting ::* for non-data-stream abstractions would just
-            // return their data components.
+            // Check if ::failures has been explicitly requested
             if (IndexComponentSelector.FAILURES.equals(selector) && indexAbstraction.isDataStreamRelated() == false) {
                 // If requested abstraction is not data stream related, then you cannot use ::failures
                 if (ignoreUnavailable) {
@@ -1700,9 +1686,9 @@ public class IndexNameExpressionResolver {
             final IndexMetadata.State excludeState = excludeState(context.getOptions());
             Set<ResolvedExpression> resources = new HashSet<>();
             if (context.isPreserveAliases() && indexAbstraction.getType() == Type.ALIAS) {
-                expandToApplicableSelectors(indexAbstraction, selector, resources);
+                resources.add(new ResolvedExpression(indexAbstraction.getName(), selector));
             } else if (context.isPreserveDataStreams() && indexAbstraction.getType() == Type.DATA_STREAM) {
-                expandToApplicableSelectors(indexAbstraction, selector, resources);
+                resources.add(new ResolvedExpression(indexAbstraction.getName(), selector));
             } else {
                 if (shouldIncludeRegularIndices(context.getOptions(), selector)) {
                     for (int i = 0, n = indexAbstraction.getIndices().size(); i < n; i++) {
@@ -1727,31 +1713,6 @@ public class IndexNameExpressionResolver {
                 }
             }
             return resources;
-        }
-
-        /**
-         * Adds the abstraction and selector to the results when preserving data streams and aliases at wildcard resolution. If a selector
-         * is provided, the result is only added if the selector is applicable to the abstraction provided. If
-         * {@link IndexComponentSelector#ALL_APPLICABLE} is given, the selectors are expanded only to those which are applicable to the
-         * provided abstraction.
-         * @param indexAbstraction abstraction to add
-         * @param selector The selector to add
-         * @param resources Result collector which is updated with all applicable resolved expressions for a given abstraction and selector
-         *                  pair.
-         */
-        private static void expandToApplicableSelectors(
-            IndexAbstraction indexAbstraction,
-            IndexComponentSelector selector,
-            Set<ResolvedExpression> resources
-        ) {
-            if (IndexComponentSelector.ALL_APPLICABLE.equals(selector)) {
-                resources.add(new ResolvedExpression(indexAbstraction.getName(), IndexComponentSelector.DATA));
-                if (indexAbstraction.isDataStreamRelated()) {
-                    resources.add(new ResolvedExpression(indexAbstraction.getName(), IndexComponentSelector.FAILURES));
-                }
-            } else if (selector == null || indexAbstraction.isDataStreamRelated() || selector.shouldIncludeFailures() == false) {
-                resources.add(new ResolvedExpression(indexAbstraction.getName(), selector));
-            }
         }
 
         private static List<ResolvedExpression> resolveEmptyOrTrivialWildcard(Context context, IndexComponentSelector selector) {
@@ -2150,20 +2111,10 @@ public class IndexNameExpressionResolver {
                 String suffix = expression.substring(lastDoubleColon + SELECTOR_SEPARATOR.length());
                 IndexComponentSelector selector = IndexComponentSelector.getByKey(suffix);
                 if (selector == null) {
-                    // Do some work to surface a helpful error message for likely errors
-                    if (Regex.isSimpleMatchPattern(suffix)) {
-                        throw new InvalidIndexNameException(
-                            expression,
-                            "Invalid usage of :: separator, ["
-                                + suffix
-                                + "] contains a wildcard, but only the match all wildcard [*] is supported in a selector"
-                        );
-                    } else {
-                        throw new InvalidIndexNameException(
-                            expression,
-                            "Invalid usage of :: separator, [" + suffix + "] is not a recognized selector"
-                        );
-                    }
+                    throw new InvalidIndexNameException(
+                        expression,
+                        "invalid usage of :: separator, [" + suffix + "] is not a recognized selector"
+                    );
                 }
                 String expressionBase = expression.substring(0, lastDoubleColon);
                 ensureNoMoreSelectorSeparators(expressionBase, expression);

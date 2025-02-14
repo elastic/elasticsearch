@@ -17,3 +17,7 @@ org.opensaml.xmlsec.impl:
   - write_system_properties:
       properties:
         - org.apache.xml.security.ignoreLineBreaks
+  - files:
+    - relative_path: idp-docs-metadata.xml
+      relative_to: config
+      mode: read

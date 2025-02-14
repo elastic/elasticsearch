@@ -124,10 +124,6 @@ abstract class DataNodeRequestSender {
                         reportedFailure = true;
                         reportFailures(computeListener);
                     } else {
-                        pendingShardIds.removeIf(shr -> {
-                            var failure = shardFailures.get(shr);
-                            return failure != null && failure.fatal;
-                        });
                         var nodeRequests = selectNodeRequests(targetShards);
                         for (NodeRequest request : nodeRequests) {
                             sendOneNodeRequest(targetShards, computeListener, request);
@@ -238,10 +234,6 @@ abstract class DataNodeRequestSender {
         TargetShard getShard(ShardId shardId) {
             return shards.get(shardId);
         }
-
-        Set<ShardId> shardIds() {
-            return shards.keySet();
-        }
     }
 
     /**
@@ -270,7 +262,11 @@ abstract class DataNodeRequestSender {
         final Iterator<ShardId> shardsIt = pendingShardIds.iterator();
         while (shardsIt.hasNext()) {
             ShardId shardId = shardsIt.next();
-            assert shardFailures.get(shardId) == null || shardFailures.get(shardId).fatal == false;
+            ShardFailure failure = shardFailures.get(shardId);
+            if (failure != null && failure.fatal) {
+                shardsIt.remove();
+                continue;
+            }
             TargetShard shard = targetShards.getShard(shardId);
             Iterator<DiscoveryNode> nodesIt = shard.remainingNodes.iterator();
             DiscoveryNode selectedNode = null;

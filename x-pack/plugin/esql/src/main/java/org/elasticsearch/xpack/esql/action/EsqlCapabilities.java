@@ -304,6 +304,11 @@ public class EsqlCapabilities {
         UNION_TYPES,
 
         /**
+         * Support unmapped using the INSIST keyword.
+         */
+        UNMAPPED_FIELDS(Build.current().isSnapshot()),
+
+        /**
          * Support for function {@code ST_DISTANCE}. Done in #108764.
          */
         ST_DISTANCE,
@@ -623,6 +628,11 @@ public class EsqlCapabilities {
         SORT_RETURNING_SOURCE_OK,
 
         /**
+         * _source field mapping directives: https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-source-field.html
+         */
+        SOURCE_FIELD_MAPPING,
+
+        /**
          * Allow filter per individual aggregation.
          */
         PER_AGG_FILTERING,
@@ -709,14 +719,9 @@ public class EsqlCapabilities {
         LOOKUP_JOIN_TEXT(JOIN_LOOKUP_V12.isEnabled()),
 
         /**
-         * LOOKUP JOIN without MV matching (https://github.com/elastic/elasticsearch/issues/118780)
+         * LOOKUP JOIN skipping MVs and sending warnings (https://github.com/elastic/elasticsearch/issues/118780)
          */
-        JOIN_LOOKUP_SKIP_MV(JOIN_LOOKUP_V12.isEnabled()),
-
-        /**
-         * LOOKUP JOIN without MV matching on lookup index key (https://github.com/elastic/elasticsearch/issues/118780)
-         */
-        JOIN_LOOKUP_SKIP_MV_ON_LOOKUP_KEY(JOIN_LOOKUP_V12.isEnabled()),
+        JOIN_LOOKUP_SKIP_MV_WARNINGS(JOIN_LOOKUP_V12.isEnabled()),
 
         /**
          * Fix pushing down LIMIT past LOOKUP JOIN in case of multiple matching join keys.
@@ -808,7 +813,13 @@ public class EsqlCapabilities {
          * and https://github.com/elastic/elasticsearch/issues/120803
          * Support for queries that have multiple SORTs that cannot become TopN
          */
-        REMOVE_REDUNDANT_SORT;
+        REMOVE_REDUNDANT_SORT,
+
+        /**
+         * Fixes a series of issues with inlinestats which had an incomplete implementation after lookup and inlinestats
+         * were refactored.
+         */
+        INLINESTATS_V3(EsqlPlugin.INLINESTATS_FEATURE_FLAG);
 
         private final boolean enabled;
 

@@ -58,6 +58,7 @@ import java.time.temporal.TemporalAmount;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.StringJoiner;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -662,6 +663,23 @@ public class EsqlDataTypeConverter {
 
     public static long booleanToUnsignedLong(boolean number) {
         return number ? ONE_AS_UNSIGNED_LONG : ZERO_AS_UNSIGNED_LONG;
+    }
+
+    public static String aggregateMetricDoubleToString(Double maxVal, Double minVal, Double sumVal, Integer countVal) {
+        final StringJoiner joiner = new StringJoiner(", ");
+        if (maxVal != null) {
+            joiner.add("\"max\": " + maxVal);
+        }
+        if (minVal != null) {
+            joiner.add("\"min\": " + minVal);
+        }
+        if (sumVal != null) {
+            joiner.add("\"sum\": " + sumVal);
+        }
+        if (countVal != null) {
+            joiner.add("\"value_count\": " + countVal);
+        }
+        return "{ " + joiner + " }";
     }
 
     public enum EsqlConverter implements Converter {

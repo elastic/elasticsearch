@@ -1061,9 +1061,8 @@ public class MetadataIndexTemplateService {
             .map(templateName -> metadata.templatesV2().get(templateName))
             .filter(Objects::nonNull)
             .map(ComposableIndexTemplate::indexPatterns)
-            .map(Set::copyOf)
-            .reduce(Sets::union)
-            .orElse(Set.of());
+            .flatMap(List::stream)
+            .collect(Collectors.toSet());
 
         // Determine all the composable templates that are not one of the provided templates.
         var otherTemplates = state.metadata()
@@ -1383,11 +1382,8 @@ public class MetadataIndexTemplateService {
              * and we do want to return even match-all templates for those. Not doing so can result in a situation where a data stream is
              * built with a template that none of its indices match.
              */
-            if (isHidden && template.getDataStreamTemplate() == null) {
-                final boolean hasMatchAllTemplate = anyMatch(template.indexPatterns(), Regex::isMatchAllPattern);
-                if (hasMatchAllTemplate) {
-                    continue;
-                }
+            if (isHidden && template.getDataStreamTemplate() == null && anyMatch(template.indexPatterns(), Regex::isMatchAllPattern)) {
+                continue;
             }
             if (anyMatch(template.indexPatterns(), patternMatchPredicate)) {
                 candidates.add(Tuple.tuple(name, template));

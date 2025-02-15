@@ -25,30 +25,23 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A class that can be used to calculate the usages of ILM policies. This class computes some information on initialization, which will
- * use a bit more memory but speeds up the usage calculation significantly.
+ * A class that can be used to calculate the usages of ILM policies across the cluster. The class makes a tradeoff by using some more memory
+ * (but not a lot) to significantly improve the processing time.
  */
 public class LifecyclePolicyUsageCalculator {
 
-    /** A 'not found' sentinel value for use in getOrDefault calls in order to avoid containsKey-and-then-get. */
-    private static final String NOT_FOUND = "";
-
-    private final ClusterState state;
-    /** Whether {@link #calculateUsage} will be called multiple times or not. */
-    private final boolean willIterate;
+    /** A map from policy name to list of composable templates that use that policy. */
+    private final Map<String, List<String>> policyToTemplates;
     /** A map from policy name to list of data streams that use that policy. */
-    private final Map<String, List<String>> policyToDataStream;
-    /** A map from composable template name to the policy name it uses (or null) */
-    private final Map<String, String> templateToPolicy;
+    private final Map<String, List<String>> policyToDataStreams;
+    /** A map from policy name to list of indices that use that policy. */
+    private final Map<String, List<String>> policyToIndices;
 
     public LifecyclePolicyUsageCalculator(
         final IndexNameExpressionResolver indexNameExpressionResolver,
         final ClusterState state,
-        List<String> names
+        List<String> requestedPolicyNames
     ) {
-        this.state = state;
-        this.willIterate = names.size() > 1 || Regex.isSimpleMatchPattern(names.get(0));
-
         final List<String> allDataStreams = indexNameExpressionResolver.dataStreamNames(
             state,
             IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN_NO_SELECTOR
@@ -57,59 +50,64 @@ public class LifecyclePolicyUsageCalculator {
         final var indexTemplates = new ArrayList<>(state.metadata().templatesV2().entrySet());
         CollectionUtil.timSort(indexTemplates, Comparator.comparing(entry -> entry.getValue().priorityOrZero(), Comparator.reverseOrder()));
 
-        // Build the maps that will be used for the usage calculation later on.
         final IndexLifecycleMetadata metadata = state.metadata().custom(IndexLifecycleMetadata.TYPE);
-        policyToDataStream = Maps.newHashMapWithExpectedSize(
-            Regex.isSimpleMatchPattern(names.get(0)) ? metadata.getPolicyMetadatas().size() : names.size()
-        );
-        templateToPolicy = Maps.newHashMapWithExpectedSize(indexTemplates.size());
+        // We're making a bet here that if the `name` contains a wildcard, there's a large chance it'll simply match all policies.
+        final var expectedSize = Regex.isSimpleMatchPattern(requestedPolicyNames.get(0))
+            ? metadata.getPolicyMetadatas().size()
+            : requestedPolicyNames.size();
+
+        // We keep a map from composable template name to policy name to avoid having to resolve the template settings to determine
+        // the template's policy twice.
+        final Map<String, String> templateToPolicy = Maps.newHashMapWithExpectedSize(indexTemplates.size());
+
+        // Build the maps that will be used for the usage calculation later on.
+        policyToTemplates = Maps.newHashMapWithExpectedSize(expectedSize);
+        for (Map.Entry<String, ComposableIndexTemplate> entry : state.metadata().templatesV2().entrySet()) {
+            Settings settings = MetadataIndexTemplateService.resolveSettings(entry.getValue(), state.metadata().componentTemplates());
+            final var policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(settings);
+            // We only store the template if its policy matched any of the requested names.
+            if (doesPolicyMatchAnyName(policyName, requestedPolicyNames) == false) {
+                continue;
+            }
+            policyToTemplates.computeIfAbsent(policyName, k -> new ArrayList<>()).add(entry.getKey());
+            templateToPolicy.put(entry.getKey(), policyName);
+        }
+
+        policyToDataStreams = Maps.newHashMapWithExpectedSize(expectedSize);
         for (String dataStream : allDataStreams) {
             String indexTemplate = MetadataIndexTemplateService.findV2Template(state.metadata(), indexTemplates, dataStream, false, true);
             if (indexTemplate == null) {
                 // Every data stream should ordinarily have an index template, so this branch should not fire under normal circumstances.
                 continue;
             }
-            final Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), indexTemplate);
-            final var policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(settings);
-            if (doesPolicyMatchAnyName(policyName, names) == false) {
-                // If a template's policy doesn't match any of the supplied names, we can skip it later on.
-                templateToPolicy.put(indexTemplate, null);
+            final var policyName = templateToPolicy.get(indexTemplate);
+            // If there was no entry, either the template didn't specify an ILM policy or the policy didn't match any of the requested names
+            if (policyName == null) {
                 continue;
             }
-            templateToPolicy.put(indexTemplate, policyName);
-            policyToDataStream.computeIfAbsent(policyName, k -> new ArrayList<>()).add(dataStream);
+            policyToDataStreams.computeIfAbsent(policyName, k -> new ArrayList<>()).add(dataStream);
+        }
+
+        policyToIndices = Maps.newHashMapWithExpectedSize(expectedSize);
+        for (IndexMetadata indexMetadata : state.metadata().indices().values()) {
+            final var policyName = indexMetadata.getLifecyclePolicyName();
+            // We only store the index if its policy matched any of the specified names.
+            if (doesPolicyMatchAnyName(policyName, requestedPolicyNames) == false) {
+                continue;
+            }
+            policyToIndices.computeIfAbsent(policyName, k -> new ArrayList<>()).add(indexMetadata.getIndex().getName());
         }
     }
 
     /**
-     * Calculate the indices, data streams, and composable templates that use the given policy.
+     * Retrieves the pre-calculated indices, data streams, and composable templates that use the given policy.
      */
     public ItemUsage calculateUsage(String policyName) {
-        final List<String> indices = new ArrayList<>();
-        for (IndexMetadata indexMetadata : state.metadata().indices().values()) {
-            if (policyName.equals(indexMetadata.getLifecyclePolicyName())) {
-                indices.add(indexMetadata.getIndex().getName());
-            }
-        }
-
-        final List<String> composableTemplates = new ArrayList<>();
-        for (Map.Entry<String, ComposableIndexTemplate> entry : state.metadata().templatesV2().entrySet()) {
-            var foundPolicy = templateToPolicy.getOrDefault(entry.getKey(), NOT_FOUND);
-            // Intentionally use strict equals here as we're using the sentinel value.
-            if (foundPolicy == NOT_FOUND) {
-                Settings settings = MetadataIndexTemplateService.resolveSettings(entry.getValue(), state.metadata().componentTemplates());
-                foundPolicy = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(settings);
-                // If this method will only be called once, we don't need to keep building the map.
-                if (willIterate) {
-                    templateToPolicy.put(entry.getKey(), foundPolicy);
-                }
-            }
-            if (policyName.equals(foundPolicy)) {
-                composableTemplates.add(entry.getKey());
-            }
-        }
-
-        return new ItemUsage(indices, policyToDataStream.getOrDefault(policyName, List.of()), composableTemplates);
+        return new ItemUsage(
+            policyToIndices.getOrDefault(policyName, List.of()),
+            policyToDataStreams.getOrDefault(policyName, List.of()),
+            policyToTemplates.getOrDefault(policyName, List.of())
+        );
     }
 
     private boolean doesPolicyMatchAnyName(String policyName, List<String> names) {

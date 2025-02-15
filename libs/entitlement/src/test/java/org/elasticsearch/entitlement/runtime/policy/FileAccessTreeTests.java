@@ -163,10 +163,9 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testTempDirAccess() {
-        Path tempDir = createTempDir();
         var tree = FileAccessTree.of(FilesEntitlement.EMPTY, TEST_PATH_LOOKUP);
-        assertThat(tree.canRead(tempDir), is(true));
-        assertThat(tree.canWrite(tempDir), is(true));
+        assertThat(tree.canRead(TEST_PATH_LOOKUP.tempDir()), is(true));
+        assertThat(tree.canWrite(TEST_PATH_LOOKUP.tempDir()), is(true));
     }
 
     FileAccessTree accessTree(FilesEntitlement entitlement) {

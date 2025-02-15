@@ -516,3 +516,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {date.IN operator with null in list, finds match ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/121491
+- class: org.elasticsearch.ingest.geoip.GeoIpDownloaderCliIT
+  method: testGeoIpDatabasesDownloadNoGeoipProcessors
+  issue: https://github.com/elastic/elasticsearch/issues/122683

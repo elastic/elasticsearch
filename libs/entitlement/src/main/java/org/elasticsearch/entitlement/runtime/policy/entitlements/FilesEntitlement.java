@@ -232,8 +232,8 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
             int foundKeys = (pathAsString != null ? 1 : 0) + (relativePathAsString != null ? 1 : 0) + (pathSetting != null ? 1 : 0)
                 + (relativePathSetting != null ? 1 : 0);
             if (foundKeys != 1) {
-                throw new PolicyValidationException("a files entitlement entry must contain one of " +
-                    "[path, relative_path, path_setting, relative_path_setting]"
+                throw new PolicyValidationException(
+                    "a files entitlement entry must contain one of " + "[path, relative_path, path_setting, relative_path_setting]"
                 );
             }
 

@@ -103,8 +103,8 @@ public class PolicyParserFailureTests extends ESTestCase {
             """.getBytes(StandardCharsets.UTF_8)), "test-failure-policy.yaml", false).parsePolicy());
         assertEquals(
             "[2:5] policy parsing error for [test-failure-policy.yaml] in scope [entitlement-module-name] "
-                + "for entitlement type [files]: a files entitlement entry must contain one of " +
-                "[path, relative_path, path_setting, relative_path_setting]",
+                + "for entitlement type [files]: a files entitlement entry must contain one of "
+                + "[path, relative_path, path_setting, relative_path_setting]",
             ppe.getMessage()
         );
     }
@@ -117,8 +117,8 @@ public class PolicyParserFailureTests extends ESTestCase {
             """.getBytes(StandardCharsets.UTF_8)), "test-failure-policy.yaml", false).parsePolicy());
         assertEquals(
             "[2:5] policy parsing error for [test-failure-policy.yaml] in scope [entitlement-module-name] "
-                + "for entitlement type [files]: a files entitlement entry must contain one of " +
-                "[path, relative_path, path_setting, relative_path_setting]",
+                + "for entitlement type [files]: a files entitlement entry must contain one of "
+                + "[path, relative_path, path_setting, relative_path_setting]",
             ppe.getMessage()
         );
     }

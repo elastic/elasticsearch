@@ -82,11 +82,14 @@ public class DateTruncRoundingTests extends ESTestCase {
         rounding = createRounding(Period.ofMonths(3));
         assertEquals(1, rounding.roundingSize(Rounding.DateTimeUnit.QUARTER_OF_YEAR), 0d);
 
+        rounding = createRounding(Period.ofMonths(5));
+        assertEquals(1, rounding.roundingSize(Rounding.DateTimeUnit.MONTH_OF_YEAR), 0d);
+
         rounding = createRounding(Period.ofYears(1));
         assertEquals(1, rounding.roundingSize(Rounding.DateTimeUnit.YEAR_OF_CENTURY), 0d);
 
-        e = expectThrows(IllegalArgumentException.class, () -> createRounding(Period.ofYears(3)));
-        assertThat(e.getMessage(), containsString("Time interval is not supported"));
+        rounding = createRounding(Period.ofYears(3));
+        assertEquals(1, rounding.roundingSize(Rounding.DateTimeUnit.YEAR_OF_CENTURY), 0d);
     }
 
     public void testCreateRoundingNullInterval() {

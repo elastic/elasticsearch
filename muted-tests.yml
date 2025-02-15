@@ -383,6 +383,9 @@ tests:
 - class: org.elasticsearch.entitlement.runtime.policy.PolicyParserTests
   method: testParseFiles
   issue: https://github.com/elastic/elasticsearch/issues/122664
+- class: org.elasticsearch.entitlement.runtime.policy.PolicyParserTests
+  method: testPolicyBuilder
+  issue: https://github.com/elastic/elasticsearch/issues/122665
 
 # Examples:
 #

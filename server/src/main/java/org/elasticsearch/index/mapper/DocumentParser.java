@@ -700,7 +700,7 @@ public final class DocumentParser {
 
         // Check if we need to record the array source. This only applies to synthetic source.
         boolean canRemoveSingleLeafElement = false;
-        if (context.canAddIgnoredField() && (parsesArrayValue(mapper) == false && supportStoringArrayOffsets == false)) {
+        if (context.canAddIgnoredField() && supportStoringArrayOffsets == false) {
             Mapper.SourceKeepMode mode = Mapper.SourceKeepMode.NONE;
             boolean objectWithFallbackSyntheticSource = false;
             if (mapper instanceof ObjectMapper objectMapper) {
@@ -737,12 +737,10 @@ public final class DocumentParser {
             }
         }
 
-        if (parsesArrayValue(mapper) == false && supportStoringArrayOffsets == false) {
-            // In synthetic source, if any array element requires storing its source as-is, it takes precedence over
-            // elements from regular source loading that are then skipped from the synthesized array source.
-            // To prevent this, we track that parsing sub-context is within array scope.
-            context = context.maybeCloneForArray(mapper);
-        }
+        // In synthetic source, if any array element requires storing its source as-is, it takes precedence over
+        // elements from regular source loading that are then skipped from the synthesized array source.
+        // To prevent this, we track that parsing sub-context is within array scope.
+        context = context.maybeCloneForArray(mapper);
 
         XContentParser parser = context.parser();
         XContentParser.Token token;

@@ -611,7 +611,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
     public void testIndexUnfrozen() {
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         safeGet(indicesAdmin().create(new CreateIndexRequest(sourceIndex)));
-
+        ensureHealth(sourceIndex);
         // add doc with timestamp
         String time = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
         var doc = String.format(Locale.ROOT, "{\"%s\":\"%s\"}", DEFAULT_TIMESTAMP_FIELD, time);

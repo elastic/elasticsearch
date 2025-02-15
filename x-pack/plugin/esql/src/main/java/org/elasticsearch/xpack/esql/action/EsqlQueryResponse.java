@@ -180,6 +180,10 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         return isRunning;
     }
 
+    public boolean isPartial() {
+        return executionInfo != null && executionInfo.isPartial();
+    }
+
     public EsqlExecutionInfo getExecutionInfo() {
         return executionInfo;
     }

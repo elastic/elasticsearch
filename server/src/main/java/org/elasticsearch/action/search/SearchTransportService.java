@@ -122,6 +122,10 @@ public class SearchTransportService {
         this.responseWrapper = responseWrapper;
     }
 
+    public TransportService transportService() {
+        return transportService;
+    }
+
     public void sendFreeContext(
         Transport.Connection connection,
         ShardSearchContextId contextId,

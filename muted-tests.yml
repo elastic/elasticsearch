@@ -386,6 +386,9 @@ tests:
 - class: org.elasticsearch.entitlement.runtime.policy.PolicyParserTests
   method: testPolicyBuilder
   issue: https://github.com/elastic/elasticsearch/issues/122665
+- class: org.elasticsearch.entitlement.runtime.policy.PolicyParserFailureTests
+  method: testEntitlementAbsolutePathWhenRelative
+  issue: https://github.com/elastic/elasticsearch/issues/122666
 
 # Examples:
 #

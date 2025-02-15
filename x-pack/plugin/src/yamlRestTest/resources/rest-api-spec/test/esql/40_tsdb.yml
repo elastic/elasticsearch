@@ -446,6 +446,52 @@ stats on aggregate_metric_double missing min and max:
   - match: {values.0.3: 10}
 
 ---
+render aggregate_metric_double when missing min and max:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ aggregate_metric_double_rendering ]
+      reason: "Support for rendering aggregate_metric_doubles"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test4 | KEEP agg_metric'
+
+  - length: {values: 1}
+  - length: {values.0: 1}
+  - match: {columns.0.name: "agg_metric"}
+  - match: {columns.0.type: "aggregate_metric_double"}
+  - match: {values.0.0: '{ "sum": 1.0, "value_count": 10 }'}
+
+---
+to_string aggregate_metric_double:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ aggregate_metric_double_rendering ]
+      reason: "Support for rendering aggregate_metric_doubles"
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test4 | EVAL agg = to_string(agg_metric) | KEEP agg'
+
+  - length: {values: 1}
+  - length: {values.0: 1}
+  - match: {columns.0.name: "agg"}
+  - match: {columns.0.type: "keyword"}
+  - match: {values.0.0: '{ "sum": 1.0, "value_count": 10 }'}
+
+---
 from index pattern unsupported counter:
   - requires:
       test_runner_features: [capabilities]

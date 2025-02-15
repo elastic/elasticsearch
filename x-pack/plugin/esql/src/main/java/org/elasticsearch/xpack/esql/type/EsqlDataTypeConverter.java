@@ -15,6 +15,10 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.CompositeBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
@@ -58,6 +62,7 @@ import java.time.temporal.TemporalAmount;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.StringJoiner;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -662,6 +667,27 @@ public class EsqlDataTypeConverter {
 
     public static long booleanToUnsignedLong(boolean number) {
         return number ? ONE_AS_UNSIGNED_LONG : ZERO_AS_UNSIGNED_LONG;
+    }
+
+    public static String aggregateMetricDoubleBlockToString(CompositeBlock compositeBlock, int index) {
+        var minBlock = compositeBlock.getBlock(AggregateMetricDoubleBlockBuilder.Metric.MIN.getIndex());
+        var maxBlock = compositeBlock.getBlock(AggregateMetricDoubleBlockBuilder.Metric.MAX.getIndex());
+        var sumBlock = compositeBlock.getBlock(AggregateMetricDoubleBlockBuilder.Metric.SUM.getIndex());
+        var countBlock = compositeBlock.getBlock(AggregateMetricDoubleBlockBuilder.Metric.COUNT.getIndex());
+        final StringJoiner joiner = new StringJoiner(", ");
+        if (maxBlock.isNull(index) == false) {
+            joiner.add("\"max\": " + ((DoubleBlock) maxBlock).getDouble(index));
+        }
+        if (minBlock.isNull(index) == false) {
+            joiner.add("\"min\": " + ((DoubleBlock) minBlock).getDouble(index));
+        }
+        if (sumBlock.isNull(index) == false) {
+            joiner.add("\"sum\": " + ((DoubleBlock) sumBlock).getDouble(index));
+        }
+        if (countBlock.isNull(index) == false) {
+            joiner.add("\"value_count\": " + ((IntBlock) countBlock).getInt(index));
+        }
+        return "{ " + joiner + " }";
     }
 
     public enum EsqlConverter implements Converter {

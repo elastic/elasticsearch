@@ -252,16 +252,14 @@ public class ComputeService {
                             cancelQueryOnFailure,
                             localListener.acquireCompute().map(r -> {
                                 localClusterWasInterrupted.set(execInfo.isStopped());
-                                if (execInfo.isCrossClusterSearch() && execInfo.clusterAliases().contains(LOCAL_CLUSTER)) {
-                                    execInfo.swapCluster(
-                                        LOCAL_CLUSTER,
-                                        (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTotalShards(r.getTotalShards())
-                                            .setSuccessfulShards(r.getSuccessfulShards())
-                                            .setSkippedShards(r.getSkippedShards())
-                                            .setFailedShards(r.getFailedShards())
-                                            .build()
-                                    );
-                                }
+                                execInfo.swapCluster(
+                                    LOCAL_CLUSTER,
+                                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTotalShards(r.getTotalShards())
+                                        .setSuccessfulShards(r.getSuccessfulShards())
+                                        .setSkippedShards(r.getSkippedShards())
+                                        .setFailedShards(r.getFailedShards())
+                                        .build()
+                                );
                                 return r.getProfiles();
                             })
                         );

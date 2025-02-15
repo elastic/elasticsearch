@@ -323,9 +323,6 @@ tests:
 - class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
   method: testExchangeSourceContinueOnFailure
   issue: https://github.com/elastic/elasticsearch/issues/122408
-- class: org.elasticsearch.search.SearchTimeoutIT
-  method: testSuggestTimeoutWithPartialResults
-  issue: https://github.com/elastic/elasticsearch/issues/122548
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.MinioRepositoryAnalysisRestIT
   method: testRepositoryAnalysis
   issue: https://github.com/elastic/elasticsearch/issues/122670

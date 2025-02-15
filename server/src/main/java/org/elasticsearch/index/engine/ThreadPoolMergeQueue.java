@@ -61,22 +61,24 @@ public class ThreadPoolMergeQueue {
 
     void submitMergeTask(MergeTask mergeTask) {
         enqueueMergeTask(mergeTask);
+        if (mergeTask.supportsIOThrottling()) {
+            // count submitted merge tasks that support IO auto throttling
+            activeIOThrottledMergeTasksCount.incrementAndGet();
+            maybeUpdateTargetMBPerSec();
+        }
         executeSmallestMergeTask();
     }
 
     void enqueueMergeTask(MergeTask mergeTask) {
         queuedMergeTasks.add(mergeTask);
-        if (mergeTask.supportsIOThrottling()) {
-            activeIOThrottledMergeTasksCount.incrementAndGet();
-            maybeUpdateTargetMBPerSec();
-        }
     }
 
     private void executeSmallestMergeTask() {
         final AtomicReference<MergeTask> smallestMergeTask = new AtomicReference<>();
         try {
             executorService.execute(() -> {
-                // one such task always executes a SINGLE merge task; this is important for merge queue statistics
+                // one such runnable always executes a SINGLE merge task from the queue
+                // this is important for merge queue statistics, i.e. the executor's queue size equals the merge tasks' queue size
                 while (true) {
                     try {
                         // will block if there are backlogged merges until they're enqueued again
@@ -85,11 +87,14 @@ public class ThreadPoolMergeQueue {
                         Thread.currentThread().interrupt();
                         return;
                     }
+                    // the merge task's scheduler might backlog rather than execute the task
+                    // it's then the duty of the said merge scheduler to re-enqueue the backlogged merge task
                     if (smallestMergeTask.get().runNowOrBacklog()) {
                         runMergeTask(smallestMergeTask.get());
                         // one runnable one merge task
                         return;
                     }
+                    // the merge task is backlogged by the merge scheduler,
                 }
             });
         } catch (Exception e) {

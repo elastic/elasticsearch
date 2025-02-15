@@ -246,7 +246,13 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      * @return the new Cluster object
      */
     public Cluster swapCluster(String clusterAlias, BiFunction<String, Cluster, Cluster> remappingFunction) {
-        return clusterInfo.compute(clusterAlias, remappingFunction);
+        return clusterInfo.compute(clusterAlias, (unused, oldCluster) -> {
+            final Cluster newCluster = remappingFunction.apply(clusterAlias, oldCluster);
+            if (newCluster != null && isPartial == false) {
+                isPartial = newCluster.isPartial();
+            }
+            return newCluster;
+        });
     }
 
     @Override
@@ -305,26 +311,12 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         return isPartial;
     }
 
-    /**
-     * Mark the query as having partial results.
-     */
-    public void markAsPartial() {
-        isPartial = true;
-    }
-
     public void markAsStopped() {
         isStopped = true;
     }
 
     public boolean isStopped() {
         return isStopped;
-    }
-
-    /**
-     * Mark this cluster as having partial results.
-     */
-    public void markClusterAsPartial(String clusterAlias) {
-        swapCluster(clusterAlias, (k, v) -> new Cluster.Builder(v).setStatus(Cluster.Status.PARTIAL).build());
     }
 
     /**
@@ -616,6 +608,10 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
         public List<ShardSearchFailure> getFailures() {
             return failures;
+        }
+
+        boolean isPartial() {
+            return status == Status.PARTIAL || status == Status.SKIPPED || (failedShards != null && failedShards > 0);
         }
 
         @Override

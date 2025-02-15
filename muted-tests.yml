@@ -498,3 +498,6 @@ tests:
 - class: org.elasticsearch.upgrades.VectorSearchIT
   method: testBBQVectorSearch {upgradedNodes=2}
   issue: https://github.com/elastic/elasticsearch/issues/121272
+- class: org.elasticsearch.xpack.security.authc.esnative.ReservedRealmElasticAutoconfigIntegTests
+  method: testAutoconfigFailedPasswordPromotion
+  issue: https://github.com/elastic/elasticsearch/issues/122668

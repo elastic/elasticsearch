@@ -1784,7 +1784,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
         }
         for (CountDownLatch operation : inFlightAsyncOperations) {
-            safeAwait(operation);
+            safeAwait(operation, TEST_REQUEST_TIMEOUT);
         }
         if (bogusIds.isEmpty() == false) {
             // delete the bogus types again - it might trigger merges or at least holes in the segments and enforces deleted docs!

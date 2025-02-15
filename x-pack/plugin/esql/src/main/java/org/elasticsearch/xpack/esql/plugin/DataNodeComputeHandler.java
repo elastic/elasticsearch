@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -466,8 +467,12 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             request.runNodeLevelReduction()
         );
         // the sender doesn't support retry on shard failures, so we need to fail fast here.
-        final boolean supportRetryOnFailure = channel.getVersion().onOrAfter(TransportVersions.ESQL_RETRY_ON_SHARD_LEVEL_FAILURE)
-            || channel.getVersion().isPatchFrom(TransportVersions.ESQL_RETRY_ON_SHARD_LEVEL_FAILURE_BACKPORT_8_19);
-        runComputeOnDataNode((CancellableTask) task, sessionId, reductionPlan, request, supportRetryOnFailure == false, listener);
+        final boolean failFastOnShardFailures = supportShardLevelRetryFailure(channel.getVersion()) == false;
+        runComputeOnDataNode((CancellableTask) task, sessionId, reductionPlan, request, failFastOnShardFailures, listener);
+    }
+
+    static boolean supportShardLevelRetryFailure(TransportVersion transportVersion) {
+        return transportVersion.onOrAfter(TransportVersions.ESQL_RETRY_ON_SHARD_LEVEL_FAILURE)
+            || transportVersion.isPatchFrom(TransportVersions.ESQL_RETRY_ON_SHARD_LEVEL_FAILURE_BACKPORT_8_19);
     }
 }

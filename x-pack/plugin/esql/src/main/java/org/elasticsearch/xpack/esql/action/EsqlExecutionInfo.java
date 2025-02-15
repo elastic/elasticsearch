@@ -175,16 +175,6 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     public void markEndQuery() {
         assert relativeStartNanos != null : "Relative start time must be set when markEndQuery is called";
         overallTook = new TimeValue(System.nanoTime() - relativeStartNanos, TimeUnit.NANOSECONDS);
-        if (isPartial == false) {
-            // TODO: Mark individual clusters as partial if failed shards exist
-            isPartial = clusterInfo.values()
-                .stream()
-                .anyMatch(
-                    c -> c.status == Cluster.Status.PARTIAL
-                        || c.status == Cluster.Status.SKIPPED
-                        || c.failedShards != null && c.failedShards > 0
-                );
-        }
     }
 
     // for testing only - use markEndQuery in production code
@@ -256,7 +246,15 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      * @return the new Cluster object
      */
     public Cluster swapCluster(String clusterAlias, BiFunction<String, Cluster, Cluster> remappingFunction) {
-        return clusterInfo.compute(clusterAlias, remappingFunction);
+        return clusterInfo.compute(clusterAlias, (unused, oldCluster) -> {
+            final Cluster newCluster = remappingFunction.apply(clusterAlias, oldCluster);
+            if (isPartial == false) {
+                isPartial = newCluster.getStatus() == Cluster.Status.PARTIAL
+                    || newCluster.getStatus() == Cluster.Status.SKIPPED
+                    || (newCluster.failedShards != null && newCluster.failedShards > 0);
+            }
+            return newCluster;
+        });
     }
 
     @Override

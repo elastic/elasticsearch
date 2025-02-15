@@ -98,6 +98,9 @@ privilege for the source data stream, index, or alias.
 in the `reindex.remote.whitelist` setting of `elasticsearch.yml`. See
 <<reindex-from-remote>>.
 
+* If ccs-based reindexing from a remote cluster, you must add the remote cluster setting. See
+<<add-remote-clusters>>.
+
 * Automatic data stream creation requires a matching index template with data
 stream enabled. See <<set-up-a-data-stream>>.
 
@@ -1124,6 +1127,30 @@ POST _reindex
 // TEST[s/^/PUT source\n/]
 // TEST[s/otherhost:9200/\${host}/]
 // TEST[s/\.\.\.,/"username": "test_admin", "password": "x-pack-test-password",/]
+
+[[ccs-based-reindex-from-remote]]
+==== ccs based reindex from remote
+
+Reindex supports Cross-cluster search (<<modules-cross-cluster-search,{ccs}>>) based reindexing from a remote Elasticsearch cluster:
+
+[source,console]
+--------------------------------------------------
+POST _reindex
+{
+  "source": {
+    "index": "cluster_one:my-index-000001"
+  },
+  "dest": {
+    "index": "my-new-index-000001"
+  }
+}
+--------------------------------------------------
+// TEST[setup:my_index_big]
+
+The `index` parameter must be specified with the remote cluster name and the index name, separated by 
+a colon (e.g., cluster_one:my-index-000001).
+
+NOTE: Reindexing requires that the remote cluster be configured on the local cluster.
 
 [[reindex-ssl]]
 ===== Configuring SSL parameters

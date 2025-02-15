@@ -394,6 +394,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/122569
 - class: org.elasticsearch.entitlement.qa.EntitlementsAllowedIT
   issue: https://github.com/elastic/elasticsearch/issues/122680
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/snapshot-restore/apis/get-snapshot-api/line_408}
+  issue: https://github.com/elastic/elasticsearch/issues/122681
 
 # Examples:
 #

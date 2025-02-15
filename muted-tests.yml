@@ -397,6 +397,9 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/snapshot-restore/apis/get-snapshot-api/line_408}
   issue: https://github.com/elastic/elasticsearch/issues/122681
+- class: org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageIT
+  method: testScaleWhileShrinking
+  issue: https://github.com/elastic/elasticsearch/issues/122119
 
 # Examples:
 #

@@ -460,9 +460,7 @@ public final class DocumentParser {
                 if (context.canAddIgnoredField()
                     && (fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK
                         || sourceKeepMode == Mapper.SourceKeepMode.ALL
-                        || (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS
-                            && context.inArrayScope()
-                            && mapper.supportStoringArrayOffsets(context) == false)
+                        || (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS && context.inArrayScope())
                         || (context.isWithinCopyTo() == false && context.isCopyToDestinationField(mapper.fullPath())))) {
                     context = context.addIgnoredFieldFromContext(
                         IgnoredSourceFieldMapper.NameValue.fromContext(context, fieldMapper.fullPath(), null)
@@ -766,10 +764,10 @@ public final class DocumentParser {
             previousToken = token;
         }
         if (mapper != null
+            && context.canAddIgnoredField()
             && mapper.supportStoringArrayOffsets(context)
             && previousToken == XContentParser.Token.START_ARRAY
-            && context.isImmediateParentAnArray()
-            && context.getRecordedSource() == false) {
+            && context.isImmediateParentAnArray()) {
             context.getOffSetContext().maybeRecordEmptyArray(mapper.getOffsetFieldName());
         }
         if (elements <= 1 && canRemoveSingleLeafElement) {

@@ -377,6 +377,9 @@ tests:
 - class: org.elasticsearch.index.mapper.ShapeGeometryFieldMapperTests
   method: testCartesianBoundsBlockLoader
   issue: https://github.com/elastic/elasticsearch/issues/122661
+- class: org.elasticsearch.entitlement.runtime.policy.PolicyParserTests
+  method: testPolicyBuilderOnExternalPlugin
+  issue: https://github.com/elastic/elasticsearch/issues/122663
 
 # Examples:
 #

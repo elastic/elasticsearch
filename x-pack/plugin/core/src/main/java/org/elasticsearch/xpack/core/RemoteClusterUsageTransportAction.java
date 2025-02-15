@@ -24,6 +24,8 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 
 public class RemoteClusterUsageTransportAction extends XPackUsageFeatureTransportAction {
 
+    private TransportService transportService;
+
     @Inject
     public RemoteClusterUsageTransportAction(
         TransportService transportService,
@@ -33,10 +35,11 @@ public class RemoteClusterUsageTransportAction extends XPackUsageFeatureTranspor
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(XPackUsageFeatureAction.REMOTE_CLUSTERS.name(), transportService, clusterService, threadPool, actionFilters);
+        this.transportService = transportService;
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         XPackUsageRequest request,
         ClusterState state,

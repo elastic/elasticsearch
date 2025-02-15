@@ -109,7 +109,7 @@ public class EsqlInfoTransportActionTests extends ESTestCase {
             client
         );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(mock(Task.class), null, null, future);
+        usageAction.localClusterStateOperation(mock(Task.class), null, null, future);
         EsqlFeatureSetUsage esqlUsage = (EsqlFeatureSetUsage) future.get().getUsage();
 
         long fooBarBaz = ObjectPath.eval("foo.bar.baz", esqlUsage.stats());

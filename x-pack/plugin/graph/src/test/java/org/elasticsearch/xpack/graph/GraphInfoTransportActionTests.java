@@ -55,7 +55,7 @@ public class GraphInfoTransportActionTests extends ESTestCase {
             licenseState
         );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, null, future);
+        usageAction.localClusterStateOperation(null, null, null, future);
         XPackFeatureUsage usage = future.get().getUsage();
         assertThat(usage.available(), is(available));
 
@@ -95,7 +95,7 @@ public class GraphInfoTransportActionTests extends ESTestCase {
             licenseState
         );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, null, future);
+        usageAction.localClusterStateOperation(null, null, null, future);
         XPackFeatureUsage usage = future.get().getUsage();
         assertThat(usage.enabled(), is(enabled));
 

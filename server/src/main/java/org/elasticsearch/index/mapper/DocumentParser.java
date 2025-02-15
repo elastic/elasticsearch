@@ -613,8 +613,12 @@ public final class DocumentParser {
     }
 
     private static void parseArray(DocumentParserContext context, String lastFieldName) throws IOException {
+        // Record previous immediate parent, so that it can be reset after array has been parsed:
+        // This is for recording array offset with synthetic source. Only if the immediate parent is an array,
+        // then we offsets can be accounted accurately.
         var prev = context.getImmediateXContentParent();
         context.setImmediateXContentParent(context.parser().currentToken());
+
         Mapper mapper = getLeafMapper(context, lastFieldName);
         if (mapper != null) {
             // There is a concrete mapper for this field already. Need to check if the mapper
@@ -628,6 +632,7 @@ public final class DocumentParser {
         } else {
             parseArrayDynamic(context, lastFieldName);
         }
+        // Reset previous immediate parent
         context.setImmediateXContentParent(prev);
     }
 

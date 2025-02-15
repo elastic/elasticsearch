@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.nullValue;
 
 public class OffsetDocValuesLoaderTests extends MapperServiceTestCase {
 
@@ -29,6 +30,107 @@ public class OffsetDocValuesLoaderTests extends MapperServiceTestCase {
             .put("index.mapping.source.mode", "synthetic")
             .put("index.mapping.synthetic_source_keep", "arrays")
             .build();
+    }
+
+    public void testOffsetArrayNoDocValues() throws Exception {
+        String mapping = """
+            {
+                "_doc": {
+                    "properties": {
+                        "field": {
+                            "type": "keyword",
+                            "doc_values": false
+                        }
+                    }
+                }
+            }
+            """;
+        try (var mapperService = createMapperService(mapping)) {
+            var fieldMapper = mapperService.mappingLookup().getMapper("field");
+            assertThat(fieldMapper.getOffsetFieldName(), nullValue());
+        }
+    }
+
+    public void testOffsetArrayStored() throws Exception {
+        String mapping = """
+            {
+                "_doc": {
+                    "properties": {
+                        "field": {
+                            "type": "keyword",
+                            "store": true
+                        }
+                    }
+                }
+            }
+            """;
+        try (var mapperService = createMapperService(mapping)) {
+            var fieldMapper = mapperService.mappingLookup().getMapper("field");
+            assertThat(fieldMapper.getOffsetFieldName(), nullValue());
+        }
+    }
+
+    public void testOffsetMultiFields() throws Exception {
+        String mapping = """
+            {
+                "_doc": {
+                    "properties": {
+                        "field": {
+                            "type": "keyword",
+                            "fields": {
+                                "sub": {
+                                    "type": "text"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            """;
+        try (var mapperService = createMapperService(mapping)) {
+            var fieldMapper = mapperService.mappingLookup().getMapper("field");
+            assertThat(fieldMapper.getOffsetFieldName(), nullValue());
+        }
+    }
+
+    public void testOffsetArrayNoSyntheticSource() throws Exception {
+        String mapping = """
+            {
+                "_doc": {
+                    "properties": {
+                        "field": {
+                            "type": "keyword"
+                        }
+                    }
+                }
+            }
+            """;
+        try (var mapperService = createMapperService(Settings.EMPTY, mapping)) {
+            var fieldMapper = mapperService.mappingLookup().getMapper("field");
+            assertThat(fieldMapper.getOffsetFieldName(), nullValue());
+        }
+    }
+
+    public void testOffsetArrayNoSourceArrayKeep() throws Exception {
+        String mapping = """
+            {
+                "_doc": {
+                    "properties": {
+                        "field": {
+                            "type": "keyword"
+                        }
+                    }
+                }
+            }
+            """;
+        var settingsBuilder = Settings.builder().put("index.mapping.source.mode", "synthetic");
+        if (randomBoolean()) {
+            settingsBuilder.put("index.mapping.synthetic_source_keep", randomBoolean() ? "none" : "all");
+        }
+        try (var mapperService = createMapperService(settingsBuilder.build(), mapping)) {
+            var fieldMapper = mapperService.mappingLookup().getMapper("field");
+            assertThat(fieldMapper.getOffsetFieldName(), nullValue());
+        }
     }
 
     public void testOffsetArray() throws Exception {
@@ -73,7 +175,7 @@ public class OffsetDocValuesLoaderTests extends MapperServiceTestCase {
     }
 
     private void verifyOffsets(String source, String expectedSource) throws IOException {
-        var mapperService = createMapperService("""
+        String mapping = """
             {
                 "_doc": {
                     "properties": {
@@ -83,29 +185,35 @@ public class OffsetDocValuesLoaderTests extends MapperServiceTestCase {
                     }
                 }
             }
-            """);
-        var mapper = mapperService.documentMapper();
+            """;
+        verifyOffsets(mapping, source, expectedSource);
+    }
 
-        try (var directory = newDirectory()) {
-            var iw = indexWriterForSyntheticSource(directory);
-            var doc = mapper.parse(new SourceToParse("_id", new BytesArray(source), XContentType.JSON));
-            doc.updateSeqID(0, 0);
-            doc.version().setLongValue(0);
-            iw.addDocuments(doc.docs());
-            iw.close();
-            try (var indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
-                var layer = new SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer("field", "field.offsets");
-                var leafReader = indexReader.leaves().get(0).reader();
-                var loader = (ImmediateDocValuesLoader) layer.docValuesLoader(leafReader, new int[] { 0 });
-                assertTrue(loader.advanceToDoc(0));
-                assertTrue(loader.count() > 0);
-                XContentBuilder builder = jsonBuilder().startObject();
-                builder.startArray("field");
-                loader.write(builder);
-                builder.endArray().endObject();
+    private void verifyOffsets(String mapping, String source, String expectedSource) throws IOException {
+        try (var mapperService = createMapperService(mapping)) {
+            var mapper = mapperService.documentMapper();
 
-                var actual = Strings.toString(builder);
-                assertEquals(expectedSource, actual);
+            try (var directory = newDirectory()) {
+                var iw = indexWriterForSyntheticSource(directory);
+                var doc = mapper.parse(new SourceToParse("_id", new BytesArray(source), XContentType.JSON));
+                doc.updateSeqID(0, 0);
+                doc.version().setLongValue(0);
+                iw.addDocuments(doc.docs());
+                iw.close();
+                try (var indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
+                    var layer = new SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer("field", "field.offsets");
+                    var leafReader = indexReader.leaves().getFirst().reader();
+                    var loader = (ImmediateDocValuesLoader) layer.docValuesLoader(leafReader, new int[] { 0 });
+                    assertTrue(loader.advanceToDoc(0));
+                    assertTrue(loader.count() > 0);
+                    XContentBuilder builder = jsonBuilder().startObject();
+                    builder.startArray("field");
+                    loader.write(builder);
+                    builder.endArray().endObject();
+
+                    var actual = Strings.toString(builder);
+                    assertEquals(expectedSource, actual);
+                }
             }
         }
     }

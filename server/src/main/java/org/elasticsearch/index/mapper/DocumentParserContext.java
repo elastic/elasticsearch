@@ -500,18 +500,18 @@ public abstract class DocumentParserContext {
         return fieldArrayContext;
     }
 
-    private XContentParser.Token token;
+    private XContentParser.Token lastSetToken;
 
     public void setImmediateXContentParent(XContentParser.Token token) {
-        this.token = token;
+        this.lastSetToken = token;
     }
 
     public XContentParser.Token getImmediateXContentParent() {
-        return token;
+        return lastSetToken;
     }
 
     public boolean isImmediateParentAnArray() {
-        return token == XContentParser.Token.START_ARRAY;
+        return lastSetToken == XContentParser.Token.START_ARRAY;
     }
 
     /**

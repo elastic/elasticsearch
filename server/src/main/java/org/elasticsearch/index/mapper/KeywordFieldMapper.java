@@ -443,6 +443,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             String offsetsFieldName;
             if (context.isSourceSynthetic()
                 && sourceKeepMode == SourceKeepMode.ARRAYS
+                && hasDocValues()
                 && fieldtype.stored() == false
                 && copyTo.copyToFields().isEmpty()
                 && multiFieldsBuilder.hasMultiFields() == false) {
@@ -1106,11 +1107,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     public boolean supportStoringArrayOffsets(DocumentParserContext context) {
-        if (offsetsFieldName != null) {
-            return true;
-        } else {
-            return false;
-        }
+        return offsetsFieldName != null;
     }
 
     @Override

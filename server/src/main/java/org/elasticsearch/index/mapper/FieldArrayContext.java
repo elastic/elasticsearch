@@ -74,7 +74,7 @@ public class FieldArrayContext {
 
         int currentOffset;
         // Need to use TreeMap here, so that we maintain the order in which each value (with offset) gets inserted,
-        // (which is in the same order was document gets parsed) so we store offsets in right order.
+        // (which is in the same order the document gets parsed) so we store offsets in right order.
         final Map<String, List<Integer>> valueToOffsets = new TreeMap<>();
         final List<Integer> nullValueOffsets = new ArrayList<>(2);
 

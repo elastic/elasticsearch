@@ -97,7 +97,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         Runnable runOnTaskFailure,
         ActionListener<ComputeResponse> outListener
     ) {
-        DataNodeRequestSender sender = new DataNodeRequestSender(transportService, esqlExecutor, parentTask) {
+        final boolean allowPartialResults = configuration.allowPartialResults();
+        DataNodeRequestSender sender = new DataNodeRequestSender(transportService, esqlExecutor, parentTask, allowPartialResults) {
             @Override
             protected void sendRequest(
                 DiscoveryNode node,
@@ -125,14 +126,28 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     queryPragmas.exchangeBufferSize(),
                     esqlExecutor,
                     listener.delegateFailureAndWrap((l, unused) -> {
+                        final Runnable onGroupFailure;
+                        final CancellableTask groupTask;
+                        if (allowPartialResults) {
+                            groupTask = RemoteListenerGroup.createGroupTask(
+                                transportService,
+                                parentTask,
+                                () -> "compute group: data-node [" + node.getName() + "], " + shardIds + " [" + shardIds + "]"
+                            );
+                            onGroupFailure = computeService.cancelQueryOnFailure(groupTask);
+                            l = ActionListener.runAfter(l, () -> transportService.getTaskManager().unregister(groupTask));
+                        } else {
+                            groupTask = parentTask;
+                            onGroupFailure = runOnTaskFailure;
+                        }
                         final AtomicReference<DataNodeComputeResponse> nodeResponseRef = new AtomicReference<>();
                         try (
-                            var computeListener = new ComputeListener(threadPool, runOnTaskFailure, l.map(ignored -> nodeResponseRef.get()))
+                            var computeListener = new ComputeListener(threadPool, onGroupFailure, l.map(ignored -> nodeResponseRef.get()))
                         ) {
-                            final var remoteSink = exchangeService.newRemoteSink(parentTask, childSessionId, transportService, connection);
+                            final var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
                             exchangeSource.addRemoteSink(
                                 remoteSink,
-                                true,
+                                allowPartialResults == false,
                                 pagesFetched::incrementAndGet,
                                 queryPragmas.concurrentExchangeClients(),
                                 computeListener.acquireAvoid()
@@ -153,7 +168,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 connection,
                                 ComputeService.DATA_ACTION_NAME,
                                 dataNodeRequest,
-                                parentTask,
+                                groupTask,
                                 TransportRequestOptions.EMPTY,
                                 new ActionListenerResponseHandler<>(computeListener.acquireCompute().map(r -> {
                                     nodeResponseRef.set(r);
@@ -171,7 +186,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             originalIndices,
             PlannerUtils.requestTimestampFilter(dataNodePlan),
             runOnTaskFailure,
-            ActionListener.runAfter(outListener, exchangeSource.addEmptySink()::close)
+            ActionListener.releaseAfter(outListener, exchangeSource.addEmptySink())
         );
     }
 
@@ -238,6 +253,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         }
                         onResponse(List.of());
                     } else {
+                        // TODO: add these to fatal failures so we can continue processing other shards.
                         try {
                             exchangeService.finishSinkHandler(request.sessionId(), e);
                         } finally {
@@ -391,7 +407,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 task.addListener(
                     () -> exchangeService.finishSinkHandler(externalId, new TaskCancelledException(task.getReasonCancelled()))
                 );
-                var exchangeSource = new ExchangeSourceHandler(1, esqlExecutor, computeListener.acquireAvoid());
+                var exchangeSource = new ExchangeSourceHandler(1, esqlExecutor);
                 exchangeSource.addRemoteSink(internalSink::fetchPageAsync, true, () -> {}, 1, ActionListener.noop());
                 var reductionListener = computeListener.acquireCompute();
                 computeService.runCompute(

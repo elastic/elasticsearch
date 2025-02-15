@@ -2008,3 +2008,143 @@ create index with use_synthetic_source:
         flush: false
   - gt: { test.store_size_in_bytes: 0 }
   - is_false: test.fields._recovery_source
+---
+"Nested synthetic source with indexed dense vectors":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ synthetic_nested_dense_vector_bug_fix ]
+      reason: "Requires synthetic source bugfix for dense vectors in nested objects"
+  - do:
+      indices.create:
+        index: nested_dense_vector_synthetic_test
+        body:
+          mappings:
+            properties:
+              parent:
+                type: nested
+                properties:
+                  vector:
+                    type: dense_vector
+                    index: true
+                    similarity: l2_norm
+                  text:
+                    type: text
+          settings:
+            index:
+              mapping:
+                source:
+                  mode: synthetic
+  - do:
+      index:
+        index: nested_dense_vector_synthetic_test
+        id: 0
+        refresh: true
+        body: { "parent": [ { "vector": [ 1, 2 ],"text": "foo" }, { "vector": [ 2, 2 ], "text": "bar" } ] }
+
+  - do:
+      index:
+        index: nested_dense_vector_synthetic_test
+        id: 1
+        refresh: true
+        body: { "parent": [ { "text": "foo" }, { "vector": [ 2, 2 ], "text": "bar" } ] }
+
+  - do:
+      index:
+        index: nested_dense_vector_synthetic_test
+        id: 2
+        refresh: true
+        body: { "parent": [ { "vector": [ 1, 2 ] }, { "vector": [ 2, 2 ], "text": "bar" } ] }
+
+
+  - do:
+      search:
+        index: nested_dense_vector_synthetic_test
+        body:
+          query:
+            match_all: {}
+
+  - match: { hits.hits.0._source.parent.0.vector: [ 1.0, 2.0 ] }
+  - match: { hits.hits.0._source.parent.0.text: "foo" }
+  - match: { hits.hits.0._source.parent.1.vector: [ 2.0, 2.0 ] }
+  - match: { hits.hits.0._source.parent.1.text: "bar" }
+  - is_false:  hits.hits.1._source.parent.0.vector
+  - match: { hits.hits.1._source.parent.0.text: "foo" }
+  - match: { hits.hits.1._source.parent.1.vector: [ 2.0, 2.0 ] }
+  - match: { hits.hits.1._source.parent.1.text: "bar" }
+  - match: {hits.hits.2._source.parent.0.vector: [ 1.0, 2.0 ] }
+  - is_false: hits.hits.2._source.parent.0.text
+  - match: { hits.hits.2._source.parent.1.vector: [ 2.0, 2.0 ] }
+  - match: { hits.hits.2._source.parent.1.text: "bar" }
+---
+"Nested synthetic source with un-indexed dense vectors":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ synthetic_nested_dense_vector_bug_fix ]
+      reason: "Requires synthetic source bugfix for dense vectors in nested objects"
+  - do:
+      indices.create:
+        index: nested_dense_vector_synthetic_test
+        body:
+          mappings:
+            properties:
+              parent:
+                type: nested
+                properties:
+                  vector:
+                    type: dense_vector
+                    index: false
+                  text:
+                    type: text
+          settings:
+            index:
+              mapping:
+                source:
+                  mode: synthetic
+  - do:
+      index:
+        index: nested_dense_vector_synthetic_test
+        id: 0
+        refresh: true
+        body: { "parent": [ { "vector": [ 1, 2 ],"text": "foo" }, { "vector": [ 2, 2 ], "text": "bar" } ] }
+
+  - do:
+      index:
+        index: nested_dense_vector_synthetic_test
+        id: 1
+        refresh: true
+        body: { "parent": [ { "text": "foo" }, { "vector": [ 2, 2 ], "text": "bar" } ] }
+
+  - do:
+      index:
+        index: nested_dense_vector_synthetic_test
+        id: 2
+        refresh: true
+        body: { "parent": [ { "vector": [ 1, 2 ] }, { "vector": [ 2, 2 ], "text": "bar" } ] }
+
+
+  - do:
+      search:
+        index: nested_dense_vector_synthetic_test
+        body:
+          query:
+            match_all: {}
+
+  - match: { hits.hits.0._source.parent.0.vector: [ 1.0, 2.0 ] }
+  - match: { hits.hits.0._source.parent.0.text: "foo" }
+  - match: { hits.hits.0._source.parent.1.vector: [ 2.0, 2.0 ] }
+  - match: { hits.hits.0._source.parent.1.text: "bar" }
+  - is_false:  hits.hits.1._source.parent.0.vector
+  - match: { hits.hits.1._source.parent.0.text: "foo" }
+  - match: { hits.hits.1._source.parent.1.vector: [ 2.0, 2.0 ] }
+  - match: { hits.hits.1._source.parent.1.text: "bar" }
+  - match: {hits.hits.2._source.parent.0.vector: [ 1.0, 2.0 ] }
+  - is_false: hits.hits.2._source.parent.0.text
+  - match: { hits.hits.2._source.parent.1.vector: [ 2.0, 2.0 ] }
+  - match: { hits.hits.2._source.parent.1.text: "bar" }
+

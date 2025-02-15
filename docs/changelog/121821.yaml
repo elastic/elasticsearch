@@ -1,0 +1,6 @@
+pr: 121821
+summary: Fix get all inference endponts not returning multiple endpoints sharing model
+  deployment
+area: Machine Learning
+type: bug
+issues: []

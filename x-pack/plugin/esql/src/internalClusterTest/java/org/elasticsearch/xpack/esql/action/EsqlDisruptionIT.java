@@ -87,48 +87,53 @@ public class EsqlDisruptionIT extends EsqlActionIT {
             request.allowPartialResults(randomBoolean());
         }
         ActionFuture<EsqlQueryResponse> future = client().execute(EsqlQueryAction.INSTANCE, request);
+        EsqlQueryResponse resp = null;
         try {
-            var resp = future.actionGet(2, TimeUnit.MINUTES);
+            resp = future.actionGet(2, TimeUnit.MINUTES);
             if (resp.isPartial() == false) {
                 return resp;
-            }
-            try (resp) {
-                assertTrue(request.allowPartialResults());
             }
         } catch (Exception ignored) {
 
         } finally {
             clearDisruption();
         }
-        try {
-            var resp = future.actionGet(2, TimeUnit.MINUTES);
+        // wait for the response after clear disruption
+        if (resp == null) {
+            try {
+                resp = future.actionGet(2, TimeUnit.MINUTES);
+            } catch (Exception e) {
+                logger.info(
+                    "running tasks: {}",
+                    client().admin()
+                        .cluster()
+                        .prepareListTasks()
+                        .get()
+                        .getTasks()
+                        .stream()
+                        .filter(
+                            // Skip the tasks we that'd get in the way while debugging
+                            t -> false == t.action().contains(TransportListTasksAction.TYPE.name())
+                                && false == t.action().contains(HealthNode.TASK_NAME)
+                        )
+                        .toList()
+                );
+                assertTrue("request must be failed or completed after clearing disruption", future.isDone());
+                ensureBlocksReleased();
+                logger.info("--> failed to execute esql query with disruption; retrying...", e);
+                EsqlTestUtils.assertEsqlFailure(e);
+            }
+        }
+        // use the response if it's not partial
+        if (resp != null) {
             if (resp.isPartial() == false) {
                 return resp;
             }
-            try (resp) {
+            try (var ignored = resp) {
                 assertTrue(request.allowPartialResults());
             }
-        } catch (Exception e) {
-            logger.info(
-                "running tasks: {}",
-                client().admin()
-                    .cluster()
-                    .prepareListTasks()
-                    .get()
-                    .getTasks()
-                    .stream()
-                    .filter(
-                        // Skip the tasks we that'd get in the way while debugging
-                        t -> false == t.action().contains(TransportListTasksAction.TYPE.name())
-                            && false == t.action().contains(HealthNode.TASK_NAME)
-                    )
-                    .toList()
-            );
-            assertTrue("request must be failed or completed after clearing disruption", future.isDone());
-            ensureBlocksReleased();
-            logger.info("--> failed to execute esql query with disruption; retrying...", e);
-            EsqlTestUtils.assertEsqlFailure(e);
         }
+        // re-run the query
         return super.run(request);
     }
 

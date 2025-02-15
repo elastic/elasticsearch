@@ -8,15 +8,20 @@
  */
 package org.elasticsearch.datastreams.action;
 
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.datastreams.GetDataStreamAction.Response;
 import org.elasticsearch.action.datastreams.GetDataStreamAction.Response.ManagedBy;
+import org.elasticsearch.action.support.local.LocalClusterStateHelper;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -29,6 +34,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -40,29 +46,29 @@ import static org.elasticsearch.cluster.metadata.DataStream.getDefaultFailureSto
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase<Response> {
+public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase<GetDataStreamsResponseTests.ResponseWrapper> {
 
     @Override
-    protected Writeable.Reader<Response> instanceReader() {
-        return Response::new;
+    protected Writeable.Reader<ResponseWrapper> instanceReader() {
+        return ResponseWrapper::new;
     }
 
     @Override
-    protected Response createTestInstance() {
+    protected ResponseWrapper createTestInstance() {
         int numDataStreams = randomIntBetween(0, 8);
         List<Response.DataStreamInfo> dataStreams = new ArrayList<>();
         for (int i = 0; i < numDataStreams; i++) {
             dataStreams.add(generateRandomDataStreamInfo());
         }
-        return new Response(dataStreams);
+        return new ResponseWrapper(new Response(dataStreams));
     }
 
     @Override
-    protected Response mutateInstance(Response instance) {
-        if (instance.getDataStreams().isEmpty()) {
-            return new Response(List.of(generateRandomDataStreamInfo()));
+    protected ResponseWrapper mutateInstance(ResponseWrapper instance) {
+        if (instance.response().getDataStreams().isEmpty()) {
+            return new ResponseWrapper(new Response(List.of(generateRandomDataStreamInfo())));
         }
-        return new Response(instance.getDataStreams().stream().map(this::mutateInstance).toList());
+        return new ResponseWrapper(new Response(instance.response().getDataStreams().stream().map(this::mutateInstance).toList()));
     }
 
     @SuppressWarnings("unchecked")
@@ -369,5 +375,56 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
             randomBoolean(),
             usually() ? randomNonNegativeLong() : null
         );
+    }
+
+    /**
+     * We need to wrap the repsonse class because the response itself doesn't need to be able to deserialize from the wire because
+     * a new node will never forward the request to a different node. Therefore, we moved the deserialization here to still be able to test
+     * the serialization.
+     */
+    public static class ResponseWrapper extends LocalClusterStateHelper.ResponseSerializationWrapper<Response> {
+
+        public ResponseWrapper(Response response) {
+            super(response);
+        }
+
+        public ResponseWrapper(StreamInput in) throws IOException {
+            super(
+                new Response(
+                    in.readCollectionAsList(ResponseWrapper::readDataStreamInfo),
+                    in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)
+                        ? in.readOptionalWriteable(RolloverConfiguration::new)
+                        : null,
+                    in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)
+                        ? in.readOptionalWriteable(DataStreamGlobalRetention::read)
+                        : null
+                )
+            );
+        }
+
+        private static Response.DataStreamInfo readDataStreamInfo(StreamInput in) throws IOException {
+            final var dataStream = DataStream.read(in);
+            return new Response.DataStreamInfo(
+                dataStream,
+                in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_ENABLED_BY_CLUSTER_SETTING)
+                    ? in.readBoolean()
+                    : dataStream.isFailureStoreExplicitlyEnabled(), // Revert to the behaviour before this field was added
+                ClusterHealthStatus.readFrom(in),
+                in.readOptionalString(),
+                in.readOptionalString(),
+                in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)
+                    ? in.readOptionalWriteable(ResponseWrapper::readTimeSeries)
+                    : null,
+                in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)
+                    ? in.readMap(Index::new, Response.IndexProperties::new)
+                    : Map.of(),
+                in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X) ? in.readBoolean() : true,
+                in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readOptionalVLong() : null
+            );
+        }
+
+        private static Response.TimeSeries readTimeSeries(StreamInput in) throws IOException {
+            return new Response.TimeSeries(in.readCollectionAsList(in1 -> new Tuple<>(in1.readInstant(), in1.readInstant())));
+        }
     }
 }

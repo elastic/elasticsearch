@@ -24,7 +24,7 @@ PUT semantic-embeddings
   "mappings": {
     "properties": {
       "semantic_text": { <1>
-        "type": "semantic_text", 
+        "type": "semantic_text"
       },
       "content": { <2>
         "type": "text",

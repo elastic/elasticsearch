@@ -11,9 +11,11 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.CompositeBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -30,6 +32,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.aggregateMetricDoubleToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.nanoTimeToString;
@@ -132,7 +135,19 @@ public final class ResponseValueUtils {
             case GEO_POINT, GEO_SHAPE, CARTESIAN_POINT, CARTESIAN_SHAPE -> spatialToString(
                 ((BytesRefBlock) block).getBytesRef(offset, scratch)
             );
-            case UNSUPPORTED, AGGREGATE_METRIC_DOUBLE -> (String) null;
+            case AGGREGATE_METRIC_DOUBLE -> {
+                CompositeBlock compositeBlock = (CompositeBlock) block;
+                var minBlock = compositeBlock.getBlock(AggregateMetricDoubleBlockBuilder.Metric.MIN.getIndex());
+                var maxBlock = compositeBlock.getBlock(AggregateMetricDoubleBlockBuilder.Metric.MAX.getIndex());
+                var sumBlock = compositeBlock.getBlock(AggregateMetricDoubleBlockBuilder.Metric.SUM.getIndex());
+                var countBlock = compositeBlock.getBlock(AggregateMetricDoubleBlockBuilder.Metric.COUNT.getIndex());
+                Double minVal = minBlock.isNull(offset) ? null : ((DoubleBlock) minBlock).getDouble(offset);
+                Double maxVal = maxBlock.isNull(offset) ? null : ((DoubleBlock) maxBlock).getDouble(offset);
+                Double sumVal = sumBlock.isNull(offset) ? null : ((DoubleBlock) sumBlock).getDouble(offset);
+                Integer countVal = countBlock.isNull(offset) ? null : ((IntBlock) countBlock).getInt(offset);
+                yield aggregateMetricDoubleToString(maxVal, minVal, sumVal, countVal);
+            }
+            case UNSUPPORTED -> (String) null;
             case SOURCE -> {
                 BytesRef val = ((BytesRefBlock) block).getBytesRef(offset, scratch);
                 try {

@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.esql.action;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.CompositeBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
@@ -25,6 +27,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.aggregateMetricDoubleToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.nanoTimeToString;
@@ -148,8 +151,23 @@ abstract class PositionToXContent {
                     return builder.value(versionToString(val));
                 }
             };
-            // TODO: Add implementation for aggregate_metric_double
-            case NULL, AGGREGATE_METRIC_DOUBLE -> new PositionToXContent(block) {
+            case AGGREGATE_METRIC_DOUBLE -> new PositionToXContent(block) {
+                @Override
+                protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
+                    throws IOException {
+                    CompositeBlock compositeBlock = (CompositeBlock) block;
+                    var minBlock = compositeBlock.getBlock(AggregateMetricDoubleBlockBuilder.Metric.MIN.getIndex());
+                    var maxBlock = compositeBlock.getBlock(AggregateMetricDoubleBlockBuilder.Metric.MAX.getIndex());
+                    var sumBlock = compositeBlock.getBlock(AggregateMetricDoubleBlockBuilder.Metric.SUM.getIndex());
+                    var countBlock = compositeBlock.getBlock(AggregateMetricDoubleBlockBuilder.Metric.COUNT.getIndex());
+                    Double minVal = minBlock.isNull(valueIndex) ? null : ((DoubleBlock) minBlock).getDouble(valueIndex);
+                    Double maxVal = maxBlock.isNull(valueIndex) ? null : ((DoubleBlock) maxBlock).getDouble(valueIndex);
+                    Double sumVal = sumBlock.isNull(valueIndex) ? null : ((DoubleBlock) sumBlock).getDouble(valueIndex);
+                    Integer countVal = countBlock.isNull(valueIndex) ? null : ((IntBlock) countBlock).getInt(valueIndex);
+                    return builder.value(aggregateMetricDoubleToString(maxVal, minVal, sumVal, countVal));
+                }
+            };
+            case NULL -> new PositionToXContent(block) {
                 @Override
                 protected XContentBuilder valueToXContent(XContentBuilder builder, ToXContent.Params params, int valueIndex)
                     throws IOException {

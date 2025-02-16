@@ -55,15 +55,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry.ACCESS_CONTROL_INDEX_NAME_PATTERN;
-import static org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry.CONNECTOR_INDEX_NAME_PATTERN;
-import static org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry.CONNECTOR_SYNC_JOBS_INDEX_NAME_PATTERN;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.junit.Assert.assertNotNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -92,14 +90,6 @@ public class ConnectorTemplateRegistryTests extends ESTestCase {
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
         Map<String, Integer> existingComponentTemplates = Map.of(
-            ConnectorTemplateRegistry.CONNECTOR_TEMPLATE_NAME + "-mappings",
-            ConnectorTemplateRegistry.REGISTRY_VERSION,
-            ConnectorTemplateRegistry.CONNECTOR_TEMPLATE_NAME + "-settings",
-            ConnectorTemplateRegistry.REGISTRY_VERSION,
-            ConnectorTemplateRegistry.CONNECTOR_SYNC_JOBS_TEMPLATE_NAME + "-mappings",
-            ConnectorTemplateRegistry.REGISTRY_VERSION,
-            ConnectorTemplateRegistry.CONNECTOR_SYNC_JOBS_TEMPLATE_NAME + "-settings",
-            ConnectorTemplateRegistry.REGISTRY_VERSION,
             ConnectorTemplateRegistry.ACCESS_CONTROL_TEMPLATE_NAME,
             ConnectorTemplateRegistry.REGISTRY_VERSION
         );
@@ -125,131 +115,6 @@ public class ConnectorTemplateRegistryTests extends ESTestCase {
         });
     }
 
-    public void testThatNonExistingComponentTemplatesAreAddedImmediately() throws Exception {
-        DiscoveryNode node = DiscoveryNodeUtils.create("node");
-        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
-
-        ClusterChangedEvent event = createClusterChangedEvent(
-            Collections.emptyMap(),
-            Collections.emptyMap(),
-            Collections.singletonMap(ConnectorTemplateRegistry.SEARCH_DEFAULT_PIPELINE_NAME, ConnectorTemplateRegistry.REGISTRY_VERSION),
-            Collections.emptyMap(),
-            nodes
-        );
-
-        AtomicInteger calledTimes = new AtomicInteger(0);
-        client.setVerifier((action, request, listener) -> verifyComponentTemplateInstalled(calledTimes, action, request, listener));
-        registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getComponentTemplateConfigs().size())));
-
-        calledTimes.set(0);
-
-        // attempting to register the event multiple times as a race condition can yield this test flaky, namely:
-        // when calling registry.clusterChanged(newEvent) the templateCreationsInProgress state that the IndexTemplateRegistry maintains
-        // might've not yet been updated to reflect that the first template registration was complete, so a second template registration
-        // will not be issued anymore, leaving calledTimes to 0
-        assertBusy(() -> {
-            // now delete all templates from the cluster state and let's retry
-            ClusterChangedEvent newEvent = createClusterChangedEvent(Collections.emptyMap(), Collections.emptyMap(), nodes);
-            registry.clusterChanged(newEvent);
-            assertThat(calledTimes.get(), greaterThan(4));
-        });
-    }
-
-    public void testThatVersionedOldComponentTemplatesAreUpgraded() throws Exception {
-        DiscoveryNode node = DiscoveryNodeUtils.create("node");
-        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
-
-        ClusterChangedEvent event = createClusterChangedEvent(
-            Collections.emptyMap(),
-            Collections.singletonMap(
-                ConnectorTemplateRegistry.CONNECTOR_TEMPLATE_NAME + "-settings",
-                ConnectorTemplateRegistry.REGISTRY_VERSION - 1
-            ),
-            Collections.singletonMap(ConnectorTemplateRegistry.SEARCH_DEFAULT_PIPELINE_NAME, ConnectorTemplateRegistry.REGISTRY_VERSION),
-            Collections.emptyMap(),
-            nodes
-        );
-        AtomicInteger calledTimes = new AtomicInteger(0);
-        client.setVerifier((action, request, listener) -> verifyComponentTemplateInstalled(calledTimes, action, request, listener));
-        registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getComponentTemplateConfigs().size())));
-    }
-
-    public void testThatUnversionedOldComponentTemplatesAreUpgraded() throws Exception {
-        DiscoveryNode node = DiscoveryNodeUtils.create("node");
-        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
-
-        ClusterChangedEvent event = createClusterChangedEvent(
-            Collections.emptyMap(),
-            Collections.singletonMap(ConnectorTemplateRegistry.CONNECTOR_TEMPLATE_NAME + "-mappings", null),
-            Collections.singletonMap(ConnectorTemplateRegistry.SEARCH_DEFAULT_PIPELINE_NAME, ConnectorTemplateRegistry.REGISTRY_VERSION),
-            Collections.emptyMap(),
-            nodes
-        );
-        AtomicInteger calledTimes = new AtomicInteger(0);
-        client.setVerifier((action, request, listener) -> verifyComponentTemplateInstalled(calledTimes, action, request, listener));
-        registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getComponentTemplateConfigs().size())));
-    }
-
-    public void testSameOrHigherVersionComponentTemplateNotUpgraded() {
-        DiscoveryNode node = DiscoveryNodeUtils.create("node");
-        DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
-
-        Map<String, Integer> versions = new HashMap<>();
-        versions.put(ConnectorTemplateRegistry.CONNECTOR_TEMPLATE_NAME + "-mappings", ConnectorTemplateRegistry.REGISTRY_VERSION);
-        versions.put(ConnectorTemplateRegistry.CONNECTOR_TEMPLATE_NAME + "-settings", ConnectorTemplateRegistry.REGISTRY_VERSION);
-        versions.put(ConnectorTemplateRegistry.CONNECTOR_SYNC_JOBS_TEMPLATE_NAME + "-mappings", ConnectorTemplateRegistry.REGISTRY_VERSION);
-        versions.put(ConnectorTemplateRegistry.CONNECTOR_SYNC_JOBS_TEMPLATE_NAME + "-settings", ConnectorTemplateRegistry.REGISTRY_VERSION);
-        versions.put(ConnectorTemplateRegistry.ACCESS_CONTROL_TEMPLATE_NAME, ConnectorTemplateRegistry.REGISTRY_VERSION);
-        ClusterChangedEvent sameVersionEvent = createClusterChangedEvent(Collections.emptyMap(), versions, nodes);
-        client.setVerifier((action, request, listener) -> {
-            if (action == PutPipelineTransportAction.TYPE) {
-                // Ignore this, it's verified in another test
-                return AcknowledgedResponse.TRUE;
-            }
-            if (action instanceof PutComponentTemplateAction) {
-                fail("template should not have been re-installed");
-                return null;
-            } else if (action == ILMActions.PUT) {
-                // Ignore this, it's verified in another test
-                return AcknowledgedResponse.TRUE;
-            } else if (action == TransportPutComposableIndexTemplateAction.TYPE) {
-                // Ignore this, it's verified in another test
-                return AcknowledgedResponse.TRUE;
-            } else {
-                fail("client called with unexpected request:" + request.toString());
-                return null;
-            }
-        });
-        registry.clusterChanged(sameVersionEvent);
-
-        versions.clear();
-        versions.put(
-            ConnectorTemplateRegistry.CONNECTOR_TEMPLATE_NAME + "-mappings",
-            ConnectorTemplateRegistry.REGISTRY_VERSION + randomIntBetween(0, 1000)
-        );
-        versions.put(
-            ConnectorTemplateRegistry.CONNECTOR_TEMPLATE_NAME + "-settings",
-            ConnectorTemplateRegistry.REGISTRY_VERSION + randomIntBetween(0, 1000)
-        );
-        versions.put(
-            ConnectorTemplateRegistry.CONNECTOR_SYNC_JOBS_TEMPLATE_NAME + "-mappings",
-            ConnectorTemplateRegistry.REGISTRY_VERSION + randomIntBetween(0, 1000)
-        );
-        versions.put(
-            ConnectorTemplateRegistry.CONNECTOR_SYNC_JOBS_TEMPLATE_NAME + "-settings",
-            ConnectorTemplateRegistry.REGISTRY_VERSION + randomIntBetween(0, 1000)
-        );
-        versions.put(
-            ConnectorTemplateRegistry.ACCESS_CONTROL_TEMPLATE_NAME,
-            ConnectorTemplateRegistry.REGISTRY_VERSION + randomIntBetween(0, 1000)
-        );
-        ClusterChangedEvent higherVersionEvent = createClusterChangedEvent(Collections.emptyMap(), versions, nodes);
-        registry.clusterChanged(higherVersionEvent);
-    }
-
     public void testThatMissingMasterNodeDoesNothing() {
         DiscoveryNode localNode = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").add(localNode).build();
@@ -260,7 +125,7 @@ public class ConnectorTemplateRegistryTests extends ESTestCase {
         });
 
         ClusterChangedEvent event = createClusterChangedEvent(
-            Collections.singletonMap(ConnectorTemplateRegistry.CONNECTOR_TEMPLATE_NAME, null),
+            Collections.singletonMap(ConnectorTemplateRegistry.ACCESS_CONTROL_TEMPLATE_NAME, null),
             Collections.emptyMap(),
             nodes
         );
@@ -357,10 +222,7 @@ public class ConnectorTemplateRegistryTests extends ESTestCase {
             assertThat(putRequest.indexTemplate().version(), equalTo((long) ConnectorTemplateRegistry.REGISTRY_VERSION));
             final List<String> indexPatterns = putRequest.indexTemplate().indexPatterns();
             assertThat(indexPatterns, hasSize(1));
-            assertThat(
-                indexPatterns,
-                contains(oneOf(ACCESS_CONTROL_INDEX_NAME_PATTERN, CONNECTOR_INDEX_NAME_PATTERN, CONNECTOR_SYNC_JOBS_INDEX_NAME_PATTERN))
-            );
+            assertThat(indexPatterns, contains(ACCESS_CONTROL_INDEX_NAME_PATTERN));
             assertNotNull(listener);
             return new TestPutIndexTemplateResponse(true);
         } else {

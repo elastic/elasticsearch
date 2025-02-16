@@ -18,11 +18,13 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.support.CountDownActionListener;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.Nullable;
@@ -35,12 +37,14 @@ import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.migrate.action.ReindexDataStreamIndexAction;
+import org.elasticsearch.xpack.migrate.action.ReindexDataStreamIndexTransportAction;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate.getReindexRequiredPredicate;
 
@@ -59,6 +63,7 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
     );
     private static final Logger logger = LogManager.getLogger(ReindexDataStreamPersistentTaskExecutor.class);
     private static final TimeValue TASK_KEEP_ALIVE_TIME = TimeValue.timeValueDays(1);
+    private static final IndicesOptions IGNORE_MISSING_OPTIONS = IndicesOptions.fromOptions(true, true, false, false);
     private final Client client;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
@@ -213,10 +218,40 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         reindexDataStreamIndexRequest.setParentTask(parentTaskId);
 
         SubscribableListener.<ReindexDataStreamIndexAction.Response>newForked(
-            l -> client.execute(ReindexDataStreamIndexAction.INSTANCE, reindexDataStreamIndexRequest, l)
+            l -> client.execute(
+                ReindexDataStreamIndexAction.INSTANCE,
+                reindexDataStreamIndexRequest,
+                l.delegateResponse(new BiConsumer<ActionListener<ReindexDataStreamIndexAction.Response>, Exception>() {
+                    @Override
+                    public void accept(ActionListener<ReindexDataStreamIndexAction.Response> responseActionListener, Exception e) {
+                        IndexMetadata sourceIndex = clusterService.state().getMetadata().index(index.getName());
+                        if (sourceIndex == null) {
+                            /*
+                             * One possible cause of exception here is that the source index no longer exists. This can happen if ILM
+                             * performs certain actions while reindex is happening, or if a user manually deletes it. In this case we don't
+                             * want to fail the task. We treat it as a success and move on. The updateDataStreamOrCleanup method will make
+                             * an attempt at deleting the destination index if it has been created.
+                             */
+                            logger.debug(
+                                "The source index {} in the data stream {} was removed during processing",
+                                index.getName(),
+                                sourceDataStream
+                            );
+                            // We need the destination index name in the response so that updateDataStreamOrCleanup can delete it
+                            l.onResponse(
+                                new ReindexDataStreamIndexAction.Response(
+                                    ReindexDataStreamIndexTransportAction.generateDestIndexName(index.getName())
+                                )
+                            );
+                        } else {
+                            l.onFailure(e);
+                        }
+                    }
+                })
+            )
         )
             .<AcknowledgedResponse>andThen(
-                (l, result) -> updateDataStream(sourceDataStream, index.getName(), result.getDestIndex(), l, parentTaskId)
+                (l, result) -> updateDataStreamOrCleanup(sourceDataStream, index.getName(), result.getDestIndex(), l, parentTaskId)
             )
             .<AcknowledgedResponse>andThen(l -> deleteIndex(index.getName(), parentTaskId, l))
             .addListener(ActionListener.wrap(unused -> {
@@ -230,24 +265,39 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
             }));
     }
 
-    private void updateDataStream(
+    /*
+     * If the oldIndex still exists, this method swaps newIndex into the dataStream and swaps out oldIndex. If oldIndex no longer exists,
+     * this method cleans up by deleting newIndex (if it exists).
+     */
+    private void updateDataStreamOrCleanup(
         String dataStream,
         String oldIndex,
         String newIndex,
         ActionListener<AcknowledgedResponse> listener,
         TaskId parentTaskId
     ) {
-        ModifyDataStreamsAction.Request modifyDataStreamRequest = new ModifyDataStreamsAction.Request(
-            TimeValue.MAX_VALUE,
-            TimeValue.MAX_VALUE,
-            List.of(DataStreamAction.removeBackingIndex(dataStream, oldIndex), DataStreamAction.addBackingIndex(dataStream, newIndex))
-        );
-        modifyDataStreamRequest.setParentTask(parentTaskId);
-        client.execute(ModifyDataStreamsAction.INSTANCE, modifyDataStreamRequest, listener);
+        IndexMetadata sourceIndex = clusterService.state().getMetadata().index(oldIndex);
+        if (sourceIndex == null) {
+            logger.debug(
+                "Index {} in data stream {} no longer exists after reindexing completed. Deleting reindexed index {}",
+                dataStream,
+                oldIndex,
+                newIndex
+            );
+            deleteIndex(newIndex, parentTaskId, listener);
+        } else {
+            ModifyDataStreamsAction.Request modifyDataStreamRequest = new ModifyDataStreamsAction.Request(
+                TimeValue.MAX_VALUE,
+                TimeValue.MAX_VALUE,
+                List.of(DataStreamAction.removeBackingIndex(dataStream, oldIndex), DataStreamAction.addBackingIndex(dataStream, newIndex))
+            );
+            modifyDataStreamRequest.setParentTask(parentTaskId);
+            client.execute(ModifyDataStreamsAction.INSTANCE, modifyDataStreamRequest, listener);
+        }
     }
 
     private void deleteIndex(String indexName, TaskId parentTaskId, ActionListener<AcknowledgedResponse> listener) {
-        DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(indexName);
+        DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(indexName).indicesOptions(IGNORE_MISSING_OPTIONS);
         deleteIndexRequest.setParentTask(parentTaskId);
         client.execute(TransportDeleteIndexAction.TYPE, deleteIndexRequest, listener);
     }

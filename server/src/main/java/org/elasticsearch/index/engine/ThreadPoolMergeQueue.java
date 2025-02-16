@@ -127,7 +127,9 @@ public class ThreadPoolMergeQueue {
         double currentTargetMBPerSec = targetMBPerSec.get();
         double newTargetMBPerSec = newTargetMBPerSec(currentTargetMBPerSec, activeIOThrottledMergeTasksCount.get(), maxConcurrentMerges);
         if (currentTargetMBPerSec != newTargetMBPerSec && targetMBPerSec.compareAndSet(currentTargetMBPerSec, newTargetMBPerSec)) {
-            // supports iterating on running merges as they come in and complete out
+            // it's OK to have this method update merge tasks concurrently, with different targetMBPerSec values,
+            // as it's not important that all merge tasks are throttled to the same IO rate at all time.
+            // For performance reasons, we don't synchronize the updates to targetMBPerSec values with the update of running merges.
             currentlyRunningMergeTasks.forEach(mergeTask -> {
                 if (mergeTask.supportsIOThrottling()) {
                     mergeTask.setIORateLimit(newTargetMBPerSec);

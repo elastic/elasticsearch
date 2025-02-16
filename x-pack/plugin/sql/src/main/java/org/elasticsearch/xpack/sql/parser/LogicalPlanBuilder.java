@@ -78,6 +78,10 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
     protected void maybeWarnDeprecatedFrozenSyntax(boolean includeFrozen, String syntax) {
         if (includeFrozen) {
+            /*
+             * We don't plan to remove this no matter how few folks use it to make sure
+             * we don't break anyone.
+             */
             DEPRECATION_LOGGER.warn(DeprecationCategory.PARSING, "include_frozen_syntax", format(null, FROZEN_DEPRECATION_WARNING, syntax));
         }
     }

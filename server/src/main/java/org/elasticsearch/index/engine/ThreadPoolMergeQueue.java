@@ -65,9 +65,8 @@ public class ThreadPoolMergeQueue {
     void submitMergeTask(MergeTask mergeTask) {
         enqueueMergeTask(mergeTask);
         if (mergeTask.supportsIOThrottling()) {
-            // count submitted merge tasks that support IO auto throttling
-            activeIOThrottledMergeTasksCount.incrementAndGet();
-            maybeUpdateTargetMBPerSec();
+            // count submitted merge tasks that support IO auto throttling, and maybe adjust IO rate for all
+            maybeUpdateIORateBytesPerSec(activeIOThrottledMergeTasksCount.incrementAndGet());
         }
         executeSmallestMergeTask();
     }
@@ -121,28 +120,36 @@ public class ThreadPoolMergeQueue {
             assert removed : "completed merge task [" + mergeTask + "] not registered as running";
             if (mergeTask.supportsIOThrottling()) {
                 activeIOThrottledMergeTasksCount.decrementAndGet();
-                maybeUpdateTargetMBPerSec();
             }
         }
     }
 
-    private void maybeUpdateTargetMBPerSec() {
-        long currentTargetIORateBytesPerSec = targetIORateBytesPerSec.get();
-        long newTargetIORateBytesPerSec = newTargetIORateBytesPerSec(
-            currentTargetIORateBytesPerSec,
-            activeIOThrottledMergeTasksCount.get(),
-            maxConcurrentMerges
-        );
-        if (currentTargetIORateBytesPerSec != newTargetIORateBytesPerSec
-            && targetIORateBytesPerSec.compareAndSet(currentTargetIORateBytesPerSec, newTargetIORateBytesPerSec)) {
-            // it's OK to have this method update merge tasks concurrently, with different targetMBPerSec values,
-            // as it's not important that all merge tasks are throttled to the same IO rate at all time.
-            // For performance reasons, we don't synchronize the updates to targetMBPerSec values with the update of running merges.
-            currentlyRunningMergeTasks.forEach(mergeTask -> {
-                if (mergeTask.supportsIOThrottling()) {
-                    mergeTask.setIORateLimit(ByteSizeValue.ofBytes(newTargetIORateBytesPerSec).getMbFrac());
+    private void maybeUpdateIORateBytesPerSec(int activeIOThrottledMergeTasks) {
+        long currentTargetIORateBytesPerSec = targetIORateBytesPerSec.get(), newTargetIORateBytesPerSec = 0L;
+        for (boolean isNewComputed = false;;) {
+            if (isNewComputed == false) {
+                newTargetIORateBytesPerSec = newTargetIORateBytesPerSec(
+                    currentTargetIORateBytesPerSec,
+                    activeIOThrottledMergeTasks,
+                    maxConcurrentMerges
+                );
+                if (newTargetIORateBytesPerSec == currentTargetIORateBytesPerSec) {
+                    break;
                 }
-            });
+            }
+            if (targetIORateBytesPerSec.weakCompareAndSetVolatile(currentTargetIORateBytesPerSec, newTargetIORateBytesPerSec)) {
+                // it's OK to have this method update merge tasks concurrently, with different targetMBPerSec values,
+                // as it's not important that all merge tasks are throttled to the same IO rate at all time.
+                // For performance reasons, we don't synchronize the updates to targetMBPerSec values with the update of running merges.
+                final long finalNewTargetIORateBytesPerSec = newTargetIORateBytesPerSec;
+                currentlyRunningMergeTasks.forEach(mergeTask -> {
+                    if (mergeTask.supportsIOThrottling()) {
+                        mergeTask.setIORateLimit(ByteSizeValue.ofBytes(finalNewTargetIORateBytesPerSec).getMbFrac());
+                    }
+                });
+                break;
+            }
+            isNewComputed = (currentTargetIORateBytesPerSec == (currentTargetIORateBytesPerSec = targetIORateBytesPerSec.get()));
         }
     }
 

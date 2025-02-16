@@ -3334,6 +3334,22 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat("listener should have been called", called.get(), equalTo(true));
     }
 
+    public void testWaitForPrimaryTermAndGenerationFailsForClosedShard() throws IOException {
+        Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
+        IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
+            { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
+        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+
+        var exception = new AtomicReference<Exception>();
+        ActionListener<Long> listener = ActionListener.wrap(l -> { assert false : l; }, e -> exception.set(e));
+        primary.waitForPrimaryTermAndGeneration(0L, 0L, listener);
+
+        assertNull("waitForPrimaryTermAndGeneration should be waiting", exception.get());
+        closeShards(primary);
+        // Should bail out earlier without calling the engine
+        assertThat(exception.get(), instanceOf(IndexShardClosedException.class));
+    }
+
     public void testRecoverFromLocalShard() throws IOException {
         Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
         IndexMetadata metadata = IndexMetadata.builder("source")

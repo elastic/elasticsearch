@@ -427,7 +427,6 @@ public interface Role {
                 new FieldPermissionsDefinition(indexPrivilege.getGrantedFields(), indexPrivilege.getDeniedFields())
             );
             Set<BytesReference> query = indexPrivilege.getQuery() == null ? null : Collections.singleton(indexPrivilege.getQuery());
-            IndexPrivilege privilege = IndexPrivilege.get(Sets.newHashSet(indexPrivilege.getPrivileges()));
             boolean allowRestrictedIndices = indexPrivilege.allowRestrictedIndices();
             Map<IndexComponentSelectorPrivilege, Set<String>> split = IndexComponentSelectorPrivilege.splitBySelectors(
                 indexPrivilege.getPrivileges()
@@ -436,10 +435,10 @@ public interface Role {
                 builder.add(
                     fieldPermissions,
                     query,
-                    privilege,
+                    IndexPrivilege.get(entry.getValue()),
                     allowRestrictedIndices,
                     entry.getKey(),
-                    entry.getValue().toArray(String[]::new)
+                    indexPrivilege.getIndices()
                 );
             }
         }

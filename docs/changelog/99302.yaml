@@ -1,0 +1,5 @@
+pr: 99302
+summary: update by query should not enable _source context, since it maybe cause other fields lost
+area: Data Management
+type: bug
+issues: []

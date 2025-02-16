@@ -62,6 +62,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -478,7 +479,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 builder.map(apiKeySourceDoc);
                 searchHits[1].sourceRef(BytesReference.bytes(builder));
             }
-            return new SearchResponse(
+            return SearchResponseUtils.successfulResponse(
                 SearchHits.unpooled(
                     searchHits,
                     new TotalHits(searchHits.length, TotalHits.Relation.EQUAL_TO),
@@ -486,20 +487,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                     null,
                     null,
                     null
-                ),
-                null,
-                null,
-                false,
-                null,
-                null,
-                0,
-                randomAlphaOfLengthBetween(3, 8),
-                1,
-                1,
-                0,
-                10,
-                null,
-                null
+                )
             );
         };
         doAnswer(invocation -> {
@@ -637,7 +625,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             }
             ActionListener.respondAndRelease(
                 listener,
-                new SearchResponse(
+                SearchResponseUtils.successfulResponse(
                     SearchHits.unpooled(
                         new SearchHit[] { searchHit },
                         new TotalHits(1, TotalHits.Relation.EQUAL_TO),
@@ -645,20 +633,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                         null,
                         null,
                         null
-                    ),
-                    null,
-                    null,
-                    false,
-                    null,
-                    null,
-                    0,
-                    randomAlphaOfLengthBetween(3, 8),
-                    1,
-                    1,
-                    0,
-                    10,
-                    null,
-                    null
+                    )
                 )
             );
             return null;
@@ -734,7 +709,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             }
             ActionListener.respondAndRelease(
                 listener,
-                new SearchResponse(
+                SearchResponseUtils.successfulResponse(
                     SearchHits.unpooled(
                         new SearchHit[] { searchHit },
                         new TotalHits(1, TotalHits.Relation.EQUAL_TO),
@@ -742,20 +717,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                         null,
                         null,
                         null
-                    ),
-                    null,
-                    null,
-                    false,
-                    null,
-                    null,
-                    0,
-                    randomAlphaOfLengthBetween(3, 8),
-                    1,
-                    1,
-                    0,
-                    10,
-                    null,
-                    null
+                    )
                 )
             );
             return null;
@@ -1078,7 +1040,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             final ActionListener<SearchResponse> listener = invocationOnMock.getArgument(1);
             ActionListener.respondAndRelease(
                 listener,
-                new SearchResponse(
+                SearchResponseUtils.successfulResponse(
                     SearchHits.unpooled(
                         searchHits.toArray(SearchHit[]::new),
                         new TotalHits(searchHits.size(), TotalHits.Relation.EQUAL_TO),
@@ -1086,20 +1048,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                         null,
                         null,
                         null
-                    ),
-                    null,
-                    null,
-                    false,
-                    null,
-                    null,
-                    0,
-                    randomAlphaOfLengthBetween(3, 8),
-                    1,
-                    1,
-                    0,
-                    10,
-                    null,
-                    null
+                    )
                 )
             );
             return null;

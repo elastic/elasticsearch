@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.session;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -52,7 +51,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.session.EsqlCCSUtils.checkForCcsLicense;
 import static org.elasticsearch.xpack.esql.session.EsqlCCSUtils.shouldIgnoreRuntimeError;
-import static org.elasticsearch.xpack.esql.session.EsqlCCSUtils.skipUnavailableListener;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -795,35 +793,6 @@ public class EsqlCCSUtilsTests extends ESTestCase {
             is(false)
         );
         assertThat(shouldIgnoreRuntimeError(executionInfo, LOCAL_CLUSTER_ALIAS, new TaskCancelledException("task cancelled")), is(false));
-    }
-
-    public void testSkipUnavailableListener() {
-        Predicate<String> skipUnPredicate = s -> s.equals(REMOTE1_ALIAS);
-
-        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(skipUnPredicate, true);
-        executionInfo.swapCluster(LOCAL_CLUSTER_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(LOCAL_CLUSTER_ALIAS, "logs*", false));
-        executionInfo.swapCluster(REMOTE1_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE1_ALIAS, "*", true));
-        executionInfo.swapCluster(REMOTE2_ALIAS, (k, v) -> new EsqlExecutionInfo.Cluster(REMOTE2_ALIAS, "mylogs1,mylogs2,logs*", false));
-
-        ActionListener<Void> expectResult = ActionListener.wrap(unused -> {}, (e) -> fail("Listener should not have failed"));
-        ActionListener<Void> expectFailure = ActionListener.wrap(unused -> fail("Listener should have failed"), (e) -> {});
-
-        // snip_unavailable=true but not connect exception, so should fail
-        skipUnavailableListener(expectFailure, executionInfo, REMOTE1_ALIAS, EsqlExecutionInfo.Cluster.Status.PARTIAL).onFailure(
-            new ElasticsearchException("something is wrong")
-        );
-        assertThat(executionInfo.getCluster(REMOTE1_ALIAS).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING));
-
-        // snip_unavailable=true, so should not fail
-        skipUnavailableListener(expectResult, executionInfo, REMOTE1_ALIAS, EsqlExecutionInfo.Cluster.Status.PARTIAL).onFailure(
-            new IllegalStateException("Unable to open any connections")
-        );
-        assertThat(executionInfo.getCluster(REMOTE1_ALIAS).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
-        // snip_unavailable=false, so should fail
-        skipUnavailableListener(expectFailure, executionInfo, REMOTE2_ALIAS, EsqlExecutionInfo.Cluster.Status.PARTIAL).onFailure(
-            new IllegalStateException("Unable to open any connections")
-        );
-
     }
 
     private XPackLicenseStatus activeLicenseStatus(License.OperationMode operationMode) {

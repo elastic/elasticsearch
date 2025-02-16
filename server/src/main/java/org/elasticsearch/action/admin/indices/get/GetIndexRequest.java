@@ -17,16 +17,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -98,6 +94,10 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
         super(masterTimeout, IndicesOptions.strictExpandOpen());
     }
 
+    /**
+     * Even though this action is executed on the local node, we still need to be able to read an incoming request as it's used across
+     * clusters.
+     */
     public GetIndexRequest(StreamInput in) throws IOException {
         super(in);
         features = in.readArray(i -> Feature.fromId(i.readByte()), Feature[]::new);
@@ -167,10 +167,5 @@ public class GetIndexRequest extends ClusterInfoRequest<GetIndexRequest> {
         out.writeArray((o, f) -> o.writeByte(f.id), features);
         out.writeBoolean(humanReadable);
         out.writeBoolean(includeDefaults);
-    }
-
-    @Override
-    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
     }
 }

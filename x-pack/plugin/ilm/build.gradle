@@ -19,6 +19,7 @@ dependencies {
   testImplementation project(xpackModule('ccr'))
   testImplementation project(xpackModule('slm')) // used by LifecycleOperationSnapshotTests
   testImplementation project(':modules:data-streams')
+  internalClusterTestImplementation project(':modules:rest-root')
 }
 
 addQaCheckDependencies(project)

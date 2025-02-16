@@ -8,16 +8,12 @@
 package org.elasticsearch.xpack.inference.services.voyageai;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 import org.hamcrest.MatcherAssert;
@@ -26,48 +22,38 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class VoyageAIServiceSettingsTests extends AbstractWireSerializingTestCase<VoyageAIServiceSettings> {
 
     public static VoyageAIServiceSettings createRandomWithNonNullUrl() {
-        return createRandom(randomAlphaOfLength(15));
+        return createRandom();
     }
 
     /**
      * The created settings can have a url set to null.
      */
     public static VoyageAIServiceSettings createRandom() {
-        var url = randomBoolean() ? randomAlphaOfLength(15) : null;
-        return createRandom(url);
-    }
-
-    private static VoyageAIServiceSettings createRandom(String url) {
         var model = randomAlphaOfLength(15);
 
-        return new VoyageAIServiceSettings(ServiceUtils.createOptionalUri(url), model, RateLimitSettingsTests.createRandom());
+        return new VoyageAIServiceSettings(model, RateLimitSettingsTests.createRandom());
     }
 
     public void testFromMap() {
-        var url = "https://www.abc.com";
         var model = "model";
         var serviceSettings = VoyageAIServiceSettings.fromMap(
-            new HashMap<>(Map.of(ServiceFields.URL, url, VoyageAIServiceSettings.MODEL_ID, model)),
+            new HashMap<>(Map.of(VoyageAIServiceSettings.MODEL_ID, model)),
             ConfigurationParseContext.REQUEST
         );
 
-        MatcherAssert.assertThat(serviceSettings, is(new VoyageAIServiceSettings(ServiceUtils.createUri(url), model, null)));
+        MatcherAssert.assertThat(serviceSettings, is(new VoyageAIServiceSettings(model, null)));
     }
 
     public void testFromMap_WithRateLimit() {
-        var url = "https://www.abc.com";
         var model = "model";
         var serviceSettings = VoyageAIServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
-                    ServiceFields.URL,
-                    url,
                     VoyageAIServiceSettings.MODEL_ID,
                     model,
                     RateLimitSettings.FIELD_NAME,
@@ -77,65 +63,21 @@ public class VoyageAIServiceSettingsTests extends AbstractWireSerializingTestCas
             ConfigurationParseContext.REQUEST
         );
 
-        MatcherAssert.assertThat(
-            serviceSettings,
-            is(new VoyageAIServiceSettings(ServiceUtils.createUri(url), model, new RateLimitSettings(3)))
-        );
+        MatcherAssert.assertThat(serviceSettings, is(new VoyageAIServiceSettings(model, new RateLimitSettings(3))));
     }
 
     public void testFromMap_WhenUsingModelId() {
-        var url = "https://www.abc.com";
         var model = "model";
         var serviceSettings = VoyageAIServiceSettings.fromMap(
-            new HashMap<>(Map.of(ServiceFields.URL, url, VoyageAIServiceSettings.MODEL_ID, model)),
+            new HashMap<>(Map.of(VoyageAIServiceSettings.MODEL_ID, model)),
             ConfigurationParseContext.PERSISTENT
         );
 
-        MatcherAssert.assertThat(serviceSettings, is(new VoyageAIServiceSettings(ServiceUtils.createUri(url), model, null)));
-    }
-
-    public void testFromMap_MissingUrl_DoesNotThrowException() {
-        var serviceSettings = VoyageAIServiceSettings.fromMap(
-            new HashMap<>(Map.of(VoyageAIServiceSettings.MODEL_ID, "model")),
-            ConfigurationParseContext.PERSISTENT
-        );
-        assertNull(serviceSettings.uri());
-    }
-
-    public void testFromMap_EmptyUrl_ThrowsError() {
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> VoyageAIServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.URL, "")), ConfigurationParseContext.PERSISTENT)
-        );
-
-        MatcherAssert.assertThat(
-            thrownException.getMessage(),
-            containsString(
-                Strings.format(
-                    "Validation Failed: 1: [service_settings] Invalid value empty string. [%s] must be a non-empty string;",
-                    ServiceFields.URL
-                )
-            )
-        );
-    }
-
-    public void testFromMap_InvalidUrl_ThrowsError() {
-        var url = "https://www.abc^.com";
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> VoyageAIServiceSettings.fromMap(new HashMap<>(Map.of(ServiceFields.URL, url)), ConfigurationParseContext.PERSISTENT)
-        );
-
-        MatcherAssert.assertThat(
-            thrownException.getMessage(),
-            containsString(
-                Strings.format("Validation Failed: 1: [service_settings] Invalid url [%s] received for field [%s]", url, ServiceFields.URL)
-            )
-        );
+        MatcherAssert.assertThat(serviceSettings, is(new VoyageAIServiceSettings(model, null)));
     }
 
     public void testXContent_WritesModelId() throws IOException {
-        var entity = new VoyageAIServiceSettings((String) null, "model", new RateLimitSettings(1));
+        var entity = new VoyageAIServiceSettings("model", new RateLimitSettings(1));
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -160,12 +102,8 @@ public class VoyageAIServiceSettingsTests extends AbstractWireSerializingTestCas
         return randomValueOtherThan(instance, VoyageAIServiceSettingsTests::createRandom);
     }
 
-    public static Map<String, Object> getServiceSettingsMap(@Nullable String url, String model) {
+    public static Map<String, Object> getServiceSettingsMap(String model) {
         var map = new HashMap<String, Object>();
-
-        if (url != null) {
-            map.put(ServiceFields.URL, url);
-        }
 
         map.put(VoyageAIServiceSettings.MODEL_ID, model);
 

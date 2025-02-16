@@ -9,5 +9,4 @@ package org.elasticsearch.xpack.inference.services.voyageai;
 
 public class VoyageAIServiceFields {
     public static final String TRUNCATION = "truncation";
-    public static final String OUTPUT_DIMENSION = "output_dimension";
 }

@@ -52,6 +52,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -107,7 +108,8 @@ public class VoyageAIServiceTests extends ESTestCase {
                 MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
                 var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-                MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
+                assertNull(embeddingsModel.uri());
+                MatcherAssert.assertThat(embeddingsModel.buildUri().toString(), is("https://api.voyageai.com/v1/embeddings"));
                 MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
                 MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null)));
                 MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
@@ -117,7 +119,7 @@ public class VoyageAIServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model"),
+                    VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
                     VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(InputType.INGEST),
                     getSecretSettingsMap("secret")
                 ),
@@ -133,7 +135,8 @@ public class VoyageAIServiceTests extends ESTestCase {
                 MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
                 var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-                MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
+                assertNull(embeddingsModel.uri());
+                MatcherAssert.assertThat(embeddingsModel.buildUri().toString(), is("https://api.voyageai.com/v1/embeddings"));
                 MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
                 MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null)));
                 MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
@@ -145,7 +148,7 @@ public class VoyageAIServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model"),
+                    VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
                     VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(InputType.INGEST),
                     createRandomChunkingSettingsMap(),
                     getSecretSettingsMap("secret")
@@ -162,7 +165,8 @@ public class VoyageAIServiceTests extends ESTestCase {
                 MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
                 var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-                MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
+                assertNull(embeddingsModel.uri());
+                MatcherAssert.assertThat(embeddingsModel.buildUri().toString(), is("https://api.voyageai.com/v1/embeddings"));
                 MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
                 MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null)));
                 MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
@@ -174,7 +178,7 @@ public class VoyageAIServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model"),
+                    VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
                     VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(InputType.INGEST),
                     getSecretSettingsMap("secret")
                 ),
@@ -191,7 +195,8 @@ public class VoyageAIServiceTests extends ESTestCase {
                 MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
                 var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-                MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
+                assertNull(embeddingsModel.uri());
+                MatcherAssert.assertThat(embeddingsModel.buildUri().toString(), is("https://api.voyageai.com/v1/embeddings"));
                 MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
                 MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), equalTo(VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS));
                 MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
@@ -200,10 +205,7 @@ public class VoyageAIServiceTests extends ESTestCase {
             service.parseRequestConfig(
                 "id",
                 TaskType.TEXT_EMBEDDING,
-                getRequestConfigMap(
-                    VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model"),
-                    getSecretSettingsMap("secret")
-                ),
+                getRequestConfigMap(VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"), getSecretSettingsMap("secret")),
                 modelListener
             );
 
@@ -221,7 +223,7 @@ public class VoyageAIServiceTests extends ESTestCase {
                 "id",
                 TaskType.SPARSE_EMBEDDING,
                 getRequestConfigMap(
-                    VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model"),
+                    VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
                     VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty(),
                     getSecretSettingsMap("secret")
                 ),
@@ -240,7 +242,7 @@ public class VoyageAIServiceTests extends ESTestCase {
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createVoyageAIService()) {
             var config = getRequestConfigMap(
-                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model"),
+                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
                 VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty(),
                 getSecretSettingsMap("secret")
             );
@@ -256,7 +258,7 @@ public class VoyageAIServiceTests extends ESTestCase {
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInServiceSettingsMap() throws IOException {
         try (var service = createVoyageAIService()) {
-            var serviceSettings = VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model");
+            var serviceSettings = VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model");
             serviceSettings.put("extra_key", "value");
 
             var config = getRequestConfigMap(
@@ -279,7 +281,7 @@ public class VoyageAIServiceTests extends ESTestCase {
             taskSettingsMap.put("extra_key", "value");
 
             var config = getRequestConfigMap(
-                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model"),
+                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
                 taskSettingsMap,
                 getSecretSettingsMap("secret")
             );
@@ -299,7 +301,7 @@ public class VoyageAIServiceTests extends ESTestCase {
             secretSettingsMap.put("extra_key", "value");
 
             var config = getRequestConfigMap(
-                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model"),
+                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
                 VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty(),
                 secretSettingsMap
             );
@@ -312,35 +314,10 @@ public class VoyageAIServiceTests extends ESTestCase {
         }
     }
 
-    public void testParseRequestConfig_CreatesAVoyageAIEmbeddingsModelWithoutUrl() throws IOException {
-        try (var service = createVoyageAIService()) {
-            var modelListener = ActionListener.<Model>wrap((model) -> {
-                MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
-
-                var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-                assertNull(embeddingsModel.getServiceSettings().getCommonSettings().uri());
-                MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS));
-                MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
-            }, (e) -> fail("Model parsing should have succeeded " + e.getMessage()));
-
-            service.parseRequestConfig(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                getRequestConfigMap(
-                    VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, "model"),
-                    VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty(),
-                    getSecretSettingsMap("secret")
-                ),
-                modelListener
-            );
-
-        }
-    }
-
     public void testParsePersistedConfigWithSecrets_CreatesAVoyageAIEmbeddingsModel() throws IOException {
         try (var service = createVoyageAIService()) {
             var persistedConfig = getPersistedConfigMap(
-                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model"),
+                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
                 VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
                 getSecretSettingsMap("secret")
             );
@@ -355,17 +332,20 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
+            assertNull(embeddingsModel.uri());
+            MatcherAssert.assertThat(embeddingsModel.buildUri().toString(), is("https://api.voyageai.com/v1/embeddings"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
         }
     }
 
     public void testParsePersistedConfigWithSecrets_CreatesAVoyageAIEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
         try (var service = createVoyageAIService()) {
             var persistedConfig = getPersistedConfigMap(
-                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model"),
+                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
                 VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
                 createRandomChunkingSettingsMap(),
                 getSecretSettingsMap("secret")
@@ -381,18 +361,21 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
+            assertNull(embeddingsModel.uri());
+            MatcherAssert.assertThat(embeddingsModel.buildUri().toString(), is("https://api.voyageai.com/v1/embeddings"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
         }
     }
 
     public void testParsePersistedConfigWithSecrets_CreatesAVoyageAIEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
         try (var service = createVoyageAIService()) {
             var persistedConfig = getPersistedConfigMap(
-                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model"),
+                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
                 VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
                 getSecretSettingsMap("secret")
             );
@@ -407,18 +390,21 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
+            assertNull(embeddingsModel.uri());
+            MatcherAssert.assertThat(embeddingsModel.buildUri().toString(), is("https://api.voyageai.com/v1/embeddings"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
         }
     }
 
     public void testParsePersistedConfigWithSecrets_ThrowsErrorTryingToParseInvalidModel() throws IOException {
         try (var service = createVoyageAIService()) {
             var persistedConfig = getPersistedConfigMap(
-                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "oldmodel"),
+                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("oldmodel"),
                 VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty(),
                 getSecretSettingsMap("secret")
             );
@@ -440,35 +426,10 @@ public class VoyageAIServiceTests extends ESTestCase {
         }
     }
 
-    public void testParsePersistedConfigWithSecrets_CreatesAVoyageAIEmbeddingsModelWithoutUrl() throws IOException {
-        try (var service = createVoyageAIService()) {
-            var persistedConfig = getPersistedConfigMap(
-                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, "model"),
-                VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(InputType.INGEST),
-                getSecretSettingsMap("secret")
-            );
-
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.TEXT_EMBEDDING,
-                persistedConfig.config(),
-                persistedConfig.secrets()
-            );
-
-            MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
-
-            var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-            assertNull(embeddingsModel.getServiceSettings().getCommonSettings().uri());
-            MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null)));
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
-            MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
-        }
-    }
-
     public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createVoyageAIService()) {
             var persistedConfig = getPersistedConfigMap(
-                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model"),
+                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
                 VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(InputType.SEARCH),
                 getSecretSettingsMap("secret")
             );
@@ -484,10 +445,13 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
+            assertNull(embeddingsModel.uri());
+            MatcherAssert.assertThat(embeddingsModel.buildUri().toString(), is("https://api.voyageai.com/v1/embeddings"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.SEARCH, null)));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -497,7 +461,7 @@ public class VoyageAIServiceTests extends ESTestCase {
             secretSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
-                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model"),
+                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
                 VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty(),
                 secretSettingsMap
             );
@@ -512,17 +476,20 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
+            assertNull(embeddingsModel.uri());
+            MatcherAssert.assertThat(embeddingsModel.buildUri().toString(), is("https://api.voyageai.com/v1/embeddings"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
         }
     }
 
     public void testParsePersistedConfigWithSecrets_NotThrowWhenAnExtraKeyExistsInSecrets() throws IOException {
         try (var service = createVoyageAIService()) {
             var persistedConfig = getPersistedConfigMap(
-                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model"),
+                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
                 VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
                 getSecretSettingsMap("secret")
             );
@@ -538,16 +505,19 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
+            assertNull(embeddingsModel.uri());
+            MatcherAssert.assertThat(embeddingsModel.buildUri().toString(), is("https://api.voyageai.com/v1/embeddings"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
         }
     }
 
     public void testParsePersistedConfigWithSecrets_NotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
         try (var service = createVoyageAIService()) {
-            var serviceSettingsMap = VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model");
+            var serviceSettingsMap = VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model");
             serviceSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
@@ -566,10 +536,13 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
+            assertNull(embeddingsModel.uri());
+            MatcherAssert.assertThat(embeddingsModel.buildUri().toString(), is("https://api.voyageai.com/v1/embeddings"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -579,7 +552,7 @@ public class VoyageAIServiceTests extends ESTestCase {
             taskSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
-                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model"),
+                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
                 taskSettingsMap,
                 getSecretSettingsMap("secret")
             );
@@ -594,17 +567,20 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
+            assertNull(embeddingsModel.uri());
+            MatcherAssert.assertThat(embeddingsModel.buildUri().toString(), is("https://api.voyageai.com/v1/embeddings"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.SEARCH, null)));
             MatcherAssert.assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
         }
     }
 
     public void testParsePersistedConfig_CreatesAVoyageAIEmbeddingsModel() throws IOException {
         try (var service = createVoyageAIService()) {
             var persistedConfig = getPersistedConfigMap(
-                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model"),
+                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
                 VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(null)
             );
 
@@ -613,17 +589,20 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
+            assertNull(embeddingsModel.uri());
+            MatcherAssert.assertThat(embeddingsModel.buildUri().toString(), is("https://api.voyageai.com/v1/embeddings"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             assertNull(embeddingsModel.getSecretSettings());
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
         }
     }
 
     public void testParsePersistedConfig_CreatesAVoyageAIEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
         try (var service = createVoyageAIService()) {
             var persistedConfig = getPersistedConfigMap(
-                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model"),
+                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
                 VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(null),
                 createRandomChunkingSettingsMap()
             );
@@ -633,18 +612,21 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
+            assertNull(embeddingsModel.uri());
+            MatcherAssert.assertThat(embeddingsModel.buildUri().toString(), is("https://api.voyageai.com/v1/embeddings"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             assertNull(embeddingsModel.getSecretSettings());
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
         }
     }
 
     public void testParsePersistedConfig_CreatesAVoyageAIEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
         try (var service = createVoyageAIService()) {
             var persistedConfig = getPersistedConfigMap(
-                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model"),
+                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
                 VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(null)
             );
 
@@ -653,18 +635,21 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
+            assertNull(embeddingsModel.uri());
+            MatcherAssert.assertThat(embeddingsModel.buildUri().toString(), is("https://api.voyageai.com/v1/embeddings"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             MatcherAssert.assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             assertNull(embeddingsModel.getSecretSettings());
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
         }
     }
 
     public void testParsePersistedConfig_ThrowsErrorTryingToParseInvalidModel() throws IOException {
         try (var service = createVoyageAIService()) {
             var persistedConfig = getPersistedConfigMap(
-                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model_old"),
+                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model_old"),
                 VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty()
             );
 
@@ -683,7 +668,7 @@ public class VoyageAIServiceTests extends ESTestCase {
     public void testParsePersistedConfig_CreatesAVoyageAIEmbeddingsModelWithoutUrl() throws IOException {
         try (var service = createVoyageAIService()) {
             var persistedConfig = getPersistedConfigMap(
-                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap(null, "model"),
+                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
                 VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMap(null)
             );
 
@@ -692,7 +677,7 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-            assertNull(embeddingsModel.getServiceSettings().getCommonSettings().uri());
+            assertNull(embeddingsModel.uri());
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings((InputType) null, null)));
             assertNull(embeddingsModel.getSecretSettings());
@@ -702,7 +687,7 @@ public class VoyageAIServiceTests extends ESTestCase {
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createVoyageAIService()) {
             var persistedConfig = getPersistedConfigMap(
-                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model"),
+                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
                 VoyageAIEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty()
             );
             persistedConfig.config().put("extra_key", "value");
@@ -712,16 +697,19 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
+            assertNull(embeddingsModel.uri());
+            MatcherAssert.assertThat(embeddingsModel.buildUri().toString(), is("https://api.voyageai.com/v1/embeddings"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS));
             assertNull(embeddingsModel.getSecretSettings());
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
         }
     }
 
     public void testParsePersistedConfig_NotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
         try (var service = createVoyageAIService()) {
-            var serviceSettingsMap = VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model");
+            var serviceSettingsMap = VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model");
             serviceSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
@@ -734,10 +722,13 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
+            assertNull(embeddingsModel.uri());
+            MatcherAssert.assertThat(embeddingsModel.buildUri().toString(), is("https://api.voyageai.com/v1/embeddings"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.SEARCH, null)));
             assertNull(embeddingsModel.getSecretSettings());
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -747,7 +738,7 @@ public class VoyageAIServiceTests extends ESTestCase {
             taskSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
-                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("url", "model"),
+                VoyageAIEmbeddingsServiceSettingsTests.getServiceSettingsMap("model"),
                 taskSettingsMap
             );
 
@@ -755,10 +746,13 @@ public class VoyageAIServiceTests extends ESTestCase {
             MatcherAssert.assertThat(model, instanceOf(VoyageAIEmbeddingsModel.class));
 
             var embeddingsModel = (VoyageAIEmbeddingsModel) model;
-            MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().uri().toString(), is("url"));
+            assertNull(embeddingsModel.uri());
+            MatcherAssert.assertThat(embeddingsModel.buildUri().toString(), is("https://api.voyageai.com/v1/embeddings"));
             MatcherAssert.assertThat(embeddingsModel.getServiceSettings().getCommonSettings().modelId(), is("model"));
             MatcherAssert.assertThat(embeddingsModel.getTaskSettings(), is(new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null)));
             assertNull(embeddingsModel.getSecretSettings());
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -805,11 +799,10 @@ public class VoyageAIServiceTests extends ESTestCase {
 
             String responseJson = """
                 {
-                    "model": "voyage-clip-v2",
+                    "model": "voyage-3-large",
                     "object": "list",
                     "usage": {
-                        "total_tokens": 5,
-                        "prompt_tokens": 5
+                        "total_tokens": 5
                     },
                     "data": [
                         {
@@ -831,7 +824,7 @@ public class VoyageAIServiceTests extends ESTestCase {
                 VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
                 10,
                 1,
-                "voyage-clip-v2"
+                "voyage-3-large"
             );
             PlainActionFuture<Model> listener = new PlainActionFuture<>();
             service.checkModelConfig(model, listener);
@@ -847,7 +840,7 @@ public class VoyageAIServiceTests extends ESTestCase {
                         VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
                         10,
                         2,
-                        "voyage-clip-v2"
+                        "voyage-3-large"
                     )
                 )
             );
@@ -861,11 +854,10 @@ public class VoyageAIServiceTests extends ESTestCase {
 
             String responseJson = """
                 {
-                    "model": "voyage-clip-v2",
+                    "model": "voyage-3-large",
                     "object": "list",
                     "usage": {
-                        "total_tokens": 5,
-                        "prompt_tokens": 5
+                        "total_tokens": 5
                     },
                     "data": [
                         {
@@ -887,7 +879,7 @@ public class VoyageAIServiceTests extends ESTestCase {
                 VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
                 10,
                 1,
-                "voyage-clip-v2",
+                "voyage-3-large",
                 (SimilarityMeasure) null
             );
             PlainActionFuture<Model> listener = new PlainActionFuture<>();
@@ -904,7 +896,7 @@ public class VoyageAIServiceTests extends ESTestCase {
                         VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
                         10,
                         2,
-                        "voyage-clip-v2",
+                        "voyage-3-large",
                         SimilarityMeasure.DOT_PRODUCT
                     )
                 )
@@ -919,11 +911,10 @@ public class VoyageAIServiceTests extends ESTestCase {
 
             String responseJson = """
                 {
-                    "model": "voyage-clip-v2",
+                    "model": "voyage-3-large",
                     "object": "list",
                     "usage": {
-                        "total_tokens": 5,
-                        "prompt_tokens": 5
+                        "total_tokens": 5
                     },
                     "data": [
                         {
@@ -945,7 +936,7 @@ public class VoyageAIServiceTests extends ESTestCase {
                 VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
                 10,
                 1,
-                "voyage-clip-v2",
+                "voyage-3-large",
                 SimilarityMeasure.COSINE
             );
             PlainActionFuture<Model> listener = new PlainActionFuture<>();
@@ -962,7 +953,7 @@ public class VoyageAIServiceTests extends ESTestCase {
                         VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
                         10,
                         2,
-                        "voyage-clip-v2",
+                        "voyage-3-large",
                         SimilarityMeasure.COSINE
                     )
                 )
@@ -1082,11 +1073,10 @@ public class VoyageAIServiceTests extends ESTestCase {
 
             String responseJson = """
                 {
-                    "model": "voyage-clip-v2",
+                    "model": "voyage-3-large",
                     "object": "list",
                     "usage": {
-                        "total_tokens": 5,
-                        "prompt_tokens": 5
+                        "total_tokens": 5
                     },
                     "data": [
                         {
@@ -1108,7 +1098,7 @@ public class VoyageAIServiceTests extends ESTestCase {
                 VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
                 1024,
                 1024,
-                "voyage-clip-v2",
+                "voyage-3-large",
                 (SimilarityMeasure) null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -1143,7 +1133,7 @@ public class VoyageAIServiceTests extends ESTestCase {
                         "input",
                         List.of("abc"),
                         "model",
-                        "voyage-clip-v2",
+                        "voyage-3-large",
                         "input_type",
                         "document",
                         "output_dtype",
@@ -1163,11 +1153,10 @@ public class VoyageAIServiceTests extends ESTestCase {
 
             String responseJson = """
                 {
-                    "model": "voyage-clip-v2",
+                    "model": "voyage-3-large",
                     "object": "list",
                     "usage": {
-                        "total_tokens": 5,
-                        "prompt_tokens": 5
+                        "total_tokens": 5
                     },
                     "data": [
                         {
@@ -1189,7 +1178,7 @@ public class VoyageAIServiceTests extends ESTestCase {
                 VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
                 1024,
                 1024,
-                "voyage-clip-v2",
+                "voyage-3-large",
                 (SimilarityMeasure) null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -1224,7 +1213,7 @@ public class VoyageAIServiceTests extends ESTestCase {
                         "input",
                         List.of("abc"),
                         "model",
-                        "voyage-clip-v2",
+                        "voyage-3-large",
                         "input_type",
                         "query",
                         "output_dtype",
@@ -1243,7 +1232,7 @@ public class VoyageAIServiceTests extends ESTestCase {
         try (var service = new VoyageAIService(senderFactory, createWithEmptySettings(threadPool))) {
 
             String responseJson = """
-                {"model":"voyage-clip-v2","object":"list","usage":{"total_tokens":5,"prompt_tokens":5},
+                {"model":"voyage-3-large","object":"list","usage":{"total_tokens":5},
                 "data":[{"object":"embedding","index":0,"embedding":[0.123, -0.123]}]}
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
@@ -1254,7 +1243,7 @@ public class VoyageAIServiceTests extends ESTestCase {
                 VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
                 1024,
                 1024,
-                "voyage-clip-v2",
+                "voyage-3-large",
                 (SimilarityMeasure) null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -1284,7 +1273,7 @@ public class VoyageAIServiceTests extends ESTestCase {
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
             MatcherAssert.assertThat(
                 requestMap,
-                is(Map.of("input", List.of("abc"), "model", "voyage-clip-v2", "output_dtype", "float", "output_dimension", 1024))
+                is(Map.of("input", List.of("abc"), "model", "voyage-3-large", "output_dtype", "float", "output_dimension", 1024))
             );
         }
     }
@@ -1296,11 +1285,10 @@ public class VoyageAIServiceTests extends ESTestCase {
 
             String responseJson = """
                 {
-                    "model": "voyage-clip-v2",
+                    "model": "voyage-3-large",
                     "object": "list",
                     "usage": {
-                        "total_tokens": 5,
-                        "prompt_tokens": 5
+                        "total_tokens": 5
                     },
                     "data": [
                         {
@@ -1322,7 +1310,7 @@ public class VoyageAIServiceTests extends ESTestCase {
                 VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
                 1024,
                 1024,
-                "voyage-clip-v2",
+                "voyage-3-large",
                 (SimilarityMeasure) null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -1343,7 +1331,7 @@ public class VoyageAIServiceTests extends ESTestCase {
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
             MatcherAssert.assertThat(
                 requestMap,
-                is(Map.of("input", List.of("abc"), "model", "voyage-clip-v2", "output_dtype", "float", "output_dimension", 1024))
+                is(Map.of("input", List.of("abc"), "model", "voyage-3-large", "output_dtype", "float", "output_dimension", 1024))
             );
         }
     }
@@ -1697,11 +1685,10 @@ public class VoyageAIServiceTests extends ESTestCase {
 
             String responseJson = """
                 {
-                    "model": "voyage-clip-v2",
+                    "model": "voyage-3-large",
                     "object": "list",
                     "usage": {
-                        "total_tokens": 5,
-                        "prompt_tokens": 5
+                        "total_tokens": 5
                     },
                     "data": [
                         {
@@ -1723,7 +1710,7 @@ public class VoyageAIServiceTests extends ESTestCase {
                 new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, null),
                 1024,
                 1024,
-                "voyage-clip-v2",
+                "voyage-3-large",
                 (SimilarityMeasure) null
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -1757,7 +1744,7 @@ public class VoyageAIServiceTests extends ESTestCase {
                         "input",
                         List.of("abc"),
                         "model",
-                        "voyage-clip-v2",
+                        "voyage-3-large",
                         "input_type",
                         "document",
                         "output_dtype",
@@ -1778,7 +1765,7 @@ public class VoyageAIServiceTests extends ESTestCase {
             createRandomChunkingSettings(),
             1024,
             1024,
-            "voyage-clip-v2"
+            "voyage-3-large"
         );
 
         test_Embedding_ChunkedInfer_BatchesCalls(model);
@@ -1792,7 +1779,7 @@ public class VoyageAIServiceTests extends ESTestCase {
             null,
             1024,
             1024,
-            "voyage-clip-v2"
+            "voyage-3-large"
         );
 
         test_Embedding_ChunkedInfer_BatchesCalls(model);
@@ -1806,11 +1793,10 @@ public class VoyageAIServiceTests extends ESTestCase {
             // Batching will call the service with 2 input
             String responseJson = """
                 {
-                    "model": "voyage-clip-v2",
+                    "model": "voyage-3-large",
                     "object": "list",
                     "usage": {
-                        "total_tokens": 5,
-                        "prompt_tokens": 5
+                        "total_tokens": 5
                     },
                     "data": [
                         {
@@ -1874,7 +1860,7 @@ public class VoyageAIServiceTests extends ESTestCase {
             var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
             MatcherAssert.assertThat(
                 requestMap,
-                is(Map.of("input", List.of("foo", "bar"), "model", "voyage-clip-v2", "output_dtype", "float", "output_dimension", 1024))
+                is(Map.of("input", List.of("foo", "bar"), "model", "voyage-3-large", "output_dtype", "float", "output_dimension", 1024))
             );
         }
     }
@@ -1892,6 +1878,15 @@ public class VoyageAIServiceTests extends ESTestCase {
                         "name": "Voyage AI",
                         "task_types": ["text_embedding", "rerank"],
                         "configurations": {
+                            "model_id": {
+                                "description": "The name of the model to use for the inference task.",
+                                "label": "Model ID",
+                                "required": true,
+                                "sensitive": false,
+                                "updatable": false,
+                                "type": "str",
+                                "supported_task_types": ["text_embedding", "rerank"]
+                            },
                             "api_key": {
                                 "description": "API Key for the provider you're connecting to.",
                                 "label": "API Key",

@@ -23,14 +23,9 @@ import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObjec
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
-import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 
 public class VoyageAIServiceSettings extends FilteredXContentObject implements ServiceSettings, VoyageAIRateLimitServiceSettings {
@@ -44,8 +39,6 @@ public class VoyageAIServiceSettings extends FilteredXContentObject implements S
     public static VoyageAIServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
 
-        String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(
             map,
             DEFAULT_RATE_LIMIT_SETTINGS,
@@ -60,36 +53,25 @@ public class VoyageAIServiceSettings extends FilteredXContentObject implements S
             throw validationException;
         }
 
-        return new VoyageAIServiceSettings(uri, modelId, rateLimitSettings);
+        return new VoyageAIServiceSettings(modelId, rateLimitSettings);
     }
 
-    private final URI uri;
     private final String modelId;
     private final RateLimitSettings rateLimitSettings;
 
-    public VoyageAIServiceSettings(@Nullable URI uri, String modelId, @Nullable RateLimitSettings rateLimitSettings) {
-        this.uri = uri;
+    public VoyageAIServiceSettings(String modelId, @Nullable RateLimitSettings rateLimitSettings) {
         this.modelId = Objects.requireNonNull(modelId);
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
-    public VoyageAIServiceSettings(@Nullable String url, String modelId, @Nullable RateLimitSettings rateLimitSettings) {
-        this(createOptionalUri(url), modelId, rateLimitSettings);
-    }
-
     public VoyageAIServiceSettings(StreamInput in) throws IOException {
-        uri = createOptionalUri(in.readOptionalString());
-        modelId = in.readOptionalString();
+        modelId = in.readString();
         rateLimitSettings = new RateLimitSettings(in);
     }
 
     @Override
     public RateLimitSettings rateLimitSettings() {
         return rateLimitSettings;
-    }
-
-    public URI uri() {
-        return uri;
     }
 
     @Override
@@ -118,12 +100,7 @@ public class VoyageAIServiceSettings extends FilteredXContentObject implements S
 
     @Override
     public XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
-        if (uri != null) {
-            builder.field(URL, uri.toString());
-        }
-        if (modelId != null) {
-            builder.field(MODEL_ID, modelId);
-        }
+        builder.field(MODEL_ID, modelId);
         rateLimitSettings.toXContent(builder, params);
 
         return builder;
@@ -136,9 +113,7 @@ public class VoyageAIServiceSettings extends FilteredXContentObject implements S
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        var uriToWrite = uri != null ? uri.toString() : null;
-        out.writeOptionalString(uriToWrite);
-        out.writeOptionalString(modelId);
+        out.writeString(modelId);
         rateLimitSettings.writeTo(out);
     }
 
@@ -147,13 +122,11 @@ public class VoyageAIServiceSettings extends FilteredXContentObject implements S
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         VoyageAIServiceSettings that = (VoyageAIServiceSettings) o;
-        return Objects.equals(uri, that.uri)
-            && Objects.equals(modelId, that.modelId)
-            && Objects.equals(rateLimitSettings, that.rateLimitSettings);
+        return Objects.equals(modelId, that.modelId) && Objects.equals(rateLimitSettings, that.rateLimitSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(uri, modelId, rateLimitSettings);
+        return Objects.hash(modelId, rateLimitSettings);
     }
 }

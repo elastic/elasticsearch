@@ -17,7 +17,7 @@ import static org.elasticsearch.xpack.inference.external.request.RequestUtils.cr
 
 public abstract class VoyageAIRequest implements Request {
 
-    public static void decorateWithAuthHeader(HttpPost request, VoyageAIAccount account) {
+    public static void decorateWithHeaders(HttpPost request, VoyageAIAccount account) {
         request.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
         request.setHeader(createAuthBearerHeader(account.apiKey()));
         request.setHeader(VoyageAIUtils.createRequestSourceHeader());

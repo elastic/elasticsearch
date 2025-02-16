@@ -25,6 +25,7 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
@@ -49,6 +50,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
@@ -63,10 +65,29 @@ public class VoyageAIService extends SenderService {
     private static final String SERVICE_NAME = "Voyage AI";
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.RERANK);
 
-    private static final int DEFAULT_VOYAGE_2_BATCH_SIZE = 72;
-    private static final int DEFAULT_VOYAGE_3_LITE_BATCH_SIZE = 30;
-    private static final int DEFAULT_VOYAGE_3_BATCH_SIZE = 10;
-    private static final int DEFAULT_BATCH_SIZE = 7;
+    private static final Integer DEFAULT_BATCH_SIZE = 7;
+    private static final Map<String, Integer> MODEL_BATCH_SIZES = Map.of(
+        "voyage-multimodal-3",
+        7,
+        "voyage-3-large",
+        7,
+        "voyage-code-3",
+        7,
+        "voyage-3",
+        10,
+        "voyage-3-lite",
+        30,
+        "voyage-finance-2",
+        7,
+        "voyage-law-2",
+        7,
+        "voyage-code-2",
+        7,
+        "voyage-2",
+        72,
+        "voyage-02",
+        72
+    );
 
     public VoyageAIService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
         super(factory, serviceComponents);
@@ -281,17 +302,7 @@ public class VoyageAIService extends SenderService {
     }
 
     private static int getBatchSize(VoyageAIModel model) {
-        int maxBatchSize = DEFAULT_BATCH_SIZE;
-
-        if ("voyage-2".equals(model.getServiceSettings().modelId()) || "voyage-02".equals(model.getServiceSettings().modelId())) {
-            maxBatchSize = DEFAULT_VOYAGE_2_BATCH_SIZE;
-        } else if ("voyage-3-lite".equals(model.getServiceSettings().modelId())) {
-            maxBatchSize = DEFAULT_VOYAGE_3_LITE_BATCH_SIZE;
-        } else if ("voyage-3".equals(model.getServiceSettings().modelId())) {
-            maxBatchSize = DEFAULT_VOYAGE_3_BATCH_SIZE;
-        }
-
-        return maxBatchSize;
+        return MODEL_BATCH_SIZES.getOrDefault(model.getServiceSettings().modelId(), DEFAULT_BATCH_SIZE);
     }
 
     /**
@@ -313,17 +324,18 @@ public class VoyageAIService extends SenderService {
             var similarityFromModel = serviceSettings.similarity();
             var similarityToUse = similarityFromModel == null ? defaultSimilarity() : similarityFromModel;
             var maxInputTokens = serviceSettings.maxInputTokens();
+            var dimensionSetByUser = serviceSettings.dimensionsSetByUser();
 
             var updatedServiceSettings = new VoyageAIEmbeddingsServiceSettings(
                 new VoyageAIServiceSettings(
-                    serviceSettings.getCommonSettings().uri(),
                     serviceSettings.getCommonSettings().modelId(),
                     serviceSettings.getCommonSettings().rateLimitSettings()
                 ),
                 serviceSettings.getEmbeddingType(),
                 similarityToUse,
                 embeddingSize,
-                maxInputTokens
+                maxInputTokens,
+                dimensionSetByUser
             );
 
             return new VoyageAIEmbeddingsModel(embeddingsModel, updatedServiceSettings);
@@ -357,6 +369,19 @@ public class VoyageAIService extends SenderService {
         private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(
             () -> {
                 var configurationMap = new HashMap<String, SettingsConfiguration>();
+
+                configurationMap.put(
+                    MODEL_ID,
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                        "The name of the model to use for the inference task."
+                    )
+                        .setLabel("Model ID")
+                        .setRequired(true)
+                        .setSensitive(false)
+                        .setUpdatable(false)
+                        .setType(SettingsConfigurationFieldType.STRING)
+                        .build()
+                );
 
                 configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration(supportedTaskTypes));
                 configurationMap.putAll(RateLimitSettings.toSettingsConfiguration(supportedTaskTypes));

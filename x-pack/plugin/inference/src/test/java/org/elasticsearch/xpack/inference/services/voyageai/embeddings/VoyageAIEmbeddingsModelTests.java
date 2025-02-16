@@ -112,12 +112,14 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
         return new VoyageAIEmbeddingsModel(
             "id",
             "service",
+            url,
             new VoyageAIEmbeddingsServiceSettings(
-                new VoyageAIServiceSettings(url, model, null),
+                new VoyageAIServiceSettings(model, null),
                 VoyageAIEmbeddingType.FLOAT,
                 SimilarityMeasure.DOT_PRODUCT,
                 dimensions,
-                tokenLimit
+                tokenLimit,
+                false
             ),
             taskSettings,
             chunkingSettings,
@@ -136,12 +138,14 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
         return new VoyageAIEmbeddingsModel(
             "id",
             "service",
+            url,
             new VoyageAIEmbeddingsServiceSettings(
-                new VoyageAIServiceSettings(url, model, null),
+                new VoyageAIServiceSettings(model, null),
                 VoyageAIEmbeddingType.FLOAT,
                 SimilarityMeasure.DOT_PRODUCT,
                 dimensions,
-                tokenLimit
+                tokenLimit,
+                false
             ),
             taskSettings,
             null,
@@ -161,12 +165,14 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
         return new VoyageAIEmbeddingsModel(
             "id",
             "service",
+            url,
             new VoyageAIEmbeddingsServiceSettings(
-                new VoyageAIServiceSettings(url, model, null),
+                new VoyageAIServiceSettings(model, null),
                 embeddingType,
                 SimilarityMeasure.DOT_PRODUCT,
                 dimensions,
-                tokenLimit
+                tokenLimit,
+                false
             ),
             taskSettings,
             null,
@@ -186,12 +192,14 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
         return new VoyageAIEmbeddingsModel(
             "id",
             "service",
+            url,
             new VoyageAIEmbeddingsServiceSettings(
-                new VoyageAIServiceSettings(url, model, null),
+                new VoyageAIServiceSettings(model, null),
                 VoyageAIEmbeddingType.FLOAT,
                 similarityMeasure,
                 dimensions,
-                tokenLimit
+                tokenLimit,
+                false
             ),
             taskSettings,
             null,

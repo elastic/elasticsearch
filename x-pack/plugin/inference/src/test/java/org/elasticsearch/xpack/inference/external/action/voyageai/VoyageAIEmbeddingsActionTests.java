@@ -53,7 +53,6 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationBinary;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationByte;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -307,16 +306,6 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
         }
     }
 
-    public void testExecute_ThrowsURISyntaxException_ForInvalidUrl() throws IOException {
-        try (var sender = mock(Sender.class)) {
-            var thrownException = expectThrows(
-                IllegalArgumentException.class,
-                () -> createAction("^^", "secret", VoyageAIEmbeddingsTaskSettings.EMPTY_SETTINGS, null, null, sender)
-            );
-            MatcherAssert.assertThat(thrownException.getMessage(), containsString("unable to parse url [^^]"));
-        }
-    }
-
     public void testExecute_ThrowsElasticsearchException() {
         var sender = mock(Sender.class);
         doThrow(new ElasticsearchException("failed")).when(sender).send(any(), any(), any(), any());
@@ -416,10 +405,7 @@ public class VoyageAIEmbeddingsActionTests extends ESTestCase {
         Sender sender
     ) {
         var model = VoyageAIEmbeddingsModelTests.createModel(url, apiKey, taskSettings, 1024, 1024, modelName, embeddingType);
-        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(
-            model.getServiceSettings().getCommonSettings().uri(),
-            "VoyageAI embeddings"
-        );
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(model.uri(), "VoyageAI embeddings");
         var requestCreator = VoyageAIEmbeddingsRequestManager.of(model, threadPool);
         return new SenderExecutableAction(sender, requestCreator, failedToSendRequestErrorMessage);
     }

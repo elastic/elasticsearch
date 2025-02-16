@@ -19,13 +19,11 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServiceSettings;
 
 import java.io.IOException;
 import java.util.EnumSet;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -38,17 +36,26 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsTy
 
 public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject implements ServiceSettings {
     public static final String NAME = "voyageai_embeddings_service_settings";
+    static final String DIMENSIONS_SET_BY_USER = "dimensions_set_by_user";
     public static final VoyageAIEmbeddingsServiceSettings EMPTY_SETTINGS = new VoyageAIEmbeddingsServiceSettings(
         null,
         null,
         null,
         null,
-        null
+        null,
+        false
     );
 
     public static final String EMBEDDING_TYPE = "embedding_type";
 
     public static VoyageAIEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
+        return switch (context) {
+            case REQUEST -> fromRequestMap(map, context);
+            case PERSISTENT -> fromPersistentMap(map, context);
+        };
+    }
+
+    private static VoyageAIEmbeddingsServiceSettings fromRequestMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
         var commonServiceSettings = VoyageAIServiceSettings.fromMap(map, context);
 
@@ -62,7 +69,36 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
             throw validationException;
         }
 
-        return new VoyageAIEmbeddingsServiceSettings(commonServiceSettings, embeddingTypes, similarity, dims, maxInputTokens);
+        return new VoyageAIEmbeddingsServiceSettings(commonServiceSettings, embeddingTypes, similarity, dims, maxInputTokens, dims != null);
+    }
+
+    private static VoyageAIEmbeddingsServiceSettings fromPersistentMap(Map<String, Object> map, ConfigurationParseContext context) {
+        ValidationException validationException = new ValidationException();
+        var commonServiceSettings = VoyageAIServiceSettings.fromMap(map, context);
+
+        VoyageAIEmbeddingType embeddingTypes = parseEmbeddingType(map, context, validationException);
+
+        SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
+        Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
+
+        Boolean dimensionsSetByUser = removeAsType(map, DIMENSIONS_SET_BY_USER, Boolean.class);
+        if (dimensionsSetByUser == null) {
+            dimensionsSetByUser = Boolean.FALSE;
+        }
+
+        if (validationException.validationErrors().isEmpty() == false) {
+            throw validationException;
+        }
+
+        return new VoyageAIEmbeddingsServiceSettings(
+            commonServiceSettings,
+            embeddingTypes,
+            similarity,
+            dims,
+            maxInputTokens,
+            dimensionsSetByUser
+        );
     }
 
     static VoyageAIEmbeddingType parseEmbeddingType(
@@ -71,7 +107,7 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
         ValidationException validationException
     ) {
         return switch (context) {
-            case REQUEST -> Objects.requireNonNullElse(
+            case REQUEST, PERSISTENT -> Objects.requireNonNullElse(
                 extractOptionalEnum(
                     map,
                     EMBEDDING_TYPE,
@@ -82,39 +118,8 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
                 ),
                 VoyageAIEmbeddingType.FLOAT
             );
-            case PERSISTENT -> {
-                var embeddingType = ServiceUtils.extractOptionalString(
-                    map,
-                    EMBEDDING_TYPE,
-                    ModelConfigurations.SERVICE_SETTINGS,
-                    validationException
-                );
-                yield fromVoyageAIOrDenseVectorEnumValues(embeddingType, validationException);
-            }
 
         };
-    }
-
-    static VoyageAIEmbeddingType fromVoyageAIOrDenseVectorEnumValues(String enumString, ValidationException validationException) {
-        if (enumString == null) {
-            return VoyageAIEmbeddingType.FLOAT;
-        }
-
-        try {
-            return VoyageAIEmbeddingType.fromString(enumString);
-        } catch (IllegalArgumentException ae) {
-            try {
-                return VoyageAIEmbeddingType.fromElementType(DenseVectorFieldMapper.ElementType.fromString(enumString));
-            } catch (IllegalArgumentException iae) {
-                var validValuesAsStrings = VoyageAIEmbeddingType.SUPPORTED_ELEMENT_TYPES.stream()
-                    .map(value -> value.toString().toLowerCase(Locale.ROOT))
-                    .toArray(String[]::new);
-                validationException.addValidationError(
-                    ServiceUtils.invalidValue(EMBEDDING_TYPE, ModelConfigurations.SERVICE_SETTINGS, enumString, validValuesAsStrings)
-                );
-                return null;
-            }
-        }
     }
 
     private final VoyageAIServiceSettings commonSettings;
@@ -122,19 +127,22 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
     private final SimilarityMeasure similarity;
     private final Integer dimensions;
     private final Integer maxInputTokens;
+    private final Boolean dimensionsSetByUser;
 
     public VoyageAIEmbeddingsServiceSettings(
         VoyageAIServiceSettings commonSettings,
         @Nullable VoyageAIEmbeddingType embeddingType,
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer dimensions,
-        @Nullable Integer maxInputTokens
+        @Nullable Integer maxInputTokens,
+        Boolean dimensionsSetByUser
     ) {
         this.commonSettings = commonSettings;
         this.similarity = similarity;
         this.dimensions = dimensions;
         this.maxInputTokens = maxInputTokens;
         this.embeddingType = embeddingType;
+        this.dimensionsSetByUser = Objects.requireNonNull(dimensionsSetByUser);
     }
 
     public VoyageAIEmbeddingsServiceSettings(StreamInput in) throws IOException {
@@ -143,6 +151,7 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
         this.dimensions = in.readOptionalVInt();
         this.maxInputTokens = in.readOptionalVInt();
         this.embeddingType = Objects.requireNonNullElse(in.readOptionalEnum(VoyageAIEmbeddingType.class), VoyageAIEmbeddingType.FLOAT);
+        this.dimensionsSetByUser = in.readBoolean();
     }
 
     public VoyageAIServiceSettings getCommonSettings() {
@@ -175,6 +184,11 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
     @Override
     public DenseVectorFieldMapper.ElementType elementType() {
         return embeddingType == null ? DenseVectorFieldMapper.ElementType.FLOAT : embeddingType.toElementType();
+    }
+
+    @Override
+    public Boolean dimensionsSetByUser() {
+        return this.dimensionsSetByUser;
     }
 
     @Override
@@ -222,6 +236,7 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
         out.writeOptionalVInt(dimensions);
         out.writeOptionalVInt(maxInputTokens);
         out.writeOptionalEnum(embeddingType);
+        out.writeBoolean(dimensionsSetByUser);
     }
 
     @Override
@@ -233,11 +248,12 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
             && Objects.equals(similarity, that.similarity)
             && Objects.equals(dimensions, that.dimensions)
             && Objects.equals(maxInputTokens, that.maxInputTokens)
-            && Objects.equals(embeddingType, that.embeddingType);
+            && Objects.equals(embeddingType, that.embeddingType)
+            && Objects.equals(dimensionsSetByUser, that.dimensionsSetByUser);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(commonSettings, similarity, dimensions, maxInputTokens, embeddingType);
+        return Objects.hash(commonSettings, similarity, dimensions, maxInputTokens, embeddingType, dimensionsSetByUser);
     }
 }

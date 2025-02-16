@@ -28,11 +28,7 @@ import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhi
 public class VoyageAIRerankServiceSettingsTests extends AbstractBWCWireSerializationTestCase<VoyageAIRerankServiceSettings> {
     public static VoyageAIRerankServiceSettings createRandom() {
         return new VoyageAIRerankServiceSettings(
-            new VoyageAIServiceSettings(
-                randomFrom(new String[] { null, Strings.format("http://%s.com", randomAlphaOfLength(8)) }),
-                randomAlphaOfLength(10),
-                RateLimitSettingsTests.createRandom()
-            )
+            new VoyageAIServiceSettings(randomAlphaOfLength(10), RateLimitSettingsTests.createRandom())
         );
     }
 
@@ -40,7 +36,7 @@ public class VoyageAIRerankServiceSettingsTests extends AbstractBWCWireSerializa
         var url = "http://www.abc.com";
         var model = "model";
 
-        var serviceSettings = new VoyageAIRerankServiceSettings(new VoyageAIServiceSettings(url, model, null));
+        var serviceSettings = new VoyageAIRerankServiceSettings(new VoyageAIServiceSettings(model, null));
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
@@ -48,7 +44,6 @@ public class VoyageAIRerankServiceSettingsTests extends AbstractBWCWireSerializa
 
         assertThat(xContentResult, equalToIgnoringWhitespaceInJsonString("""
             {
-                "url":"http://www.abc.com",
                 "model_id":"model",
                 "rate_limit": {
                     "requests_per_minute": 2000
@@ -77,7 +72,7 @@ public class VoyageAIRerankServiceSettingsTests extends AbstractBWCWireSerializa
         return instance;
     }
 
-    public static Map<String, Object> getServiceSettingsMap(@Nullable String url, @Nullable String model) {
-        return new HashMap<>(VoyageAIServiceSettingsTests.getServiceSettingsMap(url, model));
+    public static Map<String, Object> getServiceSettingsMap(@Nullable String model) {
+        return new HashMap<>(VoyageAIServiceSettingsTests.getServiceSettingsMap(model));
     }
 }

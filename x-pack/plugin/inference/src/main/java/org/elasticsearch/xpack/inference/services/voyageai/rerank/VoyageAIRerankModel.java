@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.voyageai.rerank;
 
+import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -14,12 +15,16 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.voyageai.VoyageAIActionVisitor;
+import org.elasticsearch.xpack.inference.external.request.voyageai.VoyageAIUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIModel;
 
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.inference.external.request.voyageai.VoyageAIUtils.HOST;
 
 public class VoyageAIRerankModel extends VoyageAIModel {
     public static VoyageAIRerankModel of(VoyageAIRerankModel model, Map<String, Object> taskSettings) {
@@ -52,11 +57,23 @@ public class VoyageAIRerankModel extends VoyageAIModel {
         VoyageAIRerankTaskSettings taskSettings,
         @Nullable DefaultSecretSettings secretSettings
     ) {
+        this(modelId, service, null, serviceSettings, taskSettings, secretSettings);
+    }
+
+    VoyageAIRerankModel(
+        String modelId,
+        String service,
+        String url,
+        VoyageAIRerankServiceSettings serviceSettings,
+        VoyageAIRerankTaskSettings taskSettings,
+        @Nullable DefaultSecretSettings secretSettings
+    ) {
         super(
             new ModelConfigurations(modelId, TaskType.RERANK, service, serviceSettings, taskSettings),
             new ModelSecrets(secretSettings),
             secretSettings,
-            serviceSettings.getCommonSettings()
+            serviceSettings.getCommonSettings(),
+            url
         );
     }
 
@@ -96,7 +113,10 @@ public class VoyageAIRerankModel extends VoyageAIModel {
     }
 
     @Override
-    public URI uri() {
-        return getServiceSettings().getCommonSettings().uri();
+    protected URI buildRequestUri() throws URISyntaxException {
+        return new URIBuilder().setScheme("https")
+            .setHost(HOST)
+            .setPathSegments(VoyageAIUtils.VERSION_1, VoyageAIUtils.RERANK_PATH)
+            .build();
     }
 }

@@ -20,10 +20,10 @@ import static org.hamcrest.Matchers.is;
 
 public class VoyageAIRequestTests extends ESTestCase {
 
-    public void testDecorateWithAuthHeader() {
+    public void testDecorateWithHeaders() {
         var request = new HttpPost("http://www.abc.com");
 
-        VoyageAIRequest.decorateWithAuthHeader(
+        VoyageAIRequest.decorateWithHeaders(
             request,
             new VoyageAIAccount(URI.create("http://www.abc.com"), new SecureString(new char[] { 'a', 'b', 'c' }))
         );

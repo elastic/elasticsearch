@@ -28,6 +28,7 @@ public class VoyageAIRerankResponseEntityTests extends ESTestCase {
     public void testResponseLiteral() throws IOException {
         String responseLiteral = """
             {
+                "object": "list",
                 "model": "model",
                 "data": [
                     {
@@ -67,7 +68,7 @@ public class VoyageAIRerankResponseEntityTests extends ESTestCase {
 
         responseBuilder.append("{");
         responseBuilder.append("\"model\": \"model\",");
-        responseBuilder.append("\"index\":\"").append(randomAlphaOfLength(36)).append("\",");
+        responseBuilder.append("\"object\": \"list\",");
         responseBuilder.append("\"data\": [");
         List<Integer> indices = linear(numDocs);
         List<Float> scores = linearFloats(numDocs);
@@ -108,6 +109,7 @@ public class VoyageAIRerankResponseEntityTests extends ESTestCase {
     public void testResponseLiteralWithDocuments() throws IOException {
         String responseLiteralWithDocuments = """
             {
+                "object": "list",
                 "model": "model",
                 "data": [
                     {

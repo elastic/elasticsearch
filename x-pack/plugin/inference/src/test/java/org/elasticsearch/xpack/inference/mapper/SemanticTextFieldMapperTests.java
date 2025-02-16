@@ -137,11 +137,6 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected String minimalIsInvalidRoutingPathErrorMessage(Mapper mapper) {
-        return "cannot have nested fields when index is in [index.mode=time_series]";
-    }
-
-    @Override
     protected void metaMapping(XContentBuilder b) throws IOException {
         super.metaMapping(b);
         b.field(INFERENCE_ID_FIELD, DEFAULT_ELSER_2_INFERENCE_ID);

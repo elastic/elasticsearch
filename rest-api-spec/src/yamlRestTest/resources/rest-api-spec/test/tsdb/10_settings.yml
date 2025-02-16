@@ -663,3 +663,24 @@ check time_series empty time bound value:
           "@timestamp": "2021-09-26T03:09:52.123456789Z",
           "metricset": "pod"
         }
+
+---
+"check doc values skipper is enabled by default":
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: foo
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+
+  - do:
+      indices.get_settings:
+        include_defaults: true
+        index: "test_index"
+
+  - match: { test_index.defaults.index.mapping.use_doc_values_skipper: "true" }

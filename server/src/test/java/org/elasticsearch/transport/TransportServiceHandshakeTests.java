@@ -22,7 +22,6 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -373,7 +372,6 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         assertFalse(transportServiceA.nodeConnected(discoveryNode));
     }
 
-    @SuppressForbidden(reason = "Sets property for testing")
     public void testAcceptsMismatchedServerlessBuildHash() {
         assumeTrue("Current build needs to be a snapshot", Build.current().isSnapshot());
         final DisruptingTransportInterceptor transportInterceptorA = new DisruptingTransportInterceptor();

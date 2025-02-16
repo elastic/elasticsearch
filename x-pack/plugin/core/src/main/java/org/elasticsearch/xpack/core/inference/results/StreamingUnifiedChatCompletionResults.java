@@ -8,20 +8,21 @@
 package org.elasticsearch.xpack.core.inference.results;
 
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
-import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.Flow;
 
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
@@ -29,7 +30,7 @@ import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
 /**
  * Chat Completion results that only contain a Flow.Publisher.
  */
-public record StreamingUnifiedChatCompletionResults(Flow.Publisher<? extends ChunkedToXContent> publisher)
+public record StreamingUnifiedChatCompletionResults(Flow.Publisher<? extends InferenceServiceResults.Result> publisher)
     implements
         InferenceServiceResults {
 
@@ -60,76 +61,83 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<? extends Chu
     }
 
     @Override
-    public List<? extends InferenceResults> transformToCoordinationFormat() {
-        throw new UnsupportedOperationException("Not implemented");
-    }
-
-    @Override
-    public List<? extends InferenceResults> transformToLegacyFormat() {
-        throw new UnsupportedOperationException("Not implemented");
-    }
-
-    @Override
-    public Map<String, Object> asMap() {
-        throw new UnsupportedOperationException("Not implemented");
-    }
-
-    @Override
-    public String getWriteableName() {
-        throw new UnsupportedOperationException("Not implemented");
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        throw new UnsupportedOperationException("Not implemented");
-    }
-
-    @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         throw new UnsupportedOperationException("Not implemented");
     }
 
-    public record Results(Deque<ChatCompletionChunk> chunks) implements ChunkedToXContent {
+    public record Results(Deque<ChatCompletionChunk> chunks) implements InferenceServiceResults.Result {
+        public static String NAME = "streaming_unified_chat_completion_results";
+
+        public Results(StreamInput in) throws IOException {
+            this(deque(in));
+        }
+
+        private static Deque<ChatCompletionChunk> deque(StreamInput in) throws IOException {
+            return in.readCollection(ArrayDeque::new, ((stream, deque) -> deque.offer(new ChatCompletionChunk(stream))));
+        }
+
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
             return Iterators.concat(Iterators.flatMap(chunks.iterator(), c -> c.toXContentChunked(params)));
         }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeCollection(chunks, StreamOutput::writeWriteable);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (o == null || getClass() != o.getClass()) return false;
+            Results results = (Results) o;
+            return dequeEquals(chunks, results.chunks());
+        }
+
+        private static boolean dequeEquals(Deque<?> thisDeque, Deque<?> otherDeque) {
+            if (thisDeque.size() != otherDeque.size()) {
+                return false;
+            }
+            var thisIter = thisDeque.iterator();
+            var otherIter = otherDeque.iterator();
+            while (thisIter.hasNext() && otherIter.hasNext()) {
+                if (thisIter.next().equals(otherIter.next()) == false) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        @Override
+        public int hashCode() {
+            return dequeHashCode(chunks);
+        }
+
+        private static int dequeHashCode(Deque<?> deque) {
+            if (deque == null) {
+                return 0;
+            }
+            return deque.stream().reduce(1, (hashCode, chunk) -> 31 * hashCode + (chunk == null ? 0 : chunk.hashCode()), Integer::sum);
+        }
     }
 
-    public static class ChatCompletionChunk implements ChunkedToXContent {
-        private final String id;
+    public record ChatCompletionChunk(String id, List<Choice> choices, String model, String object, ChatCompletionChunk.Usage usage)
+        implements
+            ChunkedToXContent,
+            Writeable {
 
-        public String getId() {
-            return id;
-        }
-
-        public List<Choice> getChoices() {
-            return choices;
-        }
-
-        public String getModel() {
-            return model;
-        }
-
-        public String getObject() {
-            return object;
-        }
-
-        public Usage getUsage() {
-            return usage;
-        }
-
-        private final List<Choice> choices;
-        private final String model;
-        private final String object;
-        private final ChatCompletionChunk.Usage usage;
-
-        public ChatCompletionChunk(String id, List<Choice> choices, String model, String object, ChatCompletionChunk.Usage usage) {
-            this.id = id;
-            this.choices = choices;
-            this.model = model;
-            this.object = object;
-            this.usage = usage;
+        private ChatCompletionChunk(StreamInput in) throws IOException {
+            this(
+                in.readString(),
+                in.readOptionalCollectionAsList(Choice::new),
+                in.readString(),
+                in.readString(),
+                in.readOptional(Usage::new)
+            );
         }
 
         @Override
@@ -152,7 +160,23 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<? extends Chu
             );
         }
 
-        public record Choice(ChatCompletionChunk.Choice.Delta delta, String finishReason, int index) implements ChunkedToXContentObject {
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(id);
+            out.writeOptionalCollection(choices);
+            out.writeString(model);
+            out.writeString(object);
+            out.writeOptionalWriteable(usage);
+        }
+
+        public record Choice(ChatCompletionChunk.Choice.Delta delta, String finishReason, int index)
+            implements
+                ChunkedToXContentObject,
+                Writeable {
+
+            private Choice(StreamInput in) throws IOException {
+                this(new Delta(in), in.readOptionalString(), in.readInt());
+            }
 
             /*
               choices: Array<{
@@ -172,17 +196,22 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<? extends Chu
                 );
             }
 
-            public static class Delta {
-                private final String content;
-                private final String refusal;
-                private final String role;
-                private List<ToolCall> toolCalls;
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                out.writeWriteable(delta);
+                out.writeOptionalString(finishReason);
+                out.writeInt(index);
+            }
 
-                public Delta(String content, String refusal, String role, List<ToolCall> toolCalls) {
-                    this.content = content;
-                    this.refusal = refusal;
-                    this.role = role;
-                    this.toolCalls = toolCalls;
+            public record Delta(String content, String refusal, String role, List<ToolCall> toolCalls) implements Writeable {
+
+                private Delta(StreamInput in) throws IOException {
+                    this(
+                        in.readOptionalString(),
+                        in.readOptionalString(),
+                        in.readOptionalString(),
+                        in.readOptionalCollectionAsList(ToolCall::new)
+                    );
                 }
 
                 /*
@@ -214,49 +243,26 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<? extends Chu
 
                 }
 
-                public String getContent() {
-                    return content;
+                @Override
+                public void writeTo(StreamOutput out) throws IOException {
+                    out.writeOptionalString(content);
+                    out.writeOptionalString(refusal);
+                    out.writeOptionalString(role);
+                    out.writeOptionalCollection(toolCalls);
                 }
 
-                public String getRefusal() {
-                    return refusal;
-                }
+                public record ToolCall(int index, String id, ChatCompletionChunk.Choice.Delta.ToolCall.Function function, String type)
+                    implements
+                        ChunkedToXContentObject,
+                        Writeable {
 
-                public String getRole() {
-                    return role;
-                }
-
-                public List<ToolCall> getToolCalls() {
-                    return toolCalls;
-                }
-
-                public static class ToolCall implements ChunkedToXContentObject {
-                    private final int index;
-                    private final String id;
-                    public ChatCompletionChunk.Choice.Delta.ToolCall.Function function;
-                    private final String type;
-
-                    public ToolCall(int index, String id, ChatCompletionChunk.Choice.Delta.ToolCall.Function function, String type) {
-                        this.index = index;
-                        this.id = id;
-                        this.function = function;
-                        this.type = type;
-                    }
-
-                    public int getIndex() {
-                        return index;
-                    }
-
-                    public String getId() {
-                        return id;
-                    }
-
-                    public ChatCompletionChunk.Choice.Delta.ToolCall.Function getFunction() {
-                        return function;
-                    }
-
-                    public String getType() {
-                        return type;
+                    private ToolCall(StreamInput in) throws IOException {
+                        this(
+                            in.readInt(),
+                            in.readOptionalString(),
+                            in.readOptional(ChatCompletionChunk.Choice.Delta.ToolCall.Function::new),
+                            in.readOptionalString()
+                        );
                     }
 
                     /*
@@ -280,8 +286,8 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<? extends Chu
                             content = Iterators.concat(
                                 content,
                                 ChunkedToXContentHelper.startObject(FUNCTION_FIELD),
-                                optionalField(FUNCTION_ARGUMENTS_FIELD, function.getArguments()),
-                                optionalField(FUNCTION_NAME_FIELD, function.getName()),
+                                optionalField(FUNCTION_ARGUMENTS_FIELD, function.arguments()),
+                                optionalField(FUNCTION_NAME_FIELD, function.name()),
                                 ChunkedToXContentHelper.endObject()
                             );
                         }
@@ -294,28 +300,42 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<? extends Chu
                         return content;
                     }
 
-                    public static class Function {
-                        private final String arguments;
-                        private final String name;
+                    @Override
+                    public void writeTo(StreamOutput out) throws IOException {
+                        out.writeInt(index);
+                        out.writeOptionalString(id);
+                        out.writeOptionalWriteable(function);
+                        out.writeOptionalString(type);
+                    }
 
-                        public Function(String arguments, String name) {
-                            this.arguments = arguments;
-                            this.name = name;
+                    public record Function(String arguments, String name) implements Writeable {
+
+                        private Function(StreamInput in) throws IOException {
+                            this(in.readOptionalString(), in.readOptionalString());
                         }
 
-                        public String getArguments() {
-                            return arguments;
-                        }
-
-                        public String getName() {
-                            return name;
+                        @Override
+                        public void writeTo(StreamOutput out) throws IOException {
+                            out.writeOptionalString(arguments);
+                            out.writeOptionalString(name);
                         }
                     }
                 }
             }
         }
 
-        public record Usage(int completionTokens, int promptTokens, int totalTokens) {}
+        public record Usage(int completionTokens, int promptTokens, int totalTokens) implements Writeable {
+            private Usage(StreamInput in) throws IOException {
+                this(in.readInt(), in.readInt(), in.readInt());
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                out.writeInt(completionTokens);
+                out.writeInt(promptTokens);
+                out.writeInt(totalTokens);
+            }
+        }
 
         private static Iterator<ToXContent> optionalField(String name, String value) {
             if (value == null) {

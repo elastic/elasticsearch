@@ -36,7 +36,7 @@ public class ThreadPoolMergeQueue {
      * Initial value for IO write rate limit of individual merge tasks when doAutoIOThrottle is true
      */
     private static final ByteSizeValue START_IO_RATE = ByteSizeValue.ofMb(20L);
-    private final AtomicInteger activeIOThrottledMergeTasksCount = new AtomicInteger();
+    private final AtomicInteger submittedIOThrottledMergeTasksCount = new AtomicInteger();
     private final PriorityBlockingQueue<MergeTask> queuedMergeTasks = new PriorityBlockingQueue<>();
     // the set of all merge tasks currently being executed by merge threads from the pool,
     // in order to be able to update the IO throttle rate of merge tasks also after they have started (while executing)
@@ -66,7 +66,7 @@ public class ThreadPoolMergeQueue {
         enqueueMergeTask(mergeTask);
         if (mergeTask.supportsIOThrottling()) {
             // count submitted merge tasks that support IO auto throttling, and maybe adjust IO rate for all
-            maybeUpdateIORateBytesPerSec(activeIOThrottledMergeTasksCount.incrementAndGet());
+            maybeUpdateIORateBytesPerSec(submittedIOThrottledMergeTasksCount.incrementAndGet());
         }
         executeSmallestMergeTask();
     }
@@ -119,18 +119,18 @@ public class ThreadPoolMergeQueue {
             boolean removed = currentlyRunningMergeTasks.remove(mergeTask);
             assert removed : "completed merge task [" + mergeTask + "] not registered as running";
             if (mergeTask.supportsIOThrottling()) {
-                activeIOThrottledMergeTasksCount.decrementAndGet();
+                submittedIOThrottledMergeTasksCount.decrementAndGet();
             }
         }
     }
 
-    private void maybeUpdateIORateBytesPerSec(int activeIOThrottledMergeTasks) {
+    private void maybeUpdateIORateBytesPerSec(int submittedIOThrottledMergeTasks) {
         long currentTargetIORateBytesPerSec = targetIORateBytesPerSec.get(), newTargetIORateBytesPerSec = 0L;
         for (boolean isNewComputed = false;;) {
             if (isNewComputed == false) {
                 newTargetIORateBytesPerSec = newTargetIORateBytesPerSec(
                     currentTargetIORateBytesPerSec,
-                    activeIOThrottledMergeTasks,
+                    submittedIOThrottledMergeTasks,
                     maxConcurrentMerges
                 );
                 if (newTargetIORateBytesPerSec == currentTargetIORateBytesPerSec) {
@@ -180,7 +180,7 @@ public class ThreadPoolMergeQueue {
 
     public boolean isEmpty() {
         boolean isEmpty = queuedMergeTasks.isEmpty() && currentlyRunningMergeTasks.isEmpty();
-        assert isEmpty == false || activeIOThrottledMergeTasksCount.get() == 0L;
+        assert isEmpty == false || submittedIOThrottledMergeTasksCount.get() == 0L;
         return isEmpty;
     }
 }

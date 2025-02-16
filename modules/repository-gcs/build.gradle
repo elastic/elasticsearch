@@ -50,6 +50,9 @@ dependencies {
   api 'com.google.api:gax-httpjson:0.105.1'
   api 'io.grpc:grpc-context:1.49.2'
   api 'io.opencensus:opencensus-api:0.31.1'
+  api 'io.opencensus:opencensus-impl-core:0.31.1'
+  api 'io.opencensus:opencensus-impl-lite:0.31.1'
+
   api 'io.opencensus:opencensus-contrib-http-util:0.31.1'
   api 'com.google.apis:google-api-services-storage:v1-rev20220705-2.0.0'
 

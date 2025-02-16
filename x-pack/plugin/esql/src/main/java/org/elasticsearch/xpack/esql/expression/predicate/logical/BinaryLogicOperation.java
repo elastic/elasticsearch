@@ -50,6 +50,10 @@ public enum BinaryLogicOperation implements PredicateBiFunction<Boolean, Boolean
         return process.apply(left, right);
     }
 
+    public Double score(Double leftScore, Double rightScore) {
+        return leftScore + rightScore;
+    }
+
     @Override
     public final Boolean doApply(Boolean left, Boolean right) {
         return null;

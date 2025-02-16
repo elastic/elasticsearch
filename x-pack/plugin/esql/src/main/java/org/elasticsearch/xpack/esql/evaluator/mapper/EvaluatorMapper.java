@@ -41,6 +41,10 @@ public interface EvaluatorMapper {
         default List<EsPhysicalOperationProviders.ShardContext> shardContexts() {
             throw new UnsupportedOperationException("Shard contexts should only be needed for evaluation operations");
         }
+
+        default boolean usesScoring() {
+            return false;
+        }
     }
 
     /**

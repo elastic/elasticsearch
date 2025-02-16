@@ -50,6 +50,10 @@ public class StringMatcher implements Predicate<String> {
         return StringMatcher.builder().includeAll(patterns).build();
     }
 
+    public static StringMatcher never() {
+        return MATCH_NOTHING;
+    }
+
     public static StringMatcher of(String... patterns) {
         return StringMatcher.builder().includeAll(patterns).build();
     }

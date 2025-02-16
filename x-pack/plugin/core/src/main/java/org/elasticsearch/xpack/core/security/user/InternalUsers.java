@@ -244,7 +244,8 @@ public class InternalUsers {
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("*")
-                    .privileges(LazyRolloverAction.NAME)
+                    // TODO it's a bug this works...
+                    .privileges(LazyRolloverAction.NAME, "read_failures")
                     .allowRestrictedIndices(true)
                     .build() },
             null,

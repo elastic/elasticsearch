@@ -219,7 +219,6 @@ public final class IndexPrivilege extends Privilege {
      * If you are adding a new named index privilege, also add it to the
      * <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-privileges.html#privileges-list-indices">docs</a>.
      */
-    @SuppressWarnings("unchecked")
     private static final Map<String, IndexPrivilege> VALUES = sortByAccessLevel(
         Stream.of(
             entry("none", NONE),
@@ -270,6 +269,13 @@ public final class IndexPrivilege extends Privilege {
                 return resolve(theName);
             }
         });
+    }
+
+    public String getSingleName() {
+        if (name().size() != 1) {
+            throw new IllegalStateException("Expected a single name, but got: " + name());
+        }
+        return name().iterator().next();
     }
 
     @Nullable

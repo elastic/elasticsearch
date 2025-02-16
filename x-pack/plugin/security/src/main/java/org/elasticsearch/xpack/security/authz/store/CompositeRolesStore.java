@@ -543,7 +543,9 @@ public class CompositeRolesStore {
 
         for (Map.Entry<Set<String>, MergeableIndicesPrivilege> entry : indicesPrivilegesMap.entrySet()) {
             MergeableIndicesPrivilege indicesPrivilege = entry.getValue();
-            Map<IndexComponentSelectorPrivilege, Set<String>> split = IndexComponentSelectorPrivilege.split(indicesPrivilege.privileges);
+            Map<IndexComponentSelectorPrivilege, Set<String>> split = IndexComponentSelectorPrivilege.splitBySelectors(
+                indicesPrivilege.privileges
+            );
             FieldPermissions fieldPermissions = fieldPermissionsCache.getFieldPermissions(indicesPrivilege.fieldPermissionsDefinition);
             String[] indices = indicesPrivilege.indices.toArray(Strings.EMPTY_ARRAY);
             for (Map.Entry<IndexComponentSelectorPrivilege, Set<String>> privilegesBySelector : split.entrySet()) {
@@ -559,7 +561,9 @@ public class CompositeRolesStore {
         }
         for (Map.Entry<Set<String>, MergeableIndicesPrivilege> entry : restrictedIndicesPrivilegesMap.entrySet()) {
             MergeableIndicesPrivilege indicesPrivilege = entry.getValue();
-            Map<IndexComponentSelectorPrivilege, Set<String>> split = IndexComponentSelectorPrivilege.split(indicesPrivilege.privileges);
+            Map<IndexComponentSelectorPrivilege, Set<String>> split = IndexComponentSelectorPrivilege.splitBySelectors(
+                indicesPrivilege.privileges
+            );
             FieldPermissions fieldPermissions = fieldPermissionsCache.getFieldPermissions(indicesPrivilege.fieldPermissionsDefinition);
             String[] indices = indicesPrivilege.indices.toArray(Strings.EMPTY_ARRAY);
             for (Map.Entry<IndexComponentSelectorPrivilege, Set<String>> privilegesBySelector : split.entrySet()) {

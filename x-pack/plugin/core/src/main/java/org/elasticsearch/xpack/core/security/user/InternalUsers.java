@@ -30,6 +30,7 @@ import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
 import java.util.Collection;
@@ -244,7 +245,7 @@ public class InternalUsers {
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("*")
-                    .privileges(LazyRolloverAction.NAME)
+                    .privileges(LazyRolloverAction.NAME, IndexPrivilege.MANAGE_FAILURE_STORE_INTERNAL.getSingleName())
                     .allowRestrictedIndices(true)
                     .build() },
             null,

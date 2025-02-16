@@ -15,25 +15,24 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-public enum IndexComponentSelectorPrivilege {
-    ALL("all", (selector) -> true),
-    DATA("data", IndexComponentSelector.DATA::equals),
-    FAILURES("failures", IndexComponentSelector.FAILURES::equals);
+public record IndexComponentSelectorPrivilege(String name, Predicate<IndexComponentSelector> predicate) {
+    public static final IndexComponentSelectorPrivilege ALL = new IndexComponentSelectorPrivilege("all", (selector) -> true);
+    public static final IndexComponentSelectorPrivilege DATA = new IndexComponentSelectorPrivilege(
+        "data",
+        IndexComponentSelector.DATA::equals
+    );
+    public static final IndexComponentSelectorPrivilege FAILURES = new IndexComponentSelectorPrivilege(
+        "failures",
+        IndexComponentSelector.FAILURES::equals
+    );
 
-    private final String name;
-    private final Predicate<IndexComponentSelector> grants;
+    private static final Set<IndexPrivilege> FAILURE_STORE_PRIVILEGE_NAMES = Set.of(
+        IndexPrivilege.READ_FAILURE_STORE,
+        IndexPrivilege.MANAGE_FAILURE_STORE_INTERNAL
+    );
 
-    IndexComponentSelectorPrivilege(String name, Predicate<IndexComponentSelector> grants) {
-        this.name = name;
-        this.grants = grants;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public boolean grants(IndexComponentSelector selector) {
-        return grants.test(selector);
+    public boolean test(IndexComponentSelector selector) {
+        return predicate.test(selector);
     }
 
     public boolean isTotal() {
@@ -44,20 +43,29 @@ public enum IndexComponentSelectorPrivilege {
         return indexPrivileges.stream().map(IndexComponentSelectorPrivilege::get).collect(Collectors.toSet());
     }
 
-    public static Map<IndexComponentSelectorPrivilege, Set<String>> split(Set<String> indexPrivileges) {
-        final var data = new HashSet<String>();
-        final var failures = new HashSet<String>();
+    public static Map<IndexComponentSelectorPrivilege, Set<String>> splitBySelectors(String... indexPrivileges) {
+        return splitBySelectors(Set.of(indexPrivileges));
+    }
+
+    public static Map<IndexComponentSelectorPrivilege, Set<String>> splitBySelectors(Set<String> indexPrivileges) {
+        final Set<String> data = new HashSet<>();
+        final Set<String> failures = new HashSet<>();
 
         for (String indexPrivilege : indexPrivileges) {
-            final var privilege = get(indexPrivilege);
-            switch (privilege) {
-                case DATA -> data.add(indexPrivilege);
-                case FAILURES -> failures.add(indexPrivilege);
-                // If we ever hit all, we can return early since we don't need to split
-                case ALL -> {
-                    return Map.of(ALL, indexPrivileges);
-                }
+            final IndexComponentSelectorPrivilege privilege = get(indexPrivilege);
+            // If we ever hit all, we can return early since we don't need to split
+            if (privilege.equals(ALL)) {
+                return Map.of(ALL, indexPrivileges);
             }
+
+            if (privilege.equals(DATA)) {
+                data.add(indexPrivilege);
+            } else if (privilege.equals(FAILURES)) {
+                failures.add(indexPrivilege);
+            } else {
+                throw new IllegalArgumentException("Unknown index privilege: " + indexPrivilege);
+            }
+
         }
 
         if (data.isEmpty()) {
@@ -75,7 +83,7 @@ public enum IndexComponentSelectorPrivilege {
             return DATA;
         } else if (indexPrivilege == IndexPrivilege.ALL) {
             return ALL;
-        } else if (indexPrivilege == IndexPrivilege.READ_FAILURE_STORE || indexPrivilege == IndexPrivilege.MANAGE_FAILURE_STORE_INTERNAL) {
+        } else if (FAILURE_STORE_PRIVILEGE_NAMES.contains(indexPrivilege)) {
             return FAILURES;
         } else {
             return DATA;

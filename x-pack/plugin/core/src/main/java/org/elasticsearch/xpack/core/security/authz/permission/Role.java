@@ -429,14 +429,19 @@ public interface Role {
             Set<BytesReference> query = indexPrivilege.getQuery() == null ? null : Collections.singleton(indexPrivilege.getQuery());
             IndexPrivilege privilege = IndexPrivilege.get(Sets.newHashSet(indexPrivilege.getPrivileges()));
             boolean allowRestrictedIndices = indexPrivilege.allowRestrictedIndices();
-            builder.add(
-                fieldPermissions,
-                query,
-                privilege,
-                allowRestrictedIndices,
-                IndexComponentSelectorPrivilege.DATA,
-                indexPrivilege.getIndices()
+            Map<IndexComponentSelectorPrivilege, Set<String>> split = IndexComponentSelectorPrivilege.splitBySelectors(
+                indexPrivilege.getPrivileges()
             );
+            for (var entry : split.entrySet()) {
+                builder.add(
+                    fieldPermissions,
+                    query,
+                    privilege,
+                    allowRestrictedIndices,
+                    entry.getKey(),
+                    entry.getValue().toArray(String[]::new)
+                );
+            }
         }
 
         for (RoleDescriptor.RemoteIndicesPrivileges remoteIndicesPrivileges : roleDescriptor.getRemoteIndicesPrivileges()) {

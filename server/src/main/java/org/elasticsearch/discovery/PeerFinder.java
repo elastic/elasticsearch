@@ -13,13 +13,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.coordination.ClusterFormationFailureHelper;
 import org.elasticsearch.cluster.coordination.PeersResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.ReferenceDocs;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -29,12 +29,9 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool.Names;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -524,55 +521,43 @@ public abstract class PeerFinder {
 
             final List<DiscoveryNode> knownNodes = List.copyOf(getFoundPeersUnderLock());
 
-            final TransportResponseHandler<PeersResponse> peersResponseHandler = new TransportResponseHandler<>() {
-
-                @Override
-                public PeersResponse read(StreamInput in) throws IOException {
-                    return new PeersResponse(in);
-                }
-
-                @Override
-                public void handleResponse(PeersResponse response) {
-                    logger.trace("{} received {}", Peer.this, response);
-                    synchronized (mutex) {
-                        peersRequestInFlight = false;
-
-                        if (isActive() == false) {
-                            logger.trace("Peer#requestPeers inactive: {}", Peer.this);
-                            return;
-                        }
-
-                        lastKnownMasterNode = response.getMasterNode();
-                        response.getMasterNode().ifPresent(node -> startProbe(node.getAddress()));
-                        for (DiscoveryNode node : response.getKnownPeers()) {
-                            startProbe(node.getAddress());
-                        }
-                    }
-
-                    if (response.getMasterNode().equals(Optional.of(discoveryNode))) {
-                        // Must not hold lock here to avoid deadlock
-                        assert holdsLock() == false : "PeerFinder mutex is held in error";
-                        onActiveMasterFound(discoveryNode, response.getTerm());
-                    }
-                }
-
-                @Override
-                public void handleException(TransportException exp) {
-                    peersRequestInFlight = false;
-                    logger.warn(() -> format("%s peers request failed", Peer.this), exp);
-                }
-
-                @Override
-                public Executor executor() {
-                    return clusterCoordinationExecutor;
-                }
-            };
             transportService.sendRequest(
                 discoveryNode,
                 REQUEST_PEERS_ACTION_NAME,
                 new PeersRequest(getLocalNode(), knownNodes),
                 TransportRequestOptions.timeout(requestPeersTimeout),
-                peersResponseHandler
+                new ActionListenerResponseHandler<>(ActionListener.assertOnce(new ActionListener<>() {
+                    @Override
+                    public void onResponse(PeersResponse response) {
+                        logger.trace("{} received {}", Peer.this, response);
+                        synchronized (mutex) {
+                            peersRequestInFlight = false;
+
+                            if (isActive() == false) {
+                                logger.trace("Peer#requestPeers inactive: {}", Peer.this);
+                                return;
+                            }
+
+                            lastKnownMasterNode = response.getMasterNode();
+                            response.getMasterNode().ifPresent(node -> startProbe(node.getAddress()));
+                            for (DiscoveryNode node : response.getKnownPeers()) {
+                                startProbe(node.getAddress());
+                            }
+                        }
+
+                        if (response.getMasterNode().equals(Optional.of(discoveryNode))) {
+                            // Must not hold lock here to avoid deadlock
+                            assert holdsLock() == false : "PeerFinder mutex is held in error";
+                            onActiveMasterFound(discoveryNode, response.getTerm());
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        peersRequestInFlight = false;
+                        logger.warn(() -> format("%s peers request failed", Peer.this), e);
+                    }
+                }), PeersResponse::new, clusterCoordinationExecutor)
             );
         }
 

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioModel;
+import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioService;
 
 import java.util.Objects;
 
@@ -23,5 +24,10 @@ public abstract class GoogleAiStudioRequestManager extends BaseRequestManager {
 
             return new RateLimitGrouping(model.rateLimitServiceSettings().modelId().hashCode());
         }
+    }
+
+    @Override
+    public String service() {
+        return GoogleAiStudioService.NAME;
     }
 }

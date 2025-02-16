@@ -57,7 +57,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
@@ -277,45 +276,10 @@ public class ComputeService {
                         cluster,
                         cancelQueryOnFailure,
                         execInfo,
-                        computeListener.acquireCompute().map(r -> {
-                            updateExecutionInfo(execInfo, cluster.clusterAlias(), r);
-                            return r.getProfiles();
-                        })
+                        computeListener.acquireCompute()
                     );
                 }
             }
-        }
-    }
-
-    private void updateExecutionInfo(EsqlExecutionInfo executionInfo, String clusterAlias, ComputeResponse resp) {
-        Function<EsqlExecutionInfo.Cluster.Status, EsqlExecutionInfo.Cluster.Status> runningToSuccess = status -> {
-            if (status == EsqlExecutionInfo.Cluster.Status.RUNNING) {
-                return executionInfo.isStopped() ? EsqlExecutionInfo.Cluster.Status.PARTIAL : EsqlExecutionInfo.Cluster.Status.SUCCESSFUL;
-            } else {
-                return status;
-            }
-        };
-        if (resp.getTook() != null) {
-            var tookTime = TimeValue.timeValueNanos(executionInfo.planningTookTime().nanos() + resp.getTook().nanos());
-            executionInfo.swapCluster(
-                clusterAlias,
-                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(runningToSuccess.apply(v.getStatus()))
-                    .setTook(tookTime)
-                    .setTotalShards(resp.getTotalShards())
-                    .setSuccessfulShards(resp.getSuccessfulShards())
-                    .setSkippedShards(resp.getSkippedShards())
-                    .setFailedShards(resp.getFailedShards())
-                    .build()
-            );
-        } else {
-            // if the cluster is an older version and does not send back took time, then calculate it here on the coordinator
-            // and leave shard info unset, so it is not shown in the CCS metadata section of the JSON response
-            executionInfo.swapCluster(
-                clusterAlias,
-                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(runningToSuccess.apply(v.getStatus()))
-                    .setTook(executionInfo.tookSoFar())
-                    .build()
-            );
         }
     }
 

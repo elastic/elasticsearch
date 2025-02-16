@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.core.Releasable;
@@ -34,10 +35,11 @@ import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 /**
  * Manages computes across multiple clusters by sending {@link ClusterComputeRequest} to remote clusters and executing the computes.
@@ -74,69 +76,105 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         RemoteCluster cluster,
         Runnable cancelQueryOnFailure,
         EsqlExecutionInfo executionInfo,
-        ActionListener<ComputeResponse> listener
+        ActionListener<List<DriverProfile>> listener
     ) {
         var queryPragmas = configuration.pragmas();
         listener = ActionListener.runBefore(listener, exchangeSource.addEmptySink()::close);
         final var childSessionId = computeService.newChildSession(sessionId);
-        final AtomicReference<ComputeResponse> finalResponse = new AtomicReference<>();
         final String clusterAlias = cluster.clusterAlias();
-        try (var computeListener = new ComputeListener(transportService.getThreadPool(), cancelQueryOnFailure, listener.map(profiles -> {
-            var resp = finalResponse.get();
-            return Objects.requireNonNullElseGet(resp, () -> new ComputeResponse(profiles));
-        }))) {
-            ExchangeService.openExchange(
-                transportService,
-                cluster.connection,
-                childSessionId,
-                queryPragmas.exchangeBufferSize(),
-                esqlExecutor,
-                EsqlCCSUtils.skipUnavailableListener(
-                    computeListener.acquireAvoid(),
-                    executionInfo,
-                    clusterAlias,
-                    EsqlExecutionInfo.Cluster.Status.SKIPPED
-                ).delegateFailureAndWrap((l, unused) -> {
-                    var listenerGroup = new RemoteListenerGroup(
+        final boolean failFast = executionInfo.isSkipUnavailable(clusterAlias) == false && configuration.allowPartialResults() == false;
+        final AtomicInteger pagesFetched = new AtomicInteger();
+        listener = listener.delegateResponse((l, e) -> {
+            if (pagesFetched.get() == 0 && EsqlCCSUtils.shouldIgnoreRuntimeError(executionInfo, clusterAlias, e)) {
+                EsqlCCSUtils.markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, EsqlExecutionInfo.Cluster.Status.SKIPPED, e);
+                l.onResponse(List.of());
+            } else if (configuration.allowPartialResults()) {
+                EsqlCCSUtils.markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, EsqlExecutionInfo.Cluster.Status.FAILED, e);
+                l.onResponse(List.of());
+            } else {
+                l.onFailure(e);
+            }
+        });
+        ExchangeService.openExchange(
+            transportService,
+            cluster.connection,
+            childSessionId,
+            queryPragmas.exchangeBufferSize(),
+            esqlExecutor,
+            listener.delegateFailure((l, unused) -> {
+                final CancellableTask groupTask;
+                final Runnable onGroupFailure;
+                if (failFast) {
+                    groupTask = rootTask;
+                    onGroupFailure = cancelQueryOnFailure;
+                } else {
+                    groupTask = ComputeGroupTask.createGroupTask(
                         transportService,
                         rootTask,
-                        computeListener,
-                        clusterAlias,
-                        executionInfo,
-                        l
+                        () -> "compute group: cluster [" + clusterAlias + "]"
                     );
-
-                    var remoteSink = exchangeService.newRemoteSink(
-                        listenerGroup.getGroupTask(),
-                        childSessionId,
-                        transportService,
-                        cluster.connection
-                    );
+                    onGroupFailure = computeService.cancelQueryOnFailure(groupTask);
+                    l = ActionListener.runAfter(l, () -> transportService.getTaskManager().unregister(groupTask));
+                }
+                final ThreadPool threadPool = transportService.getThreadPool();
+                try (var computeListener = new ComputeListener(threadPool, onGroupFailure, l)) {
+                    var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, cluster.connection);
                     exchangeSource.addRemoteSink(
                         remoteSink,
                         executionInfo.isSkipUnavailable(clusterAlias) == false,
-                        () -> {},
+                        pagesFetched::incrementAndGet,
                         queryPragmas.concurrentExchangeClients(),
-                        listenerGroup.getExchangeRequestListener()
+                        computeListener.acquireAvoid()
                     );
                     var remotePlan = new RemoteClusterPlan(plan, cluster.concreteIndices, cluster.originalIndices);
                     var clusterRequest = new ClusterComputeRequest(clusterAlias, childSessionId, configuration, remotePlan);
-                    final ActionListener<ComputeResponse> clusterListener = listenerGroup.getClusterRequestListener().map(r -> {
-                        finalResponse.set(r);
+                    final ActionListener<ComputeResponse> clusterListener = computeListener.acquireCompute().map(r -> {
+                        updateExecutionInfo(executionInfo, clusterAlias, r);
                         return r.getProfiles();
                     });
                     transportService.sendChildRequest(
                         cluster.connection,
                         ComputeService.CLUSTER_ACTION_NAME,
                         clusterRequest,
-                        listenerGroup.getGroupTask(),
+                        groupTask,
                         TransportRequestOptions.EMPTY,
                         new ActionListenerResponseHandler<>(clusterListener, ComputeResponse::new, esqlExecutor)
                     );
-                })
+                }
+            })
+        );
+    }
+
+    private void updateExecutionInfo(EsqlExecutionInfo executionInfo, String clusterAlias, ComputeResponse resp) {
+        Function<EsqlExecutionInfo.Cluster.Status, EsqlExecutionInfo.Cluster.Status> runningToSuccess = status -> {
+            if (status == EsqlExecutionInfo.Cluster.Status.RUNNING) {
+                return executionInfo.isStopped() ? EsqlExecutionInfo.Cluster.Status.PARTIAL : EsqlExecutionInfo.Cluster.Status.SUCCESSFUL;
+            } else {
+                return status;
+            }
+        };
+        if (resp.getTook() != null) {
+            var tookTime = TimeValue.timeValueNanos(executionInfo.planningTookTime().nanos() + resp.getTook().nanos());
+            executionInfo.swapCluster(
+                clusterAlias,
+                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(runningToSuccess.apply(v.getStatus()))
+                    .setTook(tookTime)
+                    .setTotalShards(resp.getTotalShards())
+                    .setSuccessfulShards(resp.getSuccessfulShards())
+                    .setSkippedShards(resp.getSkippedShards())
+                    .setFailedShards(resp.getFailedShards())
+                    .build()
+            );
+        } else {
+            // if the cluster is an older version and does not send back took time, then calculate it here on the coordinator
+            // and leave shard info unset, so it is not shown in the CCS metadata section of the JSON response
+            executionInfo.swapCluster(
+                clusterAlias,
+                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(runningToSuccess.apply(v.getStatus()))
+                    .setTook(executionInfo.tookSoFar())
+                    .build()
             );
         }
-
     }
 
     List<RemoteCluster> getRemoteClusters(

@@ -143,13 +143,16 @@ public final class QuerySearchResult extends SearchPhaseResult {
         return this;
     }
 
-    public boolean isReduced() {
+    /**
+     * @return true if this result was already partially reduced on the data node that it originated on
+     */
+    public boolean isPartiallyReduced() {
         return reduced;
     }
 
-    public void setReduced() {
+    public void markAsPartiallyReduced() {
         assert (hasConsumedTopDocs() || topDocsAndMaxScore.topDocs.scoreDocs.length == 0) && aggregations == null
-            : topDocsAndMaxScore + " " + aggregations;
+            : "result not yet partially reduced [" + topDocsAndMaxScore + "][" + aggregations + "]";
         this.reduced = true;
     }
 

@@ -220,9 +220,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             consumePartialMergeResult(batchedResult.v2(), topDocsList, aggsList);
         }
         for (QuerySearchResult result : buffer) {
-            if (result.isReduced()) {
-                continue;
-            }
             topDocsStats.add(result.topDocs(), result.searchTimedOut(), result.terminatedEarly());
             if (topDocsList != null) {
                 TopDocsAndMaxScore topDocs = result.consumeTopDocs();
@@ -350,7 +347,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         } finally {
             releaseAggs(toConsume);
             for (QuerySearchResult querySearchResult : toConsume) {
-                querySearchResult.setReduced();
+                querySearchResult.markAsPartiallyReduced();
             }
         }
         if (lastMerge != null) {
@@ -413,8 +410,8 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         if (hasFailure()) {
             result.consumeAll();
             next.run();
-        } else if (result.isNull() || result.isReduced()) {
-            if (result.isReduced()) {
+        } else if (result.isNull() || result.isPartiallyReduced()) {
+            if (result.isPartiallyReduced()) {
                 if (result.hasConsumedTopDocs() == false) {
                     result.consumeTopDocs();
                 }

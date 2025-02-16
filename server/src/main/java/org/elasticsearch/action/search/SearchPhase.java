@@ -91,7 +91,8 @@ abstract class SearchPhase {
             ? searchPhaseResult.queryResult()
             : searchPhaseResult.rankFeatureResult();
         if (phaseResult != null
-            && (phaseResult.hasSearchContext() || (phaseResult instanceof QuerySearchResult q && q.isReduced() && q.getContextId() != null))
+            && (phaseResult.hasSearchContext()
+                || (phaseResult instanceof QuerySearchResult q && q.isPartiallyReduced() && q.getContextId() != null))
             && context.getRequest().scroll() == null
             && (context.isPartOfPointInTime(phaseResult.getContextId()) == false)) {
             try {

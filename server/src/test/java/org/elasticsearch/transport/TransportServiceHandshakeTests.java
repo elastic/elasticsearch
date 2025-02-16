@@ -376,37 +376,30 @@ public class TransportServiceHandshakeTests extends ESTestCase {
     @SuppressForbidden(reason = "Sets property for testing")
     public void testAcceptsMismatchedServerlessBuildHash() {
         assumeTrue("Current build needs to be a snapshot", Build.current().isSnapshot());
-        assumeTrue("Security manager needs to be disabled", System.getSecurityManager() == null);
-        System.setProperty(TransportService.SERVERLESS_TRANSPORT_SYSTEM_PROPERTY, Boolean.TRUE.toString());   // security manager blocks
-                                                                                                              // this
-        try {
-            final DisruptingTransportInterceptor transportInterceptorA = new DisruptingTransportInterceptor();
-            final DisruptingTransportInterceptor transportInterceptorB = new DisruptingTransportInterceptor();
-            transportInterceptorA.setModifyBuildHash(true);
-            transportInterceptorB.setModifyBuildHash(true);
-            final Settings settings = Settings.builder()
-                .put("cluster.name", "a")
-                .put(IGNORE_DESERIALIZATION_ERRORS_SETTING.getKey(), true) // suppress assertions to test production error-handling
-                .build();
-            final TransportService transportServiceA = startServices(
-                "TS_A",
-                settings,
-                TransportVersion.current(),
-                VersionInformation.CURRENT,
-                transportInterceptorA
-            );
-            final TransportService transportServiceB = startServices(
-                "TS_B",
-                settings,
-                TransportVersion.current(),
-                VersionInformation.CURRENT,
-                transportInterceptorB
-            );
-            AbstractSimpleTransportTestCase.connectToNode(transportServiceA, transportServiceB.getLocalNode(), TestProfiles.LIGHT_PROFILE);
-            assertTrue(transportServiceA.nodeConnected(transportServiceB.getLocalNode()));
-        } finally {
-            System.clearProperty(TransportService.SERVERLESS_TRANSPORT_SYSTEM_PROPERTY);
-        }
+        final DisruptingTransportInterceptor transportInterceptorA = new DisruptingTransportInterceptor();
+        final DisruptingTransportInterceptor transportInterceptorB = new DisruptingTransportInterceptor();
+        transportInterceptorA.setModifyBuildHash(true);
+        transportInterceptorB.setModifyBuildHash(true);
+        final Settings settings = Settings.builder()
+            .put("cluster.name", "a")
+            .put(IGNORE_DESERIALIZATION_ERRORS_SETTING.getKey(), true) // suppress assertions to test production error-handling
+            .build();
+        final TransportService transportServiceA = startServices(
+            "TS_A",
+            settings,
+            TransportVersion.current(),
+            VersionInformation.CURRENT,
+            transportInterceptorA
+        );
+        final TransportService transportServiceB = startServices(
+            "TS_B",
+            settings,
+            TransportVersion.current(),
+            VersionInformation.CURRENT,
+            transportInterceptorB
+        );
+        AbstractSimpleTransportTestCase.connectToNode(transportServiceA, transportServiceB.getLocalNode(), TestProfiles.LIGHT_PROFILE);
+        assertTrue(transportServiceA.nodeConnected(transportServiceB.getLocalNode()));
     }
 
     public void testAcceptsMismatchedBuildHashFromDifferentVersion() {

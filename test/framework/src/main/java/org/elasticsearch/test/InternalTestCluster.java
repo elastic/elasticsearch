@@ -1418,6 +1418,17 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
+    public void assertMergeQueueIsEmpty() throws Exception {
+        assertBusy(() -> {
+            for (String nodeName : getNodeNames()) {
+                IndicesService indicesService = getInstance(IndicesService.class, nodeName);
+                if (indicesService.getThreadPoolMergeQueue() != null) {
+                    assertTrue("thread pool merge queue is not empty after test", indicesService.getThreadPoolMergeQueue().isEmpty());
+                }
+            }
+        });
+    }
+
     public void assertNoInFlightDocsInEngine() throws Exception {
         assertBusy(() -> {
             for (String nodeName : getNodeNames()) {
@@ -2526,6 +2537,7 @@ public final class InternalTestCluster extends TestCluster {
         assertRequestsFinished();
         assertSearchContextsReleased();
         assertNoInFlightDocsInEngine();
+        assertMergeQueueIsEmpty();
         awaitIndexShardCloseAsyncTasks();
         for (NodeAndClient nodeAndClient : nodes.values()) {
             NodeEnvironment env = nodeAndClient.node().getNodeEnvironment();

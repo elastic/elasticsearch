@@ -2670,10 +2670,11 @@ include::ssl-settings.asciidoc[]
 [[ssl-tls-profile-settings]]
 [discrete]
 ===== Transport profile TLS/SSL settings
+NOTE: Transport profiles do not inherit TLS/SSL settings
+from the default transport. 
+
 The same settings that are available for the <<transport-tls-ssl-settings, default transport>>
-are also available for each transport profile. By default, the settings for a
-transport profile will be the same as the default transport unless they
-are specified.
+are also available for each transport profile. 
 
 As an example, lets look at the key setting. For the default transport
 this is `xpack.security.transport.ssl.key`. In order to use this setting in a

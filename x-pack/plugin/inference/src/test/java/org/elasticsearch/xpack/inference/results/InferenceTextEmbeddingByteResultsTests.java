@@ -102,6 +102,17 @@ public class InferenceTextEmbeddingByteResultsTests extends AbstractWireSerializ
         );
     }
 
+    public void testGetFirstEmbeddingSize() {
+        var firstEmbeddingSize = new InferenceTextEmbeddingByteResults(
+            List.of(
+                new InferenceByteEmbedding(new byte[] { (byte) 23, (byte) 24 }),
+                new InferenceByteEmbedding(new byte[] { (byte) 25, (byte) 26 })
+            )
+        ).getFirstEmbeddingSize();
+
+        assertThat(firstEmbeddingSize, is(2));
+    }
+
     @Override
     protected Writeable.Reader<InferenceTextEmbeddingByteResults> instanceReader() {
         return InferenceTextEmbeddingByteResults::new;

@@ -69,6 +69,7 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
             TopMetricsAggregator.SegmentOrdsValues::new,
             false
         );
+        registry.register(REGISTRY_KEY, List.of(CoreValuesSourceType.GEOPOINT), TopMetricsAggregator.GeoPointValues::new, false);
     }
 
     /**

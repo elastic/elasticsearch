@@ -16,7 +16,7 @@ buildParams.bwcVersions.withLatestReadOnlyIndexCompatible { bwcVersion ->
     usesBwcDistribution(bwcVersion)
 
     // Tests rely on unreleased code in 8.18 branch
-    enabled = buildParams.isSnapshotBuild()
+    enabled = buildParams.snapshotBuild
   }
 }
 

@@ -183,11 +183,12 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
             for (int i = 0; i < queryVectorArray.length; i++) {
                 queryVectorArray[i] = queryVector.get(i).floatValue();
             }
-            UnsupportedOperationException uoe = expectThrows(
-                UnsupportedOperationException.class,
-                () -> field.getInternal().cosineSimilarity(queryVectorArray, true)
+            assertEquals(
+                "cosineSimilarity result is not equal to the expected value!",
+                cosineSimilarityExpected,
+                field.getInternal().cosineSimilarity(queryVectorArray, true),
+                0.001
             );
-            assertThat(uoe.getMessage(), containsString("use [double cosineSimilarity(byte[] queryVector, float qvMagnitude)] instead"));
 
             // Check each function rejects query vectors with the wrong dimension
             IllegalArgumentException e = expectThrows(
@@ -342,11 +343,7 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
             switch (field.getElementType()) {
                 case BYTE -> {
                     assertEquals(field.getName(), dotProductExpected, field.get().dotProduct(byteVector));
-                    UnsupportedOperationException e = expectThrows(
-                        UnsupportedOperationException.class,
-                        () -> field.get().dotProduct(floatVector)
-                    );
-                    assertThat(e.getMessage(), containsString("use [int dotProduct(byte[] queryVector)] instead"));
+                    assertEquals(field.getName(), dotProductExpected, field.get().dotProduct(floatVector), 0.001);
                 }
                 case FLOAT -> {
                     assertEquals(field.getName(), dotProductExpected, field.get().dotProduct(floatVector), 0.001);
@@ -423,14 +420,7 @@ public class VectorScoreScriptUtilsTests extends ESTestCase {
             switch (field.getElementType()) {
                 case BYTE -> {
                     assertEquals(field.getName(), cosineSimilarityExpected, field.get().cosineSimilarity(byteVector), 0.001);
-                    UnsupportedOperationException e = expectThrows(
-                        UnsupportedOperationException.class,
-                        () -> field.get().cosineSimilarity(floatVector)
-                    );
-                    assertThat(
-                        e.getMessage(),
-                        containsString("use [double cosineSimilarity(byte[] queryVector, float qvMagnitude)] instead")
-                    );
+                    assertEquals(field.getName(), cosineSimilarityExpected, field.get().cosineSimilarity(floatVector), 0.001);
                 }
                 case FLOAT -> {
                     assertEquals(field.getName(), cosineSimilarityExpected, field.get().cosineSimilarity(floatVector), 0.001);

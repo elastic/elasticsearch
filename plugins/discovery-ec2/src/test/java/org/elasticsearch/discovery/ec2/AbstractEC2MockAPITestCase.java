@@ -8,8 +8,9 @@
  */
 package org.elasticsearch.discovery.ec2;
 
-import com.amazonaws.services.ec2.model.Instance;
-import com.amazonaws.services.ec2.model.Tag;
+import software.amazon.awssdk.services.ec2.model.Instance;
+import software.amazon.awssdk.services.ec2.model.Tag;
+
 import com.sun.net.httpserver.HttpServer;
 
 import org.elasticsearch.common.network.InetAddresses;
@@ -115,11 +116,11 @@ public abstract class AbstractEC2MockAPITestCase extends ESTestCase {
                                 sw.writeStartElement("item");
                                 {
                                     sw.writeStartElement("instanceId");
-                                    sw.writeCharacters(instance.getInstanceId());
+                                    sw.writeCharacters(instance.instanceId());
                                     sw.writeEndElement();
 
                                     sw.writeStartElement("imageId");
-                                    sw.writeCharacters(instance.getImageId());
+                                    sw.writeCharacters(instance.imageId());
                                     sw.writeEndElement();
 
                                     sw.writeStartElement("instanceState");
@@ -135,11 +136,11 @@ public abstract class AbstractEC2MockAPITestCase extends ESTestCase {
                                     sw.writeEndElement();
 
                                     sw.writeStartElement("privateDnsName");
-                                    sw.writeCharacters(instance.getPrivateDnsName());
+                                    sw.writeCharacters(instance.privateDnsName());
                                     sw.writeEndElement();
 
                                     sw.writeStartElement("dnsName");
-                                    sw.writeCharacters(instance.getPublicDnsName());
+                                    sw.writeCharacters(instance.publicDnsName());
                                     sw.writeEndElement();
 
                                     sw.writeStartElement("instanceType");
@@ -161,23 +162,23 @@ public abstract class AbstractEC2MockAPITestCase extends ESTestCase {
                                     sw.writeEndElement();
 
                                     sw.writeStartElement("privateIpAddress");
-                                    sw.writeCharacters(instance.getPrivateIpAddress());
+                                    sw.writeCharacters(instance.privateIpAddress());
                                     sw.writeEndElement();
 
                                     sw.writeStartElement("ipAddress");
-                                    sw.writeCharacters(instance.getPublicIpAddress());
+                                    sw.writeCharacters(instance.publicIpAddress());
                                     sw.writeEndElement();
 
                                     sw.writeStartElement("tagSet");
-                                    for (Tag tag : instance.getTags()) {
+                                    for (Tag tag : instance.tags()) {
                                         sw.writeStartElement("item");
                                         {
                                             sw.writeStartElement("key");
-                                            sw.writeCharacters(tag.getKey());
+                                            sw.writeCharacters(tag.key());
                                             sw.writeEndElement();
 
                                             sw.writeStartElement("value");
-                                            sw.writeCharacters(tag.getValue());
+                                            sw.writeCharacters(tag.value());
                                             sw.writeEndElement();
                                         }
                                         sw.writeEndElement();

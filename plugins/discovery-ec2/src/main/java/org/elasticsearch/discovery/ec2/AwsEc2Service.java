@@ -71,7 +71,7 @@ interface AwsEc2Service extends Closeable {
 
     /**
      * Builds then caches an {@code AmazonEC2} client using the current client
-     * settings. Returns an {@code AmazonEc2Reference} wrapper which should be
+     * settings. Returns an {@link AmazonEc2Reference} wrapper which should be
      * released as soon as it is not required anymore.
      */
     AmazonEc2Reference client();

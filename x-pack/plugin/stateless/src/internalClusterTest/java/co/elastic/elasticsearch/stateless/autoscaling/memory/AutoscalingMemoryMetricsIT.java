@@ -25,6 +25,7 @@ import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -443,6 +444,8 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
             // Ignore memory metrics until the primary shard moves into the new node to ensure that we transition to the new state correctly
             if (primaryShardRelocated.get()) {
                 handler.messageReceived(request, channel, task);
+            } else {
+                channel.sendResponse(ActionResponse.Empty.INSTANCE);
             }
         });
         var indexName = randomIdentifier();

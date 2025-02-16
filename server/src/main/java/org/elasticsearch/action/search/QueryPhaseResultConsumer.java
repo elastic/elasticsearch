@@ -284,7 +284,14 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             topDocsList.add(partialResult.reducedTopDocs);
         }
         if (aggsList != null) {
-            aggsList.add(DelayableWriteable.referencing(partialResult.reducedAggs));
+            addAggsToList(partialResult, aggsList);
+        }
+    }
+
+    private static void addAggsToList(MergeResult partialResult, List<DelayableWriteable<InternalAggregations>> aggsList) {
+        var aggs = partialResult.reducedAggs;
+        if (aggs != null) {
+            aggsList.add(DelayableWriteable.referencing(aggs));
         }
     }
 
@@ -307,7 +314,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         if (hasAggs) {
             aggsList = new ArrayList<>(resultSetSize);
             if (lastMerge != null) {
-                aggsList.add(DelayableWriteable.referencing(lastMerge.reducedAggs));
+                addAggsToList(lastMerge, aggsList);
             }
         } else {
             aggsList = null;

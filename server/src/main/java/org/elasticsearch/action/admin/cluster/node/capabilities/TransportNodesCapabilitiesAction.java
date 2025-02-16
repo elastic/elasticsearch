@@ -93,17 +93,19 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
             request.path,
             request.parameters,
             request.capabilities,
-            request.restApiVersion
+            request.restApiVersionMajor
         );
         return new NodeCapability(supported, transportService.getLocalNode());
     }
 
     public static class NodeCapabilitiesRequest extends TransportRequest {
+        private static final int IMPLICIT_REST_API_VERSION = 0;
+
         private final RestRequest.Method method;
         private final String path;
         private final Set<String> parameters;
         private final Set<String> capabilities;
-        private final RestApiVersion restApiVersion;
+        private final Byte restApiVersionMajor;
 
         public NodeCapabilitiesRequest(StreamInput in) throws IOException {
             super(in);
@@ -112,7 +114,8 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
             path = in.readString();
             parameters = in.readCollectionAsImmutableSet(StreamInput::readString);
             capabilities = in.readCollectionAsImmutableSet(StreamInput::readString);
-            restApiVersion = RestApiVersion.forMajor(in.readVInt());
+            byte versionFromMessage = (byte) in.readVInt();
+            restApiVersionMajor = (versionFromMessage != IMPLICIT_REST_API_VERSION) ? versionFromMessage : null;
         }
 
         public NodeCapabilitiesRequest(
@@ -126,7 +129,7 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
             this.path = path;
             this.parameters = Set.copyOf(parameters);
             this.capabilities = Set.copyOf(capabilities);
-            this.restApiVersion = restApiVersion;
+            this.restApiVersionMajor = (restApiVersion != null) ? restApiVersion.major : null;
         }
 
         @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // 8.x blows up in a mixed cluster when trying to read RestApiVersion.forMajor(9)
@@ -141,9 +144,11 @@ public class TransportNodesCapabilitiesAction extends TransportNodesAction<
             out.writeString(path);
             out.writeCollection(parameters, StreamOutput::writeString);
             out.writeCollection(capabilities, StreamOutput::writeString);
-            // Fixme: lies! all lies!
-            out.writeVInt(8);
-            // out.writeVInt(restApiVersion.major);
+            if (restApiVersionMajor == null) {
+                out.writeVInt(IMPLICIT_REST_API_VERSION);
+            } else {
+                out.writeVInt(restApiVersionMajor);
+            }
         }
     }
 }

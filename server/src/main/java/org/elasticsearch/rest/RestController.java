@@ -350,8 +350,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
         String path,
         Set<String> parameters,
         Set<String> capabilities,
-        RestApiVersion restApiVersion
+        Byte restApiVersionMajor
     ) {
+        RestApiVersion restApiVersion = getRestApiVersionIfKnown(restApiVersionMajor);
+        // if explicitly requested RestApiVersion is not known by this node, it should respond that it doesn't support the capability
+        if (restApiVersion == null) {
+            return false;
+        }
+
         Iterator<MethodHandlers> allHandlers = getAllHandlers(null, path);
         while (allHandlers.hasNext()) {
             RestHandler handler;
@@ -371,6 +377,16 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
         }
         return false;
+    }
+
+    private static RestApiVersion getRestApiVersionIfKnown(Byte restApiVersionMajor) {
+        RestApiVersion restApiVersion;
+        if (restApiVersionMajor == null) {
+            restApiVersion = RestApiVersion.current();
+        } else {
+            restApiVersion = RestApiVersion.forMajorIfKnown(restApiVersionMajor);
+        }
+        return restApiVersion;
     }
 
     @Override

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.external.request.voyageai;
 
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
@@ -19,7 +18,6 @@ import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEm
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsTaskSettings;
 
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
@@ -36,7 +34,7 @@ public class VoyageAIEmbeddingsRequest extends VoyageAIRequest {
     public VoyageAIEmbeddingsRequest(List<String> input, VoyageAIEmbeddingsModel embeddingsModel) {
         Objects.requireNonNull(embeddingsModel);
 
-        account = VoyageAIAccount.of(embeddingsModel, VoyageAIEmbeddingsRequest::buildDefaultUri);
+        account = VoyageAIAccount.of(embeddingsModel);
         this.input = Objects.requireNonNull(input);
         serviceSettings = embeddingsModel.getServiceSettings();
         taskSettings = embeddingsModel.getTaskSettings();
@@ -54,7 +52,7 @@ public class VoyageAIEmbeddingsRequest extends VoyageAIRequest {
         );
         httpPost.setEntity(byteEntity);
 
-        decorateWithAuthHeader(httpPost, account);
+        decorateWithHeaders(httpPost, account);
 
         return new HttpRequest(httpPost, getInferenceEntityId());
     }
@@ -85,12 +83,5 @@ public class VoyageAIEmbeddingsRequest extends VoyageAIRequest {
 
     public VoyageAIEmbeddingsServiceSettings getServiceSettings() {
         return serviceSettings;
-    }
-
-    public static URI buildDefaultUri() throws URISyntaxException {
-        return new URIBuilder().setScheme("https")
-            .setHost(VoyageAIUtils.HOST)
-            .setPathSegments(VoyageAIUtils.VERSION_1, VoyageAIUtils.EMBEDDINGS_PATH)
-            .build();
     }
 }

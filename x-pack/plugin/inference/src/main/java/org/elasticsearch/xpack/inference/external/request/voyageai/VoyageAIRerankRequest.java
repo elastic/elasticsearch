@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.external.request.voyageai;
 
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
@@ -18,7 +17,6 @@ import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerank
 import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerankTaskSettings;
 
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
@@ -35,7 +33,7 @@ public class VoyageAIRerankRequest extends VoyageAIRequest {
     public VoyageAIRerankRequest(String query, List<String> input, VoyageAIRerankModel model) {
         Objects.requireNonNull(model);
 
-        this.account = VoyageAIAccount.of(model, VoyageAIRerankRequest::buildDefaultUri);
+        this.account = VoyageAIAccount.of(model);
         this.input = Objects.requireNonNull(input);
         this.query = Objects.requireNonNull(query);
         taskSettings = model.getTaskSettings();
@@ -52,7 +50,7 @@ public class VoyageAIRerankRequest extends VoyageAIRequest {
         );
         httpPost.setEntity(byteEntity);
 
-        decorateWithAuthHeader(httpPost, account);
+        decorateWithHeaders(httpPost, account);
 
         return new HttpRequest(httpPost, getInferenceEntityId());
     }
@@ -75,12 +73,5 @@ public class VoyageAIRerankRequest extends VoyageAIRequest {
     @Override
     public boolean[] getTruncationInfo() {
         return null;
-    }
-
-    public static URI buildDefaultUri() throws URISyntaxException {
-        return new URIBuilder().setScheme("https")
-            .setHost(VoyageAIUtils.HOST)
-            .setPathSegments(VoyageAIUtils.VERSION_1, VoyageAIUtils.RERANK_PATH)
-            .build();
     }
 }

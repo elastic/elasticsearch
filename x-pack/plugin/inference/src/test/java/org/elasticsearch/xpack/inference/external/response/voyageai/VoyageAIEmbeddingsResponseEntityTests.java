@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.inference.external.response.voyageai;
 
 import org.apache.http.HttpResponse;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.voyageai.VoyageAIEmbeddingsRequest;
@@ -39,9 +39,8 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
                       ]
                   }
               ],
-              "model": "voyage-embeddings-v3",
+              "model": "voyage-3-large",
               "usage": {
-                  "prompt_tokens": 8,
                   "total_tokens": 8
               }
             }
@@ -85,9 +84,8 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
                       ]
                   }
               ],
-              "model": "voyage-embeddings-v3",
+              "model": "voyage-3-large",
               "usage": {
-                  "prompt_tokens": 8,
                   "total_tokens": 8
               }
             }
@@ -128,9 +126,8 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
                       ]
                   }
               ],
-              "model": "voyage-embeddings-v3",
+              "model": "voyage-3-large",
               "usage": {
-                  "prompt_tokens": 8,
                   "total_tokens": 8
               }
             }
@@ -142,14 +139,14 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
         );
 
         var thrownException = expectThrows(
-            IllegalStateException.class,
+            XContentParseException.class,
             () -> VoyageAIEmbeddingsResponseEntity.fromResponse(
                 request,
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
 
-        assertThat(thrownException.getMessage(), is("Failed to find required field [data] in VoyageAI embeddings response"));
+        assertThat(thrownException.getMessage(), is("[3:3] [EmbeddingFloatResult] unknown field [not_data]"));
     }
 
     public void testFromResponse_FailsWhenDataFieldNotAnArray() {
@@ -166,9 +163,8 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
                       ]
                   }
               },
-              "model": "voyage-embeddings-v3",
+              "model": "voyage-3-large",
               "usage": {
-                  "prompt_tokens": 8,
                   "total_tokens": 8
               }
             }
@@ -180,17 +176,14 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
         );
 
         var thrownException = expectThrows(
-            ParsingException.class,
+            XContentParseException.class,
             () -> VoyageAIEmbeddingsResponseEntity.fromResponse(
                 request,
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
 
-        assertThat(
-            thrownException.getMessage(),
-            is("Failed to parse object: expecting token of type [START_ARRAY] but found [START_OBJECT]")
-        );
+        assertThat(thrownException.getMessage(), is("[4:15] [EmbeddingFloatResult] failed to parse field [data]"));
     }
 
     public void testFromResponse_FailsWhenEmbeddingsDoesNotExist() {
@@ -207,9 +200,8 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
                       ]
                   }
               ],
-              "model": "voyage-embeddings-v3",
+              "model": "voyage-3-large",
               "usage": {
-                  "prompt_tokens": 8,
                   "total_tokens": 8
               }
             }
@@ -221,14 +213,14 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
         );
 
         var thrownException = expectThrows(
-            IllegalStateException.class,
+            XContentParseException.class,
             () -> VoyageAIEmbeddingsResponseEntity.fromResponse(
                 request,
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
 
-        assertThat(thrownException.getMessage(), is("Failed to find required field [embedding] in VoyageAI embeddings response"));
+        assertThat(thrownException.getMessage(), is("[7:27] [EmbeddingFloatResult] failed to parse field [data]"));
     }
 
     public void testFromResponse_FailsWhenEmbeddingValueIsAString() {
@@ -244,9 +236,8 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
                       ]
                   }
               ],
-              "model": "voyage-embeddings-v3",
+              "model": "voyage-3-large",
               "usage": {
-                  "prompt_tokens": 8,
                   "total_tokens": 8
               }
             }
@@ -258,17 +249,14 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
         );
 
         var thrownException = expectThrows(
-            ParsingException.class,
+            XContentParseException.class,
             () -> VoyageAIEmbeddingsResponseEntity.fromResponse(
                 request,
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
 
-        assertThat(
-            thrownException.getMessage(),
-            is("Failed to parse object: expecting token of type [VALUE_NUMBER] but found [VALUE_STRING]")
-        );
+        assertThat(thrownException.getMessage(), is("[8:15] [EmbeddingFloatResult] failed to parse field [data]"));
     }
 
     public void testFromResponse_SucceedsWhenEmbeddingValueIsInt() throws IOException {
@@ -284,9 +272,8 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
                       ]
                   }
               ],
-              "model": "voyage-embeddings-v3",
+              "model": "voyage-3-large",
               "usage": {
-                  "prompt_tokens": 8,
                   "total_tokens": 8
               }
             }
@@ -321,9 +308,8 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
                       ]
                   }
               ],
-              "model": "voyage-embeddings-v3",
+              "model": "voyage-3-large",
               "usage": {
-                  "prompt_tokens": 8,
                   "total_tokens": 8
               }
             }
@@ -358,9 +344,8 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
                       ]
                   }
               ],
-              "model": "voyage-embeddings-v3",
+              "model": "voyage-3-large",
               "usage": {
-                  "prompt_tokens": 8,
                   "total_tokens": 8
               }
             }
@@ -372,17 +357,14 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
         );
 
         var thrownException = expectThrows(
-            ParsingException.class,
+            XContentParseException.class,
             () -> VoyageAIEmbeddingsResponseEntity.fromResponse(
                 request,
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
 
-        assertThat(
-            thrownException.getMessage(),
-            is("Failed to parse object: expecting token of type [VALUE_NUMBER] but found [START_OBJECT]")
-        );
+        assertThat(thrownException.getMessage(), is("[8:15] [EmbeddingFloatResult] failed to parse field [data]"));
     }
 
     public void testFieldsInDifferentOrderServer() throws IOException {
@@ -390,7 +372,6 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
         String response = """
             {
                 "object": "list",
-                "id": "6667830b-716b-4796-9a61-33b67b5cc81d",
                 "model": "voyage-3-large",
                 "data": [
                     {
@@ -420,8 +401,6 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
                     }
                 ],
                 "usage": {
-                    "prompt_tokens": 0,
-                    "completion_tokens": 0,
                     "total_tokens": 0
                 }
             }""";

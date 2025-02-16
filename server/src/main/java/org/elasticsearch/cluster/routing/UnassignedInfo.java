@@ -175,7 +175,11 @@ public record UnassignedInfo(
         /**
          * Replica is unpromotable and the primary failed.
          */
-        UNPROMOTABLE_REPLICA
+        UNPROMOTABLE_REPLICA,
+        /**
+         * New shard added as part of index resize (auto sharding)
+         */
+        SHARD_ADDED
     }
 
     /**

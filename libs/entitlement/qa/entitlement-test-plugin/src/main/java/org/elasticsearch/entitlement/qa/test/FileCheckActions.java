@@ -47,6 +47,21 @@ class FileCheckActions {
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
+    static void fileCanExecute() throws IOException {
+        readFile().toFile().canExecute();
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void fileCanRead() throws IOException {
+        readFile().toFile().canRead();
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void fileCanWrite() throws IOException {
+        readFile().toFile().canWrite();
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void fileCreateNewFile() throws IOException {
         readWriteDir().resolve("new_file").toFile().createNewFile();
     }
@@ -68,6 +83,61 @@ class FileCheckActions {
         Path toDelete = readWriteDir().resolve("to_delete_on_exit");
         EntitledActions.createFile(toDelete);
         toDelete.toFile().deleteOnExit();
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void fileExists() throws IOException {
+        readFile().toFile().exists();
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void fileIsDirectory() throws IOException {
+        readFile().toFile().isDirectory();
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void fileIsFile() throws IOException {
+        readFile().toFile().isFile();
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void fileIsHidden() throws IOException {
+        readFile().toFile().isHidden();
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void fileLastModified() throws IOException {
+        readFile().toFile().lastModified();
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void fileLength() throws IOException {
+        readFile().toFile().length();
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void fileList() throws IOException {
+        readDir().toFile().list();
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void fileListWithFilter() throws IOException {
+        readDir().toFile().list((dir, name) -> true);
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void fileListFiles() throws IOException {
+        readDir().toFile().listFiles();
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void fileListFilesWithFileFilter() throws IOException {
+        readDir().toFile().listFiles(pathname -> true);
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void fileListFilesWithFilenameFilter() throws IOException {
+        readDir().toFile().listFiles((dir, name) -> true);
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)

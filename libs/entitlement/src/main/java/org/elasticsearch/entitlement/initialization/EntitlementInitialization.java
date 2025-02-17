@@ -59,6 +59,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ_WRITE;
 
 /**
@@ -149,8 +150,26 @@ public class EntitlementInitialization {
                         new ManageThreadsEntitlement(),
                         new FilesEntitlement(
                             List.of(
-                                FilesEntitlement.FileData.ofPath(EntitlementBootstrap.bootstrapArgs().tempDir(), READ_WRITE),
-                                FilesEntitlement.FileData.ofPath(EntitlementBootstrap.bootstrapArgs().logsDir(), READ_WRITE)
+                                FileData.ofPath(bootstrapArgs.tempDir(), READ_WRITE),
+                                FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
+                                // OS release on Linux
+                                FileData.ofPath(Path.of("/etc/os-release"), READ),
+                                FileData.ofPath(Path.of("/etc/system-release"), READ),
+                                FileData.ofPath(Path.of("/usr/lib/os-release"), READ),
+                                // read max virtual memory areas
+                                FileData.ofPath(Path.of("/proc/sys/vm/max_map_count"), READ),
+                                FileData.ofPath(Path.of("/proc/meminfo"), READ),
+                                // load averages on Linux
+                                FileData.ofPath(Path.of("/proc/loadavg"), READ),
+                                // control group stats on Linux. cgroup v2 stats are in an unpredicable
+                                // location under `/sys/fs/cgroup`, so unfortunately we have to allow
+                                // read access to the entire directory hierarchy.
+                                FileData.ofPath(Path.of("/proc/self/cgroup"), READ),
+                                FileData.ofPath(Path.of("/sys/fs/cgroup/"), READ),
+                                // // io stats on Linux
+                                FileData.ofPath(Path.of("/proc/self/mountinfo"), READ),
+                                FileData.ofPath(Path.of("/proc/diskstats"), READ),
+                                FileData.ofPath(Path.of("/etc/os-release"), READ)
                             )
                         )
                     )

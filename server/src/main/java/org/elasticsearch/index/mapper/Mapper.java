@@ -221,7 +221,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
     }
 
     /**
-     * @return the offset field name used the store offsets iff {@link #supportStoringArrayOffsets(DocumentParserContext)} returns
+     * @return the offset field name used to store offsets iff {@link #supportStoringArrayOffsets(DocumentParserContext)} returns
      * <code>true</code>.
      */
     public String getOffsetFieldName() {

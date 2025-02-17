@@ -18,6 +18,7 @@ import org.elasticsearch.entitlement.instrumentation.Instrumenter;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.instrumentation.Transformer;
 import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
+import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import org.elasticsearch.entitlement.runtime.policy.Scope;
@@ -48,7 +49,6 @@ import java.nio.file.Path;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.spi.FileSystemProvider;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,6 +59,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ_WRITE;
 
 /**
@@ -126,9 +127,10 @@ public class EntitlementInitialization {
     }
 
     private static PolicyManager createPolicyManager() {
-        Map<String, Policy> pluginPolicies = EntitlementBootstrap.bootstrapArgs().pluginPolicies();
-        Path[] dataDirs = EntitlementBootstrap.bootstrapArgs().dataDirs();
-        Path tempDir = EntitlementBootstrap.bootstrapArgs().tempDir();
+        EntitlementBootstrap.BootstrapArgs bootstrapArgs = EntitlementBootstrap.bootstrapArgs();
+        Map<String, Policy> pluginPolicies = bootstrapArgs.pluginPolicies();
+        var pathLookup = new PathLookup(bootstrapArgs.configDir(), bootstrapArgs.dataDirs(), bootstrapArgs.tempDir());
+        Path logsDir = EntitlementBootstrap.bootstrapArgs().logsDir();
 
         // TODO(ES-10031): Decide what goes in the elasticsearch default policy and extend it
         var serverPolicy = new Policy(
@@ -147,7 +149,27 @@ public class EntitlementInitialization {
                         new LoadNativeLibrariesEntitlement(),
                         new ManageThreadsEntitlement(),
                         new FilesEntitlement(
-                            List.of(new FilesEntitlement.FileData(EntitlementBootstrap.bootstrapArgs().tempDir().toString(), READ_WRITE))
+                            List.of(
+                                FileData.ofPath(bootstrapArgs.tempDir(), READ_WRITE),
+                                FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
+                                // OS release on Linux
+                                FileData.ofPath(Path.of("/etc/os-release"), READ),
+                                FileData.ofPath(Path.of("/etc/system-release"), READ),
+                                FileData.ofPath(Path.of("/usr/lib/os-release"), READ),
+                                // read max virtual memory areas
+                                FileData.ofPath(Path.of("/proc/sys/vm/max_map_count"), READ),
+                                FileData.ofPath(Path.of("/proc/meminfo"), READ),
+                                // load averages on Linux
+                                FileData.ofPath(Path.of("/proc/loadavg"), READ),
+                                // control group stats on Linux. cgroup v2 stats are in an unpredicable
+                                // location under `/sys/fs/cgroup`, so unfortunately we have to allow
+                                // read access to the entire directory hierarchy.
+                                FileData.ofPath(Path.of("/proc/self/cgroup"), READ),
+                                FileData.ofPath(Path.of("/sys/fs/cgroup/"), READ),
+                                // // io stats on Linux
+                                FileData.ofPath(Path.of("/proc/self/mountinfo"), READ),
+                                FileData.ofPath(Path.of("/proc/diskstats"), READ)
+                            )
                         )
                     )
                 ),
@@ -159,7 +181,7 @@ public class EntitlementInitialization {
                     "org.elasticsearch.nativeaccess",
                     List.of(
                         new LoadNativeLibrariesEntitlement(),
-                        new FilesEntitlement(Arrays.stream(dataDirs).map(d -> new FileData(d.toString(), READ_WRITE)).toList())
+                        new FilesEntitlement(List.of(FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE)))
                     )
                 )
             )
@@ -175,7 +197,7 @@ public class EntitlementInitialization {
             resolver,
             AGENTS_PACKAGE_NAME,
             ENTITLEMENTS_MODULE,
-            tempDir
+            pathLookup
         );
     }
 

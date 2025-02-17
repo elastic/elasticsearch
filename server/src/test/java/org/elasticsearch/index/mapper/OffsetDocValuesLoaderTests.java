@@ -13,7 +13,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer.ImmediateDocValuesLoader;
+import org.elasticsearch.index.mapper.SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer.DocValuesWithOffsetsLoader;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -203,7 +203,7 @@ public class OffsetDocValuesLoaderTests extends MapperServiceTestCase {
                 try (var indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                     var layer = new SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer("field", "field.offsets");
                     var leafReader = indexReader.leaves().getFirst().reader();
-                    var loader = (ImmediateDocValuesLoader) layer.docValuesLoader(leafReader, new int[] { 0 });
+                    var loader = (DocValuesWithOffsetsLoader) layer.docValuesLoader(leafReader, new int[] { 0 });
                     assertTrue(loader.advanceToDoc(0));
                     assertTrue(loader.count() > 0);
                     XContentBuilder builder = jsonBuilder().startObject();

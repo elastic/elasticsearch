@@ -31,7 +31,7 @@ final class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Co
 
     private final String name;
     private final String offsetsFieldName;
-    private ImmediateDocValuesLoader docValues;
+    private DocValuesWithOffsetsLoader docValues;
 
     SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer(String name, String offsetsFieldName) {
         this.name = Objects.requireNonNull(name);
@@ -48,9 +48,7 @@ final class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Co
         SortedSetDocValues valueDocValues = DocValues.getSortedSet(leafReader, name);
         BinaryDocValues offsetDocValues = DocValues.getBinary(leafReader, offsetsFieldName);
 
-        ImmediateDocValuesLoader loader = new ImmediateDocValuesLoader(valueDocValues, offsetDocValues);
-        docValues = loader;
-        return loader;
+        return docValues = new DocValuesWithOffsetsLoader(valueDocValues, offsetDocValues);
     }
 
     @Override
@@ -78,7 +76,7 @@ final class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Co
         }
     }
 
-    static final class ImmediateDocValuesLoader implements DocValuesLoader {
+    static final class DocValuesWithOffsetsLoader implements DocValuesLoader {
         private final BinaryDocValues offsetDocValues;
         private final SortedSetDocValues valueDocValues;
         private final ByteArrayStreamInput scratch = new ByteArrayStreamInput();
@@ -87,7 +85,7 @@ final class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Co
         private boolean hasOffset;
         private int[] offsetToOrd;
 
-        ImmediateDocValuesLoader(SortedSetDocValues valueDocValues, BinaryDocValues offsetDocValues) {
+        DocValuesWithOffsetsLoader(SortedSetDocValues valueDocValues, BinaryDocValues offsetDocValues) {
             this.valueDocValues = valueDocValues;
             this.offsetDocValues = offsetDocValues;
         }
@@ -148,6 +146,7 @@ final class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Co
 
                     long ord = ords[offset];
                     BytesRef c = valueDocValues.lookupOrd(ord);
+                    // This is keyword specific and needs to be updated once support is added for other field types:
                     b.utf8Value(c.bytes, c.offset, c.length);
                 }
             } else if (offsetToOrd != null) {

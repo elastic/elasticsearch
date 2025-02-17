@@ -49,15 +49,16 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     static final String LOGS_PATTERN = "logs-*-*";
     private static final Set<String> MAPPING_INCLUDES = Set.of("_doc._source.*", "_doc.properties.host**", "_doc.subobjects");
 
-    private final SyntheticSourceLicenseService syntheticSourceLicenseService;
+    private final LogsdbLicenseService licenseService;
     private final SetOnce<CheckedFunction<IndexMetadata, MapperService, IOException>> mapperServiceFactory = new SetOnce<>();
     private final SetOnce<Supplier<IndexVersion>> createdIndexVersion = new SetOnce<>();
     private final SetOnce<Boolean> supportFallbackToStoredSource = new SetOnce<>();
+    private final SetOnce<Boolean> supportFallbackLogsdbRouting = new SetOnce<>();
 
     private volatile boolean isLogsdbEnabled;
 
-    LogsdbIndexModeSettingsProvider(SyntheticSourceLicenseService syntheticSourceLicenseService, final Settings settings) {
-        this.syntheticSourceLicenseService = syntheticSourceLicenseService;
+    LogsdbIndexModeSettingsProvider(LogsdbLicenseService licenseService, final Settings settings) {
+        this.licenseService = licenseService;
         this.isLogsdbEnabled = CLUSTER_LOGSDB_ENABLED.get(settings);
     }
 
@@ -68,11 +69,13 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     void init(
         CheckedFunction<IndexMetadata, MapperService, IOException> factory,
         Supplier<IndexVersion> indexVersion,
-        boolean supportFallbackToStoredSource
+        boolean supportFallbackToStoredSource,
+        boolean supportFallbackLogsdbRouting
     ) {
         this.mapperServiceFactory.set(factory);
         this.createdIndexVersion.set(indexVersion);
         this.supportFallbackToStoredSource.set(supportFallbackToStoredSource);
+        this.supportFallbackLogsdbRouting.set(supportFallbackLogsdbRouting);
     }
 
     @Override
@@ -93,6 +96,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     ) {
         Settings.Builder settingsBuilder = null;
         boolean isLogsDB = templateIndexMode == IndexMode.LOGSDB;
+        boolean isTemplateValidation = "validate-index-name".equals(indexName);
 
         // Inject logsdb index mode, based on the logs pattern.
         if (isLogsdbEnabled
@@ -110,76 +114,74 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         if (mappingHints.hasSyntheticSourceUsage && supportFallbackToStoredSource.get()) {
             // This index name is used when validating component and index templates, we should skip this check in that case.
             // (See MetadataIndexTemplateService#validateIndexTemplateV2(...) method)
-            boolean isTemplateValidation = "validate-index-name".equals(indexName);
             boolean legacyLicensedUsageOfSyntheticSourceAllowed = isLegacyLicensedUsageOfSyntheticSourceAllowed(
                 templateIndexMode,
                 indexName,
                 dataStreamName
             );
-            if (syntheticSourceLicenseService.fallbackToStoredSource(isTemplateValidation, legacyLicensedUsageOfSyntheticSourceAllowed)) {
+            if (licenseService.fallbackToStoredSource(isTemplateValidation, legacyLicensedUsageOfSyntheticSourceAllowed)) {
                 LOGGER.debug("creation of index [{}] with synthetic source without it being allowed", indexName);
-                if (settingsBuilder == null) {
-                    settingsBuilder = Settings.builder();
-                }
-                settingsBuilder.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED.toString());
+                settingsBuilder = getBuilder(settingsBuilder).put(
+                    IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
+                    SourceFieldMapper.Mode.STORED.toString()
+                );
             }
         }
 
         if (isLogsDB) {
             // Inject sorting on [host.name], in addition to [@timestamp].
             if (mappingHints.sortOnHostName) {
-                if (settingsBuilder == null) {
-                    settingsBuilder = Settings.builder();
-                }
                 if (mappingHints.addHostNameField) {
                     // Inject keyword field [host.name] too.
-                    settingsBuilder.put(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.getKey(), true);
+                    settingsBuilder = getBuilder(settingsBuilder).put(IndexSettings.LOGSDB_ADD_HOST_NAME_FIELD.getKey(), true);
                 }
-                settingsBuilder.put(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), true);
+                settingsBuilder = getBuilder(settingsBuilder).put(IndexSettings.LOGSDB_SORT_ON_HOST_NAME.getKey(), true);
             }
 
             // Inject routing path matching sort fields.
             if (settings.getAsBoolean(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), false)) {
-                List<String> sortFields = new ArrayList<>(settings.getAsList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey()));
-                sortFields.removeIf(s -> s.equals(DataStreamTimestampFieldMapper.DEFAULT_PATH));
-                if (sortFields.size() < 2) {
-                    throw new IllegalStateException(
-                        String.format(
-                            Locale.ROOT,
-                            "data stream [%s] in logsdb mode and with [%s] index setting has only %d sort fields "
-                                + "(excluding timestamp), needs at least 2",
-                            dataStreamName,
-                            IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(),
-                            sortFields.size()
-                        )
-                    );
-                }
-                if (settings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey())) {
-                    List<String> routingPaths = settings.getAsList(IndexMetadata.INDEX_ROUTING_PATH.getKey());
-                    if (routingPaths.equals(sortFields) == false) {
+                if (supportFallbackLogsdbRouting.get() == false || licenseService.allowLogsdbRoutingOnSortField(isTemplateValidation)) {
+                    List<String> sortFields = new ArrayList<>(settings.getAsList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey()));
+                    sortFields.removeIf(s -> s.equals(DataStreamTimestampFieldMapper.DEFAULT_PATH));
+                    if (sortFields.size() < 2) {
                         throw new IllegalStateException(
                             String.format(
                                 Locale.ROOT,
-                                "data stream [%s] in logsdb mode and with [%s] index setting has mismatching sort "
-                                    + "and routing fields, [index.routing_path:%s], [index.sort.fields:%s]",
+                                "data stream [%s] in logsdb mode and with [%s] index setting has only %d sort fields "
+                                    + "(excluding timestamp), needs at least 2",
                                 dataStreamName,
                                 IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(),
-                                routingPaths,
-                                sortFields
+                                sortFields.size()
                             )
                         );
                     }
-                } else {
-                    if (settingsBuilder == null) {
-                        settingsBuilder = Settings.builder();
+                    if (settings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey())) {
+                        List<String> routingPaths = settings.getAsList(IndexMetadata.INDEX_ROUTING_PATH.getKey());
+                        if (routingPaths.equals(sortFields) == false) {
+                            throw new IllegalStateException(
+                                String.format(
+                                    Locale.ROOT,
+                                    "data stream [%s] in logsdb mode and with [%s] index setting has mismatching sort "
+                                        + "and routing fields, [index.routing_path:%s], [index.sort.fields:%s]",
+                                    dataStreamName,
+                                    IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(),
+                                    routingPaths,
+                                    sortFields
+                                )
+                            );
+                        }
+                    } else {
+                        settingsBuilder = getBuilder(settingsBuilder).putList(INDEX_ROUTING_PATH.getKey(), sortFields);
                     }
-                    settingsBuilder.putList(INDEX_ROUTING_PATH.getKey(), sortFields);
+                } else {
+                    // Routing on sort fields is not allowed, reset the corresponding index setting.
+                    LOGGER.debug("creation of index [{}] with logsdb mode and routing on sort fields without it being allowed", indexName);
+                    settingsBuilder = getBuilder(settingsBuilder).put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), false);
                 }
             }
         }
 
         return settingsBuilder == null ? Settings.EMPTY : settingsBuilder.build();
-
     }
 
     record MappingHints(boolean hasSyntheticSourceUsage, boolean sortOnHostName, boolean addHostNameField) {
@@ -192,6 +194,14 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
 
     private static IndexMode resolveIndexMode(final String mode) {
         return mode != null ? Enum.valueOf(IndexMode.class, mode.toUpperCase(Locale.ROOT)) : null;
+    }
+
+    // Returned value needs to be reassigned to the passed arg, to track the created builder.
+    private static Settings.Builder getBuilder(Settings.Builder builder) {
+        if (builder == null) {
+            return Settings.builder();
+        }
+        return builder;
     }
 
     MappingHints getMappingHints(
@@ -260,8 +270,8 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
                             || mapperService.mappingLookup().getMapping().getRoot().subobjects() == ObjectMapper.Subobjects.DISABLED));
                 boolean sortOnHostName = IndexSettings.LOGSDB_SORT_ON_HOST_NAME.get(indexTemplateAndCreateRequestSettings)
                     || addHostNameField
-                    || ((hostName instanceof NumberFieldMapper nfm && nfm.fieldType().hasDocValues())
-                        || (hostName instanceof KeywordFieldMapper kfm && kfm.fieldType().hasDocValues()));
+                    || (hostName instanceof NumberFieldMapper nfm && nfm.fieldType().hasDocValues())
+                    || (hostName instanceof KeywordFieldMapper kfm && kfm.fieldType().hasDocValues());
                 return new MappingHints(hasSyntheticSourceUsage, sortOnHostName, addHostNameField);
             }
         } catch (AssertionError | Exception e) {

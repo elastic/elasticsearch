@@ -38,10 +38,12 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.common.settings.Settings.builder;
-import static org.elasticsearch.xpack.logsdb.SyntheticSourceLicenseServiceTests.createEnterpriseLicense;
+import static org.elasticsearch.xpack.logsdb.LogsdbLicenseServiceTests.createEnterpriseLicense;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -66,33 +68,31 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         }
         """;
 
-    private SyntheticSourceLicenseService syntheticSourceLicenseService;
+    private LogsdbLicenseService logsdbLicenseService;
     private final AtomicInteger newMapperServiceCounter = new AtomicInteger();
 
     @Before
     public void setup() throws Exception {
         MockLicenseState licenseState = MockLicenseState.createMock();
         when(licenseState.isAllowed(any())).thenReturn(true);
-        var licenseService = new SyntheticSourceLicenseService(Settings.EMPTY);
-        licenseService.setLicenseState(licenseState);
         var mockLicenseService = mock(LicenseService.class);
         License license = createEnterpriseLicense();
         when(mockLicenseService.getLicense()).thenReturn(license);
-        syntheticSourceLicenseService = new SyntheticSourceLicenseService(Settings.EMPTY);
-        syntheticSourceLicenseService.setLicenseState(licenseState);
-        syntheticSourceLicenseService.setLicenseService(mockLicenseService);
+        logsdbLicenseService = new LogsdbLicenseService(Settings.EMPTY);
+        logsdbLicenseService.setLicenseState(licenseState);
+        logsdbLicenseService.setLicenseService(mockLicenseService);
     }
 
     private LogsdbIndexModeSettingsProvider withSyntheticSourceDemotionSupport(boolean enabled) {
         newMapperServiceCounter.set(0);
         var provider = new LogsdbIndexModeSettingsProvider(
-            syntheticSourceLicenseService,
+            logsdbLicenseService,
             Settings.builder().put("cluster.logsdb.enabled", enabled).build()
         );
         provider.init(im -> {
             newMapperServiceCounter.incrementAndGet();
             return MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName());
-        }, IndexVersion::current, true);
+        }, IndexVersion::current, true, true);
         return provider;
     }
 
@@ -103,13 +103,13 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
     private Settings generateLogsdbSettings(Settings settings, String mapping) throws IOException {
         Metadata metadata = Metadata.EMPTY_METADATA;
         var provider = new LogsdbIndexModeSettingsProvider(
-            syntheticSourceLicenseService,
+            logsdbLicenseService,
             Settings.builder().put("cluster.logsdb.enabled", true).build()
         );
         provider.init(im -> {
             newMapperServiceCounter.incrementAndGet();
             return MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName());
-        }, IndexVersion::current, true);
+        }, IndexVersion::current, true, true);
         var result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(DATA_STREAM_NAME, 0),
             DATA_STREAM_NAME,
@@ -124,7 +124,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
 
     public void testDisabled() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = new LogsdbIndexModeSettingsProvider(
-            syntheticSourceLicenseService,
+            logsdbLicenseService,
             Settings.builder().put("cluster.logsdb.enabled", false).build()
         );
 
@@ -143,7 +143,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
 
     public void testOnIndexCreation() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = new LogsdbIndexModeSettingsProvider(
-            syntheticSourceLicenseService,
+            logsdbLicenseService,
             Settings.builder().put("cluster.logsdb.enabled", true).build()
         );
 
@@ -162,7 +162,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
 
     public void testOnExplicitStandardIndex() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = new LogsdbIndexModeSettingsProvider(
-            syntheticSourceLicenseService,
+            logsdbLicenseService,
             Settings.builder().put("cluster.logsdb.enabled", true).build()
         );
 
@@ -181,7 +181,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
 
     public void testOnExplicitTimeSeriesIndex() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = new LogsdbIndexModeSettingsProvider(
-            syntheticSourceLicenseService,
+            logsdbLicenseService,
             Settings.builder().put("cluster.logsdb.enabled", true).build()
         );
 
@@ -200,7 +200,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
 
     public void testNonLogsDataStream() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = new LogsdbIndexModeSettingsProvider(
-            syntheticSourceLicenseService,
+            logsdbLicenseService,
             Settings.builder().put("cluster.logsdb.enabled", true).build()
         );
 
@@ -219,7 +219,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
 
     public void testWithoutLogsComponentTemplate() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = new LogsdbIndexModeSettingsProvider(
-            syntheticSourceLicenseService,
+            logsdbLicenseService,
             Settings.builder().put("cluster.logsdb.enabled", true).build()
         );
 
@@ -238,7 +238,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
 
     public void testWithLogsComponentTemplate() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = new LogsdbIndexModeSettingsProvider(
-            syntheticSourceLicenseService,
+            logsdbLicenseService,
             Settings.builder().put("cluster.logsdb.enabled", true).build()
         );
 
@@ -257,7 +257,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
 
     public void testWithMultipleComponentTemplates() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = new LogsdbIndexModeSettingsProvider(
-            syntheticSourceLicenseService,
+            logsdbLicenseService,
             Settings.builder().put("cluster.logsdb.enabled", true).build()
         );
 
@@ -276,7 +276,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
 
     public void testWithCustomComponentTemplatesOnly() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = new LogsdbIndexModeSettingsProvider(
-            syntheticSourceLicenseService,
+            logsdbLicenseService,
             Settings.builder().put("cluster.logsdb.enabled", true).build()
         );
 
@@ -295,7 +295,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
 
     public void testNonMatchingTemplateIndexPattern() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = new LogsdbIndexModeSettingsProvider(
-            syntheticSourceLicenseService,
+            logsdbLicenseService,
             Settings.builder().put("cluster.logsdb.enabled", true).build()
         );
 
@@ -314,7 +314,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
 
     public void testCaseSensitivity() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = new LogsdbIndexModeSettingsProvider(
-            syntheticSourceLicenseService,
+            logsdbLicenseService,
             Settings.builder().put("cluster.logsdb.enabled", true).build()
         );
 
@@ -333,7 +333,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
 
     public void testMultipleHyphensInDataStreamName() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = new LogsdbIndexModeSettingsProvider(
-            syntheticSourceLicenseService,
+            logsdbLicenseService,
             Settings.builder().put("cluster.logsdb.enabled", true).build()
         );
 
@@ -352,7 +352,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
 
     public void testBeforeAndAFterSettingUpdate() throws IOException {
         final LogsdbIndexModeSettingsProvider provider = new LogsdbIndexModeSettingsProvider(
-            syntheticSourceLicenseService,
+            logsdbLicenseService,
             Settings.builder().put("cluster.logsdb.enabled", false).build()
         );
 
@@ -585,7 +585,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         }
     }
 
-    public void testNewIndexHasSyntheticSourceUsage_invalidSettings() throws IOException {
+    public void testNewIndexHasSyntheticSourceUsageInvalidSettings() throws IOException {
         String dataStreamName = DATA_STREAM_NAME;
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
         Settings settings = Settings.builder().put("index.soft_deletes.enabled", false).build();
@@ -657,7 +657,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         assertThat(result.size(), equalTo(0));
         assertThat(newMapperServiceCounter.get(), equalTo(1));
 
-        syntheticSourceLicenseService.setSyntheticSourceFallback(true);
+        logsdbLicenseService.setSyntheticSourceFallback(true);
         result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
@@ -701,7 +701,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
     }
 
     public void testGetAdditionalIndexSettingsDowngradeFromSyntheticSourceFileMatch() throws IOException {
-        syntheticSourceLicenseService.setSyntheticSourceFallback(true);
+        logsdbLicenseService.setSyntheticSourceFallback(true);
         LogsdbIndexModeSettingsProvider provider = withSyntheticSourceDemotionSupport(true);
         final Settings settings = Settings.EMPTY;
 
@@ -812,7 +812,7 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
         assertTrue(result.isEmpty());
     }
 
-    public void testExplicitRoutingPathDoesNotMatchSortFields() throws Exception {
+    public void testExplicitRoutingPathDoesNotMatchSortFields() {
         var settings = Settings.builder()
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host,message,@timestamp")
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "host,message,foo")
@@ -829,6 +829,22 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
                     + "and routing fields, [index.routing_path:[host, message, foo]], [index.sort.fields:[host, message]]"
             )
         );
+    }
+
+    public void testExplicitRoutingPathNotAllowedByLicense() throws Exception {
+        MockLicenseState licenseState = MockLicenseState.createMock();
+        when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
+        when(licenseState.isAllowed(same(LogsdbLicenseService.LOGSDB_ROUTING_ON_SORT_FIELDS_FEATURE))).thenReturn(false);
+        logsdbLicenseService = new LogsdbLicenseService(Settings.EMPTY);
+        logsdbLicenseService.setLicenseState(licenseState);
+
+        var settings = Settings.builder()
+            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host,message")
+            .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
+            .build();
+        Settings result = generateLogsdbSettings(settings);
+        assertFalse(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.get(result));
+        assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), empty());
     }
 
     public void testSortAndHostNamePropagateValue() throws Exception {

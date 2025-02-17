@@ -7,8 +7,8 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.common.util;
+package org.elasticsearch.entitlement.runtime.policy;
 
-public interface Countable {
-    int size();
-}
+import java.nio.file.Path;
+
+public record PathLookup(Path configDir, Path[] dataDirs, Path tempDir) {}

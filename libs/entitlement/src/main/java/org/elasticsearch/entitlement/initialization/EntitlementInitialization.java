@@ -168,8 +168,7 @@ public class EntitlementInitialization {
                                 FileData.ofPath(Path.of("/sys/fs/cgroup/"), READ),
                                 // // io stats on Linux
                                 FileData.ofPath(Path.of("/proc/self/mountinfo"), READ),
-                                FileData.ofPath(Path.of("/proc/diskstats"), READ),
-                                FileData.ofPath(Path.of("/etc/os-release"), READ)
+                                FileData.ofPath(Path.of("/proc/diskstats"), READ)
                             )
                         )
                     )

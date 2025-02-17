@@ -11,7 +11,6 @@ package org.elasticsearch.repositories;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -29,14 +28,12 @@ public class RepositoryConflictException extends RepositoryException {
         return RestStatus.CONFLICT;
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION) // drop unneeded string from wire format
     public RepositoryConflictException(StreamInput in) throws IOException {
         super(in);
         in.readString();
     }
 
     @Override
-    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION) // drop unneeded string from wire format
     protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
         super.writeTo(out, nestedExceptionsWriter);
         out.writeString("");

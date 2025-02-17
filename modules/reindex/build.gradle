@@ -167,7 +167,3 @@ if (OS.current() == OS.WINDOWS) {
     }
   }
 }
-
-tasks.named("yamlRestCompatTestTransform").configure { task ->
-  task.skipTest("reindex/20_validation/specifying size fails", "size is rejected in 9.0")
-}

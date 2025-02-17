@@ -95,6 +95,28 @@
           conflicts: cat
 
 ---
+"specifying size fails":
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
+      reason: "size supported until 8"
+
+  - do:
+      index:
+        index:  test
+        id:     "1"
+        body:   { "text": "test" }
+
+  - do:
+      catch: /(invalid parameter \[size\], use \[max_docs\] instead|unknown field \[size\])/
+      reindex:
+        body:
+          source:
+            index: test
+          dest:
+            index: dest
+          size: 1
+
+---
 "invalid max_docs in body fails":
   - requires:
       cluster_features: ["gte_v7.3.0"]

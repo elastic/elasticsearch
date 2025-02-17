@@ -36,7 +36,8 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
 
     public enum BaseDir {
         CONFIG,
-        DATA
+        DATA,
+        HOME
     }
 
     public sealed interface FileData {
@@ -93,6 +94,8 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
                         return Stream.of(pathLookup.configDir().resolve(relativePath));
                     case DATA:
                         return Arrays.stream(pathLookup.dataDirs()).map(d -> d.resolve(relativePath));
+                    case HOME:
+                        return pathLookup.homeDir() != null ? Stream.of(pathLookup.homeDir().resolve(relativePath)) : Stream.empty();
                     default:
                         throw new IllegalArgumentException();
                 }
@@ -145,12 +148,14 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
     }
 
     private static BaseDir parseBaseDir(String baseDir) {
-        if (baseDir.equals("config")) {
-            return BaseDir.CONFIG;
-        } else if (baseDir.equals("data")) {
-            return BaseDir.DATA;
-        }
-        throw new PolicyValidationException("invalid relative directory: " + baseDir + ", valid values: [config, data]");
+        return switch (baseDir) {
+            case "config" -> BaseDir.CONFIG;
+            case "data" -> BaseDir.DATA;
+            case "home" -> BaseDir.HOME;
+            default -> throw new PolicyValidationException(
+                "invalid relative directory: " + baseDir + ", valid values: [config, data, home]"
+            );
+        };
     }
 
     @ExternalEntitlement(parameterNames = { "paths" }, esModulesOnly = false)

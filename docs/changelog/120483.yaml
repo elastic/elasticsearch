@@ -1,5 +1,0 @@
-pr: 120483
-summary: Fix NPE on disabled API auth key cache
-area: Authentication
-type: bug
-issues: []

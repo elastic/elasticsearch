@@ -8,12 +8,15 @@ package org.elasticsearch.upgrades;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.common.settings.SecureString;
@@ -206,6 +209,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         Map<String, Map<String, Object>> oldIndicesMetadata,
         Map<String, Map<String, Object>> upgradedIndicesMetadata
     ) {
+        String oldWriteIndex = getWriteIndexFromDataStreamIndexMetadata(oldIndicesMetadata);
         for (Map.Entry<String, Map<String, Object>> upgradedIndexEntry : upgradedIndicesMetadata.entrySet()) {
             String upgradedIndexName = upgradedIndexEntry.getKey();
             if (upgradedIndexName.startsWith(".migrated-")) {
@@ -214,16 +218,33 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                 Map<String, Object> upgradedIndexMetadata = upgradedIndexEntry.getValue();
                 compareSettings(oldIndexMetadata, upgradedIndexMetadata);
                 assertThat("Mappings did not match", upgradedIndexMetadata.get("mappings"), equalTo(oldIndexMetadata.get("mappings")));
-                // TODO: Uncomment the following two checks once we are correctly copying this state over:
-                // assertThat("ILM states did not match", upgradedIndexMetadata.get("ilm"), equalTo(oldIndexMetadata.get("ilm")));
-                // assertThat(
-                // "Rollover info did not match",
-                // upgradedIndexMetadata.get("rollover_info"),
-                // equalTo(oldIndexMetadata.get("rollover_info"))
-                // );
+                assertThat("ILM states did not match", upgradedIndexMetadata.get("ilm"), equalTo(oldIndexMetadata.get("ilm")));
+                if (oldIndexName.equals(oldWriteIndex) == false) { // the old write index will have been rolled over by upgrade
+                    assertThat(
+                        "Rollover info did not match",
+                        upgradedIndexMetadata.get("rollover_info"),
+                        equalTo(oldIndexMetadata.get("rollover_info"))
+                    );
+                }
                 assertThat(upgradedIndexMetadata.get("system"), equalTo(oldIndexMetadata.get("system")));
             }
         }
+    }
+
+    private String getWriteIndexFromDataStreamIndexMetadata(Map<String, Map<String, Object>> indexMetadataForDataStream) {
+        return indexMetadataForDataStream.entrySet()
+            .stream()
+            .sorted((o1, o2) -> Long.compare(getCreationDate(o2.getValue()), getCreationDate(o1.getValue())))
+            .map(Map.Entry::getKey)
+            .findFirst()
+            .get();
+    }
+
+    @SuppressWarnings("unchecked")
+    long getCreationDate(Map<String, Object> indexMetadata) {
+        return Long.parseLong(
+            (String) ((Map<String, Map<String, Object>>) indexMetadata.get("settings")).get("index").get("creation_date")
+        );
     }
 
     private void compareSettings(Map<String, Object> oldIndexMetadata, Map<String, Object> upgradedIndexMetadata) {
@@ -235,7 +256,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             "routing",
             "hidden",
             "number_of_shards",
-            // "creation_date", TODO: Uncomment this once we are correctly copying over this setting
+            "creation_date",
             "number_of_replicas"
         );
         for (String setting : SETTINGS_TO_CHECK) {
@@ -418,8 +439,27 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         putIndexTemplateRequest.setJsonEntity(
             indexTemplate.replace("$TEMPLATE", templateWithNoTimestamp).replace("$PATTERN", dataStreamFromNonDataStreamIndices + "-*")
         );
-        assertOK(client().performRequest(putIndexTemplateRequest));
         String indexName = dataStreamFromNonDataStreamIndices + "-01";
+        if (minimumTransportVersion().before(TransportVersions.V_8_0_0)) {
+            /*
+             * It is not possible to create a 7.x index template with a type. And you can't create an empty index with a type. But you can
+             * create the index with a type by posting a document to an index with a type. We do that here so that we test that the type is
+             * removed when we reindex into 8.x.
+             */
+            String typeName = "test-type";
+            Request createIndexRequest = new Request("POST", indexName + "/" + typeName);
+            createIndexRequest.setJsonEntity("""
+                {
+                  "@timestamp": "2099-11-15T13:12:00",
+                  "message": "GET /search HTTP/1.1 200 1070000",
+                  "user": {
+                    "id": "kimchy"
+                  }
+                }""");
+            createIndexRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build());
+            assertOK(client().performRequest(createIndexRequest));
+        }
+        assertOK(client().performRequest(putIndexTemplateRequest));
         bulkLoadDataMissingTimestamp(indexName);
         /*
          * Next, we will change the index's mapping to include a @timestamp field since we are going to convert it to a data stream. But

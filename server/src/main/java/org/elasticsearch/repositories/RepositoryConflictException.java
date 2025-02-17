@@ -29,14 +29,12 @@ public class RepositoryConflictException extends RepositoryException {
         return RestStatus.CONFLICT;
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION) // drop unneeded string from wire format
     public RepositoryConflictException(StreamInput in) throws IOException {
         super(in);
         in.readString();
     }
 
     @Override
-    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION) // drop unneeded string from wire format
     protected void writeTo(StreamOutput out, Writer<Throwable> nestedExceptionsWriter) throws IOException {
         super.writeTo(out, nestedExceptionsWriter);
         out.writeString("");

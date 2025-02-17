@@ -38,6 +38,7 @@ import static org.elasticsearch.xpack.core.action.AbstractTransportSetUpgradeMod
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.matches;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -176,7 +177,7 @@ public class TransportSetTransformUpgradeModeActionTests extends ESTestCase {
 
         upgradeModeSuccessfullyChanged(stateWithTransformTask(), assertNoFailureListener(r -> {
             assertThat(r, is(AcknowledgedResponse.TRUE));
-            verify(clusterService).submitUnbatchedStateUpdateTask(eq("unassign persistent task from any node"), any());
+            verify(clusterService).submitUnbatchedStateUpdateTask(matches("unassign persistent task \\[.*\\] from any node"), any());
         }));
     }
 

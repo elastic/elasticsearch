@@ -204,6 +204,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
                     service.defaultConfigIds(),
                     is(
                         List.of(
+                            new InferenceService.DefaultConfigId(".elser-v2-elastic", MinimalServiceSettings.sparseEmbedding(), service),
                             new InferenceService.DefaultConfigId(
                                 ".rainbow-sprinkles-elastic",
                                 MinimalServiceSettings.chatCompletion(),
@@ -216,7 +217,8 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
 
                 PlainActionFuture<List<Model>> listener = new PlainActionFuture<>();
                 service.defaultConfigs(listener);
-                assertThat(listener.actionGet(TIMEOUT).get(0).getConfigurations().getInferenceEntityId(), is(".rainbow-sprinkles-elastic"));
+                assertThat(listener.actionGet(TIMEOUT).get(0).getConfigurations().getInferenceEntityId(), is(".elser-v2-elastic"));
+                assertThat(listener.actionGet(TIMEOUT).get(1).getConfigurations().getInferenceEntityId(), is(".rainbow-sprinkles-elastic"));
 
                 var getModelListener = new PlainActionFuture<UnparsedModel>();
                 // persists the default endpoints
@@ -244,12 +246,18 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
             try (var service = createElasticInferenceService()) {
                 service.waitForAuthorizationToComplete(TIMEOUT);
                 assertThat(service.supportedStreamingTasks(), is(EnumSet.noneOf(TaskType.class)));
-                assertTrue(service.defaultConfigIds().isEmpty());
+                assertThat(
+                    service.defaultConfigIds(),
+                    is(
+                        List.of(
+                            new InferenceService.DefaultConfigId(".elser-v2-elastic", MinimalServiceSettings.sparseEmbedding(), service)
+                        )
+                    )
+                );
                 assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING)));
 
                 var getModelListener = new PlainActionFuture<UnparsedModel>();
                 modelRegistry.getModel(".rainbow-sprinkles-elastic", getModelListener);
-
                 var exception = expectThrows(ResourceNotFoundException.class, () -> getModelListener.actionGet(TIMEOUT));
                 assertThat(exception.getMessage(), is("Inference endpoint not found [.rainbow-sprinkles-elastic]"));
             }

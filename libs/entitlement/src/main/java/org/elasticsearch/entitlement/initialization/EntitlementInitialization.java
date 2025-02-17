@@ -138,7 +138,16 @@ public class EntitlementInitialization {
         var serverPolicy = new Policy(
             "server",
             List.of(
-                new Scope("org.elasticsearch.base", List.of(new CreateClassLoaderEntitlement())),
+                new Scope("org.elasticsearch.base",
+                    List.of(
+                        new CreateClassLoaderEntitlement(),
+                        new FilesEntitlement(
+                            List.of(
+                                FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE)
+                            )
+                        )
+                    )
+                ),
                 new Scope("org.elasticsearch.xcontent", List.of(new CreateClassLoaderEntitlement())),
                 new Scope(
                     "org.elasticsearch.server",
@@ -175,6 +184,8 @@ public class EntitlementInitialization {
                                 // // io stats on Linux
                                 FileData.ofPath(Path.of("/proc/self/mountinfo"), READ),
                                 FileData.ofPath(Path.of("/proc/diskstats"), READ)
+
+                                //TODO: use FileData.ofPathSetting("repositories.fs.location", READ_WRITE)
                             )
                         )
                     )
@@ -189,6 +200,17 @@ public class EntitlementInitialization {
                         new FilesEntitlement(
                             List.of(
                                 FileData.ofPath(bootstrapArgs.configDir(), READ),
+                                FileData.ofPath(bootstrapArgs.tempDir(), READ),
+                                FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE)
+                            )
+                        )
+                    )
+                ),
+                new Scope(
+                    "org.apache.lucene.misc",
+                    List.of(
+                        new FilesEntitlement(
+                            List.of(
                                 FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE)
                             )
                         )

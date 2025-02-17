@@ -1,5 +1,9 @@
 org.elasticsearch.security:
   - set_https_connection_properties # for CommandLineHttpClient
+  - files:
+      - relative_path: ""
+        relative_to: config
+        mode: read
 io.netty.transport:
   - manage_threads
   - inbound_network

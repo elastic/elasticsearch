@@ -1,0 +1,5 @@
+org.elasticsearch.ingest.geoip:
+  - files:
+      - relative_path: "ingest-geoip"
+        relative_to: config
+        mode: read

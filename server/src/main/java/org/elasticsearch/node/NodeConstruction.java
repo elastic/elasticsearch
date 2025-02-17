@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
 import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
 import org.elasticsearch.cluster.features.NodeFeaturesFixupListener;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStoreSettings;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -112,6 +113,8 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.index.SlowLogFieldProvider;
+import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
@@ -442,7 +445,7 @@ class NodeConstruction {
             );
         }
 
-        if (initialEnvironment.dataFiles().length > 1) {
+        if (initialEnvironment.dataDirs().length > 1) {
             // NOTE: we use initialEnvironment here, but assertEquivalent below ensures the data paths do not change
             deprecationLogger.warn(
                 DeprecationCategory.SETTINGS,
@@ -463,10 +466,10 @@ class NodeConstruction {
         if (logger.isDebugEnabled()) {
             logger.debug(
                 "using config [{}], data [{}], logs [{}], plugins [{}]",
-                initialEnvironment.configFile(),
-                Arrays.toString(initialEnvironment.dataFiles()),
-                initialEnvironment.logsFile(),
-                initialEnvironment.pluginsFile()
+                initialEnvironment.configDir(),
+                Arrays.toString(initialEnvironment.dataDirs()),
+                initialEnvironment.logsDir(),
+                initialEnvironment.pluginsDir()
             );
         }
 
@@ -483,7 +486,7 @@ class NodeConstruction {
          * Create the environment based on the finalized view of the settings. This is to ensure that components get the same setting
          * values, no matter they ask for them from.
          */
-        environment = new Environment(settings, initialEnvironment.configFile());
+        environment = new Environment(settings, initialEnvironment.configDir());
         Environment.assertEquivalent(initialEnvironment, environment);
         modules.bindToInstance(Environment.class, environment);
 
@@ -625,7 +628,6 @@ class NodeConstruction {
     }
 
     private DataStreamGlobalRetentionSettings createDataStreamServicesAndGlobalRetentionResolver(
-        Settings settings,
         ThreadPool threadPool,
         ClusterService clusterService,
         IndicesService indicesService,
@@ -635,6 +637,10 @@ class NodeConstruction {
             clusterService.getClusterSettings()
         );
         modules.bindToInstance(DataStreamGlobalRetentionSettings.class, dataStreamGlobalRetentionSettings);
+        modules.bindToInstance(
+            DataStreamFailureStoreSettings.class,
+            DataStreamFailureStoreSettings.create(clusterService.getClusterSettings())
+        );
         modules.bindToInstance(
             MetadataCreateDataStreamService.class,
             new MetadataCreateDataStreamService(threadPool, clusterService, metadataCreateIndexService)
@@ -804,6 +810,31 @@ class NodeConstruction {
             new ShardSearchPhaseAPMMetrics(telemetryProvider.getMeterRegistry())
         );
 
+        List<? extends SlowLogFieldProvider> slowLogFieldProviders = pluginsService.loadServiceProviders(SlowLogFieldProvider.class);
+        // NOTE: the response of index/search slow log fields below must be calculated dynamically on every call
+        // because the responses may change dynamically at runtime
+        SlowLogFieldProvider slowLogFieldProvider = indexSettings -> {
+            final List<SlowLogFields> fields = new ArrayList<>();
+            for (var provider : slowLogFieldProviders) {
+                fields.add(provider.create(indexSettings));
+            }
+            return new SlowLogFields() {
+                @Override
+                public Map<String, String> indexFields() {
+                    return fields.stream()
+                        .flatMap(f -> f.indexFields().entrySet().stream())
+                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                }
+
+                @Override
+                public Map<String, String> searchFields() {
+                    return fields.stream()
+                        .flatMap(f -> f.searchFields().entrySet().stream())
+                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                }
+            };
+        };
+
         IndicesService indicesService = new IndicesServiceBuilder().settings(settings)
             .pluginsService(pluginsService)
             .nodeEnvironment(nodeEnvironment)
@@ -825,6 +856,7 @@ class NodeConstruction {
             .requestCacheKeyDifferentiator(searchModule.getRequestCacheKeyDifferentiator())
             .mapperMetrics(mapperMetrics)
             .searchOperationListeners(searchOperationListeners)
+            .slowLogFieldProvider(slowLogFieldProvider)
             .build();
 
         final var parameters = new IndexSettingProvider.Parameters(clusterService, indicesService::createIndexMapperServiceForValidation);
@@ -862,7 +894,6 @@ class NodeConstruction {
         );
 
         final DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings = createDataStreamServicesAndGlobalRetentionResolver(
-            settings,
             threadPool,
             clusterService,
             indicesService,
@@ -1592,7 +1623,7 @@ class NodeConstruction {
             pluginsService.filterPlugins(DiscoveryPlugin.class).toList(),
             pluginsService.filterPlugins(ClusterCoordinationPlugin.class).toList(),
             allocationService,
-            environment.configFile(),
+            environment.configDir(),
             gatewayMetaState,
             rerouteService,
             fsHealthService,

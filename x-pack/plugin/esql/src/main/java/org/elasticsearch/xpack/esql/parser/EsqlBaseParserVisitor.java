@@ -200,6 +200,18 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitFunctionName(EsqlBaseParser.FunctionNameContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#mapExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMapExpression(EsqlBaseParser.MapExpressionContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#entryExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitEntryExpression(EsqlBaseParser.EntryExpressionContext ctx);
+  /**
    * Visit a parse tree produced by the {@code toDataType}
    * labeled alternative in {@link EsqlBaseParser#dataType}.
    * @param ctx the parse tree

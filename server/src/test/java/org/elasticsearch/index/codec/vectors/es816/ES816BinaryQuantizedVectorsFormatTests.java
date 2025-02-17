@@ -62,7 +62,7 @@ public class ES816BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
         return new Lucene912Codec() {
             @Override
             public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
-                return new ES816BinaryQuantizedVectorsFormat();
+                return new ES816BinaryQuantizedRWVectorsFormat();
             }
         };
     }

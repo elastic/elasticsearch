@@ -17,8 +17,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -33,6 +33,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -43,6 +44,7 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadA
     public static final ActionType<ClusterSearchShardsResponse> TYPE = new ActionType<>("indices:admin/shards/search_shards");
 
     private final IndicesService indicesService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
     public TransportClusterSearchShardsAction(
@@ -60,11 +62,11 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadA
             threadPool,
             actionFilters,
             ClusterSearchShardsRequest::new,
-            indexNameExpressionResolver,
             ClusterSearchShardsResponse::new,
             threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION)
         );
         this.indicesService = indicesService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override
@@ -84,7 +86,7 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadA
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
         Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(state, request.routing(), request.indices());
         Map<String, AliasFilter> indicesAndFilters = new HashMap<>();
-        Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(clusterState, request.indices());
+        Set<ResolvedExpression> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(clusterState, request.indices());
         for (String index : concreteIndices) {
             final AliasFilter aliasFilter = indicesService.buildAliasFilter(clusterState, index, indicesAndAliases);
             final String[] aliases = indexNameExpressionResolver.indexAliases(
@@ -99,7 +101,7 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadA
         }
 
         Set<String> nodeIds = new HashSet<>();
-        GroupShardsIterator<ShardIterator> groupShardsIterator = clusterService.operationRouting()
+        List<ShardIterator> groupShardsIterator = clusterService.operationRouting()
             .searchShards(clusterState, concreteIndices, routingMap, request.preference());
         ShardRouting shard;
         ClusterSearchShardsGroup[] groupResponses = new ClusterSearchShardsGroup[groupShardsIterator.size()];

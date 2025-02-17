@@ -40,7 +40,6 @@ public class TransportGetTrialStatusAction extends TransportMasterNodeReadAction
             threadPool,
             actionFilters,
             GetTrialStatusRequest::new,
-            indexNameExpressionResolver,
             GetTrialStatusResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

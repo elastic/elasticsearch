@@ -15,7 +15,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -94,6 +93,7 @@ public class MappingLookupInferenceFieldMapperTests extends MapperServiceTestCas
 
         public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
         public static final String INFERENCE_ID = "test_inference_id";
+        public static final String SEARCH_INFERENCE_ID = "test_search_inference_id";
         public static final String CONTENT_TYPE = "test_inference_field";
 
         TestInferenceFieldMapper(String simpleName) {
@@ -102,16 +102,11 @@ public class MappingLookupInferenceFieldMapperTests extends MapperServiceTestCas
 
         @Override
         public InferenceFieldMetadata getMetadata(Set<String> sourcePaths) {
-            return new InferenceFieldMetadata(fullPath(), INFERENCE_ID, sourcePaths.toArray(new String[0]));
+            return new InferenceFieldMetadata(fullPath(), INFERENCE_ID, SEARCH_INFERENCE_ID, sourcePaths.toArray(new String[0]));
         }
 
         @Override
-        public Object getOriginalValue(Map<String, Object> sourceAsMap) {
-            return null;
-        }
-
-        @Override
-        protected void parseCreateField(DocumentParserContext context) throws IOException {}
+        protected void parseCreateField(DocumentParserContext context) {}
 
         @Override
         public Builder getMergeBuilder() {

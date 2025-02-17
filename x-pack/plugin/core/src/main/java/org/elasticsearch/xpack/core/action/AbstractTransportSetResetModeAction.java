@@ -50,7 +50,6 @@ public abstract class AbstractTransportSetResetModeAction extends AcknowledgedTr
             threadPool,
             actionFilters,
             SetResetModeActionRequest::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
     }

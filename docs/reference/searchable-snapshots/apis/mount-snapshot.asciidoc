@@ -5,6 +5,12 @@
 <titleabbrev>Mount snapshot</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-searchable_snapshots[Searchable snapshots APIs].
+--
+
 Mount a snapshot as a searchable snapshot index.
 
 [[searchable-snapshots-api-mount-request]]

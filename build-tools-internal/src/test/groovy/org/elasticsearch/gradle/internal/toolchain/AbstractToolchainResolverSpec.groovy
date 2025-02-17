@@ -9,6 +9,8 @@
 
 package org.elasticsearch.gradle.internal.toolchain
 
+import spock.lang.Unroll
+
 import org.gradle.api.provider.Property
 import org.gradle.jvm.toolchain.JavaLanguageVersion
 import org.gradle.jvm.toolchain.JavaToolchainDownload
@@ -26,6 +28,7 @@ import static org.gradle.platform.OperatingSystem.MAC_OS
 
 abstract class AbstractToolchainResolverSpec extends Specification {
 
+    @Unroll
     def "resolves #os #arch #vendor jdk #langVersion"() {
         given:
         def resolver = resolverImplementation()

@@ -44,7 +44,6 @@ public class TransportDeleteAnalyticsCollectionAction extends AcknowledgedTransp
             threadPool,
             actionFilters,
             DeleteAnalyticsCollectionAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.analyticsCollectionService = analyticsCollectionService;

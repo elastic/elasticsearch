@@ -17,6 +17,7 @@ import org.apache.http.nio.protocol.AbstractAsyncResponseConsumer;
 import org.apache.http.nio.util.SimpleInputBuffer;
 import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -42,9 +43,12 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.results.XContentFormattedException;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventField;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
@@ -52,6 +56,7 @@ import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentE
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
@@ -76,14 +81,19 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
     private static final String REQUEST_COUNT = "request_count";
     private static final String WITH_ERROR = "with_error";
     private static final String ERROR_ROUTE = "/_inference_error";
+    private static final String FORMATTED_ERROR_ROUTE = "/_formatted_inference_error";
     private static final String NO_STREAM_ROUTE = "/_inference_no_stream";
     private static final Exception expectedException = new IllegalStateException("hello there");
     private static final String expectedExceptionAsServerSentEvent = """
         {\
-        "error":{"root_cause":[{"type":"illegal_state_exception","reason":"hello there",\
-        "caused_by":{"type":"illegal_state_exception","reason":"hello there"}}],\
+        "error":{"root_cause":[{"type":"illegal_state_exception","reason":"hello there"}],\
         "type":"illegal_state_exception","reason":"hello there"},"status":500\
         }""";
+
+    private static final Exception expectedFormattedException = new XContentFormattedException(
+        expectedException,
+        RestStatus.INTERNAL_SERVER_ERROR
+    );
 
     @Override
     protected boolean addMockHttpTransport() {
@@ -96,6 +106,14 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
     }
 
     public static class StreamingPlugin extends Plugin implements ActionPlugin {
+        private final SetOnce<ThreadPool> threadPool = new SetOnce<>();
+
+        @Override
+        public Collection<?> createComponents(PluginServices services) {
+            threadPool.set(services.threadPool());
+            return Collections.emptyList();
+        }
+
         @Override
         public Collection<RestHandler> getRestHandlers(
             Settings settings,
@@ -122,7 +140,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
                     var publisher = new RandomPublisher(requestCount, withError);
                     var inferenceServiceResults = new StreamingInferenceServiceResults(publisher);
                     var inferenceResponse = new InferenceAction.Response(inferenceServiceResults, inferenceServiceResults.publisher());
-                    new ServerSentEventsRestActionListener(channel).onResponse(inferenceResponse);
+                    new ServerSentEventsRestActionListener(channel, threadPool).onResponse(inferenceResponse);
                 }
             }, new RestHandler() {
                 @Override
@@ -132,7 +150,17 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
 
                 @Override
                 public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
-                    new ServerSentEventsRestActionListener(channel).onFailure(expectedException);
+                    new ServerSentEventsRestActionListener(channel, threadPool).onFailure(expectedException);
+                }
+            }, new RestHandler() {
+                @Override
+                public List<Route> routes() {
+                    return List.of(new Route(RestRequest.Method.POST, FORMATTED_ERROR_ROUTE));
+                }
+
+                @Override
+                public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
+                    new ServerSentEventsRestActionListener(channel, threadPool).onFailure(expectedFormattedException);
                 }
             }, new RestHandler() {
                 @Override
@@ -143,7 +171,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
                 @Override
                 public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
                     var inferenceResponse = new InferenceAction.Response(new SingleInferenceServiceResults());
-                    new ServerSentEventsRestActionListener(channel).onResponse(inferenceResponse);
+                    new ServerSentEventsRestActionListener(channel, threadPool).onResponse(inferenceResponse);
                 }
             });
         }
@@ -411,6 +439,21 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
         assertThat(collector.stringsVerified.size(), equalTo(expectedTestCount + 1)); // normal payload count + last error byte
         assertThat("DONE chunk is not sent on error", collector.stringsVerified.stream().anyMatch("[DONE]"::equals), equalTo(false));
         assertThat(collector.stringsVerified.getLast(), equalTo(expectedExceptionAsServerSentEvent));
+    }
+
+    public void testFormattedError() throws IOException {
+        var request = new Request(RestRequest.Method.POST.name(), FORMATTED_ERROR_ROUTE);
+
+        try {
+            getRestClient().performRequest(request);
+            fail("Expected an exception to be thrown from the error route");
+        } catch (ResponseException e) {
+            var response = e.getResponse();
+            assertThat(response.getStatusLine().getStatusCode(), is(HttpStatus.SC_INTERNAL_SERVER_ERROR));
+            assertThat(EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8), equalTo("""
+                \uFEFFevent: error
+                data:\s""" + expectedExceptionAsServerSentEvent + "\n\n"));
+        }
     }
 
     public void testNoStream() {

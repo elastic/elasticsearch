@@ -15,8 +15,8 @@ apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-    description 'An easy, safe and fast scripting language for Elasticsearch'
-    classname 'org.elasticsearch.painless.PainlessPlugin'
+    description = 'An easy, safe and fast scripting language for Elasticsearch'
+    classname ='org.elasticsearch.painless.PainlessPlugin'
 }
 
 testClusters.configureEach {

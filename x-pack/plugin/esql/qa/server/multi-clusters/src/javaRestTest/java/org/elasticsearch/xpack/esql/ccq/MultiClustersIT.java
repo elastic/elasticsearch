@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -36,10 +37,11 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
-import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.elasticsearch.xpack.esql.ccq.Clusters.REMOTE_CLUSTER_NAME;
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasKey;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class MultiClustersIT extends ESRestTestCase {
@@ -156,6 +158,17 @@ public class MultiClustersIT extends ESRestTestCase {
         }
     }
 
+    private <C, V> void assertResultMap(boolean includeCCSMetadata, Map<String, Object> result, C columns, V values, boolean remoteOnly) {
+        MapMatcher mapMatcher = getResultMatcher(ccsMetadataAvailable(), result.containsKey("is_partial"));
+        if (includeCCSMetadata) {
+            mapMatcher = mapMatcher.entry("_clusters", any(Map.class));
+        }
+        assertMap(result, mapMatcher.entry("columns", columns).entry("values", values));
+        if (includeCCSMetadata) {
+            assertClusterDetailsMap(result, remoteOnly);
+        }
+    }
+
     public void testCount() throws Exception {
         {
             boolean includeCCSMetadata = includeCCSMetadata();
@@ -163,17 +176,7 @@ public class MultiClustersIT extends ESRestTestCase {
             var columns = List.of(Map.of("name", "c", "type", "long"));
             var values = List.of(List.of(localDocs.size() + remoteDocs.size()));
 
-            MapMatcher mapMatcher = matchesMap();
-            if (includeCCSMetadata) {
-                mapMatcher = mapMatcher.entry("_clusters", any(Map.class));
-            }
-            if (ccsMetadataAvailable()) {
-                mapMatcher = mapMatcher.entry("took", greaterThanOrEqualTo(0));
-            }
-            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values));
-            if (includeCCSMetadata) {
-                assertClusterDetailsMap(result, false);
-            }
+            assertResultMap(includeCCSMetadata, result, columns, values, false);
         }
         {
             boolean includeCCSMetadata = includeCCSMetadata();
@@ -181,17 +184,7 @@ public class MultiClustersIT extends ESRestTestCase {
             var columns = List.of(Map.of("name", "c", "type", "long"));
             var values = List.of(List.of(remoteDocs.size()));
 
-            MapMatcher mapMatcher = matchesMap();
-            if (includeCCSMetadata) {
-                mapMatcher = mapMatcher.entry("_clusters", any(Map.class));
-            }
-            if (ccsMetadataAvailable()) {
-                mapMatcher = mapMatcher.entry("took", greaterThanOrEqualTo(0));
-            }
-            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values));
-            if (includeCCSMetadata) {
-                assertClusterDetailsMap(result, true);
-            }
+            assertResultMap(includeCCSMetadata, result, columns, values, true);
         }
     }
 
@@ -204,17 +197,7 @@ public class MultiClustersIT extends ESRestTestCase {
             var values = List.of(List.of(Math.toIntExact(sum)));
 
             // check all sections of map except _cluster/details
-            MapMatcher mapMatcher = matchesMap();
-            if (includeCCSMetadata) {
-                mapMatcher = mapMatcher.entry("_clusters", any(Map.class));
-            }
-            if (ccsMetadataAvailable()) {
-                mapMatcher = mapMatcher.entry("took", greaterThanOrEqualTo(0));
-            }
-            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values));
-            if (includeCCSMetadata) {
-                assertClusterDetailsMap(result, false);
-            }
+            assertResultMap(includeCCSMetadata, result, columns, values, false);
         }
         {
             boolean includeCCSMetadata = includeCCSMetadata();
@@ -223,17 +206,7 @@ public class MultiClustersIT extends ESRestTestCase {
             long sum = remoteDocs.stream().mapToLong(d -> d.data).sum();
             var values = List.of(List.of(Math.toIntExact(sum)));
 
-            MapMatcher mapMatcher = matchesMap();
-            if (includeCCSMetadata) {
-                mapMatcher = mapMatcher.entry("_clusters", any(Map.class));
-            }
-            if (ccsMetadataAvailable()) {
-                mapMatcher = mapMatcher.entry("took", greaterThanOrEqualTo(0));
-            }
-            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values));
-            if (includeCCSMetadata) {
-                assertClusterDetailsMap(result, true);
-            }
+            assertResultMap(includeCCSMetadata, result, columns, values, true);
         }
         {
             assumeTrue("requires ccs metadata", ccsMetadataAvailable());
@@ -242,15 +215,7 @@ public class MultiClustersIT extends ESRestTestCase {
             long sum = remoteDocs.stream().mapToLong(d -> d.data).sum();
             var values = List.of(List.of(Math.toIntExact(sum)));
 
-            MapMatcher mapMatcher = matchesMap();
-            assertMap(
-                result,
-                mapMatcher.entry("columns", columns)
-                    .entry("values", values)
-                    .entry("took", greaterThanOrEqualTo(0))
-                    .entry("_clusters", any(Map.class))
-            );
-            assertClusterDetailsMap(result, true);
+            assertResultMap(true, result, columns, values, true);
         }
     }
 
@@ -322,17 +287,7 @@ public class MultiClustersIT extends ESRestTestCase {
                 .map(e -> List.of(Math.toIntExact(e.getValue()), e.getKey()))
                 .toList();
 
-            MapMatcher mapMatcher = matchesMap();
-            if (includeCCSMetadata) {
-                mapMatcher = mapMatcher.entry("_clusters", any(Map.class));
-            }
-            if (ccsMetadataAvailable()) {
-                mapMatcher = mapMatcher.entry("took", greaterThanOrEqualTo(0));
-            }
-            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values));
-            if (includeCCSMetadata) {
-                assertClusterDetailsMap(result, false);
-            }
+            assertResultMap(includeCCSMetadata, result, columns, values, false);
         }
         {
             boolean includeCCSMetadata = includeCCSMetadata();
@@ -350,17 +305,7 @@ public class MultiClustersIT extends ESRestTestCase {
                 .toList();
 
             // check all sections of map except _clusters/details
-            MapMatcher mapMatcher = matchesMap();
-            if (includeCCSMetadata) {
-                mapMatcher = mapMatcher.entry("_clusters", any(Map.class));
-            }
-            if (ccsMetadataAvailable()) {
-                mapMatcher = mapMatcher.entry("took", greaterThanOrEqualTo(0));
-            }
-            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values));
-            if (includeCCSMetadata) {
-                assertClusterDetailsMap(result, true);
-            }
+            assertResultMap(includeCCSMetadata, result, columns, values, true);
         }
     }
 
@@ -375,11 +320,8 @@ public class MultiClustersIT extends ESRestTestCase {
             Map<String, Object> result = run("FROM " + indexPattern + " | STATS c = COUNT(*)", false);
             var columns = List.of(Map.of("name", "c", "type", "long"));
             var values = List.of(List.of(localDocs.size() + remoteDocs.size()));
-            MapMatcher mapMatcher = matchesMap();
-            if (ccsMetadataAvailable()) {
-                mapMatcher = mapMatcher.entry("took", greaterThanOrEqualTo(0));
-            }
-            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values));
+
+            assertResultMap(false, result, columns, values, false);
         }
         {
             String indexPattern = randomFrom("*:test-remote-index", "*:test-remote-*", "*:test-*");
@@ -387,12 +329,42 @@ public class MultiClustersIT extends ESRestTestCase {
             var columns = List.of(Map.of("name", "c", "type", "long"));
             var values = List.of(List.of(remoteDocs.size()));
 
-            MapMatcher mapMatcher = matchesMap();
-            if (ccsMetadataAvailable()) {
-                mapMatcher = mapMatcher.entry("took", greaterThanOrEqualTo(0));
-            }
-            assertMap(result, mapMatcher.entry("columns", columns).entry("values", values));
+            assertResultMap(false, result, columns, values, false);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testStats() throws IOException {
+        assumeTrue("capabilities endpoint is not available", capabilitiesEndpointAvailable());
+
+        Request caps = new Request("GET", "_capabilities?method=GET&path=_cluster/stats&capabilities=esql-stats");
+        Response capsResponse = client().performRequest(caps);
+        Map<String, Object> capsResult = entityAsMap(capsResponse.getEntity());
+        assumeTrue("esql stats capability missing", capsResult.get("supported").equals(true));
+
+        run("FROM test-local-index,*:test-remote-index | STATS total = SUM(data) BY color | SORT color", includeCCSMetadata());
+        Request stats = new Request("GET", "_cluster/stats");
+        Response statsResponse = client().performRequest(stats);
+        Map<String, Object> result = entityAsMap(statsResponse.getEntity());
+        assertThat(result, hasKey("ccs"));
+        Map<String, Object> ccs = (Map<String, Object>) result.get("ccs");
+        assertThat(ccs, hasKey("_esql"));
+        Map<String, Object> esql = (Map<String, Object>) ccs.get("_esql");
+        assertThat(esql, hasKey("total"));
+        assertThat(esql, hasKey("success"));
+        assertThat(esql, hasKey("took"));
+        assertThat(esql, hasKey("remotes_per_search_max"));
+        assertThat(esql, hasKey("remotes_per_search_avg"));
+        assertThat(esql, hasKey("failure_reasons"));
+        assertThat(esql, hasKey("features"));
+        assertThat(esql, hasKey("clusters"));
+        Map<String, Object> clusters = (Map<String, Object>) esql.get("clusters");
+        assertThat(clusters, hasKey(REMOTE_CLUSTER_NAME));
+        assertThat(clusters, hasKey("(local)"));
+        Map<String, Object> clusterData = (Map<String, Object>) clusters.get(REMOTE_CLUSTER_NAME);
+        assertThat(clusterData, hasKey("total"));
+        assertThat(clusterData, hasKey("skipped"));
+        assertThat(clusterData, hasKey("took"));
     }
 
     private RestClient remoteClusterClient() throws IOException {
@@ -402,6 +374,10 @@ public class MultiClustersIT extends ESRestTestCase {
 
     private static boolean ccsMetadataAvailable() {
         return Clusters.localClusterVersion().onOrAfter(Version.V_8_16_0);
+    }
+
+    private static boolean capabilitiesEndpointAvailable() {
+        return Clusters.localClusterVersion().onOrAfter(Version.V_8_15_0);
     }
 
     private static boolean includeCCSMetadata() {

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
@@ -93,14 +95,54 @@ public class ClusterFeatures implements Diffable<ClusterFeatures>, ChunkedToXCon
     }
 
     /**
+     * Returns {@code true} if {@code node} can have assumed features.
+     * @see org.elasticsearch.env.BuildVersion#canRemoveAssumedFeatures
+     */
+    public static boolean featuresCanBeAssumedForNode(DiscoveryNode node) {
+        return node.getBuildVersion().canRemoveAssumedFeatures();
+    }
+
+    /**
+     * Returns {@code true} if one or more nodes in {@code nodes} can have assumed features.
+     * @see org.elasticsearch.env.BuildVersion#canRemoveAssumedFeatures
+     */
+    public static boolean featuresCanBeAssumedForNodes(DiscoveryNodes nodes) {
+        return nodes.getAllNodes().stream().anyMatch(n -> n.getBuildVersion().canRemoveAssumedFeatures());
+    }
+
+    /**
      * {@code true} if {@code feature} is present on all nodes in the cluster.
      * <p>
      * NOTE: This should not be used directly, as it does not read historical features.
      * Please use {@link org.elasticsearch.features.FeatureService#clusterHasFeature} instead.
      */
     @SuppressForbidden(reason = "directly reading cluster features")
-    public boolean clusterHasFeature(NodeFeature feature) {
-        return allNodeFeatures().contains(feature.id());
+    public boolean clusterHasFeature(DiscoveryNodes nodes, NodeFeature feature) {
+        assert nodes.getNodes().keySet().equals(nodeFeatures.keySet())
+            : "Cluster features nodes " + nodeFeatures.keySet() + " is different to discovery nodes " + nodes.getNodes().keySet();
+
+        // basic case
+        boolean allNodesHaveFeature = allNodeFeatures().contains(feature.id());
+        if (allNodesHaveFeature) {
+            return true;
+        }
+
+        // if the feature is assumed, check the versions more closely
+        // it's actually ok if the feature is assumed, and all nodes missing the feature can assume it
+        // TODO: do we need some kind of transient cache of this calculation?
+        if (feature.assumedAfterNextCompatibilityBoundary()) {
+            for (var nf : nodeFeatures.entrySet()) {
+                if (nf.getValue().contains(feature.id()) == false
+                    && featuresCanBeAssumedForNode(nodes.getNodes().get(nf.getKey())) == false) {
+                    return false;
+                }
+            }
+
+            // all nodes missing the feature can assume it - so that's alright then
+            return true;
+        }
+
+        return false;
     }
 
     /**

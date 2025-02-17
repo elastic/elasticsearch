@@ -4,8 +4,13 @@
 <titleabbrev>Create or update policy</titleabbrev>
 ++++
 
-Creates or updates a snapshot lifecycle policy.
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-slm[{slm-cap} APIs].
+--
 
+Creates or updates a snapshot lifecycle policy.
 
 [[slm-api-put-request]]
 ==== {api-request-title}

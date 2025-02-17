@@ -923,6 +923,7 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
                             "node-0",
                             SingleNodeShutdownMetadata.builder()
                                 .setNodeId("node-0")
+                                .setNodeEphemeralId("node-0")
                                 .setType(SingleNodeShutdownMetadata.Type.REPLACE)
                                 .setTargetNodeName("node-2")
                                 .setStartedAtMillis(System.currentTimeMillis())

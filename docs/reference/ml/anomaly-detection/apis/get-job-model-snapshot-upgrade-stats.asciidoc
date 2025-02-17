@@ -7,6 +7,12 @@
 <titleabbrev>Get model snapshot upgrade statistics</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-anomaly[{ml-cap}  {anomaly-detect} APIs].
+--
+
 Retrieves usage information for {anomaly-job} model snapshot upgrades.
 
 [[ml-get-job-model-snapshot-upgrade-stats-request]]

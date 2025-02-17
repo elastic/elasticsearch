@@ -47,4 +47,9 @@ public record HttpResult(HttpResponse response, byte[] body) {
     public boolean isBodyEmpty() {
         return body().length == 0;
     }
+
+    public boolean isSuccessfulResponse() {
+        var code = response.getStatusLine().getStatusCode();
+        return code >= 200 && code < 300;
+    }
 }

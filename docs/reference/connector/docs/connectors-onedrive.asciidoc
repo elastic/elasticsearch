@@ -160,7 +160,7 @@ A <<es-connectors-sync-types-full, full sync>> is required for advanced sync rul
 Here are a few examples of advanced sync rules for this connector.
 
 [discrete#es-connectors-onedrive-sync-rules-advanced-examples-1]
-======= Example 1
+*Example 1*
 
 This rule skips indexing for files with `.xlsx` and `.docx` extensions.
 All other files and folders will be indexed.
@@ -176,7 +176,7 @@ All other files and folders will be indexed.
 // NOTCONSOLE
 
 [discrete#es-connectors-onedrive-sync-rules-advanced-examples-2]
-======= Example 2
+*Example 2*
 
 This rule focuses on indexing files and folders owned by `user1-domain@onmicrosoft.com` and `user2-domain@onmicrosoft.com` but excludes files with `.py` extension.
 
@@ -192,7 +192,7 @@ This rule focuses on indexing files and folders owned by `user1-domain@onmicroso
 // NOTCONSOLE
 
 [discrete#es-connectors-onedrive-sync-rules-advanced-examples-3]
-======= Example 3
+*Example 3*
 
 This rule indexes only the files and folders directly inside the root folder, excluding any `.md` files.
 
@@ -208,7 +208,7 @@ This rule indexes only the files and folders directly inside the root folder, ex
 // NOTCONSOLE
 
 [discrete#es-connectors-onedrive-sync-rules-advanced-examples-4]
-======= Example 4
+*Example 4*
 
 This rule indexes files and folders owned by `user1-domain@onmicrosoft.com` and `user3-domain@onmicrosoft.com` that are directly inside the `abc` folder, which is a subfolder of any folder under the `hello` directory in the root. Files with extensions `.pdf` and `.py` are excluded.
 
@@ -225,7 +225,7 @@ This rule indexes files and folders owned by `user1-domain@onmicrosoft.com` and 
 // NOTCONSOLE
 
 [discrete#es-connectors-onedrive-sync-rules-advanced-examples-5]
-======= Example 5
+*Example 5*
 
 This example contains two rules.
 The first rule indexes all files and folders owned by `user1-domain@onmicrosoft.com` and `user2-domain@onmicrosoft.com`.
@@ -245,7 +245,7 @@ The second rule indexes files for all other users, but skips files with a `.py` 
 // NOTCONSOLE
 
 [discrete#es-connectors-onedrive-sync-rules-advanced-examples-6]
-======= Example 6
+*Example 6*
 
 This example contains two rules.
 The first rule indexes all files owned by `user1-domain@onmicrosoft.com` and `user2-domain@onmicrosoft.com`, excluding `.md` files.
@@ -449,7 +449,7 @@ A <<es-connectors-sync-types-full, full sync>> is required for advanced sync rul
 Here are a few examples of advanced sync rules for this connector.
 
 [discrete#es-connectors-onedrive-client-sync-rules-advanced-examples-1]
-======= Example 1
+*Example 1*
 
 This rule skips indexing for files with `.xlsx` and `.docx` extensions.
 All other files and folders will be indexed.
@@ -465,7 +465,7 @@ All other files and folders will be indexed.
 // NOTCONSOLE
 
 [discrete#es-connectors-onedrive-client-sync-rules-advanced-examples-2]
-======= Example 2
+*Example 2*
 
 This rule focuses on indexing files and folders owned by `user1-domain@onmicrosoft.com` and `user2-domain@onmicrosoft.com` but excludes files with `.py` extension.
 
@@ -481,7 +481,7 @@ This rule focuses on indexing files and folders owned by `user1-domain@onmicroso
 // NOTCONSOLE
 
 [discrete#es-connectors-onedrive-client-sync-rules-advanced-examples-3]
-======= Example 3
+*Example 3*
 
 This rule indexes only the files and folders directly inside the root folder, excluding any `.md` files.
 
@@ -497,7 +497,7 @@ This rule indexes only the files and folders directly inside the root folder, ex
 // NOTCONSOLE
 
 [discrete#es-connectors-onedrive-client-sync-rules-advanced-examples-4]
-======= Example 4
+*Example 4*
 
 This rule indexes files and folders owned by `user1-domain@onmicrosoft.com` and `user3-domain@onmicrosoft.com` that are directly inside the `abc` folder, which is a subfolder of any folder under the `hello` directory in the root. Files with extensions `.pdf` and `.py` are excluded.
 
@@ -514,7 +514,7 @@ This rule indexes files and folders owned by `user1-domain@onmicrosoft.com` and 
 // NOTCONSOLE
 
 [discrete#es-connectors-onedrive-client-sync-rules-advanced-examples-5]
-======= Example 5
+*Example 5*
 
 This example contains two rules.
 The first rule indexes all files and folders owned by `user1-domain@onmicrosoft.com` and `user2-domain@onmicrosoft.com`.
@@ -534,7 +534,7 @@ The second rule indexes files for all other users, but skips files with a `.py` 
 // NOTCONSOLE
 
 [discrete#es-connectors-onedrive-client-sync-rules-advanced-examples-6]
-======= Example 6
+*Example 6*
 
 This example contains two rules.
 The first rule indexes all files owned by `user1-domain@onmicrosoft.com` and `user2-domain@onmicrosoft.com`, excluding `.md` files.

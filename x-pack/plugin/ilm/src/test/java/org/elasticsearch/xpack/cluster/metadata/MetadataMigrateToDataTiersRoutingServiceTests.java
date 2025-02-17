@@ -48,7 +48,6 @@ import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -118,10 +117,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 Metadata.builder()
                     .putCustom(
                         IndexLifecycleMetadata.TYPE,
-                        new IndexLifecycleMetadata(
-                            Collections.singletonMap(policyMetadata.getName(), policyMetadata),
-                            OperationMode.STOPPED
-                        )
+                        new IndexLifecycleMetadata(Map.of(policyMetadata.getName(), policyMetadata), OperationMode.STOPPED)
                     )
                     .put(IndexMetadata.builder(indexName).settings(getBaseIndexSettings()))
                     .build()
@@ -176,7 +172,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         );
         LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(
             policy,
-            Collections.emptyMap(),
+            Map.of(),
             randomNonNegativeLong(),
             randomNonNegativeLong()
         );
@@ -186,10 +182,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 Metadata.builder()
                     .putCustom(
                         IndexLifecycleMetadata.TYPE,
-                        new IndexLifecycleMetadata(
-                            Collections.singletonMap(policyMetadata.getName(), policyMetadata),
-                            OperationMode.STOPPED
-                        )
+                        new IndexLifecycleMetadata(Map.of(policyMetadata.getName(), policyMetadata), OperationMode.STOPPED)
                     )
                     .put(IndexMetadata.builder(indexName).settings(getBaseIndexSettings()))
                     .build()
@@ -245,10 +238,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                     Metadata.builder()
                         .putCustom(
                             IndexLifecycleMetadata.TYPE,
-                            new IndexLifecycleMetadata(
-                                Collections.singletonMap(policyMetadata.getName(), policyMetadata),
-                                OperationMode.STOPPED
-                            )
+                            new IndexLifecycleMetadata(Map.of(policyMetadata.getName(), policyMetadata), OperationMode.STOPPED)
                         )
                         .put(indexMetadata)
                         .build()
@@ -302,10 +292,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                         .putCustom(
                             IndexLifecycleMetadata.TYPE,
                             new IndexLifecycleMetadata(
-                                Collections.singletonMap(
-                                    policyMetadataWithTotalShardsPerNode.getName(),
-                                    policyMetadataWithTotalShardsPerNode
-                                ),
+                                Map.of(policyMetadataWithTotalShardsPerNode.getName(), policyMetadataWithTotalShardsPerNode),
                                 OperationMode.STOPPED
                             )
                         )
@@ -352,10 +339,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                     Metadata.builder()
                         .putCustom(
                             IndexLifecycleMetadata.TYPE,
-                            new IndexLifecycleMetadata(
-                                Collections.singletonMap(policyMetadata.getName(), policyMetadata),
-                                OperationMode.STOPPED
-                            )
+                            new IndexLifecycleMetadata(Map.of(policyMetadata.getName(), policyMetadata), OperationMode.STOPPED)
                         )
                         .put(indexMetadata)
                         .build()
@@ -406,10 +390,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                     Metadata.builder()
                         .putCustom(
                             IndexLifecycleMetadata.TYPE,
-                            new IndexLifecycleMetadata(
-                                Collections.singletonMap(policyMetadata.getName(), policyMetadata),
-                                OperationMode.STOPPED
-                            )
+                            new IndexLifecycleMetadata(Map.of(policyMetadata.getName(), policyMetadata), OperationMode.STOPPED)
                         )
                         .put(indexMetadata)
                         .build()
@@ -456,10 +437,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                     Metadata.builder()
                         .putCustom(
                             IndexLifecycleMetadata.TYPE,
-                            new IndexLifecycleMetadata(
-                                Collections.singletonMap(policyMetadata.getName(), policyMetadata),
-                                OperationMode.STOPPED
-                            )
+                            new IndexLifecycleMetadata(Map.of(policyMetadata.getName(), policyMetadata), OperationMode.STOPPED)
                         )
                         .put(indexMetadata)
                         .build()
@@ -1008,7 +986,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         );
         LifecyclePolicyMetadata policyWithDataAttribute = new LifecyclePolicyMetadata(
             policyToMigrate,
-            Collections.emptyMap(),
+            Map.of(),
             randomNonNegativeLong(),
             randomNonNegativeLong()
         );
@@ -1026,7 +1004,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         );
         LifecyclePolicyMetadata policyWithOtherAttribute = new LifecyclePolicyMetadata(
             shouldntBeMigratedPolicy,
-            Collections.emptyMap(),
+            Map.of(),
             randomNonNegativeLong(),
             randomNonNegativeLong()
         );
@@ -1080,11 +1058,11 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             );
 
             MigratedEntities migratedEntities = migratedEntitiesTuple.v2();
-            assertThat(migratedEntities.removedIndexTemplateName, is("catch-all"));
-            assertThat(migratedEntities.migratedPolicies.size(), is(1));
-            assertThat(migratedEntities.migratedPolicies.get(0), is(lifecycleName));
-            assertThat(migratedEntities.migratedIndices.size(), is(2));
-            assertThat(migratedEntities.migratedIndices, hasItems("indexWithWarmDataAttribute", "indexWithUnknownDataAttribute"));
+            assertThat(migratedEntities.removedIndexTemplateName(), is("catch-all"));
+            assertThat(migratedEntities.migratedPolicies().size(), is(1));
+            assertThat(migratedEntities.migratedPolicies().get(0), is(lifecycleName));
+            assertThat(migratedEntities.migratedIndices().size(), is(2));
+            assertThat(migratedEntities.migratedIndices(), hasItems("indexWithWarmDataAttribute", "indexWithUnknownDataAttribute"));
 
             ClusterState newState = migratedEntitiesTuple.v1();
             assertThat(newState.metadata().getTemplates().size(), is(1));
@@ -1105,11 +1083,11 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             );
 
             MigratedEntities migratedEntities = migratedEntitiesTuple.v2();
-            assertThat(migratedEntities.removedIndexTemplateName, nullValue());
-            assertThat(migratedEntities.migratedPolicies.size(), is(1));
-            assertThat(migratedEntities.migratedPolicies.get(0), is(lifecycleName));
-            assertThat(migratedEntities.migratedIndices.size(), is(2));
-            assertThat(migratedEntities.migratedIndices, hasItems("indexWithWarmDataAttribute", "indexWithUnknownDataAttribute"));
+            assertThat(migratedEntities.removedIndexTemplateName(), nullValue());
+            assertThat(migratedEntities.migratedPolicies().size(), is(1));
+            assertThat(migratedEntities.migratedPolicies().get(0), is(lifecycleName));
+            assertThat(migratedEntities.migratedIndices().size(), is(2));
+            assertThat(migratedEntities.migratedIndices(), hasItems("indexWithWarmDataAttribute", "indexWithUnknownDataAttribute"));
 
             ClusterState newState = migratedEntitiesTuple.v1();
             assertThat(newState.metadata().getTemplates().size(), is(2));
@@ -1130,10 +1108,10 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             );
 
             MigratedEntities migratedEntities = migratedEntitiesTuple.v2();
-            assertThat(migratedEntities.migratedPolicies.size(), is(1));
-            assertThat(migratedEntities.migratedPolicies.get(0), is(lifecycleName));
-            assertThat(migratedEntities.migratedIndices.size(), is(2));
-            assertThat(migratedEntities.migratedIndices, hasItems("indexWithWarmDataAttribute", "indexWithUnknownDataAttribute"));
+            assertThat(migratedEntities.migratedPolicies().size(), is(1));
+            assertThat(migratedEntities.migratedPolicies().get(0), is(lifecycleName));
+            assertThat(migratedEntities.migratedIndices().size(), is(2));
+            assertThat(migratedEntities.migratedIndices(), hasItems("indexWithWarmDataAttribute", "indexWithUnknownDataAttribute"));
 
             IndexMetadata migratedIndex;
             migratedIndex = migratedEntitiesTuple.v1().metadata().index("indexWithWarmDataAttribute");
@@ -1185,9 +1163,9 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 null,
                 false
             );
-            assertThat(migratedState.v2().migratedIndices, empty());
-            assertThat(migratedState.v2().migratedPolicies, empty());
-            assertThat(migratedState.v2().removedIndexTemplateName, nullValue());
+            assertThat(migratedState.v2().migratedIndices(), empty());
+            assertThat(migratedState.v2().migratedPolicies(), empty());
+            assertThat(migratedState.v2().removedIndexTemplateName(), nullValue());
         }
     }
 
@@ -1215,7 +1193,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
     public void testMigrationDoesNotRemoveComposableTemplates() {
         ComposableIndexTemplate composableIndexTemplate = ComposableIndexTemplate.builder()
-            .indexPatterns(Collections.singletonList("*"))
+            .indexPatterns(List.of("*"))
             .template(new Template(Settings.builder().put(DATA_ROUTING_REQUIRE_SETTING, "hot").build(), null, null))
             .build();
 
@@ -1232,7 +1210,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             null,
             false
         );
-        assertThat(migratedEntitiesTuple.v2().removedIndexTemplateName, nullValue());
+        assertThat(migratedEntitiesTuple.v2().removedIndexTemplateName(), nullValue());
         // the composable template still exists, however it was migrated to not use the custom require.data routing setting
         assertThat(migratedEntitiesTuple.v1().metadata().templatesV2().get(composableTemplateName), is(notNullValue()));
     }
@@ -1285,7 +1263,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 new Phase("cold", TimeValue.ZERO, Map.of(coldAllocateAction.getWriteableName(), coldAllocateAction))
             )
         );
-        return new LifecyclePolicyMetadata(policy, Collections.emptyMap(), randomNonNegativeLong(), randomNonNegativeLong());
+        return new LifecyclePolicyMetadata(policy, Map.of(), randomNonNegativeLong(), randomNonNegativeLong());
     }
 
     public void testMigrateLegacyIndexTemplates() {
@@ -1676,9 +1654,9 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         Metadata.Builder mb = Metadata.builder(clusterState.metadata());
         MetadataMigrateToDataTiersRoutingService.MigratedTemplates migratedTemplates = MetadataMigrateToDataTiersRoutingService
             .migrateIndexAndComponentTemplates(mb, clusterState, nodeAttrName);
-        assertThat(migratedTemplates.migratedLegacyTemplates, is(List.of("template-with-require-routing")));
-        assertThat(migratedTemplates.migratedComposableTemplates, is(List.of("composable-template-with-require-routing")));
-        assertThat(migratedTemplates.migratedComponentTemplates, is(List.of("component-with-require-and-include-routing")));
+        assertThat(migratedTemplates.migratedLegacyTemplates(), is(List.of("template-with-require-routing")));
+        assertThat(migratedTemplates.migratedComposableTemplates(), is(List.of("composable-template-with-require-routing")));
+        assertThat(migratedTemplates.migratedComponentTemplates(), is(List.of("component-with-require-and-include-routing")));
     }
 
     private String getWarmPhaseDef() {

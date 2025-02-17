@@ -4,6 +4,12 @@
 <titleabbrev>Get snapshot status</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-snapshot[Snapshot and restore APIs].
+--
+
 Retrieves a detailed description of the current state for each shard participating in the snapshot. Note that this API should only be used to obtain detailed shard-level information for ongoing snapshots. If this detail is not needed, or you want to obtain information about one or more existing snapshots, use the <<get-snapshot-api,get snapshot API>>.
 
 ////

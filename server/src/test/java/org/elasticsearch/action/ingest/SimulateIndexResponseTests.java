@@ -48,6 +48,7 @@ public class SimulateIndexResponseTests extends ESTestCase {
             sourceBytes,
             XContentType.JSON,
             pipelines,
+            List.of(),
             null
         );
 
@@ -79,6 +80,7 @@ public class SimulateIndexResponseTests extends ESTestCase {
             sourceBytes,
             XContentType.JSON,
             pipelines,
+            List.of(),
             new ElasticsearchException("Some failure")
         );
 
@@ -102,6 +104,39 @@ public class SimulateIndexResponseTests extends ESTestCase {
                 )
             ),
             Strings.toString(indexResponseWithException)
+        );
+
+        SimulateIndexResponse indexResponseWithIgnoredFields = new SimulateIndexResponse(
+            id,
+            index,
+            version,
+            sourceBytes,
+            XContentType.JSON,
+            pipelines,
+            List.of("abc", "def"),
+            null
+        );
+
+        assertEquals(
+            XContentHelper.stripWhitespace(
+                Strings.format(
+                    """
+                        {
+                          "_id": "%s",
+                          "_index": "%s",
+                          "_version": %d,
+                          "_source": %s,
+                          "executed_pipelines": [%s],
+                          "ignored_fields": [{"field": "abc"}, {"field": "def"}]
+                        }""",
+                    id,
+                    index,
+                    version,
+                    source,
+                    pipelines.stream().map(pipeline -> "\"" + pipeline + "\"").collect(Collectors.joining(","))
+                )
+            ),
+            Strings.toString(indexResponseWithIgnoredFields)
         );
     }
 
@@ -135,6 +170,7 @@ public class SimulateIndexResponseTests extends ESTestCase {
             sourceBytes,
             xContentType,
             pipelines,
+            randomList(0, 20, () -> randomAlphaOfLength(15)),
             randomBoolean() ? null : new ElasticsearchException("failed")
         );
     }

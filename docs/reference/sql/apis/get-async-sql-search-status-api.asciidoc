@@ -5,6 +5,12 @@
 <titleabbrev>Get async SQL search status</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-sql[SQL APIs].
+--
+
 Returns the current status of an <<sql-async,async SQL search>> or a
 <<sql-store-searches,stored synchronous SQL search>>.
 

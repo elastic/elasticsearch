@@ -28,7 +28,7 @@ You can pass an `X-Opaque-Id` HTTP header to track the origin of a request in
 
 * Response of any request that includes the header
 * <<_identifying_running_tasks,Task management API>> response
-* <<_identifying_search_slow_log_origin,Slow logs>>
+* <<search-slow-log,Slow logs>>
 * <<deprecation-logging,Deprecation logs>>
 
 For the deprecation logs, {es} also uses the `X-Opaque-Id` value to throttle
@@ -52,7 +52,7 @@ safely generate a unique `traceparent` header for each request.
 If provided, {es} surfaces the header's `trace-id` value as `trace.id` in the:
 
 * <<logging,JSON {es} server logs>>
-* <<_identifying_search_slow_log_origin,Slow logs>>
+* <<search-slow-log,Slow logs>>
 * <<deprecation-logging,Deprecation logs>>
 
 For example, the following `traceparent` value would produce the following
@@ -253,6 +253,16 @@ as they contain data essential to the operation of the system.
 
 IMPORTANT: Direct access to system indices is deprecated and
 will no longer be allowed in a future major version.
+
+To view system indices within cluster:
+
+[source,console]
+--------------------------------------------------
+GET _cluster/state/metadata?filter_path=metadata.indices.*.system
+--------------------------------------------------
+
+WARNING: When overwriting current cluster state, system indices should be restored
+as part of their {ref}/snapshot-restore.html#feature-state[feature state].
 
 [discrete]
 [[api-conventions-parameters]]

@@ -18,7 +18,9 @@ import org.antlr.v4.runtime.atn.PredictionMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 
 import java.util.BitSet;
 import java.util.function.BiFunction;
@@ -52,29 +54,32 @@ public class EsqlParser {
         this.config = config;
     }
 
+    // testing utility
     public LogicalPlan createStatement(String query) {
         return createStatement(query, new QueryParams());
     }
 
+    // testing utility
     public LogicalPlan createStatement(String query, QueryParams params) {
+        return createStatement(query, params, new PlanTelemetry(new EsqlFunctionRegistry()));
+    }
+
+    public LogicalPlan createStatement(String query, QueryParams params, PlanTelemetry metrics) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", query);
         }
-        return invokeParser(query, params, EsqlBaseParser::singleStatement, AstBuilder::plan);
+        return invokeParser(query, params, metrics, EsqlBaseParser::singleStatement, AstBuilder::plan);
     }
 
     private <T> T invokeParser(
         String query,
         QueryParams params,
+        PlanTelemetry metrics,
         Function<EsqlBaseParser, ParserRuleContext> parseFunction,
         BiFunction<AstBuilder, ParserRuleContext, T> result
     ) {
         if (query.length() > MAX_LENGTH) {
-            throw new org.elasticsearch.xpack.esql.core.ParsingException(
-                "ESQL statement is too large [{} characters > {}]",
-                query.length(),
-                MAX_LENGTH
-            );
+            throw new ParsingException("ESQL statement is too large [{} characters > {}]", query.length(), MAX_LENGTH);
         }
         try {
             EsqlBaseLexer lexer = new EsqlBaseLexer(CharStreams.fromString(query));
@@ -103,7 +108,7 @@ public class EsqlParser {
                 log.trace("Parse tree: {}", tree.toStringTree());
             }
 
-            return result.apply(new AstBuilder(params), tree);
+            return result.apply(new AstBuilder(new ExpressionBuilder.ParsingContext(params, metrics)), tree);
         } catch (StackOverflowError e) {
             throw new ParsingException("ESQL statement is too large, causing stack overflow when generating the parsing tree: [{}]", query);
         }

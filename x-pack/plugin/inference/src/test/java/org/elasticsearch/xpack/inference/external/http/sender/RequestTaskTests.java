@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.core.TimeValue;
@@ -86,11 +86,8 @@ public class RequestTaskTests extends ESTestCase {
             listener
         );
 
-        var thrownException = expectThrows(ElasticsearchTimeoutException.class, () -> listener.actionGet(TIMEOUT));
-        assertThat(
-            thrownException.getMessage(),
-            is(format("Request timed out waiting to be sent after [%s]", TimeValue.timeValueMillis(1)))
-        );
+        var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+        assertThat(thrownException.getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueMillis(1))));
         assertTrue(requestTask.hasCompleted());
         assertTrue(requestTask.getRequestCompletedFunction().get());
     }
@@ -116,10 +113,7 @@ public class RequestTaskTests extends ESTestCase {
 
         ArgumentCaptor<Exception> argument = ArgumentCaptor.forClass(Exception.class);
         verify(listener, times(1)).onFailure(argument.capture());
-        assertThat(
-            argument.getValue().getMessage(),
-            is(format("Request timed out waiting to be sent after [%s]", TimeValue.timeValueMillis(1)))
-        );
+        assertThat(argument.getValue().getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueMillis(1))));
         assertTrue(requestTask.hasCompleted());
         assertTrue(requestTask.getRequestCompletedFunction().get());
 
@@ -148,10 +142,7 @@ public class RequestTaskTests extends ESTestCase {
 
         ArgumentCaptor<Exception> argument = ArgumentCaptor.forClass(Exception.class);
         verify(listener, times(1)).onFailure(argument.capture());
-        assertThat(
-            argument.getValue().getMessage(),
-            is(format("Request timed out waiting to be sent after [%s]", TimeValue.timeValueMillis(1)))
-        );
+        assertThat(argument.getValue().getMessage(), is(format("Request timed out after [%s]", TimeValue.timeValueMillis(1))));
         assertTrue(requestTask.hasCompleted());
         assertTrue(requestTask.getRequestCompletedFunction().get());
 

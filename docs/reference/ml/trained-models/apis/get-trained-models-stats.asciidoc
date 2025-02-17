@@ -6,6 +6,12 @@
 <titleabbrev>Get trained models stats</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-trained-model[{ml-cap} trained model APIs].
+--
+
 Retrieves usage information for trained models.
 
 
@@ -378,6 +384,7 @@ A collection of model size stats fields.
 `model_size_bytes`:::
 (integer)
 The size of the model in bytes.
+This parameter applies only to PyTorch models.
 
 `required_native_memory_bytes`:::
 (integer)

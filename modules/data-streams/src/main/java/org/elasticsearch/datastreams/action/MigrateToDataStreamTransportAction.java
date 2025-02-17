@@ -48,7 +48,6 @@ public class MigrateToDataStreamTransportAction extends AcknowledgedTransportMas
             threadPool,
             actionFilters,
             MigrateToDataStreamAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.metadataMigrateToDataStreamService = new MetadataMigrateToDataStreamService(

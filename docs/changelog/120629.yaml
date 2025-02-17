@@ -1,0 +1,6 @@
+pr: 120629
+summary: Report Deprecated Indices That Are Flagged To Ignore Migration Reindex As
+  A Warning
+area: Data streams
+type: enhancement
+issues: []

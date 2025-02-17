@@ -90,8 +90,12 @@ public class RestSearchAction extends BaseRestHandler {
             new Route(POST, "/_search"),
             new Route(GET, "/{index}/_search"),
             new Route(POST, "/{index}/_search"),
-            Route.builder(GET, "/{index}/{type}/_search").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(POST, "/{index}/{type}/_search").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+            Route.builder(GET, "/{index}/{type}/_search")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, DeprecationLogger.CRITICAL, RestApiVersion.V_7)
+                .build(),
+            Route.builder(POST, "/{index}/{type}/_search")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, DeprecationLogger.CRITICAL, RestApiVersion.V_7)
+                .build()
         );
     }
 
@@ -102,7 +106,9 @@ public class RestSearchAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-
+        if (client.threadPool() != null && client.threadPool().getThreadContext() != null) {
+            client.threadPool().getThreadContext().setErrorTraceTransportHeader(request);
+        }
         SearchRequest searchRequest;
         if (request.hasParam("min_compatible_shard_node")) {
             searchRequest = new SearchRequest(Version.fromString(request.param("min_compatible_shard_node")));

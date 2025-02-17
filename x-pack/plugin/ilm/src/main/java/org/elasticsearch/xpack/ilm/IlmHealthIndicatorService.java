@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.core.ilm.WaitForNoFollowersStep;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -219,8 +218,8 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
                 GREEN,
                 "No Index Lifecycle Management policies configured",
                 createDetails(verbose, ilmMetadata, currentMode),
-                Collections.emptyList(),
-                Collections.emptyList()
+                List.of(),
+                List.of()
             );
         } else if (currentMode != OperationMode.RUNNING) {
             return createIndicator(
@@ -238,8 +237,8 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
                     GREEN,
                     "Index Lifecycle Management is running",
                     createDetails(verbose, ilmMetadata, currentMode),
-                    Collections.emptyList(),
-                    Collections.emptyList()
+                    List.of(),
+                    List.of()
                 );
             } else {
                 return createIndicator(

@@ -47,6 +47,7 @@ public class CCSUsageTelemetry {
         TIMEOUT("timeout"),
         CORRUPTION("corruption"),
         SECURITY("security"),
+        LICENSE("license"),
         // May be helpful if there's a lot of other reasons, and it may be hard to calculate the unknowns for some clients.
         UNKNOWN("other");
 
@@ -106,8 +107,14 @@ public class CCSUsageTelemetry {
 
     private final Map<String, LongAdder> clientCounts;
     private final Map<String, PerClusterCCSTelemetry> byRemoteCluster;
+    // Should we calculate separate metrics per MRT?
+    private final boolean useMRT;
 
     public CCSUsageTelemetry() {
+        this(true);
+    }
+
+    public CCSUsageTelemetry(boolean useMRT) {
         this.byRemoteCluster = new ConcurrentHashMap<>();
         totalCount = new LongAdder();
         successCount = new LongAdder();
@@ -119,6 +126,7 @@ public class CCSUsageTelemetry {
         skippedRemotes = new LongAdder();
         featureCounts = new ConcurrentHashMap<>();
         clientCounts = new ConcurrentHashMap<>();
+        this.useMRT = useMRT;
     }
 
     public void updateUsage(CCSUsage ccsUsage) {
@@ -134,10 +142,12 @@ public class CCSUsageTelemetry {
         if (isSuccess(ccsUsage)) {
             successCount.increment();
             took.record(searchTook);
-            if (isMRT(ccsUsage)) {
-                tookMrtTrue.record(searchTook);
-            } else {
-                tookMrtFalse.record(searchTook);
+            if (useMRT) {
+                if (isMRT(ccsUsage)) {
+                    tookMrtTrue.record(searchTook);
+                } else {
+                    tookMrtFalse.record(searchTook);
+                }
             }
             ccsUsage.getPerClusterUsage().forEach((r, u) -> byRemoteCluster.computeIfAbsent(r, PerClusterCCSTelemetry::new).update(u));
         } else {
@@ -243,6 +253,6 @@ public class CCSUsageTelemetry {
             Collections.unmodifiableMap(Maps.transformValues(featureCounts, LongAdder::longValue)),
             Collections.unmodifiableMap(Maps.transformValues(clientCounts, LongAdder::longValue)),
             Collections.unmodifiableMap(Maps.transformValues(byRemoteCluster, PerClusterCCSTelemetry::getSnapshot))
-        );
+        ).setUseMRT(useMRT);
     }
 }

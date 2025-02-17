@@ -1,6 +1,0 @@
-pr: 116021
-summary: Fields caps does not honour ignore_unavailable
-area: Search
-type: bug
-issues:
- - 107767

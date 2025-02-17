@@ -178,7 +178,7 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "date_nanos or datetime or numeric or string");
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     private static String randomDateString(long from, long to) {

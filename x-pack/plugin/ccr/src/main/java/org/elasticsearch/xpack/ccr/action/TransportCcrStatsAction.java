@@ -53,7 +53,6 @@ public class TransportCcrStatsAction extends TransportMasterNodeAction<CcrStatsA
             threadPool,
             actionFilters,
             CcrStatsAction.Request::new,
-            indexNameExpressionResolver,
             CcrStatsAction.Response::new,
             threadPool.executor(Ccr.CCR_THREAD_POOL_NAME)
         );

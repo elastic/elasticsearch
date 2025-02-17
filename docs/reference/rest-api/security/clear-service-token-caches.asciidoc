@@ -6,6 +6,12 @@
 <titleabbrev>Clear service account token caches</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Evicts a subset of all entries from the  <<service-accounts,service account>>
 token caches.
 

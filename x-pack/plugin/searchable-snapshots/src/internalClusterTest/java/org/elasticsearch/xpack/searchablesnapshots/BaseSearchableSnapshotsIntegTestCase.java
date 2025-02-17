@@ -355,6 +355,18 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
         });
     }
 
+    protected static void waitUntilRecoveryIsDone(String index) throws Exception {
+        assertBusy(() -> {
+            RecoveryResponse recoveryResponse = indicesAdmin().prepareRecoveries(index).get();
+            assertThat(recoveryResponse.hasRecoveries(), equalTo(true));
+            for (List<RecoveryState> value : recoveryResponse.shardRecoveryStates().values()) {
+                for (RecoveryState recoveryState : value) {
+                    assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.DONE));
+                }
+            }
+        });
+    }
+
     public static class LicensedSnapshotBasedRecoveriesPlugin extends SnapshotBasedRecoveriesPlugin {
 
         public LicensedSnapshotBasedRecoveriesPlugin(Settings settings) {

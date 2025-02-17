@@ -173,14 +173,7 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
             b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
             b.endObject().endObject();
         })));
-        assertThat(
-            e.getMessage(),
-            equalTo(
-                "All fields that match routing_path must be configured with [time_series_dimension: true] "
-                    + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
-                    + "without the [script] parameter. [dim.o] was [object]."
-            )
-        );
+        assertThat(e.getMessage(), equalTo("All fields that match routing_path must be flattened fields. [dim.o] was [object]."));
     }
 
     public void testRoutingPathMatchesNonDimensionKeyword() {

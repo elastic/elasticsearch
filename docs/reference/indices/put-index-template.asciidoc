@@ -4,6 +4,12 @@
 <titleabbrev>Create or update index template</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-indices[Index APIs].
+--
+
 Creates or updates an index template. Index templates define
 <<index-modules-settings,settings>>, <<mapping,mappings>>, and <<aliases,aliases>>
 that can be applied automatically to new indices.
@@ -115,10 +121,10 @@ See <<create-index-template,create an index template>>.
 
 `index_mode`::
 (Optional, string) Type of data stream to create. Valid values are `null`
-(regular data stream) and `time_series` (<<tsds,time series data stream>>).
+(standard data stream), `time_series` (<<tsds,time series data stream>>) and `logsdb` 
+(<<logs-data-stream,logs data stream>>).
 +
-If `time_series`, each backing index has an `index.mode` index setting of
-`time_series`.
+The template's `index_mode` sets the `index.mode` of the backing index.
 =====
 
 `index_patterns`::

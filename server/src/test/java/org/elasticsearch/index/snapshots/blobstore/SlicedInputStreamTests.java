@@ -155,9 +155,10 @@ public class SlicedInputStreamTests extends ESTestCase {
 
         // Mark
         input.mark(randomNonNegativeInt());
+        int slicesOpenedAtMark = streamsOpened.size();
 
         // Read or skip up to another random point
-        final int moreBytes = randomIntBetween(0, bytes.length - mark);
+        int moreBytes = randomIntBetween(0, bytes.length - mark);
         if (moreBytes > 0) {
             if (randomBoolean()) {
                 final var moreBytesRead = new byte[moreBytes];
@@ -171,11 +172,13 @@ public class SlicedInputStreamTests extends ESTestCase {
 
         // Randomly read to EOF
         if (randomBoolean()) {
-            input.readAllBytes();
+            moreBytes += input.readAllBytes().length;
         }
 
         // Reset
         input.reset();
+        int slicesOpenedAfterReset = streamsOpened.size();
+        assert moreBytes > 0 || mark == 0 || slicesOpenedAfterReset == slicesOpenedAtMark : "Reset at mark should not re-open slices";
 
         // Read all remaining bytes, which should be the bytes from mark up to the end
         final int remainingBytes = bytes.length - mark;

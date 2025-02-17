@@ -41,7 +41,6 @@ public class TransportPostStartTrialAction extends TransportMasterNodeAction<Pos
             threadPool,
             actionFilters,
             PostStartTrialRequest::new,
-            indexNameExpressionResolver,
             PostStartTrialResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

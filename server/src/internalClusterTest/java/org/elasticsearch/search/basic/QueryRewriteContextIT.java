@@ -154,8 +154,10 @@ public class QueryRewriteContextIT extends ESIntegTestCase {
     public void testResolvedIndices_TransportExplainAction() {
         final String[] indices = { "test1", "test2" };
         createIndex(indices);
-        assertAcked(indicesAdmin().prepareAliases().addAlias("test1", "alias1"));
-        assertAcked(indicesAdmin().prepareAliases().addAlias(indices, "alias2"));
+        assertAcked(
+            indicesAdmin().prepareAliases().addAlias("test1", "alias1"),
+            indicesAdmin().prepareAliases().addAlias(indices, "alias2")
+        );
 
         assertResolvedIndices(client().prepareExplain("test1", "1"), Set.of("test1"), Set.of("test1"), r -> {});
         assertResolvedIndices(client().prepareExplain("alias1", "1"), Set.of("alias1"), Set.of("test1"), r -> {});

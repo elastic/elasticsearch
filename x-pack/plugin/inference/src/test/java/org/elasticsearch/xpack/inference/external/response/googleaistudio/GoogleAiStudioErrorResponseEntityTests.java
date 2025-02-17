@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 
 public class GoogleAiStudioErrorResponseEntityTests extends ESTestCase {
@@ -48,7 +49,7 @@ public class GoogleAiStudioErrorResponseEntityTests extends ESTestCase {
         assertThat(error.getErrorMessage(), is("error message"));
     }
 
-    public void testErrorResponse_ReturnsNullIfNoError() {
+    public void testErrorResponse_ReturnsUndefinedObjectIfNoError() {
         var result = getMockResult("""
             {
                 "foo": "bar"
@@ -56,13 +57,13 @@ public class GoogleAiStudioErrorResponseEntityTests extends ESTestCase {
             """);
 
         var error = GoogleAiStudioErrorResponseEntity.fromResponse(result);
-        assertNull(error);
+        assertThat(error, sameInstance(GoogleAiStudioErrorResponseEntity.UNDEFINED_ERROR));
     }
 
-    public void testErrorResponse_ReturnsNullIfNotJson() {
+    public void testErrorResponse_ReturnsUndefinedIfNotJson() {
         var result = getMockResult("error message");
 
         var error = GoogleAiStudioErrorResponseEntity.fromResponse(result);
-        assertNull(error);
+        assertThat(error, sameInstance(GoogleAiStudioErrorResponseEntity.UNDEFINED_ERROR));
     }
 }

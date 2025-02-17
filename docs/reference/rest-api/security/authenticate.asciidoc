@@ -5,6 +5,12 @@
 <titleabbrev>Authenticate</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-security[Security APIs].
+--
+
 Enables you to submit a request with a basic auth header to
 authenticate a user and retrieve information about the authenticated user.
 

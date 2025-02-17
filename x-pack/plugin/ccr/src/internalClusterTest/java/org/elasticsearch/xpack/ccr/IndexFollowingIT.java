@@ -605,8 +605,8 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
     public void testFollowNonExistentIndex() throws Exception {
         String indexSettings = getIndexSettings(1, 0);
-        assertAcked(leaderClient().admin().indices().prepareCreate("test-leader").setSource(indexSettings, XContentType.JSON).get());
         assertAcked(
+            leaderClient().admin().indices().prepareCreate("test-leader").setSource(indexSettings, XContentType.JSON),
             followerClient().admin()
                 .indices()
                 .prepareCreate("test-follower")

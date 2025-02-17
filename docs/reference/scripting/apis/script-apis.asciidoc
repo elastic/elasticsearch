@@ -1,6 +1,12 @@
 [[script-apis]]
 == Script APIs
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-script[Script APIs].
+--
+
 Use the following APIs to manage, store, and test your
 <<modules-scripting,scripts>>.
 

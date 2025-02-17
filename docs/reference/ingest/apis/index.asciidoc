@@ -1,6 +1,12 @@
 [[ingest-apis]]
 == Ingest APIs
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ingest[Ingest APIs].
+--
+
 Use ingest APIs to manage tasks and resources related to <<ingest,ingest
 pipelines>> and processors.
 

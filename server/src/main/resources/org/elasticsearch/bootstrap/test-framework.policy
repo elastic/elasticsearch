@@ -23,6 +23,13 @@ grant codeBase "${codebase.mockito-core}" {
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
   permission java.lang.RuntimePermission "getClassLoader";
+  // needed when calling bytebuddy
+  permission java.lang.RuntimePermission "createClassLoader";
+  permission java.lang.RuntimePermission "net.bytebuddy.createJavaDispatcher";
+  permission java.lang.reflect.ReflectPermission "newProxyInPackage.net.bytebuddy.utility";
+  permission java.lang.reflect.ReflectPermission "newProxyInPackage.net.bytebuddy.dynamic.loading";
+  permission java.lang.reflect.ReflectPermission "newProxyInPackage.net.bytebuddy.description.type";
+  permission java.lang.reflect.ReflectPermission "newProxyInPackage.net.bytebuddy.description.method";
 };
 
 grant codeBase "${codebase.byte-buddy}" {
@@ -88,6 +95,7 @@ grant codeBase "${codebase.elasticsearch}" {
 // this is the test-framework, but the jar is horribly named
 grant codeBase "${codebase.framework}" {
   permission java.lang.RuntimePermission "setSecurityManager";
+  permission java.lang.RuntimePermission "createClassLoader";
 };
 
 grant codeBase "${codebase.elasticsearch-rest-client}" {
@@ -126,7 +134,9 @@ grant codeBase "${codebase.netty-transport}" {
 
 grant {
   permission java.net.SocketPermission "127.0.0.1", "accept, connect, resolve";
+  permission java.net.SocketPermission "[0:0:0:0:0:0:0:1]", "accept, connect, resolve";
   permission java.nio.file.LinkPermission "symbolic";
   // needed for keystore tests
   permission java.lang.RuntimePermission "accessUserInformation";
+  permission java.lang.RuntimePermission "getClassLoader";
 };

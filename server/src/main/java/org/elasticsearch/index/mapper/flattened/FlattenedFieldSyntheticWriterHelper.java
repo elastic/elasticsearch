@@ -55,7 +55,7 @@ import java.util.Objects;
  * }`
  *
  */
-class FlattenedFieldSyntheticWriterHelper {
+public class FlattenedFieldSyntheticWriterHelper {
 
     private record Prefix(List<String> prefix) {
 
@@ -225,17 +225,17 @@ class FlattenedFieldSyntheticWriterHelper {
         }
     }
 
-    interface SortedKeyedValues {
+    public interface SortedKeyedValues {
         BytesRef next() throws IOException;
     }
 
     private final SortedKeyedValues sortedKeyedValues;
 
-    FlattenedFieldSyntheticWriterHelper(final SortedKeyedValues sortedKeyedValues) {
+    public FlattenedFieldSyntheticWriterHelper(final SortedKeyedValues sortedKeyedValues) {
         this.sortedKeyedValues = sortedKeyedValues;
     }
 
-    void write(final XContentBuilder b) throws IOException {
+    public void write(final XContentBuilder b) throws IOException {
         KeyValue curr = new KeyValue(sortedKeyedValues.next());
         KeyValue prev = KeyValue.EMPTY;
         final List<String> values = new ArrayList<>();

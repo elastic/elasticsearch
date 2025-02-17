@@ -2529,8 +2529,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             assert parent == null
                 || parent.getIndices().stream().anyMatch(index -> indexMetadata.getIndex().getName().equals(index.getName()))
                 || (DataStream.isFailureStoreFeatureFlagEnabled()
-                    && parent.isFailureStoreEnabled()
-                    && parent.getFailureIndices()
+                    && parent.getFailureComponent()
                         .getIndices()
                         .stream()
                         .anyMatch(index -> indexMetadata.getIndex().getName().equals(index.getName())))
@@ -2555,8 +2554,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
                 for (Index i : dataStream.getIndices()) {
                     indexToDataStreamLookup.put(i.getName(), dataStream);
                 }
-                if (DataStream.isFailureStoreFeatureFlagEnabled() && dataStream.isFailureStoreEnabled()) {
-                    for (Index i : dataStream.getFailureIndices().getIndices()) {
+                if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+                    for (Index i : dataStream.getFailureIndices()) {
                         indexToDataStreamLookup.put(i.getName(), dataStream);
                     }
                 }
@@ -2572,7 +2571,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             return new IndexAbstraction.Alias(
                 alias,
                 alias.getDataStreams().stream().flatMap(name -> dataStreams.get(name).getIndices().stream()).toList(),
-                writeIndexOfWriteDataStream
+                writeIndexOfWriteDataStream,
+                alias.getDataStreams()
             );
         }
 

@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.SettingsFilter;
@@ -36,8 +35,7 @@ public class TransportClusterGetSettingsAction extends TransportMasterNodeReadAc
         ClusterService clusterService,
         ThreadPool threadPool,
         SettingsFilter settingsFilter,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ActionFilters actionFilters
     ) {
         super(
             ClusterGetSettingsAction.NAME,
@@ -47,7 +45,6 @@ public class TransportClusterGetSettingsAction extends TransportMasterNodeReadAc
             threadPool,
             actionFilters,
             ClusterGetSettingsAction.Request::new,
-            indexNameExpressionResolver,
             ClusterGetSettingsAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

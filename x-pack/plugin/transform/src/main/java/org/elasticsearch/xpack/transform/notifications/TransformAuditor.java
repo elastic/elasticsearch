@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.template.put.TransportPutComposabl
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditor;
@@ -23,7 +24,7 @@ import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformIn
 import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 
@@ -38,33 +39,26 @@ public class TransformAuditor extends AbstractAuditor<TransformAuditMessage> {
 
     private final boolean includeNodeInfo;
 
-    public TransformAuditor(Client client, String nodeName, ClusterService clusterService, boolean includeNodeInfo) {
+    public TransformAuditor(
+        Client client,
+        String nodeName,
+        ClusterService clusterService,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        boolean includeNodeInfo
+    ) {
         super(
             new OriginSettingClient(client, TRANSFORM_ORIGIN),
-            TransformInternalIndexConstants.AUDIT_INDEX,
-            TransformInternalIndexConstants.AUDIT_INDEX,
-            () -> {
-                try {
-                    return new TransportPutComposableIndexTemplateAction.Request(TransformInternalIndexConstants.AUDIT_INDEX).indexTemplate(
-                        ComposableIndexTemplate.builder()
-                            .template(TransformInternalIndex.getAuditIndexTemplate())
-                            .version((long) TransformConfigVersion.CURRENT.id())
-                            .indexPatterns(Collections.singletonList(TransformInternalIndexConstants.AUDIT_INDEX_PATTERN))
-                            .priority(Long.MAX_VALUE)
-                            .build()
-                    );
-                } catch (IOException e) {
-                    throw new ElasticsearchException("Failure creating transform notification index template request", e);
-                }
-            },
+            TransformInternalIndexConstants.AUDIT_INDEX_WRITE_ALIAS,
             nodeName,
             TransformAuditMessage::new,
-            clusterService
+            clusterService,
+            indexNameExpressionResolver,
+            clusterService.threadPool().generic()
         );
         clusterService.addListener(event -> {
             if (event.metadataChanged()) {
                 boolean oldIsResetMode = isResetMode;
-                boolean newIsResetMode = TransformMetadata.getTransformMetadata(event.state()).isResetMode();
+                boolean newIsResetMode = TransformMetadata.getTransformMetadata(event.state()).resetMode();
                 if (oldIsResetMode != newIsResetMode) {
                     logger.debug("TransformAuditor has noticed change of isResetMode bit from {} to {}", oldIsResetMode, newIsResetMode);
                 }
@@ -92,5 +86,31 @@ public class TransformAuditor extends AbstractAuditor<TransformAuditMessage> {
         } else {
             super.writeBacklog();
         }
+    }
+
+    @Override
+    protected TransportPutComposableIndexTemplateAction.Request putTemplateRequest() {
+        try {
+            return new TransportPutComposableIndexTemplateAction.Request(TransformInternalIndexConstants.AUDIT_INDEX).indexTemplate(
+                ComposableIndexTemplate.builder()
+                    .template(TransformInternalIndex.getAuditIndexTemplate())
+                    .version((long) TransformConfigVersion.CURRENT.id())
+                    .indexPatterns(List.of(TransformInternalIndexConstants.AUDIT_INDEX_PATTERN))
+                    .priority(Long.MAX_VALUE)
+                    .build()
+            );
+        } catch (IOException e) {
+            throw new ElasticsearchException("Failure creating transform notification index template request", e);
+        }
+    }
+
+    @Override
+    protected int templateVersion() {
+        return TransformConfigVersion.CURRENT.id();
+    }
+
+    @Override
+    protected IndexDetails indexDetails() {
+        return new IndexDetails(TransformInternalIndexConstants.AUDIT_INDEX_PREFIX, TransformInternalIndexConstants.AUDIT_TEMPLATE_VERSION);
     }
 }

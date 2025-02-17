@@ -181,6 +181,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final IndexVersion indexVersionCreated;
     private final MapperRegistry mapperRegistry;
     private final Supplier<MappingParserContext> mappingParserContextSupplier;
+    private final Function<Query, BitSetProducer> bitSetProducer;
     private final MapperMetrics mapperMetrics;
 
     private volatile DocumentMapper mapper;
@@ -255,6 +256,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             this::getMetadataMappers,
             this::resolveDocumentType
         );
+        this.bitSetProducer = bitSetProducer;
         this.mapperMetrics = mapperMetrics;
     }
 
@@ -798,7 +800,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * this method considers all mapper plugins
      */
     public boolean isMetadataField(String field) {
-        return mapperRegistry.getMetadataMapperParsers(indexVersionCreated).containsKey(field);
+        var mapper = mappingLookup().getMapper(field);
+        return mapper instanceof MetadataFieldMapper;
     }
 
     /**
@@ -834,6 +837,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public MapperRegistry getMapperRegistry() {
         return mapperRegistry;
+    }
+
+    public Function<Query, BitSetProducer> getBitSetProducer() {
+        return bitSetProducer;
     }
 
     public MapperMetrics getMapperMetrics() {

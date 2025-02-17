@@ -353,7 +353,7 @@ public class LimitedRoleTests extends ESTestCase {
         IndicesAccessControl iac = fromRole.authorize(
             TransportSearchAction.TYPE.name(),
             Sets.newHashSet("_index", "_alias1"),
-            md.getIndicesLookup(),
+            md,
             fieldPermissionsCache
         );
         assertThat(iac.isGranted(), is(false));
@@ -361,12 +361,7 @@ public class LimitedRoleTests extends ESTestCase {
         assertThat(iac.hasIndexPermissions("_index"), is(true));
         assertThat(iac.getIndexPermissions("_index1"), is(nullValue()));
         assertThat(iac.hasIndexPermissions("_index1"), is(false));
-        iac = fromRole.authorize(
-            TransportCreateIndexAction.TYPE.name(),
-            Sets.newHashSet("_index", "_index1"),
-            md.getIndicesLookup(),
-            fieldPermissionsCache
-        );
+        iac = fromRole.authorize(TransportCreateIndexAction.TYPE.name(), Sets.newHashSet("_index", "_index1"), md, fieldPermissionsCache);
         assertThat(iac.isGranted(), is(true));
         assertThat(iac.getIndexPermissions("_index"), is(notNullValue()));
         assertThat(iac.hasIndexPermissions("_index"), is(true));
@@ -382,7 +377,7 @@ public class LimitedRoleTests extends ESTestCase {
             iac = limitedByRole.authorize(
                 TransportSearchAction.TYPE.name(),
                 Sets.newHashSet("_index", "_alias1"),
-                md.getIndicesLookup(),
+                md,
                 fieldPermissionsCache
             );
             assertThat(iac.isGranted(), is(false));
@@ -393,7 +388,7 @@ public class LimitedRoleTests extends ESTestCase {
             iac = limitedByRole.authorize(
                 TransportDeleteIndexAction.TYPE.name(),
                 Sets.newHashSet("_index", "_alias1"),
-                md.getIndicesLookup(),
+                md,
                 fieldPermissionsCache
             );
             assertThat(iac.isGranted(), is(false));
@@ -404,7 +399,7 @@ public class LimitedRoleTests extends ESTestCase {
             iac = limitedByRole.authorize(
                 TransportCreateIndexAction.TYPE.name(),
                 Sets.newHashSet("_index", "_alias1"),
-                md.getIndicesLookup(),
+                md,
                 fieldPermissionsCache
             );
             assertThat(iac.isGranted(), is(false));
@@ -419,34 +414,19 @@ public class LimitedRoleTests extends ESTestCase {
             } else {
                 role = fromRole.limitedBy(limitedByRole);
             }
-            iac = role.authorize(
-                TransportSearchAction.TYPE.name(),
-                Sets.newHashSet("_index", "_alias1"),
-                md.getIndicesLookup(),
-                fieldPermissionsCache
-            );
+            iac = role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("_index", "_alias1"), md, fieldPermissionsCache);
             assertThat(iac.isGranted(), is(false));
             assertThat(iac.getIndexPermissions("_index"), is(notNullValue()));
             assertThat(iac.hasIndexPermissions("_index"), is(true));
             assertThat(iac.getIndexPermissions("_index1"), is(nullValue()));
             assertThat(iac.hasIndexPermissions("_index1"), is(false));
-            iac = role.authorize(
-                TransportDeleteIndexAction.TYPE.name(),
-                Sets.newHashSet("_index", "_alias1"),
-                md.getIndicesLookup(),
-                fieldPermissionsCache
-            );
+            iac = role.authorize(TransportDeleteIndexAction.TYPE.name(), Sets.newHashSet("_index", "_alias1"), md, fieldPermissionsCache);
             assertThat(iac.isGranted(), is(false));
             assertThat(iac.getIndexPermissions("_index"), is(nullValue()));
             assertThat(iac.hasIndexPermissions("_index"), is(false));
             assertThat(iac.getIndexPermissions("_index1"), is(nullValue()));
             assertThat(iac.hasIndexPermissions("_index1"), is(false));
-            iac = role.authorize(
-                TransportCreateIndexAction.TYPE.name(),
-                Sets.newHashSet("_index", "_index1"),
-                md.getIndicesLookup(),
-                fieldPermissionsCache
-            );
+            iac = role.authorize(TransportCreateIndexAction.TYPE.name(), Sets.newHashSet("_index", "_index1"), md, fieldPermissionsCache);
             assertThat(iac.isGranted(), is(false));
             assertThat(iac.getIndexPermissions("_index"), is(nullValue()));
             assertThat(iac.hasIndexPermissions("_index"), is(false));

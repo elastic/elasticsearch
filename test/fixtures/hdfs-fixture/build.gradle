@@ -24,7 +24,7 @@ configurations {
 dependencies {
   compileOnly("org.apache.hadoop:hadoop-minicluster:2.8.5")
   api("com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}") {
-    transitive false
+    transitive = false
   }
   compileOnly "junit:junit:${versions.junit}"
   hdfs2 "org.apache.hadoop:hadoop-minicluster:2.8.5"

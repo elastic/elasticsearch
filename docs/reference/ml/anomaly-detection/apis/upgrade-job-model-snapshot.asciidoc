@@ -5,6 +5,12 @@
 <titleabbrev>Upgrade model snapshots</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-anomaly[{ml-cap}  {anomaly-detect} APIs].
+--
+
 Upgrades an {anomaly-detect} model snapshot to the latest major version.
 
 NOTE: From {es} 8.10.0,  a new version number is used to

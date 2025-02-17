@@ -24,6 +24,11 @@ The output from the Profile API is *very* verbose, especially for complicated
 requests executed across many shards. Pretty-printing the response is
 recommended to help understand the output.
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-search[Search APIs].
+--
 
 [[search-profile-api-example]]
 ==== {api-examples-title}

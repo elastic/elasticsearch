@@ -74,7 +74,6 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
             threadPool,
             actionFilters,
             ClusterRerouteRequest::new,
-            indexNameExpressionResolver,
             ClusterRerouteResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

@@ -124,24 +124,6 @@ public class SearchTransportService {
         this.responseWrapper = responseWrapper;
     }
 
-    private static final ActionListenerResponseHandler<SearchFreeContextResponse> SEND_FREE_CONTEXT_LISTENER =
-        new ActionListenerResponseHandler<>(
-            ActionListener.noop(),
-            SearchFreeContextResponse::readFrom,
-            TransportResponseHandler.TRANSPORT_WORKER
-        );
-
-    public void sendFreeContext(Transport.Connection connection, final ShardSearchContextId contextId, OriginalIndices originalIndices) {
-        transportService.sendRequest(
-            connection,
-            FREE_CONTEXT_ACTION_NAME,
-            new SearchFreeContextRequest(originalIndices, contextId),
-            TransportRequestOptions.EMPTY,
-            // no need to respond if it was freed or not
-            SEND_FREE_CONTEXT_LISTENER
-        );
-    }
-
     public void sendFreeContext(
         Transport.Connection connection,
         ShardSearchContextId contextId,
@@ -373,11 +355,6 @@ public class SearchTransportService {
     static class SearchFreeContextRequest extends ScrollFreeContextRequest implements IndicesRequest {
         private final OriginalIndices originalIndices;
 
-        SearchFreeContextRequest(OriginalIndices originalIndices, ShardSearchContextId id) {
-            super(id);
-            this.originalIndices = originalIndices;
-        }
-
         SearchFreeContextRequest(StreamInput in) throws IOException {
             super(in);
             originalIndices = OriginalIndices.readOriginalIndices(in);
@@ -456,6 +433,8 @@ public class SearchTransportService {
             SearchFreeContextResponse::readFrom
         );
 
+        // TODO: remove this handler once the lowest compatible version stops using it
+        // this handler exists for BwC purposes only, we don't need the original indices to free the context
         transportService.registerRequestHandler(
             FREE_CONTEXT_ACTION_NAME,
             freeContextExecutor,
@@ -512,7 +491,8 @@ public class SearchTransportService {
             (request, channel, task) -> searchService.executeQueryPhase(
                 request,
                 (SearchShardTask) task,
-                new ChannelActionListener<>(channel)
+                new ChannelActionListener<>(channel),
+                channel.getVersion()
             )
         );
         TransportActionProxy.registerProxyAction(transportService, QUERY_ID_ACTION_NAME, true, QuerySearchResult::new);
@@ -524,7 +504,8 @@ public class SearchTransportService {
             (request, channel, task) -> searchService.executeQueryPhase(
                 request,
                 (SearchShardTask) task,
-                new ChannelActionListener<>(channel)
+                new ChannelActionListener<>(channel),
+                channel.getVersion()
             )
         );
         TransportActionProxy.registerProxyAction(transportService, QUERY_SCROLL_ACTION_NAME, true, ScrollQuerySearchResult::new);

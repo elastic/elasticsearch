@@ -16,9 +16,8 @@ import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.ChunkedInferenceServiceResults;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.EmptySettingsConfiguration;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -26,11 +25,8 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SettingsConfiguration;
-import org.elasticsearch.inference.TaskSettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
-import org.elasticsearch.inference.configuration.SettingsConfigurationSelectOption;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
@@ -40,6 +36,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -56,14 +53,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.MODEL_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.PROVIDER_FIELD;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.REGION_FIELD;
@@ -75,6 +73,7 @@ import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBed
 
 public class AmazonBedrockService extends SenderService {
     public static final String NAME = "amazonbedrock";
+    private static final String SERVICE_NAME = "Amazon Bedrock";
 
     private final Sender amazonBedrockSender;
 
@@ -87,6 +86,16 @@ public class AmazonBedrockService extends SenderService {
     ) {
         super(httpSenderFactory, serviceComponents);
         this.amazonBedrockSender = amazonBedrockFactory.createSender();
+    }
+
+    @Override
+    protected void doUnifiedCompletionInfer(
+        Model model,
+        UnifiedChatInput inputs,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        throwUnsupportedUnifiedCompletionOperation(NAME);
     }
 
     @Override
@@ -114,7 +123,7 @@ public class AmazonBedrockService extends SenderService {
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
-        ActionListener<List<ChunkedInferenceServiceResults>> listener
+        ActionListener<List<ChunkedInference>> listener
     ) {
         var actionCreator = new AmazonBedrockActionCreator(amazonBedrockSender, this.getServiceComponents(), timeout);
         if (model instanceof AmazonBedrockModel baseAmazonBedrockModel) {
@@ -370,61 +379,68 @@ public class AmazonBedrockService extends SenderService {
 
                 configurationMap.put(
                     PROVIDER_FIELD,
-                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.DROPDOWN)
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("The model provider for your deployment.")
                         .setLabel("Provider")
-                        .setOrder(3)
                         .setRequired(true)
                         .setSensitive(false)
-                        .setTooltip("The model provider for your deployment.")
+                        .setUpdatable(false)
                         .setType(SettingsConfigurationFieldType.STRING)
-                        .setOptions(
-                            Stream.of("amazontitan", "anthropic", "ai21labs", "cohere", "meta", "mistral")
-                                .map(v -> new SettingsConfigurationSelectOption.Builder().setLabelAndValue(v).build())
-                                .toList()
-                        )
                         .build()
                 );
 
                 configurationMap.put(
                     MODEL_FIELD,
-                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                        "The base model ID or an ARN to a custom model based on a foundational model."
+                    )
                         .setLabel("Model")
-                        .setOrder(4)
                         .setRequired(true)
                         .setSensitive(false)
-                        .setTooltip("The base model ID or an ARN to a custom model based on a foundational model.")
+                        .setUpdatable(false)
                         .setType(SettingsConfigurationFieldType.STRING)
                         .build()
                 );
 
                 configurationMap.put(
                     REGION_FIELD,
-                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
+                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                        "The region that your model or ARN is deployed in."
+                    )
                         .setLabel("Region")
-                        .setOrder(5)
                         .setRequired(true)
                         .setSensitive(false)
-                        .setTooltip("The region that your model or ARN is deployed in.")
+                        .setUpdatable(false)
                         .setType(SettingsConfigurationFieldType.STRING)
+                        .build()
+                );
+
+                configurationMap.put(
+                    DIMENSIONS,
+                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING)).setDescription(
+                        "The number of dimensions the resulting embeddings should have. For more information refer to "
+                            + "https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-titan-embed-text.html."
+                    )
+                        .setLabel("Dimensions")
+                        .setRequired(false)
+                        .setSensitive(false)
+                        .setUpdatable(false)
+                        .setType(SettingsConfigurationFieldType.INTEGER)
                         .build()
                 );
 
                 configurationMap.putAll(AmazonBedrockSecretSettings.Configuration.get());
                 configurationMap.putAll(
-                    RateLimitSettings.toSettingsConfigurationWithTooltip(
-                        "By default, the amazonbedrock service sets the number of requests allowed per minute to 240."
+                    RateLimitSettings.toSettingsConfigurationWithDescription(
+                        "By default, the amazonbedrock service sets the number of requests allowed per minute to 240.",
+                        supportedTaskTypes
                     )
                 );
 
-                return new InferenceServiceConfiguration.Builder().setProvider(NAME).setTaskTypes(supportedTaskTypes.stream().map(t -> {
-                    Map<String, SettingsConfiguration> taskSettingsConfig;
-                    switch (t) {
-                        case COMPLETION -> taskSettingsConfig = AmazonBedrockChatCompletionModel.Configuration.get();
-                        // TEXT_EMBEDDING task type has no task settings
-                        default -> taskSettingsConfig = EmptySettingsConfiguration.get();
-                    }
-                    return new TaskSettingsConfiguration.Builder().setTaskType(t).setConfiguration(taskSettingsConfig).build();
-                }).toList()).setConfiguration(configurationMap).build();
+                return new InferenceServiceConfiguration.Builder().setService(NAME)
+                    .setName(SERVICE_NAME)
+                    .setTaskTypes(supportedTaskTypes)
+                    .setConfigurations(configurationMap)
+                    .build();
             }
         );
     }

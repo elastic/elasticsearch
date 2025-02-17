@@ -190,7 +190,7 @@ When both are provided, priority is given to `file_categories`.
 We have some examples below for illustration.
 
 [discrete#es-connectors-dropbox-sync-rules-advanced-example-1]
-======= Example: Query only
+*Example: Query only*
 
 [source,js]
 ----
@@ -206,7 +206,7 @@ We have some examples below for illustration.
 // NOTCONSOLE
 
 [discrete#es-connectors-dropbox-sync-rules-advanced-example-2]
-======= Example: Query with file extension filter
+*Example: Query with file extension filter*
 
 [source,js]
 ----
@@ -225,7 +225,7 @@ We have some examples below for illustration.
 // NOTCONSOLE
 
 [discrete#es-connectors-dropbox-sync-rules-advanced-example-3]
-======= Example: Query with file category filter
+*Example: Query with file category filter*
 
 [source,js]
 ----
@@ -248,7 +248,7 @@ We have some examples below for illustration.
 // NOTCONSOLE
 
 [discrete#es-connectors-dropbox-sync-rules-advanced-limitations]
-======= Limitations
+*Limitations*
 
 * Content extraction is not supported for Dropbox *Paper* files when advanced sync rules are enabled.
 
@@ -474,7 +474,7 @@ When both are provided, priority is given to `file_categories`.
 We have some examples below for illustration.
 
 [discrete#es-connectors-dropbox-client-sync-rules-advanced-example-1]
-======= Example: Query only
+*Example: Query only*
 
 [source,js]
 ----
@@ -490,7 +490,7 @@ We have some examples below for illustration.
 // NOTCONSOLE
 
 [discrete#es-connectors-dropbox-client-sync-rules-advanced-example-2]
-======= Example: Query with file extension filter
+*Example: Query with file extension filter*
 
 [source,js]
 ----
@@ -509,7 +509,7 @@ We have some examples below for illustration.
 // NOTCONSOLE
 
 [discrete#es-connectors-dropbox-client-sync-rules-advanced-example-3]
-======= Example: Query with file category filter
+*Example: Query with file category filter*
 
 [source,js]
 ----
@@ -532,7 +532,7 @@ We have some examples below for illustration.
 // NOTCONSOLE
 
 [discrete#es-connectors-dropbox-client-sync-rules-advanced-limitations]
-======= Limitations
+*Limitations*
 
 * Content extraction is not supported for Dropbox *Paper* files when advanced sync rules are enabled.
 

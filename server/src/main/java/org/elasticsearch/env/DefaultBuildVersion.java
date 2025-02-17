@@ -38,6 +38,17 @@ final class DefaultBuildVersion extends BuildVersion {
     }
 
     @Override
+    public boolean canRemoveAssumedFeatures() {
+        /*
+         * We can remove assumed features if the node version is the next major version.
+         * This is because the next major version can only form a cluster with the
+         * latest minor version of the previous major, so any features introduced before that point
+         * (that are marked as assumed in the running code version) are automatically met by that version.
+         */
+        return version.major == Version.CURRENT.major + 1;
+    }
+
+    @Override
     public boolean onOrAfterMinimumCompatible() {
         return Version.CURRENT.minimumCompatibilityVersion().onOrBefore(version);
     }

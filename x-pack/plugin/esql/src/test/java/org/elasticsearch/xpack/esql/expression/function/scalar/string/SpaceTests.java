@@ -71,7 +71,7 @@ public class SpaceTests extends AbstractScalarFunctionTestCase {
                 .withFoldingException(IllegalArgumentException.class, "Creating strings longer than [" + max + "] bytes is not supported");
         }));
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, cases, (v, p) -> "integer");
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, cases);
     }
 
     @Override

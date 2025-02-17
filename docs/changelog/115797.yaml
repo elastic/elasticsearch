@@ -1,6 +1,0 @@
-pr: 115797
-summary: Enable `_tier` based coordinator rewrites for all indices (not just mounted
-  indices)
-area: Search
-type: enhancement
-issues: []

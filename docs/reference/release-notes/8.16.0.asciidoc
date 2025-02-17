@@ -270,7 +270,6 @@ ES|QL::
 * Push down filters even in case of renames in Evals {es-pull}114411[#114411]
 * Speed up CASE for some parameters {es-pull}112295[#112295]
 * Speed up grouping by bytes {es-pull}114021[#114021]
-* Support INLINESTATS grouped on expressions {es-pull}111690[#111690]
 * Use less memory in listener {es-pull}114358[#114358]
 * Add support for cached strings in plan serialization {es-pull}112929[#112929]
 * Add Telemetry API and track top functions {es-pull}111226[#111226]
@@ -462,7 +461,6 @@ ES|QL::
 * Add boolean support to Max and Min aggs {es-pull}110527[#110527]
 * Add boolean support to TOP aggregation {es-pull}110718[#110718]
 * Added `mv_percentile` function {es-pull}111749[#111749] (issue: {es-issue}111591[#111591])
-* INLINESTATS {es-pull}109583[#109583] (issue: {es-issue}107589[#107589])
 * Introduce per agg filter {es-pull}113735[#113735]
 * Strings support for MAX and MIN aggregations {es-pull}111544[#111544]
 * Support IP fields in MAX and MIN aggregations {es-pull}110921[#110921]

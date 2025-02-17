@@ -158,8 +158,7 @@ public class CreateIndexIT extends ESIntegTestCase {
     }
 
     public void testTwoEmptyEqualMappings() throws Exception {
-        assertAcked(prepareCreate("test1"));
-        assertAcked(prepareCreate("test2").setMapping(XContentFactory.jsonBuilder().startObject().endObject()));
+        assertAcked(prepareCreate("test1"), prepareCreate("test2").setMapping(XContentFactory.jsonBuilder().startObject().endObject()));
         FieldCapabilitiesRequest fieldCapsReq1 = new FieldCapabilitiesRequest();
         fieldCapsReq1.indices("test1");
         fieldCapsReq1.fields("*");

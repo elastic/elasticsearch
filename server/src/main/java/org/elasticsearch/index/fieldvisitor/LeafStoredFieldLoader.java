@@ -47,5 +47,4 @@ public interface LeafStoredFieldLoader {
      * @return stored fields for the current document
      */
     Map<String, List<Object>> storedFields();
-
 }

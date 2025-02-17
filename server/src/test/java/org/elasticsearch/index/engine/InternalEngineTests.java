@@ -89,6 +89,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndSeqNo;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -3453,7 +3454,7 @@ public class InternalEngineTests extends EngineTestCase {
             assertThat(indexResult.getVersion(), equalTo(1L));
         }
         assertVisibleCount(engine, numDocs);
-        translogHandler = createTranslogHandler(engine.engineConfig.getIndexSettings());
+        translogHandler = createTranslogHandler(mapperService);
 
         engine.close();
         // we need to reuse the engine config unless the parser.mappingModified won't work
@@ -3465,7 +3466,7 @@ public class InternalEngineTests extends EngineTestCase {
         assertEquals(numDocs, translogHandler.appliedOperations());
 
         engine.close();
-        translogHandler = createTranslogHandler(engine.engineConfig.getIndexSettings());
+        translogHandler = createTranslogHandler(mapperService);
         engine = createEngine(store, primaryTranslogDir, inSyncGlobalCheckpointSupplier);
         engine.refresh("warm_up");
         assertVisibleCount(engine, numDocs, false);
@@ -3519,7 +3520,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
 
         engine.close();
-        translogHandler = createTranslogHandler(engine.engineConfig.getIndexSettings());
+        translogHandler = createTranslogHandler(mapperService);
         engine = createEngine(store, primaryTranslogDir, inSyncGlobalCheckpointSupplier);
         engine.refresh("warm_up");
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
@@ -3572,7 +3573,8 @@ public class InternalEngineTests extends EngineTestCase {
             new TranslogDeletionPolicy(),
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             primaryTerm::get,
-            seqNo -> {}
+            seqNo -> {},
+            TranslogOperationAsserter.DEFAULT
         );
         translog.add(TranslogOperationsUtils.indexOp("SomeBogusId", 0, primaryTerm.get()));
         assertEquals(generation.translogFileGeneration(), translog.currentFileGeneration());
@@ -6452,7 +6454,8 @@ public class InternalEngineTests extends EngineTestCase {
                                     max,
                                     true,
                                     randomBoolean(),
-                                    randomBoolean()
+                                    randomBoolean(),
+                                    randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes())
                                 )
                             ) {}
                         } else {
@@ -7789,7 +7792,7 @@ public class InternalEngineTests extends EngineTestCase {
         ) {
             IllegalStateException exc = expectThrows(
                 IllegalStateException.class,
-                () -> engine.newChangesSnapshot("test", 0, 1000, true, true, true)
+                () -> engine.newChangesSnapshot("test", 0, 1000, true, true, true, randomLongBetween(1, ByteSizeValue.ofMb(32).getBytes()))
             );
             assertThat(exc.getMessage(), containsString("unavailable"));
         }

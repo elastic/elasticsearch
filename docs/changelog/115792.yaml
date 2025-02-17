@@ -1,5 +1,0 @@
-pr: 115792
-summary: Add ES|QL `bit_length` function
-area: ES|QL
-type: enhancement
-issues: []

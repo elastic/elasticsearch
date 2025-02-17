@@ -21,7 +21,7 @@ import java.util.BitSet;
 /**
  * Block implementation that stores values in a {@link BytesRefArrayVector}.
  * Does not take ownership of the given {@link BytesRefArray} and does not adjust circuit breakers to account for it.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ArrayBlock.java.st} instead.
  */
 final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlock {
 
@@ -110,7 +110,7 @@ final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlo
                 int valueCount = getValueCount(pos);
                 int first = getFirstValueIndex(pos);
                 if (valueCount == 1) {
-                    builder.appendBytesRef(getBytesRef(getFirstValueIndex(pos), scratch));
+                    builder.appendBytesRef(getBytesRef(first, scratch));
                 } else {
                     builder.beginPositionEntry();
                     for (int c = 0; c < valueCount; c++) {

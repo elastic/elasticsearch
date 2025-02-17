@@ -68,6 +68,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
 
     private static final Logger LOGGER = LogManager.getLogger(TransportPutRollupJobAction.class);
     private static final XContentParserConfiguration PARSER_CONFIGURATION = XContentParserConfiguration.EMPTY.withFiltering(
+        null,
         Set.of("_doc._meta._rollup"),
         null,
         false
@@ -94,7 +95,6 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
             threadPool,
             actionFilters,
             PutRollupJobAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.persistentTasksService = persistentTasksService;

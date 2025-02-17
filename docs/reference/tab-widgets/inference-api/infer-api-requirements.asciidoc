@@ -8,7 +8,7 @@ the Cohere service.
 // tag::elser[]
 
 ELSER is a model trained by Elastic. If you have an {es} deployment, there is no
-further requirement for using the {infer} API with the `elser` service.
+further requirement for using the {infer} API with the `elasticsearch` service.
 
 // end::elser[]
 

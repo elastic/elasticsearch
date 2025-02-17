@@ -279,6 +279,12 @@ public class RestUtils {
     public static final String REST_TIMEOUT_PARAM = "timeout";
 
     /**
+     * The name of the common {@code ?include_source_on_error} query parameter.
+     * By default, the document source is included in the error response in case of parsing errors. This parameter allows to disable this.
+     */
+    public static final String INCLUDE_SOURCE_ON_ERROR_PARAMETER = "include_source_on_error";
+
+    /**
      * Extract the {@code ?master_timeout} parameter from the request, imposing the common default of {@code 30s} in case the parameter is
      * missing.
      *
@@ -314,5 +320,16 @@ public class RestUtils {
     public static TimeValue getTimeout(RestRequest restRequest) {
         assert restRequest != null;
         return restRequest.paramAsTime(REST_TIMEOUT_PARAM, null);
+    }
+
+    /**
+     * Extract the {@code ?include_source_on_error} parameter from the request, returning {@code true} in case the parameter is missing.
+     *
+     * @param restRequest The request from which to extract the {@code ?include_source_on_error} parameter
+     * @return the value of the {@code ?include_source_on_error} parameter from the request, with a default of {@code true} if the request
+     */
+    public static boolean getIncludeSourceOnError(RestRequest restRequest) {
+        assert restRequest != null;
+        return restRequest.paramAsBoolean(INCLUDE_SOURCE_ON_ERROR_PARAMETER, true);
     }
 }

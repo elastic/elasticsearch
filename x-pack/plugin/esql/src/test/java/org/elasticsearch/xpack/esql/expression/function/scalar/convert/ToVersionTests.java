@@ -60,7 +60,7 @@ public class ToVersionTests extends AbstractScalarFunctionTestCase {
             );
         }
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "string or version");
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

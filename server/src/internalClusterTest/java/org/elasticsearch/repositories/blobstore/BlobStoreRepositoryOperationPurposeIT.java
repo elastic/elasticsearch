@@ -36,7 +36,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -134,11 +133,6 @@ public class BlobStoreRepositoryOperationPurposeIT extends AbstractSnapshotInteg
         @Override
         public BlobContainer blobContainer(BlobPath path) {
             return new AssertingBlobContainer(delegateBlobStore.blobContainer(path));
-        }
-
-        @Override
-        public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
-            delegateBlobStore.deleteBlobsIgnoringIfNotExists(purpose, blobNames);
         }
 
         @Override

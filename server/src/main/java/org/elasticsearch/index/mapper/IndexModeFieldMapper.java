@@ -31,7 +31,7 @@ import java.util.List;
 
 public class IndexModeFieldMapper extends MetadataFieldMapper {
 
-    static final NodeFeature QUERYING_INDEX_MODE = new NodeFeature("mapper.query_index_mode");
+    static final NodeFeature QUERYING_INDEX_MODE = new NodeFeature("mapper.query_index_mode", true);
 
     public static final String NAME = "_index_mode";
 

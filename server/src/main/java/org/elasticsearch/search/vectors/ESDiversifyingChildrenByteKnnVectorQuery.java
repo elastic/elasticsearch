@@ -15,7 +15,7 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.DiversifyingChildrenByteKnnVectorQuery;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
-public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildrenByteKnnVectorQuery implements ProfilingQuery {
+public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildrenByteKnnVectorQuery implements QueryProfilerProvider {
     private final Integer kParam;
     private long vectorOpsCount;
 
@@ -40,6 +40,6 @@ public class ESDiversifyingChildrenByteKnnVectorQuery extends DiversifyingChildr
 
     @Override
     public void profile(QueryProfiler queryProfiler) {
-        queryProfiler.setVectorOpsCount(vectorOpsCount);
+        queryProfiler.addVectorOpsCount(vectorOpsCount);
     }
 }

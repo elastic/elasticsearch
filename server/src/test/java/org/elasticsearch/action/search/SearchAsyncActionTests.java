@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -67,7 +66,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         DiscoveryNode replicaNode = DiscoveryNodeUtils.create("node_2");
 
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
-        GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter(
+        List<SearchShardIterator> shardsIter = getShardsIter(
             "idx",
             new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
             numShards,
@@ -182,7 +181,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         DiscoveryNode replicaNode = DiscoveryNodeUtils.create("node_1");
 
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
-        GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter(
+        List<SearchShardIterator> shardsIter = getShardsIter(
             "idx",
             new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
             numShards,
@@ -285,7 +284,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         Map<DiscoveryNode, Set<ShardSearchContextId>> nodeToContextMap = newConcurrentMap();
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
         int numShards = randomIntBetween(1, 10);
-        GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter(
+        List<SearchShardIterator> shardsIter = getShardsIter(
             "idx",
             new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
             numShards,
@@ -296,7 +295,11 @@ public class SearchAsyncActionTests extends ESTestCase {
         AtomicInteger numFreedContext = new AtomicInteger();
         SearchTransportService transportService = new SearchTransportService(null, null, null) {
             @Override
-            public void sendFreeContext(Transport.Connection connection, ShardSearchContextId contextId, OriginalIndices originalIndices) {
+            public void sendFreeContext(
+                Transport.Connection connection,
+                ShardSearchContextId contextId,
+                ActionListener<SearchFreeContextResponse> listener
+            ) {
                 numFreedContext.incrementAndGet();
                 assertTrue(nodeToContextMap.containsKey(connection.getNode()));
                 assertTrue(nodeToContextMap.get(connection.getNode()).remove(contextId));
@@ -363,7 +366,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                             for (int i = 0; i < results.getNumShards(); i++) {
                                 TestSearchPhaseResult result = results.getAtomicArray().get(i);
                                 assertEquals(result.node.getId(), result.getSearchShardTarget().getNodeId());
-                                sendReleaseSearchContext(result.getContextId(), new MockConnection(result.node), OriginalIndices.NONE);
+                                sendReleaseSearchContext(result.getContextId(), new MockConnection(result.node));
                             }
                             responseListener.onResponse(testResponse);
                             if (latchTriggered.compareAndSet(false, true) == false) {
@@ -411,7 +414,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         Map<DiscoveryNode, Set<ShardSearchContextId>> nodeToContextMap = newConcurrentMap();
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
         int numShards = randomIntBetween(2, 10);
-        GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter(
+        List<SearchShardIterator> shardsIter = getShardsIter(
             "idx",
             new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
             numShards,
@@ -421,8 +424,13 @@ public class SearchAsyncActionTests extends ESTestCase {
         );
         AtomicInteger numFreedContext = new AtomicInteger();
         SearchTransportService transportService = new SearchTransportService(null, null, null) {
+
             @Override
-            public void sendFreeContext(Transport.Connection connection, ShardSearchContextId contextId, OriginalIndices originalIndices) {
+            public void sendFreeContext(
+                Transport.Connection connection,
+                ShardSearchContextId contextId,
+                ActionListener<SearchFreeContextResponse> listener
+            ) {
                 assertNotNull(contextId);
                 numFreedContext.incrementAndGet();
                 assertTrue(nodeToContextMap.containsKey(connection.getNode()));
@@ -525,7 +533,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         DiscoveryNode replicaNode = DiscoveryNodeUtils.create("node_1");
 
         AtomicInteger contextIdGenerator = new AtomicInteger(0);
-        GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter(
+        List<SearchShardIterator> shardsIter = getShardsIter(
             "idx",
             new OriginalIndices(new String[] { "idx" }, SearchRequest.DEFAULT_INDICES_OPTIONS),
             numShards,
@@ -638,7 +646,7 @@ public class SearchAsyncActionTests extends ESTestCase {
             searchShardIterator.reset();
             searchShardIterators.add(searchShardIterator);
         }
-        GroupShardsIterator<SearchShardIterator> shardsIter = new GroupShardsIterator<>(searchShardIterators);
+        List<SearchShardIterator> shardsIter = searchShardIterators;
         Map<String, Transport.Connection> lookup = Map.of(primaryNode.getId(), new MockConnection(primaryNode));
 
         CountDownLatch latch = new CountDownLatch(1);
@@ -697,7 +705,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         assertThat(searchResponse.get().getSuccessfulShards(), equalTo(shardsIter.size()));
     }
 
-    static GroupShardsIterator<SearchShardIterator> getShardsIter(
+    static List<SearchShardIterator> getShardsIter(
         String index,
         OriginalIndices originalIndices,
         int numShards,
@@ -705,9 +713,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         DiscoveryNode primaryNode,
         DiscoveryNode replicaNode
     ) {
-        return new GroupShardsIterator<>(
-            getShardsIter(new Index(index, "_na_"), originalIndices, numShards, doReplicas, primaryNode, replicaNode)
-        );
+        return getShardsIter(new Index(index, "_na_"), originalIndices, numShards, doReplicas, primaryNode, replicaNode);
     }
 
     static List<SearchShardIterator> getShardsIter(

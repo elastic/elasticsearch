@@ -35,6 +35,7 @@ import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
@@ -167,7 +168,7 @@ public class MvPercentile extends EsqlScalarFunction {
         int position,
         DoubleBlock values,
         double percentile,
-        @Fixed(includeInToString = false, build = true) DoubleSortingScratch scratch
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) DoubleSortingScratch scratch
     ) {
         int valueCount = values.getValueCount(position);
         int firstValueIndex = values.getFirstValueIndex(position);
@@ -190,7 +191,7 @@ public class MvPercentile extends EsqlScalarFunction {
         int position,
         IntBlock values,
         double percentile,
-        @Fixed(includeInToString = false, build = true) IntSortingScratch scratch
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) IntSortingScratch scratch
     ) {
         int valueCount = values.getValueCount(position);
         int firstValueIndex = values.getFirstValueIndex(position);
@@ -213,7 +214,7 @@ public class MvPercentile extends EsqlScalarFunction {
         int position,
         LongBlock values,
         double percentile,
-        @Fixed(includeInToString = false, build = true) LongSortingScratch scratch
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) LongSortingScratch scratch
     ) {
         int valueCount = values.getValueCount(position);
         int firstValueIndex = values.getFirstValueIndex(position);

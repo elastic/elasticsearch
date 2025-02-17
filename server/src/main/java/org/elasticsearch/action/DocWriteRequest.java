@@ -160,9 +160,14 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
     boolean isRequireDataStream();
 
     /**
-     * Finalize the request before executing or routing it.
+     * Finalize the request before routing it.
      */
-    void process(IndexRouting indexRouting);
+    default void preRoutingProcess(IndexRouting indexRouting) {}
+
+    /**
+     * Finalize the request after routing it.
+     */
+    default void postRoutingProcess(IndexRouting indexRouting) {}
 
     /**
      * Pick the appropriate shard id to receive this request.

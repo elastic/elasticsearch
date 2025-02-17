@@ -1,0 +1,66 @@
+[[release-notes-8.16.2]]
+== {es} version 8.16.2
+
+[IMPORTANT]
+====
+The 8.16.2 release contains a fix for a potential security vulnerability. See our https://discuss.elastic.co/c/announcements/security-announcements/31[security advisory] for more details.
+====
+
+Also see <<breaking-changes-8.16,Breaking changes in 8.16>>.
+
+[[bug-8.16.2]]
+[float]
+=== Bug fixes
+
+CCS::
+* Fix long metric deserialize & add - auto-resize needs to be set manually {es-pull}117105[#117105] (issue: {es-issue}116914[#116914])
+
+Data streams::
+* Acquire stats searcher for data stream stats {es-pull}117953[#117953]
+
+ES|QL::
+* ESQL: fix the column position in errors {es-pull}117153[#117153]
+* Fix BWC for ES|QL cluster request {es-pull}117865[#117865]
+* Fix CCS exchange when multi cluster aliases point to same cluster {es-pull}117297[#117297]
+* Fix COUNT filter pushdown {es-pull}117503[#117503] (issue: {es-issue}115522[#115522])
+* Fix validation of SORT by aggregate functions {es-pull}117316[#117316]
+* Opt into extra data stream resolution {es-pull}118378[#118378]
+
+Ingest Node::
+* Fix enrich cache size setting name {es-pull}117575[#117575]
+* Fix log message format bugs {es-pull}118354[#118354]
+* Fix reconstituting version string from components {es-pull}117213[#117213] (issue: {es-issue}116950[#116950])
+
+License::
+* Distinguish `LicensedFeature` by family field {es-pull}116809[#116809]
+
+Logs::
+* Prohibit changes to index mode, source, and sort settings during resize {es-pull}115812[#115812]
+
+Machine Learning::
+* Fix deberta tokenizer bug caused by bug in normalizer {es-pull}117189[#117189]
+* Fix for Deberta tokenizer when input sequence exceeds 512 tokens {es-pull}117595[#117595]
+* Propagate scoring function through random sampler {es-pull}116957[#116957] (issue: {es-issue}110134[#110134])
+* Update Deberta tokenizer {es-pull}116358[#116358]
+
+Mapping::
+* Restore original "is within leaf" value in `SparseVectorFieldMapper` {es-pull}118380[#118380]
+
+Ranking::
+* Fix for propagating filters from compound to inner retrievers {es-pull}117914[#117914]
+
+Search::
+* Don't skip shards in coord rewrite if timestamp is an alias {es-pull}117271[#117271]
+* Handle exceptions in query phase can match {es-pull}117469[#117469] (issue: {es-issue}104994[#104994])
+
+[[enhancement-8.16.2]]
+[float]
+=== Enhancements
+
+Inference::
+* [8.16] Update sparse text embeddings API route for Inference Service {es-pull}118367[#118367]
+
+Packaging::
+* In this release we've introduced an image based on the hardened link:https://github.com/wolfi-dev/[Wolfi] 
+image to provide secure containers to our self-managed customers, help with compliance regulations, 
+and improve our supply chain security posture. {es-pull}118684[#118684]

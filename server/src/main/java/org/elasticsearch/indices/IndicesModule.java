@@ -67,7 +67,6 @@ import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.index.mapper.vectors.MultiDenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.seqno.RetentionLeaseBackgroundSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncAction;
@@ -211,9 +210,6 @@ public class IndicesModule extends AbstractModule {
 
         mappers.put(DenseVectorFieldMapper.CONTENT_TYPE, DenseVectorFieldMapper.PARSER);
         mappers.put(SparseVectorFieldMapper.CONTENT_TYPE, SparseVectorFieldMapper.PARSER);
-        if (MultiDenseVectorFieldMapper.FEATURE_FLAG.isEnabled()) {
-            mappers.put(MultiDenseVectorFieldMapper.CONTENT_TYPE, MultiDenseVectorFieldMapper.PARSER);
-        }
 
         for (MapperPlugin mapperPlugin : mapperPlugins) {
             for (Map.Entry<String, Mapper.TypeParser> entry : mapperPlugin.getMappers().entrySet()) {

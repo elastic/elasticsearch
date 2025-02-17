@@ -55,8 +55,8 @@ public class IndicesOptionsTests extends ESTestCase {
                         .ignoreThrottled(randomBoolean())
                         .allowAliasToMultipleIndices(randomBoolean())
                         .allowClosedIndices(randomBoolean())
+                        .allowSelectors(randomBoolean())
                 )
-                .selectorOptions(IndicesOptions.SelectorOptions.ALL_APPLICABLE)
                 .build();
 
             BytesStreamOutput output = new BytesStreamOutput();
@@ -341,10 +341,15 @@ public class IndicesOptionsTests extends ESTestCase {
             randomBoolean(),
             randomBoolean()
         );
-        GatekeeperOptions gatekeeperOptions = new GatekeeperOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
-        IndicesOptions.SelectorOptions selectorOptions = new IndicesOptions.SelectorOptions(randomFrom(IndexComponentSelector.values()));
+        GatekeeperOptions gatekeeperOptions = new GatekeeperOptions(
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean()
+        );
 
-        IndicesOptions indicesOptions = new IndicesOptions(concreteTargetOptions, wildcardOptions, gatekeeperOptions, selectorOptions);
+        IndicesOptions indicesOptions = new IndicesOptions(concreteTargetOptions, wildcardOptions, gatekeeperOptions);
 
         XContentType type = randomFrom(XContentType.values());
         BytesReference xContentBytes = toXContentBytes(indicesOptions, type);
@@ -359,15 +364,6 @@ public class IndicesOptionsTests extends ESTestCase {
         assertThat(map.get("ignore_unavailable"), equalTo(concreteTargetOptions.allowUnavailableTargets()));
         assertThat(map.get("allow_no_indices"), equalTo(wildcardOptions.allowEmptyExpressions()));
         assertThat(map.get("ignore_throttled"), equalTo(gatekeeperOptions.ignoreThrottled()));
-        String displayValue;
-        if (IndicesOptions.SelectorOptions.ALL_APPLICABLE.equals(selectorOptions)) {
-            displayValue = "include";
-        } else if (IndicesOptions.SelectorOptions.DATA.equals(selectorOptions)) {
-            displayValue = "exclude";
-        } else {
-            displayValue = "only";
-        }
-        assertThat(map.get("failure_store"), equalTo(displayValue));
     }
 
     public void testFromXContent() throws IOException {

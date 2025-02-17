@@ -80,6 +80,24 @@
       "params" : [
         {
           "name" : "field1",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "field2",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date_nanos"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field1",
           "type" : "double",
           "optional" : false,
           "description" : ""
@@ -188,6 +206,24 @@
       "params" : [
         {
           "name" : "field1",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "field2",
+          "type" : "text",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field1",
           "type" : "long",
           "optional" : false,
           "description" : ""
@@ -212,6 +248,24 @@
         },
         {
           "name" : "field2",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field1",
+          "type" : "text",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "field2",
           "type" : "text",
           "optional" : false,
           "description" : ""
@@ -219,6 +273,24 @@
       ],
       "variadic" : false,
       "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field1",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : ""
+        },
+        {
+          "name" : "field2",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "unsigned_long"
     },
     {
       "params" : [

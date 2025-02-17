@@ -9,14 +9,17 @@
 
 package org.elasticsearch.monitor.metrics;
 
+import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -25,6 +28,13 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestStatus;
@@ -43,13 +53,16 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.index.IndexingPressure.MAX_COORDINATING_BYTES;
 import static org.elasticsearch.index.IndexingPressure.MAX_PRIMARY_BYTES;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
@@ -66,7 +79,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(TestTelemetryPlugin.class, TestAPMInternalSettings.class);
+        return List.of(TestTelemetryPlugin.class, TestAPMInternalSettings.class, TestAnalysisPlugin.class);
     }
 
     @Override
@@ -75,6 +88,200 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(0)) // disable metrics cache refresh delay
             .build();
+    }
+
+    public void testZeroMetricsForVersionConflictsForNonIndexingOperations() {
+        final String dataNode = internalCluster().startNode();
+        ensureStableCluster(1);
+
+        final TestTelemetryPlugin plugin = internalCluster().getInstance(PluginsService.class, dataNode)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        plugin.resetMeter();
+
+        assertAcked(prepareCreate("index_no_refresh", Settings.builder().put("index.refresh_interval", "-1")));
+        assertAcked(prepareCreate("index_with_default_refresh"));
+
+        for (String indexName : List.of("index_no_refresh", "index_with_default_refresh")) {
+            String docId = randomUUID();
+            client(dataNode).index(new IndexRequest(indexName).id(docId).source(Map.of())).actionGet();
+            // test version conflicts are counted when getting from the translog
+            if (randomBoolean()) {
+                // this get has the side effect of tracking translog location in the live version map,
+                // which potentially influences the engine conflict exception path
+                client(dataNode).get(new GetRequest(indexName, docId).realtime(randomBoolean())).actionGet();
+            }
+            {
+                var e = expectThrows(
+                    VersionConflictEngineException.class,
+                    () -> client(dataNode).get(
+                        new GetRequest(indexName, docId).version(10).versionType(randomFrom(VersionType.EXTERNAL, VersionType.EXTERNAL_GTE))
+                    ).actionGet()
+                );
+                assertThat(e.getMessage(), containsString("version conflict"));
+                assertThat(e.status(), is(RestStatus.CONFLICT));
+            }
+            if (randomBoolean()) {
+                client(dataNode).get(new GetRequest(indexName, docId).realtime(false)).actionGet();
+            }
+            client(dataNode).admin().indices().prepareRefresh(indexName).get();
+            {
+                var e = expectThrows(
+                    VersionConflictEngineException.class,
+                    () -> client(dataNode).get(
+                        new GetRequest(indexName, docId).version(5)
+                            .versionType(randomFrom(VersionType.EXTERNAL, VersionType.EXTERNAL_GTE))
+                            .realtime(false)
+                    ).actionGet()
+                );
+                assertThat(e.getMessage(), containsString("version conflict"));
+                assertThat(e.status(), is(RestStatus.CONFLICT));
+            }
+            // updates
+            {
+                var e = expectThrows(
+                    VersionConflictEngineException.class,
+                    () -> client(dataNode).update(
+                        new UpdateRequest(indexName, docId).setIfPrimaryTerm(1)
+                            .setIfSeqNo(randomIntBetween(2, 5))
+                            .doc(Map.of(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)))
+                    ).actionGet()
+                );
+                assertThat(e.getMessage(), containsString("version conflict"));
+                assertThat(e.status(), is(RestStatus.CONFLICT));
+            }
+            // deletes
+            {
+                var e = expectThrows(
+                    VersionConflictEngineException.class,
+                    () -> client(dataNode).delete(
+                        new DeleteRequest(indexName, docId).setIfPrimaryTerm(randomIntBetween(2, 5)).setIfSeqNo(0)
+                    ).actionGet()
+                );
+                assertThat(e.getMessage(), containsString("version conflict"));
+                assertThat(e.status(), is(RestStatus.CONFLICT));
+            }
+        }
+
+        // simulate async apm `polling` call for metrics
+        plugin.collect();
+
+        // there are no indexing (version conflict) failures reported because only gets/updates/deletes generated the conflicts
+        // and those are not "indexing" operations
+        var indexingFailedTotal = getSingleRecordedMetric(plugin::getLongAsyncCounterMeasurement, "es.indexing.indexing.failed.total");
+        assertThat(indexingFailedTotal.getLong(), equalTo(0L));
+        var indexingFailedDueToVersionConflictTotal = getSingleRecordedMetric(
+            plugin::getLongAsyncCounterMeasurement,
+            "es.indexing.indexing.failed.version_conflict.total"
+        );
+        assertThat(indexingFailedDueToVersionConflictTotal.getLong(), equalTo(0L));
+    }
+
+    public void testMetricsForIndexingVersionConflicts() {
+        final String dataNode = internalCluster().startNode();
+        ensureStableCluster(1);
+
+        final TestTelemetryPlugin plugin = internalCluster().getInstance(PluginsService.class, dataNode)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        plugin.resetMeter();
+
+        assertAcked(
+            prepareCreate(
+                "test",
+                Settings.builder()
+                    .put("index.refresh_interval", "-1")
+                    .put("index.analysis.analyzer.test_analyzer.type", "custom")
+                    .put("index.analysis.analyzer.test_analyzer.tokenizer", "standard")
+                    .putList("index.analysis.analyzer.test_analyzer.filter", "test_token_filter")
+            ).setMapping(Map.of("properties", Map.of("test_field", Map.of("type", "text", "analyzer", "test_analyzer")))).get()
+        );
+
+        String docId = randomUUID();
+        // successful index (with version)
+        client(dataNode).index(
+            new IndexRequest("test").id(docId)
+                .version(10)
+                .versionType(randomFrom(VersionType.EXTERNAL, VersionType.EXTERNAL_GTE))
+                .source(Map.of())
+        ).actionGet();
+        // if_primary_term conflict
+        {
+            var e = expectThrows(
+                VersionConflictEngineException.class,
+                () -> client(dataNode).index(new IndexRequest("test").id(docId).source(Map.of()).setIfSeqNo(0).setIfPrimaryTerm(2))
+                    .actionGet()
+            );
+            assertThat(e.getMessage(), containsString("version conflict"));
+            assertThat(e.status(), is(RestStatus.CONFLICT));
+        }
+        // if_seq_no conflict
+        {
+            var e = expectThrows(
+                VersionConflictEngineException.class,
+                () -> client(dataNode).index(new IndexRequest("test").id(docId).source(Map.of()).setIfSeqNo(1).setIfPrimaryTerm(1))
+                    .actionGet()
+            );
+            assertThat(e.getMessage(), containsString("version conflict"));
+            assertThat(e.status(), is(RestStatus.CONFLICT));
+        }
+        // version conflict
+        {
+            var e = expectThrows(
+                VersionConflictEngineException.class,
+                () -> client(dataNode).index(
+                    new IndexRequest("test").id(docId)
+                        .source(Map.of())
+                        .version(3)
+                        .versionType(randomFrom(VersionType.EXTERNAL, VersionType.EXTERNAL_GTE))
+                ).actionGet()
+            );
+            assertThat(e.getMessage(), containsString("version conflict"));
+            assertThat(e.status(), is(RestStatus.CONFLICT));
+        }
+        // indexing failure that is NOT a version conflict
+        PluginsService pluginService = internalCluster().getInstance(PluginsService.class, dataNode);
+        pluginService.filterPlugins(TestAnalysisPlugin.class).forEach(p -> p.throwParsingError.set(true));
+        {
+            var e = expectThrows(
+                MapperParsingException.class,
+                () -> client(dataNode).index(new IndexRequest("test").id(docId + "other").source(Map.of("test_field", "this will error")))
+                    .actionGet()
+            );
+            assertThat(e.status(), is(RestStatus.BAD_REQUEST));
+        }
+
+        plugin.collect();
+
+        var indexingFailedTotal = getSingleRecordedMetric(plugin::getLongAsyncCounterMeasurement, "es.indexing.indexing.failed.total");
+        assertThat(indexingFailedTotal.getLong(), equalTo(4L));
+        var indexingFailedDueToVersionConflictTotal = getSingleRecordedMetric(
+            plugin::getLongAsyncCounterMeasurement,
+            "es.indexing.indexing.failed.version_conflict.total"
+        );
+        assertThat(indexingFailedDueToVersionConflictTotal.getLong(), equalTo(3L));
+    }
+
+    public static final class TestAnalysisPlugin extends Plugin implements AnalysisPlugin {
+        final AtomicBoolean throwParsingError = new AtomicBoolean(false);
+
+        @Override
+        public Map<String, AnalysisModule.AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
+            return singletonMap(
+                "test_token_filter",
+                (indexSettings, environment, name, settings) -> new AbstractTokenFilterFactory(name, settings) {
+                    @Override
+                    public TokenStream create(TokenStream tokenStream) {
+                        if (throwParsingError.get()) {
+                            throw new MapperParsingException("simulate mapping parsing error");
+                        }
+                        return tokenStream;
+                    }
+                }
+            );
+        }
     }
 
     public void testNodeIndexingMetricsArePublishing() {
@@ -116,6 +323,11 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
 
         var indexingFailedTotal = getSingleRecordedMetric(plugin::getLongAsyncCounterMeasurement, "es.indexing.indexing.failed.total");
         assertThat(indexingFailedTotal.getLong(), equalTo(0L));
+        var indexingFailedDueToVersionConflictTotal = getSingleRecordedMetric(
+            plugin::getLongAsyncCounterMeasurement,
+            "es.indexing.indexing.failed.version_conflict.total"
+        );
+        assertThat(indexingFailedDueToVersionConflictTotal.getLong(), equalTo(0L));
 
         var deletionTotal = getSingleRecordedMetric(plugin::getLongAsyncCounterMeasurement, "es.indexing.deletion.docs.total");
         assertThat(deletionTotal.getLong(), equalTo((long) deletesCount));
@@ -336,8 +548,10 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         plugin.resetMeter();
 
         final int numberOfShards = randomIntBetween(1, 5);
-        assertAcked(prepareCreate("test-one", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)).get());
-        assertAcked(prepareCreate("test-two", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)).get());
+        assertAcked(
+            prepareCreate("test-one", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)),
+            prepareCreate("test-two", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1))
+        );
 
         final BulkRequest bulkRequestOne = new BulkRequest();
         final int batchCountOne = randomIntBetween(50, 100);
@@ -397,8 +611,10 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         ensureStableCluster(2);
 
         // for simplicity do not mix small and big documents in single index/shard
-        assertAcked(prepareCreate("test-index-one", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)).get());
-        assertAcked(prepareCreate("test-index-two", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)).get());
+        assertAcked(
+            prepareCreate("test-index-one", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)),
+            prepareCreate("test-index-two", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1))
+        );
 
         final TestTelemetryPlugin plugin = internalCluster().getInstance(PluginsService.class, dataNode)
             .filterPlugins(TestTelemetryPlugin.class)

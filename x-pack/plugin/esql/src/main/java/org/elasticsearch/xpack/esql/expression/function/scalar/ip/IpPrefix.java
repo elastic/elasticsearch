@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
@@ -138,7 +139,7 @@ public class IpPrefix extends EsqlScalarFunction implements OptionalArgument {
         BytesRef ip,
         int prefixLengthV4,
         int prefixLengthV6,
-        @Fixed(includeInToString = false, build = true) BytesRef scratch
+        @Fixed(includeInToString = false, scope = THREAD_LOCAL) BytesRef scratch
     ) {
         if (prefixLengthV4 < 0 || prefixLengthV4 > 32) {
             throw new IllegalArgumentException("Prefix length v4 must be in range [0, 32], found " + prefixLengthV4);

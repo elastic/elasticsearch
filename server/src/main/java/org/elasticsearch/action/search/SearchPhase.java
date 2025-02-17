@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -16,6 +15,7 @@ import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -49,7 +49,7 @@ abstract class SearchPhase implements CheckedRunnable<IOException> {
             + "]. Consider using `allow_partial_search_results` setting to bypass this error.";
     }
 
-    protected void doCheckNoMissingShards(String phaseName, SearchRequest request, GroupShardsIterator<SearchShardIterator> shardsIts) {
+    protected void doCheckNoMissingShards(String phaseName, SearchRequest request, List<SearchShardIterator> shardsIts) {
         assert request.allowPartialSearchResults() != null : "SearchRequest missing setting for allowPartialSearchResults";
         if (request.allowPartialSearchResults() == false) {
             final StringBuilder missingShards = new StringBuilder();
@@ -92,11 +92,7 @@ abstract class SearchPhase implements CheckedRunnable<IOException> {
                 context.getLogger().trace("trying to release search context [{}]", phaseResult.getContextId());
                 SearchShardTarget shardTarget = phaseResult.getSearchShardTarget();
                 Transport.Connection connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
-                context.sendReleaseSearchContext(
-                    phaseResult.getContextId(),
-                    connection,
-                    context.getOriginalIndices(phaseResult.getShardIndex())
-                );
+                context.sendReleaseSearchContext(phaseResult.getContextId(), connection);
             } catch (Exception e) {
                 context.getLogger().trace("failed to release context", e);
             }

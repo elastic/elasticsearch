@@ -113,7 +113,6 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
             threadPool,
             actionFilters,
             Request::new,
-            indexNameExpressionResolver,
             Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

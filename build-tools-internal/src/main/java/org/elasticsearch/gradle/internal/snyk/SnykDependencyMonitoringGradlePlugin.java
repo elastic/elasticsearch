@@ -10,7 +10,6 @@
 package org.elasticsearch.gradle.internal.snyk;
 
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
-import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -18,7 +17,6 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
-import org.gradle.api.provider.Property;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.SourceSet;
 
@@ -41,7 +39,7 @@ public class SnykDependencyMonitoringGradlePlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
-        Property<BuildParameterExtension> buildParams = loadBuildParams(project);
+        var buildParams = loadBuildParams(project);
 
         var generateTaskProvider = project.getTasks()
             .register("generateSnykDependencyGraph", GenerateSnykDependencyGraph.class, generateSnykDependencyGraph -> {

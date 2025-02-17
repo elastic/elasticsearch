@@ -56,7 +56,6 @@ public class TransportGetDataStreamLifecycleStatsAction extends TransportMasterN
             threadPool,
             actionFilters,
             GetDataStreamLifecycleStatsAction.Request::new,
-            indexNameExpressionResolver,
             GetDataStreamLifecycleStatsAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

@@ -6,6 +6,12 @@
 <titleabbrev>Create part of a trained model</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-trained-model[{ml-cap} trained model APIs].
+--
+
 Creates part of a trained model definition.
 
 [[ml-put-trained-model-definition-part-request]]

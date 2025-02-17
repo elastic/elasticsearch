@@ -76,6 +76,7 @@ import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractBroadcastResponseTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -84,6 +85,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -133,12 +135,15 @@ import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.client.RestClient.IGNORE_RESPONSE_CODES_PARAM;
 import static org.elasticsearch.cluster.ClusterState.VERSION_INTRODUCING_TRANSPORT_VERSIONS;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.test.rest.TestFeatureService.ALL_FEATURES;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -808,7 +813,9 @@ public abstract class ESRestTestCase extends ESTestCase {
             "profiling-60-days",
             "profiling-60-days@lifecycle",
             "synthetics",
+            "agentless",
             "synthetics@lifecycle",
+            "traces@lifecycle",
             "7-days-default",
             "7-days@lifecycle",
             "30-days-default",
@@ -879,8 +886,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     private void wipeCluster() throws Exception {
-        logger.info("Waiting for all cluster updates up to this moment to be processed");
-        assertOK(adminClient().performRequest(new Request("GET", "_cluster/health?wait_for_events=languid")));
+        waitForClusterUpdates();
 
         // Cleanup rollup before deleting indices. A rollup job might have bulks in-flight,
         // so we need to fully shut them down first otherwise a job might stall waiting
@@ -1046,6 +1052,57 @@ public abstract class ESRestTestCase extends ESTestCase {
         deleteAllNodeShutdownMetadata();
     }
 
+    private void waitForClusterUpdates() throws Exception {
+        logger.info("Waiting for all cluster updates up to this moment to be processed");
+
+        try {
+            assertOK(adminClient().performRequest(new Request("GET", "_cluster/health?wait_for_events=languid")));
+        } catch (ResponseException e) {
+            if (e.getResponse().getStatusLine().getStatusCode() == HttpStatus.SC_REQUEST_TIMEOUT) {
+                StringBuilder logMessage = new StringBuilder("Timed out waiting for cluster updates to be processed.");
+                final var pendingTasks = getPendingClusterStateTasks();
+                if (pendingTasks != null) {
+                    logMessage.append('\n').append(pendingTasks);
+                }
+                final var hotThreads = getHotThreads();
+                if (hotThreads != null) {
+                    logMessage.append("\nHot threads: ").append(hotThreads);
+                }
+                logger.error(logMessage.toString());
+            }
+            throw e;
+        }
+    }
+
+    private static String getPendingClusterStateTasks() {
+        try {
+            Response response = adminClient().performRequest(new Request("GET", "/_cluster/pending_tasks"));
+            List<?> tasks = (List<?>) entityAsMap(response).get("tasks");
+            if (tasks.isEmpty() == false) {
+                StringBuilder message = new StringBuilder("There are still running tasks:");
+                for (Object task : tasks) {
+                    message.append('\n').append(task.toString());
+                }
+                return message.toString();
+            }
+        } catch (IOException e) {
+            fail(e, "Failed to retrieve pending tasks in the cluster during cleanup");
+        }
+        return null;
+    }
+
+    private String getHotThreads() {
+        try {
+            Response response = adminClient().performRequest(
+                new Request("GET", "/_nodes/hot_threads?ignore_idle_threads=false&threads=9999")
+            );
+            return EntityUtils.toString(response.getEntity());
+        } catch (IOException e) {
+            logger.error("Failed to retrieve hot threads in the cluster during cleanup", e);
+        }
+        return null;
+    }
+
     /**
      * This method checks whether ILM policies or templates get recreated after they have been deleted. If so, we are probably deleting
      * them unnecessarily, potentially causing test performance problems. This could happen for example if someone adds a new standard ILM
@@ -1197,7 +1254,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
     }
 
-    private static boolean ignoreSystemIndexAccessWarnings(List<String> warnings) {
+    protected static boolean ignoreSystemIndexAccessWarnings(List<String> warnings) {
         for (String warning : warnings) {
             if (warning.startsWith("this request accesses system indices:")) {
                 SUITE_LOGGER.warn("Ignoring system index access warning during test cleanup: {}", warning);
@@ -1514,18 +1571,9 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     private static void waitForClusterStateUpdatesToFinish() throws Exception {
         assertBusy(() -> {
-            try {
-                Response response = adminClient().performRequest(new Request("GET", "/_cluster/pending_tasks"));
-                List<?> tasks = (List<?>) entityAsMap(response).get("tasks");
-                if (false == tasks.isEmpty()) {
-                    StringBuilder message = new StringBuilder("there are still running tasks:");
-                    for (Object task : tasks) {
-                        message.append('\n').append(task.toString());
-                    }
-                    fail(message.toString());
-                }
-            } catch (IOException e) {
-                fail("cannot get cluster's pending tasks: " + e.getMessage());
+            final var pendingTasks = getPendingClusterStateTasks();
+            if (pendingTasks != null) {
+                fail(pendingTasks);
             }
         }, 30, TimeUnit.SECONDS);
     }
@@ -2237,6 +2285,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "metrics-tsdb-settings":
             case "metrics-mappings":
             case "synthetics":
+            case "agentless":
             case "synthetics-settings":
             case "synthetics-mappings":
             case ".snapshot-blob-cache":
@@ -2601,5 +2650,47 @@ public abstract class ESRestTestCase extends ESTestCase {
         final var request = new Request(method.name(), endpoint);
         addXContentBody(request, body);
         return request;
+    }
+
+    protected static MapMatcher getResultMatcher(boolean includeMetadata, boolean includePartial) {
+        MapMatcher mapMatcher = matchesMap();
+        if (includeMetadata) {
+            mapMatcher = mapMatcher.entry("took", greaterThanOrEqualTo(0));
+        }
+        // Older version may not have is_partial
+        if (includePartial) {
+            mapMatcher = mapMatcher.entry("is_partial", false);
+        }
+        return mapMatcher;
+    }
+
+    /**
+     * Create empty result matcher from result, taking into account all metadata items.
+     */
+    protected static MapMatcher getResultMatcher(Map<String, Object> result) {
+        return getResultMatcher(result.containsKey("took"), result.containsKey("is_partial"));
+    }
+
+    /**
+     * Match result columns and values, with default matchers for metadata.
+     */
+    protected static void assertResultMap(Map<String, Object> result, Matcher<?> columnMatcher, Matcher<?> valuesMatcher) {
+        assertMap(result, getResultMatcher(result).entry("columns", columnMatcher).entry("values", valuesMatcher));
+    }
+
+    protected static void assertResultMap(Map<String, Object> result, Object columnMatcher, Object valuesMatcher) {
+        assertMap(result, getResultMatcher(result).entry("columns", columnMatcher).entry("values", valuesMatcher));
+    }
+
+    /**
+     * Match result columns and values, with default matchers for metadata.
+     */
+    protected static void assertResultMap(
+        Map<String, Object> result,
+        MapMatcher mapMatcher,
+        Matcher<?> columnMatcher,
+        Matcher<?> valuesMatcher
+    ) {
+        assertMap(result, mapMatcher.entry("columns", columnMatcher).entry("values", valuesMatcher));
     }
 }

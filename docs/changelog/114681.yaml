@@ -1,6 +1,0 @@
-pr: 114681
-summary: "Support for unsigned 64 bit numbers in Cpu stats"
-area: Infra/Core
-type: enhancement
-issues:
- - 112274

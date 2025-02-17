@@ -125,3 +125,29 @@ setup:
         connector_id: test-connector
 
   - match: { index_name: search-1-test }
+
+
+---
+"Update Managed Connector Index Name":
+  - do:
+      connector.put:
+        connector_id: test-connector-1
+        body:
+          is_native: true
+          service_type: super-connector
+
+  - do:
+      connector.update_index_name:
+        connector_id: test-connector-1
+        body:
+          index_name: content-search-2-test
+
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector-1
+
+  - match: { index_name: content-search-2-test }
+

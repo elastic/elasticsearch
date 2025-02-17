@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -64,7 +63,6 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
     protected final ThreadPool threadPool;
     protected final TransportService transportService;
     protected final ClusterService clusterService;
-    protected final IndexNameExpressionResolver indexNameExpressionResolver;
 
     private final Writeable.Reader<Response> responseReader;
 
@@ -77,22 +75,10 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         ThreadPool threadPool,
         ActionFilters actionFilters,
         Writeable.Reader<Request> request,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Writeable.Reader<Response> response,
         Executor executor
     ) {
-        this(
-            actionName,
-            true,
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            request,
-            indexNameExpressionResolver,
-            response,
-            executor
-        );
+        this(actionName, true, transportService, clusterService, threadPool, actionFilters, request, response, executor);
     }
 
     protected TransportMasterNodeAction(
@@ -103,7 +89,6 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         ThreadPool threadPool,
         ActionFilters actionFilters,
         Writeable.Reader<Request> request,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Writeable.Reader<Response> response,
         Executor executor
     ) {
@@ -111,7 +96,6 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.executor = executor;
         this.responseReader = response;
     }

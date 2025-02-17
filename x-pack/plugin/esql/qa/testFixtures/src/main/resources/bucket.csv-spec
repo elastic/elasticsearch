@@ -145,6 +145,24 @@ AVG(salary):double | bucket:date
 // end::bucket_in_agg-result[]
 ;
 
+bucketWithOffset#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
+// tag::bucketWithOffset[]
+FROM employees
+| STATS dates = MV_SORT(VALUES(birth_date)) BY b = BUCKET(birth_date + 1 HOUR, 1 YEAR) - 1 HOUR
+| EVAL d_count = MV_COUNT(dates)
+| SORT d_count, b
+| LIMIT 3
+// end::bucketWithOffset[]
+;
+
+// tag::bucketWithOffset-result[]
+dates:date                                                                                              |b:date                  |d_count:integer
+1965-01-03T00:00:00.000Z                                                                                |1964-12-31T23:00:00.000Z|1
+[1955-01-21T00:00:00.000Z, 1955-08-20T00:00:00.000Z, 1955-08-28T00:00:00.000Z, 1955-10-04T00:00:00.000Z]|1954-12-31T23:00:00.000Z|4
+[1957-04-04T00:00:00.000Z, 1957-05-23T00:00:00.000Z, 1957-05-25T00:00:00.000Z, 1957-12-03T00:00:00.000Z]|1956-12-31T23:00:00.000Z|4
+// end::bucketWithOffset-result[]
+;
+
 docsBucketMonth#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 //tag::docsBucketMonth[]
 FROM employees

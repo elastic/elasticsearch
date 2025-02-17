@@ -27,5 +27,12 @@ public class TransformDeprecations {
 
     public static final String MAX_PAGE_SEARCH_SIZE_BREAKING_CHANGES_URL = "https://ela.st/es-deprecation-7-transform-max-page-search-size";
 
+    public static final String DATA_FRAME_TRANSFORMS_ROLES_BREAKING_CHANGES_URL =
+        "https://ela.st/es-deprecation-9-data-frame-transforms-roles";
+
+    public static final String DATA_FRAME_TRANSFORMS_ROLES_IS_DEPRECATED = "This transform configuration uses one or more obsolete roles "
+        + "prefixed with [data_frame_transformers_] which will be unsupported after the next upgrade. Switch to a user with the equivalent "
+        + "roles prefixed with [transform_] and use [/_transform/_upgrade] to upgrade all transforms to the latest roles.";;
+
     private TransformDeprecations() {}
 }

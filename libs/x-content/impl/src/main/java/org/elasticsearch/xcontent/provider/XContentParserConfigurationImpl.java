@@ -19,6 +19,8 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.provider.filtering.FilterPathBasedFilter;
 import org.elasticsearch.xcontent.support.filtering.FilterPath;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 public class XContentParserConfigurationImpl implements XContentParserConfiguration {
@@ -29,7 +31,8 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
         RestApiVersion.current(),
         null,
         null,
-        false
+        false,
+        true
     );
 
     final NamedXContentRegistry registry;
@@ -38,6 +41,7 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
     final FilterPath[] includes;
     final FilterPath[] excludes;
     final boolean filtersMatchFieldNamesWithDots;
+    final boolean includeSourceOnError;
 
     private XContentParserConfigurationImpl(
         NamedXContentRegistry registry,
@@ -45,7 +49,8 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
         RestApiVersion restApiVersion,
         FilterPath[] includes,
         FilterPath[] excludes,
-        boolean filtersMatchFieldNamesWithDots
+        boolean filtersMatchFieldNamesWithDots,
+        boolean includeSourceOnError
     ) {
         this.registry = registry;
         this.deprecationHandler = deprecationHandler;
@@ -53,6 +58,28 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
         this.includes = includes;
         this.excludes = excludes;
         this.filtersMatchFieldNamesWithDots = filtersMatchFieldNamesWithDots;
+        this.includeSourceOnError = includeSourceOnError;
+    }
+
+    @Override
+    public boolean includeSourceOnError() {
+        return includeSourceOnError;
+    }
+
+    @Override
+    public XContentParserConfiguration withIncludeSourceOnError(boolean includeSourceOnError) {
+        if (includeSourceOnError == this.includeSourceOnError) {
+            return this;
+        }
+        return new XContentParserConfigurationImpl(
+            registry,
+            deprecationHandler,
+            restApiVersion,
+            includes,
+            excludes,
+            filtersMatchFieldNamesWithDots,
+            includeSourceOnError
+        );
     }
 
     @Override
@@ -63,7 +90,8 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
             restApiVersion,
             includes,
             excludes,
-            filtersMatchFieldNamesWithDots
+            filtersMatchFieldNamesWithDots,
+            includeSourceOnError
         );
     }
 
@@ -78,7 +106,8 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
             restApiVersion,
             includes,
             excludes,
-            filtersMatchFieldNamesWithDots
+            filtersMatchFieldNamesWithDots,
+            includeSourceOnError
         );
     }
 
@@ -93,7 +122,8 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
             restApiVersion,
             includes,
             excludes,
-            filtersMatchFieldNamesWithDots
+            filtersMatchFieldNamesWithDots,
+            includeSourceOnError
         );
     }
 
@@ -106,13 +136,43 @@ public class XContentParserConfigurationImpl implements XContentParserConfigurat
         Set<String> excludeStrings,
         boolean filtersMatchFieldNamesWithDots
     ) {
+        return withFiltering(null, includeStrings, excludeStrings, filtersMatchFieldNamesWithDots);
+    }
+
+    public XContentParserConfiguration withFiltering(
+        String prefixPath,
+        Set<String> includeStrings,
+        Set<String> excludeStrings,
+        boolean filtersMatchFieldNamesWithDots
+    ) {
+        FilterPath[] includePaths = FilterPath.compile(includeStrings);
+        FilterPath[] excludePaths = FilterPath.compile(excludeStrings);
+
+        if (prefixPath != null) {
+            if (includePaths != null) {
+                List<FilterPath> includeFilters = new ArrayList<>();
+                for (var incl : includePaths) {
+                    incl.matches(prefixPath, includeFilters, true);
+                }
+                includePaths = includeFilters.isEmpty() ? null : includeFilters.toArray(FilterPath[]::new);
+            }
+
+            if (excludePaths != null) {
+                List<FilterPath> excludeFilters = new ArrayList<>();
+                for (var excl : excludePaths) {
+                    excl.matches(prefixPath, excludeFilters, true);
+                }
+                excludePaths = excludeFilters.isEmpty() ? null : excludeFilters.toArray(FilterPath[]::new);
+            }
+        }
         return new XContentParserConfigurationImpl(
             registry,
             deprecationHandler,
             restApiVersion,
-            FilterPath.compile(includeStrings),
-            FilterPath.compile(excludeStrings),
-            filtersMatchFieldNamesWithDots
+            includePaths,
+            excludePaths,
+            filtersMatchFieldNamesWithDots,
+            includeSourceOnError
         );
     }
 

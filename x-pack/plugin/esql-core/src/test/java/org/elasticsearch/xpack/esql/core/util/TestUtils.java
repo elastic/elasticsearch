@@ -7,26 +7,25 @@
 
 package org.elasticsearch.xpack.esql.core.util;
 
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.predicate.Range;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLike;
-import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+
+import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
-import static org.elasticsearch.test.ESTestCase.randomZone;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 
 public final class TestUtils {
     private TestUtils() {}
+
+    private static final Pattern WS_PATTERN = Pattern.compile("\\s");
 
     public static Literal of(Object value) {
         return of(Source.EMPTY, value);
@@ -40,14 +39,6 @@ public final class TestUtils {
             return (Literal) value;
         }
         return new Literal(source, value, DataType.fromJava(value));
-    }
-
-    public static Range rangeOf(Expression value, Expression lower, boolean includeLower, Expression upper, boolean includeUpper) {
-        return new Range(EMPTY, value, lower, includeLower, upper, includeUpper, randomZone());
-    }
-
-    public static RLike rlike(Expression left, String exp) {
-        return new RLike(EMPTY, left, new RLikePattern(exp));
     }
 
     public static FieldAttribute fieldAttribute() {
@@ -64,5 +55,10 @@ public final class TestUtils {
 
     public static FieldAttribute getFieldAttribute(String name, DataType dataType) {
         return new FieldAttribute(EMPTY, name, new EsField(name + "f", dataType, emptyMap(), true));
+    }
+
+    /** Similar to {@link String#strip()}, but removes the WS throughout the entire string. */
+    public static String stripThrough(String input) {
+        return WS_PATTERN.matcher(input).replaceAll(StringUtils.EMPTY);
     }
 }

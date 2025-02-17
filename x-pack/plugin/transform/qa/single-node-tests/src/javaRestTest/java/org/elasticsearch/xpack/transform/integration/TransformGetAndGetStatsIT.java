@@ -37,11 +37,6 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 
 public class TransformGetAndGetStatsIT extends TransformRestTestCase {
-
-    private static final String TEST_USER_NAME = "transform_user";
-    private static final String BASIC_AUTH_VALUE_TRANSFORM_USER = basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING);
-    private static final String TEST_ADMIN_USER_NAME = "transform_admin";
-    private static final String BASIC_AUTH_VALUE_TRANSFORM_ADMIN = basicAuthHeaderValue(TEST_ADMIN_USER_NAME, TEST_PASSWORD_SECURE_STRING);
     private static final String DANGLING_TASK_ERROR_MESSAGE =
         "Found task for transform [pivot_continuous], but no configuration for it. To delete this transform use DELETE with force=true.";
 

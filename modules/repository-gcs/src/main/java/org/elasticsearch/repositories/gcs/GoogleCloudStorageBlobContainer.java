@@ -103,12 +103,12 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
 
     @Override
     public DeleteResult delete(OperationPurpose purpose) throws IOException {
-        return blobStore.deleteDirectory(purpose, path().buildAsString());
+        return blobStore.deleteDirectory(path().buildAsString());
     }
 
     @Override
     public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
-        blobStore.deleteBlobsIgnoringIfNotExists(purpose, new Iterator<>() {
+        blobStore.deleteBlobs(new Iterator<>() {
             @Override
             public boolean hasNext() {
                 return blobNames.hasNext();

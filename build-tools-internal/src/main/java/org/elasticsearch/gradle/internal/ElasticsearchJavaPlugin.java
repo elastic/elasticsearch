@@ -27,6 +27,7 @@ import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.JavaLibraryPlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Property;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Jar;
 import org.gradle.api.tasks.javadoc.Javadoc;
@@ -108,12 +109,12 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
     }
 
     private static void configureJarManifest(Project project, BuildParameterExtension buildParams) {
-        String gitOrigin = buildParams.getGitOrigin();
-        String gitRevision = buildParams.getGitRevision();
+        Provider<String> gitOrigin = buildParams.getGitOrigin();
+        Provider<String> gitRevision = buildParams.getGitRevision();
 
         project.getPlugins().withType(InfoBrokerPlugin.class).whenPluginAdded(manifestPlugin -> {
-            manifestPlugin.add("Module-Origin", toStringable(() -> gitOrigin));
-            manifestPlugin.add("Change", toStringable(() -> gitRevision));
+            manifestPlugin.add("Module-Origin", toStringable(() -> gitOrigin.get()));
+            manifestPlugin.add("Change", toStringable(() -> gitRevision.get()));
             manifestPlugin.add("X-Compile-Elasticsearch-Version", toStringable(VersionProperties::getElasticsearch));
             manifestPlugin.add("X-Compile-Lucene-Version", toStringable(VersionProperties::getLucene));
             manifestPlugin.add(

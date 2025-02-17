@@ -13,15 +13,19 @@
 * <<esql-concat>>
 * <<esql-ends_with>>
 * <<esql-from_base64>>
+* <<esql-hash>>
 * <<esql-left>>
 * <<esql-length>>
 * <<esql-locate>>
 * <<esql-ltrim>>
+* <<esql-md5>>
 * <<esql-repeat>>
 * <<esql-replace>>
 * <<esql-reverse>>
 * <<esql-right>>
 * <<esql-rtrim>>
+* <<esql-sha1>>
+* <<esql-sha256>>
 * <<esql-space>>
 * <<esql-split>>
 * <<esql-starts_with>>
@@ -37,15 +41,19 @@ include::layout/byte_length.asciidoc[]
 include::layout/concat.asciidoc[]
 include::layout/ends_with.asciidoc[]
 include::layout/from_base64.asciidoc[]
+include::layout/hash.asciidoc[]
 include::layout/left.asciidoc[]
 include::layout/length.asciidoc[]
 include::layout/locate.asciidoc[]
 include::layout/ltrim.asciidoc[]
+include::layout/md5.asciidoc[]
 include::layout/repeat.asciidoc[]
 include::layout/replace.asciidoc[]
 include::layout/reverse.asciidoc[]
 include::layout/right.asciidoc[]
 include::layout/rtrim.asciidoc[]
+include::layout/sha1.asciidoc[]
+include::layout/sha256.asciidoc[]
 include::layout/space.asciidoc[]
 include::layout/split.asciidoc[]
 include::layout/starts_with.asciidoc[]

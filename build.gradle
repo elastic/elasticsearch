@@ -290,25 +290,63 @@ allprojects {
     if (project.path.contains(":distribution:docker")) {
       enabled = false
     }
+    if (project.path.contains(":libs:cli")) {
+      // ensure we resolve p2 dependencies for the spotless eclipse formatter
+      dependsOn "spotlessJavaCheck"
+    }
+  }
 
+  ext.withReleaseBuild = { Closure config ->
+    if(buildParams.snapshotBuild == false) {
+      config.call()
+    }
   }
 
   plugins.withId('lifecycle-base') {
     if (project.path.startsWith(":x-pack:")) {
       if (project.path.contains("security") || project.path.contains(":ml")) {
-        tasks.register('checkPart4') { dependsOn 'check' }
-      } else if (project.path == ":x-pack:plugin" || project.path.contains("ql") ||  project.path.contains("smoke-test")) {
-        tasks.register('checkPart3') { dependsOn 'check' }
+        tasks.register('checkPart4') {
+          dependsOn 'check'
+          withReleaseBuild {
+            dependsOn 'assemble'
+          }
+        }
+      } else if (project.path == ":x-pack:plugin" || project.path.contains("ql") || project.path.contains("smoke-test")) {
+        tasks.register('checkPart3') {
+          dependsOn 'check'
+          withReleaseBuild {
+            dependsOn 'assemble'
+          }
+        }
       } else if (project.path.contains("multi-node")) {
-        tasks.register('checkPart5') { dependsOn 'check' }
+        tasks.register('checkPart5') {
+          dependsOn 'check'
+          withReleaseBuild {
+            dependsOn 'assemble'
+          }
+        }
       } else {
-        tasks.register('checkPart2') { dependsOn 'check' }
+        tasks.register('checkPart2') {
+          dependsOn 'check'
+          withReleaseBuild {
+            dependsOn 'assemble'
+          }
+        }
       }
     } else {
-      tasks.register('checkPart1') { dependsOn 'check' }
+      tasks.register('checkPart1') {
+        dependsOn 'check'
+        withReleaseBuild {
+          dependsOn 'assemble'
+        }
+      }
     }
-
-    tasks.register('functionalTests') { dependsOn 'check' }
+    tasks.register('functionalTests') {
+      dependsOn 'check'
+      withReleaseBuild {
+        dependsOn 'assemble'
+      }
+    }
   }
 
   /*
@@ -364,24 +402,24 @@ tasks.register("verifyBwcTestsEnabled") {
 }
 
 tasks.register("branchConsistency") {
-  description 'Ensures this branch is internally consistent. For example, that versions constants match released versions.'
-  group 'Verification'
+  description = 'Ensures this branch is internally consistent. For example, that versions constants match released versions.'
+  group = 'Verification'
   dependsOn ":verifyVersions", ":verifyBwcTestsEnabled"
 }
 
 tasks.named("wrapper").configure {
   distributionType = 'ALL'
+  def minimumGradleVersionFile = project.file('build-tools-internal/src/main/resources/minimumGradleVersion')
   doLast {
     // copy wrapper properties file to build-tools-internal to allow seamless idea integration
     def file = new File("build-tools-internal/gradle/wrapper/gradle-wrapper.properties")
-    Files.copy(wrapper.getPropertiesFile().toPath(), file.toPath(), REPLACE_EXISTING)
+    Files.copy(getPropertiesFile().toPath(), file.toPath(), REPLACE_EXISTING)
     // copy wrapper properties file to plugins/examples to allow seamless idea integration
     def examplePluginsWrapperProperties = new File("plugins/examples/gradle/wrapper/gradle-wrapper.properties")
-    Files.copy(wrapper.getPropertiesFile().toPath(), examplePluginsWrapperProperties.toPath(), REPLACE_EXISTING)
-
+    Files.copy(getPropertiesFile().toPath(), examplePluginsWrapperProperties.toPath(), REPLACE_EXISTING)
     // Update build-tools to reflect the Gradle upgrade
     // TODO: we can remove this once we have tests to make sure older versions work.
-    project.file('build-tools-internal/src/main/resources/minimumGradleVersion').text = gradleVersion
+    minimumGradleVersionFile.text = gradleVersion
     println "Updated minimum Gradle Version"
   }
 }
@@ -404,8 +442,11 @@ gradle.projectsEvaluated {
   }
 }
 
-tasks.named("validateChangelogs") {
-  onlyIf { project.gradle.startParameter.taskNames.any { it.startsWith("checkPart") || it == 'functionalTests' } == false }
+tasks.named("validateChangelogs").configure {
+  def triggeredTaskNames = gradle.startParameter.taskNames
+  onlyIf {
+    triggeredTaskNames.any { it.startsWith("checkPart") || it == 'functionalTests' } == false
+  }
 }
 
 tasks.named("precommit") {

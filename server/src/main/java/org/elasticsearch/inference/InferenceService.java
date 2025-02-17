@@ -78,8 +78,8 @@ public interface InferenceService extends Closeable {
      * Whether this service should be hidden from the API. Should be used for services
      * that are not ready to be used.
      */
-    default Boolean hideFromConfigurationApi() {
-        return Boolean.FALSE;
+    default boolean hideFromConfigurationApi() {
+        return false;
     }
 
     /**
@@ -112,6 +112,23 @@ public interface InferenceService extends Closeable {
     );
 
     /**
+     * Perform completion inference on the model using the unified schema.
+     *
+     * @param model        The model
+     * @param request Parameters for the request
+     * @param timeout      The timeout for the request
+     * @param listener     Inference result listener
+     */
+    void unifiedCompletionInfer(
+        Model model,
+        UnifiedCompletionRequest request,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    );
+
+    /**
+     * Chunk long text.
+     *
      * @param model           The model
      * @param query           Inference query, mainly for re-ranking
      * @param input           Inference input
@@ -127,7 +144,7 @@ public interface InferenceService extends Closeable {
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
-        ActionListener<List<ChunkedInferenceServiceResults>> listener
+        ActionListener<List<ChunkedInference>> listener
     );
 
     /**
@@ -202,7 +219,7 @@ public interface InferenceService extends Closeable {
         return supportedStreamingTasks().contains(taskType);
     }
 
-    record DefaultConfigId(String inferenceId, TaskType taskType, InferenceService service) {};
+    record DefaultConfigId(String inferenceId, MinimalServiceSettings settings, InferenceService service) {};
 
     /**
      * Get the Ids and task type of any default configurations provided by this service

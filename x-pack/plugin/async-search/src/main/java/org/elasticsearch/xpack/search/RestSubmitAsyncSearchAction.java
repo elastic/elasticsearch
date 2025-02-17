@@ -55,6 +55,9 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        if (client.threadPool() != null && client.threadPool().getThreadContext() != null) {
+            client.threadPool().getThreadContext().setErrorTraceTransportHeader(request);
+        }
         SubmitAsyncSearchRequest submit = new SubmitAsyncSearchRequest();
         IntConsumer setSize = size -> submit.getSearchRequest().source().size(size);
         // for simplicity, we share parsing with ordinary search. That means a couple of unsupported parameters, like scroll

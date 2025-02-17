@@ -1,12 +1,17 @@
 [role="xpack"]
 [[delete-search-application]]
 === Delete Search Application
-
-beta::[]
-
 ++++
 <titleabbrev>Delete Search Application</titleabbrev>
 ++++
+
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-search_application[Search application APIs].
+--
+
+beta::[]
 
 Removes a Search Application and its associated alias.
 Indices attached to the Search Application are not removed.

@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -136,6 +137,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
@@ -264,6 +266,8 @@ public class IndicesService extends AbstractLifecycleComponent
     private final CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator;
     private final MapperMetrics mapperMetrics;
     private final List<SearchOperationListener> searchOperationListeners;
+    private final QueryRewriteInterceptor queryRewriteInterceptor;
+    final SlowLogFieldProvider slowLogFieldProvider; // pkg-private for testingå
 
     @Override
     protected void doStart() {
@@ -332,6 +336,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.indexFoldersDeletionListeners = new CompositeIndexFoldersDeletionListener(builder.indexFoldersDeletionListeners);
         this.snapshotCommitSuppliers = builder.snapshotCommitSuppliers;
         this.requestCacheKeyDifferentiator = builder.requestCacheKeyDifferentiator;
+        this.queryRewriteInterceptor = builder.queryRewriteInterceptor;
         this.mapperMetrics = builder.mapperMetrics;
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
         // that we need to wait for before closing some resources such as the caches. In order to
@@ -381,6 +386,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
         this.timestampFieldMapperService = new TimestampFieldMapperService(settings, threadPool, this);
         this.searchOperationListeners = builder.searchOperationListener;
+        this.slowLogFieldProvider = builder.slowLogFieldProvider;
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";
@@ -751,7 +757,7 @@ public class IndicesService extends AbstractLifecycleComponent
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
             recoveryStateFactories,
-            loadSlowLogFieldProvider(),
+            slowLogFieldProvider,
             mapperMetrics,
             searchOperationListeners
         );
@@ -780,7 +786,8 @@ public class IndicesService extends AbstractLifecycleComponent
             idFieldMappers.apply(idxSettings.getMode()),
             valuesSourceRegistry,
             indexFoldersDeletionListeners,
-            snapshotCommitSuppliers
+            snapshotCommitSuppliers,
+            queryRewriteInterceptor
         );
     }
 
@@ -830,7 +837,7 @@ public class IndicesService extends AbstractLifecycleComponent
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
             recoveryStateFactories,
-            loadSlowLogFieldProvider(),
+            slowLogFieldProvider,
             mapperMetrics,
             searchOperationListeners
         );
@@ -1432,31 +1439,6 @@ public class IndicesService extends AbstractLifecycleComponent
         }
     }
 
-    // pkg-private for testing
-    SlowLogFieldProvider loadSlowLogFieldProvider() {
-        List<? extends SlowLogFieldProvider> slowLogFieldProviders = pluginsService.loadServiceProviders(SlowLogFieldProvider.class);
-        return new SlowLogFieldProvider() {
-            @Override
-            public void init(IndexSettings indexSettings) {
-                slowLogFieldProviders.forEach(provider -> provider.init(indexSettings));
-            }
-
-            @Override
-            public Map<String, String> indexSlowLogFields() {
-                return slowLogFieldProviders.stream()
-                    .flatMap(provider -> provider.indexSlowLogFields().entrySet().stream())
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-            }
-
-            @Override
-            public Map<String, String> searchSlowLogFields() {
-                return slowLogFieldProviders.stream()
-                    .flatMap(provider -> provider.searchSlowLogFields().entrySet().stream())
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-            }
-        };
-    }
-
     /**
      * Checks if all pending deletes have completed. Used by tests to ensure we don't check directory contents
      * while deletion still ongoing. * The reason is that, on Windows, browsing the directory contents can interfere
@@ -1709,7 +1691,7 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexSettings indexSettings) -> canDeleteIndexContents(index);
     private final IndexDeletionAllowedPredicate ALWAYS_TRUE = (Index index, IndexSettings indexSettings) -> true;
 
-    public AliasFilter buildAliasFilter(ClusterState state, String index, Set<String> resolvedExpressions) {
+    public AliasFilter buildAliasFilter(ClusterState state, String index, Set<ResolvedExpression> resolvedExpressions) {
         /* Being static, parseAliasFilter doesn't have access to whatever guts it needs to parse a query. Instead of passing in a bunch
          * of dependencies we pass in a function that can perform the parsing. */
         CheckedFunction<BytesReference, QueryBuilder, IOException> filterParser = bytes -> {
@@ -1763,7 +1745,19 @@ public class IndicesService extends AbstractLifecycleComponent
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
     public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, ResolvedIndices resolvedIndices, PointInTimeBuilder pit) {
-        return new QueryRewriteContext(parserConfig, client, nowInMillis, resolvedIndices, pit);
+        return getRewriteContext(nowInMillis, resolvedIndices, pit, false);
+    }
+
+    /**
+     * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
+     */
+    public QueryRewriteContext getRewriteContext(
+        LongSupplier nowInMillis,
+        ResolvedIndices resolvedIndices,
+        PointInTimeBuilder pit,
+        final boolean isExplain
+    ) {
+        return new QueryRewriteContext(parserConfig, client, nowInMillis, resolvedIndices, pit, queryRewriteInterceptor, isExplain);
     }
 
     public DataRewriteContext getDataRewriteContext(LongSupplier nowInMillis) {

@@ -5,6 +5,12 @@
 <titleabbrev>Create or update lifecycle policy</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ilm[{ilm-cap} APIs].
+--
+
 Creates or updates <<index-lifecycle-management,lifecycle>> policy. See <<ilm-index-lifecycle>> for
 definitions of policy components.
 

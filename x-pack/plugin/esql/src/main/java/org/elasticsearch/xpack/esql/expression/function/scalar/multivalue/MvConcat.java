@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -91,8 +92,8 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
     }
 
     @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
+    public Object fold(FoldContext ctx) {
+        return EvaluatorMapper.super.fold(source(), ctx);
     }
 
     @Override

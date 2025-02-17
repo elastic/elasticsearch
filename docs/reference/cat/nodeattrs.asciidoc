@@ -4,6 +4,12 @@
 <titleabbrev>cat nodeattrs</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-cat[Compact and aligned text (CAT) APIs]..
+--
+
 [IMPORTANT]
 ====
 cat APIs are only intended for human consumption using the command line or {kib} 
@@ -11,7 +17,7 @@ console. They are _not_ intended for use by applications. For application
 consumption, use the <<cluster-nodes-info,nodes info API>>.
 ====
 
-Returns information about custom node attributes.
+Returns information about <<custom-node-attributes,custom node attributes>>.
 
 [[cat-nodeattrs-api-request]]
 ==== {api-request-title}

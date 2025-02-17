@@ -15,8 +15,8 @@ tasks.named('yamlRestTest').configure {
 }
 
 esplugin {
-  description 'A test module that exposes a way to simulate search shard failures and warnings'
-  classname 'org.elasticsearch.test.errorquery.ErrorQueryPlugin'
+  description = 'A test module that exposes a way to simulate search shard failures and warnings'
+  classname ='org.elasticsearch.test.errorquery.ErrorQueryPlugin'
 }
 
 restResources {

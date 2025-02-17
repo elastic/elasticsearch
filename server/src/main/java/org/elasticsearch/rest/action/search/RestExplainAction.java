@@ -13,6 +13,7 @@ import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -41,8 +42,12 @@ public class RestExplainAction extends BaseRestHandler {
         return List.of(
             new Route(GET, "/{index}/_explain/{id}"),
             new Route(POST, "/{index}/_explain/{id}"),
-            Route.builder(GET, "/{index}/{type}/{id}/_explain").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(POST, "/{index}/{type}/{id}/_explain").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+            Route.builder(GET, "/{index}/{type}/{id}/_explain")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, DeprecationLogger.CRITICAL, RestApiVersion.V_7)
+                .build(),
+            Route.builder(POST, "/{index}/{type}/{id}/_explain")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, DeprecationLogger.CRITICAL, RestApiVersion.V_7)
+                .build()
         );
     }
 

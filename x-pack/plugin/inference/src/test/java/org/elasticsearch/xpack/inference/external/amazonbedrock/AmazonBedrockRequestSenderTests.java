@@ -15,6 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.sender.AmazonBedrockChatCompletionRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.AmazonBedrockEmbeddingsRequestManager;
+import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
@@ -107,7 +108,7 @@ public class AmazonBedrockRequestSenderTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var requestManager = new AmazonBedrockChatCompletionRequestManager(model, threadPool, new TimeValue(30, TimeUnit.SECONDS));
-            sender.send(requestManager, new DocumentsOnlyInput(List.of("abc")), null, listener);
+            sender.send(requestManager, new ChatCompletionInput(List.of("abc")), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
             assertThat(result.asMap(), is(buildExpectationCompletion(List.of("test response text"))));

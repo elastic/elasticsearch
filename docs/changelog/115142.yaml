@@ -1,6 +1,0 @@
-pr: 115142
-summary: Attempt to clean up index before remote transfer
-area: Recovery
-type: enhancement
-issues:
- - 104473

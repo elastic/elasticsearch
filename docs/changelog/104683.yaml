@@ -1,5 +1,0 @@
-pr: 104683
-summary: "Feature: re-structure document ID generation favoring _id inverted index compression"
-area: Logs
-type: enhancement
-issues: []

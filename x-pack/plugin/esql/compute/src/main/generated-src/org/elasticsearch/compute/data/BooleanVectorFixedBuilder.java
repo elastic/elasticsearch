@@ -13,9 +13,9 @@ import org.apache.lucene.util.RamUsageEstimator;
  * Builder for {@link BooleanVector}s that never grows. Prefer this to
  * {@link BooleanVectorBuilder} if you know the precise size up front because
  * it's faster.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-VectorFixedBuilder.java.st} instead.
  */
-final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuilder {
+public final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuilder {
     private final BlockFactory blockFactory;
     private final boolean[] values;
     private final long preAdjustedBytes;
@@ -84,7 +84,7 @@ final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuilder {
         }
     }
 
-    boolean isReleased() {
+    public boolean isReleased() {
         return closed;
     }
 }

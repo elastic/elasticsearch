@@ -14,17 +14,18 @@ import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.initialization.IncludedBuild;
+import org.gradle.api.internal.GradleInternal;
 import org.gradle.api.invocation.Gradle;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.util.PatternFilterable;
 
-import javax.annotation.Nullable;
 import java.io.File;
-import java.util.Collection;
 import java.util.Optional;
 import java.util.function.Supplier;
+
+import javax.annotation.Nullable;
 
 public class Util {
 
@@ -118,6 +119,14 @@ public class Util {
 
     public static SourceSetContainer getJavaSourceSets(Project project) {
         return project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets();
+    }
+
+    public static File getRootFolder(Gradle gradle) {
+        Gradle parent = gradle.getParent();
+        if (parent == null) {
+            return gradle.getRootProject().getRootDir();
+        }
+        return getRootFolder(parent);
     }
 
     public static File locateElasticsearchWorkspace(Gradle gradle) {

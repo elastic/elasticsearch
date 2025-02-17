@@ -103,7 +103,7 @@ public class ReplaceTests extends AbstractScalarFunctionTestCase {
                     "Unclosed character class near index 0\n[\n^".replaceAll("\n", System.lineSeparator())
                 );
         }));
-        return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers, (v, p) -> "string");
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(false, suppliers);
     }
 
     private static TestCaseSupplier fixedCase(String name, String str, String oldStr, String newStr, String result) {

@@ -246,6 +246,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
                                 httpTransport.node.getId(),
                                 SingleNodeShutdownMetadata.builder()
                                     .setNodeId(httpTransport.node.getId())
+                                    .setNodeEphemeralId(httpTransport.node.getEphemeralId())
                                     .setReason("testing")
                                     .setType(SingleNodeShutdownMetadata.Type.RESTART)
                                     .setStartedAtMillis(randomNonNegativeLong())

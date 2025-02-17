@@ -1,0 +1,124 @@
+[[infer-service-elastic]]
+=== Elastic {infer-cap} Service (EIS)
+
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-inference[{infer-cap} APIs].
+--
+
+Creates an {infer} endpoint to perform an {infer} task with the `elastic` service.
+
+
+[discrete]
+[[infer-service-elastic-api-request]]
+==== {api-request-title}
+
+
+`PUT /_inference/<task_type>/<inference_id>`
+
+[discrete]
+[[infer-service-elastic-api-path-params]]
+==== {api-path-parms-title}
+
+
+`<inference_id>`::
+(Required, string)
+include::inference-shared.asciidoc[tag=inference-id]
+
+`<task_type>`::
+(Required, string)
+include::inference-shared.asciidoc[tag=task-type]
++
+--
+Available task types:
+
+* `chat_completion`,
+* `sparse_embedding`.
+--
+
+[NOTE]
+====
+The `chat_completion` task type only supports streaming and only through the `_unified` API.
+
+include::inference-shared.asciidoc[tag=chat-completion-docs]
+====
+
+[discrete]
+[[infer-service-elastic-api-request-body]]
+==== {api-request-body-title}
+
+
+`max_chunk_size`:::
+(Optional, integer)
+include::inference-shared.asciidoc[tag=chunking-settings-max-chunking-size]
+
+`overlap`:::
+(Optional, integer)
+include::inference-shared.asciidoc[tag=chunking-settings-overlap]
+
+`sentence_overlap`:::
+(Optional, integer)
+include::inference-shared.asciidoc[tag=chunking-settings-sentence-overlap]
+
+`strategy`:::
+(Optional, string)
+include::inference-shared.asciidoc[tag=chunking-settings-strategy]
+
+`service`::
+(Required, string)
+The type of service supported for the specified task type. In this case,
+`elastic`.
+
+`service_settings`::
+(Required, object)
+include::inference-shared.asciidoc[tag=service-settings]
+
+`model_id`:::
+(Required, string)
+The name of the model to use for the {infer} task.
+
+`rate_limit`:::
+(Optional, object)
+By default, the `elastic` service sets the number of requests allowed per minute to `1000` in case of `sparse_embedding` and `240` in case of `chat_completion`.
+This helps to minimize the number of rate limit errors returned.
+To modify this, set the `requests_per_minute` setting of this object in your service settings:
++
+--
+include::inference-shared.asciidoc[tag=request-per-minute-example]
+--
+
+
+[discrete]
+[[inference-example-elastic]]
+==== Elastic {infer-cap} Service example
+
+
+The following example shows how to create an {infer} endpoint called `elser-model-eis` to perform a `text_embedding` task type.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/sparse_embedding/elser-model-eis
+{
+    "service": "elastic",
+    "service_settings": {
+        "model_name": "elser"
+    }
+}
+
+------------------------------------------------------------
+// TEST[skip:TBD]
+
+The following example shows how to create an {infer} endpoint called `chat-completion-endpoint` to perform a `chat_completion` task type.
+
+[source,console]
+------------------------------------------------------------
+PUT /_inference/chat_completion/chat-completion-endpoint
+{
+    "service": "elastic",
+    "service_settings": {
+        "model_id": "model-1"
+    }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]

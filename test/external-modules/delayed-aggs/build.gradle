@@ -15,8 +15,8 @@ tasks.named('yamlRestTest').configure {
 }
 
 esplugin {
-  description 'A test module that allows to delay aggregations on shards with a configurable time'
-  classname 'org.elasticsearch.test.delayedshard.DelayedShardAggregationPlugin'
+  description = 'A test module that allows to delay aggregations on shards with a configurable time'
+  classname ='org.elasticsearch.test.delayedshard.DelayedShardAggregationPlugin'
 }
 
 restResources {

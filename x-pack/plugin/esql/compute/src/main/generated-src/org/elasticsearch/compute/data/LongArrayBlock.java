@@ -18,7 +18,7 @@ import java.util.BitSet;
 
 /**
  * Block implementation that stores values in a {@link LongArrayVector}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ArrayBlock.java.st} instead.
  */
 final class LongArrayBlock extends AbstractArrayBlock implements LongBlock {
 
@@ -101,7 +101,7 @@ final class LongArrayBlock extends AbstractArrayBlock implements LongBlock {
                 int valueCount = getValueCount(pos);
                 int first = getFirstValueIndex(pos);
                 if (valueCount == 1) {
-                    builder.appendLong(getLong(getFirstValueIndex(pos)));
+                    builder.appendLong(getLong(first));
                 } else {
                     builder.beginPositionEntry();
                     for (int c = 0; c < valueCount; c++) {

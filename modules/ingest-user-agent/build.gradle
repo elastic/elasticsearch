@@ -10,8 +10,8 @@ apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
-  description 'Ingest processor that extracts information from a user agent'
-  classname 'org.elasticsearch.ingest.useragent.IngestUserAgentPlugin'
+  description = 'Ingest processor that extracts information from a user agent'
+  classname ='org.elasticsearch.ingest.useragent.IngestUserAgentPlugin'
 }
 
 restResources {

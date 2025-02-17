@@ -33,10 +33,9 @@ import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -49,7 +48,7 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateCompositeXPackPlugin.class, DataStreamsPlugin.class, IndexLifecycle.class, Ccr.class);
+        return List.of(LocalStateCompositeXPackPlugin.class, DataStreamsPlugin.class, IndexLifecycle.class, Ccr.class);
     }
 
     @Override
@@ -69,9 +68,9 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
         ensureGreen();
 
         RolloverAction rolloverAction = new RolloverAction(null, null, null, 1L, null, null, null, null, null, null);
-        Phase hotPhase = new Phase("hot", TimeValue.ZERO, Collections.singletonMap(rolloverAction.getWriteableName(), rolloverAction));
+        Phase hotPhase = new Phase("hot", TimeValue.ZERO, Map.of(rolloverAction.getWriteableName(), rolloverAction));
         ShrinkAction shrinkAction = new ShrinkAction(1, null, false);
-        Phase warmPhase = new Phase("warm", TimeValue.ZERO, Collections.singletonMap(shrinkAction.getWriteableName(), shrinkAction));
+        Phase warmPhase = new Phase("warm", TimeValue.ZERO, Map.of(shrinkAction.getWriteableName(), shrinkAction));
         Map<String, Phase> phases = new HashMap<>();
         phases.put(hotPhase.getName(), hotPhase);
         phases.put(warmPhase.getName(), warmPhase);
@@ -89,7 +88,7 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
         );
 
         ComposableIndexTemplate template = ComposableIndexTemplate.builder()
-            .indexPatterns(Collections.singletonList(index))
+            .indexPatterns(List.of(index))
             .template(t)
             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
             .build();
@@ -121,12 +120,12 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
     }
 
     public void startHotOnlyNode() {
-        Settings nodeSettings = Settings.builder().putList("node.roles", Arrays.asList("master", "data_hot", "ingest")).build();
+        Settings nodeSettings = Settings.builder().putList("node.roles", List.of("master", "data_hot", "ingest")).build();
         internalCluster().startNode(nodeSettings);
     }
 
     public void startWarmOnlyNode() {
-        Settings nodeSettings = Settings.builder().putList("node.roles", Arrays.asList("master", "data_warm", "ingest")).build();
+        Settings nodeSettings = Settings.builder().putList("node.roles", List.of("master", "data_warm", "ingest")).build();
         internalCluster().startNode(nodeSettings);
     }
 }

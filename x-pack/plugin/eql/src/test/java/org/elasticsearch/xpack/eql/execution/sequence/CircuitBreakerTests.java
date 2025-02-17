@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.eql.execution.sequence;
 
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -146,7 +147,15 @@ public class CircuitBreakerTests extends ESTestCase {
             booleanArrayOf(stages, false),
             CIRCUIT_BREAKER
         );
-        TumblingWindow window = new TumblingWindow(client, criteria, null, matcher, Collections.emptyList());
+        TumblingWindow window = new TumblingWindow(
+            client,
+            criteria,
+            null,
+            matcher,
+            Collections.emptyList(),
+            randomBoolean(),
+            randomBoolean()
+        );
         window.execute(ActionTestUtils.assertNoFailureListener(p -> {}));
 
         CIRCUIT_BREAKER.startBreaking();
@@ -230,7 +239,15 @@ public class CircuitBreakerTests extends ESTestCase {
                 booleanArrayOf(sequenceFiltersCount, false),
                 eqlCircuitBreaker
             );
-            TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher, Collections.emptyList());
+            TumblingWindow window = new TumblingWindow(
+                eqlClient,
+                criteria,
+                null,
+                matcher,
+                Collections.emptyList(),
+                randomBoolean(),
+                randomBoolean()
+            );
             window.execute(ActionListener.noop());
 
             assertTrue(esClient.searchRequestsRemainingCount() == 0); // ensure all the search requests have been asked for
@@ -276,10 +293,18 @@ public class CircuitBreakerTests extends ESTestCase {
                 booleanArrayOf(sequenceFiltersCount, false),
                 eqlCircuitBreaker
             );
-            TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher, Collections.emptyList());
+            TumblingWindow window = new TumblingWindow(
+                eqlClient,
+                criteria,
+                null,
+                matcher,
+                Collections.emptyList(),
+                randomBoolean(),
+                randomBoolean()
+            );
             window.execute(wrap(p -> fail(), ex -> assertTrue(ex instanceof CircuitBreakingException)));
         }
-        assertCriticalWarnings("[indices.breaker.total.limit] setting of [0%] is below the recommended minimum of 50.0% of the heap");
+        assertCriticalWarnings("[indices.breaker.total.limit] setting of [0%] is below the minimum of 50.0% of the heap");
     }
 
     private List<BreakerSettings> breakerSettings() {
@@ -334,6 +359,9 @@ public class CircuitBreakerTests extends ESTestCase {
             null,
             123,
             1,
+            randomBoolean(),
+            randomBoolean(),
+            TransportVersion.current(),
             "",
             new TaskId("test", 123),
             new EqlSearchTask(

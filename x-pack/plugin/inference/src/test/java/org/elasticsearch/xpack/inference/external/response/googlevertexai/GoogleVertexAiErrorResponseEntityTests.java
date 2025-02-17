@@ -11,8 +11,10 @@ import org.apache.http.HttpResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
+import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 
 public class GoogleVertexAiErrorResponseEntityTests extends ESTestCase {
@@ -48,7 +50,7 @@ public class GoogleVertexAiErrorResponseEntityTests extends ESTestCase {
         assertThat(error.getErrorMessage(), is("error message"));
     }
 
-    public void testErrorResponse_ReturnsNullIfNoError() {
+    public void testErrorResponse_ReturnsUndefinedObjectIfNoError() {
         var result = getMockResult("""
             {
                 "foo": "bar"
@@ -56,14 +58,14 @@ public class GoogleVertexAiErrorResponseEntityTests extends ESTestCase {
             """);
 
         var error = GoogleVertexAiErrorResponseEntity.fromResponse(result);
-        assertNull(error);
+        assertThat(error, sameInstance(ErrorResponse.UNDEFINED_ERROR));
     }
 
-    public void testErrorResponse_ReturnsNullIfNotJson() {
+    public void testErrorResponse_ReturnsUndefinedObjectIfNotJson() {
         var result = getMockResult("error message");
 
         var error = GoogleVertexAiErrorResponseEntity.fromResponse(result);
-        assertNull(error);
+        assertThat(error, sameInstance(ErrorResponse.UNDEFINED_ERROR));
     }
 
 }

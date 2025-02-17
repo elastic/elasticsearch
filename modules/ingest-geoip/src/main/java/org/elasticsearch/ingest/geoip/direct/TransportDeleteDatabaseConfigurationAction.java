@@ -73,7 +73,6 @@ public class TransportDeleteDatabaseConfigurationAction extends TransportMasterN
             threadPool,
             actionFilters,
             Request::new,
-            indexNameExpressionResolver,
             AcknowledgedResponse::readFrom,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

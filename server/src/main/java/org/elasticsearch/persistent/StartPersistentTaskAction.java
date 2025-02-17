@@ -162,7 +162,6 @@ public class StartPersistentTaskAction extends ActionType<PersistentTaskResponse
                 threadPool,
                 actionFilters,
                 Request::new,
-                indexNameExpressionResolver,
                 PersistentTaskResponse::new,
                 threadPool.executor(ThreadPool.Names.GENERIC)
             );

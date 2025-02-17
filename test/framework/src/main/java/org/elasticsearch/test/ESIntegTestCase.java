@@ -13,7 +13,6 @@ import io.netty.util.ThreadDeathWatcher;
 import io.netty.util.concurrent.GlobalEventExecutor;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
-import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
@@ -27,6 +26,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
@@ -263,26 +263,6 @@ import static org.hamcrest.Matchers.startsWith;
  */
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // doesn't work with potential multi data path from test cluster yet
 public abstract class ESIntegTestCase extends ESTestCase {
-
-    /**
-     * Property that controls whether ThirdParty Integration tests are run (not the default).
-     */
-    public static final String SYSPROP_THIRDPARTY = "tests.thirdparty";
-
-    /**
-     * Annotation for third-party integration tests.
-     * <p>
-     * These are tests the require a third-party service in order to run. They
-     * may require the user to manually configure an external process (such as rabbitmq),
-     * or may additionally require some external configuration (e.g. AWS credentials)
-     * via the {@code tests.config} system property.
-     */
-    @Inherited
-    @Retention(RetentionPolicy.RUNTIME)
-    @Target(ElementType.TYPE)
-    @TestGroup(enabled = false, sysProperty = ESIntegTestCase.SYSPROP_THIRDPARTY)
-    public @interface ThirdParty {
-    }
 
     /** node names of the corresponding clusters will start with these prefixes */
     public static final String SUITE_CLUSTER_NODE_PREFIX = "node_s";
@@ -596,10 +576,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     ensureClusterInfoServiceRunning();
                     beforeIndexDeletion();
                     cluster().wipe(excludeTemplates()); // wipe after to make sure we fail in the test that didn't ack the delete
+                    cluster().assertAfterTest();
                     if (afterClass || currentClusterScope == Scope.TEST) {
                         cluster().close();
                     }
-                    cluster().assertAfterTest();
                 }
             } finally {
                 if (currentClusterScope == Scope.TEST) {
@@ -771,24 +751,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     /**
-     * Creates one or more indices and asserts that the indices are acknowledged. If one of the indices
-     * already exists this method will fail and wipe all the indices created so far.
+     * Creates one or more indices and asserts that the indices are acknowledged.
      */
     public final void createIndex(String... names) {
-
-        List<String> created = new ArrayList<>();
-        for (String name : names) {
-            boolean success = false;
-            try {
-                assertAcked(prepareCreate(name));
-                created.add(name);
-                success = true;
-            } finally {
-                if (success == false && created.isEmpty() == false) {
-                    cluster().wipeIndices(created.toArray(new String[created.size()]));
-                }
-            }
-        }
+        assertAcked(Arrays.stream(names).map(this::prepareCreate).toArray(CreateIndexRequestBuilder[]::new));
     }
 
     /**
@@ -1267,7 +1233,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     namedWriteableRegistry
                 );
                 Map<String, Object> masterStateMap = convertToMap(masterClusterState);
-                int masterClusterStateSize = ClusterState.Builder.toBytes(masterClusterState).length;
                 String masterId = masterClusterState.nodes().getMasterNodeId();
                 for (SubscribableListener<ClusterStateResponse> localStateListener : localStates) {
                     localStateListener.andThenAccept(localClusterStateResponse -> {
@@ -1279,7 +1244,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
                             namedWriteableRegistry
                         );
                         final Map<String, Object> localStateMap = convertToMap(localClusterState);
-                        final int localClusterStateSize = ClusterState.Builder.toBytes(localClusterState).length;
                         // Check that the non-master node has the same version of the cluster state as the master and
                         // that the master node matches the master (otherwise there is no requirement for the cluster state to
                         // match)
@@ -1291,9 +1255,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
                                     masterClusterState.stateUUID(),
                                     localClusterState.stateUUID()
                                 );
-                                // We cannot compare serialization bytes since serialization order of maps is not guaranteed
-                                // but we can compare serialization sizes - they should be the same
-                                assertEquals("cluster state size does not match", masterClusterStateSize, localClusterStateSize);
                                 // Compare JSON serialization
                                 assertNull(
                                     "cluster state JSON serialization does not match",
@@ -1751,7 +1712,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 logger.info("Index [{}] docs async: [{}] bulk: [{}]", builders.size(), true, false);
                 for (IndexRequestBuilder indexRequestBuilder : builders) {
                     indexRequestBuilder.execute(
-                        new LatchedActionListener<DocWriteResponse>(newLatch(inFlightAsyncOperations)).delegateResponse((l, e) -> fail(e))
+                        new LatchedActionListener<DocWriteResponse>(ActionListener.noop(), newLatch(inFlightAsyncOperations))
+                            .delegateResponse((l, e) -> fail(e))
                     );
                     postIndexAsyncActions(indicesArray, inFlightAsyncOperations, maybeFlush);
                 }
@@ -1843,17 +1805,17 @@ public abstract class ESIntegTestCase extends ESTestCase {
             if (rarely()) {
                 indicesAdmin().prepareRefresh(indices)
                     .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                    .execute(new LatchedActionListener<>(newLatch(inFlightAsyncOperations)));
+                    .execute(new LatchedActionListener<>(ActionListener.noop(), newLatch(inFlightAsyncOperations)));
             } else if (maybeFlush && rarely()) {
                 indicesAdmin().prepareFlush(indices)
                     .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                    .execute(new LatchedActionListener<>(newLatch(inFlightAsyncOperations)));
+                    .execute(new LatchedActionListener<>(ActionListener.noop(), newLatch(inFlightAsyncOperations)));
             } else if (rarely()) {
                 indicesAdmin().prepareForceMerge(indices)
                     .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                     .setMaxNumSegments(between(1, 10))
                     .setFlush(maybeFlush && randomBoolean())
-                    .execute(new LatchedActionListener<>(newLatch(inFlightAsyncOperations)));
+                    .execute(new LatchedActionListener<>(ActionListener.noop(), newLatch(inFlightAsyncOperations)));
             }
         }
         while (inFlightAsyncOperations.size() > MAX_IN_FLIGHT_ASYNC_INDEXES) {
@@ -1935,32 +1897,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
          * negative value means that the number of client nodes will be randomized.
          */
         int numClientNodes() default InternalTestCluster.DEFAULT_NUM_CLIENT_NODES;
-    }
-
-    private class LatchedActionListener<Response> implements ActionListener<Response> {
-        private final CountDownLatch latch;
-
-        LatchedActionListener(CountDownLatch latch) {
-            this.latch = latch;
-        }
-
-        @Override
-        public final void onResponse(Response response) {
-            latch.countDown();
-        }
-
-        @Override
-        public final void onFailure(Exception t) {
-            try {
-                logger.info("Action Failed", t);
-                addError(t);
-            } finally {
-                latch.countDown();
-            }
-        }
-
-        protected void addError(Exception e) {}
-
     }
 
     /**
@@ -2285,7 +2221,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     public static Path randomRepoPath(Settings settings) {
         Environment environment = TestEnvironment.newEnvironment(settings);
-        Path[] repoFiles = environment.repoFiles();
+        Path[] repoFiles = environment.repoDirs();
         assert repoFiles.length > 0;
         Path path;
         do {

@@ -22,6 +22,7 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.xcontent.MediaType;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.arrow.ArrowFormat;
 import org.elasticsearch.xpack.esql.arrow.ArrowResponse;
 import org.elasticsearch.xpack.esql.formatter.TextFormat;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.esql.plugin.EsqlMediaTypeParser;
 import java.io.IOException;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.CSV;
 import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_DELIMITER;
@@ -87,7 +89,7 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
     /**
      * Keep the initial query for logging purposes.
      */
-    private final String esqlQuery;
+    private final String esqlQueryOrId;
     /**
      * Stop the time it took to build a response to later log it. Use something thread-safe here because stopping time requires state and
      * {@link EsqlResponseListener} might be used from different threads.
@@ -98,29 +100,23 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
      * To correctly time the execution of a request, a {@link EsqlResponseListener} must be constructed immediately before execution begins.
      */
     public EsqlResponseListener(RestChannel channel, RestRequest restRequest, EsqlQueryRequest esqlRequest) {
-        super(channel);
+        this(channel, restRequest, esqlRequest.query(), EsqlMediaTypeParser.getResponseMediaType(restRequest, esqlRequest));
+    }
 
+    /**
+     * Async query GET API does not have an EsqlQueryRequest.
+     */
+    public EsqlResponseListener(RestChannel channel, RestRequest getRequest) {
+        this(channel, getRequest, getRequest.param("id"), EsqlMediaTypeParser.getResponseMediaType(getRequest, XContentType.JSON));
+    }
+
+    private EsqlResponseListener(RestChannel channel, RestRequest restRequest, String esqlQueryOrId, MediaType mediaType) {
+        super(channel);
         this.channel = channel;
         this.restRequest = restRequest;
-        this.esqlQuery = esqlRequest.query();
-        mediaType = EsqlMediaTypeParser.getResponseMediaType(restRequest, esqlRequest);
-
-        /*
-         * Special handling for the "delimiter" parameter which should only be
-         * checked for being present or not in the case of CSV format. We cannot
-         * override {@link BaseRestHandler#responseParams()} because this
-         * parameter should only be checked for CSV, not other formats.
-         */
-        if (mediaType != CSV && restRequest.hasParam(URL_PARAM_DELIMITER)) {
-            String message = String.format(
-                Locale.ROOT,
-                "parameter: [%s] can only be used with the format [%s] for request [%s]",
-                URL_PARAM_DELIMITER,
-                CSV.queryParameter(),
-                restRequest.path()
-            );
-            throw new IllegalArgumentException(message);
-        }
+        this.esqlQueryOrId = esqlQueryOrId;
+        this.mediaType = mediaType;
+        checkDelimiter();
     }
 
     @Override
@@ -193,24 +189,44 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
         if (LOGGER.isDebugEnabled() == false) {
             return listener;
         }
+        Consumer<EsqlQueryResponse> logger = response -> LOGGER.debug(
+            "ESQL query execution {}.\nQuery string or async ID: [{}]\nExecution time: {}ms",
+            response == null ? "failed" : "finished",
+            esqlQueryOrId,
+            getTook(response, TimeUnit.MILLISECONDS)
+        );
         return ActionListener.wrap(r -> {
             listener.onResponse(r);
-            // At this point, the StopWatch should already have been stopped, so we log a consistent time.
-            LOGGER.debug(
-                "Finished execution of ESQL query.\nQuery string: [{}]\nExecution time: [{}]ms",
-                esqlQuery,
-                getTook(r, TimeUnit.MILLISECONDS)
-            );
+            logger.accept(r);
         }, ex -> {
             // In case of failure, stop the time manually before sending out the response.
-            long timeMillis = getTook(null, TimeUnit.MILLISECONDS);
-            LOGGER.debug("Failed execution of ESQL query.\nQuery string: [{}]\nExecution time: [{}]ms", esqlQuery, timeMillis);
+            logger.accept(null);
             listener.onFailure(ex);
         });
     }
 
     static void logOnFailure(Throwable throwable) {
         RestStatus status = ExceptionsHelper.status(throwable);
-        LOGGER.log(status.getStatus() >= 500 ? Level.WARN : Level.DEBUG, () -> "Request failed with status [" + status + "]: ", throwable);
+        var level = status.getStatus() >= 500 ? Level.WARN : Level.DEBUG;
+        LOGGER.log(level, () -> "ESQL request failed with status [" + status + "]: ", throwable);
+    }
+
+    /*
+     * Special handling for the "delimiter" parameter which should only be
+     * checked for being present or not in the case of CSV format. We cannot
+     * override {@link BaseRestHandler#responseParams()} because this
+     * parameter should only be checked for CSV, not other formats.
+     */
+    private void checkDelimiter() {
+        if (mediaType != CSV && restRequest.hasParam(URL_PARAM_DELIMITER)) {
+            String message = String.format(
+                Locale.ROOT,
+                "parameter: [%s] can only be used with the format [%s] for request [%s]",
+                URL_PARAM_DELIMITER,
+                CSV.queryParameter(),
+                restRequest.path()
+            );
+            throw new IllegalArgumentException(message);
+        }
     }
 }

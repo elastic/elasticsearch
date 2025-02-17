@@ -21,6 +21,8 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SelectorResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
@@ -53,7 +55,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
 
     private static final Logger logger = LogManager.getLogger(LazyRolloverAction.class);
 
-    public static final NodeFeature DATA_STREAM_LAZY_ROLLOVER = new NodeFeature("data_stream.rollover.lazy");
+    public static final NodeFeature DATA_STREAM_LAZY_ROLLOVER = new NodeFeature("data_stream.rollover.lazy", true);
 
     public static final LazyRolloverAction INSTANCE = new LazyRolloverAction();
     public static final String NAME = "indices:admin/data_stream/lazy_rollover";
@@ -119,32 +121,38 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
                 : "The auto rollover action does not expect any other parameters in the request apart from the data stream name";
 
             Metadata metadata = clusterState.metadata();
-            DataStream dataStream = metadata.dataStreams().get(rolloverRequest.getRolloverTarget());
+            ResolvedExpression resolvedRolloverTarget = SelectorResolver.parseExpression(
+                rolloverRequest.getRolloverTarget(),
+                rolloverRequest.indicesOptions()
+            );
+            boolean isFailureStoreRollover = resolvedRolloverTarget.selector() != null
+                && resolvedRolloverTarget.selector().shouldIncludeFailures();
+
+            DataStream dataStream = metadata.dataStreams().get(resolvedRolloverTarget.resource());
             // Skip submitting the task if we detect that the lazy rollover has been already executed.
-            if (isLazyRolloverNeeded(dataStream, rolloverRequest.targetsFailureStore()) == false) {
-                DataStream.DataStreamIndices targetIndices = dataStream.getDataStreamIndices(rolloverRequest.targetsFailureStore());
+            if (isLazyRolloverNeeded(dataStream, isFailureStoreRollover) == false) {
+                DataStream.DataStreamIndices targetIndices = dataStream.getDataStreamIndices(isFailureStoreRollover);
                 listener.onResponse(noopLazyRolloverResponse(targetIndices));
                 return;
             }
             // We evaluate the names of the source index as well as what our newly created index would be.
             final MetadataRolloverService.NameResolution trialRolloverNames = MetadataRolloverService.resolveRolloverNames(
                 clusterState,
-                rolloverRequest.getRolloverTarget(),
+                resolvedRolloverTarget.resource(),
                 rolloverRequest.getNewIndexName(),
                 rolloverRequest.getCreateIndexRequest(),
-                rolloverRequest.targetsFailureStore()
+                isFailureStoreRollover
             );
             final String trialSourceIndexName = trialRolloverNames.sourceName();
             final String trialRolloverIndexName = trialRolloverNames.rolloverName();
             MetadataCreateIndexService.validateIndexName(trialRolloverIndexName, clusterState.metadata(), clusterState.routingTable());
 
-            assert metadata.dataStreams().containsKey(rolloverRequest.getRolloverTarget()) : "Auto-rollover applies only to data streams";
+            assert metadata.dataStreams().containsKey(resolvedRolloverTarget.resource()) : "Auto-rollover applies only to data streams";
 
             String source = "lazy_rollover source [" + trialSourceIndexName + "] to target [" + trialRolloverIndexName + "]";
             // We create a new rollover request to ensure that it doesn't contain any other parameters apart from the data stream name
             // This will provide a more resilient user experience
-            var newRolloverRequest = new RolloverRequest(rolloverRequest.getRolloverTarget(), null);
-            newRolloverRequest.setIndicesOptions(rolloverRequest.indicesOptions());
+            var newRolloverRequest = new RolloverRequest(resolvedRolloverTarget.combined(), null);
             LazyRolloverTask rolloverTask = new LazyRolloverTask(newRolloverRequest, listener);
             lazyRolloverTaskQueue.submitTask(source, rolloverTask, rolloverRequest.masterNodeTimeout());
         }
@@ -223,12 +231,19 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
             AllocationActionMultiListener<RolloverResponse> allocationActionMultiListener
         ) throws Exception {
 
+            ResolvedExpression resolvedRolloverTarget = SelectorResolver.parseExpression(
+                rolloverRequest.getRolloverTarget(),
+                rolloverRequest.indicesOptions()
+            );
+            boolean isFailureStoreRollover = resolvedRolloverTarget.selector() != null
+                && resolvedRolloverTarget.selector().shouldIncludeFailures();
+
             // If the data stream has been rolled over since it was marked for lazy rollover, this operation is a noop
-            final DataStream dataStream = currentState.metadata().dataStreams().get(rolloverRequest.getRolloverTarget());
+            final DataStream dataStream = currentState.metadata().dataStreams().get(resolvedRolloverTarget.resource());
             assert dataStream != null;
 
-            if (isLazyRolloverNeeded(dataStream, rolloverRequest.targetsFailureStore()) == false) {
-                final DataStream.DataStreamIndices targetIndices = dataStream.getDataStreamIndices(rolloverRequest.targetsFailureStore());
+            if (isLazyRolloverNeeded(dataStream, isFailureStoreRollover) == false) {
+                final DataStream.DataStreamIndices targetIndices = dataStream.getDataStreamIndices(isFailureStoreRollover);
                 var noopResponse = noopLazyRolloverResponse(targetIndices);
                 notifyAllListeners(rolloverTaskContexts, context -> context.getTask().listener.onResponse(noopResponse));
                 return currentState;
@@ -237,7 +252,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
             // Perform the actual rollover
             final var rolloverResult = rolloverService.rolloverClusterState(
                 currentState,
-                rolloverRequest.getRolloverTarget(),
+                resolvedRolloverTarget.resource(),
                 rolloverRequest.getNewIndexName(),
                 rolloverRequest.getCreateIndexRequest(),
                 List.of(),
@@ -246,7 +261,7 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
                 false,
                 null,
                 null,
-                rolloverRequest.targetsFailureStore()
+                isFailureStoreRollover
             );
             results.add(rolloverResult);
             logger.trace("lazy rollover result [{}]", rolloverResult);

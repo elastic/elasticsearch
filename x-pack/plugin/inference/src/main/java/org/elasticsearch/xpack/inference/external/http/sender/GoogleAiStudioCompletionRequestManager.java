@@ -51,7 +51,10 @@ public class GoogleAiStudioCompletionRequestManager extends GoogleAiStudioReques
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        GoogleAiStudioCompletionRequest request = new GoogleAiStudioCompletionRequest(DocumentsOnlyInput.of(inferenceInputs), model);
+        GoogleAiStudioCompletionRequest request = new GoogleAiStudioCompletionRequest(
+            inferenceInputs.castTo(ChatCompletionInput.class),
+            model
+        );
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }
 }

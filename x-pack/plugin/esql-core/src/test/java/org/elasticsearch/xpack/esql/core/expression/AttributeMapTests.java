@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class AttributeMapTests extends ESTestCase {
 
-    private static Attribute a(String name) {
+    static Attribute a(String name) {
         return new UnresolvedAttribute(Source.EMPTY, name);
     }
 

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.eql.qa.mixed_node;
 
 import org.apache.http.HttpHost;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -278,7 +279,21 @@ public class EqlSearchIT extends ESRestTestCase {
             String filterPath = "filter_path=hits.events._source.@timestamp,hits.events._source.event_type,hits.events._source.sequence";
 
             Request request = new Request("POST", index + "/_eql/search?" + filterPath);
-            request.setJsonEntity("{\"query\":\"" + event + " where true\",\"size\":15}");
+            StringBuilder payload = new StringBuilder("{\"query\":\"" + event + " where true\",\"size\":15");
+            // Older versions don't support this option
+            if (nodesList.stream()
+                .allMatch(
+                    x -> x.transportVersion() != null && x.transportVersion().onOrAfter(TransportVersions.EQL_ALLOW_PARTIAL_SEARCH_RESULTS)
+                )) {
+                if (randomBoolean()) {
+                    payload.append(", \"allow_partial_search_results\": " + randomBoolean());
+                }
+                if (randomBoolean()) {
+                    payload.append(", \"allow_partial_sequence_results\": " + randomBoolean());
+                }
+            }
+            payload.append("}");
+            request.setJsonEntity(payload.toString());
             assertBusy(() -> { assertResponse(expectedResponse, runEql(client, request)); });
         }
     }
@@ -294,7 +309,22 @@ public class EqlSearchIT extends ESRestTestCase {
             String filter = "{\"range\":{\"@timestamp\":{\"gte\":\"1970-05-01\"}}}";
 
             Request request = new Request("POST", index + "/_eql/search?" + filterPath);
-            request.setJsonEntity("{\"query\":\"" + query + "\",\"filter\":" + filter + "}");
+
+            StringBuilder payload = new StringBuilder("{\"query\":\"" + query + "\",\"filter\":" + filter);
+            // Older versions don't support this option
+            if (nodesList.stream()
+                .allMatch(
+                    x -> x.transportVersion() != null && x.transportVersion().onOrAfter(TransportVersions.EQL_ALLOW_PARTIAL_SEARCH_RESULTS)
+                )) {
+                if (randomBoolean()) {
+                    payload.append(", \"allow_partial_search_results\": " + randomBoolean());
+                }
+                if (randomBoolean()) {
+                    payload.append(", \"allow_partial_sequence_results\": " + randomBoolean());
+                }
+            }
+            payload.append("}");
+            request.setJsonEntity(payload.toString());
             assertBusy(() -> { assertResponse(expectedResponse, runEql(client, request)); });
         }
     }
@@ -407,7 +437,16 @@ public class EqlSearchIT extends ESRestTestCase {
         for (int id : ids) {
             eventIds.add(String.valueOf(id));
         }
-        request.setJsonEntity("{\"query\":\"" + query + "\"}");
+
+        StringBuilder payload = new StringBuilder("{\"query\":\"" + query + "\"");
+        if (randomBoolean()) {
+            payload.append(", \"allow_partial_search_results\": " + randomBoolean());
+        }
+        if (randomBoolean()) {
+            payload.append(", \"allow_partial_sequence_results\": " + randomBoolean());
+        }
+        payload.append("}");
+        request.setJsonEntity(payload.toString());
         assertResponse(query, eventIds, runEql(client, request));
         testedFunctions.add(functionName);
     }

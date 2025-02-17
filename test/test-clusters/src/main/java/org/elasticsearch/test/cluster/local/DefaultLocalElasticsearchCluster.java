@@ -19,6 +19,7 @@ import java.io.InputStream;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.function.Supplier;
 
 public class DefaultLocalElasticsearchCluster<S extends LocalClusterSpec, H extends LocalClusterHandle> implements ElasticsearchCluster {
@@ -124,6 +125,12 @@ public class DefaultLocalElasticsearchCluster<S extends LocalClusterSpec, H exte
     public String getTransportEndpoints() {
         checkHandle();
         return handle.getTransportEndpoints();
+    }
+
+    @Override
+    public List<String> getAvailableTransportEndpoints() {
+        checkHandle();
+        return handle.getAvailableTransportEndpoints();
     }
 
     @Override

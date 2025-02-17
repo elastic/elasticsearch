@@ -17,7 +17,7 @@ apply plugin: 'elasticsearch.internal-test-artifact'
 publishing {
   publications {
     elastic {
-      artifactId 'elasticsearch'
+      artifactId = 'elasticsearch'
     }
   }
 }

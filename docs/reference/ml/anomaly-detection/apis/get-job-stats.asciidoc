@@ -5,6 +5,12 @@
 <titleabbrev>Get job statistics</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ml-anomaly[{ml-cap}  {anomaly-detect} APIs].
+--
+
 Retrieves usage information for {anomaly-jobs}.
 
 [[ml-get-job-stats-request]]

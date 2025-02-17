@@ -15,8 +15,8 @@ apply plugin: 'elasticsearch.internal-test-artifact'
 group = 'org.elasticsearch.plugin'
 
 esplugin {
-  description 'A test module that can trigger A JVM crash'
-  classname 'org.elasticsearch.test.jvm_crash.JvmCrashPlugin'
+  description = 'A test module that can trigger A JVM crash'
+  classname ='org.elasticsearch.test.jvm_crash.JvmCrashPlugin'
 }
 
 tasks.named('javaRestTest') {

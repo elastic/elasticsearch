@@ -7,6 +7,12 @@
 
 deprecated::[8.11.0,"Rollups will be removed in a future version. Use <<downsampling,downsampling>> instead."]
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-rollup[Rollup APIs].
+--
+
 Enables searching rolled-up data using the standard Query DSL.
 
 [[rollup-search-request]]

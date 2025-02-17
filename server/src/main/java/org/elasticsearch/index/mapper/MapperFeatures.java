@@ -55,8 +55,15 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.constant_keyword.synthetic_source_write_fix"
     );
 
+    public static final NodeFeature COUNTED_KEYWORD_SYNTHETIC_SOURCE_NATIVE_SUPPORT = new NodeFeature(
+        "mapper.counted_keyword.synthetic_source_native_support"
+    );
+
+    public static final NodeFeature TSDB_NESTED_FIELD_SUPPORT = new NodeFeature("mapper.tsdb_nested_field_support");
     public static final NodeFeature META_FETCH_FIELDS_ERROR_CODE_CHANGED = new NodeFeature("meta_fetch_fields_error_code_changed");
     public static final NodeFeature SPARSE_VECTOR_STORE_SUPPORT = new NodeFeature("mapper.sparse_vector.store_support");
+    public static final NodeFeature SORT_FIELDS_CHECK_FOR_NESTED_OBJECT_FIX = new NodeFeature("mapper.nested.sorting_fields_check_fix");
+    public static final NodeFeature DYNAMIC_HANDLING_IN_COPY_TO = new NodeFeature("mapper.copy_to.dynamic_handling");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -70,7 +77,13 @@ public class MapperFeatures implements FeatureSpecification {
             DocumentParser.FIX_PARSING_SUBOBJECTS_FALSE_DYNAMIC_FALSE,
             CONSTANT_KEYWORD_SYNTHETIC_SOURCE_WRITE_FIX,
             META_FETCH_FIELDS_ERROR_CODE_CHANGED,
-            SPARSE_VECTOR_STORE_SUPPORT
+            SPARSE_VECTOR_STORE_SUPPORT,
+            COUNTED_KEYWORD_SYNTHETIC_SOURCE_NATIVE_SUPPORT,
+            SORT_FIELDS_CHECK_FOR_NESTED_OBJECT_FIX,
+            DYNAMIC_HANDLING_IN_COPY_TO,
+            TSDB_NESTED_FIELD_SUPPORT,
+            SourceFieldMapper.SYNTHETIC_RECOVERY_SOURCE,
+            ObjectMapper.SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX
         );
     }
 }

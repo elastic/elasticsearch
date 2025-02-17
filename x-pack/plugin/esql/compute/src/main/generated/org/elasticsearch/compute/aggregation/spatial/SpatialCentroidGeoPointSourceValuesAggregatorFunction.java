@@ -26,7 +26,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link SpatialCentroidGeoPointSourceValuesAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorImplementer} instead.
  */
 public final class SpatialCentroidGeoPointSourceValuesAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(

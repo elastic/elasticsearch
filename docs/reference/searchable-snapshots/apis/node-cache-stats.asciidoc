@@ -5,6 +5,12 @@
 <titleabbrev>Cache stats</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-searchable_snapshots[Searchable snapshots APIs].
+--
+
 Retrieves statistics about the shared cache for <<partially-mounted,partially
 mounted indices>>.
 

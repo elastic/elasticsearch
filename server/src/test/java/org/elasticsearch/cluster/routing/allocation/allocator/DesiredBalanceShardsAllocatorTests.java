@@ -857,6 +857,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             final var shutdownType = randomFrom(Type.SIGTERM, Type.REMOVE, Type.REPLACE);
             final var singleShutdownMetadataBuilder = SingleNodeShutdownMetadata.builder()
                 .setNodeId(node2.getId())
+                .setNodeEphemeralId(node2.getEphemeralId())
                 .setReason("test")
                 .setType(shutdownType)
                 .setStartedAtMillis(randomNonNegativeLong());

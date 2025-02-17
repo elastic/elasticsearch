@@ -4,6 +4,12 @@
 <titleabbrev>Clone snapshot</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-snapshot[Snapshot and restore APIs].
+--
+
 Clones part or all of a snapshot into a new snapshot.
 
 [source,console]

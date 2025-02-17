@@ -1,5 +1,4 @@
 {
-  "_search" : {
     "total" : 10,
     "success" : 20,
     "skipped" : 5,
@@ -63,5 +62,4 @@
         }
       }
     }
-  }
 }

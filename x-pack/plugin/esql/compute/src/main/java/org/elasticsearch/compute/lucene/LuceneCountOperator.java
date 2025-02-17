@@ -138,7 +138,6 @@ public class LuceneCountOperator extends LuceneOperator {
             Page page = null;
             // emit only one page
             if (remainingDocs <= 0 && pagesEmitted == 0) {
-                pagesEmitted++;
                 LongBlock count = null;
                 BooleanBlock seen = null;
                 try {

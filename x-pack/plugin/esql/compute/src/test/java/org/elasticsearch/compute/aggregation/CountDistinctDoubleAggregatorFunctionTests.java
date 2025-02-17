@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
@@ -18,6 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.List;
 import java.util.stream.LongStream;
 
+import static org.elasticsearch.compute.test.BlockTestUtils.valuesAtPositions;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -28,8 +28,8 @@ public class CountDistinctDoubleAggregatorFunctionTests extends AggregatorFuncti
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new CountDistinctDoubleAggregatorFunctionSupplier(inputChannels, 40000);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new CountDistinctDoubleAggregatorFunctionSupplier(40000);
     }
 
     @Override
@@ -51,6 +51,6 @@ public class CountDistinctDoubleAggregatorFunctionTests extends AggregatorFuncti
     @Override
     protected void assertOutputFromEmpty(Block b) {
         assertThat(b.getPositionCount(), equalTo(1));
-        assertThat(BasicBlockTests.valuesAtPositions(b, 0, 1), equalTo(List.of(List.of(0L))));
+        assertThat(valuesAtPositions(b, 0, 1), equalTo(List.of(List.of(0L))));
     }
 }

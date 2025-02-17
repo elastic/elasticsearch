@@ -1,0 +1,5 @@
+pr: 118114
+summary: Enable physical plan verification
+area: ES|QL
+type: enhancement
+issues: []

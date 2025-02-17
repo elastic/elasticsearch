@@ -32,7 +32,8 @@ public class NowTests extends AbstractConfigurationFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(
+            true,
             List.of(
                 new TestCaseSupplier(
                     "Now Test",

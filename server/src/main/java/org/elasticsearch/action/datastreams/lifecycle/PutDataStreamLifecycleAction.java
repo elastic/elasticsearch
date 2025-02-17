@@ -94,7 +94,7 @@ public class PutDataStreamLifecycleAction {
                     .allowAliasToMultipleIndices(false)
                     .allowClosedIndices(true)
                     .ignoreThrottled(false)
-                    .allowFailureIndices(false)
+                    .allowSelectors(false)
                     .build()
             )
             .build();

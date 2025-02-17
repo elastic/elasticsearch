@@ -1,5 +1,0 @@
-pr: 115655
-summary: Better sizing `BytesRef` for Strings in Queries
-area: Search
-type: enhancement
-issues: []

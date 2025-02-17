@@ -20,8 +20,8 @@ import java.util.Set;
  * Provides the XPack features that this version of the code supports
  */
 public class XPackFeatures implements FeatureSpecification {
-    public static final NodeFeature LOGSDB_TELEMETRY = new NodeFeature("logsdb_telemetry");
-    public static final NodeFeature LOGSDB_TELMETRY_STATS = new NodeFeature("logsdb_telemetry_stats");
+    public static final NodeFeature LOGSDB_TELEMETRY = new NodeFeature("logsdb_telemetry", true);
+    public static final NodeFeature LOGSDB_TELMETRY_STATS = new NodeFeature("logsdb_telemetry_stats", true);
 
     @Override
     public Set<NodeFeature> getFeatures() {

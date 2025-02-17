@@ -12,21 +12,15 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.http.retry.ErrorMessage;
+import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 
 import java.util.Map;
+import java.util.Objects;
 
-public class GoogleVertexAiErrorResponseEntity implements ErrorMessage {
-
-    private final String errorMessage;
+public class GoogleVertexAiErrorResponseEntity extends ErrorResponse {
 
     private GoogleVertexAiErrorResponseEntity(String errorMessage) {
-        this.errorMessage = errorMessage;
-    }
-
-    @Override
-    public String getErrorMessage() {
-        return errorMessage;
+        super(errorMessage);
     }
 
     /**
@@ -54,10 +48,10 @@ public class GoogleVertexAiErrorResponseEntity implements ErrorMessage {
      *
      * @param response The error response
      * @return An error entity if the response is JSON with the above structure
-     * or null if the response does not contain the `error.message` field
+     * or {@link ErrorResponse#UNDEFINED_ERROR} if the error field wasn't found
      */
     @SuppressWarnings("unchecked")
-    public static GoogleVertexAiErrorResponseEntity fromResponse(HttpResult response) {
+    public static ErrorResponse fromResponse(HttpResult response) {
         try (
             XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON)
                 .createParser(XContentParserConfiguration.EMPTY, response.body())
@@ -66,14 +60,12 @@ public class GoogleVertexAiErrorResponseEntity implements ErrorMessage {
             var error = (Map<String, Object>) responseMap.get("error");
             if (error != null) {
                 var message = (String) error.get("message");
-                if (message != null) {
-                    return new GoogleVertexAiErrorResponseEntity(message);
-                }
+                return new GoogleVertexAiErrorResponseEntity(Objects.requireNonNullElse(message, ""));
             }
         } catch (Exception e) {
             // swallow the error
         }
 
-        return null;
+        return ErrorResponse.UNDEFINED_ERROR;
     }
 }

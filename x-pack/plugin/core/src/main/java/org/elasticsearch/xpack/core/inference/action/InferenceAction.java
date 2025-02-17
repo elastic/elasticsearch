@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.core.inference.action;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -48,13 +47,13 @@ import static org.elasticsearch.core.Strings.format;
 public class InferenceAction extends ActionType<InferenceAction.Response> {
 
     public static final InferenceAction INSTANCE = new InferenceAction();
-    public static final String NAME = "cluster:monitor/xpack/inference";
+    public static final String NAME = "cluster:internal/xpack/inference";
 
     public InferenceAction() {
         super(NAME);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends BaseInferenceActionRequest {
 
         public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(30);
         public static final ParseField INPUT = new ParseField("input");

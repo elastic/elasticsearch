@@ -361,6 +361,22 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongAsyncCounter(
+                "es.indexing.indexing.failed.version_conflict.total",
+                "Total number of failed indexing operations due to version conflict",
+                "operations",
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(o -> o.getIndices())
+                        .map(o -> o.getIndexing())
+                        .map(o -> o.getTotal())
+                        .map(o -> o.getIndexFailedDueToVersionConflictCount())
+                        .orElse(0L)
+                )
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
                 "es.indexing.deletion.docs.total",
                 "Total number of deleted documents",
                 "documents",

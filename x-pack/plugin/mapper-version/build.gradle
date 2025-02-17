@@ -9,9 +9,9 @@ apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
-  name 'mapper-version'
-  description 'A plugin for a field type to store software versions'
-  classname 'org.elasticsearch.xpack.versionfield.VersionFieldPlugin'
+  name = 'mapper-version'
+  description = 'A plugin for a field type to store software versions'
+  classname = 'org.elasticsearch.xpack.versionfield.VersionFieldPlugin'
   extendedPlugins = ['x-pack-core', 'lang-painless']
 }
 base {

@@ -1,0 +1,5 @@
+pr: 118166
+summary: Update minimum supported snapshot version for Machine Learning jobs to 8.3.0
+area: Machine Learning
+type: upgrade
+issues: []

@@ -15,9 +15,9 @@ apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
-  name 'unsigned-long'
-  description 'Module for the unsigned long field type'
-  classname 'org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin'
+  name = 'unsigned-long'
+  description = 'Module for the unsigned long field type'
+  classname ='org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin'
   extendedPlugins = ['x-pack-core', 'lang-painless']
 }
 base {

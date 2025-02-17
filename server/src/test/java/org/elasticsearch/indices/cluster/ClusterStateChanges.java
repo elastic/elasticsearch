@@ -252,7 +252,11 @@ public class ClusterStateChanges {
         ) {
             // metadata upgrader should do nothing
             @Override
-            public IndexMetadata verifyIndexMetadata(IndexMetadata indexMetadata, IndexVersion minimumIndexCompatibilityVersion) {
+            public IndexMetadata verifyIndexMetadata(
+                IndexMetadata indexMetadata,
+                IndexVersion minimumIndexCompatibilityVersion,
+                IndexVersion minimumReadOnlyIndexCompatibilityVersion
+            ) {
                 return indexMetadata;
             }
         };

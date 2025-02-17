@@ -6,9 +6,9 @@ apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.publish'
 
 esplugin {
-  name 'x-pack-kql'
-  description 'Elasticsearch Expanded Pack Plugin - KQL query'
-  classname 'org.elasticsearch.xpack.kql.KqlPlugin'
+  name = 'x-pack-kql'
+  description = 'Elasticsearch Expanded Pack Plugin - KQL query'
+  classname ='org.elasticsearch.xpack.kql.KqlPlugin'
   extendedPlugins = ['x-pack-core']
 }
 base {

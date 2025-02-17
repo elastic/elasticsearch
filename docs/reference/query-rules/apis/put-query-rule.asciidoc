@@ -6,6 +6,12 @@
 <titleabbrev>Create or update query rule</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-query_rules[Query rules APIs].
+--
+
 Creates or updates an individual query rule within a query ruleset.
 
 [[put-query-rule-request]]

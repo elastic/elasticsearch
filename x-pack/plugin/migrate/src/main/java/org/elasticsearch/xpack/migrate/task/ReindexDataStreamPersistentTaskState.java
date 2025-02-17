@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.migrate.task;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -18,22 +19,31 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public record ReindexDataStreamPersistentTaskState(long completionTime) implements Task.Status, PersistentTaskState {
+public record ReindexDataStreamPersistentTaskState(
+    @Nullable Integer totalIndices,
+    @Nullable Integer totalIndicesToBeUpgraded,
+    @Nullable Long completionTime
+) implements Task.Status, PersistentTaskState {
+
     public static final String NAME = ReindexDataStreamTask.TASK_NAME;
+    private static final String TOTAL_INDICES_FIELD = "total_indices_in_data_stream";
+    private static final String TOTAL_INDICES_REQUIRING_UPGRADE_FIELD = "total_indices_requiring_upgrade";
     private static final String COMPLETION_TIME_FIELD = "completion_time";
     private static final ConstructingObjectParser<ReindexDataStreamPersistentTaskState, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         true,
-        args -> new ReindexDataStreamPersistentTaskState((long) args[0])
+        args -> new ReindexDataStreamPersistentTaskState((Integer) args[0], (Integer) args[1], (Long) args[2])
     );
     static {
-        PARSER.declareLong(constructorArg(), new ParseField(COMPLETION_TIME_FIELD));
+        PARSER.declareInt(optionalConstructorArg(), new ParseField(TOTAL_INDICES_FIELD));
+        PARSER.declareInt(optionalConstructorArg(), new ParseField(TOTAL_INDICES_REQUIRING_UPGRADE_FIELD));
+        PARSER.declareLong(optionalConstructorArg(), new ParseField(COMPLETION_TIME_FIELD));
     }
 
     public ReindexDataStreamPersistentTaskState(StreamInput in) throws IOException {
-        this(in.readLong());
+        this(in.readOptionalInt(), in.readOptionalInt(), in.readOptionalLong());
     }
 
     @Override
@@ -43,13 +53,23 @@ public record ReindexDataStreamPersistentTaskState(long completionTime) implemen
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(completionTime);
+        out.writeOptionalInt(totalIndices);
+        out.writeOptionalInt(totalIndicesToBeUpgraded);
+        out.writeOptionalLong(completionTime);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(COMPLETION_TIME_FIELD, completionTime);
+        if (totalIndices != null) {
+            builder.field(TOTAL_INDICES_FIELD, totalIndices);
+        }
+        if (totalIndicesToBeUpgraded != null) {
+            builder.field(TOTAL_INDICES_REQUIRING_UPGRADE_FIELD, totalIndicesToBeUpgraded);
+        }
+        if (completionTime != null) {
+            builder.field(COMPLETION_TIME_FIELD, completionTime);
+        }
         builder.endObject();
         return builder;
     }

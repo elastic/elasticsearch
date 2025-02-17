@@ -62,7 +62,7 @@ docker run \
 --rm \
 --tty -i \
 --network host \
-docker.elastic.co/enterprise-search/elastic-connectors:{version}.0 \
+docker.elastic.co/enterprise-search/elastic-connectors:{version} \
 /app/bin/elastic-ingest \
 -c /config/config.yml
 ----
@@ -70,7 +70,7 @@ docker.elastic.co/enterprise-search/elastic-connectors:{version}.0 \
 [TIP]
 ====
 For unreleased versions, append the `-SNAPSHOT` suffix to the version number.
-For example, `docker.elastic.co/enterprise-search/elastic-connectors:8.14.0.0-SNAPSHOT`.
+For example, `docker.elastic.co/enterprise-search/elastic-connectors:8.17.0-SNAPSHOT`.
 ====
 
 Find all available Docker images in the https://www.docker.elastic.co/r/enterprise-search/elastic-connectors[official registry].

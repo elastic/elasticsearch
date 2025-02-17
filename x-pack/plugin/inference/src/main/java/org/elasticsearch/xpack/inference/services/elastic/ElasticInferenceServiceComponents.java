@@ -7,4 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.elastic;
 
-public record ElasticInferenceServiceComponents(String eisGatewayUrl) {}
+import org.elasticsearch.core.Nullable;
+
+public record ElasticInferenceServiceComponents(@Nullable String elasticInferenceServiceUrl) {}

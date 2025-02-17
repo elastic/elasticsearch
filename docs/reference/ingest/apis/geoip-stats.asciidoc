@@ -4,6 +4,12 @@
 <titleabbrev>GeoIP stats</titleabbrev>
 ++++
 
+.New API reference
+[sidebar]
+--
+For the most up-to-date API details, refer to {api-es}/group/endpoint-ingest[Ingest APIs].
+--
+
 Gets statistics about the <<geoip-processor,`geoip` processor>>, including
 download statistics for GeoIP2 databases used with it.
 

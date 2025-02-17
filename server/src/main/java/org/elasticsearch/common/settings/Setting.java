@@ -1586,6 +1586,15 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(key, Boolean.toString(defaultValue), b -> parseBoolean(b, key, isFiltered(properties)), validator, properties);
     }
 
+    public static Setting<Boolean> boolSetting(
+        String key,
+        Function<Settings, String> defaultValueFn,
+        Validator<Boolean> validator,
+        Property... properties
+    ) {
+        return new Setting<>(key, defaultValueFn, b -> parseBoolean(b, key, isFiltered(properties)), validator, properties);
+    }
+
     public static Setting<Boolean> boolSetting(String key, Function<Settings, String> defaultValueFn, Property... properties) {
         return new Setting<>(key, defaultValueFn, b -> parseBoolean(b, key, isFiltered(properties)), properties);
     }
@@ -1740,7 +1749,7 @@ public class Setting<T> implements ToXContentObject {
      *
      * @param key the key for the setting
      * @param defaultValue the default value for this setting
-     * @param properties properties properties for this setting like scope, filtering...
+     * @param properties properties for this setting like scope, filtering...
      * @return the setting object
      */
     public static Setting<ByteSizeValue> memorySizeSetting(String key, ByteSizeValue defaultValue, Property... properties) {

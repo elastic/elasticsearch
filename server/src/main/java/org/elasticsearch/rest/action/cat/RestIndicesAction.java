@@ -308,6 +308,15 @@ public class RestIndicesAction extends AbstractCatAction {
             "sibling:pri;alias:iif,indexingIndexFailed;default:false;text-align:right;desc:number of failed indexing ops"
         );
         table.addCell("pri.indexing.index_failed", "default:false;text-align:right;desc:number of failed indexing ops");
+        table.addCell(
+            "indexing.index_failed_due_to_version_conflict",
+            "sibling:pri;alias:iifvc,indexingIndexFailedDueToVersionConflict;default:false;text-align:right;"
+                + "desc:number of failed indexing ops due to version conflict"
+        );
+        table.addCell(
+            "pri.indexing.index_failed_due_to_version_conflict",
+            "default:false;text-align:right;desc:number of failed indexing ops due to version conflict"
+        );
 
         table.addCell("merges.current", "sibling:pri;alias:mc,mergesCurrent;default:false;text-align:right;desc:number of current merges");
         table.addCell("pri.merges.current", "default:false;text-align:right;desc:number of current merges");
@@ -674,6 +683,13 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getIndexFailedCount());
             table.addCell(primaryStats.getIndexing() == null ? null : primaryStats.getIndexing().getTotal().getIndexFailedCount());
+
+            table.addCell(
+                totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getIndexFailedDueToVersionConflictCount()
+            );
+            table.addCell(
+                primaryStats.getIndexing() == null ? null : primaryStats.getIndexing().getTotal().getIndexFailedDueToVersionConflictCount()
+            );
 
             table.addCell(totalStats.getMerge() == null ? null : totalStats.getMerge().getCurrent());
             table.addCell(primaryStats.getMerge() == null ? null : primaryStats.getMerge().getCurrent());

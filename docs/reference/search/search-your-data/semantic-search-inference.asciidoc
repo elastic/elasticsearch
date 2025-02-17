@@ -45,7 +45,7 @@ include::{es-ref-dir}/tab-widgets/inference-api/infer-api-task-widget.asciidoc[]
 ==== Create the index mapping
 
 The mapping of the destination index - the index that contains the embeddings that the model will create based on your input text - must be created.
-The destination index must have a field with the <<dense-vector, `dense_vector`>> field type for most models and the <<sparse-vector, `sparse_vector`>> field type for the sparse vector models like in the case of the `elser` service to index the output of the used model.
+The destination index must have a field with the <<dense-vector, `dense_vector`>> field type for most models and the <<sparse-vector, `sparse_vector`>> field type for the sparse vector models like in the case of the `elasticsearch` service to index the output of the used model.
 
 include::{es-ref-dir}/tab-widgets/inference-api/infer-api-mapping-widget.asciidoc[]
 

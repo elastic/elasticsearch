@@ -407,12 +407,10 @@ public final class DateFieldMapper extends FieldMapper {
                 indexSortConfig,
                 fullFieldName
             );
-            boolean hasInvertedIndex = hasDocValuesSkipper == false
-                && index.getValue()
-                && indexCreatedVersion.isLegacyIndexVersion() == false;
+            boolean hasPoints = hasDocValuesSkipper == false && index.getValue() && indexCreatedVersion.isLegacyIndexVersion() == false;
             DateFieldType ft = new DateFieldType(
                 fullFieldName,
-                hasInvertedIndex,
+                hasPoints,
                 hasDocValuesSkipper == false && index.getValue(),
                 store.getValue(),
                 docValues.getValue(),

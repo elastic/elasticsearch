@@ -15,7 +15,6 @@ import org.elasticsearch.entitlement.runtime.policy.PolicyValidationException;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,132 +40,9 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
 
     public sealed interface FileData {
 
-        sealed interface RelativeFileData extends FileData {
-            BaseDir baseDir();
+        Stream<Path> resolvePaths(PathLookup pathLookup);
 
-            Stream<Path> resolveRelativePaths(PathLookup pathLookup);
-
-            @Override
-            default Stream<Path> resolvePaths(PathLookup pathLookup) {
-                Objects.requireNonNull(pathLookup);
-                var relativePaths = resolveRelativePaths(pathLookup);
-                switch (baseDir()) {
-                    case CONFIG:
-                        return relativePaths.map(relativePath -> pathLookup.configDir().resolve(relativePath));
-                    case DATA:
-                        // multiple data dirs are a pain...we need the combination of relative paths and data dirs
-                        List<Path> paths = new ArrayList<>();
-                        for (var relativePath : relativePaths.toList()) {
-                            for (var dataDir : pathLookup.dataDirs()) {
-                                paths.add(dataDir.resolve(relativePath));
-                            }
-                        }
-                        return paths.stream();
-                    default:
-                        throw new IllegalArgumentException();
-                }
-            }
-        }
-
-        final class AbsolutePathFileData implements FileData {
-            private final Path path;
-            private final Mode mode;
-
-            private AbsolutePathFileData(Path path, Mode mode) {
-                this.path = path;
-                this.mode = mode;
-            }
-
-            @Override
-            public Stream<Path> resolvePaths(PathLookup pathLookup) {
-                return Stream.of(path);
-            }
-
-            @Override
-            public Mode mode() {
-                return mode;
-            }
-
-            @Override
-            public boolean equals(Object obj) {
-                if (obj == this) return true;
-                if (obj == null || obj.getClass() != this.getClass()) return false;
-                var that = (AbsolutePathFileData) obj;
-                return Objects.equals(this.path, that.path) && Objects.equals(this.mode, that.mode);
-            }
-
-            @Override
-            public int hashCode() {
-                return Objects.hash(path, mode);
-            }
-        }
-
-        final class RelativePathFileData implements FileData {
-            private final Path relativePath;
-            private final BaseDir baseDir;
-            private final Mode mode;
-
-            private RelativePathFileData(Path relativePath, BaseDir baseDir, Mode mode) {
-                this.relativePath = relativePath;
-                this.baseDir = baseDir;
-                this.mode = mode;
-            }
-
-            @Override
-            public Stream<Path> resolvePaths(PathLookup pathLookup) {
-                Objects.requireNonNull(pathLookup);
-                switch (baseDir) {
-                    case CONFIG:
-                        return Stream.of(pathLookup.configDir().resolve(relativePath));
-                    case DATA:
-                        return Arrays.stream(pathLookup.dataDirs()).map(d -> d.resolve(relativePath));
-                    default:
-                        throw new IllegalArgumentException();
-                }
-            }
-
-            @Override
-            public Mode mode() {
-                return mode;
-            }
-
-            @Override
-            public boolean equals(Object obj) {
-                if (obj == this) return true;
-                if (obj == null || obj.getClass() != this.getClass()) return false;
-                var that = (RelativePathFileData) obj;
-                return Objects.equals(this.mode, that.mode)
-                    && Objects.equals(this.relativePath, that.relativePath)
-                    && Objects.equals(this.baseDir, that.baseDir);
-            }
-
-            @Override
-            public int hashCode() {
-                return Objects.hash(relativePath, baseDir, mode);
-            }
-        }
-
-        record PathSettingFileData(String setting, Mode mode) implements FileData {
-            @Override
-            public Stream<Path> resolvePaths(PathLookup pathLookup) {
-                return FileData.resolvePathSettings(pathLookup, setting);
-            }
-        }
-
-        record RelativePathSettingFileData(String setting, BaseDir baseDir, Mode mode) implements FileData, RelativeFileData {
-            @Override
-            public Stream<Path> resolveRelativePaths(PathLookup pathLookup) {
-                return FileData.resolvePathSettings(pathLookup, setting);
-            }
-        }
-
-        private static Stream<Path> resolvePathSettings(PathLookup pathLookup, String setting) {
-            if (setting.contains("*")) {
-                return pathLookup.settingGlobResolver().apply(setting).map(Path::of);
-            }
-            String path = pathLookup.settingResolver().apply(setting);
-            return path == null ? Stream.of() : Stream.of(Path.of(path));
-        }
+        Mode mode();
 
         static FileData ofPath(Path path, Mode mode) {
             assert path.isAbsolute();
@@ -185,10 +61,69 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         static FileData ofRelativePathSetting(String setting, BaseDir baseDir, Mode mode) {
             return new RelativePathSettingFileData(setting, baseDir, mode);
         }
+    }
 
-        Stream<Path> resolvePaths(PathLookup pathLookup);
+    private sealed interface RelativeFileData extends FileData {
+        BaseDir baseDir();
 
-        Mode mode();
+        Stream<Path> resolveRelativePaths(PathLookup pathLookup);
+
+        @Override
+        default Stream<Path> resolvePaths(PathLookup pathLookup) {
+            Objects.requireNonNull(pathLookup);
+            var relativePaths = resolveRelativePaths(pathLookup);
+            switch (baseDir()) {
+                case CONFIG:
+                    return relativePaths.map(relativePath -> pathLookup.configDir().resolve(relativePath));
+                case DATA:
+                    // multiple data dirs are a pain...we need the combination of relative paths and data dirs
+                    List<Path> paths = new ArrayList<>();
+                    for (var relativePath : relativePaths.toList()) {
+                        for (var dataDir : pathLookup.dataDirs()) {
+                            paths.add(dataDir.resolve(relativePath));
+                        }
+                    }
+                    return paths.stream();
+                default:
+                    throw new IllegalArgumentException();
+            }
+        }
+    }
+
+    private record AbsolutePathFileData(Path path, Mode mode) implements FileData {
+        @Override
+        public Stream<Path> resolvePaths(PathLookup pathLookup) {
+            return Stream.of(path);
+        }
+    }
+
+    private record RelativePathFileData(Path relativePath, BaseDir baseDir, Mode mode) implements FileData, RelativeFileData {
+        @Override
+        public Stream<Path> resolveRelativePaths(PathLookup pathLookup) {
+            return Stream.of(relativePath);
+        }
+    }
+
+    private record PathSettingFileData(String setting, Mode mode) implements FileData {
+        @Override
+        public Stream<Path> resolvePaths(PathLookup pathLookup) {
+            return resolvePathSettings(pathLookup, setting);
+        }
+    }
+
+    private record RelativePathSettingFileData(String setting, BaseDir baseDir, Mode mode) implements FileData, RelativeFileData {
+        @Override
+        public Stream<Path> resolveRelativePaths(PathLookup pathLookup) {
+            return resolvePathSettings(pathLookup, setting);
+        }
+    }
+
+    private static Stream<Path> resolvePathSettings(PathLookup pathLookup, String setting) {
+        if (setting.contains("*")) {
+            return pathLookup.settingGlobResolver().apply(setting).map(Path::of);
+        }
+        String path = pathLookup.settingResolver().apply(setting);
+        return path == null ? Stream.of() : Stream.of(Path.of(path));
     }
 
     private static Mode parseMode(String mode) {

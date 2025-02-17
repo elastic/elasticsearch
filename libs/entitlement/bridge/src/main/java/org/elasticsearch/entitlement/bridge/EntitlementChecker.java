@@ -51,6 +51,8 @@ import java.nio.file.FileStore;
 import java.nio.file.LinkOption;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
+import java.nio.file.WatchEvent;
+import java.nio.file.WatchService;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.UserPrincipal;
 import java.nio.file.spi.FileSystemProvider;
@@ -588,6 +590,19 @@ public interface EntitlementChecker {
 
     void checkType(Class<?> callerClass, FileStore that);
 
+    // path
+    void checkPathToRealPath(Class<?> callerClass, Path that, LinkOption... options);
+
+    void checkPathRegister(Class<?> callerClass, Path that, WatchService watcher, WatchEvent.Kind<?>... events);
+
+    void checkPathRegister(
+        Class<?> callerClass,
+        Path that,
+        WatchService watcher,
+        WatchEvent.Kind<?>[] events,
+        WatchEvent.Modifier... modifiers
+    );
+
     ////////////////////
     //
     // Thread management
@@ -608,5 +623,4 @@ public interface EntitlementChecker {
     void check$java_lang_Thread$setUncaughtExceptionHandler(Class<?> callerClass, Thread thread, Thread.UncaughtExceptionHandler ueh);
 
     void check$java_lang_ThreadGroup$setMaxPriority(Class<?> callerClass, ThreadGroup threadGroup, int pri);
-
 }

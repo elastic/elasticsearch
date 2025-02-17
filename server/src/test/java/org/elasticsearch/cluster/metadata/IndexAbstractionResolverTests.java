@@ -88,11 +88,8 @@ public class IndexAbstractionResolverTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> resolveAbstractionsSelectorNotAllowed(List.of("index1::data")));
         // Selectors allowed, valid selector given, data selector stripped off in result since it is the default
         assertThat(resolveAbstractionsSelectorAllowed(List.of("index1::data")), contains("index1"));
-        // Selectors allowed, wildcard selector provided, data selector stripped off in result since it is the default
-        // ** only returns ::data since expression is an index
-        assertThat(resolveAbstractionsSelectorAllowed(List.of("index1::*")), contains("index1"));
         // Selectors allowed, invalid selector given
-        expectThrows(InvalidIndexNameException.class, () -> resolveAbstractionsSelectorAllowed(List.of("index1::custom")));
+        expectThrows(InvalidIndexNameException.class, () -> resolveAbstractionsSelectorAllowed(List.of("index1::*")));
 
         // == Single Date Math Expressions ==
 
@@ -132,7 +129,7 @@ public class IndexAbstractionResolverTests extends ESTestCase {
         assertThat(resolveAbstractionsSelectorAllowed(List.of("index*::data")), containsInAnyOrder("index1", "index2"));
         // Selectors allowed, wildcard selector provided, data selector stripped off in result since it is the default
         // ** only returns ::data since expression is an index
-        assertThat(resolveAbstractionsSelectorAllowed(List.of("index*::*")), containsInAnyOrder("index1", "index2"));
+        assertThat(resolveAbstractionsSelectorAllowed(List.of("index*")), containsInAnyOrder("index1", "index2"));
         // Selectors allowed, invalid selector given
         expectThrows(InvalidIndexNameException.class, () -> resolveAbstractionsSelectorAllowed(List.of("index*::custom")));
 
@@ -144,11 +141,9 @@ public class IndexAbstractionResolverTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> resolveAbstractionsSelectorNotAllowed(List.of("data-stream1::data")));
         // Selectors allowed, valid selector given
         assertThat(resolveAbstractionsSelectorAllowed(List.of("data-stream1::failures")), contains("data-stream1::failures"));
-        // Selectors allowed, wildcard selector provided
-        // ** returns both ::data and ::failures since expression is a data stream
-        // ** data selector stripped off in result since it is the default
+        // Selectors allowed, data selector is not added in result since it is the default
         assertThat(
-            resolveAbstractionsSelectorAllowed(List.of("data-stream1::*")),
+            resolveAbstractionsSelectorAllowed(List.of("data-stream1", "data-stream1::failures")),
             containsInAnyOrder("data-stream1", "data-stream1::failures")
         );
         // Selectors allowed, invalid selector given
@@ -162,10 +157,9 @@ public class IndexAbstractionResolverTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> resolveAbstractionsSelectorNotAllowed(List.of("data-stream*::data")));
         // Selectors allowed, valid selector given
         assertThat(resolveAbstractionsSelectorAllowed(List.of("data-stream*::failures")), contains("data-stream1::failures"));
-        // Selectors allowed, wildcard selector provided
-        // ** returns both ::data and ::failures since expression is a data stream
+        // Selectors allowed, both ::data and ::failures are returned
         assertThat(
-            resolveAbstractionsSelectorAllowed(List.of("data-stream*::*")),
+            resolveAbstractionsSelectorAllowed(List.of("data-stream*", "data-stream*::failures")),
             containsInAnyOrder("data-stream1", "data-stream1::failures")
         );
         // Selectors allowed, invalid selector given
@@ -186,7 +180,7 @@ public class IndexAbstractionResolverTests extends ESTestCase {
         // Selectors allowed, wildcard selector provided
         // ** returns both ::data and ::failures for applicable abstractions
         assertThat(
-            resolveAbstractionsSelectorAllowed(List.of("*::*")),
+            resolveAbstractionsSelectorAllowed(List.of("*", "*::failures")),
             containsInAnyOrder("index1", "index2", "data-stream1", "data-stream1::failures")
         );
         // Selectors allowed, invalid selector given
@@ -201,11 +195,11 @@ public class IndexAbstractionResolverTests extends ESTestCase {
         // Selectors allowed, wildcard selector provided
         // ** returns both ::data and ::failures for applicable abstractions
         // ** limits the returned values based on selectors
-        assertThat(resolveAbstractionsSelectorAllowed(List.of("*::*", "-*::data")), contains("data-stream1::failures"));
+        assertThat(resolveAbstractionsSelectorAllowed(List.of("*", "*::failures", "-*::data")), contains("data-stream1::failures"));
         // Selectors allowed, wildcard selector provided
         // ** limits the returned values based on selectors
         assertThat(
-            resolveAbstractionsSelectorAllowed(List.of("*::*", "-*::failures")),
+            resolveAbstractionsSelectorAllowed(List.of("*", "*::failures", "-*::failures")),
             containsInAnyOrder("index1", "index2", "data-stream1")
         );
         // Selectors allowed, none given, default to both selectors

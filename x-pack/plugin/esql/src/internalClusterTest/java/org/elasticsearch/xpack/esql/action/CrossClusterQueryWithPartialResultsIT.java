@@ -36,6 +36,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -310,13 +311,18 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
         );
         Set<String> ids = new HashSet<>();
         String tag = clusterAlias.isEmpty() ? "local" : clusterAlias;
-        int numDocs = between(50, 100); // large enough to have failing documents in every shard
+        int numDocs = between(1, 100); // large enough to have failing documents in every shard
         for (int i = 0; i < numDocs; i++) {
             String id = Long.toString(nextDocId.incrementAndGet());
             client.prepareIndex(indexName).setSource("id", id, "tag", tag, "v", i).get();
             ids.add(id);
         }
         client.admin().indices().prepareRefresh(indexName).get();
+        for (var shardStats : client.admin().indices().prepareStats(indexName).clear().setDocs(true).get().getShards()) {
+            var docsStats = shardStats.getStats().docs;
+            assertNotNull(docsStats);
+            assertThat("no doc for shard " + shardStats.getShardRouting().shardId(), docsStats.getCount(), greaterThan(0L));
+        }
         return ids;
     }
 }

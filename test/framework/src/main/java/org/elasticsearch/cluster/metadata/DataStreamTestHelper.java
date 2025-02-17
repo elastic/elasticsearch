@@ -662,7 +662,7 @@ public final class DataStreamTestHelper {
         ).build(MapperBuilderContext.root(false, true));
         ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
         Environment env = mock(Environment.class);
-        when(env.sharedDataFile()).thenReturn(null);
+        when(env.sharedDataDir()).thenReturn(null);
         AllocationService allocationService = mock(AllocationService.class);
         when(allocationService.reroute(any(ClusterState.class), any(String.class), any())).then(i -> i.getArguments()[0]);
         when(allocationService.getShardRoutingRoleStrategy()).thenReturn(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY);
@@ -720,6 +720,17 @@ public final class DataStreamTestHelper {
         Map<String, Object> fieldsMapping = new HashMap<>();
         fieldsMapping.put("enabled", true);
         MappingParserContext mockedParserContext = mock(MappingParserContext.class);
+        when(mockedParserContext.getIndexSettings()).thenReturn(
+            new IndexSettings(
+                IndexMetadata.builder("_na_")
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .creationDate(System.currentTimeMillis())
+                    .build(),
+                Settings.EMPTY
+            )
+        );
         return DataStreamTimestampFieldMapper.PARSER.parse("field", fieldsMapping, mockedParserContext).build();
     }
 

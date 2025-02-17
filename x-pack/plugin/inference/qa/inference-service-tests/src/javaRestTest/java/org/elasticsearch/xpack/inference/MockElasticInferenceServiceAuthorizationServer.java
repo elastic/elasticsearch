@@ -23,15 +23,19 @@ public class MockElasticInferenceServiceAuthorizationServer implements TestRule 
     private static final Logger logger = LogManager.getLogger(MockElasticInferenceServiceAuthorizationServer.class);
     private final MockWebServer webServer = new MockWebServer();
 
-    public static MockElasticInferenceServiceAuthorizationServer enabledWithSparseEmbeddingsAndChatCompletion() {
+    public static MockElasticInferenceServiceAuthorizationServer enabledWithRainbowSprinklesAndElser() {
         var server = new MockElasticInferenceServiceAuthorizationServer();
 
         String responseJson = """
             {
                 "models": [
                     {
-                      "model_name": "model-a",
-                      "task_types": ["embed/text/sparse", "chat"]
+                      "model_name": "rainbow-sprinkles",
+                      "task_types": ["chat"]
+                    },
+                    {
+                      "model_name": "elser-v2",
+                      "task_types": ["embed/text/sparse"]
                     }
                 ]
             }

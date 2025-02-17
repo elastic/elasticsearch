@@ -12,11 +12,13 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceUsageContext;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 import org.elasticsearch.xpack.inference.telemetry.TraceContextHandler;
 
@@ -31,24 +33,34 @@ public class ElasticInferenceServiceSparseEmbeddingsRequest implements ElasticIn
     private final Truncator.TruncationResult truncationResult;
     private final Truncator truncator;
     private final TraceContextHandler traceContextHandler;
+    private final InputType inputType;
 
     public ElasticInferenceServiceSparseEmbeddingsRequest(
         Truncator truncator,
         Truncator.TruncationResult truncationResult,
         ElasticInferenceServiceSparseEmbeddingsModel model,
-        TraceContext traceContext
+        TraceContext traceContext,
+        InputType inputType
     ) {
         this.truncator = truncator;
         this.truncationResult = truncationResult;
         this.model = Objects.requireNonNull(model);
         this.uri = model.uri();
         this.traceContextHandler = new TraceContextHandler(traceContext);
+        this.inputType = inputType;
     }
 
     @Override
     public HttpRequest createHttpRequest() {
         var httpPost = new HttpPost(uri);
-        var requestEntity = Strings.toString(new ElasticInferenceServiceSparseEmbeddingsRequestEntity(truncationResult.input()));
+        var usageContext = inputTypeToUsageContext(inputType);
+        var requestEntity = Strings.toString(
+            new ElasticInferenceServiceSparseEmbeddingsRequestEntity(
+                truncationResult.input(),
+                model.getServiceSettings().modelId(),
+                usageContext
+            )
+        );
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(requestEntity.getBytes(StandardCharsets.UTF_8));
         httpPost.setEntity(byteEntity);
@@ -76,7 +88,13 @@ public class ElasticInferenceServiceSparseEmbeddingsRequest implements ElasticIn
     @Override
     public Request truncate() {
         var truncatedInput = truncator.truncate(truncationResult.input());
-        return new ElasticInferenceServiceSparseEmbeddingsRequest(truncator, truncatedInput, model, traceContextHandler.traceContext());
+        return new ElasticInferenceServiceSparseEmbeddingsRequest(
+            truncator,
+            truncatedInput,
+            model,
+            traceContextHandler.traceContext(),
+            inputType
+        );
     }
 
     @Override
@@ -84,4 +102,18 @@ public class ElasticInferenceServiceSparseEmbeddingsRequest implements ElasticIn
         return truncationResult.truncated().clone();
     }
 
+    // visible for testing
+    static ElasticInferenceServiceUsageContext inputTypeToUsageContext(InputType inputType) {
+        switch (inputType) {
+            case SEARCH -> {
+                return ElasticInferenceServiceUsageContext.SEARCH;
+            }
+            case INGEST -> {
+                return ElasticInferenceServiceUsageContext.INGEST;
+            }
+            default -> {
+                return ElasticInferenceServiceUsageContext.UNSPECIFIED;
+            }
+        }
+    }
 }

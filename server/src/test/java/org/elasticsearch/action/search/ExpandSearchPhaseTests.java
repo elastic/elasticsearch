@@ -144,7 +144,6 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                     hits.decRef();
                 }
             } finally {
-                mockSearchPhaseContext.execute(() -> {});
                 var resp = mockSearchPhaseContext.searchResponse.get();
                 if (resp != null) {
                     resp.decRef();

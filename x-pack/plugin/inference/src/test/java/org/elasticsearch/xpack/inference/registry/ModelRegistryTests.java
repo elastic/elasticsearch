@@ -28,6 +28,7 @@ import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
@@ -41,6 +42,7 @@ import org.junit.Before;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.Strings.format;
@@ -52,6 +54,8 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class ModelRegistryTests extends ESTestCase {
@@ -295,6 +299,37 @@ public class ModelRegistryTests extends ESTestCase {
         );
     }
 
+    public void testRemoveDefaultConfigs_DoesNotCallClient_WhenPassedAnEmptySet() {
+        var client = mock(Client.class);
+
+        var registry = new ModelRegistry(client);
+        var listener = new PlainActionFuture<Boolean>();
+
+        registry.removeDefaultConfigs(Set.of(), listener);
+
+        assertTrue(listener.actionGet(TIMEOUT));
+        verify(client, times(0)).execute(any(), any(), any());
+    }
+
+    public void testDeleteModels_Returns_ConflictException_WhenModelIsBeingAdded() {
+        var client = mockClient();
+
+        var registry = new ModelRegistry(client);
+        var model = TestModel.createRandomInstance();
+        var newModel = TestModel.createRandomInstance();
+        registry.updateModelTransaction(newModel, model, new PlainActionFuture<>());
+
+        var listener = new PlainActionFuture<Boolean>();
+
+        registry.deleteModels(Set.of(newModel.getInferenceEntityId()), listener);
+        var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+        assertThat(
+            exception.getMessage(),
+            containsString("are currently being updated, please wait until after they are finished updating to delete.")
+        );
+        assertThat(exception.status(), is(RestStatus.CONFLICT));
+    }
+
     public void testIdMatchedDefault() {
         var defaultConfigIds = new ArrayList<InferenceService.DefaultConfigId>();
         defaultConfigIds.add(
@@ -308,6 +343,20 @@ public class ModelRegistryTests extends ESTestCase {
         assertEquals(defaultConfigIds.get(1), matched.get());
         matched = ModelRegistry.idMatchedDefault("baz", defaultConfigIds);
         assertFalse(matched.isPresent());
+    }
+
+    public void testContainsDefaultConfigId() {
+        var client = mockClient();
+        var registry = new ModelRegistry(client);
+
+        registry.addDefaultIds(
+            new InferenceService.DefaultConfigId("foo", MinimalServiceSettings.sparseEmbedding(), mock(InferenceService.class))
+        );
+        registry.addDefaultIds(
+            new InferenceService.DefaultConfigId("bar", MinimalServiceSettings.sparseEmbedding(), mock(InferenceService.class))
+        );
+        assertTrue(registry.containsDefaultConfigId("foo"));
+        assertFalse(registry.containsDefaultConfigId("baz"));
     }
 
     public void testTaskTypeMatchedDefaults() {

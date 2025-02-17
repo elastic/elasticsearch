@@ -1299,6 +1299,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         var vsShardContext = new ValuesSourceReaderOperator.ShardContext(reader(indexKey), () -> SourceLoader.FROM_STORED_SOURCE);
         try (
             Driver driver = new Driver(
+                "test",
                 driverContext,
                 luceneFactory.get(driverContext),
                 List.of(
@@ -1376,6 +1377,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         int[] pages = new int[] { 0 };
         try (
             Driver d = new Driver(
+                "test",
                 driverContext,
                 simpleInput(driverContext, 10),
                 List.of(
@@ -1497,6 +1499,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         boolean success = false;
         try (
             Driver d = new Driver(
+                "test",
                 driverContext,
                 new CannedSourceOperator(input),
                 operators,
@@ -1524,6 +1527,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         for (int i = 0; i < dummyDrivers; i++) {
             drivers.add(
                 new Driver(
+                    "test",
                     "dummy-session",
                     0,
                     0,

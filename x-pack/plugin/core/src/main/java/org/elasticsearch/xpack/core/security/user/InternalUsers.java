@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.core.security.user;
 
 import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.admin.indices.analyze.TransportReloadAnalyzersAction;
+import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
+import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.rollover.LazyRolloverAction;
@@ -205,7 +207,10 @@ public class InternalUsers {
                         TransportDeleteIndexAction.TYPE.name(),
                         "indices:admin/data_stream/index/reindex",
                         "indices:admin/index/create_from_source",
+                        "indices:admin/index/copy_lifecycle_index_metadata",
                         TransportAddIndexBlockAction.TYPE.name(),
+                        OpenIndexAction.NAME,
+                        TransportCloseIndexAction.NAME,
                         TransportCreateIndexAction.TYPE.name(),
                         TransportClusterSearchShardsAction.TYPE.name(),
                         TransportUpdateSettingsAction.TYPE.name(),
@@ -221,6 +226,7 @@ public class InternalUsers {
                     .build() },
             null,
             null,
+
             new String[] {},
             MetadataUtils.DEFAULT_RESERVED_METADATA,
             Map.of()

@@ -192,18 +192,20 @@ public class Netty4HttpContentSizeHandlerTests extends ESTestCase {
     }
 
     /**
-     * Assert that handler returns 413 Request Entity Too Large and close channel for
-     * oversized request with content.
+     * Assert that handler returns 413 Request Entity Too Large and skip following content.
      */
     public void testEntityTooLargeWithContentWithoutExpect() {
-        var sendRequest = httpRequest();
-        HttpUtil.setContentLength(sendRequest, OVERSIZED_LENGTH);
-        var unexpectedContent = lastHttpContent(OVERSIZED_LENGTH);
-        channel.writeInbound(encode(sendRequest, unexpectedContent));
-        var resp = (FullHttpResponse) channel.readOutbound();
-        assertEquals(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, resp.status());
-        assertFalse(channel.isOpen());
-        resp.release();
+        for (int i = 0; i < REPS; i++) {
+            var sendRequest = httpRequest();
+            HttpUtil.setContentLength(sendRequest, OVERSIZED_LENGTH);
+            var unexpectedContent = lastHttpContent(OVERSIZED_LENGTH);
+            channel.writeInbound(encode(sendRequest, unexpectedContent));
+            var resp = (FullHttpResponse) channel.readOutbound();
+            assertEquals(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, resp.status());
+            resp.release();
+            assertNull("request and content should not pass", channel.readInbound());
+            assertTrue("should not close channel", channel.isOpen());
+        }
     }
 
     /**

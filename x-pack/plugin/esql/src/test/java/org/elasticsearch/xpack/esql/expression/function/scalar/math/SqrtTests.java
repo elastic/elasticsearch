@@ -109,7 +109,7 @@ public class SqrtTests extends AbstractScalarFunctionTestCase {
                 "Line -1:-1: java.lang.ArithmeticException: Square root of negative"
             )
         );
-        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "numeric");
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

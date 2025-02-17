@@ -88,7 +88,8 @@ final class TranslogDirectoryReader extends DirectoryReader {
         MappingLookup mappingLookup,
         DocumentParser documentParser,
         EngineConfig engineConfig,
-        Runnable onSegmentCreated
+        Runnable onSegmentCreated,
+        boolean forceSynthetic
     ) throws IOException {
         final Directory directory = new ByteBuffersDirectory();
         boolean success = false;
@@ -97,7 +98,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
             // When using synthetic source, the translog operation must always be reindexed into an in-memory Lucene to ensure consistent
             // output for realtime-get operations. However, this can degrade the performance of realtime-get and update operations.
             // If slight inconsistencies in realtime-get operations are acceptable, the translog operation can be reindexed lazily.
-            if (mappingLookup.isSourceSynthetic()) {
+            if (mappingLookup.isSourceSynthetic() || forceSynthetic) {
                 onSegmentCreated.run();
                 leafReader = createInMemoryReader(shardId, engineConfig, directory, documentParser, mappingLookup, false, operation);
             } else {

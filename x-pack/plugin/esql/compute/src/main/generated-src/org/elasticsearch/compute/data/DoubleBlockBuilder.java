@@ -16,7 +16,7 @@ import java.util.Arrays;
 
 /**
  * Block build of DoubleBlocks.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-BlockBuilder.java.st} instead.
  */
 final class DoubleBlockBuilder extends AbstractBlockBuilder implements DoubleBlock.Builder {
 

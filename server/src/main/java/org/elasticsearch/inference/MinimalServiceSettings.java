@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
+import static org.elasticsearch.inference.TaskType.CHAT_COMPLETION;
 import static org.elasticsearch.inference.TaskType.COMPLETION;
 import static org.elasticsearch.inference.TaskType.RERANK;
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
@@ -95,6 +96,10 @@ public record MinimalServiceSettings(
 
     public static MinimalServiceSettings completion() {
         return new MinimalServiceSettings(COMPLETION, null, null, null);
+    }
+
+    public static MinimalServiceSettings chatCompletion() {
+        return new MinimalServiceSettings(CHAT_COMPLETION, null, null, null);
     }
 
     public MinimalServiceSettings(Model model) {

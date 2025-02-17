@@ -29,6 +29,7 @@ import java.util.Objects;
 import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.DEFAULT_RERANK_ID;
 
 /**
  * A {@code RetrieverBuilder} for parsing and constructing a text similarity reranker retriever.
@@ -47,10 +48,11 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     public static final ConstructingObjectParser<TextSimilarityRankRetrieverBuilder, RetrieverParserContext> PARSER =
         new ConstructingObjectParser<>(TextSimilarityRankBuilder.NAME, args -> {
             RetrieverBuilder retrieverBuilder = (RetrieverBuilder) args[0];
-            String inferenceId = (String) args[1];
+            String inferenceId = args[1] == null ? DEFAULT_RERANK_ID : (String) args[1];
             String inferenceText = (String) args[2];
             String field = (String) args[3];
             int rankWindowSize = args[4] == null ? DEFAULT_RANK_WINDOW_SIZE : (int) args[4];
+
             return new TextSimilarityRankRetrieverBuilder(retrieverBuilder, inferenceId, inferenceText, field, rankWindowSize);
         });
 
@@ -60,7 +62,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
             c.trackRetrieverUsage(innerRetriever.getName());
             return innerRetriever;
         }, RETRIEVER_FIELD);
-        PARSER.declareString(constructorArg(), INFERENCE_ID_FIELD);
+        PARSER.declareString(optionalConstructorArg(), INFERENCE_ID_FIELD);
         PARSER.declareString(constructorArg(), INFERENCE_TEXT_FIELD);
         PARSER.declareString(constructorArg(), FIELD_FIELD);
         PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
@@ -142,6 +144,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
         TextSimilarityRankDoc[] textSimilarityRankDocs = new TextSimilarityRankDoc[scoreDocs.length];
         for (int i = 0; i < scoreDocs.length; i++) {
             ScoreDoc scoreDoc = scoreDocs[i];
+            assert scoreDoc.score >= 0;
             if (explain) {
                 textSimilarityRankDocs[i] = new TextSimilarityRankDoc(
                     scoreDoc.doc,
@@ -168,6 +171,10 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     @Override
     public String getName() {
         return TextSimilarityRankBuilder.NAME;
+    }
+
+    public String inferenceId() {
+        return inferenceId;
     }
 
     public int rankWindowSize() {

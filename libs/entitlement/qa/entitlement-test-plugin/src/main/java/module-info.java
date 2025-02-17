@@ -11,6 +11,7 @@ module org.elasticsearch.entitlement.qa.test {
     requires org.elasticsearch.server;
     requires org.elasticsearch.base;
     requires org.elasticsearch.logging;
+    requires org.elasticsearch.entitlement.qa.entitled;
 
     // Modules we'll attempt to use in order to exercise entitlements
     requires java.logging;

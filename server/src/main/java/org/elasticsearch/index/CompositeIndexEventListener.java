@@ -28,7 +28,6 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -136,6 +135,24 @@ final class CompositeIndexEventListener implements IndexEventListener {
                 throw e;
             }
         }
+    }
+
+    @Override
+    public void beforeIndexShardMutableOperation(IndexShard indexShard, ActionListener<Void> listener) {
+        iterateBeforeIndexShardMutableOperation(indexShard, listener.delegateResponse((l, e) -> {
+            logger.warn(() -> format("%s failed to invoke the listener before ensuring shard mutability", indexShard.shardId()), e);
+            l.onFailure(e);
+        }));
+    }
+
+    private void iterateBeforeIndexShardMutableOperation(IndexShard indexShard, ActionListener<Void> outerListener) {
+        callListeners(
+            indexShard,
+            listeners.stream()
+                .map(iel -> (Consumer<ActionListener<Void>>) (l) -> iel.beforeIndexShardMutableOperation(indexShard, l))
+                .iterator(),
+            outerListener
+        );
     }
 
     @Override
@@ -351,15 +368,4 @@ final class CompositeIndexEventListener implements IndexEventListener {
         }
     }
 
-    @Override
-    public void onAcquirePrimaryOperationPermit(IndexShard indexShard, Supplier<ActionListener<Void>> onPermitAcquiredListenerSupplier) {
-        for (IndexEventListener listener : listeners) {
-            try {
-                listener.onAcquirePrimaryOperationPermit(indexShard, onPermitAcquiredListenerSupplier);
-            } catch (Exception e) {
-                logger.warn(() -> "[" + indexShard.shardId() + "] failed to invoke the listener on acquiring a primary permit", e);
-                throw e;
-            }
-        }
-    }
 }

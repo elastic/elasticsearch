@@ -53,7 +53,7 @@ or a range of versions followed by a colon.
 +
 To apply a setting to a specific version and any later versions,
 omit the upper bound of the range.
-For example, this setting applies to Java 8 and later:
+For example, this setting applies to Java 17 and later:
 +
 [source,text]
 -------------------------------------

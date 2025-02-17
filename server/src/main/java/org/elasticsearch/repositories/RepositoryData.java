@@ -605,6 +605,11 @@ public final class RepositoryData {
         return Objects.hash(snapshotIds, snapshotsDetails, indices, indexSnapshots, shardGenerations, indexMetaDataGenerations);
     }
 
+    @Override
+    public String toString() {
+        return Strings.format("RepositoryData[uuid=%s,gen=%s]", uuid, genId);
+    }
+
     /**
      * Resolve the index name to the index id specific to the repository,
      * throwing an exception if the index could not be resolved.

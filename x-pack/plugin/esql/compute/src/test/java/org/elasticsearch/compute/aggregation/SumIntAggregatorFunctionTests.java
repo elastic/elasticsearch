@@ -32,8 +32,8 @@ public class SumIntAggregatorFunctionTests extends AggregatorFunctionTestCase {
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new SumIntAggregatorFunctionSupplier(inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new SumIntAggregatorFunctionSupplier();
     }
 
     @Override
@@ -52,6 +52,7 @@ public class SumIntAggregatorFunctionTests extends AggregatorFunctionTestCase {
         BlockFactory blockFactory = driverContext.blockFactory();
         try (
             Driver d = new Driver(
+                "test",
                 driverContext,
                 new CannedSourceOperator(Iterators.single(new Page(blockFactory.newDoubleArrayVector(new double[] { 1.0 }, 1).asBlock()))),
                 List.of(simple().get(driverContext)),

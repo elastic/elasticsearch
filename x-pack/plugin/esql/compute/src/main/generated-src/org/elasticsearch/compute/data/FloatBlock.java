@@ -19,7 +19,7 @@ import java.io.IOException;
 
 /**
  * Block that stores float values.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-Block.java.st} instead.
  */
 public sealed interface FloatBlock extends Block permits FloatArrayBlock, FloatVectorBlock, ConstantNullBlock, FloatBigArrayBlock {
 

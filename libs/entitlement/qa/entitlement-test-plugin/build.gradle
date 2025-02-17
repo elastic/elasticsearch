@@ -17,11 +17,13 @@ esplugin {
   name = 'entitlement-test-plugin'
   description = 'A test plugin that invokes methods checked by entitlements'
   classname = 'org.elasticsearch.entitlement.qa.test.EntitlementTestPlugin'
+  extendedPlugins = ['entitled']
 }
 
 dependencies {
-  implementation project(':server')
-  implementation project(':libs:logging')
+  compileOnly project(':server')
+  compileOnly project(':libs:logging')
+  compileOnly project(":libs:entitlement:qa:entitled-plugin")
 }
 
 tasks.named("javadoc").configure {

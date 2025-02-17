@@ -31,6 +31,7 @@ import org.mockito.ArgumentCaptor;
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
@@ -77,8 +78,9 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
             authHandler.getAuthorization(listener, sender);
 
             var authResponse = listener.actionGet(TIMEOUT);
-            assertTrue(authResponse.enabledTaskTypes().isEmpty());
-            assertFalse(authResponse.isEnabled());
+            assertTrue(authResponse.getAuthorizedTaskTypes().isEmpty());
+            assertTrue(authResponse.getAuthorizedModelIds().isEmpty());
+            assertFalse(authResponse.isAuthorized());
 
             var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
             verify(logger).warn(loggerArgsCaptor.capture());
@@ -97,8 +99,9 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
             authHandler.getAuthorization(listener, sender);
 
             var authResponse = listener.actionGet(TIMEOUT);
-            assertTrue(authResponse.enabledTaskTypes().isEmpty());
-            assertFalse(authResponse.isEnabled());
+            assertTrue(authResponse.getAuthorizedTaskTypes().isEmpty());
+            assertTrue(authResponse.getAuthorizedModelIds().isEmpty());
+            assertFalse(authResponse.isAuthorized());
 
             var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
             verify(logger).warn(loggerArgsCaptor.capture());
@@ -131,8 +134,9 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
             authHandler.getAuthorization(listener, sender);
 
             var authResponse = listener.actionGet(TIMEOUT);
-            assertTrue(authResponse.enabledTaskTypes().isEmpty());
-            assertFalse(authResponse.isEnabled());
+            assertTrue(authResponse.getAuthorizedTaskTypes().isEmpty());
+            assertTrue(authResponse.getAuthorizedModelIds().isEmpty());
+            assertFalse(authResponse.isAuthorized());
 
             var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
             verify(logger).warn(loggerArgsCaptor.capture());
@@ -181,8 +185,9 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
             authHandler.getAuthorization(listener, sender);
 
             var authResponse = listener.actionGet(TIMEOUT);
-            assertThat(authResponse.enabledTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)));
-            assertTrue(authResponse.isEnabled());
+            assertThat(authResponse.getAuthorizedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)));
+            assertThat(authResponse.getAuthorizedModelIds(), is(Set.of("model-a")));
+            assertTrue(authResponse.isAuthorized());
 
             var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
             verify(logger, times(1)).debug(loggerArgsCaptor.capture());

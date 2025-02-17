@@ -1,0 +1,6 @@
+pr: 121109
+summary: Fix propagation of dynamic mapping parameter when applying `copy_to`
+area: Mapping
+type: bug
+issues:
+ - 113049

@@ -7,29 +7,23 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
-import java.io.IOException;
 import java.util.List;
 
 /**
  * This class performs a {@link org.elasticsearch.xpack.esql.querydsl.query.MatchQuery} using an operator.
+ * This is used as a convenience for generating documentation and for error message purposes - it's  a way to represent
+ * the match operator in the function syntax.
+ * Serialization is provided as a way to pass the corresponding tests - serialization must be done to a Match class.
  */
 public class MatchOperator extends Match {
-
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        Expression.class,
-        "MatchOperator",
-        MatchOperator::readFrom
-    );
 
     @FunctionInfo(
         returnType = "boolean",
@@ -60,15 +54,11 @@ public class MatchOperator extends Match {
             description = "Value to find in the provided field."
         ) Expression matchQuery
     ) {
-        super(source, field, matchQuery);
+        super(source, field, matchQuery, null, null);
     }
 
-    private static Match readFrom(StreamInput in) throws IOException {
-        Source source = Source.readFrom((PlanStreamInput) in);
-        Expression field = in.readNamedWriteable(Expression.class);
-        Expression query = in.readNamedWriteable(Expression.class);
-
-        return new MatchOperator(source, field, query);
+    private MatchOperator(Source source, Expression field, Expression matchQuery, QueryBuilder queryBuilder) {
+        super(source, field, matchQuery, null, queryBuilder);
     }
 
     @Override
@@ -82,17 +72,17 @@ public class MatchOperator extends Match {
     }
 
     @Override
-    public String getWriteableName() {
-        return ENTRY.name;
-    }
-
-    @Override
     protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, MatchOperator::new, field(), query());
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new MatchOperator(source(), newChildren.get(0), newChildren.get(1));
+        return new MatchOperator(source(), newChildren.get(0), newChildren.get(1), queryBuilder());
+    }
+
+    @Override
+    public Expression replaceQueryBuilder(QueryBuilder queryBuilder) {
+        return new MatchOperator(source(), field, query(), queryBuilder);
     }
 }

@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.search.rank.RankBuilder.DEFAULT_RANK_WINDOW_SIZE;
+import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.DEFAULT_RERANK_ID;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -108,7 +109,6 @@ public class TextSimilarityRankRetrieverBuilderTests extends AbstractXContentTes
                 }
               },
               "field": "my-field",
-              "inference_id": "my-inference-id",
               "inference_text": "my-inference-text"
             }""";
 
@@ -118,6 +118,7 @@ public class TextSimilarityRankRetrieverBuilderTests extends AbstractXContentTes
                 new RetrieverParserContext(new SearchUsage(), nf -> true)
             );
             assertEquals(DEFAULT_RANK_WINDOW_SIZE, parsed.rankWindowSize());
+            assertEquals(DEFAULT_RERANK_ID, parsed.inferenceId());
         }
     }
 

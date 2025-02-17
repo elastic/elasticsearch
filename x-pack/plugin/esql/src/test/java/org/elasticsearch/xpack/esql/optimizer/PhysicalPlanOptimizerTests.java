@@ -7596,14 +7596,15 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             TestBlockFactory.getNonBreakingInstance(),
             Settings.EMPTY,
             config,
-            new ExchangeSourceHandler(10, null, null)::createExchangeSource,
+            new ExchangeSourceHandler(10, null)::createExchangeSource,
             () -> exchangeSinkHandler.createExchangeSink(() -> {}),
             null,
             null,
-            new EsPhysicalOperationProviders(FoldContext.small(), List.of(), null)
+            new EsPhysicalOperationProviders(FoldContext.small(), List.of(), null),
+            List.of()
         );
 
-        return planner.plan(FoldContext.small(), plan);
+        return planner.plan("test", FoldContext.small(), plan);
     }
 
     private List<Set<String>> findFieldNamesInLookupJoinDescription(LocalExecutionPlanner.LocalExecutionPlan physicalOperations) {
@@ -7630,7 +7631,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testScore() {
-        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
         var plan = physicalPlan("""
             from test metadata _score
             | where match(first_name, "john")
@@ -7657,7 +7657,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testScoreTopN() {
-        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
         var plan = physicalPlan("""
             from test metadata _score
             | where match(first_name, "john")

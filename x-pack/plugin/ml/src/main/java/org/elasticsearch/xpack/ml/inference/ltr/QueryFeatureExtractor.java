@@ -51,7 +51,7 @@ public class QueryFeatureExtractor implements FeatureExtractor {
             }
             Scorer scorer = weight.scorer(segmentContext);
             if (scorer != null) {
-                disiPriorityQueue.add(new DisiWrapper(scorer));
+                disiPriorityQueue.add(new DisiWrapper(scorer, false));
             }
             scorers.add(scorer);
         }

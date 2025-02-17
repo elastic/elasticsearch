@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.elastic;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
@@ -20,18 +21,16 @@ import java.util.List;
  */
 public class ElasticInferenceServiceSettings {
 
-    // TODO when we remove this look at InferenceGetServicesIT and remove the setting there as well
+    public static final String ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX = "xpack.inference.elastic.http.ssl.";
+
     @Deprecated
     static final Setting<String> EIS_GATEWAY_URL = Setting.simpleString("xpack.inference.eis.gateway.url", Setting.Property.NodeScope);
-
-    public static final String ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX = "xpack.inference.elastic.http.ssl.";
 
     static final Setting<String> ELASTIC_INFERENCE_SERVICE_URL = Setting.simpleString(
         "xpack.inference.elastic.url",
         Setting.Property.NodeScope
     );
 
-    // Adjust this variable to be volatile, if the setting can be updated at some point in time
     @Deprecated
     private final String eisGatewayUrl;
 
@@ -63,13 +62,8 @@ public class ElasticInferenceServiceSettings {
         return settings;
     }
 
-    @Deprecated
-    public String getEisGatewayUrl() {
-        return eisGatewayUrl;
-    }
-
     public String getElasticInferenceServiceUrl() {
-        return elasticInferenceServiceUrl;
+        return Strings.isEmpty(elasticInferenceServiceUrl) ? eisGatewayUrl : elasticInferenceServiceUrl;
     }
 
 }

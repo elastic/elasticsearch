@@ -986,7 +986,7 @@ public enum SearchResponseUtils {
                 }
             }
         }
-        return new InternalAggregations(aggregations);
+        return InternalAggregations.from(aggregations);
     }
 
     private static final InstantiatingObjectParser<ProfileResult, Void> PROFILE_RESULT_PARSER;

@@ -21,7 +21,10 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
+import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.Layout;
+
+import java.util.List;
 
 import static org.elasticsearch.compute.data.BlockUtils.fromArrayRow;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
@@ -34,6 +37,10 @@ public interface EvaluatorMapper {
         ExpressionEvaluator.Factory apply(Expression expression);
 
         FoldContext foldCtx();
+
+        default List<EsPhysicalOperationProviders.ShardContext> shardContexts() {
+            throw new UnsupportedOperationException("Shard contexts should only be needed for evaluation operations");
+        }
     }
 
     /**

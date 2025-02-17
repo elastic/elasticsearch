@@ -89,11 +89,11 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
     public PutUserRequestBuilder passwordHash(char[] passwordHash, Hasher configuredHasher) {
         final Hasher resolvedHasher = Hasher.resolveFromHash(passwordHash);
         if (resolvedHasher.equals(configuredHasher) == false
-            && Hasher.getAvailableAlgoStoredHash().contains(resolvedHasher.name().toLowerCase(Locale.ROOT)) == false) {
+            && Hasher.getAvailableAlgoStoredPasswordHash().contains(resolvedHasher.name().toLowerCase(Locale.ROOT)) == false) {
             throw new IllegalArgumentException(
                 "The provided password hash is not a hash or it could not be resolved to a supported hash algorithm. "
                     + "The supported password hash algorithms are "
-                    + Hasher.getAvailableAlgoStoredHash().toString()
+                    + Hasher.getAvailableAlgoStoredPasswordHash().toString()
             );
         }
         if (request.passwordHash() != null) {

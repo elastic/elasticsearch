@@ -1,4 +1,3 @@
 ALL-UNNAMED:
+  - manage_threads
   - outbound_network
-org.elasticsearch.painless:
-  - create_class_loader

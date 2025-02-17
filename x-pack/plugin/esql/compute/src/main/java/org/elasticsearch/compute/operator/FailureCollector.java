@@ -57,7 +57,7 @@ public final class FailureCollector {
         }
     }
 
-    private static Exception unwrapTransportException(TransportException te) {
+    public static Exception unwrapTransportException(TransportException te) {
         final Throwable cause = te.getCause();
         if (cause == null) {
             return te;

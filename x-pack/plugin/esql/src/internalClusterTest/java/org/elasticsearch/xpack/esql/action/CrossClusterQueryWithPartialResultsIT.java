@@ -1,0 +1,322 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.action;
+
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.compute.operator.exchange.ExchangeService;
+import org.elasticsearch.test.FailingFieldPlugin;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.plugin.ComputeService;
+
+import java.io.IOException;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+
+public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterTestCase {
+    private static final AtomicLong nextDocId = new AtomicLong(0);
+
+    private static class ClusterSetup {
+        final int okShards = randomIntBetween(1, 5);
+        final int failingShards = randomIntBetween(1, 5);
+        Set<String> okIds;
+    }
+
+    private final ClusterSetup local = new ClusterSetup();
+    private final ClusterSetup remote1 = new ClusterSetup();
+    private final ClusterSetup remote2 = new ClusterSetup();
+
+    void populateIndices() throws Exception {
+        local.okIds = populateIndex(LOCAL_CLUSTER, "ok-local", local.okShards);
+        populateIndexWithFailingFields(LOCAL_CLUSTER, "fail-local", local.failingShards);
+
+        remote1.okIds = populateIndex(REMOTE_CLUSTER_1, "ok-cluster1", remote1.okShards);
+        populateIndexWithFailingFields(REMOTE_CLUSTER_1, "fail-cluster1", remote1.failingShards);
+
+        remote2.okIds = populateIndex(REMOTE_CLUSTER_2, "ok-cluster2", remote2.okShards);
+        populateIndexWithFailingFields(REMOTE_CLUSTER_2, "fail-cluster2", remote2.failingShards);
+    }
+
+    public void testPartialResults() throws Exception {
+        populateIndices();
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query("FROM ok*,fail*,*:ok*,*:fail* | KEEP id, fail_me | LIMIT 1000");
+        request.includeCCSMetadata(randomBoolean());
+        {
+            // allow_partial_results = false
+            request.includeCCSMetadata(randomBoolean());
+            IllegalStateException error = expectThrows(IllegalStateException.class, () -> runQuery(request).close());
+            assertThat(error.getMessage(), containsString("Accessing failing field"));
+        }
+        // allow_partial_results = true
+        request.allowPartialResults(true);
+        try (var resp = runQuery(request)) {
+            assertTrue(resp.isPartial());
+            Set<String> allIds = Stream.of(local.okIds, remote1.okIds, remote2.okIds)
+                .flatMap(Collection::stream)
+                .collect(Collectors.toSet());
+            List<List<Object>> rows = getValuesList(resp);
+            assertThat(rows.size(), lessThanOrEqualTo(allIds.size()));
+            Set<String> returnedIds = new HashSet<>();
+            for (List<Object> row : rows) {
+                assertThat(row.size(), equalTo(2));
+                String id = (String) row.get(0);
+                assertTrue(returnedIds.add(id));
+                assertThat(id, is(in(allIds)));
+            }
+            if (request.includeCCSMetadata()) {
+                EsqlExecutionInfo.Cluster localInfo = resp.getExecutionInfo().getCluster(LOCAL_CLUSTER);
+                assertThat(localInfo.getTotalShards(), equalTo(local.okShards + local.failingShards));
+                assertThat(localInfo.getSuccessfulShards(), lessThanOrEqualTo(local.okShards));
+                assertThat(localInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+
+                EsqlExecutionInfo.Cluster remote1Info = resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1);
+                assertThat(remote1Info.getTotalShards(), equalTo(remote1.okShards + remote1.failingShards));
+                assertThat(remote1Info.getSuccessfulShards(), lessThanOrEqualTo(remote1.okShards));
+                assertThat(localInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+
+                EsqlExecutionInfo.Cluster remote2Info = resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_2);
+                assertThat(remote2Info.getTotalShards(), equalTo(remote2.okShards + remote2.failingShards));
+                assertThat(remote2Info.getSuccessfulShards(), lessThanOrEqualTo(remote2.okShards));
+                assertThat(localInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+            }
+        }
+    }
+
+    public void testOneRemoteClusterPartial() throws Exception {
+        populateIndices();
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query("FROM ok*,cluster-a:ok*,*-b:fail* | KEEP id, fail_me");
+        request.allowPartialResults(true);
+        request.includeCCSMetadata(randomBoolean());
+        try (var resp = runQuery(request)) {
+            assertTrue(resp.isPartial());
+            Set<String> allIds = Stream.of(local.okIds, remote1.okIds).flatMap(Collection::stream).collect(Collectors.toSet());
+            List<List<Object>> rows = getValuesList(resp);
+            assertThat(rows.size(), equalTo(allIds.size()));
+            Set<String> returnedIds = new HashSet<>();
+            for (List<Object> row : rows) {
+                assertThat(row.size(), equalTo(2));
+                String id = (String) row.get(0);
+                assertTrue(returnedIds.add(id));
+            }
+            assertThat(returnedIds, equalTo(allIds));
+            if (request.includeCCSMetadata()) {
+                EsqlExecutionInfo.Cluster localInfo = resp.getExecutionInfo().getCluster(LOCAL_CLUSTER);
+                assertThat(localInfo.getTotalShards(), equalTo(local.okShards));
+                assertThat(localInfo.getSuccessfulShards(), equalTo(local.okShards));
+                assertThat(localInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+
+                EsqlExecutionInfo.Cluster remote1Info = resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1);
+                assertThat(remote1Info.getTotalShards(), equalTo(remote1.okShards));
+                assertThat(remote1Info.getSuccessfulShards(), equalTo(remote1.okShards));
+                assertThat(remote1Info.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+
+                EsqlExecutionInfo.Cluster remote2Info = resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_2);
+                assertThat(remote2Info.getTotalShards(), equalTo(remote2.failingShards));
+                assertThat(remote2Info.getSuccessfulShards(), equalTo(0));
+                assertThat(remote2Info.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+            }
+        }
+    }
+
+    public void testFailToReceiveClusterResponse() throws Exception {
+        populateIndices();
+        // fetched pages, but failed to receive the cluster response
+        for (TransportService transportService : cluster(REMOTE_CLUSTER_1).getInstances(TransportService.class)) {
+            MockTransportService ts = asInstanceOf(MockTransportService.class, transportService);
+            ts.addRequestHandlingBehavior(
+                ComputeService.CLUSTER_ACTION_NAME,
+                (handler, request, channel, task) -> handler.messageReceived(request, new TransportChannel() {
+                    @Override
+                    public String getProfileName() {
+                        return channel.getProfileName();
+                    }
+
+                    @Override
+                    public void sendResponse(TransportResponse response) {
+                        sendResponse(new CircuitBreakingException("simulated", CircuitBreaker.Durability.PERMANENT));
+                    }
+
+                    @Override
+                    public void sendResponse(Exception exception) {
+                        channel.sendResponse(exception);
+                    }
+                }, task)
+            );
+        }
+        try {
+            EsqlQueryRequest request = new EsqlQueryRequest();
+            request.query("FROM ok*,cluster-a:ok* | KEEP id");
+            request.includeCCSMetadata(randomBoolean());
+            {
+                request.allowPartialResults(false);
+                var error = expectThrows(CircuitBreakingException.class, () -> runQuery(request).close());
+                assertThat(error.getMessage(), equalTo("simulated"));
+            }
+            request.allowPartialResults(true);
+            try (var resp = runQuery(request)) {
+                assertTrue(resp.isPartial());
+                List<List<Object>> rows = getValuesList(resp);
+                Set<String> returnedIds = new HashSet<>();
+                for (List<Object> row : rows) {
+                    assertThat(row.size(), equalTo(1));
+                    String id = (String) row.get(0);
+                    assertTrue(returnedIds.add(id));
+                }
+                assertThat(returnedIds, equalTo(Sets.union(local.okIds, remote1.okIds)));
+                if (request.includeCCSMetadata()) {
+                    EsqlExecutionInfo.Cluster localInfo = resp.getExecutionInfo().getCluster(LOCAL_CLUSTER);
+                    assertThat(localInfo.getTotalShards(), equalTo(localInfo.getTotalShards()));
+                    assertThat(localInfo.getSuccessfulShards(), equalTo(localInfo.getSuccessfulShards()));
+                    assertThat(localInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+
+                    EsqlExecutionInfo.Cluster remoteInfo = resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1);
+                    assertThat(remoteInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+                }
+            }
+        } finally {
+            for (TransportService transportService : cluster(REMOTE_CLUSTER_1).getInstances(TransportService.class)) {
+                MockTransportService ts = asInstanceOf(MockTransportService.class, transportService);
+                ts.clearAllRules();
+            }
+        }
+    }
+
+    public void testFailToStartRequestOnRemoteCluster() throws Exception {
+        populateIndices();
+        for (TransportService transportService : cluster(REMOTE_CLUSTER_1).getInstances(TransportService.class)) {
+            MockTransportService ts = asInstanceOf(MockTransportService.class, transportService);
+            String actionToFail = randomFrom(
+                ExchangeService.EXCHANGE_ACTION_NAME,
+                ExchangeService.OPEN_EXCHANGE_ACTION_NAME,
+                ComputeService.CLUSTER_ACTION_NAME
+            );
+            ts.addRequestHandlingBehavior(actionToFail, (handler, request, channel, task) -> {
+                channel.sendResponse(new IllegalStateException("simulated"));
+            });
+        }
+        try {
+            EsqlQueryRequest request = new EsqlQueryRequest();
+            request.query("FROM ok*,*a:ok* | KEEP id");
+            request.includeCCSMetadata(randomBoolean());
+            {
+                request.allowPartialResults(false);
+                var error = expectThrows(IllegalStateException.class, () -> runQuery(request).close());
+                assertThat(error.getMessage(), containsString("simulated"));
+            }
+            request.allowPartialResults(true);
+            try (var resp = runQuery(request)) {
+                assertTrue(resp.isPartial());
+                List<List<Object>> rows = getValuesList(resp);
+                Set<String> returnedIds = new HashSet<>();
+                for (List<Object> row : rows) {
+                    assertThat(row.size(), equalTo(1));
+                    String id = (String) row.get(0);
+                    assertTrue(returnedIds.add(id));
+                }
+                assertThat(returnedIds, equalTo(local.okIds));
+                if (request.includeCCSMetadata()) {
+                    EsqlExecutionInfo.Cluster localInfo = resp.getExecutionInfo().getCluster(LOCAL_CLUSTER);
+                    assertThat(localInfo.getTotalShards(), equalTo(local.okShards));
+                    assertThat(localInfo.getSuccessfulShards(), equalTo(local.okShards));
+                    assertThat(localInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+
+                    EsqlExecutionInfo.Cluster remoteInfo = resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1);
+                    assertThat(remoteInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+                }
+            }
+        } finally {
+            for (TransportService transportService : cluster(REMOTE_CLUSTER_1).getInstances(TransportService.class)) {
+                MockTransportService ts = asInstanceOf(MockTransportService.class, transportService);
+                ts.clearAllRules();
+            }
+        }
+    }
+
+    private Set<String> populateIndex(String clusterAlias, String indexName, int numShards) {
+        Client client = client(clusterAlias);
+        assertAcked(
+            client.admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(Settings.builder().put("index.number_of_shards", numShards))
+                .setMapping("id", "type=keyword", "tag", "type=keyword", "v", "type=long", "const", "type=long")
+        );
+        Set<String> ids = new HashSet<>();
+        int numDocs = between(1, 100);
+        String tag = Strings.isEmpty(clusterAlias) ? "local" : clusterAlias;
+        for (int i = 0; i < numDocs; i++) {
+            String id = Long.toString(nextDocId.incrementAndGet());
+            client.prepareIndex(indexName).setSource("id", id, "tag", tag, "v", i).get();
+            ids.add(id);
+        }
+        client.admin().indices().prepareRefresh(indexName).get();
+        return ids;
+    }
+
+    private Set<String> populateIndexWithFailingFields(String clusterAlias, String indexName, int numShards) throws IOException {
+        Client client = client(clusterAlias);
+        XContentBuilder mapping = JsonXContent.contentBuilder().startObject();
+        mapping.startObject("runtime");
+        {
+            mapping.startObject("fail_me");
+            {
+                mapping.field("type", "long");
+                mapping.startObject("script").field("source", "").field("lang", FailingFieldPlugin.FAILING_FIELD_LANG).endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+        mapping.startObject("properties");
+        {
+            mapping.startObject("id").field("type", "keyword").endObject();
+            mapping.startObject("tag").field("type", "keyword").endObject();
+        }
+        mapping.endObject();
+        assertAcked(
+            client.admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(Settings.builder().put("index.number_of_shards", numShards))
+                .setMapping(mapping.endObject())
+        );
+        Set<String> ids = new HashSet<>();
+        String tag = clusterAlias.isEmpty() ? "local" : clusterAlias;
+        int numDocs = between(50, 100); // large enough to have failing documents in every shard
+        for (int i = 0; i < numDocs; i++) {
+            String id = Long.toString(nextDocId.incrementAndGet());
+            client.prepareIndex(indexName).setSource("id", id, "tag", tag, "v", i).get();
+            ids.add(id);
+        }
+        client.admin().indices().prepareRefresh(indexName).get();
+        return ids;
+    }
+}

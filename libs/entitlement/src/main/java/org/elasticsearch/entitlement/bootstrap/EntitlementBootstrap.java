@@ -15,7 +15,6 @@ import com.sun.tools.attach.AttachNotSupportedException;
 import com.sun.tools.attach.VirtualMachine;
 
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.CheckedSupplier;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.initialization.EntitlementInitialization;
 import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
@@ -27,7 +26,6 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.FileAttribute;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -40,7 +38,8 @@ public class EntitlementBootstrap {
         Function<Class<?>, String> pluginResolver,
         Path[] dataDirs,
         Path configDir,
-        Path tempDir
+        Path tempDir,
+        Path logsDir
     ) {
         public BootstrapArgs {
             requireNonNull(pluginPolicies);
@@ -66,22 +65,24 @@ public class EntitlementBootstrap {
      *
      * @param pluginPolicies a map holding policies for plugins (and modules), by plugin (or module) name.
      * @param pluginResolver a functor to map a Java Class to the plugin it belongs to (the plugin name).
-     * @param dataDirs data directories for Elasticsearch
-     * @param configDir the config directory for Elasticsearch
-     * @param tempDir the temp directory for Elasticsearch
+     * @param dataDirs       data directories for Elasticsearch
+     * @param configDir      the config directory for Elasticsearch
+     * @param tempDir        the temp directory for Elasticsearch
+     * @param logsDir        the log directory for Elasticsearch
      */
     public static void bootstrap(
         Map<String, Policy> pluginPolicies,
         Function<Class<?>, String> pluginResolver,
         Path[] dataDirs,
         Path configDir,
-        Path tempDir
+        Path tempDir,
+        Path logsDir
     ) {
         logger.debug("Loading entitlement agent");
         if (EntitlementBootstrap.bootstrapArgs != null) {
             throw new IllegalStateException("plugin data is already set");
         }
-        EntitlementBootstrap.bootstrapArgs = new BootstrapArgs(pluginPolicies, pluginResolver, dataDirs, configDir, tempDir);
+        EntitlementBootstrap.bootstrapArgs = new BootstrapArgs(pluginPolicies, pluginResolver, dataDirs, configDir, tempDir, logsDir);
         exportInitializationToAgent();
         loadAgent(findAgentJar());
         selfTest();
@@ -149,11 +150,8 @@ public class EntitlementBootstrap {
      */
     private static void selfTest() {
         ensureCannotStartProcess(ProcessBuilder::start);
-        ensureCanCreateTempFile(EntitlementBootstrap::createTempFile);
-
         // Try again with reflection
         ensureCannotStartProcess(EntitlementBootstrap::reflectiveStartProcess);
-        ensureCanCreateTempFile(EntitlementBootstrap::reflectiveCreateTempFile);
     }
 
     private static void ensureCannotStartProcess(CheckedConsumer<ProcessBuilder, ?> startProcess) {
@@ -169,31 +167,6 @@ public class EntitlementBootstrap {
         throw new IllegalStateException("Entitlement protection self-test was incorrectly permitted");
     }
 
-    @SuppressForbidden(reason = "accesses jvm default tempdir as a self-test")
-    private static void ensureCanCreateTempFile(CheckedSupplier<Path, ?> createTempFile) {
-        try {
-            Path p = createTempFile.get();
-            p.toFile().deleteOnExit();
-
-            // Make an effort to clean up the file immediately; also, deleteOnExit leaves the file if the JVM exits abnormally.
-            try {
-                Files.delete(p);
-            } catch (IOException ignored) {
-                // Can be caused by virus scanner
-            }
-        } catch (NotEntitledException e) {
-            throw new IllegalStateException("Entitlement protection self-test was incorrectly forbidden", e);
-        } catch (Exception e) {
-            throw new IllegalStateException("Unable to perform entitlement protection self-test", e);
-        }
-        logger.debug("Success: Entitlement protection correctly permitted temp file creation");
-    }
-
-    @SuppressForbidden(reason = "accesses jvm default tempdir as a self-test")
-    private static Path createTempFile() throws Exception {
-        return Files.createTempFile(null, null);
-    }
-
     private static void reflectiveStartProcess(ProcessBuilder pb) throws Exception {
         try {
             var start = ProcessBuilder.class.getMethod("start");
@@ -201,11 +174,6 @@ public class EntitlementBootstrap {
         } catch (InvocationTargetException e) {
             throw (Exception) e.getCause();
         }
-    }
-
-    private static Path reflectiveCreateTempFile() throws Exception {
-        return (Path) Files.class.getMethod("createTempFile", String.class, String.class, FileAttribute[].class)
-            .invoke(null, null, null, new FileAttribute<?>[0]);
     }
 
     private static final Logger logger = LogManager.getLogger(EntitlementBootstrap.class);

@@ -99,8 +99,7 @@ public class GroupingAggregatorImplementer {
 
         this.init = requireStaticMethod(
             declarationType,
-            // This should be more restrictive and require org.elasticsearch.compute.aggregation.GroupingAggregatorState
-            requirePrimitiveOrImplements(elements, Types.RELEASABLE),
+            requirePrimitiveOrImplements(elements, Types.GROUPING_AGGREGATOR_STATE),
             requireName("init", "initGrouping"),
             requireAnyArgs("<arbitrary init arguments>")
         );

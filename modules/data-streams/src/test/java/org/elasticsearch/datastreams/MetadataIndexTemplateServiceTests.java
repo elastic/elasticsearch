@@ -152,7 +152,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             DataStreamLifecycle result = composeDataLifecycles(lifecycles);
             // Defaults to true
             assertThat(result.isEnabled(), equalTo(true));
-            assertThat(result.getDataStreamRetention(), equalTo(lifecycle.getDataStreamRetention()));
+            assertThat(result.dataRetention(), equalTo(lifecycle.dataRetention()));
             assertThat(result.getDownsamplingRounds(), equalTo(lifecycle.getDownsamplingRounds()));
         }
         // If the last lifecycle is missing a property (apart from enabled) we keep the latest from the previous ones
@@ -166,7 +166,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             List<DataStreamLifecycle> lifecycles = List.of(lifecycle, new DataStreamLifecycle());
             DataStreamLifecycle result = composeDataLifecycles(lifecycles);
             assertThat(result.isEnabled(), equalTo(true));
-            assertThat(result.getDataStreamRetention(), equalTo(lifecycle.getDataStreamRetention()));
+            assertThat(result.dataRetention(), equalTo(lifecycle.dataRetention()));
             assertThat(result.getDownsamplingRounds(), equalTo(lifecycle.getDownsamplingRounds()));
         }
         // If both lifecycle have all properties, then the latest one overwrites all the others
@@ -184,7 +184,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             List<DataStreamLifecycle> lifecycles = List.of(lifecycle1, lifecycle2);
             DataStreamLifecycle result = composeDataLifecycles(lifecycles);
             assertThat(result.isEnabled(), equalTo(lifecycle2.isEnabled()));
-            assertThat(result.getDataStreamRetention(), equalTo(lifecycle2.getDataStreamRetention()));
+            assertThat(result.dataRetention(), equalTo(lifecycle2.dataRetention()));
             assertThat(result.getDownsamplingRounds(), equalTo(lifecycle2.getDownsamplingRounds()));
         }
     }

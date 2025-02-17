@@ -1577,7 +1577,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             creationAndRolloverTimes,
             settings(IndexVersion.current()),
             new DataStreamLifecycle() {
-                public TimeValue getDataStreamRetention() {
+                public TimeValue dataRetention() {
                     return testRetentionReference.get();
                 }
             }

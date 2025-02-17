@@ -37,9 +37,9 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.RetentionSource.DATA_STREAM_CONFIGURATION;
-import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.RetentionSource.DEFAULT_GLOBAL_RETENTION;
-import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.RetentionSource.MAX_GLOBAL_RETENTION;
+import static org.elasticsearch.cluster.metadata.BasicDataStreamLifecycle.RetentionSource.DATA_STREAM_CONFIGURATION;
+import static org.elasticsearch.cluster.metadata.BasicDataStreamLifecycle.RetentionSource.DEFAULT_GLOBAL_RETENTION;
+import static org.elasticsearch.cluster.metadata.BasicDataStreamLifecycle.RetentionSource.MAX_GLOBAL_RETENTION;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -282,7 +282,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
             DataStreamLifecycle noRetentionLifecycle = DataStreamLifecycle.newBuilder().downsampling(randomDownsampling()).build();
             TimeValue maxRetention = TimeValue.timeValueDays(randomIntBetween(50, 100));
             TimeValue defaultRetention = TimeValue.timeValueDays(randomIntBetween(1, 50));
-            Tuple<TimeValue, DataStreamLifecycle.RetentionSource> effectiveDataRetentionWithSource = noRetentionLifecycle
+            Tuple<TimeValue, BasicDataStreamLifecycle.RetentionSource> effectiveDataRetentionWithSource = noRetentionLifecycle
                 .getEffectiveDataRetentionWithSource(null, randomBoolean());
             assertThat(effectiveDataRetentionWithSource.v1(), nullValue());
             assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
@@ -318,7 +318,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
                 .build();
             TimeValue defaultRetention = TimeValue.timeValueDays(randomIntBetween(1, (int) dataStreamRetention.getDays() - 1));
 
-            Tuple<TimeValue, DataStreamLifecycle.RetentionSource> effectiveDataRetentionWithSource = lifecycleRetention
+            Tuple<TimeValue, BasicDataStreamLifecycle.RetentionSource> effectiveDataRetentionWithSource = lifecycleRetention
                 .getEffectiveDataRetentionWithSource(null, randomBoolean());
             assertThat(effectiveDataRetentionWithSource.v1(), equalTo(dataStreamRetention));
             assertThat(effectiveDataRetentionWithSource.v2(), equalTo(DATA_STREAM_CONFIGURATION));
@@ -387,7 +387,7 @@ public class DataStreamLifecycleTests extends AbstractXContentSerializingTestCas
 
     public void testEffectiveRetentionParams() {
         Map<String, String> initialParams = randomMap(0, 10, () -> Tuple.tuple(randomAlphaOfLength(10), randomAlphaOfLength(10)));
-        ToXContent.Params params = DataStreamLifecycle.addEffectiveRetentionParams(new ToXContent.MapParams(initialParams));
+        ToXContent.Params params = BasicDataStreamLifecycle.addEffectiveRetentionParams(new ToXContent.MapParams(initialParams));
         assertThat(params.paramAsBoolean(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAM_NAME, false), equalTo(true));
         for (String key : initialParams.keySet()) {
             assertThat(initialParams.get(key), equalTo(params.param(key)));

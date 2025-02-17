@@ -362,7 +362,7 @@ teardown:
         name: test-search-application
   - match: { status: 403 }
   - match: { error.type: security_exception }
-  - match: { error.reason: "action [indices:data/read/xpack/application/search_application/search] is unauthorized for API key id [${api_key_id_1}] of user [entsearch-user] on indices [test-search-application], this action is granted by the index privileges [read,all]" }
+  - match: { error.reason: "action [indices:data/read/xpack/application/search_application/search] is unauthorized for API key id [${api_key_id_1}] of user [entsearch-user] on indices [test-search-application], this action is granted by the index privileges [read,read_failure_store,all]" }
 
 # Query Search Application 'test-search-application-1' with new API key (api_key_encoded_1) should be allowed:
   - do:

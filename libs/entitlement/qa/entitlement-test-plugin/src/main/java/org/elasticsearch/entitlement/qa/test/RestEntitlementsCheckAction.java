@@ -191,6 +191,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         getTestEntries(NativeActions.class),
         getTestEntries(NioFilesActions.class),
         getTestEntries(NioFileSystemActions.class),
+        getTestEntries(PathActions.class),
         getTestEntries(SpiActions.class),
         getTestEntries(SystemActions.class)
     )

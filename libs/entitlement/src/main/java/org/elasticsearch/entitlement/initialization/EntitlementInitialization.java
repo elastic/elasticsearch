@@ -46,9 +46,12 @@ import java.nio.file.FileSystems;
 import java.nio.file.LinkOption;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
+import java.nio.file.WatchEvent;
+import java.nio.file.WatchService;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.spi.FileSystemProvider;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -96,6 +99,7 @@ public class EntitlementInitialization {
         Stream.of(
             fileSystemProviderChecks(),
             fileStoreChecks(),
+            pathChecks(),
             Stream.of(
                 INSTRUMENTATION_SERVICE.lookupImplementationMethod(
                     SelectorProvider.class,
@@ -150,21 +154,26 @@ public class EntitlementInitialization {
                         new FilesEntitlement(
                             List.of(
                                 FileData.ofPath(bootstrapArgs.tempDir(), READ_WRITE),
-                                FileData.ofPath(bootstrapArgs.configDir(), READ_WRITE),
+                                FileData.ofPath(bootstrapArgs.configDir(), READ),
                                 FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
-                                // for OsProbe
+
+                                // OS release on Linux
                                 FileData.ofPath(Path.of("/etc/os-release"), READ),
-                                FileData.ofPath(Path.of("/usr/lib/os-release"), READ),
                                 FileData.ofPath(Path.of("/etc/system-release"), READ),
-                                FileData.ofPath(Path.of("/proc/meminfo"), READ),
-                                FileData.ofPath(Path.of("/sys/fs/cgroup/"), READ),
-                                FileData.ofPath(Path.of("/proc/self/"), READ),
-                                FileData.ofPath(Path.of("/proc/loadavg"), READ),
-                                // for BootstrapCheck
+                                FileData.ofPath(Path.of("/usr/lib/os-release"), READ),
+                                // read max virtual memory areas
                                 FileData.ofPath(Path.of("/proc/sys/vm/max_map_count"), READ),
-                                // for ESFileStore
+                                FileData.ofPath(Path.of("/proc/meminfo"), READ),
+                                // load averages on Linux
+                                FileData.ofPath(Path.of("/proc/loadavg"), READ),
+                                // control group stats on Linux. cgroup v2 stats are in an unpredicable
+                                // location under `/sys/fs/cgroup`, so unfortunately we have to allow
+                                // read access to the entire directory hierarchy.
+                                FileData.ofPath(Path.of("/proc/self/cgroup"), READ),
+                                FileData.ofPath(Path.of("/sys/fs/cgroup/"), READ),
+                                // // io stats on Linux
                                 FileData.ofPath(Path.of("/proc/self/mountinfo"), READ),
-                                FileData.ofPath(Path.of("/proc/diskstats"), READ),
+                                FileData.ofPath(Path.of("/proc/diskstats"), READ)
 
                                 FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE)
                             )
@@ -178,7 +187,12 @@ public class EntitlementInitialization {
                     List.of(
                         new LoadNativeLibrariesEntitlement(),
                         new ManageThreadsEntitlement(),
-                        new FilesEntitlement(List.of(FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE)))
+                        new FilesEntitlement(
+                            List.of(
+                                FileData.ofPath(bootstrapArgs.configDir(), READ),
+                                FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE)
+                            )
+                        )
                     )
                 ),
                 new Scope("org.apache.logging.log4j.core", List.of(new ManageThreadsEntitlement())),
@@ -287,6 +301,33 @@ public class EntitlementInitialization {
                     instrumentation.of("name"),
                     instrumentation.of("type")
 
+                );
+            } catch (NoSuchMethodException | ClassNotFoundException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    private static Stream<InstrumentationService.InstrumentationInfo> pathChecks() {
+        var pathClasses = StreamSupport.stream(FileSystems.getDefault().getRootDirectories().spliterator(), false)
+            .map(Path::getClass)
+            .distinct();
+        return pathClasses.flatMap(pathClass -> {
+            InstrumentationInfoFactory instrumentation = (String methodName, Class<?>... parameterTypes) -> INSTRUMENTATION_SERVICE
+                .lookupImplementationMethod(
+                    Path.class,
+                    methodName,
+                    pathClass,
+                    EntitlementChecker.class,
+                    "checkPath" + Character.toUpperCase(methodName.charAt(0)) + methodName.substring(1),
+                    parameterTypes
+                );
+
+            try {
+                return Stream.of(
+                    instrumentation.of("toRealPath", LinkOption[].class),
+                    instrumentation.of("register", WatchService.class, WatchEvent.Kind[].class),
+                    instrumentation.of("register", WatchService.class, WatchEvent.Kind[].class, WatchEvent.Modifier[].class)
                 );
             } catch (NoSuchMethodException | ClassNotFoundException e) {
                 throw new RuntimeException(e);

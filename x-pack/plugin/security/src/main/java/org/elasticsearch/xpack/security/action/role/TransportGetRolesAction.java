@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.security.action.role.GetRolesRequest;
 import org.elasticsearch.xpack.core.security.action.role.GetRolesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.security.authz.ReservedRoleNameChecker;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 
 import java.util.Arrays;
@@ -29,11 +30,18 @@ import java.util.stream.Collectors;
 public class TransportGetRolesAction extends TransportAction<GetRolesRequest, GetRolesResponse> {
 
     private final NativeRolesStore nativeRolesStore;
+    private final ReservedRoleNameChecker reservedRoleNameChecker;
 
     @Inject
-    public TransportGetRolesAction(ActionFilters actionFilters, NativeRolesStore nativeRolesStore, TransportService transportService) {
+    public TransportGetRolesAction(
+        ActionFilters actionFilters,
+        NativeRolesStore nativeRolesStore,
+        ReservedRoleNameChecker reservedRoleNameChecker,
+        TransportService transportService
+    ) {
         super(GetRolesAction.NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.nativeRolesStore = nativeRolesStore;
+        this.reservedRoleNameChecker = reservedRoleNameChecker;
     }
 
     @Override
@@ -43,9 +51,14 @@ public class TransportGetRolesAction extends TransportAction<GetRolesRequest, Ge
 
         if (request.nativeOnly()) {
             final Set<String> rolesToSearchFor = specificRolesRequested
-                ? Arrays.stream(requestedRoles).collect(Collectors.toSet())
+                ? Arrays.stream(requestedRoles).filter(r -> false == reservedRoleNameChecker.isReserved(r)).collect(Collectors.toSet())
                 : Collections.emptySet();
-            getNativeRoles(rolesToSearchFor, listener);
+            if (specificRolesRequested && rolesToSearchFor.isEmpty()) {
+                // specific roles were requested, but they were all reserved, no need to hit the native store
+                listener.onResponse(new GetRolesResponse());
+            } else {
+                getNativeRoles(rolesToSearchFor, listener);
+            }
             return;
         }
 
@@ -53,13 +66,10 @@ public class TransportGetRolesAction extends TransportAction<GetRolesRequest, Ge
         final Set<RoleDescriptor> reservedRoles = new LinkedHashSet<>();
         if (specificRolesRequested) {
             for (String role : requestedRoles) {
-                if (ReservedRolesStore.isReserved(role)) {
+                if (reservedRoleNameChecker.isReserved(role)) {
                     RoleDescriptor rd = ReservedRolesStore.roleDescriptor(role);
                     if (rd != null) {
                         reservedRoles.add(rd);
-                    } else {
-                        listener.onFailure(new IllegalStateException("unable to obtain reserved role [" + role + "]"));
-                        return;
                     }
                 } else {
                     rolesToSearchFor.add(role);

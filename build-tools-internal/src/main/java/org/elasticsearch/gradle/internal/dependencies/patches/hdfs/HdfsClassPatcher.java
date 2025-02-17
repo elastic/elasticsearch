@@ -23,14 +23,13 @@ import org.jetbrains.annotations.NotNull;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Enumeration;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.jar.JarEntry;
@@ -39,7 +38,6 @@ import java.util.jar.JarOutputStream;
 import java.util.stream.Stream;
 
 import static java.util.Map.entry;
-
 
 @CacheableTransform
 public abstract class HdfsClassPatcher implements TransformAction<HdfsClassPatcher.Parameters> {
@@ -57,10 +55,7 @@ public abstract class HdfsClassPatcher implements TransformAction<HdfsClassPatch
         ),
         new JarPatchers(
             "hadoop-auth",
-            Map.of(
-                "org/apache/hadoop/security/authentication/client/KerberosAuthenticator.class",
-                SubjectGetSubjectPatcher::new
-            )
+            Map.of("org/apache/hadoop/security/authentication/client/KerberosAuthenticator.class", SubjectGetSubjectPatcher::new)
         )
     );
 
@@ -81,29 +76,14 @@ public abstract class HdfsClassPatcher implements TransformAction<HdfsClassPatch
         File inputFile = getInputArtifact().get().getAsFile();
 
         List<String> matchingArtifacts = getParameters().getMatchingArtifacts();
-        if (matchingArtifacts.isEmpty() == false &&
-            matchingArtifacts.stream().noneMatch(supported -> inputFile.getName().contains(supported))
-        ) {
+        if (matchingArtifacts.isEmpty() == false
+            && matchingArtifacts.stream().noneMatch(supported -> inputFile.getName().contains(supported))) {
             outputs.file(getInputArtifact());
         } else {
             Stream<JarPatchers> patchersToApply = allPatchers.stream().filter(jp -> matchingArtifacts.contains(jp.artifactName()));
             patchersToApply.forEach(patchers -> {
-                Map<String, Function<ClassWriter, ClassVisitor>> jarPatchers = new HashMap<>(patchers.jarPatchers());
                 File outputFile = outputs.file(inputFile.getName().replace(".jar", "-patched.jar"));
-
-                patchJar(inputFile, outputFile, jarPatchers);
-
-                if (jarPatchers.isEmpty() == false) {
-                    throw new IllegalArgumentException(
-                        String.format(
-                            Locale.ROOT,
-                            "error patching [%s] with [%s]: the jar does not contain [%s]",
-                            inputFile.getName(),
-                            patchers.artifactName(),
-                            String.join(", ", jarPatchers.keySet())
-                        )
-                    );
-                }
+                patchJar(inputFile, outputFile, patchers.jarPatchers());
             });
         }
     }
@@ -118,7 +98,7 @@ public abstract class HdfsClassPatcher implements TransformAction<HdfsClassPatch
                 jos.putNextEntry(new JarEntry(entryName));
                 System.out.println("EntryName = " + entryName);
 
-                Function<ClassWriter, ClassVisitor> classPatcher = jarPatchers.remove(entryName);
+                Function<ClassWriter, ClassVisitor> classPatcher = jarPatchers.get(entryName);
                 if (classPatcher != null) {
                     System.out.println("Patching " + entryName);
                     byte[] classToPatch = jarFile.getInputStream(entry).readAllBytes();
@@ -131,11 +111,7 @@ public abstract class HdfsClassPatcher implements TransformAction<HdfsClassPatch
                 } else {
                     // Read the entry's data and write it to the new JAR
                     try (InputStream is = jarFile.getInputStream(entry)) {
-                        byte[] buffer = new byte[1024];
-                        int bytesRead;
-                        while ((bytesRead = is.read(buffer)) != -1) {
-                            jos.write(buffer, 0, bytesRead);
-                        }
+                        is.transferTo(jos);
                     }
                 }
                 jos.closeEntry();

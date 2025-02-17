@@ -51,7 +51,7 @@ public class StressSearchServiceReaperIT extends ESIntegTestCase {
                 response = searchRequestBuilder.get();
                 assertHitCountAndNoFailures(searchRequestBuilder, num);
             } finally {
-                if(response != null) {
+                if (response != null) {
                     response.decRef();
                 }
             }

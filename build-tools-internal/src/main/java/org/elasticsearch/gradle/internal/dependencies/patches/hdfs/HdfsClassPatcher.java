@@ -23,6 +23,7 @@ import org.jetbrains.annotations.NotNull;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -40,7 +41,6 @@ import java.util.stream.Stream;
 
 import static java.util.Map.entry;
 
-
 @CacheableTransform
 public abstract class HdfsClassPatcher implements TransformAction<HdfsClassPatcher.Parameters> {
 
@@ -57,10 +57,7 @@ public abstract class HdfsClassPatcher implements TransformAction<HdfsClassPatch
         ),
         new JarPatchers(
             "hadoop-auth",
-            Map.of(
-                "org/apache/hadoop/security/authentication/client/KerberosAuthenticator.class",
-                SubjectGetSubjectPatcher::new
-            )
+            Map.of("org/apache/hadoop/security/authentication/client/KerberosAuthenticator.class", SubjectGetSubjectPatcher::new)
         )
     );
 
@@ -81,9 +78,8 @@ public abstract class HdfsClassPatcher implements TransformAction<HdfsClassPatch
         File inputFile = getInputArtifact().get().getAsFile();
 
         List<String> matchingArtifacts = getParameters().getMatchingArtifacts();
-        if (matchingArtifacts.isEmpty() == false &&
-            matchingArtifacts.stream().noneMatch(supported -> inputFile.getName().contains(supported))
-        ) {
+        if (matchingArtifacts.isEmpty() == false
+            && matchingArtifacts.stream().noneMatch(supported -> inputFile.getName().contains(supported))) {
             outputs.file(getInputArtifact());
         } else {
             Stream<JarPatchers> patchersToApply = allPatchers.stream().filter(jp -> matchingArtifacts.contains(jp.artifactName()));

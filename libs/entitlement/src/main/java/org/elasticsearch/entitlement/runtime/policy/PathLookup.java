@@ -11,4 +11,4 @@ package org.elasticsearch.entitlement.runtime.policy;
 
 import java.nio.file.Path;
 
-public record PathLookup(Path configDir, Path[] dataDirs, Path tempDir) {}
+public record PathLookup(Path homeDir, Path configDir, Path[] dataDirs, Path tempDir) {}

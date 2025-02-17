@@ -51,7 +51,6 @@ import java.nio.file.WatchService;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.spi.FileSystemProvider;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -153,9 +152,11 @@ public class EntitlementInitialization {
                         new ManageThreadsEntitlement(),
                         new FilesEntitlement(
                             List.of(
+                                // Base ES directories
                                 FileData.ofPath(bootstrapArgs.tempDir(), READ_WRITE),
                                 FileData.ofPath(bootstrapArgs.configDir(), READ),
                                 FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
+                                FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE),
 
                                 // OS release on Linux
                                 FileData.ofPath(Path.of("/etc/os-release"), READ),
@@ -174,8 +175,6 @@ public class EntitlementInitialization {
                                 // // io stats on Linux
                                 FileData.ofPath(Path.of("/proc/self/mountinfo"), READ),
                                 FileData.ofPath(Path.of("/proc/diskstats"), READ)
-
-                                FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE)
                             )
                         )
                     )

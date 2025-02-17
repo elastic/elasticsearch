@@ -426,17 +426,28 @@ public interface Role {
             final String[] clusterAliases = remoteIndicesPrivileges.remoteClusters();
             assert Arrays.equals(new String[] { "*" }, clusterAliases)
                 : "reserved role should not define remote indices privileges for specific clusters";
-            final RoleDescriptor.IndicesPrivileges indicesPrivileges = remoteIndicesPrivileges.indicesPrivileges();
-            builder.addRemoteIndicesGroup(
-                Set.of(clusterAliases),
-                fieldPermissionsCache.getFieldPermissions(
-                    new FieldPermissionsDefinition(indicesPrivileges.getGrantedFields(), indicesPrivileges.getDeniedFields())
-                ),
-                indicesPrivileges.getQuery() == null ? null : Collections.singleton(indicesPrivileges.getQuery()),
-                IndexPrivilege.get(Set.of(indicesPrivileges.getPrivileges())),
-                indicesPrivileges.allowRestrictedIndices(),
-                indicesPrivileges.getIndices()
+            final RoleDescriptor.IndicesPrivileges indexPrivilege = remoteIndicesPrivileges.indicesPrivileges();
+            FieldPermissions fieldPermissions = fieldPermissionsCache.getFieldPermissions(
+                new FieldPermissionsDefinition(indexPrivilege.getGrantedFields(), indexPrivilege.getDeniedFields())
             );
+            Set<BytesReference> query = indexPrivilege.getQuery() == null ? null : Collections.singleton(indexPrivilege.getQuery());
+            boolean allowRestrictedIndices = indexPrivilege.allowRestrictedIndices();
+            Map<IndexComponentSelectorPrivilege, Set<String>> split = IndexComponentSelectorPrivilege.partitionBySelectorPrivilege(
+                indexPrivilege.getPrivileges()
+            );
+            for (var entry : split.entrySet()) {
+                IndexPrivilege privilege = IndexPrivilege.get(entry.getValue());
+                assert privilege.getSelectorPrivilege() == entry.getKey()
+                    : "expected selector privilege to match the partitioned privilege";
+                builder.addRemoteIndicesGroup(
+                    Set.of(clusterAliases),
+                    fieldPermissions,
+                    query,
+                    privilege,
+                    allowRestrictedIndices,
+                    indexPrivilege.getIndices()
+                );
+            }
         }
 
         RemoteClusterPermissions remoteClusterPermissions = roleDescriptor.getRemoteClusterPermissions();

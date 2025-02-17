@@ -556,11 +556,11 @@ public class CompositeRolesStore {
         }
         for (Map.Entry<Set<String>, MergeableIndicesPrivilege> entry : restrictedIndicesPrivilegesMap.entrySet()) {
             MergeableIndicesPrivilege indicesPrivilege = entry.getValue();
+            FieldPermissions fieldPermissions = fieldPermissionsCache.getFieldPermissions(indicesPrivilege.fieldPermissionsDefinition);
+            String[] indices = indicesPrivilege.indices.toArray(Strings.EMPTY_ARRAY);
             Map<IndexComponentSelectorPrivilege, Set<String>> split = IndexComponentSelectorPrivilege.partitionBySelectorPrivilege(
                 indicesPrivilege.privileges
             );
-            FieldPermissions fieldPermissions = fieldPermissionsCache.getFieldPermissions(indicesPrivilege.fieldPermissionsDefinition);
-            String[] indices = indicesPrivilege.indices.toArray(Strings.EMPTY_ARRAY);
             for (Map.Entry<IndexComponentSelectorPrivilege, Set<String>> privilegesBySelector : split.entrySet()) {
                 IndexPrivilege indexPrivilege = IndexPrivilege.get(privilegesBySelector.getValue());
                 assert indexPrivilege.getSelectorPrivilege() == privilegesBySelector.getKey();
@@ -569,18 +569,28 @@ public class CompositeRolesStore {
         }
 
         remoteIndicesPrivilegesByCluster.forEach((clusterAliasKey, remoteIndicesPrivilegesForCluster) -> {
-            remoteIndicesPrivilegesForCluster.forEach(
-                (privilege) -> builder.addRemoteIndicesGroup(
-                    clusterAliasKey,
-                    fieldPermissionsCache.getFieldPermissions(
-                        new FieldPermissionsDefinition(privilege.getGrantedFields(), privilege.getDeniedFields())
-                    ),
-                    privilege.getQuery() == null ? null : newHashSet(privilege.getQuery()),
-                    IndexPrivilege.get(newHashSet(Objects.requireNonNull(privilege.getPrivileges()))),
-                    privilege.allowRestrictedIndices(),
-                    newHashSet(Objects.requireNonNull(privilege.getIndices())).toArray(new String[0])
-                )
-            );
+            remoteIndicesPrivilegesForCluster.forEach((privilege) -> {
+                FieldPermissions fieldPermissions = fieldPermissionsCache.getFieldPermissions(
+                    new FieldPermissionsDefinition(privilege.getGrantedFields(), privilege.getDeniedFields())
+                );
+                Set<BytesReference> query = privilege.getQuery() == null ? null : newHashSet(privilege.getQuery());
+                String[] indices = newHashSet(Objects.requireNonNull(privilege.getIndices())).toArray(new String[0]);
+                Map<IndexComponentSelectorPrivilege, Set<String>> split = IndexComponentSelectorPrivilege.partitionBySelectorPrivilege(
+                    Objects.requireNonNull(privilege.getPrivileges())
+                );
+                for (Map.Entry<IndexComponentSelectorPrivilege, Set<String>> privilegesBySelector : split.entrySet()) {
+                    IndexPrivilege indexPrivilege = IndexPrivilege.get(privilegesBySelector.getValue());
+                    assert indexPrivilege.getSelectorPrivilege() == privilegesBySelector.getKey();
+                    builder.addRemoteIndicesGroup(
+                        clusterAliasKey,
+                        fieldPermissions,
+                        query,
+                        indexPrivilege,
+                        privilege.allowRestrictedIndices(),
+                        indices
+                    );
+                }
+            });
         });
 
         if (remoteClusterPermissions.hasAnyPrivileges()) {

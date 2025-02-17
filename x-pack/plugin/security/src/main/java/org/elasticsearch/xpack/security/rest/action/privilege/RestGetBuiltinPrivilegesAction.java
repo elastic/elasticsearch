@@ -24,10 +24,12 @@ import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivileg
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.privilege.GetBuiltinPrivilegesResponseTranslator;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -71,13 +73,23 @@ public class RestGetBuiltinPrivilegesAction extends SecurityBaseRestHandler {
                     final var translatedResponse = responseTranslator.translate(response);
                     builder.startObject();
                     builder.array("cluster", translatedResponse.getClusterPrivileges());
-                    builder.array("index", translatedResponse.getIndexPrivileges());
+                    // TODO remove the filter once we can update docs tests again
+                    builder.array("index", filterOutFailureStorePrivileges(translatedResponse));
                     String[] remoteClusterPrivileges = translatedResponse.getRemoteClusterPrivileges();
                     if (remoteClusterPrivileges.length > 0) { // remote clusters are not supported in stateless mode, so hide entirely
                         builder.array("remote_cluster", remoteClusterPrivileges);
                     }
                     builder.endObject();
                     return new RestResponse(RestStatus.OK, builder);
+                }
+
+                private static String[] filterOutFailureStorePrivileges(GetBuiltinPrivilegesResponse translatedResponse) {
+                    return Arrays.stream(translatedResponse.getIndexPrivileges())
+                        .filter(
+                            p -> false == (p.equals(IndexPrivilege.READ_FAILURE_STORE.getSingleName())
+                                || p.equals(IndexPrivilege.MANAGE_FAILURE_STORE_INTERNAL.getSingleName()))
+                        )
+                        .toArray(String[]::new);
                 }
             }
         );

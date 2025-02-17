@@ -16,6 +16,8 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
+
 public record IndexComponentSelectorPrivilege(String name, Predicate<IndexComponentSelector> predicate) {
     public static final IndexComponentSelectorPrivilege ALL = new IndexComponentSelectorPrivilege("all", Predicates.always());
     public static final IndexComponentSelectorPrivilege DATA = new IndexComponentSelectorPrivilege(
@@ -40,7 +42,7 @@ public record IndexComponentSelectorPrivilege(String name, Predicate<IndexCompon
     }
 
     public static Map<IndexComponentSelectorPrivilege, Set<String>> partitionBySelectorPrivilege(String... indexPrivileges) {
-        return partitionBySelectorPrivilege(Set.of(indexPrivileges));
+        return partitionBySelectorPrivilege(newHashSet(indexPrivileges));
     }
 
     public static Map<IndexComponentSelectorPrivilege, Set<String>> partitionBySelectorPrivilege(Set<String> indexPrivileges) {

@@ -76,6 +76,17 @@ public final class IndicesPermission {
             this.restrictedIndices = restrictedIndices;
         }
 
+        // TODO remove me
+        public Builder addGroup(
+            IndexPrivilege privilege,
+            FieldPermissions fieldPermissions,
+            @Nullable Set<BytesReference> query,
+            boolean allowRestrictedIndices,
+            String... indices
+        ) {
+            return addGroup(privilege, fieldPermissions, query, allowRestrictedIndices, IndexComponentSelectorPrivilege.DATA, indices);
+        }
+
         public Builder addGroup(
             IndexPrivilege privilege,
             FieldPermissions fieldPermissions,

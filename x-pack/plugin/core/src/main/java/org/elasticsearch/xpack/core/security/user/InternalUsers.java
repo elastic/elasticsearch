@@ -162,7 +162,8 @@ public class InternalUsers {
                         IndicesStatsAction.NAME + "*",
                         TransportUpdateSettingsAction.TYPE.name(),
                         DownsampleAction.NAME,
-                        TransportAddIndexBlockAction.TYPE.name()
+                        TransportAddIndexBlockAction.TYPE.name(),
+                        IndexPrivilege.MANAGE_FAILURE_STORE_INTERNAL.getSingleName()
                     )
                     .allowRestrictedIndices(false)
                     .build(),
@@ -181,7 +182,8 @@ public class InternalUsers {
                         IndicesStatsAction.NAME + "*",
                         TransportUpdateSettingsAction.TYPE.name(),
                         DownsampleAction.NAME,
-                        TransportAddIndexBlockAction.TYPE.name()
+                        TransportAddIndexBlockAction.TYPE.name(),
+                        IndexPrivilege.MANAGE_FAILURE_STORE_INTERNAL.getSingleName()
                     )
                     .allowRestrictedIndices(true)
                     .build() },
@@ -221,7 +223,8 @@ public class InternalUsers {
                         TransportBulkAction.NAME,
                         TransportIndexAction.NAME,
                         TransportSearchScrollAction.TYPE.name(),
-                        ModifyDataStreamsAction.NAME
+                        ModifyDataStreamsAction.NAME,
+                        IndexPrivilege.MANAGE_FAILURE_STORE_INTERNAL.getSingleName()
                     )
                     .allowRestrictedIndices(false)
                     .build() },

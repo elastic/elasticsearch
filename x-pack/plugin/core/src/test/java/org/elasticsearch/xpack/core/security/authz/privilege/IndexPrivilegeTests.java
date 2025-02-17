@@ -58,26 +58,32 @@ public class IndexPrivilegeTests extends ESTestCase {
     }
 
     public void testFindPrivilegesThatGrant() {
-        assertThat(findPrivilegesThatGrant(TransportSearchAction.TYPE.name()), equalTo(List.of("read", "all")));
+        assertThat(findPrivilegesThatGrant(TransportSearchAction.TYPE.name()), equalTo(List.of("read", "read_failure_store", "all")));
         assertThat(findPrivilegesThatGrant(TransportIndexAction.NAME), equalTo(List.of("create_doc", "create", "index", "write", "all")));
         assertThat(findPrivilegesThatGrant(TransportUpdateAction.NAME), equalTo(List.of("index", "write", "all")));
         assertThat(findPrivilegesThatGrant(TransportDeleteAction.NAME), equalTo(List.of("delete", "write", "all")));
         assertThat(
             findPrivilegesThatGrant(IndicesStatsAction.NAME),
-            equalTo(List.of("monitor", "cross_cluster_replication", "manage", "all"))
+            equalTo(List.of("monitor", "manage", "manage_failure_store_internal", "cross_cluster_replication", "all"))
         );
-        assertThat(findPrivilegesThatGrant(RefreshAction.NAME), equalTo(List.of("maintenance", "manage", "all")));
+        assertThat(
+            findPrivilegesThatGrant(RefreshAction.NAME),
+            equalTo(List.of("maintenance", "manage", "manage_failure_store_internal", "all"))
+        );
     }
 
     public void testPrivilegesForRollupFieldCapsAction() {
         final Collection<String> privileges = findPrivilegesThatGrant(GetRollupIndexCapsAction.NAME);
-        assertThat(Set.copyOf(privileges), equalTo(Set.of("read", "view_index_metadata", "manage", "all")));
+        assertThat(
+            Set.copyOf(privileges),
+            equalTo(Set.of("manage", "all", "read_failure_store", "view_index_metadata", "read", "manage_failure_store_internal"))
+        );
     }
 
     public void testPrivilegesForGetCheckPointAction() {
         assertThat(
             findPrivilegesThatGrant(GetCheckpointAction.NAME),
-            containsInAnyOrder("monitor", "view_index_metadata", "manage", "all")
+            containsInAnyOrder("monitor", "view_index_metadata", "manage", "manage_failure_store_internal", "all")
         );
     }
 

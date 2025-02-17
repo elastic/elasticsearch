@@ -9,7 +9,6 @@
 
 package org.elasticsearch.entitlement.initialization;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.internal.provider.ProviderLocator;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
@@ -223,9 +222,12 @@ public class EntitlementInitialization {
         );
     }
 
-    private static @Nullable Path getUserHome() {
+    private static Path getUserHome() {
         String userHome = System.getProperty("user.home");
-        return userHome != null ? PathUtils.get(userHome) : null;
+        if (userHome == null) {
+            throw new IllegalStateException("user.home system property is required");
+        }
+        return PathUtils.get(userHome);
     }
 
     private static Stream<InstrumentationService.InstrumentationInfo> fileSystemProviderChecks() throws ClassNotFoundException,

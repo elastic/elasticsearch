@@ -75,7 +75,7 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
                 case DATA:
                     return Arrays.stream(pathLookup.dataDirs()).map(d -> d.resolve(relativePath));
                 case HOME:
-                    return pathLookup.homeDir() != null ? Stream.of(pathLookup.homeDir().resolve(relativePath)) : Stream.empty();
+                    return Stream.of(pathLookup.homeDir().resolve(relativePath));
                 default:
                     throw new IllegalArgumentException();
             }

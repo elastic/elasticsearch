@@ -19,7 +19,6 @@ import java.util.Map;
 
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ_WRITE;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 public class FilesEntitlementTests extends ESTestCase {
@@ -45,11 +44,5 @@ public class FilesEntitlementTests extends ESTestCase {
             new PathLookup(Path.of("/home"), Path.of("/config"), new Path[] { Path.of("/data1/"), Path.of("/data2") }, Path.of("/temp"))
         );
         assertThat(dataDirs.toList(), contains(Path.of("/data1/"), Path.of("/data2")));
-    }
-
-    public void testUndefinedUserHomeDirectory() {
-        var fileData = FilesEntitlement.FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.HOME, READ_WRITE);
-        var userDirs = fileData.resolvePaths(new PathLookup(null, Path.of("/config"), new Path[] { Path.of("/data") }, Path.of("/temp")));
-        assertThat(userDirs.toList(), hasSize(0));
     }
 }

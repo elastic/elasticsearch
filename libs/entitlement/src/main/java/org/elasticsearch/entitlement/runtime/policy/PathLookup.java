@@ -9,8 +9,6 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
-import org.elasticsearch.core.Nullable;
-
 import java.nio.file.Path;
 
-public record PathLookup(@Nullable Path homeDir, Path configDir, Path[] dataDirs, Path tempDir) {}
+public record PathLookup(Path homeDir, Path configDir, Path[] dataDirs, Path tempDir) {}

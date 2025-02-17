@@ -20,7 +20,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class FileAccessTreeTests extends ESTestCase {
@@ -171,14 +170,6 @@ public class FileAccessTreeTests extends ESTestCase {
         );
         assertThat(tree.canRead(tempDir), is(true));
         assertThat(tree.canWrite(tempDir), is(true));
-    }
-
-    public void testUndefinedHome() {
-        var tree = FileAccessTree.of(
-            entitlement(Map.of("relative_path", "foo", "mode", "read", "relative_to", "home")),
-            new PathLookup(null, TEST_PATH_LOOKUP.configDir(), TEST_PATH_LOOKUP.dataDirs(), TEST_PATH_LOOKUP.tempDir())
-        );
-        assertThat(tree, equalTo(FileAccessTree.of(FilesEntitlement.EMPTY, TEST_PATH_LOOKUP)));
     }
 
     FileAccessTree accessTree(FilesEntitlement entitlement) {

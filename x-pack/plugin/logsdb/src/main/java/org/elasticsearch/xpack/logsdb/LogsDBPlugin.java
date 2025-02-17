@@ -31,7 +31,6 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
-import org.elasticsearch.xpack.logsdb.seqno.RestAddRetentionLeaseAction;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -112,25 +111,6 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
         actions.add(new ActionPlugin.ActionHandler<>(XPackInfoFeatureAction.LOGSDB, LogsDBInfoTransportAction.class));
         return actions;
     }
-
-    @Override
-    public Collection<RestHandler> getRestHandlers(
-        Settings settings,
-        NamedWriteableRegistry namedWriteableRegistry,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster,
-        Predicate<NodeFeature> clusterSupportsFeature
-    ) {
-        if (Build.current().isSnapshot()) {
-            return List.of(new RestAddRetentionLeaseAction());
-        }
-        return Collections.emptyList();
-    }
-
     protected XPackLicenseState getLicenseState() {
         return XPackPlugin.getSharedLicenseState();
     }

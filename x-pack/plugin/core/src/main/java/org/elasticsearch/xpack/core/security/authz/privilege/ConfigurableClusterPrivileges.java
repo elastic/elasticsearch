@@ -414,6 +414,7 @@ public final class ConfigurableClusterPrivileges {
             this.requestPredicateSupplier = (restrictedIndices) -> {
                 IndicesPermission.Builder indicesPermissionBuilder = new IndicesPermission.Builder(restrictedIndices);
                 for (ManageRolesIndexPermissionGroup indexPatternPrivilege : manageRolesIndexPermissionGroups) {
+                    // TODO handle selectors
                     indicesPermissionBuilder.addGroup(
                         IndexPrivilege.get(Set.of(indexPatternPrivilege.privileges())),
                         FieldPermissions.DEFAULT,

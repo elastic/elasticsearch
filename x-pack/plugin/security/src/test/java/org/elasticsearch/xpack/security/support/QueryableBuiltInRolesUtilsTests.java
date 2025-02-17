@@ -43,7 +43,7 @@ public class QueryableBuiltInRolesUtilsTests extends ESTestCase {
             QueryableBuiltInRolesUtils.calculateHash(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR),
             equalTo(
                 DataStream.isFailureStoreFeatureFlagEnabled()
-                    ? "3na054vyhPlUqSeq8cim+JwuBc+81r7JViA27peTAGc="
+                    ? "qgdWamvjudRKGezTGfjoSCr230sFDdh2t6xFUPYiW2Q="
                     : "bWEFdFo4WX229wdhdecfiz5QHMYEssh3ex8hizRgg+Q="
             )
         );

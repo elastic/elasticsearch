@@ -48,6 +48,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -185,11 +186,6 @@ public final class IndexPrivilege extends Privilege {
         READ_AUTOMATON,
         IndexComponentSelectorPrivilege.FAILURES
     );
-    public static final IndexPrivilege MANAGE_FAILURE_STORE_INTERNAL = new IndexPrivilege(
-        "manage_failure_store_internal",
-        MANAGE_AUTOMATON,
-        IndexComponentSelectorPrivilege.FAILURES
-    );
     public static final IndexPrivilege READ = new IndexPrivilege("read", READ_AUTOMATON);
     public static final IndexPrivilege READ_CROSS_CLUSTER = new IndexPrivilege("read_cross_cluster", READ_CROSS_CLUSTER_AUTOMATON);
     public static final IndexPrivilege CREATE = new IndexPrivilege("create", CREATE_AUTOMATON);
@@ -199,6 +195,11 @@ public final class IndexPrivilege extends Privilege {
     public static final IndexPrivilege CREATE_DOC = new IndexPrivilege("create_doc", CREATE_DOC_AUTOMATON);
     public static final IndexPrivilege MONITOR = new IndexPrivilege("monitor", MONITOR_AUTOMATON);
     public static final IndexPrivilege MANAGE = new IndexPrivilege("manage", MANAGE_AUTOMATON);
+    public static final IndexPrivilege MANAGE_FAILURE_STORE_INTERNAL = new IndexPrivilege(
+        "manage_failure_store_internal",
+        MANAGE_AUTOMATON,
+        IndexComponentSelectorPrivilege.FAILURES
+    );
     public static final IndexPrivilege DELETE_INDEX = new IndexPrivilege("delete_index", DELETE_INDEX_AUTOMATON);
     public static final IndexPrivilege CREATE_INDEX = new IndexPrivilege("create_index", CREATE_INDEX_AUTOMATON);
     public static final IndexPrivilege VIEW_METADATA = new IndexPrivilege("view_index_metadata", VIEW_METADATA_AUTOMATON);
@@ -342,17 +343,22 @@ public final class IndexPrivilege extends Privilege {
             selectorPrivileges.add(IndexComponentSelectorPrivilege.DATA);
         }
 
-        for (IndexComponentSelectorPrivilege selectorPrivilege : selectorPrivileges) {
-            if (selectorPrivilege == IndexComponentSelectorPrivilege.ALL) {
-                return new IndexPrivilege(name, unionAndMinimize(automata), IndexComponentSelectorPrivilege.ALL);
-            }
-        }
-        if (selectorPrivileges.size() != 1) {
-            // TODO assertion and make this clearer
-            throw new IllegalArgumentException("Cannot mix different selector privileges in a single index privilege for [" + name + "]");
-        }
+        return new IndexPrivilege(name, unionAndMinimize(automata), union(selectorPrivileges));
+    }
 
-        return new IndexPrivilege(name, unionAndMinimize(automata), selectorPrivileges.iterator().next());
+    private static IndexComponentSelectorPrivilege union(Set<IndexComponentSelectorPrivilege> selectorPrivileges) {
+        assert selectorPrivileges.isEmpty() == false;
+        if (selectorPrivileges.contains(IndexComponentSelectorPrivilege.ALL)) {
+            return IndexComponentSelectorPrivilege.ALL;
+        } else if (selectorPrivileges.size() == 1) {
+            return selectorPrivileges.iterator().next();
+        }
+        Iterator<IndexComponentSelectorPrivilege> iterator = selectorPrivileges.iterator();
+        IndexComponentSelectorPrivilege result = iterator.next();
+        while (iterator.hasNext()) {
+            result = result.or(iterator.next());
+        }
+        return result;
     }
 
     static Map<String, IndexPrivilege> values() {

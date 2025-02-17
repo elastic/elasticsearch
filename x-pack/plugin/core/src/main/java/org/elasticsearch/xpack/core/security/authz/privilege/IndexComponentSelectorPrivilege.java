@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.elasticsearch.action.support.IndexComponentSelector;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Predicates;
 
 import java.util.HashSet;
@@ -18,7 +19,11 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
-public record IndexComponentSelectorPrivilege(String name, Predicate<IndexComponentSelector> predicate) {
+public record IndexComponentSelectorPrivilege(Set<String> names, Predicate<IndexComponentSelector> predicate) {
+    IndexComponentSelectorPrivilege(String name, Predicate<IndexComponentSelector> predicate) {
+        this(Set.of(name), predicate);
+    }
+
     public static final IndexComponentSelectorPrivilege ALL = new IndexComponentSelectorPrivilege("all", Predicates.always());
     public static final IndexComponentSelectorPrivilege DATA = new IndexComponentSelectorPrivilege(
         "data",
@@ -35,6 +40,13 @@ public record IndexComponentSelectorPrivilege(String name, Predicate<IndexCompon
 
     public boolean isTotal() {
         return this == ALL;
+    }
+
+    public IndexComponentSelectorPrivilege or(IndexComponentSelectorPrivilege other) {
+        if (this == ALL || other == ALL) {
+            return ALL;
+        }
+        return new IndexComponentSelectorPrivilege(Sets.union(names, other.names), predicate.or(other.predicate));
     }
 
     public static Set<IndexComponentSelectorPrivilege> get(Set<String> indexPrivileges) {

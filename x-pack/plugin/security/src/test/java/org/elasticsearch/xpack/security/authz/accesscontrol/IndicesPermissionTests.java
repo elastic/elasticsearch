@@ -78,7 +78,7 @@ public class IndicesPermissionTests extends ESTestCase {
             query,
             IndexPrivilege.ALL,
             allowRestrictedIndices6,
-            IndexComponentSelectorPrivilege.DATA,
+            IndexComponentSelectorPrivilege.ALL,
             "_index"
         ).build();
         IndicesAccessControl permissions = role.authorize(
@@ -103,7 +103,7 @@ public class IndicesPermissionTests extends ESTestCase {
             null,
             IndexPrivilege.ALL,
             allowRestrictedIndices5,
-            IndexComponentSelectorPrivilege.DATA,
+            IndexComponentSelectorPrivilege.ALL,
             "_index"
         ).build();
         permissions = role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("_index"), md, fieldPermissionsCache);
@@ -121,7 +121,7 @@ public class IndicesPermissionTests extends ESTestCase {
             query,
             IndexPrivilege.ALL,
             allowRestrictedIndices4,
-            IndexComponentSelectorPrivilege.DATA,
+            IndexComponentSelectorPrivilege.ALL,
             "_index"
         ).build();
         permissions = role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("_index"), md, fieldPermissionsCache);
@@ -140,7 +140,7 @@ public class IndicesPermissionTests extends ESTestCase {
             query,
             IndexPrivilege.ALL,
             allowRestrictedIndices3,
-            IndexComponentSelectorPrivilege.DATA,
+            IndexComponentSelectorPrivilege.ALL,
             "_alias"
         ).build();
         permissions = role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("_alias"), md, fieldPermissionsCache);
@@ -172,7 +172,7 @@ public class IndicesPermissionTests extends ESTestCase {
             query,
             IndexPrivilege.ALL,
             allowRestrictedIndices2,
-            IndexComponentSelectorPrivilege.DATA,
+            IndexComponentSelectorPrivilege.ALL,
             "_alias"
         ).build();
         permissions = role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("_alias"), md, fieldPermissionsCache);
@@ -204,7 +204,7 @@ public class IndicesPermissionTests extends ESTestCase {
             fooQuery,
             IndexPrivilege.ALL,
             allowRestrictedIndices,
-            IndexComponentSelectorPrivilege.DATA,
+            IndexComponentSelectorPrivilege.ALL,
             "_alias"
         );
         FieldPermissions fieldPermissions1 = new FieldPermissions(fieldPermissionDef(allFields, null));
@@ -214,7 +214,7 @@ public class IndicesPermissionTests extends ESTestCase {
             query,
             IndexPrivilege.ALL,
             allowRestrictedIndices1,
-            IndexComponentSelectorPrivilege.DATA,
+            IndexComponentSelectorPrivilege.ALL,
             "_alias"
         ).build();
         permissions = role.authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("_alias"), md, fieldPermissionsCache);
@@ -256,7 +256,7 @@ public class IndicesPermissionTests extends ESTestCase {
             query,
             IndexPrivilege.ALL,
             allowRestrictedIndices,
-            IndexComponentSelectorPrivilege.DATA,
+            IndexComponentSelectorPrivilege.ALL,
             "_index"
         );
         FieldPermissions fieldPermissions1 = new FieldPermissions(fieldPermissionDef(null, null));
@@ -266,7 +266,7 @@ public class IndicesPermissionTests extends ESTestCase {
             null,
             IndexPrivilege.ALL,
             allowRestrictedIndices1,
-            IndexComponentSelectorPrivilege.DATA,
+            IndexComponentSelectorPrivilege.ALL,
             "*"
         ).build();
         IndicesAccessControl permissions = role.authorize(
@@ -330,6 +330,7 @@ public class IndicesPermissionTests extends ESTestCase {
             FieldPermissions.DEFAULT,
             null,
             randomBoolean(),
+            IndexComponentSelectorPrivilege.ALL,
             "a1"
         )
             .addGroup(
@@ -337,6 +338,7 @@ public class IndicesPermissionTests extends ESTestCase {
                 new FieldPermissions(fieldPermissionDef(null, new String[] { "denied_field" })),
                 null,
                 randomBoolean(),
+                IndexComponentSelectorPrivilege.DATA,
                 "a1"
             )
             .build();
@@ -362,6 +364,7 @@ public class IndicesPermissionTests extends ESTestCase {
             FieldPermissions.DEFAULT,
             null,
             randomBoolean(),
+            IndexComponentSelectorPrivilege.ALL,
             "a1"
         )
             .addGroup(
@@ -369,6 +372,7 @@ public class IndicesPermissionTests extends ESTestCase {
                 new FieldPermissions(fieldPermissionDef(null, new String[] { "denied_field" })),
                 null,
                 randomBoolean(),
+                IndexComponentSelectorPrivilege.ALL,
                 "a1"
             )
             .addGroup(
@@ -376,6 +380,7 @@ public class IndicesPermissionTests extends ESTestCase {
                 new FieldPermissions(fieldPermissionDef(new String[] { "*_field" }, new String[] { "denied_field" })),
                 null,
                 randomBoolean(),
+                IndexComponentSelectorPrivilege.ALL,
                 "a2"
             )
             .addGroup(
@@ -383,6 +388,7 @@ public class IndicesPermissionTests extends ESTestCase {
                 new FieldPermissions(fieldPermissionDef(new String[] { "*_field2" }, new String[] { "denied_field2" })),
                 null,
                 randomBoolean(),
+                IndexComponentSelectorPrivilege.ALL,
                 "a2"
             )
             .build();
@@ -444,6 +450,7 @@ public class IndicesPermissionTests extends ESTestCase {
             FieldPermissions.DEFAULT,
             null,
             false,
+            IndexComponentSelectorPrivilege.ALL,
             "*"
         ).build();
         IndicesAccessControl iac = indicesPermission.authorize(
@@ -464,6 +471,7 @@ public class IndicesPermissionTests extends ESTestCase {
             FieldPermissions.DEFAULT,
             null,
             true,
+            IndexComponentSelectorPrivilege.ALL,
             "*"
         ).build();
         iac = indicesPermission.authorize(
@@ -494,6 +502,7 @@ public class IndicesPermissionTests extends ESTestCase {
             FieldPermissions.DEFAULT,
             null,
             false,
+            IndexComponentSelectorPrivilege.ALL,
             "*"
         ).build();
         IndicesAccessControl iac = indicesPermission.authorize(
@@ -512,6 +521,7 @@ public class IndicesPermissionTests extends ESTestCase {
             FieldPermissions.DEFAULT,
             null,
             true,
+            IndexComponentSelectorPrivilege.ALL,
             "*"
         ).build();
         iac = indicesPermission.authorize(
@@ -549,6 +559,7 @@ public class IndicesPermissionTests extends ESTestCase {
             FieldPermissions.DEFAULT,
             null,
             false,
+            IndexComponentSelectorPrivilege.DATA,
             dataStreamName
         ).build();
         IndicesAccessControl iac = indicesPermission.authorize(
@@ -569,6 +580,7 @@ public class IndicesPermissionTests extends ESTestCase {
             FieldPermissions.DEFAULT,
             null,
             false,
+            IndexComponentSelectorPrivilege.DATA,
             dataStreamName
         ).build();
         iac = indicesPermission.authorize(
@@ -614,6 +626,7 @@ public class IndicesPermissionTests extends ESTestCase {
             FieldPermissions.DEFAULT,
             null,
             randomBoolean(),
+            IndexComponentSelectorPrivilege.DATA,
             "test*"
         )
             .addGroup(
@@ -621,6 +634,7 @@ public class IndicesPermissionTests extends ESTestCase {
                 new FieldPermissions(fieldPermissionDef(null, new String[] { "denied_field" })),
                 null,
                 randomBoolean(),
+                IndexComponentSelectorPrivilege.DATA,
                 "test_write*"
             )
             .build();
@@ -719,6 +733,7 @@ public class IndicesPermissionTests extends ESTestCase {
             fieldPermissions,
             queries,
             randomBoolean(),
+            IndexComponentSelectorPrivilege.ALL,
             "*"
         ).build();
         assertThat(indicesPermission1.hasFieldOrDocumentLevelSecurity(), is(true));
@@ -729,6 +744,7 @@ public class IndicesPermissionTests extends ESTestCase {
             FieldPermissions.DEFAULT,
             null,
             true,
+            IndexComponentSelectorPrivilege.ALL,
             "*"
         ).build();
         assertThat(indicesPermission2.hasFieldOrDocumentLevelSecurity(), is(false));
@@ -739,8 +755,9 @@ public class IndicesPermissionTests extends ESTestCase {
             FieldPermissions.DEFAULT,
             null,
             true,
+            IndexComponentSelectorPrivilege.ALL,
             "*"
-        ).addGroup(IndexPrivilege.NONE, fieldPermissions, queries, randomBoolean(), "*").build();
+        ).addGroup(IndexPrivilege.NONE, fieldPermissions, queries, randomBoolean(), IndexComponentSelectorPrivilege.DATA, "*").build();
         assertThat(indicesPermission3.hasFieldOrDocumentLevelSecurity(), is(false));
     }
 

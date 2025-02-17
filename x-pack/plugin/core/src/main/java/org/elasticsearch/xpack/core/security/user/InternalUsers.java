@@ -30,7 +30,6 @@ import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
 import java.util.Collection;
@@ -162,8 +161,7 @@ public class InternalUsers {
                         IndicesStatsAction.NAME + "*",
                         TransportUpdateSettingsAction.TYPE.name(),
                         DownsampleAction.NAME,
-                        TransportAddIndexBlockAction.TYPE.name(),
-                        IndexPrivilege.MANAGE_FAILURE_STORE_INTERNAL.getSingleName()
+                        TransportAddIndexBlockAction.TYPE.name()
                     )
                     .allowRestrictedIndices(false)
                     .build(),
@@ -182,8 +180,7 @@ public class InternalUsers {
                         IndicesStatsAction.NAME + "*",
                         TransportUpdateSettingsAction.TYPE.name(),
                         DownsampleAction.NAME,
-                        TransportAddIndexBlockAction.TYPE.name(),
-                        IndexPrivilege.MANAGE_FAILURE_STORE_INTERNAL.getSingleName()
+                        TransportAddIndexBlockAction.TYPE.name()
                     )
                     .allowRestrictedIndices(true)
                     .build() },
@@ -223,8 +220,7 @@ public class InternalUsers {
                         TransportBulkAction.NAME,
                         TransportIndexAction.NAME,
                         TransportSearchScrollAction.TYPE.name(),
-                        ModifyDataStreamsAction.NAME,
-                        IndexPrivilege.MANAGE_FAILURE_STORE_INTERNAL.getSingleName()
+                        ModifyDataStreamsAction.NAME
                     )
                     .allowRestrictedIndices(false)
                     .build() },
@@ -248,7 +244,7 @@ public class InternalUsers {
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("*")
-                    .privileges(LazyRolloverAction.NAME, IndexPrivilege.MANAGE_FAILURE_STORE_INTERNAL.getSingleName())
+                    .privileges(LazyRolloverAction.NAME)
                     .allowRestrictedIndices(true)
                     .build() },
             null,

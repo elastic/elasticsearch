@@ -76,17 +76,6 @@ public final class IndicesPermission {
             this.restrictedIndices = restrictedIndices;
         }
 
-        // TODO remove me
-        public Builder addGroup(
-            IndexPrivilege privilege,
-            FieldPermissions fieldPermissions,
-            @Nullable Set<BytesReference> query,
-            boolean allowRestrictedIndices,
-            String... indices
-        ) {
-            return addGroup(privilege, fieldPermissions, query, allowRestrictedIndices, IndexComponentSelectorPrivilege.DATA, indices);
-        }
-
         public Builder addGroup(
             IndexPrivilege privilege,
             FieldPermissions fieldPermissions,
@@ -95,6 +84,7 @@ public final class IndicesPermission {
             IndexComponentSelectorPrivilege selectorPrivilege,
             String... indices
         ) {
+            assert privilege != IndexPrivilege.ALL || selectorPrivilege.isTotal() : "all privilege must be associated with all selector";
             groups.add(
                 new Group(privilege, fieldPermissions, query, allowRestrictedIndices, restrictedIndices, selectorPrivilege, indices)
             );
@@ -917,7 +907,7 @@ public final class IndicesPermission {
                 && privilege == IndexPrivilege.ALL
                 && query == null
                 && false == fieldPermissions.hasFieldLevelSecurity()
-                // TODO add selectorPrivilege here in a follow PR handling authorization
+                // TODO ensure we want this now, not in a follow up instead
                 && selectorPrivilege.isTotal();
         }
 

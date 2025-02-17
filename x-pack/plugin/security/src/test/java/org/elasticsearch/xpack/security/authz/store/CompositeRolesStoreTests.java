@@ -86,6 +86,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexComponentSelectorPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.restriction.Workflow;
 import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
@@ -150,6 +151,7 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AP
 import static org.elasticsearch.xpack.security.authc.ApiKeyServiceTests.Utils.createApiKeyAuthentication;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -1268,6 +1270,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 false,
                 "{\"match\":{\"field\":\"a\"}}",
                 new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "field" }, null),
+                IndexComponentSelectorPrivilege.DATA,
                 "index-1"
             )
         );
@@ -1303,6 +1306,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 false,
                 "{\"match\":{\"field\":\"a\"}}",
                 new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "field" }, null),
+                IndexComponentSelectorPrivilege.DATA,
                 "index-1"
             ),
             indexGroup(
@@ -1310,6 +1314,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 false,
                 "{\"match\":{\"field\":\"b\"}}",
                 new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "other" }, null),
+                IndexComponentSelectorPrivilege.DATA,
                 "index-1"
             )
         );
@@ -1527,6 +1532,90 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 fail("unexpected remote cluster group: " + Arrays.toString(group.remoteClusterAliases()));
             }
         }
+    }
+
+    public void testBuildRoleWithReadFailureStorePrivilegeOnly() {
+        String indexPattern = randomAlphanumericOfLength(10);
+        final Role role = buildRole(
+            roleDescriptorWithIndicesPrivileges(
+                "r1",
+                new IndicesPrivileges[] { IndicesPrivileges.builder().indices(indexPattern).privileges("read_failure_store").build() }
+            )
+        );
+        assertHasIndexGroups(
+            role.indices(),
+            indexGroup(IndexPrivilege.READ_FAILURE_STORE, false, IndexComponentSelectorPrivilege.FAILURES, indexPattern)
+        );
+    }
+
+    public void testBuildRoleWithReadFailureStorePrivilegeDuplicatesMerged() {
+        String indexPattern = randomAlphanumericOfLength(10);
+        final Role role = buildRole(
+            roleDescriptorWithIndicesPrivileges(
+                "r1",
+                new IndicesPrivileges[] {
+                    IndicesPrivileges.builder().indices(indexPattern).privileges("read_failure_store").build(),
+                    IndicesPrivileges.builder().indices(indexPattern).privileges("read_failure_store").build() }
+            )
+        );
+        assertHasIndexGroups(
+            role.indices(),
+            indexGroup(IndexPrivilege.READ_FAILURE_STORE, false, IndexComponentSelectorPrivilege.FAILURES, indexPattern)
+        );
+    }
+
+    public void testBuildRoleWithReadFailureStoreAndReadPrivilegeSplit() {
+        String indexPattern = randomAlphanumericOfLength(10);
+        final Role role = buildRole(
+            roleDescriptorWithIndicesPrivileges(
+                "r1",
+                new IndicesPrivileges[] {
+                    IndicesPrivileges.builder().indices(indexPattern).privileges("read", "read_failure_store").build() }
+            )
+        );
+        assertHasIndexGroups(
+            role.indices(),
+            indexGroup(IndexPrivilege.READ_FAILURE_STORE, false, IndexComponentSelectorPrivilege.FAILURES, indexPattern),
+            indexGroup(IndexPrivilege.READ, false, IndexComponentSelectorPrivilege.DATA, indexPattern)
+        );
+    }
+
+    public void testBuildRoleWithMultipleReadFailureStoreAndReadPrivilegeSplit() {
+        String indexPattern = randomAlphanumericOfLength(10);
+        final Role role = buildRole(
+            roleDescriptorWithIndicesPrivileges(
+                "r1",
+                new IndicesPrivileges[] {
+                    IndicesPrivileges.builder().indices(indexPattern).privileges("read").build(),
+                    IndicesPrivileges.builder().indices(indexPattern).privileges("read_failure_store").build() }
+            )
+        );
+        assertHasIndexGroups(
+            role.indices(),
+            indexGroup(IndexPrivilege.READ_FAILURE_STORE, false, IndexComponentSelectorPrivilege.FAILURES, indexPattern),
+            indexGroup(IndexPrivilege.READ, false, IndexComponentSelectorPrivilege.DATA, indexPattern)
+        );
+    }
+
+    public void testBuildRoleWithAllPrivilegeIsNeverSplit() {
+        String indexPattern = randomAlphanumericOfLength(10);
+        final Role role = buildRole(
+            roleDescriptorWithIndicesPrivileges(
+                "r1",
+                new IndicesPrivileges[] {
+                    IndicesPrivileges.builder().indices(indexPattern).privileges("read", "read_failure_store", "all").build(),
+                    IndicesPrivileges.builder().indices(indexPattern).privileges("read_failure_store").build() }
+            )
+        );
+        assertHasIndexGroups(
+            role.indices(),
+            indexGroup(
+                IndexPrivilege.get(Set.of("read", "read_failure_store", "all")),
+                false,
+                IndexComponentSelectorPrivilege.ALL,
+                indexPattern
+            )
+        );
     }
 
     public void testCustomRolesProviderFailures() throws Exception {
@@ -3257,6 +3346,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
         return roleDescriptorWithIndicesPrivileges(name, rips, null);
     }
 
+    private RoleDescriptor roleDescriptorWithIndicesPrivileges(final String name, final IndicesPrivileges[] ips) {
+        return roleDescriptorWithIndicesPrivileges(name, null, ips);
+    }
+
     private RoleDescriptor roleDescriptorWithIndicesPrivileges(
         final String name,
         final RoleDescriptor.RemoteIndicesPrivileges[] rips,
@@ -3357,6 +3450,12 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
     }
 
+    @SafeVarargs
+    @SuppressWarnings("varargs")
+    private void assertHasIndexGroups(final IndicesPermission permission, final Matcher<IndicesPermission.Group>... matchers) {
+        assertThat(permission.groups(), arrayContainingInAnyOrder(matchers));
+    }
+
     private static Matcher<IndicesPermission.Group> indexGroup(final String... indices) {
         return indexGroup(IndexPrivilege.READ, false, indices);
     }
@@ -3371,6 +3470,23 @@ public class CompositeRolesStoreTests extends ESTestCase {
             allowRestrictedIndices,
             null,
             new FieldPermissionsDefinition.FieldGrantExcludeGroup(null, null),
+            IndexComponentSelectorPrivilege.DATA,
+            indices
+        );
+    }
+
+    private static Matcher<IndicesPermission.Group> indexGroup(
+        final IndexPrivilege privilege,
+        final boolean allowRestrictedIndices,
+        final IndexComponentSelectorPrivilege selectorPrivilege,
+        final String... indices
+    ) {
+        return indexGroup(
+            privilege,
+            allowRestrictedIndices,
+            null,
+            new FieldPermissionsDefinition.FieldGrantExcludeGroup(null, null),
+            selectorPrivilege,
             indices
         );
     }
@@ -3380,6 +3496,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final boolean allowRestrictedIndices,
         @Nullable final String query,
         final FieldPermissionsDefinition.FieldGrantExcludeGroup flsGroup,
+        IndexComponentSelectorPrivilege selectorPrivilege,
         final String... indices
     ) {
         return new BaseMatcher<>() {
@@ -3393,6 +3510,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                     && equalTo(privilege).matches(group.privilege())
                     && equalTo(allowRestrictedIndices).matches(group.allowRestrictedIndices())
                     && equalTo(new FieldPermissions(new FieldPermissionsDefinition(Set.of(flsGroup)))).matches(group.getFieldPermissions())
+                    && equalTo(selectorPrivilege).matches(group.getSelectorPrivilege())
                     && arrayContaining(indices).matches(group.indices());
             }
 
@@ -3410,6 +3528,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
                         + query
                         + ", fieldGrantExcludeGroup="
                         + flsGroup
+                        + ", selectorPrivilege="
+                        + selectorPrivilege
                         + '}'
                 );
             }

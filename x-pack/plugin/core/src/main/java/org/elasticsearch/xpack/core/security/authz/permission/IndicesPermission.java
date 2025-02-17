@@ -899,6 +899,10 @@ public final class IndicesPermission {
             return query != null;
         }
 
+        public IndexComponentSelectorPrivilege getSelectorPrivilege() {
+            return selectorPrivilege;
+        }
+
         public boolean allowRestrictedIndices() {
             return allowRestrictedIndices;
         }

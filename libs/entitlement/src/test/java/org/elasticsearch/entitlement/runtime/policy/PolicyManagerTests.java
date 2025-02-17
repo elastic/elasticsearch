@@ -65,6 +65,7 @@ public class PolicyManagerTests extends ESTestCase {
 
             TEST_BASE_DIR = createTempDir().toAbsolutePath();
             TEST_PATH_LOOKUP = new PathLookup(
+                TEST_BASE_DIR.resolve("/user/home"),
                 TEST_BASE_DIR.resolve("/config"),
                 new Path[] { TEST_BASE_DIR.resolve("/data1/"), TEST_BASE_DIR.resolve("/data2") },
                 TEST_BASE_DIR.resolve("/temp")

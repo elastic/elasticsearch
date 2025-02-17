@@ -134,8 +134,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
     @Override
     protected RankFeatureDoc[] preprocess(RankFeatureDoc[] originalDocs, boolean rerankedScores) {
         if (rerankedScores == false) {
-            // just do a sort, don't normalize or apply minScore to scores that haven't been modified
-            Arrays.sort(originalDocs);
+            // just return, don't normalize or apply minScore to scores that haven't been modified
             return originalDocs;
         }
         List<RankFeatureDoc> docs = new ArrayList<>(originalDocs.length);

@@ -247,7 +247,8 @@ class Elasticsearch {
                 pluginsResolver::resolveClassToPluginName,
                 nodeEnv.dataDirs(),
                 nodeEnv.configDir(),
-                nodeEnv.tmpDir()
+                nodeEnv.tmpDir(),
+                nodeEnv.logsDir()
             );
         } else {
             assert RuntimeVersionFeature.isSecurityManagerAvailable();

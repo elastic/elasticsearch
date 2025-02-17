@@ -231,6 +231,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final IndicesFieldDataCache indicesFieldDataCache;
     private final CacheCleaner cacheCleaner;
     private final ThreadPool threadPool;
+    @Nullable
     private final ThreadPoolMergeQueue threadPoolMergeQueue;
     private final CircuitBreakerService circuitBreakerService;
     private final BigArrays bigArrays;
@@ -1908,6 +1909,7 @@ public class IndicesService extends AbstractLifecycleComponent
         return bigArrays;
     }
 
+    @Nullable
     public ThreadPoolMergeQueue getThreadPoolMergeQueue() {
         return threadPoolMergeQueue;
     }

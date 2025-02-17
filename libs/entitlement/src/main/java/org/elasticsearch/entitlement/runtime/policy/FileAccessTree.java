@@ -20,23 +20,30 @@ import java.util.Objects;
 import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
 
 public final class FileAccessTree {
-    public static final FileAccessTree EMPTY = new FileAccessTree(FilesEntitlement.EMPTY);
+
     private static final String FILE_SEPARATOR = getDefaultFileSystem().getSeparator();
 
     private final String[] readPaths;
     private final String[] writePaths;
 
-    private FileAccessTree(FilesEntitlement filesEntitlement) {
+    private FileAccessTree(FilesEntitlement filesEntitlement, PathLookup pathLookup) {
         List<String> readPaths = new ArrayList<>();
         List<String> writePaths = new ArrayList<>();
         for (FilesEntitlement.FileData fileData : filesEntitlement.filesData()) {
-            var path = normalizePath(Path.of(fileData.path()));
             var mode = fileData.mode();
-            if (mode == FilesEntitlement.Mode.READ_WRITE) {
-                writePaths.add(path);
-            }
-            readPaths.add(path);
+            var paths = fileData.resolvePaths(pathLookup);
+            paths.forEach(path -> {
+                var normalized = normalizePath(path);
+                if (mode == FilesEntitlement.Mode.READ_WRITE) {
+                    writePaths.add(normalized);
+                }
+                readPaths.add(normalized);
+            });
         }
+
+        // everything has access to the temp dir
+        readPaths.add(pathLookup.tempDir().toString());
+        writePaths.add(pathLookup.tempDir().toString());
 
         readPaths.sort(String::compareTo);
         writePaths.sort(String::compareTo);
@@ -45,8 +52,8 @@ public final class FileAccessTree {
         this.writePaths = writePaths.toArray(new String[0]);
     }
 
-    public static FileAccessTree of(FilesEntitlement filesEntitlement) {
-        return new FileAccessTree(filesEntitlement);
+    public static FileAccessTree of(FilesEntitlement filesEntitlement, PathLookup pathLookup) {
+        return new FileAccessTree(filesEntitlement, pathLookup);
     }
 
     boolean canRead(Path path) {

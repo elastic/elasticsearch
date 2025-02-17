@@ -10,6 +10,8 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.tests.util.English;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -33,7 +35,6 @@ public class StressSearchServiceReaperIT extends ESIntegTestCase {
             .build();
     }
 
-    // see issue #5165 - this test fails each time without the fix in pull #5170
     public void testStressReaper() throws ExecutionException, InterruptedException {
         int num = randomIntBetween(100, 150);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[num];
@@ -44,7 +45,16 @@ public class StressSearchServiceReaperIT extends ESIntegTestCase {
         indexRandom(true, builders);
         final int iterations = scaledRandomIntBetween(500, 1000);
         for (int i = 0; i < iterations; i++) {
-            assertHitCountAndNoFailures(prepareSearch("test").setQuery(matchAllQuery()).setSize(num), num);
+            SearchResponse response = null;
+            try {
+                SearchRequestBuilder searchRequestBuilder = prepareSearch("test").setQuery(matchAllQuery()).setSize(num);
+                response = searchRequestBuilder.get();
+                assertHitCountAndNoFailures(searchRequestBuilder, num);
+            } finally {
+                if(response != null) {
+                    response.decRef();
+                }
+            }
         }
     }
 }

@@ -9,11 +9,13 @@
 
 package org.elasticsearch.test;
 
+import io.netty.util.ThreadDeathWatcher;
+import io.netty.util.concurrent.GlobalEventExecutor;
+
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import io.netty.util.ThreadDeathWatcher;
-import io.netty.util.concurrent.GlobalEventExecutor;
+
 import org.apache.http.HttpHost;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.Sort;
@@ -1608,11 +1610,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
     protected List<ShardSegments> getShardSegments(String... indices) {
         IndicesSegmentResponse indicesSegmentResponse = indicesAdmin().prepareSegments(indices).get();
         return indicesSegmentResponse.getIndices()
-                .values()
-                .stream()
-                .flatMap(indexSegments -> indexSegments.getShards().values().stream())
-                .flatMap(indexShardSegments -> Stream.of(indexShardSegments.shards()))
-                .toList();
+            .values()
+            .stream()
+            .flatMap(indexSegments -> indexSegments.getShards().values().stream())
+            .flatMap(indexShardSegments -> Stream.of(indexShardSegments.shards()))
+            .toList();
     }
 
     /**

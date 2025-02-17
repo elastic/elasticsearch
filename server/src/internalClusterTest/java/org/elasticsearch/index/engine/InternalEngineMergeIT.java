@@ -133,8 +133,8 @@ public class InternalEngineMergeIT extends ESIntegTestCase {
 
         // after a force merge there should only be 1 segment per shard
         var shardsWithMultipleSegments = getShardSegments().stream()
-                .filter(shardSegments -> shardSegments.getSegments().size() > 1)
-                .toList();
+            .filter(shardSegments -> shardSegments.getSegments().size() > 1)
+            .toList();
         assertTrue("there are shards with multiple segments " + shardsWithMultipleSegments, shardsWithMultipleSegments.isEmpty());
 
         final long expectedTotalDocs = totalDocs;

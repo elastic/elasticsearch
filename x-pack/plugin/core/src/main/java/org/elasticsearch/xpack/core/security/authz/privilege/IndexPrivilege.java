@@ -31,6 +31,7 @@ import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.PromoteDataStreamAction;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.search.TransportSearchShardsAction;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
@@ -371,10 +372,9 @@ public final class IndexPrivilege extends Privilege {
     public static Collection<String> findPrivilegesThatGrant(String action) {
         return VALUES.entrySet()
             .stream()
+            // Only include privileges that grant data access; failures access is handled separately in authorization failure messages
+            .filter(e -> e.getValue().selectorPrivilege.grants(IndexComponentSelector.DATA))
             .filter(e -> e.getValue().predicate.test(action))
-            // Filter out the failure store privileges since these are confusing w.r.t. authorization failure messages are a handled
-            // separately
-            .filter(e -> false == (e.getValue().getSelectorPrivilege() == IndexComponentSelectorPrivilege.FAILURES))
             .map(Map.Entry::getKey)
             .toList();
     }

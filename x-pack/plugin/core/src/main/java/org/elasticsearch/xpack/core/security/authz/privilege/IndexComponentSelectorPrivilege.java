@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.elasticsearch.action.support.IndexComponentSelector;
+import org.elasticsearch.core.Predicates;
 
 import java.util.HashSet;
 import java.util.Map;
@@ -16,7 +17,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public record IndexComponentSelectorPrivilege(String name, Predicate<IndexComponentSelector> predicate) {
-    public static final IndexComponentSelectorPrivilege ALL = new IndexComponentSelectorPrivilege("all", (selector) -> true);
+    public static final IndexComponentSelectorPrivilege ALL = new IndexComponentSelectorPrivilege("all", Predicates.always());
     public static final IndexComponentSelectorPrivilege DATA = new IndexComponentSelectorPrivilege(
         "data",
         IndexComponentSelector.DATA::equals
@@ -43,30 +44,29 @@ public record IndexComponentSelectorPrivilege(String name, Predicate<IndexCompon
         return indexPrivileges.stream().map(IndexComponentSelectorPrivilege::get).collect(Collectors.toSet());
     }
 
-    public static Map<IndexComponentSelectorPrivilege, Set<String>> groupBySelectors(String... indexPrivileges) {
-        return groupBySelectors(Set.of(indexPrivileges));
+    public static Map<IndexComponentSelectorPrivilege, Set<String>> groupBySelector(String... indexPrivileges) {
+        return groupBySelector(Set.of(indexPrivileges));
     }
 
-    public static Map<IndexComponentSelectorPrivilege, Set<String>> groupBySelectors(Set<String> indexPrivileges) {
+    public static Map<IndexComponentSelectorPrivilege, Set<String>> groupBySelector(Set<String> indexPrivileges) {
         final Set<String> dataAccessPrivileges = new HashSet<>();
         final Set<String> failuresAccessPrivileges = new HashSet<>();
 
         for (String indexPrivilege : indexPrivileges) {
             final IndexComponentSelectorPrivilege selectorPrivilege = get(indexPrivilege);
             // If we ever hit `all`, the entire group can be treated as granting "all" access and we can return early
-            if (selectorPrivilege.equals(ALL)) {
+            if (selectorPrivilege == ALL) {
                 return Map.of(ALL, indexPrivileges);
             }
 
-            if (selectorPrivilege.equals(DATA)) {
+            if (selectorPrivilege == DATA) {
                 dataAccessPrivileges.add(indexPrivilege);
-            } else if (selectorPrivilege.equals(FAILURES)) {
+            } else if (selectorPrivilege == FAILURES) {
                 failuresAccessPrivileges.add(indexPrivilege);
             } else {
-                assert false : "index privilege [" + indexPrivilege + "] mapped to an unexpected selector [" + selectorPrivilege + "]";
-                throw new IllegalStateException(
-                    "index privilege [" + indexPrivilege + "] mapped to an unexpected selector [" + selectorPrivilege + "]"
-                );
+                final var message = "index privilege [" + indexPrivilege + "] mapped to an unexpected selector [" + selectorPrivilege + "]";
+                assert false : message;
+                throw new IllegalStateException(message);
             }
         }
 
@@ -81,6 +81,7 @@ public record IndexComponentSelectorPrivilege(String name, Predicate<IndexCompon
 
     private static IndexComponentSelectorPrivilege get(String indexPrivilegeName) {
         final IndexPrivilege indexPrivilege = IndexPrivilege.getNamedOrNull(indexPrivilegeName);
+        // `null` means we got a raw action instead of a named privilege; all raw actions are treated as data access
         if (indexPrivilege == null) {
             return DATA;
         } else if (indexPrivilege == IndexPrivilege.ALL) {

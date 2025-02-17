@@ -428,7 +428,7 @@ public interface Role {
             );
             Set<BytesReference> query = indexPrivilege.getQuery() == null ? null : Collections.singleton(indexPrivilege.getQuery());
             boolean allowRestrictedIndices = indexPrivilege.allowRestrictedIndices();
-            Map<IndexComponentSelectorPrivilege, Set<String>> split = IndexComponentSelectorPrivilege.groupBySelectors(
+            Map<IndexComponentSelectorPrivilege, Set<String>> split = IndexComponentSelectorPrivilege.groupBySelector(
                 indexPrivilege.getPrivileges()
             );
             for (var entry : split.entrySet()) {

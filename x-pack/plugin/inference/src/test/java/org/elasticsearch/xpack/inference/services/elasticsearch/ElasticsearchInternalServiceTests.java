@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -46,12 +47,14 @@ import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingF
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingSparse;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
+import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResultsTests;
@@ -67,13 +70,16 @@ import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -81,12 +87,14 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction.Response.RESULTS_FIELD;
 import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86;
@@ -101,6 +109,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class ElasticsearchInternalServiceTests extends ESTestCase {
@@ -1629,6 +1639,209 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 toXContent(serviceConfiguration, XContentType.JSON, humanReadable),
                 XContentType.JSON
             );
+        }
+    }
+
+    public void testUpdateModelsWithDynamicFields_NoModelsToUpdate() throws Exception {
+        ActionListener<List<Model>> resultsListener = ActionListener.<List<Model>>wrap(
+            updatedModels -> assertEquals(Collections.emptyList(), updatedModels),
+            e -> fail("Unexpected exception: " + e)
+        );
+
+        try (var service = createService(mock(Client.class))) {
+            service.updateModelsWithDynamicFields(List.of(), resultsListener);
+        }
+    }
+
+    public void testUpdateModelsWithDynamicFields_InvalidModelProvided() throws IOException {
+        ActionListener<List<Model>> resultsListener = ActionListener.wrap(
+            updatedModels -> fail("Expected invalid model assertion error to be thrown"),
+            e -> fail("Expected invalid model assertion error to be thrown")
+        );
+
+        try (var service = createService(mock(Client.class))) {
+            assertThrows(
+                AssertionError.class,
+                () -> { service.updateModelsWithDynamicFields(List.of(mock(Model.class)), resultsListener); }
+            );
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testUpdateModelsWithDynamicFields_FailsToRetrieveDeployments() throws IOException {
+        var deploymentId = randomAlphaOfLength(10);
+        var model = mock(ElasticsearchInternalModel.class);
+        when(model.mlNodeDeploymentId()).thenReturn(deploymentId);
+        when(model.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
+
+        ActionListener<List<Model>> resultsListener = ActionListener.wrap(updatedModels -> {
+            assertEquals(updatedModels.size(), 1);
+            verify(model).mlNodeDeploymentId();
+            verifyNoMoreInteractions(model);
+        }, e -> fail("Expected original models to be returned"));
+
+        var client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        doAnswer(invocation -> {
+            var listener = (ActionListener<GetDeploymentStatsAction.Response>) invocation.getArguments()[2];
+            listener.onFailure(new RuntimeException(randomAlphaOfLength(10)));
+            return null;
+        }).when(client).execute(eq(GetDeploymentStatsAction.INSTANCE), any(), any());
+
+        try (var service = createService(client)) {
+            service.updateModelsWithDynamicFields(List.of(model), resultsListener);
+        }
+    }
+
+    public void testUpdateModelsWithDynamicFields_SingleModelToUpdate() throws IOException {
+        var deploymentId = randomAlphaOfLength(10);
+        var model = mock(ElasticsearchInternalModel.class);
+        when(model.mlNodeDeploymentId()).thenReturn(deploymentId);
+        when(model.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
+
+        var modelsByDeploymentId = new HashMap<String, List<Model>>();
+        modelsByDeploymentId.put(deploymentId, List.of(model));
+
+        testUpdateModelsWithDynamicFields(modelsByDeploymentId);
+    }
+
+    public void testUpdateModelsWithDynamicFields_MultipleModelsWithDifferentDeploymentsToUpdate() throws IOException {
+        var deploymentId1 = randomAlphaOfLength(10);
+        var model1 = mock(ElasticsearchInternalModel.class);
+        when(model1.mlNodeDeploymentId()).thenReturn(deploymentId1);
+        when(model1.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
+        var deploymentId2 = randomAlphaOfLength(10);
+        var model2 = mock(ElasticsearchInternalModel.class);
+        when(model2.mlNodeDeploymentId()).thenReturn(deploymentId2);
+        when(model2.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
+
+        var modelsByDeploymentId = new HashMap<String, List<Model>>();
+        modelsByDeploymentId.put(deploymentId1, List.of(model1));
+        modelsByDeploymentId.put(deploymentId2, List.of(model2));
+
+        testUpdateModelsWithDynamicFields(modelsByDeploymentId);
+    }
+
+    public void testUpdateModelsWithDynamicFields_MultipleModelsWithSameDeploymentsToUpdate() throws IOException {
+        var deploymentId = randomAlphaOfLength(10);
+        var model1 = mock(ElasticsearchInternalModel.class);
+        when(model1.mlNodeDeploymentId()).thenReturn(deploymentId);
+        when(model1.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
+        var model2 = mock(ElasticsearchInternalModel.class);
+        when(model2.mlNodeDeploymentId()).thenReturn(deploymentId);
+        when(model2.getTaskType()).thenReturn(TaskType.TEXT_EMBEDDING);
+
+        var modelsByDeploymentId = new HashMap<String, List<Model>>();
+        modelsByDeploymentId.put(deploymentId, List.of(model1, model2));
+
+        testUpdateModelsWithDynamicFields(modelsByDeploymentId);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void testUpdateModelsWithDynamicFields(Map<String, List<Model>> modelsByDeploymentId) throws IOException {
+        var modelsToUpdate = new ArrayList<Model>();
+        modelsByDeploymentId.values().forEach(modelsToUpdate::addAll);
+
+        var updatedNumberOfAllocations = new HashMap<String, Integer>();
+        modelsByDeploymentId.keySet().forEach(deploymentId -> updatedNumberOfAllocations.put(deploymentId, randomIntBetween(1, 10)));
+
+        ActionListener<List<Model>> resultsListener = ActionListener.wrap(updatedModels -> {
+            assertEquals(updatedModels.size(), modelsToUpdate.size());
+            modelsByDeploymentId.forEach((deploymentId, models) -> {
+                var expectedNumberOfAllocations = updatedNumberOfAllocations.get(deploymentId);
+                models.forEach(model -> {
+                    verify((ElasticsearchInternalModel) model).updateNumAllocations(expectedNumberOfAllocations);
+                    verify((ElasticsearchInternalModel) model).mlNodeDeploymentId();
+                    verifyNoMoreInteractions(model);
+                });
+            });
+        }, e -> fail("Unexpected exception: " + e));
+
+        var client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
+        doAnswer(invocation -> {
+            var listener = (ActionListener<GetDeploymentStatsAction.Response>) invocation.getArguments()[2];
+            var mockAssignmentStats = new ArrayList<AssignmentStats>();
+            modelsByDeploymentId.keySet().forEach(deploymentId -> {
+                var mockAssignmentStatsForDeploymentId = mock(AssignmentStats.class);
+                when(mockAssignmentStatsForDeploymentId.getDeploymentId()).thenReturn(deploymentId);
+                when(mockAssignmentStatsForDeploymentId.getNumberOfAllocations()).thenReturn(updatedNumberOfAllocations.get(deploymentId));
+                mockAssignmentStats.add(mockAssignmentStatsForDeploymentId);
+            });
+            listener.onResponse(
+                new GetDeploymentStatsAction.Response(
+                    Collections.emptyList(),
+                    Collections.emptyList(),
+                    mockAssignmentStats,
+                    mockAssignmentStats.size()
+                )
+            );
+            return null;
+        }).when(client).execute(eq(GetDeploymentStatsAction.INSTANCE), any(), any());
+
+        try (var service = createService(client)) {
+            service.updateModelsWithDynamicFields(modelsToUpdate, resultsListener);
+        }
+    }
+
+    public void testUpdateWithoutMlEnabled() throws IOException, InterruptedException {
+        var cs = mock(ClusterService.class);
+        var cSettings = new ClusterSettings(Settings.EMPTY, Set.of(MachineLearningField.MAX_LAZY_ML_NODES));
+        when(cs.getClusterSettings()).thenReturn(cSettings);
+        var context = new InferenceServiceExtension.InferenceServiceFactoryContext(
+            mock(),
+            threadPool,
+            cs,
+            Settings.builder().put("xpack.ml.enabled", false).build()
+        );
+        try (var service = new ElasticsearchInternalService(context)) {
+            var models = List.of(mock(Model.class));
+            var latch = new CountDownLatch(1);
+            service.updateModelsWithDynamicFields(models, ActionTestUtils.assertNoFailureListener(r -> {
+                latch.countDown();
+                assertThat(r, Matchers.sameInstance(models));
+            }));
+            assertTrue(latch.await(30, TimeUnit.SECONDS));
+        }
+    }
+
+    public void testUpdateWithMlEnabled() throws IOException, InterruptedException {
+        var deploymentId = "deploymentId";
+        var model = mock(ElasticsearchInternalModel.class);
+        when(model.mlNodeDeploymentId()).thenReturn(deploymentId);
+
+        AssignmentStats stats = mock();
+        when(stats.getDeploymentId()).thenReturn(deploymentId);
+        when(stats.getNumberOfAllocations()).thenReturn(3);
+
+        var client = mock(Client.class);
+        doAnswer(ans -> {
+            QueryPage<AssignmentStats> queryPage = new QueryPage<>(List.of(stats), 1, RESULTS_FIELD);
+
+            GetDeploymentStatsAction.Response response = mock();
+            when(response.getStats()).thenReturn(queryPage);
+
+            ActionListener<GetDeploymentStatsAction.Response> listener = ans.getArgument(2);
+            listener.onResponse(response);
+            return null;
+        }).when(client).execute(eq(GetDeploymentStatsAction.INSTANCE), any(), any());
+        when(client.threadPool()).thenReturn(threadPool);
+
+        var cs = mock(ClusterService.class);
+        var cSettings = new ClusterSettings(Settings.EMPTY, Set.of(MachineLearningField.MAX_LAZY_ML_NODES));
+        when(cs.getClusterSettings()).thenReturn(cSettings);
+        var context = new InferenceServiceExtension.InferenceServiceFactoryContext(
+            client,
+            threadPool,
+            cs,
+            Settings.builder().put("xpack.ml.enabled", true).build()
+        );
+        try (var service = new ElasticsearchInternalService(context)) {
+            List<Model> models = List.of(model);
+            var latch = new CountDownLatch(1);
+            service.updateModelsWithDynamicFields(models, ActionTestUtils.assertNoFailureListener(r -> latch.countDown()));
+            assertTrue(latch.await(30, TimeUnit.SECONDS));
+            verify(model).updateNumAllocations(3);
         }
     }
 

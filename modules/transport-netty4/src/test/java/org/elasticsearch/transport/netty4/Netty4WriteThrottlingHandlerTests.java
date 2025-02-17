@@ -109,6 +109,7 @@ public class Netty4WriteThrottlingHandlerTests extends ESTestCase {
             Netty4WriteThrottlingHandler.MAX_BYTES_PER_WRITE * fullSizeChunks + extraChunkSize
         );
         int splitOffset = randomIntBetween(0, messageBytes.length);
+        int lastChunkSizeOfTheFirstSplit = splitOffset % Netty4WriteThrottlingHandler.MAX_BYTES_PER_WRITE;
         final BytesReference message = CompositeBytesReference.of(
             new BytesArray(messageBytes, 0, splitOffset),
             new BytesArray(messageBytes, splitOffset, messageBytes.length - splitOffset)
@@ -120,7 +121,9 @@ public class Netty4WriteThrottlingHandlerTests extends ESTestCase {
         assertFalse(promise.isDone());
         embeddedChannel.flush();
         assertTrue(promise.isDone());
-        assertThat(seen, hasSize(oneOf(fullSizeChunks, fullSizeChunks + 1)));
+        // If the extra chunk size is greater than the last chunk size for the first half of the split, it means we will need to send
+        // (extraChunkSize - lastChunkSizeOfTheFirstSplit) bytes as the very last chunk of the entire message.
+        assertThat(seen, hasSize(oneOf(fullSizeChunks, fullSizeChunks + 1 + (extraChunkSize > lastChunkSizeOfTheFirstSplit ? 1 : 0))));
         assertTrue(capturingHandler.didWriteAfterThrottled);
         assertBufferEquals(Unpooled.compositeBuffer().addComponents(true, seen), message);
     }

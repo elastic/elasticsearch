@@ -208,7 +208,7 @@ public class ComputeService {
                         transportService.getThreadPool(),
                         cancelQueryOnFailure,
                         computeListener.acquireCompute().delegateFailure((l, profiles) -> {
-                            if (execInfo.isCrossClusterSearch() && execInfo.clusterAliases().contains(LOCAL_CLUSTER)) {
+                            if (execInfo.clusterInfo.containsKey(LOCAL_CLUSTER)) {
                                 var tookTime = TimeValue.timeValueNanos(System.nanoTime() - execInfo.getRelativeStartNanos());
                                 var status = localClusterWasInterrupted.get()
                                     ? EsqlExecutionInfo.Cluster.Status.PARTIAL
@@ -249,17 +249,15 @@ public class ComputeService {
                             exchangeSource,
                             cancelQueryOnFailure,
                             localListener.acquireCompute().map(r -> {
-                                localClusterWasInterrupted.set(execInfo.isPartial());
-                                if (execInfo.isCrossClusterSearch() && execInfo.clusterAliases().contains(LOCAL_CLUSTER)) {
-                                    execInfo.swapCluster(
-                                        LOCAL_CLUSTER,
-                                        (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTotalShards(r.getTotalShards())
-                                            .setSuccessfulShards(r.getSuccessfulShards())
-                                            .setSkippedShards(r.getSkippedShards())
-                                            .setFailedShards(r.getFailedShards())
-                                            .build()
-                                    );
-                                }
+                                localClusterWasInterrupted.set(execInfo.isStopped());
+                                execInfo.swapCluster(
+                                    LOCAL_CLUSTER,
+                                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTotalShards(r.getTotalShards())
+                                        .setSuccessfulShards(r.getSuccessfulShards())
+                                        .setSkippedShards(r.getSkippedShards())
+                                        .setFailedShards(r.getFailedShards())
+                                        .build()
+                                );
                                 return r.getProfiles();
                             })
                         );
@@ -290,7 +288,7 @@ public class ComputeService {
     private void updateExecutionInfo(EsqlExecutionInfo executionInfo, String clusterAlias, ComputeResponse resp) {
         Function<EsqlExecutionInfo.Cluster.Status, EsqlExecutionInfo.Cluster.Status> runningToSuccess = status -> {
             if (status == EsqlExecutionInfo.Cluster.Status.RUNNING) {
-                return executionInfo.isPartial() ? EsqlExecutionInfo.Cluster.Status.PARTIAL : EsqlExecutionInfo.Cluster.Status.SUCCESSFUL;
+                return executionInfo.isStopped() ? EsqlExecutionInfo.Cluster.Status.PARTIAL : EsqlExecutionInfo.Cluster.Status.SUCCESSFUL;
             } else {
                 return status;
             }

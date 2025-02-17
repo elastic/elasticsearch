@@ -56,6 +56,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
@@ -204,6 +205,12 @@ public class EntitlementInitialization {
                         new LoadNativeLibrariesEntitlement(),
                         new FilesEntitlement(List.of(FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE)))
                     )
+                ),
+                new Scope(
+                    "org.bouncycastle.fips.tls",
+                    List.of(
+                        new FilesEntitlement(Optional.ofNullable(trustStorePath()).stream().map(ts -> FileData.ofPath(ts, READ)).toList())
+                    )
                 )
             )
         );
@@ -228,6 +235,11 @@ public class EntitlementInitialization {
             throw new IllegalStateException("user.home system property is required");
         }
         return PathUtils.get(userHome);
+    }
+
+    private static Path trustStorePath() {
+        String trustStore = System.getProperty("javax.net.ssl.trustStore");
+        return trustStore != null ? Path.of(trustStore) : null;
     }
 
     private static Stream<InstrumentationService.InstrumentationInfo> fileSystemProviderChecks() throws ClassNotFoundException,

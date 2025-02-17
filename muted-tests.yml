@@ -312,8 +312,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/122377
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.HdfsRepositoryAnalysisRestIT
   issue: https://github.com/elastic/elasticsearch/issues/122378
-- class: org.elasticsearch.telemetry.apm.ApmAgentSettingsIT
-  issue: https://github.com/elastic/elasticsearch/issues/122546
 - class: org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsRecoveryTests
   method: testSnapshotRecovery {p0=false p1=false}
   issue: https://github.com/elastic/elasticsearch/issues/122549
@@ -398,14 +396,6 @@ tests:
 - class: org.elasticsearch.indices.recovery.IndexRecoveryIT
   method: testSourceThrottling
   issue: https://github.com/elastic/elasticsearch/issues/122712
-- class: org.elasticsearch.entitlement.qa.EntitlementsDeniedNonModularIT
-  issue: https://github.com/elastic/elasticsearch/issues/122569
-- class: org.elasticsearch.entitlement.qa.EntitlementsAllowedNonModularIT
-  issue: https://github.com/elastic/elasticsearch/issues/122568
-- class: org.elasticsearch.entitlement.qa.EntitlementsAllowedIT
-  issue: https://github.com/elastic/elasticsearch/issues/122680
-- class: org.elasticsearch.entitlement.qa.EntitlementsDeniedIT
-  issue: https://github.com/elastic/elasticsearch/issues/122566
 
 # Examples:
 #

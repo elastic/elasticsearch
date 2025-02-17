@@ -138,14 +138,11 @@ public class EntitlementInitialization {
         var serverPolicy = new Policy(
             "server",
             List.of(
-                new Scope("org.elasticsearch.base",
+                new Scope(
+                    "org.elasticsearch.base",
                     List.of(
                         new CreateClassLoaderEntitlement(),
-                        new FilesEntitlement(
-                            List.of(
-                                FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE)
-                            )
-                        )
+                        new FilesEntitlement(List.of(FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE)))
                     )
                 ),
                 new Scope("org.elasticsearch.xcontent", List.of(new CreateClassLoaderEntitlement())),
@@ -185,7 +182,7 @@ public class EntitlementInitialization {
                                 FileData.ofPath(Path.of("/proc/self/mountinfo"), READ),
                                 FileData.ofPath(Path.of("/proc/diskstats"), READ)
 
-                                //TODO: use FileData.ofPathSetting("repositories.fs.location", READ_WRITE)
+                            // TODO: use FileData.ofPathSetting("repositories.fs.location", READ_WRITE)
                             )
                         )
                     )
@@ -208,13 +205,7 @@ public class EntitlementInitialization {
                 ),
                 new Scope(
                     "org.apache.lucene.misc",
-                    List.of(
-                        new FilesEntitlement(
-                            List.of(
-                                FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE)
-                            )
-                        )
-                    )
+                    List.of(new FilesEntitlement(List.of(FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE))))
                 ),
                 new Scope("org.apache.logging.log4j.core", List.of(new ManageThreadsEntitlement())),
                 new Scope(

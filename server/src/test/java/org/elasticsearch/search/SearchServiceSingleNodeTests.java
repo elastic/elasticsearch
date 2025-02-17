@@ -693,7 +693,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                                     int from,
                                     Client client
                                 ) {
-                                    return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
+                                    return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE, false) {
                                         @Override
                                         protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
                                             float[] scores = new float[featureDocs.length];
@@ -837,7 +837,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                                 int from,
                                 Client client
                             ) {
-                                return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
+                                return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE, false) {
                                     @Override
                                     protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
                                         throw new IllegalStateException("should have failed earlier");
@@ -953,7 +953,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                                     int from,
                                     Client client
                                 ) {
-                                    return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
+                                    return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE, false) {
                                         @Override
                                         protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
                                             float[] scores = new float[featureDocs.length];
@@ -1081,7 +1081,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                                     int from,
                                     Client client
                                 ) {
-                                    return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
+                                    return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE, false) {
                                         @Override
                                         protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
                                             float[] scores = new float[featureDocs.length];

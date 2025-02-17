@@ -56,7 +56,8 @@ public class TextSimilarityRankRetrieverBuilderTests extends AbstractXContentTes
             randomAlphaOfLength(10),
             randomAlphaOfLength(20),
             randomAlphaOfLength(50),
-            randomIntBetween(100, 10000)
+            randomIntBetween(100, 10000),
+            randomBoolean()
         );
     }
 
@@ -121,29 +122,33 @@ public class TextSimilarityRankRetrieverBuilderTests extends AbstractXContentTes
                 parser,
                 new RetrieverParserContext(new SearchUsage(), nf -> true)
             );
-            assertEquals(DEFAULT_RANK_WINDOW_SIZE, parsed.rankWindowSize());
-            assertEquals(DEFAULT_RERANK_ID, parsed.inferenceId());
+            assertThat(parsed.rankWindowSize(), equalTo(DEFAULT_RANK_WINDOW_SIZE));
+            assertThat(parsed.inferenceId(), equalTo(DEFAULT_RERANK_ID));
+            assertThat(parsed.failuresAllowed(), equalTo(false));
+
         }
     }
 
     public void testTextSimilarityRetrieverParsing() throws IOException {
-        String restContent = "{"
-            + "  \"retriever\": {"
-            + "    \"text_similarity_reranker\": {"
-            + "      \"retriever\": {"
-            + "        \"test\": {"
-            + "          \"value\": \"my-test-retriever\""
-            + "        }"
-            + "      },"
-            + "      \"field\": \"my-field\","
-            + "      \"inference_id\": \"my-inference-id\","
-            + "      \"inference_text\": \"my-inference-text\","
-            + "      \"rank_window_size\": 100,"
-            + "      \"min_score\": 20.0,"
-            + "      \"_name\": \"foo_reranker\""
-            + "    }"
-            + "  }"
-            + "}";
+        String restContent = """
+            {
+              "retriever": {
+                "text_similarity_reranker": {
+                  "retriever": {
+                    "test": {
+                      "value": "my-test-retriever"
+                    }
+                  },
+                  "field": "my-field",
+                  "inference_id": "my-inference-id",
+                  "inference_text": "my-inference-text",
+                  "rank_window_size": 100,
+                  "min_score": 20.0,
+                  "allow_rerank_failures": true,
+                  "_name": "foo_reranker"
+                }
+              }
+            }""";
         SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
         try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, restContent)) {
             SearchSourceBuilder source = new SearchSourceBuilder().parseXContent(jsonParser, true, searchUsageHolder, nf -> true);
@@ -151,6 +156,7 @@ public class TextSimilarityRankRetrieverBuilderTests extends AbstractXContentTes
             TextSimilarityRankRetrieverBuilder parsed = (TextSimilarityRankRetrieverBuilder) source.retriever();
             assertThat(parsed.minScore(), equalTo(20f));
             assertThat(parsed.retrieverName(), equalTo("foo_reranker"));
+            assertThat(parsed.failuresAllowed(), equalTo(true));
             try (XContentParser parseSerialized = createParser(JsonXContent.jsonXContent, Strings.toString(source))) {
                 SearchSourceBuilder deserializedSource = new SearchSourceBuilder().parseXContent(
                     parseSerialized,

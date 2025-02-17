@@ -155,6 +155,7 @@ public class ComputeService {
             }
             var computeContext = new ComputeContext(
                 newChildSession(sessionId),
+                "single",
                 LOCAL_CLUSTER,
                 List.of(),
                 configuration,
@@ -190,16 +191,16 @@ public class ComputeService {
          * entire plan.
          */
         List<Attribute> outputAttributes = physicalPlan.output();
+        var exchangeSource = new ExchangeSourceHandler(
+            queryPragmas.exchangeBufferSize(),
+            transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
+        );
+        listener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
+        exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
         try (var computeListener = new ComputeListener(transportService.getThreadPool(), cancelQueryOnFailure, listener.map(profiles -> {
             execInfo.markEndQuery();  // TODO: revisit this time recording model as part of INLINESTATS improvements
             return new Result(outputAttributes, collectedPages, profiles, execInfo);
         }))) {
-            var exchangeSource = new ExchangeSourceHandler(
-                queryPragmas.exchangeBufferSize(),
-                transportService.getThreadPool().executor(ThreadPool.Names.SEARCH),
-                ActionListener.runBefore(computeListener.acquireAvoid(), () -> exchangeService.removeExchangeSourceHandler(sessionId))
-            );
-            exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
             try (Releasable ignored = exchangeSource.addEmptySink()) {
                 // run compute on the coordinator
                 final AtomicBoolean localClusterWasInterrupted = new AtomicBoolean();
@@ -226,6 +227,7 @@ public class ComputeService {
                         rootTask,
                         new ComputeContext(
                             sessionId,
+                            "final",
                             LOCAL_CLUSTER,
                             List.of(),
                             configuration,
@@ -394,7 +396,7 @@ public class ComputeService {
             // the planner will also set the driver parallelism in LocalExecutionPlanner.LocalExecutionPlan (used down below)
             // it's doing this in the planning of EsQueryExec (the source of the data)
             // see also EsPhysicalOperationProviders.sourcePhysicalOperation
-            LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(context.foldCtx(), plan);
+            LocalExecutionPlanner.LocalExecutionPlan localExecutionPlan = planner.plan(context.taskDescription(), context.foldCtx(), plan);
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local execution plan:\n{}", localExecutionPlan.describe());
             }

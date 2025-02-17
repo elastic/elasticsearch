@@ -585,10 +585,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     ensureClusterInfoServiceRunning();
                     beforeIndexDeletion();
                     cluster().wipe(excludeTemplates()); // wipe after to make sure we fail in the test that didn't ack the delete
+                    cluster().assertAfterTest();
                     if (afterClass || currentClusterScope == Scope.TEST) {
                         cluster().close();
                     }
-                    cluster().assertAfterTest();
                 }
             } finally {
                 if (currentClusterScope == Scope.TEST) {
@@ -2263,7 +2263,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     public static Path randomRepoPath(Settings settings) {
         Environment environment = TestEnvironment.newEnvironment(settings);
-        Path[] repoFiles = environment.repoFiles();
+        Path[] repoFiles = environment.repoDirs();
         assert repoFiles.length > 0;
         Path path;
         do {

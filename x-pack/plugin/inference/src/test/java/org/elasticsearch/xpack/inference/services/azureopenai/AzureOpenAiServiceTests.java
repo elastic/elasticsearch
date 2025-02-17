@@ -1473,6 +1473,15 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                                     "type": "str",
                                     "supported_task_types": ["text_embedding", "completion"]
                                 },
+                                "dimensions": {
+                                    "description": "The number of dimensions the resulting embeddings should have. For more information refer to https://learn.microsoft.com/en-us/azure/ai-services/openai/reference#request-body-1.",
+                                    "label": "Dimensions",
+                                    "required": false,
+                                    "sensitive": false,
+                                    "updatable": false,
+                                    "type": "int",
+                                    "supported_task_types": ["text_embedding"]
+                                },
                                 "entra_id": {
                                     "description": "You must provide either an API key or an Entra ID.",
                                     "label": "Entra ID",

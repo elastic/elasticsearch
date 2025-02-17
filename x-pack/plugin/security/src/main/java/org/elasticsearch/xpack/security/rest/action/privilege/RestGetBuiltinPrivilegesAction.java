@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -41,6 +42,11 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestGetBuiltinPrivilegesAction extends SecurityBaseRestHandler {
 
     private static final Logger logger = LogManager.getLogger(RestGetBuiltinPrivilegesAction.class);
+    // TODO remove this once we can update docs tests again
+    private static final Set<String> FAILURE_STORE_PRIVILEGES_TO_EXCLUDE = Set.of(
+        IndexPrivilege.READ_FAILURE_STORE.getSingleName(),
+        IndexPrivilege.MANAGE_FAILURE_STORE_INTERNAL.getSingleName()
+    );
     private final GetBuiltinPrivilegesResponseTranslator responseTranslator;
 
     public RestGetBuiltinPrivilegesAction(
@@ -73,7 +79,6 @@ public class RestGetBuiltinPrivilegesAction extends SecurityBaseRestHandler {
                     final var translatedResponse = responseTranslator.translate(response);
                     builder.startObject();
                     builder.array("cluster", translatedResponse.getClusterPrivileges());
-                    // TODO remove the filter once we can update docs tests again
                     builder.array("index", filterOutFailureStorePrivileges(translatedResponse));
                     String[] remoteClusterPrivileges = translatedResponse.getRemoteClusterPrivileges();
                     if (remoteClusterPrivileges.length > 0) { // remote clusters are not supported in stateless mode, so hide entirely
@@ -85,10 +90,7 @@ public class RestGetBuiltinPrivilegesAction extends SecurityBaseRestHandler {
 
                 private static String[] filterOutFailureStorePrivileges(GetBuiltinPrivilegesResponse translatedResponse) {
                     return Arrays.stream(translatedResponse.getIndexPrivileges())
-                        .filter(
-                            p -> false == (p.equals(IndexPrivilege.READ_FAILURE_STORE.getSingleName())
-                                || p.equals(IndexPrivilege.MANAGE_FAILURE_STORE_INTERNAL.getSingleName()))
-                        )
+                        .filter(p -> false == FAILURE_STORE_PRIVILEGES_TO_EXCLUDE.contains(p))
                         .toArray(String[]::new);
                 }
             }

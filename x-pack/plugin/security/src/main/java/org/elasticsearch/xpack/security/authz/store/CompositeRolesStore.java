@@ -747,7 +747,6 @@ public class CompositeRolesStore {
                 final Set<String> key = newHashSet(indicesPrivilege.getIndices());
                 indicesPrivilegesMap.compute(key, (k, value) -> {
                     if (value == null) {
-                        // TODO do we need to worry about FLS and DLS combining incorrectly for different selectors?
                         return new MergeableIndicesPrivilege(
                             indicesPrivilege.getIndices(),
                             indicesPrivilege.getPrivileges(),

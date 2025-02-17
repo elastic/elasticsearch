@@ -134,6 +134,7 @@ public class EntitlementInitialization {
         EntitlementBootstrap.BootstrapArgs bootstrapArgs = EntitlementBootstrap.bootstrapArgs();
         Map<String, Policy> pluginPolicies = bootstrapArgs.pluginPolicies();
         var pathLookup = new PathLookup(bootstrapArgs.configDir(), bootstrapArgs.dataDirs(), bootstrapArgs.tempDir());
+        Path logsDir = EntitlementBootstrap.bootstrapArgs().logsDir();
 
         // TODO(ES-10031): Decide what goes in the elasticsearch default policy and extend it
         var serverPolicy = new Policy(
@@ -155,7 +156,25 @@ public class EntitlementInitialization {
                             Stream.concat(
                                 Stream.of(
                                     FileData.ofPath(bootstrapArgs.tempDir(), READ_WRITE),
-                                    FileData.ofPath(bootstrapArgs.configDir(), READ)
+                                    FileData.ofPath(bootstrapArgs.configDir(), READ),
+                                    FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
+                                    // OS release on Linux
+                                    FileData.ofPath(Path.of("/etc/os-release"), READ),
+                                    FileData.ofPath(Path.of("/etc/system-release"), READ),
+                                    FileData.ofPath(Path.of("/usr/lib/os-release"), READ),
+                                    // read max virtual memory areas
+                                    FileData.ofPath(Path.of("/proc/sys/vm/max_map_count"), READ),
+                                    FileData.ofPath(Path.of("/proc/meminfo"), READ),
+                                    // load averages on Linux
+                                    FileData.ofPath(Path.of("/proc/loadavg"), READ),
+                                    // control group stats on Linux. cgroup v2 stats are in an unpredicable
+                                    // location under `/sys/fs/cgroup`, so unfortunately we have to allow
+                                    // read access to the entire directory hierarchy.
+                                    FileData.ofPath(Path.of("/proc/self/cgroup"), READ),
+                                    FileData.ofPath(Path.of("/sys/fs/cgroup/"), READ),
+                                    // // io stats on Linux
+                                    FileData.ofPath(Path.of("/proc/self/mountinfo"), READ),
+                                    FileData.ofPath(Path.of("/proc/diskstats"), READ)
                                 ),
                                 Arrays.stream(bootstrapArgs.dataDirs()).map(d -> FileData.ofPath(d, READ))
                             ).toList()

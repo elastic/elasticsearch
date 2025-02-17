@@ -21,6 +21,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.core.Assertions;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -55,6 +56,13 @@ public class KnnScoreDocQuery extends Query {
      * @param reader IndexReader
      */
     KnnScoreDocQuery(int[] docs, float[] scores, IndexReader reader) {
+        if (Assertions.ENABLED) {
+            assert docs.length == scores.length;
+            for (int i = 1; i < docs.length; i++) {
+                assert docs[i - 1] < docs[i] : "doc ids are not in order: " + Arrays.toString(docs);
+            }
+        }
+
         this.docs = docs;
         this.scores = scores;
         this.segmentStarts = findSegmentStarts(reader, docs);

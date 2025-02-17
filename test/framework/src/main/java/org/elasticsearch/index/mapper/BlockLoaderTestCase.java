@@ -19,6 +19,7 @@ import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.logsdb.datageneration.DataGeneratorSpecification;
 import org.elasticsearch.logsdb.datageneration.DocumentGenerator;
 import org.elasticsearch.logsdb.datageneration.FieldType;
+import org.elasticsearch.logsdb.datageneration.Mapping;
 import org.elasticsearch.logsdb.datageneration.MappingGenerator;
 import org.elasticsearch.logsdb.datageneration.Template;
 import org.elasticsearch.logsdb.datageneration.datasource.DataSourceHandler;
@@ -72,9 +73,13 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
 
     public void testBlockLoader() throws IOException {
         var template = new Template(Map.of(fieldName, new Template.Leaf(fieldName, fieldType)));
-        runTest(template, fieldName);
+        var syntheticSource = randomBoolean();
+        var mapping = mappingGenerator.generate(template);
+
+        runTest(template, mapping, syntheticSource, fieldName);
     }
 
+    @SuppressWarnings("unchecked")
     public void testBlockLoaderForFieldInObject() throws IOException {
         int depth = randomIntBetween(0, 3);
 
@@ -94,14 +99,24 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
         fullFieldName.append('.').append(fieldName);
         currentLevel.put(fieldName, new Template.Leaf(fieldName, fieldType));
         var template = new Template(top);
-        runTest(template, fullFieldName.toString());
-    }
-
-    private void runTest(Template template, String fieldName) throws IOException {
-        var mapping = mappingGenerator.generate(template);
-        var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
 
         var syntheticSource = randomBoolean();
+
+        var mapping = mappingGenerator.generate(template);
+
+        if (syntheticSource && randomBoolean()) {
+            // force fallback synthetic source in the hierarchy
+            var docMapping = (Map<String, Object>) mapping.raw().get("_doc");
+            var topLevelMapping = (Map<String, Object>) ((Map<String, Object>) docMapping.get("properties")).get("top");
+            topLevelMapping.put("synthetic_source_keep", "all");
+        }
+
+        runTest(template, mapping, syntheticSource, fullFieldName.toString());
+    }
+
+    private void runTest(Template template, Mapping mapping, boolean syntheticSource, String fieldName) throws IOException {
+        var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
+
         var mapperService = syntheticSource ? createSytheticSourceMapperService(mappingXContent) : createMapperService(mappingXContent);
 
         var document = documentGenerator.generate(template, mapping);
@@ -143,6 +158,18 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
                 processLevel((Map<String, Object>) object, field.substring(field.indexOf('.') + 1), values);
             }
         }
+    }
+
+    protected static Object maybeFoldList(List<?> list) {
+        if (list.isEmpty()) {
+            return null;
+        }
+
+        if (list.size() == 1) {
+            return list.get(0);
+        }
+
+        return list;
     }
 
     private Object setupAndInvokeBlockLoader(MapperService mapperService, XContentBuilder document, String fieldName) throws IOException {

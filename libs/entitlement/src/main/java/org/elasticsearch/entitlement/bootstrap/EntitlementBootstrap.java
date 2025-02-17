@@ -38,7 +38,8 @@ public class EntitlementBootstrap {
         Function<Class<?>, String> pluginResolver,
         Path[] dataDirs,
         Path configDir,
-        Path tempDir
+        Path tempDir,
+        Path logsDir
     ) {
         public BootstrapArgs {
             requireNonNull(pluginPolicies);
@@ -64,22 +65,24 @@ public class EntitlementBootstrap {
      *
      * @param pluginPolicies a map holding policies for plugins (and modules), by plugin (or module) name.
      * @param pluginResolver a functor to map a Java Class to the plugin it belongs to (the plugin name).
-     * @param dataDirs data directories for Elasticsearch
-     * @param configDir the config directory for Elasticsearch
-     * @param tempDir the temp directory for Elasticsearch
+     * @param dataDirs       data directories for Elasticsearch
+     * @param configDir      the config directory for Elasticsearch
+     * @param tempDir        the temp directory for Elasticsearch
+     * @param logsDir        the log directory for Elasticsearch
      */
     public static void bootstrap(
         Map<String, Policy> pluginPolicies,
         Function<Class<?>, String> pluginResolver,
         Path[] dataDirs,
         Path configDir,
-        Path tempDir
+        Path tempDir,
+        Path logsDir
     ) {
         logger.debug("Loading entitlement agent");
         if (EntitlementBootstrap.bootstrapArgs != null) {
             throw new IllegalStateException("plugin data is already set");
         }
-        EntitlementBootstrap.bootstrapArgs = new BootstrapArgs(pluginPolicies, pluginResolver, dataDirs, configDir, tempDir);
+        EntitlementBootstrap.bootstrapArgs = new BootstrapArgs(pluginPolicies, pluginResolver, dataDirs, configDir, tempDir, logsDir);
         exportInitializationToAgent();
         loadAgent(findAgentJar());
         selfTest();

@@ -9,13 +9,11 @@
 
 package org.elasticsearch.test;
 
-import io.netty.util.ThreadDeathWatcher;
-import io.netty.util.concurrent.GlobalEventExecutor;
-
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
+import io.netty.util.ThreadDeathWatcher;
+import io.netty.util.concurrent.GlobalEventExecutor;
 import org.apache.http.HttpHost;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.Sort;
@@ -1594,7 +1592,27 @@ public abstract class ESIntegTestCase extends ESTestCase {
         waitForRelocation();
         BroadcastResponse actionGet = indicesAdmin().prepareForceMerge().setMaxNumSegments(1).get();
         assertNoFailures(actionGet);
+        if (randomBoolean()) {
+            // after a force merge there should only be 1 segment per shard
+            var shardsWithMultipleSegments = getShardSegments().stream()
+                .filter(shardSegments -> shardSegments.getSegments().size() > 1)
+                .toList();
+            assertTrue("there are shards with multiple segments " + shardsWithMultipleSegments, shardsWithMultipleSegments.isEmpty());
+        }
         return actionGet;
+    }
+
+    /**
+     * Returns the segments of the shards of the indices.
+     */
+    protected List<ShardSegments> getShardSegments(String... indices) {
+        IndicesSegmentResponse indicesSegmentResponse = indicesAdmin().prepareSegments(indices).get();
+        return indicesSegmentResponse.getIndices()
+                .values()
+                .stream()
+                .flatMap(indexSegments -> indexSegments.getShards().values().stream())
+                .flatMap(indexShardSegments -> Stream.of(indexShardSegments.shards()))
+                .toList();
     }
 
     /**

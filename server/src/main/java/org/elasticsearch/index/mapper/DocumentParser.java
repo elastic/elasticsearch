@@ -613,7 +613,7 @@ public final class DocumentParser {
     }
 
     private static void parseArray(DocumentParserContext context, String lastFieldName) throws IOException {
-        // Record previous immediate parent, so that it can be reset after array has been parsed:
+        // Record previous immediate parent, so that it can be reset after array has been parsed.
         // This is for recording array offset with synthetic source. Only if the immediate parent is an array,
         // then we offsets can be accounted accurately.
         var prev = context.getImmediateXContentParent();

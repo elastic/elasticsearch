@@ -95,7 +95,6 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.ManageApplicationPrivileges;
-import org.elasticsearch.xpack.core.security.authz.privilege.IndexComponentSelectorPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
@@ -781,15 +780,9 @@ public class RBACEngineTests extends ESTestCase {
             0,
             randomIntBetween(2, XPackPlugin.ASYNC_RESULTS_INDEX.length() - 2)
         );
-        Role.Builder builder1 = Role.builder(RESTRICTED_INDICES, "role");
-        Role role = builder1.add(
-            FieldPermissions.DEFAULT,
-            null,
-            IndexPrivilege.INDEX,
-            false,
-            IndexComponentSelectorPrivilege.DATA,
-            patternPrefix + "*"
-        ).build();
+        Role role = Role.builder(RESTRICTED_INDICES, "role")
+            .add(FieldPermissions.DEFAULT, null, IndexPrivilege.INDEX, false, patternPrefix + "*")
+            .build();
         RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
 
         String prePatternPrefix = patternPrefix.substring(0, randomIntBetween(1, patternPrefix.length() - 1)) + "*";
@@ -898,15 +891,9 @@ public class RBACEngineTests extends ESTestCase {
             containsInAnyOrder(ResourcePrivileges.builder(restrictedIndexMatchingWildcard).addPrivileges(Map.of("index", false)).build())
         );
 
-        Role.Builder builder = Role.builder(RESTRICTED_INDICES, "role");
-        role = builder.add(
-            FieldPermissions.DEFAULT,
-            null,
-            IndexPrivilege.INDEX,
-            true,
-            IndexComponentSelectorPrivilege.DATA,
-            patternPrefix + "*"
-        ).build();
+        role = Role.builder(RESTRICTED_INDICES, "role")
+            .add(FieldPermissions.DEFAULT, null, IndexPrivilege.INDEX, true, patternPrefix + "*")
+            .build();
         authzInfo = new RBACAuthorizationInfo(role, null);
         response = hasPrivileges(
             IndicesPrivileges.builder()
@@ -929,23 +916,10 @@ public class RBACEngineTests extends ESTestCase {
     public void testCheckExplicitRestrictedIndexPermissions() throws Exception {
         final boolean restrictedIndexPermission = randomBoolean();
         final boolean restrictedMonitorPermission = randomBoolean();
-        Role.Builder builder = Role.builder(RESTRICTED_INDICES, "role");
-        Role.Builder builder1 = builder.add(
-            FieldPermissions.DEFAULT,
-            null,
-            IndexPrivilege.INDEX,
-            restrictedIndexPermission,
-            IndexComponentSelectorPrivilege.DATA,
-            ".sec*"
-        );
-        Role role = builder1.add(
-            FieldPermissions.DEFAULT,
-            null,
-            IndexPrivilege.MONITOR,
-            restrictedMonitorPermission,
-            IndexComponentSelectorPrivilege.DATA,
-            ".security*"
-        ).build();
+        Role role = Role.builder(RESTRICTED_INDICES, "role")
+            .add(FieldPermissions.DEFAULT, null, IndexPrivilege.INDEX, restrictedIndexPermission, ".sec*")
+            .add(FieldPermissions.DEFAULT, null, IndexPrivilege.MONITOR, restrictedMonitorPermission, ".security*")
+            .build();
         RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
 
         String explicitRestrictedIndex = randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
@@ -1000,23 +974,10 @@ public class RBACEngineTests extends ESTestCase {
     }
 
     public void testCheckRestrictedIndexWildcardPermissions() throws Exception {
-        Role.Builder builder2 = Role.builder(RESTRICTED_INDICES, "role");
-        Role.Builder builder3 = builder2.add(
-            FieldPermissions.DEFAULT,
-            null,
-            IndexPrivilege.INDEX,
-            false,
-            IndexComponentSelectorPrivilege.DATA,
-            ".sec*"
-        );
-        Role role = builder3.add(
-            FieldPermissions.DEFAULT,
-            null,
-            IndexPrivilege.MONITOR,
-            true,
-            IndexComponentSelectorPrivilege.DATA,
-            ".security*"
-        ).build();
+        Role role = Role.builder(RESTRICTED_INDICES, "role")
+            .add(FieldPermissions.DEFAULT, null, IndexPrivilege.INDEX, false, ".sec*")
+            .add(FieldPermissions.DEFAULT, null, IndexPrivilege.MONITOR, true, ".security*")
+            .build();
         RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
 
         PrivilegesCheckResult response = hasPrivileges(
@@ -1051,23 +1012,10 @@ public class RBACEngineTests extends ESTestCase {
             )
         );
 
-        Role.Builder builder = Role.builder(RESTRICTED_INDICES, "role");
-        Role.Builder builder1 = builder.add(
-            FieldPermissions.DEFAULT,
-            null,
-            IndexPrivilege.INDEX,
-            true,
-            IndexComponentSelectorPrivilege.DATA,
-            ".sec*"
-        );
-        role = builder1.add(
-            FieldPermissions.DEFAULT,
-            null,
-            IndexPrivilege.MONITOR,
-            false,
-            IndexComponentSelectorPrivilege.DATA,
-            ".security*"
-        ).build();
+        role = Role.builder(RESTRICTED_INDICES, "role")
+            .add(FieldPermissions.DEFAULT, null, IndexPrivilege.INDEX, true, ".sec*")
+            .add(FieldPermissions.DEFAULT, null, IndexPrivilege.MONITOR, false, ".security*")
+            .build();
         authzInfo = new RBACAuthorizationInfo(role, null);
 
         response = hasPrivileges(
@@ -1340,23 +1288,18 @@ public class RBACEngineTests extends ESTestCase {
         final ManageApplicationPrivileges manageApplicationPrivileges = new ManageApplicationPrivileges(Sets.newHashSet("app01", "app02"));
         final BytesArray query = new BytesArray("""
             {"term":{"public":true}}""");
-        Role.Builder builder = Role.builder(RESTRICTED_INDICES, "test", "role")
-            .cluster(newHashSet("monitor", "manage_watcher"), Collections.singleton(manageApplicationPrivileges))
-            .add(IndexPrivilege.get(newHashSet("read", "write")), "index-1")
-            .add(IndexPrivilege.ALL, "index-2", "index-3");
-        FieldPermissions fieldPermissions = new FieldPermissions(
-            new FieldPermissionsDefinition(new String[] { "public.*" }, new String[0])
-        );
-        boolean allowRestrictedIndices = randomBoolean();
-        final Role role = builder.add(
-            fieldPermissions,
-            Collections.singleton(query),
-            IndexPrivilege.READ,
-            allowRestrictedIndices,
-            IndexComponentSelectorPrivilege.DATA,
-            "index-4",
-            "index-5"
-        )
+        final Role role = Role.builder(RESTRICTED_INDICES, "test", "role")
+            .cluster(Sets.newHashSet("monitor", "manage_watcher"), Collections.singleton(manageApplicationPrivileges))
+            .add(IndexPrivilege.get(Sets.newHashSet("read", "write")), "index-1")
+            .add(IndexPrivilege.ALL, "index-2", "index-3")
+            .add(
+                new FieldPermissions(new FieldPermissionsDefinition(new String[] { "public.*" }, new String[0])),
+                Collections.singleton(query),
+                IndexPrivilege.READ,
+                randomBoolean(),
+                "index-4",
+                "index-5"
+            )
             .addApplicationPrivilege(ApplicationPrivilegeTests.createPrivilege("app01", "read", "data:read"), Collections.singleton("*"))
             .runAs(new Privilege(Sets.newHashSet("user01", "user02"), "user01", "user02"))
             .addRemoteIndicesGroup(Set.of("remote-1"), FieldPermissions.DEFAULT, null, IndexPrivilege.READ, false, "remote-index-1")
@@ -1809,7 +1752,7 @@ public class RBACEngineTests extends ESTestCase {
                                 IndicesPrivileges.builder().indices("*").privileges("all").allowRestrictedIndices(false).build(),
                                 IndicesPrivileges.builder()
                                     .indices("*")
-                                    .privileges("monitor", "read", "read_cross_cluster", "read_failure_store", "view_index_metadata")
+                                    .privileges("monitor", "read", "read_cross_cluster", "view_index_metadata")
                                     .allowRestrictedIndices(true)
                                     .build() },
                             null,
@@ -1962,18 +1905,16 @@ public class RBACEngineTests extends ESTestCase {
         final String[] indices = { "test-index" };
         final BytesArray query = new BytesArray("""
             {"term":{"foo":bar}}""");
-        Role.Builder builder = Role.builder(RESTRICTED_INDICES, "test-role");
-        FieldPermissions fieldPermissions = new FieldPermissions(new FieldPermissionsDefinition(new String[] { "foo" }, new String[0]));
-        boolean allowRestrictedIndices = randomBoolean();
         final Role role = Mockito.spy(
-            builder.add(
-                fieldPermissions,
-                Set.of(query),
-                IndexPrivilege.READ,
-                allowRestrictedIndices,
-                IndexComponentSelectorPrivilege.DATA,
-                indices
-            ).build()
+            Role.builder(RESTRICTED_INDICES, "test-role")
+                .add(
+                    new FieldPermissions(new FieldPermissionsDefinition(new String[] { "foo" }, new String[0])),
+                    Set.of(query),
+                    IndexPrivilege.READ,
+                    randomBoolean(),
+                    indices
+                )
+                .build()
         );
 
         final String action = randomFrom(

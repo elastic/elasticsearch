@@ -27,11 +27,6 @@ public record IndexComponentSelectorPrivilege(String name, Predicate<IndexCompon
         IndexComponentSelector.FAILURES::equals
     );
 
-    private static final Set<IndexPrivilege> FAILURE_STORE_PRIVILEGE_NAMES = Set.of(
-        IndexPrivilege.READ_FAILURE_STORE,
-        IndexPrivilege.MANAGE_FAILURE_STORE_INTERNAL
-    );
-
     public boolean grants(IndexComponentSelector selector) {
         return predicate.test(selector);
     }
@@ -44,11 +39,11 @@ public record IndexComponentSelectorPrivilege(String name, Predicate<IndexCompon
         return indexPrivileges.stream().map(IndexComponentSelectorPrivilege::get).collect(Collectors.toSet());
     }
 
-    public static Map<IndexComponentSelectorPrivilege, Set<String>> groupBySelector(String... indexPrivileges) {
-        return groupBySelector(Set.of(indexPrivileges));
+    public static Map<IndexComponentSelectorPrivilege, Set<String>> partitionBySelectorPrivilege(String... indexPrivileges) {
+        return partitionBySelectorPrivilege(Set.of(indexPrivileges));
     }
 
-    public static Map<IndexComponentSelectorPrivilege, Set<String>> groupBySelector(Set<String> indexPrivileges) {
+    public static Map<IndexComponentSelectorPrivilege, Set<String>> partitionBySelectorPrivilege(Set<String> indexPrivileges) {
         final Set<String> dataAccessPrivileges = new HashSet<>();
         final Set<String> failuresAccessPrivileges = new HashSet<>();
 
@@ -82,14 +77,6 @@ public record IndexComponentSelectorPrivilege(String name, Predicate<IndexCompon
     private static IndexComponentSelectorPrivilege get(String indexPrivilegeName) {
         final IndexPrivilege indexPrivilege = IndexPrivilege.getNamedOrNull(indexPrivilegeName);
         // `null` means we got a raw action instead of a named privilege; all raw actions are treated as data access
-        if (indexPrivilege == null) {
-            return DATA;
-        } else if (indexPrivilege == IndexPrivilege.ALL) {
-            return ALL;
-        } else if (FAILURE_STORE_PRIVILEGE_NAMES.contains(indexPrivilege)) {
-            return FAILURES;
-        } else {
-            return DATA;
-        }
+        return indexPrivilege == null ? DATA : indexPrivilege.getSelectorPrivilege();
     }
 }

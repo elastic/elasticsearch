@@ -253,7 +253,7 @@ public interface Role {
         }
 
         public Builder add(IndexPrivilege privilege, String... indices) {
-            return add(FieldPermissions.DEFAULT, null, privilege, false, IndexComponentSelectorPrivilege.DATA, indices);
+            return add(FieldPermissions.DEFAULT, null, privilege, false, indices);
         }
 
         public Builder add(
@@ -261,12 +261,9 @@ public interface Role {
             Set<BytesReference> query,
             IndexPrivilege privilege,
             boolean allowRestrictedIndices,
-            IndexComponentSelectorPrivilege selectorPrivilege,
             String... indices
         ) {
-            groups.add(
-                new IndicesPermissionGroupDefinition(privilege, fieldPermissions, query, allowRestrictedIndices, selectorPrivilege, indices)
-            );
+            groups.add(new IndicesPermissionGroupDefinition(privilege, fieldPermissions, query, allowRestrictedIndices, indices));
             return this;
         }
 
@@ -279,17 +276,7 @@ public interface Role {
             final String... indices
         ) {
             remoteIndicesGroups.computeIfAbsent(remoteClusterAliases, k -> new ArrayList<>())
-                .add(
-                    new IndicesPermissionGroupDefinition(
-                        privilege,
-                        fieldPermissions,
-                        query,
-                        allowRestrictedIndices,
-                        // TODO
-                        IndexComponentSelectorPrivilege.DATA,
-                        indices
-                    )
-                );
+                .add(new IndicesPermissionGroupDefinition(privilege, fieldPermissions, query, allowRestrictedIndices, indices));
             return this;
         }
 
@@ -329,7 +316,6 @@ public interface Role {
                         group.fieldPermissions,
                         group.query,
                         group.allowRestrictedIndices,
-                        group.selectorPrivilege,
                         group.indices
                     );
                 }
@@ -378,7 +364,6 @@ public interface Role {
             private final FieldPermissions fieldPermissions;
             private final @Nullable Set<BytesReference> query;
             private final boolean allowRestrictedIndices;
-            private final IndexComponentSelectorPrivilege selectorPrivilege;
             private final String[] indices;
 
             private IndicesPermissionGroupDefinition(
@@ -386,14 +371,12 @@ public interface Role {
                 FieldPermissions fieldPermissions,
                 @Nullable Set<BytesReference> query,
                 boolean allowRestrictedIndices,
-                IndexComponentSelectorPrivilege selectorPrivilege,
                 String... indices
             ) {
                 this.privilege = privilege;
                 this.fieldPermissions = fieldPermissions;
                 this.query = query;
                 this.allowRestrictedIndices = allowRestrictedIndices;
-                this.selectorPrivilege = selectorPrivilege;
                 this.indices = indices;
             }
         }
@@ -428,18 +411,14 @@ public interface Role {
             );
             Set<BytesReference> query = indexPrivilege.getQuery() == null ? null : Collections.singleton(indexPrivilege.getQuery());
             boolean allowRestrictedIndices = indexPrivilege.allowRestrictedIndices();
-            Map<IndexComponentSelectorPrivilege, Set<String>> split = IndexComponentSelectorPrivilege.groupBySelector(
+            Map<IndexComponentSelectorPrivilege, Set<String>> split = IndexComponentSelectorPrivilege.partitionBySelectorPrivilege(
                 indexPrivilege.getPrivileges()
             );
             for (var entry : split.entrySet()) {
-                builder.add(
-                    fieldPermissions,
-                    query,
-                    IndexPrivilege.get(entry.getValue()),
-                    allowRestrictedIndices,
-                    entry.getKey(),
-                    indexPrivilege.getIndices()
-                );
+                IndexPrivilege privilege = IndexPrivilege.get(entry.getValue());
+                assert privilege.getSelectorPrivilege() == entry.getKey()
+                    : "expected selector privilege to match the partitioned privilege";
+                builder.add(fieldPermissions, query, privilege, allowRestrictedIndices, indexPrivilege.getIndices());
             }
         }
 

@@ -178,12 +178,16 @@ public final class IndexPrivilege extends Privilege {
     );
 
     public static final IndexPrivilege NONE = new IndexPrivilege("none", Automatons.EMPTY);
-    public static final IndexPrivilege ALL = new IndexPrivilege("all", ALL_AUTOMATON);
-    // TODO explain
-    public static final IndexPrivilege READ_FAILURE_STORE = new IndexPrivilege("read_failure_store", READ_AUTOMATON);
+    public static final IndexPrivilege ALL = new IndexPrivilege("all", ALL_AUTOMATON, IndexComponentSelectorPrivilege.ALL);
+    public static final IndexPrivilege READ_FAILURE_STORE = new IndexPrivilege(
+        "read_failure_store",
+        READ_AUTOMATON,
+        IndexComponentSelectorPrivilege.FAILURES
+    );
     public static final IndexPrivilege MANAGE_FAILURE_STORE_INTERNAL = new IndexPrivilege(
         "manage_failure_store_internal",
-        MANAGE_AUTOMATON
+        MANAGE_AUTOMATON,
+        IndexComponentSelectorPrivilege.FAILURES
     );
     public static final IndexPrivilege READ = new IndexPrivilege("read", READ_AUTOMATON);
     public static final IndexPrivilege READ_CROSS_CLUSTER = new IndexPrivilege("read_cross_cluster", READ_CROSS_CLUSTER_AUTOMATON);
@@ -253,12 +257,23 @@ public final class IndexPrivilege extends Privilege {
 
     private static final ConcurrentHashMap<Set<String>, IndexPrivilege> CACHE = new ConcurrentHashMap<>();
 
+    private final IndexComponentSelectorPrivilege selectorPrivilege;
+
     private IndexPrivilege(String name, Automaton automaton) {
-        super(Collections.singleton(name), automaton);
+        this(Collections.singleton(name), automaton);
+    }
+
+    private IndexPrivilege(String name, Automaton automaton, IndexComponentSelectorPrivilege selectorPrivilege) {
+        this(Collections.singleton(name), automaton, selectorPrivilege);
     }
 
     private IndexPrivilege(Set<String> name, Automaton automaton) {
+        this(name, automaton, IndexComponentSelectorPrivilege.DATA);
+    }
+
+    private IndexPrivilege(Set<String> name, Automaton automaton, IndexComponentSelectorPrivilege selectorPrivilege) {
         super(name, automaton);
+        this.selectorPrivilege = selectorPrivilege;
     }
 
     public static IndexPrivilege get(Set<String> name) {
@@ -269,6 +284,10 @@ public final class IndexPrivilege extends Privilege {
                 return resolve(theName);
             }
         });
+    }
+
+    public IndexComponentSelectorPrivilege getSelectorPrivilege() {
+        return selectorPrivilege;
     }
 
     public String getSingleName() {
@@ -291,6 +310,7 @@ public final class IndexPrivilege extends Privilege {
 
         Set<String> actions = new HashSet<>();
         Set<Automaton> automata = new HashSet<>();
+        Set<IndexComponentSelectorPrivilege> selectorPrivileges = new HashSet<>();
         for (String part : name) {
             part = part.toLowerCase(Locale.ROOT);
             if (ACTION_MATCHER.test(part)) {
@@ -301,6 +321,7 @@ public final class IndexPrivilege extends Privilege {
                     return indexPrivilege;
                 } else if (indexPrivilege != null) {
                     automata.add(indexPrivilege.automaton);
+                    selectorPrivileges.add(indexPrivilege.getSelectorPrivilege());
                 } else {
                     String errorMessage = "unknown index privilege ["
                         + part
@@ -317,8 +338,20 @@ public final class IndexPrivilege extends Privilege {
 
         if (actions.isEmpty() == false) {
             automata.add(patterns(actions));
+            selectorPrivileges.add(IndexComponentSelectorPrivilege.DATA);
         }
-        return new IndexPrivilege(name, unionAndMinimize(automata));
+
+        for (IndexComponentSelectorPrivilege selectorPrivilege : selectorPrivileges) {
+            if (selectorPrivilege == IndexComponentSelectorPrivilege.ALL) {
+                return new IndexPrivilege(name, unionAndMinimize(automata), IndexComponentSelectorPrivilege.ALL);
+            }
+        }
+        if (selectorPrivileges.size() != 1) {
+            // TODO assertion and make this clearer
+            throw new IllegalArgumentException("Cannot mix different selector privileges in a single index privilege for [" + name + "]");
+        }
+
+        return new IndexPrivilege(name, unionAndMinimize(automata), selectorPrivileges.iterator().next());
     }
 
     static Map<String, IndexPrivilege> values() {
@@ -336,6 +369,13 @@ public final class IndexPrivilege extends Privilege {
      * @see Privilege#sortByAccessLevel
      */
     public static Collection<String> findPrivilegesThatGrant(String action) {
-        return VALUES.entrySet().stream().filter(e -> e.getValue().predicate.test(action)).map(e -> e.getKey()).toList();
+        return VALUES.entrySet()
+            .stream()
+            .filter(e -> e.getValue().predicate.test(action))
+            // Filter out the failure store privileges since these are confusing w.r.t. authorization failure messages are a handled
+            // separately
+            .filter(e -> false == (e.getValue().getSelectorPrivilege() == IndexComponentSelectorPrivilege.FAILURES))
+            .map(Map.Entry::getKey)
+            .toList();
     }
 }

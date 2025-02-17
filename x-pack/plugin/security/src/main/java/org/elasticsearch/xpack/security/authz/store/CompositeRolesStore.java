@@ -543,38 +543,28 @@ public class CompositeRolesStore {
 
         for (Map.Entry<Set<String>, MergeableIndicesPrivilege> entry : indicesPrivilegesMap.entrySet()) {
             MergeableIndicesPrivilege indicesPrivilege = entry.getValue();
-            Map<IndexComponentSelectorPrivilege, Set<String>> split = IndexComponentSelectorPrivilege.groupBySelector(
+            Map<IndexComponentSelectorPrivilege, Set<String>> split = IndexComponentSelectorPrivilege.partitionBySelectorPrivilege(
                 indicesPrivilege.privileges
             );
             FieldPermissions fieldPermissions = fieldPermissionsCache.getFieldPermissions(indicesPrivilege.fieldPermissionsDefinition);
             String[] indices = indicesPrivilege.indices.toArray(Strings.EMPTY_ARRAY);
             for (Map.Entry<IndexComponentSelectorPrivilege, Set<String>> privilegesBySelector : split.entrySet()) {
-                builder.add(
-                    fieldPermissions,
-                    indicesPrivilege.query,
-                    IndexPrivilege.get(privilegesBySelector.getValue()),
-                    false,
-                    privilegesBySelector.getKey(),
-                    indices
-                );
+                IndexPrivilege indexPrivilege = IndexPrivilege.get(privilegesBySelector.getValue());
+                assert indexPrivilege.getSelectorPrivilege() == privilegesBySelector.getKey();
+                builder.add(fieldPermissions, indicesPrivilege.query, indexPrivilege, false, indices);
             }
         }
         for (Map.Entry<Set<String>, MergeableIndicesPrivilege> entry : restrictedIndicesPrivilegesMap.entrySet()) {
             MergeableIndicesPrivilege indicesPrivilege = entry.getValue();
-            Map<IndexComponentSelectorPrivilege, Set<String>> split = IndexComponentSelectorPrivilege.groupBySelector(
+            Map<IndexComponentSelectorPrivilege, Set<String>> split = IndexComponentSelectorPrivilege.partitionBySelectorPrivilege(
                 indicesPrivilege.privileges
             );
             FieldPermissions fieldPermissions = fieldPermissionsCache.getFieldPermissions(indicesPrivilege.fieldPermissionsDefinition);
             String[] indices = indicesPrivilege.indices.toArray(Strings.EMPTY_ARRAY);
             for (Map.Entry<IndexComponentSelectorPrivilege, Set<String>> privilegesBySelector : split.entrySet()) {
-                builder.add(
-                    fieldPermissions,
-                    indicesPrivilege.query,
-                    IndexPrivilege.get(privilegesBySelector.getValue()),
-                    true,
-                    privilegesBySelector.getKey(),
-                    indices
-                );
+                IndexPrivilege indexPrivilege = IndexPrivilege.get(privilegesBySelector.getValue());
+                assert indexPrivilege.getSelectorPrivilege() == privilegesBySelector.getKey();
+                builder.add(fieldPermissions, indicesPrivilege.query, IndexPrivilege.get(privilegesBySelector.getValue()), true, indices);
             }
         }
 

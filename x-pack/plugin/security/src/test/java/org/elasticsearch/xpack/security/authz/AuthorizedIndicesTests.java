@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivile
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
-import org.elasticsearch.xpack.core.security.authz.privilege.IndexComponentSelectorPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
@@ -189,9 +188,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
 
     public void testSecurityIndicesAreNotRemovedFromUnrestrictedRole() {
         Role.Builder builder = Role.builder(RESTRICTED_INDICES, randomAlphaOfLength(8));
-        Role role = builder.add(FieldPermissions.DEFAULT, null, IndexPrivilege.ALL, true, IndexComponentSelectorPrivilege.DATA, "*")
-            .cluster(Set.of("all"), Set.of())
-            .build();
+        Role role = builder.add(FieldPermissions.DEFAULT, null, IndexPrivilege.ALL, true, "*").cluster(Set.of("all"), Set.of()).build();
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final String internalSecurityIndex = randomFrom(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,

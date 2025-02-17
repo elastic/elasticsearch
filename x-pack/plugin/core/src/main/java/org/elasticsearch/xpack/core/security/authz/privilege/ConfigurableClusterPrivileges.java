@@ -420,7 +420,6 @@ public final class ConfigurableClusterPrivileges {
                         null,
                         false,
                         // TODO
-                        IndexComponentSelectorPrivilege.DATA,
                         indexPatternPrivilege.indexPatterns()
                     );
                 }

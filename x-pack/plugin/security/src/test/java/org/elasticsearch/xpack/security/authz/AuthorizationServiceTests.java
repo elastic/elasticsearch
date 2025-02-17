@@ -987,10 +987,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                 )
             )
         );
-        assertThat(
-            securityException,
-            throwableWithMessage(containsString("this action is granted by the index privileges [read,read_failure_store,all]"))
-        );
+        assertThat(securityException, throwableWithMessage(containsString("this action is granted by the index privileges [read,all]")));
 
         verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(Role.EMPTY.names()));
         verifyNoMoreInteractions(auditTrail);
@@ -1036,10 +1033,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             throwableWithMessage(containsString("[" + action + "] is unauthorized for service account [" + serviceUser.principal() + "]"))
         );
         verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(role.names()));
-        assertThat(
-            securityException,
-            throwableWithMessage(containsString("this action is granted by the index privileges [read,read_failure_store,all]"))
-        );
+        assertThat(securityException, throwableWithMessage(containsString("this action is granted by the index privileges [read,all]")));
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -1089,10 +1083,7 @@ public class AuthorizationServiceTests extends ESTestCase {
                 containsString("[" + action + "] is unauthorized" + " for user [test user]" + " with effective roles [no_indices]")
             )
         );
-        assertThat(
-            securityException,
-            throwableWithMessage(containsString("this action is granted by the index privileges [read,read_failure_store,all]"))
-        );
+        assertThat(securityException, throwableWithMessage(containsString("this action is granted by the index privileges [read,all]")));
 
         verify(auditTrail).accessDenied(
             eq(requestId),
@@ -1545,10 +1536,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThat(securityException, throwableWithMessage(containsString("other-4")));
         assertThat(securityException, throwableWithMessage(not(containsString("all-1"))));
         assertThat(securityException, throwableWithMessage(not(containsString("read-2"))));
-        assertThat(
-            securityException,
-            throwableWithMessage(containsString(", this action is granted by the index privileges [read,read_failure_store,all]"))
-        );
+        assertThat(securityException, throwableWithMessage(containsString(", this action is granted by the index privileges [read,all]")));
     }
 
     public void testDenialErrorMessagesForBulkIngest() throws Exception {

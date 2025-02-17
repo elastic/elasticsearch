@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
-import org.elasticsearch.xpack.core.security.authz.privilege.IndexComponentSelectorPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.restriction.Workflow;
 import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
@@ -761,16 +760,9 @@ public class LimitedRoleTests extends ESTestCase {
             );
         }
         {
-            Role.Builder builder = Role.builder(EMPTY_RESTRICTED_INDICES, "a-role");
-            fromRole = builder.add(
-                FieldPermissions.DEFAULT,
-                Collections.emptySet(),
-                IndexPrivilege.READ,
-                true,
-                IndexComponentSelectorPrivilege.DATA,
-                "ind-1*",
-                ".security"
-            ).build();
+            fromRole = Role.builder(EMPTY_RESTRICTED_INDICES, "a-role")
+                .add(FieldPermissions.DEFAULT, Collections.emptySet(), IndexPrivilege.READ, true, "ind-1*", ".security")
+                .build();
 
             verifyResourcesPrivileges(
                 fromRole,

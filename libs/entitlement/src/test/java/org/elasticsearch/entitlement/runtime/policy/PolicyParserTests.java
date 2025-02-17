@@ -95,7 +95,7 @@ public class PolicyParserTests extends ESTestCase {
         return new ByteArrayInputStream(Strings.format("""
             entitlement-module-name:
               - files:
-                - path: "%s"
+                - path: '%s'
                   mode: "read_write"
             """, TEST_ABSOLUTE_PATH_TO_FILE).getBytes(StandardCharsets.UTF_8));
     }
@@ -145,9 +145,9 @@ public class PolicyParserTests extends ESTestCase {
         Policy policyWithTwoPaths = new PolicyParser(new ByteArrayInputStream(Strings.format("""
             entitlement-module-name:
               - files:
-                - path: "%s"
+                - path: '%s'
                   mode: "read_write"
-                - path: "%s"
+                - path: '%s'
                   mode: "read"
             """, TEST_ABSOLUTE_PATH_TO_FILE, testPathToReadDir).getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", false).parsePolicy();
         expected = new Policy(
@@ -174,13 +174,13 @@ public class PolicyParserTests extends ESTestCase {
             new ByteArrayInputStream(Strings.format("""
                 entitlement-module-name:
                   - files:
-                    - relative_path: "%s"
+                    - relative_path: '%s'
                       relative_to: "data"
                       mode: "read_write"
-                    - relative_path: "%s"
+                    - relative_path: '%s'
                       relative_to: "config"
                       mode: "read"
-                    - path: "%s"
+                    - path: '%s'
                       mode: "read_write"
                 """, relativePathToFile, relativePathToDir, TEST_ABSOLUTE_PATH_TO_FILE).getBytes(StandardCharsets.UTF_8)),
             "test-policy.yaml",

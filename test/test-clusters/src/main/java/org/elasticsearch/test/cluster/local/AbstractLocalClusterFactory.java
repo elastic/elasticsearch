@@ -46,6 +46,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -567,6 +568,37 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             }
         }
 
+        private void updateRolesFileAtomically() throws IOException {
+            final Path targetRolesFile = workingDir.resolve("config").resolve("roles.yml");
+            final Path tempFile = Files.createTempFile(workingDir.resolve("config"), null, null);
+
+            // collect all roles.yml files that should be combined into a single roles file
+            final List<Resource> rolesFiles = new ArrayList<>(spec.getRolesFiles().size() + 1);
+            rolesFiles.add(Resource.fromFile(distributionDir.resolve("config").resolve("roles.yml")));
+            rolesFiles.addAll(spec.getRolesFiles());
+
+            // append all roles files to the temp file
+            rolesFiles.forEach(rolesFile -> {
+                try (
+                    Writer writer = Files.newBufferedWriter(tempFile, StandardOpenOption.APPEND);
+                    Reader reader = new BufferedReader(new InputStreamReader(rolesFile.asStream()))
+                ) {
+                    reader.transferTo(writer);
+                } catch (IOException e) {
+                    throw new UncheckedIOException("Failed to append roles file " + rolesFile + " to " + tempFile, e);
+                }
+            });
+
+            // move the temp file to the target roles file atomically
+            try {
+                Files.move(tempFile, targetRolesFile, StandardCopyOption.ATOMIC_MOVE);
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to move tmp roles file [" + tempFile + "] to [" + targetRolesFile + "]", e);
+            } finally {
+                Files.deleteIfExists(tempFile);
+            }
+        }
+
         private void configureSecurity() {
             if (spec.isSecurityEnabled()) {
                 if (spec.getUsers().isEmpty() == false) {
@@ -576,13 +608,11 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                         if (resource instanceof MutableResource && roleFileListeners.add(resource)) {
                             ((MutableResource) resource).addUpdateListener(updated -> {
                                 LOGGER.info("Updating roles.yml for node '{}'", name);
-                                Path rolesFile = workingDir.resolve("config").resolve("roles.yml");
                                 try {
-                                    Files.delete(rolesFile);
-                                    Files.copy(distributionDir.resolve("config").resolve("roles.yml"), rolesFile);
-                                    writeRolesFile();
+                                    updateRolesFileAtomically();
+                                    LOGGER.info("Successfully updated roles.yml for node '{}'", name);
                                 } catch (IOException e) {
-                                    throw new UncheckedIOException(e);
+                                    throw new UncheckedIOException("Failed to update roles.yml file for node [" + name + "]", e);
                                 }
                             });
                         }

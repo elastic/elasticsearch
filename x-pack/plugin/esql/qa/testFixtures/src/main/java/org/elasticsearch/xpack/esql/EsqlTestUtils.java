@@ -100,6 +100,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Duration;
 import java.time.Period;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -141,6 +142,8 @@ import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.IDENTIFIER;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.PATTERN;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.VALUE;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -388,7 +391,8 @@ public final class EsqlTestUtils {
             query,
             false,
             TABLES,
-            System.nanoTime()
+            System.nanoTime(),
+            false
         );
     }
 
@@ -840,5 +844,10 @@ public final class EsqlTestUtils {
         assertNull("cancellation exceptions must be ignored", cancellationFailure);
         ExceptionsHelper.unwrapCausesAndSuppressed(e, t -> t instanceof RemoteTransportException)
             .ifPresent(transportFailure -> assertNull("remote transport exception must be unwrapped", transportFailure.getCause()));
+    }
+
+    public static <T> T singleValue(Collection<T> collection) {
+        assertThat(collection, hasSize(1));
+        return collection.iterator().next();
     }
 }

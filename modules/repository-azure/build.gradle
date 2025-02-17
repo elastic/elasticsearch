@@ -66,7 +66,7 @@ dependencies {
   api("com.nimbusds:nimbus-jose-jwt:9.37.3"){
     exclude group: 'com.google.crypto.tink', module: 'tink' // it's an optional dependency on which we don't rely
   }
-  api("com.nimbusds:oauth2-oidc-sdk:11.9.1"){
+  api("com.nimbusds:oauth2-oidc-sdk:11.22.2"){
     exclude group: 'com.google.crypto.tink', module: 'tink' // it's an optional dependency on which we don't rely
   }
   api "jakarta.activation:jakarta.activation-api:1.2.1"
@@ -74,7 +74,7 @@ dependencies {
   api "net.java.dev.jna:jna-platform:${versions.jna}" // Maven says 5.14.0 but this aligns with the Elasticsearch-wide version
   api "net.java.dev.jna:jna:${versions.jna}" // Maven says 5.14.0 but this aligns with the Elasticsearch-wide version
   api "net.minidev:accessors-smart:2.5.0"
-  api "net.minidev:json-smart:2.5.0"
+  api "net.minidev:json-smart:2.5.2"
   api "org.codehaus.woodstox:stax2-api:4.2.2"
   api "org.ow2.asm:asm:9.3"
 

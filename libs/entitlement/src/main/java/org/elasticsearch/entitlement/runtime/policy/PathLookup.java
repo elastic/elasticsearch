@@ -7,16 +7,8 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-plugins {
-  id "com.gradle.develocity" version "3.18.1"
-}
+package org.elasticsearch.entitlement.runtime.policy;
 
-rootProject.name = 'build-conventions'
+import java.nio.file.Path;
 
-dependencyResolutionManagement {
-    versionCatalogs {
-        buildLibs {
-            from(files("../gradle/build.versions.toml"))
-        }
-    }
-}
+public record PathLookup(Path configDir, Path[] dataDirs, Path tempDir) {}

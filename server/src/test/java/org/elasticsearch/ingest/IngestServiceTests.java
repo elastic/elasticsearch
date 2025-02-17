@@ -2181,7 +2181,7 @@ public class IngestServiceTests extends ESTestCase {
         Processor processor = mock(Processor.class);
         String name = randomAlphaOfLength(10);
         when(processor.getType()).thenReturn(name);
-        assertThat(IngestService.getProcessorName(processor), equalTo(name));
+        assertThat(IngestService.getProcessorName(processor), sameInstance(name));
         String tag = randomAlphaOfLength(10);
         when(processor.getTag()).thenReturn(tag);
         assertThat(IngestService.getProcessorName(processor), equalTo(name + ":" + tag));

@@ -50,7 +50,7 @@ class RemoteListenerGroup {
         this.taskManager = transportService.getTaskManager();
         this.clusterAlias = clusterAlias;
         this.executionInfo = executionInfo;
-        groupTask = createGroupTask(rootTask, () -> rootTask.getDescription() + "[" + clusterAlias + "]");
+        groupTask = createGroupTask(transportService, rootTask, () -> rootTask.getDescription() + "[" + clusterAlias + "]");
         CountDown countDown = new CountDown(2);
         // The group is done when both the sink and the cluster request are done
         Runnable finishGroup = () -> {
@@ -74,7 +74,7 @@ class RemoteListenerGroup {
     private <T> ActionListener<T> createCancellingListener(String reason, ActionListener<T> delegate, Runnable finishGroup) {
         return ActionListener.runAfter(delegate.delegateResponse((inner, e) -> {
             taskManager.cancelTaskAndDescendants(groupTask, reason, true, ActionListener.running(() -> {
-                EsqlCCSUtils.skipUnavailableListener(delegate, executionInfo, clusterAlias, EsqlExecutionInfo.Cluster.Status.PARTIAL)
+                EsqlCCSUtils.skipUnavailableListener(inner, executionInfo, clusterAlias, EsqlExecutionInfo.Cluster.Status.PARTIAL)
                     .onFailure(e);
             }));
         }), finishGroup);
@@ -92,7 +92,8 @@ class RemoteListenerGroup {
         return clusterRequestListener;
     }
 
-    private CancellableTask createGroupTask(Task parentTask, Supplier<String> description) {
+    public static CancellableTask createGroupTask(TransportService transportService, Task parentTask, Supplier<String> description) {
+        final TaskManager taskManager = transportService.getTaskManager();
         return (CancellableTask) taskManager.register(
             "transport",
             "esql_compute_group",

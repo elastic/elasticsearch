@@ -85,7 +85,6 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             var resp = finalResponse.get();
             return Objects.requireNonNullElseGet(resp, () -> new ComputeResponse(profiles));
         }))) {
-            var openExchangeListener = computeListener.acquireAvoid();
             ExchangeService.openExchange(
                 transportService,
                 cluster.connection,
@@ -93,7 +92,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                 queryPragmas.exchangeBufferSize(),
                 esqlExecutor,
                 EsqlCCSUtils.skipUnavailableListener(
-                    openExchangeListener,
+                    computeListener.acquireAvoid(),
                     executionInfo,
                     clusterAlias,
                     EsqlExecutionInfo.Cluster.Status.SKIPPED
@@ -104,7 +103,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                         computeListener,
                         clusterAlias,
                         executionInfo,
-                        openExchangeListener
+                        l
                     );
 
                     var remoteSink = exchangeService.newRemoteSink(

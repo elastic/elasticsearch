@@ -55,6 +55,7 @@ abstract class DataNodeRequestSender {
     private final TransportService transportService;
     private final Executor esqlExecutor;
     private final CancellableTask rootTask;
+    private final boolean allowPartialResults;
     private final ReentrantLock sendingLock = new ReentrantLock();
     private final Queue<ShardId> pendingShardIds = ConcurrentCollections.newQueue();
     private final Map<DiscoveryNode, Semaphore> nodePermits = new HashMap<>();
@@ -62,10 +63,11 @@ abstract class DataNodeRequestSender {
     private final AtomicBoolean changed = new AtomicBoolean();
     private boolean reportedFailure = false; // guarded by sendingLock
 
-    DataNodeRequestSender(TransportService transportService, Executor esqlExecutor, CancellableTask rootTask) {
+    DataNodeRequestSender(TransportService transportService, Executor esqlExecutor, CancellableTask rootTask, boolean allowPartialResults) {
         this.transportService = transportService;
         this.esqlExecutor = esqlExecutor;
         this.rootTask = rootTask;
+        this.allowPartialResults = allowPartialResults;
     }
 
     final void startComputeOnDataNodes(
@@ -80,13 +82,14 @@ abstract class DataNodeRequestSender {
         searchShards(rootTask, clusterAlias, requestFilter, concreteIndices, originalIndices, ActionListener.wrap(targetShards -> {
             try (var computeListener = new ComputeListener(transportService.getThreadPool(), runOnTaskFailure, listener.map(profiles -> {
                 TimeValue took = TimeValue.timeValueNanos(System.nanoTime() - startTimeInNanos);
+                final int failedShards = shardFailures.size();
                 return new ComputeResponse(
                     profiles,
                     took,
                     targetShards.totalShards(),
-                    targetShards.totalShards(),
+                    targetShards.totalShards() - failedShards,
                     targetShards.skippedShards(),
-                    0
+                    failedShards
                 );
             }))) {
                 for (TargetShard shard : targetShards.shards.values()) {
@@ -120,7 +123,8 @@ abstract class DataNodeRequestSender {
                             );
                         }
                     }
-                    if (reportedFailure || shardFailures.values().stream().anyMatch(shardFailure -> shardFailure.fatal)) {
+                    if (reportedFailure
+                        || (allowPartialResults == false && shardFailures.values().stream().anyMatch(shardFailure -> shardFailure.fatal))) {
                         reportedFailure = true;
                         reportFailures(computeListener);
                     } else {
@@ -345,7 +349,7 @@ abstract class DataNodeRequestSender {
             filter,
             null,
             null,
-            false,
+            true, // unavailable_shards will be handled by the sender
             clusterAlias
         );
         transportService.sendChildRequest(

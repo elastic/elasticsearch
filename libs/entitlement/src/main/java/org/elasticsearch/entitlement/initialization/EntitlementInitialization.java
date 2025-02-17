@@ -18,6 +18,7 @@ import org.elasticsearch.entitlement.instrumentation.Instrumenter;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.instrumentation.Transformer;
 import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
+import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import org.elasticsearch.entitlement.runtime.policy.Scope;
@@ -28,6 +29,7 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlemen
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.FileData;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.InboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.ManageThreadsEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ReadStoreAttributesEntitlement;
 
@@ -47,7 +49,6 @@ import java.nio.file.Path;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.spi.FileSystemProvider;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -125,8 +126,10 @@ public class EntitlementInitialization {
     }
 
     private static PolicyManager createPolicyManager() {
-        Map<String, Policy> pluginPolicies = EntitlementBootstrap.bootstrapArgs().pluginPolicies();
-        Path[] dataDirs = EntitlementBootstrap.bootstrapArgs().dataDirs();
+        EntitlementBootstrap.BootstrapArgs bootstrapArgs = EntitlementBootstrap.bootstrapArgs();
+        Map<String, Policy> pluginPolicies = bootstrapArgs.pluginPolicies();
+        var pathLookup = new PathLookup(bootstrapArgs.configDir(), bootstrapArgs.dataDirs(), bootstrapArgs.tempDir());
+        Path logsDir = EntitlementBootstrap.bootstrapArgs().logsDir();
 
         // TODO(ES-10031): Decide what goes in the elasticsearch default policy and extend it
         var serverPolicy = new Policy(
@@ -143,28 +146,41 @@ public class EntitlementInitialization {
                         new InboundNetworkEntitlement(),
                         new OutboundNetworkEntitlement(),
                         new LoadNativeLibrariesEntitlement(),
+                        new ManageThreadsEntitlement(),
                         new FilesEntitlement(
-                            List.of(new FilesEntitlement.FileData(EntitlementBootstrap.bootstrapArgs().tempDir().toString(), READ_WRITE))
+                            List.of(
+                                FilesEntitlement.FileData.ofPath(EntitlementBootstrap.bootstrapArgs().tempDir(), READ_WRITE),
+                                FilesEntitlement.FileData.ofPath(EntitlementBootstrap.bootstrapArgs().logsDir(), READ_WRITE)
+                            )
                         )
                     )
                 ),
                 new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),
                 new Scope("io.netty.transport", List.of(new InboundNetworkEntitlement(), new OutboundNetworkEntitlement())),
-                new Scope("org.apache.lucene.core", List.of(new LoadNativeLibrariesEntitlement())),
+                new Scope("org.apache.lucene.core", List.of(new LoadNativeLibrariesEntitlement(), new ManageThreadsEntitlement())),
+                new Scope("org.apache.logging.log4j.core", List.of(new ManageThreadsEntitlement())),
                 new Scope(
                     "org.elasticsearch.nativeaccess",
                     List.of(
                         new LoadNativeLibrariesEntitlement(),
-                        new FilesEntitlement(Arrays.stream(dataDirs).map(d -> new FileData(d.toString(), READ_WRITE)).toList())
+                        new FilesEntitlement(List.of(FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE)))
                     )
                 )
             )
         );
         // agents run without a module, so this is a special hack for the apm agent
         // this should be removed once https://github.com/elastic/elasticsearch/issues/109335 is completed
-        List<Entitlement> agentEntitlements = List.of(new CreateClassLoaderEntitlement());
+        List<Entitlement> agentEntitlements = List.of(new CreateClassLoaderEntitlement(), new ManageThreadsEntitlement());
         var resolver = EntitlementBootstrap.bootstrapArgs().pluginResolver();
-        return new PolicyManager(serverPolicy, agentEntitlements, pluginPolicies, resolver, AGENTS_PACKAGE_NAME, ENTITLEMENTS_MODULE);
+        return new PolicyManager(
+            serverPolicy,
+            agentEntitlements,
+            pluginPolicies,
+            resolver,
+            AGENTS_PACKAGE_NAME,
+            ENTITLEMENTS_MODULE,
+            pathLookup
+        );
     }
 
     private static Stream<InstrumentationService.InstrumentationInfo> fileSystemProviderChecks() throws ClassNotFoundException,

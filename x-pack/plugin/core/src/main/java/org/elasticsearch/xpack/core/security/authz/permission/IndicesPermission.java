@@ -913,7 +913,7 @@ public final class IndicesPermission {
                 && privilege == IndexPrivilege.ALL
                 && query == null
                 && false == fieldPermissions.hasFieldLevelSecurity()
-                // TODO do we want this?
+                // TODO add selectorPrivilege here in a follow PR handling authorization
                 && selectorPrivilege.isTotal();
         }
 

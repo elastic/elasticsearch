@@ -31,7 +31,7 @@ public record IndexComponentSelectorPrivilege(String name, Predicate<IndexCompon
         IndexPrivilege.MANAGE_FAILURE_STORE_INTERNAL
     );
 
-    public boolean test(IndexComponentSelector selector) {
+    public boolean grants(IndexComponentSelector selector) {
         return predicate.test(selector);
     }
 
@@ -43,37 +43,39 @@ public record IndexComponentSelectorPrivilege(String name, Predicate<IndexCompon
         return indexPrivileges.stream().map(IndexComponentSelectorPrivilege::get).collect(Collectors.toSet());
     }
 
-    public static Map<IndexComponentSelectorPrivilege, Set<String>> splitBySelectors(String... indexPrivileges) {
-        return splitBySelectors(Set.of(indexPrivileges));
+    public static Map<IndexComponentSelectorPrivilege, Set<String>> groupBySelectors(String... indexPrivileges) {
+        return groupBySelectors(Set.of(indexPrivileges));
     }
 
-    public static Map<IndexComponentSelectorPrivilege, Set<String>> splitBySelectors(Set<String> indexPrivileges) {
-        final Set<String> data = new HashSet<>();
-        final Set<String> failures = new HashSet<>();
+    public static Map<IndexComponentSelectorPrivilege, Set<String>> groupBySelectors(Set<String> indexPrivileges) {
+        final Set<String> dataAccessPrivileges = new HashSet<>();
+        final Set<String> failuresAccessPrivileges = new HashSet<>();
 
         for (String indexPrivilege : indexPrivileges) {
-            final IndexComponentSelectorPrivilege privilege = get(indexPrivilege);
-            // If we ever hit all, we can return early since we don't need to split
-            if (privilege.equals(ALL)) {
+            final IndexComponentSelectorPrivilege selectorPrivilege = get(indexPrivilege);
+            // If we ever hit `all`, the entire group can be treated as granting "all" access and we can return early
+            if (selectorPrivilege.equals(ALL)) {
                 return Map.of(ALL, indexPrivileges);
             }
 
-            if (privilege.equals(DATA)) {
-                data.add(indexPrivilege);
-            } else if (privilege.equals(FAILURES)) {
-                failures.add(indexPrivilege);
+            if (selectorPrivilege.equals(DATA)) {
+                dataAccessPrivileges.add(indexPrivilege);
+            } else if (selectorPrivilege.equals(FAILURES)) {
+                failuresAccessPrivileges.add(indexPrivilege);
             } else {
-                throw new IllegalArgumentException("Unknown index privilege: " + indexPrivilege);
+                assert false : "index privilege [" + indexPrivilege + "] mapped to an unexpected selector [" + selectorPrivilege + "]";
+                throw new IllegalStateException(
+                    "index privilege [" + indexPrivilege + "] mapped to an unexpected selector [" + selectorPrivilege + "]"
+                );
             }
-
         }
 
-        if (data.isEmpty()) {
-            return Map.of(FAILURES, failures);
-        } else if (failures.isEmpty()) {
-            return Map.of(DATA, data);
+        if (dataAccessPrivileges.isEmpty()) {
+            return Map.of(FAILURES, failuresAccessPrivileges);
+        } else if (failuresAccessPrivileges.isEmpty()) {
+            return Map.of(DATA, dataAccessPrivileges);
         } else {
-            return Map.of(DATA, data, FAILURES, failures);
+            return Map.of(DATA, dataAccessPrivileges, FAILURES, failuresAccessPrivileges);
         }
     }
 

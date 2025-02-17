@@ -41,6 +41,7 @@ public class EntitlementBootstrap {
         Function<String, Stream<String>> settingGlobResolver,
         Path[] dataDirs,
         Path configDir,
+        Path logsDir,
         Path tempDir
     ) {
         public BootstrapArgs {
@@ -53,6 +54,7 @@ public class EntitlementBootstrap {
                 throw new IllegalArgumentException("must provide at least one data directory");
             }
             requireNonNull(configDir);
+            requireNonNull(logsDir);
             requireNonNull(tempDir);
         }
     }
@@ -69,9 +71,10 @@ public class EntitlementBootstrap {
      *
      * @param pluginPolicies a map holding policies for plugins (and modules), by plugin (or module) name.
      * @param pluginResolver a functor to map a Java Class to the plugin it belongs to (the plugin name).
-     * @param dataDirs data directories for Elasticsearch
-     * @param configDir the config directory for Elasticsearch
-     * @param tempDir the temp directory for Elasticsearch
+     * @param dataDirs       data directories for Elasticsearch
+     * @param configDir      the config directory for Elasticsearch
+     * @param tempDir        the temp directory for Elasticsearch
+     * @param logsDir        the log directory for Elasticsearch
      */
     public static void bootstrap(
         Map<String, Policy> pluginPolicies,
@@ -80,6 +83,7 @@ public class EntitlementBootstrap {
         Function<String, Stream<String>> settingGlobResolver,
         Path[] dataDirs,
         Path configDir,
+        Path logsDir,
         Path tempDir
     ) {
         logger.debug("Loading entitlement agent");
@@ -93,6 +97,7 @@ public class EntitlementBootstrap {
             settingGlobResolver,
             dataDirs,
             configDir,
+            logsDir,
             tempDir
         );
         exportInitializationToAgent();

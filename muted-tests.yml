@@ -162,9 +162,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/117740
 - class: org.elasticsearch.xpack.security.authc.ldap.MultiGroupMappingIT
   issue: https://github.com/elastic/elasticsearch/issues/119599
-- class: org.elasticsearch.search.profile.dfs.DfsProfilerIT
-  method: testProfileDfs
-  issue: https://github.com/elastic/elasticsearch/issues/119711
 - class: org.elasticsearch.multi_cluster.MultiClusterYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/119983
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
@@ -196,9 +193,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/120482
 - class: org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeToCharProcessorTests
   issue: https://github.com/elastic/elasticsearch/issues/120575
-- class: org.elasticsearch.index.reindex.BulkByScrollUsesAllScrollDocumentsAfterConflictsIntegTests
-  method: testReindex
-  issue: https://github.com/elastic/elasticsearch/issues/120605
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testMultipleInferencesTriggeringDownloadAndDeploy
   issue: https://github.com/elastic/elasticsearch/issues/120668
@@ -329,6 +323,12 @@ tests:
 - class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
   method: testExchangeSourceContinueOnFailure
   issue: https://github.com/elastic/elasticsearch/issues/122408
+- class: org.elasticsearch.repositories.blobstore.testkit.analyze.MinioRepositoryAnalysisRestIT
+  method: testRepositoryAnalysis
+  issue: https://github.com/elastic/elasticsearch/issues/122670
+- class: org.elasticsearch.search.SearchTimeoutIT
+  method: testSuggestTimeoutWithPartialResults
+  issue: https://github.com/elastic/elasticsearch/issues/122548
 
 # Examples:
 #

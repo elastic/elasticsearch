@@ -141,7 +141,7 @@ public class PolicyParserTests extends ESTestCase {
         );
         assertEquals(expected, policyWithOnePath);
 
-        var testPathToReadDir = createTempDir();
+        String testPathToReadDir = createTempDir().toAbsolutePath().toString();
         Policy policyWithTwoPaths = new PolicyParser(new ByteArrayInputStream(Strings.format("""
             entitlement-module-name:
               - files:
@@ -168,8 +168,8 @@ public class PolicyParserTests extends ESTestCase {
         );
         assertEquals(expected, policyWithTwoPaths);
 
-        var relativePathToFile = Path.of("test/path/to/file").normalize();
-        var relativePathToDir = Path.of("test/path/to/read-dir/").normalize();
+        String relativePathToFile = Path.of("test/path/to/file").normalize().toString();
+        String relativePathToDir = Path.of("test/path/to/read-dir/").normalize().toString();
         Policy policyWithMultiplePathsAndBaseDir = new PolicyParser(
             new ByteArrayInputStream(Strings.format("""
                 entitlement-module-name:

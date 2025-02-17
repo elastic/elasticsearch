@@ -65,8 +65,7 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
         return Collections.singleton(CustomScriptPlugin.class);
     }
 
-    public static class CustomScriptPlugin extends MockScriptPlugin {
-
+    private static class CustomScriptPlugin extends MockScriptPlugin {
         private static final VectorSimilarityFunction SIMILARITY_FUNCTION = DenseVectorFieldMapper.VectorSimilarity.L2_NORM
             .vectorSimilarityFunction(IndexVersion.current(), DenseVectorFieldMapper.ElementType.FLOAT);
 

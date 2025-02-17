@@ -4,10 +4,7 @@ final boolean buildCachePush = Boolean.valueOf(System.getProperty('org.elasticse
 gradle.settingsEvaluated { settings ->
   settings.pluginManager.withPlugin("com.gradle.develocity") {
     settings.develocity {
-      // Workaround to fix lucene compatibility tests
-      if (System.getenv("ES_COMMIT") != "b2cc9d9b8f00ee621f93ddca07ea9c671aab1578") {
-        server = "https://gradle-enterprise.elastic.co"
-      } 
+      server = "https://gradle-enterprise.elastic.co"
     }
     if (buildCacheUrl) {
       settings.buildCache {

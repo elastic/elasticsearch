@@ -99,7 +99,7 @@ public class PolicyManager {
         return new ModuleEntitlements(
             componentName,
             entitlements.stream().collect(groupingBy(Entitlement::getClass)),
-            FileAccessTree.of(filesEntitlement, tempDir)
+            FileAccessTree.of(filesEntitlement, pathLookup)
         );
     }
 
@@ -109,7 +109,7 @@ public class PolicyManager {
     private final List<Entitlement> apmAgentEntitlements;
     private final Map<String, Map<String, List<Entitlement>>> pluginsEntitlements;
     private final Function<Class<?>, String> pluginResolver;
-    private final Path tempDir;
+    private final PathLookup pathLookup;
     private final FileAccessTree defaultFileAccess;
 
     public static final String ALL_UNNAMED = "ALL-UNNAMED";
@@ -146,7 +146,7 @@ public class PolicyManager {
         Function<Class<?>, String> pluginResolver,
         String apmAgentPackageName,
         Module entitlementsModule,
-        Path tempDir
+        PathLookup pathLookup
     ) {
         this.serverEntitlements = buildScopeEntitlementsMap(requireNonNull(serverPolicy));
         this.apmAgentEntitlements = apmAgentEntitlements;
@@ -156,9 +156,8 @@ public class PolicyManager {
         this.pluginResolver = pluginResolver;
         this.apmAgentPackageName = apmAgentPackageName;
         this.entitlementsModule = entitlementsModule;
-        this.defaultFileAccess = FileAccessTree.of(FilesEntitlement.EMPTY, tempDir);
-
-        this.tempDir = tempDir;
+        this.pathLookup = requireNonNull(pathLookup);
+        this.defaultFileAccess = FileAccessTree.of(FilesEntitlement.EMPTY, pathLookup);
 
         for (var e : serverEntitlements.entrySet()) {
             validateEntitlementsPerModule(SERVER_COMPONENT_NAME, e.getKey(), e.getValue());
@@ -306,7 +305,7 @@ public class PolicyManager {
     }
 
     public void checkCreateTempFile(Class<?> callerClass) {
-        checkFileWrite(callerClass, tempDir);
+        checkFileWrite(callerClass, pathLookup.tempDir());
     }
 
     /**

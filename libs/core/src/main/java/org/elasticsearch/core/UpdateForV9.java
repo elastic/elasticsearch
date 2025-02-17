@@ -27,6 +27,7 @@ public @interface UpdateForV9 {
         DISTRIBUTED_INDEXING,
         ENTERPRISE_SEARCH,
         MACHINE_LEARNING,
+        PROFILING,
         SEARCH_ANALYTICS,
         SECURITY,
     }

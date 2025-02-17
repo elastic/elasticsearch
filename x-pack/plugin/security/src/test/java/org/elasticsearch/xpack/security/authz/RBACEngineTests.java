@@ -90,8 +90,14 @@ import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.permission.RunAsPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
-import org.elasticsearch.xpack.core.security.authz.privilege.*;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeTests;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.ManageApplicationPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexComponentSelectorPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;

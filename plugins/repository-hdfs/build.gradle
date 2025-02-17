@@ -22,12 +22,20 @@ versions << [
   'hadoop': '3.4.1'
 ]
 
+def patched = Attribute.of('patched', Boolean)
+
 configurations {
   hdfsFixture2
   hdfsFixture3
+  hdfsClientApi {
+    attributes {
+      attribute(patched, true)
+    }
+  }
 }
 
 dependencies {
+  hdfsClientApi "org.apache.hadoop:hadoop-client-api:${versions.hadoop}"
   api project(path: 'hadoop-client-api', configuration: 'default')
   if (isEclipse) {
     /*
@@ -69,6 +77,20 @@ dependencies {
 
   hdfsFixture2 project(path: ':test:fixtures:hdfs-fixture', configuration: 'shadowedHdfs2')
   hdfsFixture3 project(path: ':test:fixtures:hdfs-fixture', configuration: 'shadow')
+
+  attributesSchema {
+    attribute(patched)
+  }
+  artifactTypes.getByName("jar") {
+    attributes.attribute(patched, false)
+  }
+  registerTransform(org.elasticsearch.gradle.internal.dependencies.patches.hdfs.HdfsClassPatcher) {
+    from.attribute(patched, false)
+    to.attribute(patched, true)
+    parameters {
+      matchingArtifacts = ["hadoop-common", "hadoop-auth"]
+    }
+  }
 }
 
 restResources {

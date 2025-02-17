@@ -10,6 +10,8 @@
 package org.elasticsearch.entitlement.bridge;
 
 import java.io.File;
+import java.io.FileFilter;
+import java.io.FilenameFilter;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
@@ -58,6 +60,8 @@ import java.nio.file.FileStore;
 import java.nio.file.LinkOption;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
+import java.nio.file.WatchEvent;
+import java.nio.file.WatchService;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.UserPrincipal;
 import java.nio.file.spi.FileSystemProvider;
@@ -510,6 +514,12 @@ public interface EntitlementChecker {
     //
 
     // old io (ie File)
+    void check$java_io_File$canExecute(Class<?> callerClass, File file);
+
+    void check$java_io_File$canRead(Class<?> callerClass, File file);
+
+    void check$java_io_File$canWrite(Class<?> callerClass, File file);
+
     void check$java_io_File$createNewFile(Class<?> callerClass, File file);
 
     void check$java_io_File$$createTempFile(Class<?> callerClass, String prefix, String suffix, File directory);
@@ -517,6 +527,28 @@ public interface EntitlementChecker {
     void check$java_io_File$delete(Class<?> callerClass, File file);
 
     void check$java_io_File$deleteOnExit(Class<?> callerClass, File file);
+
+    void check$java_io_File$exists(Class<?> callerClass, File file);
+
+    void check$java_io_File$isDirectory(Class<?> callerClass, File file);
+
+    void check$java_io_File$isFile(Class<?> callerClass, File file);
+
+    void check$java_io_File$isHidden(Class<?> callerClass, File file);
+
+    void check$java_io_File$lastModified(Class<?> callerClass, File file);
+
+    void check$java_io_File$length(Class<?> callerClass, File file);
+
+    void check$java_io_File$list(Class<?> callerClass, File file);
+
+    void check$java_io_File$list(Class<?> callerClass, File file, FilenameFilter filter);
+
+    void check$java_io_File$listFiles(Class<?> callerClass, File file);
+
+    void check$java_io_File$listFiles(Class<?> callerClass, File file, FileFilter filter);
+
+    void check$java_io_File$listFiles(Class<?> callerClass, File file, FilenameFilter filter);
 
     void check$java_io_File$mkdir(Class<?> callerClass, File file);
 
@@ -654,6 +686,19 @@ public interface EntitlementChecker {
 
     void checkType(Class<?> callerClass, FileStore that);
 
+    // path
+    void checkPathToRealPath(Class<?> callerClass, Path that, LinkOption... options);
+
+    void checkPathRegister(Class<?> callerClass, Path that, WatchService watcher, WatchEvent.Kind<?>... events);
+
+    void checkPathRegister(
+        Class<?> callerClass,
+        Path that,
+        WatchService watcher,
+        WatchEvent.Kind<?>[] events,
+        WatchEvent.Modifier... modifiers
+    );
+
     ////////////////////
     //
     // Thread management
@@ -674,5 +719,4 @@ public interface EntitlementChecker {
     void check$java_lang_Thread$setUncaughtExceptionHandler(Class<?> callerClass, Thread thread, Thread.UncaughtExceptionHandler ueh);
 
     void check$java_lang_ThreadGroup$setMaxPriority(Class<?> callerClass, ThreadGroup threadGroup, int pri);
-
 }

@@ -686,7 +686,12 @@ public class EsqlCapabilities {
          * and https://github.com/elastic/elasticsearch/issues/120803
          * Support for queries that have multiple SORTs that cannot become TopN
          */
-        REMOVE_REDUNDANT_SORT;
+        REMOVE_REDUNDANT_SORT,
+
+        /**
+         * Support partial_results
+         */
+        SUPPORT_PARTIAL_RESULTS;
 
         private final boolean enabled;
 

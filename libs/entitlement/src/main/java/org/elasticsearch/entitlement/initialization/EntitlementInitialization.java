@@ -152,9 +152,20 @@ public class EntitlementInitialization {
                                 FileData.ofPath(bootstrapArgs.tempDir(), READ_WRITE),
                                 FileData.ofPath(bootstrapArgs.configDir(), READ_WRITE),
                                 FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
-                                FileData.ofPath(Path.of("/etc/os-release"), READ), // for OsProbe
-                                FileData.ofPath(Path.of("/usr/lib/os-release"), READ), // for OsProbe
+                                // for OsProbe
+                                FileData.ofPath(Path.of("/etc/os-release"), READ),
+                                FileData.ofPath(Path.of("/usr/lib/os-release"), READ),
+                                FileData.ofPath(Path.of("/etc/system-release"), READ),
+                                FileData.ofPath(Path.of("/proc/meminfo"), READ),
+                                FileData.ofPath(Path.of("/sys/fs/cgroup/"), READ),
+                                FileData.ofPath(Path.of("/proc/self/"), READ),
+                                FileData.ofPath(Path.of("/proc/loadavg"), READ),
+                                // for BootstrapCheck
                                 FileData.ofPath(Path.of("/proc/sys/vm/max_map_count"), READ),
+                                // for ESFileStore
+                                FileData.ofPath(Path.of("/proc/self/mountinfo"), READ),
+                                FileData.ofPath(Path.of("/proc/diskstats"), READ),
+
                                 FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE)
                             )
                         )

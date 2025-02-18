@@ -1,0 +1,5 @@
+com.maxmind.db:
+  - files:
+    - relative_path: "ingest-geoip/"
+      relative_to: "config"
+      mode: "read_write"

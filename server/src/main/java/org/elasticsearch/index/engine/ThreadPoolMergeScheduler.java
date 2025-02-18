@@ -56,6 +56,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     // how many {@link MergeTask}s have kicked off (this is used to name them).
     private final AtomicLong mergeTaskCount = new AtomicLong();
     private final AtomicLong mergeTaskDoneCount = new AtomicLong();
+    private final AtomicBoolean closed = new AtomicBoolean();
 
     public ThreadPoolMergeScheduler(ShardId shardId, IndexSettings indexSettings, ThreadPoolMergeQueue threadPoolMergeQueue) {
         this.shardId = shardId;
@@ -88,15 +89,26 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         // if maxMergeCount changed, maybe we need to toggle merge task throttling
         checkMergeTaskThrottling();
         // if maxThreadCount changed, maybe some backlogged merges are now allowed to run
-        enqueueBacklogged();
+        enqueueBackloggedTasks();
     }
 
     @Override
     public void merge(MergeSource mergeSource, MergeTrigger trigger) throws IOException {
+        if (closed.get()) {
+            // avoid pulling from the merge source when closing
+            return;
+        }
         MergePolicy.OneMerge merge = mergeSource.getNextMerge();
         if (merge != null) {
             submitNewMergeTask(mergeSource, merge, trigger);
         }
+    }
+
+    @Override
+    public MergeScheduler clone() {
+        // Lucene IW makes a clone internally but since we hold on to this instance
+        // the clone will just be the identity.
+        return this;
     }
 
     /**
@@ -109,17 +121,20 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
      */
     protected void afterMerge(OnGoingMerge merge) {}
 
+    /**
+     * A callback that's invoked when indexing should throttle down indexing in order to let merging to catch up.
+     */
     protected void enableIndexingThrottling(int numRunningMerges, int numQueuedMerges, int configuredMaxMergeCount) {}
 
+    /**
+     * A callback that's invoked when indexing should un-throttle because merging caught up.
+     * This is invoked sometime after {@link #enableIndexingThrottling(int, int, int)} was invoked in the first place.
+     */
     protected void disableIndexingThrottling(int numRunningMerges, int numQueuedMerges, int configuredMaxMergeCount) {}
 
-    @Override
-    public MergeScheduler clone() {
-        // Lucene IW makes a clone internally but since we hold on to this instance
-        // the clone will just be the identity.
-        return this;
-    }
-
+    /**
+     * A callback for exceptions thrown while merging.
+     */
     protected void handleMergeException(Throwable t) {
         throw new MergePolicy.MergeException(t);
     }
@@ -162,13 +177,15 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     // synchronized so that {@code #currentlyRunningMergeTasks} and {@code #backloggedMergeTasks} are modified atomically
     private synchronized boolean runNowOrBacklog(MergeTask mergeTask) {
         assert mergeTask.isRunning() == false;
-        if (currentlyRunningMergeTasks.size() >= config.getMaxThreadCount()) {
-            backloggedMergeTasks.add(mergeTask);
-            return false;
-        } else {
+        assert mergeTask.isOnGoingMergeAborted() == false;
+        // if the merge scheduler is closed it will abort all merges before they start running
+        if (closed.get() || currentlyRunningMergeTasks.size() < config.getMaxThreadCount()) {
             boolean added = currentlyRunningMergeTasks.put(mergeTask.onGoingMerge.getMerge(), mergeTask) == null;
             assert added : "starting merge task [" + mergeTask + "] registered as already running";
             return true;
+        } else {
+            backloggedMergeTasks.add(mergeTask);
+            return false;
         }
     }
 
@@ -178,15 +195,20 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             boolean removed = currentlyRunningMergeTasks.remove(mergeTask.onGoingMerge.getMerge()) != null;
             assert removed : "completed merge task [" + mergeTask + "] not registered as running";
             // when one merge is done, maybe a backlogged one can now execute
-            enqueueBacklogged();
+            enqueueBackloggedTasks();
+            // when closing, we wait for all running merges to finish
+            if (currentlyRunningMergeTasks.isEmpty()) {
+                notifyAll();
+            }
         }
         mergeTaskDoneCount.incrementAndGet();
         checkMergeTaskThrottling();
     }
 
-    private synchronized void enqueueBacklogged() {
+    private synchronized void enqueueBackloggedTasks() {
         int maxBackloggedTasksToEnqueue = config.getMaxThreadCount() - currentlyRunningMergeTasks.size();
-        while (maxBackloggedTasksToEnqueue-- > 0) {
+        // enqueue all backlogged tasks when closing, let the queue deal with them
+        while (closed.get() || maxBackloggedTasksToEnqueue-- > 0) {
             MergeTask backloggedMergeTask = backloggedMergeTasks.poll();
             if (backloggedMergeTask == null) {
                 break;
@@ -271,6 +293,11 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
         @Override
         public void run() {
+            assert isOnGoingMergeAborted() == false;
+            if (ThreadPoolMergeScheduler.this.closed.get()) {
+                abortOnGoingMerge();
+                return;
+            }
             if (mergeStartTimeNS.compareAndSet(0L, System.nanoTime()) == false) {
                 throw new IllegalStateException("Cannot run the same merge task multiple times");
             }
@@ -302,6 +329,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                 if (t instanceof MergePolicy.MergeAbortedException) {
                     // OK to ignore. This is what Lucene's ConcurrentMergeScheduler does
                 } else {
+                    // sometimes this might double-abort a merge, but that's OK
                     abortOnGoingMerge();
                     handleMergeException(t);
                 }
@@ -317,38 +345,37 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                         mergeTracking.mergeFinished(onGoingMerge.getMerge(), onGoingMerge, tookMS);
                     } finally {
                         mergeDone(this);
-                        // kick-off next merge, if any
-                        MergePolicy.OneMerge nextMerge = null;
-                        try {
-                            nextMerge = mergeSource.getNextMerge();
-                        } catch (IllegalStateException e) {
-                            if (verbose()) {
-                                message("merge task poll failed, likely that index writer is failed");
+                        if (ThreadPoolMergeScheduler.this.closed.get() == false) {
+                            // kick-off next merge, if any
+                            MergePolicy.OneMerge nextMerge = null;
+                            try {
+                                nextMerge = mergeSource.getNextMerge();
+                            } catch (IllegalStateException e) {
+                                if (verbose()) {
+                                    message("merge task poll failed, likely that index writer is failed");
+                                }
+                                // ignore exception, we expect the IW failure to be logged elsewhere
                             }
-                            // ignore exception, we expect the IW failure to be logged elsewhere
-                        }
-                        if (nextMerge != null) {
-                            submitNewMergeTask(mergeSource, nextMerge, MergeTrigger.MERGE_FINISHED);
+                            if (nextMerge != null) {
+                                submitNewMergeTask(mergeSource, nextMerge, MergeTrigger.MERGE_FINISHED);
+                            }
                         }
                     }
                 }
             }
         }
 
-        public void onRejection(Exception e) {
-            if (verbose()) {
-                message(String.format(Locale.ROOT, "merge task [%s] rejected by thread pool, aborting", onGoingMerge.getId()));
-            }
-            abortOnGoingMerge();
-        }
-
-        private void abortOnGoingMerge() {
+        void abortOnGoingMerge() {
             // This would interrupt an IndexWriter if it were actually performing the merge. We just set this here because it seems
             // appropriate as we are not going to move forward with the merge.
             onGoingMerge.getMerge().setAborted();
             // It is fine to mark this merge as finished. Lucene will eventually produce a new merge including this segment even if
             // this merge did not actually execute.
             mergeSource.onMergeFinished(onGoingMerge.getMerge());
+        }
+
+        boolean isOnGoingMergeAborted() {
+            return onGoingMerge.getMerge().isAborted();
         }
 
         @Override
@@ -373,6 +400,35 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             logger.trace("{}", message);
         }
         super.message(message);
+    }
+
+    @Override
+    public void close() throws IOException {
+        super.close();
+        closed.set(true);
+        boolean interrupted = false;
+        try {
+            synchronized (this) {
+                // enqueue all backlogged merge tasks, the merge queue assumes that backlogged tasks are always re-enqueued
+                enqueueBackloggedTasks();
+                // supercharge running merges
+                currentlyRunningMergeTasks.values().forEach(runningTask -> runningTask.setIORateLimit(Double.POSITIVE_INFINITY));
+                // wait until all running merges are done
+                while (currentlyRunningMergeTasks.isEmpty() == false) {
+                    try {
+                        // wait with a timeout, just to cover for something that failed to notify
+                        wait(1000);
+                    } catch (InterruptedException e) {
+                        // ignore interruption, we will retry until all currently running merge tasks are done
+                        interrupted = true;
+                    }
+                }
+            }
+        } finally {
+            if (interrupted) {
+                Thread.currentThread().interrupt();
+            }
+        }
     }
 
     private static double nsToSec(long ns) {

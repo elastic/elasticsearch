@@ -16,14 +16,17 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler.MergeTask;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 
-public class ThreadPoolMergeQueue {
+public class ThreadPoolMergeQueue implements Closeable {
     /**
      * Floor for IO write rate limit of individual merge tasks (we will never go any lower than this)
      */
@@ -48,6 +51,7 @@ public class ThreadPoolMergeQueue {
     private final AtomicLong targetIORateBytesPerSec = new AtomicLong(START_IO_RATE.getBytes());
     private final ExecutorService executorService;
     private final int maxConcurrentMerges;
+    private final AtomicBoolean closed = new AtomicBoolean();
 
     public static @Nullable ThreadPoolMergeQueue maybeCreateThreadPoolMergeQueue(ThreadPool threadPool, Settings settings) {
         if (ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.get(settings)) {
@@ -63,51 +67,66 @@ public class ThreadPoolMergeQueue {
     }
 
     void submitMergeTask(MergeTask mergeTask) {
-        enqueueMergeTask(mergeTask);
-        if (mergeTask.supportsIOThrottling()) {
-            // count submitted merge tasks that support IO auto throttling, and maybe adjust IO rate for all
-            maybeUpdateIORateBytesPerSec(submittedIOThrottledMergeTasksCount.incrementAndGet());
+        assert mergeTask.isRunning() == false;
+        assert mergeTask.isOnGoingMergeAborted() == false;
+        if (closed.get() || enqueueMergeTaskExecution() == false) {
+            mergeTask.abortOnGoingMerge();
+        } else {
+            if (mergeTask.supportsIOThrottling()) {
+                // count submitted merge tasks that support IO auto throttling, and maybe adjust IO rate for all
+                maybeUpdateIORateBytesPerSec(submittedIOThrottledMergeTasksCount.incrementAndGet());
+            }
+            enqueueMergeTask(mergeTask);
         }
-        executeSmallestMergeTask();
     }
 
     void enqueueMergeTask(MergeTask mergeTask) {
         queuedMergeTasks.add(mergeTask);
     }
 
-    private void executeSmallestMergeTask() {
-        final AtomicReference<MergeTask> smallestMergeTask = new AtomicReference<>();
+    private boolean enqueueMergeTaskExecution() {
         try {
             executorService.execute(() -> {
+                boolean interrupted = false;
                 // one such runnable always executes a SINGLE merge task from the queue
                 // this is important for merge queue statistics, i.e. the executor's queue size equals the merge tasks' queue size
-                while (true) {
-                    try {
-                        // will block if there are backlogged merges until they're enqueued again
-                        smallestMergeTask.set(queuedMergeTasks.take());
-                    } catch (InterruptedException e) {
+                try {
+                    while (true) {
+                        try {
+                            // will block if there are backlogged merges until they're enqueued again
+                            MergeTask smallestMergeTask = queuedMergeTasks.take();
+                            // the merge task's scheduler might backlog rather than execute the task
+                            // it's then the duty of the said merge scheduler to re-enqueue the backlogged merge task
+                            if (smallestMergeTask.runNowOrBacklog()) {
+                                runMergeTask(smallestMergeTask);
+                                // one runnable one merge task
+                                return;
+                            }
+                            // the merge task is backlogged by the merge scheduler, try to get the next smallest one
+                        } catch (InterruptedException e) {
+                            interrupted = true;
+                            // this runnable must always run exactly a single merge task
+                        }
+                    }
+                } finally {
+                    if (interrupted) {
                         Thread.currentThread().interrupt();
-                        return;
                     }
-                    // the merge task's scheduler might backlog rather than execute the task
-                    // it's then the duty of the said merge scheduler to re-enqueue the backlogged merge task
-                    if (smallestMergeTask.get().runNowOrBacklog()) {
-                        runMergeTask(smallestMergeTask.get());
-                        // one runnable one merge task
-                        return;
-                    }
-                    // the merge task is backlogged by the merge scheduler,
                 }
             });
-        } catch (Exception e) {
-            if (smallestMergeTask.get() != null) {
-                smallestMergeTask.get().onRejection(e);
-            }
+            return true;
+        } catch (RejectedExecutionException e) {
+            // cannot execute merges because the executor is shutting down
+            return false;
         }
     }
 
     private void runMergeTask(MergeTask mergeTask) {
         assert mergeTask.isRunning() == false;
+        if (closed.get()) {
+            mergeTask.abortOnGoingMerge();
+            return;
+        }
         boolean added = currentlyRunningMergeTasks.add(mergeTask);
         assert added : "starting merge task [" + mergeTask + "] registered as already running";
         try {
@@ -182,5 +201,10 @@ public class ThreadPoolMergeQueue {
         boolean isEmpty = queuedMergeTasks.isEmpty() && currentlyRunningMergeTasks.isEmpty();
         assert isEmpty == false || submittedIOThrottledMergeTasksCount.get() == 0L;
         return isEmpty;
+    }
+
+    @Override
+    public void close() throws IOException {
+        closed.set(true);
     }
 }

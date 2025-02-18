@@ -48,8 +48,10 @@ import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
@@ -63,8 +65,9 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.OptionalInt;
+import java.util.Optional;
 import java.util.Random;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -90,9 +93,10 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         return new TestPhysicalOperationProviders(foldContext, indexPages, createAnalysisRegistry());
     }
 
-    public record IndexPage(String index, Page page, List<String> columnNames) {
-        OptionalInt columnIndex(String columnName) {
-            return IntStream.range(0, columnNames.size()).filter(i -> columnNames.get(i).equals(columnName)).findFirst();
+    public record IndexPage(String index, Page page, List<String> columnNames, Set<String> mappedFields) {
+        Optional<Integer> columnIndex(String columnName) {
+            var result = IntStream.range(0, columnNames.size()).filter(i -> columnNames.get(i).equals(columnName)).findFirst();
+            return result.isPresent() ? Optional.of(result.getAsInt()) : Optional.empty();
         }
     }
 
@@ -263,39 +267,72 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
 
     private Block getBlock(DocBlock docBlock, Attribute attribute, FieldExtractPreference extractPreference) {
         if (attribute instanceof UnsupportedAttribute) {
-            return docBlock.blockFactory().newConstantNullBlock(docBlock.getPositionCount());
+            return getNullsBlock(docBlock);
         }
-        return extractBlockForColumn(
-            docBlock,
-            attribute.dataType(),
-            extractPreference,
-            attribute instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField multiTypeEsField
-                ? (indexDoc, blockCopier) -> getBlockForMultiType(indexDoc, multiTypeEsField, blockCopier)
-                : (indexDoc, blockCopier) -> extractBlockForSingleDoc(indexDoc, attribute.name(), blockCopier)
-        );
+        BiFunction<DocBlock, TestBlockCopier, Block> blockExtraction = getBlockExtraction(attribute);
+        return extractBlockForColumn(docBlock, attribute.dataType(), extractPreference, blockExtraction);
+    }
+
+    private BiFunction<DocBlock, TestBlockCopier, Block> getBlockExtraction(Attribute attribute) {
+        if (attribute instanceof FieldAttribute fa) {
+            if (fa.field() instanceof MultiTypeEsField m) {
+                return (doc, copier) -> getBlockForMultiType(doc, m, copier);
+
+            }
+            if (fa.field() instanceof PotentiallyUnmappedKeywordEsField k) {
+                return (doc, copier) -> switch (extractBlockForSingleDoc(doc, k.getName(), copier)) {
+                    case BlockResultMissing unused -> getNullsBlock(doc);
+                    case BlockResultSuccess success -> success.block;
+                };
+            }
+        }
+        return (indexDoc, blockCopier) -> switch (extractBlockForSingleDoc(indexDoc, attribute.name(), blockCopier)) {
+            case BlockResultMissing missing -> throw new EsqlIllegalArgumentException(
+                "Cannot find column named [{}] in {}",
+                missing.columnName,
+                missing.columnNames
+            );
+            case BlockResultSuccess success -> success.block;
+        };
     }
 
     private Block getBlockForMultiType(DocBlock indexDoc, MultiTypeEsField multiTypeEsField, TestBlockCopier blockCopier) {
-        var indexId = indexDoc.asVector().shards().getInt(0);
-        var indexPage = indexPages.get(indexId);
-        var conversion = (AbstractConvertFunction) multiTypeEsField.getConversionExpressionForIndex(indexPage.index);
-        Supplier<Block> nulls = () -> indexDoc.blockFactory().newConstantNullBlock(indexDoc.getPositionCount());
+        var conversion = (AbstractConvertFunction) multiTypeEsField.getConversionExpressionForIndex(getIndexPage(indexDoc).index);
         if (conversion == null) {
-            return nulls.get();
+            return getNullsBlock(indexDoc);
         }
-        var field = (FieldAttribute) conversion.field();
-        return indexPage.columnIndex(field.fieldName()).isEmpty()
-            ? nulls.get()
-            : TypeConverter.fromConvertFunction(conversion).convert(extractBlockForSingleDoc(indexDoc, field.fieldName(), blockCopier));
+        return switch (extractBlockForSingleDoc(indexDoc, ((FieldAttribute) conversion.field()).fieldName(), blockCopier)) {
+            case BlockResultMissing unused -> getNullsBlock(indexDoc);
+            case BlockResultSuccess success -> TypeConverter.fromConvertFunction(conversion).convert(success.block);
+        };
     }
 
-    private Block extractBlockForSingleDoc(DocBlock docBlock, String columnName, TestBlockCopier blockCopier) {
+    private IndexPage getIndexPage(DocBlock indexDoc) {
+        return indexPages.get(indexDoc.asVector().shards().getInt(0));
+    }
+
+    private static Block getNullsBlock(DocBlock indexDoc) {
+        return indexDoc.blockFactory().newConstantNullBlock(indexDoc.getPositionCount());
+    }
+
+    private sealed interface BlockResult {}
+
+    private record BlockResultSuccess(Block block) implements BlockResult {}
+
+    private record BlockResultMissing(String columnName, List<String> columnNames) implements BlockResult {}
+
+    private BlockResult extractBlockForSingleDoc(DocBlock docBlock, String columnName, TestBlockCopier blockCopier) {
         var indexId = docBlock.asVector().shards().getInt(0);
         var indexPage = indexPages.get(indexId);
-        int columnIndex = indexPage.columnIndex(columnName)
-            .orElseThrow(() -> new EsqlIllegalArgumentException("Cannot find column named [{}] in {}", columnName, indexPage.columnNames));
-        var originalData = indexPage.page.getBlock(columnIndex);
-        return blockCopier.copyBlock(originalData);
+        if (MetadataAttribute.INDEX.equals(columnName)) {
+            return new BlockResultSuccess(
+                docBlock.blockFactory()
+                    .newConstantBytesRefBlockWith(new BytesRef(indexPage.index), blockCopier.docIndices.getPositionCount())
+            );
+        }
+        return indexPage.columnIndex(columnName)
+            .<BlockResult>map(columnIndex -> new BlockResultSuccess(blockCopier.copyBlock(indexPage.page.getBlock(columnIndex))))
+            .orElseGet(() -> new BlockResultMissing(columnName, indexPage.columnNames()));
     }
 
     private static void foreachIndexDoc(DocBlock docBlock, Consumer<DocBlock> indexDocConsumer) {
@@ -410,8 +447,9 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
         ) {
             foreachIndexDoc(docBlock, indexDoc -> {
                 TestBlockCopier blockCopier = blockCopier(dataType, extractPreference, indexDoc.asVector().docs());
-                Block blockForIndex = extractBlock.apply(indexDoc, blockCopier);
-                blockBuilder.copyFrom(blockForIndex, 0, blockForIndex.getPositionCount());
+                try (Block blockForIndex = extractBlock.apply(indexDoc, blockCopier)) {
+                    blockBuilder.copyFrom(blockForIndex, 0, blockForIndex.getPositionCount());
+                }
             });
             var result = blockBuilder.build();
             assert result.getPositionCount() == docBlock.getPositionCount()

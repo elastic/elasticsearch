@@ -33,7 +33,7 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.deprecation.DeprecationChecks.SKIP_DEPRECATIONS_SETTING;
+import static org.elasticsearch.xpack.deprecation.TransportDeprecationInfoAction.SKIP_DEPRECATIONS_SETTING;
 import static org.elasticsearch.xpack.deprecation.logging.DeprecationIndexingComponent.DEPRECATION_INDEXING_FLUSH_INTERVAL;
 
 /**

@@ -765,7 +765,12 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
                 });
 
-                IOUtils.syncMaybeWithLinks(modulePath, destination);
+                // If we aren't overriding anything we can use links here, otherwise do a full copy
+                if (installSpec.entitlementsOverride == null && installSpec.propertiesOverride == null) {
+                    IOUtils.syncMaybeWithLinks(modulePath, destination);
+                } else {
+                    IOUtils.syncWithCopy(modulePath, destination);
+                }
 
                 try {
                     if (installSpec.entitlementsOverride != null) {
@@ -794,7 +799,9 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                     if (extendedProperty != null) {
                         String[] extendedModules = extendedProperty.split(",");
                         for (String module : extendedModules) {
-                            installModule(module, new DefaultPluginInstallSpec(), modulePaths);
+                            if (spec.getModules().containsKey(module) == false) {
+                                installModule(module, new DefaultPluginInstallSpec(), modulePaths);
+                            }
                         }
                     }
                 } catch (IOException e) {

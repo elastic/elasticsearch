@@ -31,7 +31,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestEntityTests extends E
         assertThat(xContentString, equalToIgnoringWhitespaceInJsonString("""
             {
                 "input": ["abc"],
-                "model_id": "my-model-id"
+                "model": "my-model-id"
             }"""));
     }
 
@@ -48,7 +48,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestEntityTests extends E
                     "abc",
                     "def"
                 ],
-                "model_id": "my-model-id"
+                "model": "my-model-id"
             }
             """));
     }
@@ -63,7 +63,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestEntityTests extends E
         assertThat(xContentString, equalToIgnoringWhitespaceInJsonString("""
             {
                 "input": ["abc"],
-                "model_id": "my-model-id",
+                "model": "my-model-id",
                 "usage_context": "search"
             }
             """));
@@ -79,7 +79,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestEntityTests extends E
         assertThat(xContentString, equalToIgnoringWhitespaceInJsonString("""
             {
                 "input": ["abc"],
-                "model_id": "my-model-id",
+                "model": "my-model-id",
                 "usage_context": "ingest"
             }
             """));

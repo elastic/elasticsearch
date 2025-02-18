@@ -48,12 +48,12 @@ public class TemplateDeprecationCheckerTests extends ESTestCase {
             )
             .build();
 
-        Map<String, List<DeprecationIssue>> issuesByComponentTemplate = checker.check(clusterState, null);
+        Map<String, List<DeprecationIssue>> issuesByComponentTemplate = checker.check(clusterState);
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
+            SourceFieldMapper.DEPRECATION_WARNING_TITLE,
+            "https://ela.st/migrate-source-mode",
             SourceFieldMapper.DEPRECATION_WARNING,
-            "https://github.com/elastic/elasticsearch/pull/117172",
-            null,
             false,
             null
         );
@@ -81,7 +81,7 @@ public class TemplateDeprecationCheckerTests extends ESTestCase {
             )
             .build();
 
-        Map<String, List<DeprecationIssue>> issuesByComponentTemplate = checker.check(clusterState, null);
+        Map<String, List<DeprecationIssue>> issuesByComponentTemplate = checker.check(clusterState);
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
             "Configuring tiers via filtered allocation is not recommended.",
@@ -121,7 +121,7 @@ public class TemplateDeprecationCheckerTests extends ESTestCase {
             )
             .build();
 
-        Map<String, List<DeprecationIssue>> issuesByComponentTemplate = checker.check(clusterState, null);
+        Map<String, List<DeprecationIssue>> issuesByComponentTemplate = checker.check(clusterState);
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
             "Configuring tiers via filtered allocation is not recommended.",
@@ -164,7 +164,7 @@ public class TemplateDeprecationCheckerTests extends ESTestCase {
             )
             .build();
 
-        Map<String, List<DeprecationIssue>> issuesByComponentTemplate = checker.check(clusterState, null);
+        Map<String, List<DeprecationIssue>> issuesByComponentTemplate = checker.check(clusterState);
         final DeprecationIssue expectedIndexTemplateIssue = new DeprecationIssue(
             DeprecationIssue.Level.WARNING,
             "Configuring tiers via filtered allocation is not recommended.",

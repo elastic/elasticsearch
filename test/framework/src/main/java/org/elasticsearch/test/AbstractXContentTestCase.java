@@ -154,7 +154,7 @@ public abstract class AbstractXContentTestCase<T extends ToXContent> extends EST
                             try {
                                 return toXContent.apply(instance, xContentType).utf8ToString().contains("\u0085");
                             } catch (IOException e) {
-                                throw new RuntimeException(e);
+                                throw new AssertionError(e);
                             }
                         }, () -> instanceSupplier.apply(xContentType));
                     } else {

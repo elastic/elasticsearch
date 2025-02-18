@@ -127,7 +127,10 @@ public class RetrieverRewriteIT extends ESIntegTestCase {
                 SearchPhaseExecutionException.class,
                 client().prepareSearch(testIndex).setSource(source)::get
             );
-            assertThat(ex.getDetailedMessage(), containsString("Search rejected due to missing shards"));
+            assertThat(
+                ex.getDetailedMessage(),
+                containsString("Search rejected due to missing shards")
+            );
         } finally {
             internalCluster().restartNode(randomDataNode);
         }

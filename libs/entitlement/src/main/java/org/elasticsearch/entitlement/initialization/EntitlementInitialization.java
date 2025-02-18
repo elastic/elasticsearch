@@ -135,8 +135,14 @@ public class EntitlementInitialization {
     private static PolicyManager createPolicyManager() {
         EntitlementBootstrap.BootstrapArgs bootstrapArgs = EntitlementBootstrap.bootstrapArgs();
         Map<String, Policy> pluginPolicies = bootstrapArgs.pluginPolicies();
-        var pathLookup = new PathLookup(getUserHome(), bootstrapArgs.configDir(), bootstrapArgs.dataDirs(), bootstrapArgs.tempDir());
-        Path logsDir = EntitlementBootstrap.bootstrapArgs().logsDir();
+        var pathLookup = new PathLookup(
+            getUserHome(),
+            bootstrapArgs.configDir(),
+            bootstrapArgs.dataDirs(),
+            bootstrapArgs.tempDir(),
+            bootstrapArgs.settingResolver(),
+            bootstrapArgs.settingGlobResolver()
+        );
 
         List<Scope> serverScopes = new ArrayList<>();
         Collections.addAll(

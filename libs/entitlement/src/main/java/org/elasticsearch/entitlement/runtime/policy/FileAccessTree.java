@@ -42,8 +42,9 @@ public final class FileAccessTree {
         }
 
         // everything has access to the temp dir
-        readPaths.add(pathLookup.tempDir().toString());
-        writePaths.add(pathLookup.tempDir().toString());
+        String tempDir = normalizePath(pathLookup.tempDir());
+        readPaths.add(tempDir);
+        writePaths.add(tempDir);
 
         readPaths.sort(String::compareTo);
         writePaths.sort(String::compareTo);

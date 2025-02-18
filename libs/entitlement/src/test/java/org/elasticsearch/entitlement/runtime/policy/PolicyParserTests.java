@@ -11,7 +11,7 @@ package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoaderEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
-import org.elasticsearch.entitlement.runtime.policy.entitlements.FileEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.InboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetworkEntitlement;
@@ -84,7 +84,12 @@ public class PolicyParserTests extends ESTestCase {
             .parsePolicy();
         Policy expected = new Policy(
             "test-policy.yaml",
-            List.of(new Scope("entitlement-module-name", List.of(FileEntitlement.create("test/path/to/file", "read_write"))))
+            List.of(
+                new Scope(
+                    "entitlement-module-name",
+                    List.of(FilesEntitlement.build(List.of(Map.of("path", "/test/path/to/file", "mode", "read_write"))))
+                )
+            )
         );
         assertEquals(expected, parsedPolicy);
     }
@@ -94,9 +99,90 @@ public class PolicyParserTests extends ESTestCase {
             .parsePolicy();
         Policy expected = new Policy(
             "test-policy.yaml",
-            List.of(new Scope("entitlement-module-name", List.of(FileEntitlement.create("test/path/to/file", "read_write"))))
+            List.of(
+                new Scope(
+                    "entitlement-module-name",
+                    List.of(FilesEntitlement.build(List.of(Map.of("path", "/test/path/to/file", "mode", "read_write"))))
+                )
+            )
         );
         assertEquals(expected, parsedPolicy);
+    }
+
+    public void testParseFiles() throws IOException {
+        Policy policyWithOnePath = new PolicyParser(new ByteArrayInputStream("""
+            entitlement-module-name:
+              - files:
+                - path: "/test/path/to/file"
+                  mode: "read_write"
+            """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", false).parsePolicy();
+        Policy expected = new Policy(
+            "test-policy.yaml",
+            List.of(
+                new Scope(
+                    "entitlement-module-name",
+                    List.of(FilesEntitlement.build(List.of(Map.of("path", "/test/path/to/file", "mode", "read_write"))))
+                )
+            )
+        );
+        assertEquals(expected, policyWithOnePath);
+
+        Policy policyWithTwoPaths = new PolicyParser(new ByteArrayInputStream("""
+            entitlement-module-name:
+              - files:
+                - path: "/test/path/to/file"
+                  mode: "read_write"
+                - path: "/test/path/to/read-dir/"
+                  mode: "read"
+            """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", false).parsePolicy();
+        expected = new Policy(
+            "test-policy.yaml",
+            List.of(
+                new Scope(
+                    "entitlement-module-name",
+                    List.of(
+                        FilesEntitlement.build(
+                            List.of(
+                                Map.of("path", "/test/path/to/file", "mode", "read_write"),
+                                Map.of("path", "/test/path/to/read-dir/", "mode", "read")
+                            )
+                        )
+                    )
+                )
+            )
+        );
+        assertEquals(expected, policyWithTwoPaths);
+
+        Policy policyWithMultiplePathsAndBaseDir = new PolicyParser(new ByteArrayInputStream("""
+            entitlement-module-name:
+              - files:
+                - relative_path: "test/path/to/file"
+                  relative_to: "data"
+                  mode: "read_write"
+                - relative_path: "test/path/to/read-dir/"
+                  relative_to: "config"
+                  mode: "read"
+                - path: "/path/to/file"
+                  mode: "read_write"
+            """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", false).parsePolicy();
+        expected = new Policy(
+            "test-policy.yaml",
+            List.of(
+                new Scope(
+                    "entitlement-module-name",
+                    List.of(
+                        FilesEntitlement.build(
+                            List.of(
+                                Map.of("relative_path", "test/path/to/file", "mode", "read_write", "relative_to", "data"),
+                                Map.of("relative_path", "test/path/to/read-dir/", "mode", "read", "relative_to", "config"),
+                                Map.of("path", "/path/to/file", "mode", "read_write")
+                            )
+                        )
+                    )
+                )
+            )
+        );
+        assertEquals(expected, policyWithMultiplePathsAndBaseDir);
     }
 
     public void testParseNetwork() throws IOException {

@@ -1,0 +1,5 @@
+pr: 122610
+summary: Canonicalize processor names and types in `IngestStats`
+area: Ingest Node
+type: bug
+issues: []

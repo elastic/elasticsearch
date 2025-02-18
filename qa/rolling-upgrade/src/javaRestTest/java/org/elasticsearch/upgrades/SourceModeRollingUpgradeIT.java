@@ -85,7 +85,8 @@ public class SourceModeRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
         assertThat(response.containsKey("templates"), equalTo(true));
         Map<?, ?> issuesByTemplate = (Map<?, ?>) response.get("templates");
         assertThat(issuesByTemplate.containsKey(templateName), equalTo(true));
-        var templateIssues = (List<?>) issuesByTemplate.get(templateName);
-        assertThat(((Map<?, ?>) templateIssues.getFirst()).get("message"), equalTo(SourceFieldMapper.DEPRECATION_WARNING));
+        var templateIssue = (Map<?, ?>) ((List<?>) issuesByTemplate.get(templateName)).getFirst();
+        assertThat(templateIssue.get("message"), equalTo(SourceFieldMapper.DEPRECATION_WARNING_TITLE));
+        assertThat(templateIssue.get("details"), equalTo(SourceFieldMapper.DEPRECATION_WARNING));
     }
 }

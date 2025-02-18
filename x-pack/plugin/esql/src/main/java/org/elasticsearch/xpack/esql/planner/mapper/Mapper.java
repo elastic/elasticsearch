@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
@@ -32,7 +33,6 @@ import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
-import org.elasticsearch.xpack.esql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
@@ -105,7 +105,7 @@ public class Mapper {
                     return enrichExec.child();
                 }
                 if (f instanceof UnaryExec unaryExec) {
-                    if (f instanceof LimitExec || f instanceof ExchangeExec || f instanceof OrderExec || f instanceof TopNExec) {
+                    if (f instanceof LimitExec || f instanceof ExchangeExec || f instanceof TopNExec) {
                         return f;
                     } else {
                         return unaryExec.child();
@@ -161,11 +161,6 @@ public class Mapper {
             return new LimitExec(limit.source(), mappedChild, limit.limit());
         }
 
-        if (unary instanceof OrderBy o) {
-            mappedChild = addExchangeForFragment(o, mappedChild);
-            return new OrderExec(o.source(), mappedChild, o.order());
-        }
-
         if (unary instanceof TopN topN) {
             mappedChild = addExchangeForFragment(topN, mappedChild);
             return new TopNExec(topN.source(), mappedChild, topN.order(), topN.limit(), null);
@@ -182,6 +177,10 @@ public class Mapper {
             JoinConfig config = join.config();
             if (config.type() != JoinTypes.LEFT) {
                 throw new EsqlIllegalArgumentException("unsupported join type [" + config.type() + "]");
+            }
+
+            if (join instanceof InlineJoin) {
+                return new FragmentExec(bp);
             }
 
             PhysicalPlan left = map(bp.left());

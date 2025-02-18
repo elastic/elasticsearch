@@ -9,12 +9,15 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
-import org.elasticsearch.entitlement.runtime.policy.entitlements.FileEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
 import static org.hamcrest.Matchers.is;
@@ -32,14 +35,21 @@ public class FileAccessTreeTests extends ESTestCase {
         return root.resolve(s);
     }
 
+    private static final PathLookup TEST_PATH_LOOKUP = new PathLookup(
+        Path.of("/home"),
+        Path.of("/config"),
+        new Path[] { Path.of("/data1"), Path.of("/data2") },
+        Path.of("/tmp")
+    );
+
     public void testEmpty() {
-        var tree = FileAccessTree.of(List.of());
+        var tree = accessTree(FilesEntitlement.EMPTY);
         assertThat(tree.canRead(path("path")), is(false));
         assertThat(tree.canWrite(path("path")), is(false));
     }
 
     public void testRead() {
-        var tree = FileAccessTree.of(List.of(entitlement("foo", "read")));
+        var tree = accessTree(entitlement("foo", "read"));
         assertThat(tree.canRead(path("foo")), is(true));
         assertThat(tree.canRead(path("foo/subdir")), is(true));
         assertThat(tree.canRead(path("food")), is(false));
@@ -51,7 +61,7 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testWrite() {
-        var tree = FileAccessTree.of(List.of(entitlement("foo", "read_write")));
+        var tree = accessTree(entitlement("foo", "read_write"));
         assertThat(tree.canWrite(path("foo")), is(true));
         assertThat(tree.canWrite(path("foo/subdir")), is(true));
         assertThat(tree.canWrite(path("food")), is(false));
@@ -63,7 +73,7 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testTwoPaths() {
-        var tree = FileAccessTree.of(List.of(entitlement("foo", "read"), entitlement("bar", "read")));
+        var tree = accessTree(entitlement("foo", "read", "bar", "read"));
         assertThat(tree.canRead(path("a")), is(false));
         assertThat(tree.canRead(path("bar")), is(true));
         assertThat(tree.canRead(path("bar/subdir")), is(true));
@@ -74,15 +84,66 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testReadWriteUnderRead() {
-        var tree = FileAccessTree.of(List.of(entitlement("foo", "read"), entitlement("foo/bar", "read_write")));
+        var tree = accessTree(entitlement("foo", "read", "foo/bar", "read_write"));
         assertThat(tree.canRead(path("foo")), is(true));
         assertThat(tree.canWrite(path("foo")), is(false));
         assertThat(tree.canRead(path("foo/bar")), is(true));
         assertThat(tree.canWrite(path("foo/bar")), is(true));
     }
 
+    public void testReadWithRelativePath() {
+        for (var dir : List.of("config", "home")) {
+            var tree = accessTree(entitlement(Map.of("relative_path", "foo", "mode", "read", "relative_to", dir)));
+            assertThat(tree.canRead(path("foo")), is(false));
+
+            assertThat(tree.canRead(path("/" + dir + "/foo")), is(true));
+
+            assertThat(tree.canRead(path("/" + dir + "/foo/subdir")), is(true));
+            assertThat(tree.canRead(path("/" + dir + "/food")), is(false));
+            assertThat(tree.canWrite(path("/" + dir + "/foo")), is(false));
+
+            assertThat(tree.canRead(path("/" + dir)), is(false));
+            assertThat(tree.canRead(path("/" + dir + "/before")), is(false));
+            assertThat(tree.canRead(path("/" + dir + "/later")), is(false));
+        }
+    }
+
+    public void testWriteWithRelativePath() {
+        for (var dir : List.of("config", "home")) {
+            var tree = accessTree(entitlement(Map.of("relative_path", "foo", "mode", "read_write", "relative_to", dir)));
+            assertThat(tree.canWrite(path("/" + dir + "/foo")), is(true));
+            assertThat(tree.canWrite(path("/" + dir + "/foo/subdir")), is(true));
+            assertThat(tree.canWrite(path("/" + dir)), is(false));
+            assertThat(tree.canWrite(path("/" + dir + "/food")), is(false));
+            assertThat(tree.canRead(path("/" + dir + "/foo")), is(true));
+            assertThat(tree.canRead(path("/" + dir)), is(false));
+
+            assertThat(tree.canWrite(path("/" + dir)), is(false));
+            assertThat(tree.canWrite(path("/" + dir + "/before")), is(false));
+            assertThat(tree.canWrite(path("/" + dir + "/later")), is(false));
+        }
+    }
+
+    public void testMultipleDataDirs() {
+        var tree = accessTree(entitlement(Map.of("relative_path", "foo", "mode", "read_write", "relative_to", "data")));
+        assertThat(tree.canWrite(path("/data1/foo")), is(true));
+        assertThat(tree.canWrite(path("/data2/foo")), is(true));
+        assertThat(tree.canWrite(path("/data3/foo")), is(false));
+        assertThat(tree.canWrite(path("/data1/foo/subdir")), is(true));
+        assertThat(tree.canWrite(path("foo")), is(false));
+        assertThat(tree.canWrite(path("/data1/food")), is(false));
+        assertThat(tree.canRead(path("/data1/foo")), is(true));
+        assertThat(tree.canRead(path("/data2/foo")), is(true));
+        assertThat(tree.canRead(path("foo")), is(false));
+
+        assertThat(tree.canWrite(path("/data1")), is(false));
+        assertThat(tree.canWrite(path("/data2")), is(false));
+        assertThat(tree.canWrite(path("/config/before")), is(false));
+        assertThat(tree.canWrite(path("/config/later")), is(false));
+    }
+
     public void testNormalizePath() {
-        var tree = FileAccessTree.of(List.of(entitlement("foo/../bar", "read")));
+        var tree = accessTree(entitlement("foo/../bar", "read"));
         assertThat(tree.canRead(path("foo/../bar")), is(true));
         assertThat(tree.canRead(path("foo")), is(false));
         assertThat(tree.canRead(path("")), is(false));
@@ -90,7 +151,7 @@ public class FileAccessTreeTests extends ESTestCase {
 
     public void testForwardSlashes() {
         String sep = getDefaultFileSystem().getSeparator();
-        var tree = FileAccessTree.of(List.of(entitlement("a/b", "read"), entitlement("m" + sep + "n", "read")));
+        var tree = accessTree(entitlement("a/b", "read", "m" + sep + "n", "read"));
 
         // Native separators work
         assertThat(tree.canRead(path("a" + sep + "b")), is(true));
@@ -99,13 +160,34 @@ public class FileAccessTreeTests extends ESTestCase {
         // Forward slashes also work
         assertThat(tree.canRead(path("a/b")), is(true));
         assertThat(tree.canRead(path("m/n")), is(true));
-
-        // In case the native separator is a backslash, don't treat that as an escape
-        assertThat(tree.canRead(path("m\n")), is(false));
     }
 
-    FileEntitlement entitlement(String path, String mode) {
-        Path p = path(path);
-        return FileEntitlement.create(p.toString(), mode);
+    public void testTempDirAccess() {
+        Path tempDir = createTempDir();
+        var tree = FileAccessTree.of(
+            FilesEntitlement.EMPTY,
+            new PathLookup(Path.of("/home"), Path.of("/config"), new Path[] { Path.of("/data1"), Path.of("/data2") }, tempDir)
+        );
+        assertThat(tree.canRead(tempDir), is(true));
+        assertThat(tree.canWrite(tempDir), is(true));
+    }
+
+    FileAccessTree accessTree(FilesEntitlement entitlement) {
+        return FileAccessTree.of(entitlement, TEST_PATH_LOOKUP);
+    }
+
+    static FilesEntitlement entitlement(String... values) {
+        List<Object> filesData = new ArrayList<>();
+        for (int i = 0; i < values.length; i += 2) {
+            Map<String, String> fileData = new HashMap<>();
+            fileData.put("path", path(values[i]).toString());
+            fileData.put("mode", values[i + 1]);
+            filesData.add(fileData);
+        }
+        return FilesEntitlement.build(filesData);
+    }
+
+    static FilesEntitlement entitlement(Map<String, String> value) {
+        return FilesEntitlement.build(List.of(value));
     }
 }

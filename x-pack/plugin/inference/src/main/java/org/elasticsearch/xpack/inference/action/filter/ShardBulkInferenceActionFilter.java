@@ -427,7 +427,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     isUpdateRequest = true;
                     if (updateRequest.script() != null) {
                         addInferenceResponseFailure(
-                            item.id(),
+                            itemIndex,
                             new ElasticsearchStatusException(
                                 "Cannot apply update with a script on indices that contain [{}] field(s)",
                                 RestStatus.BAD_REQUEST,
@@ -458,7 +458,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         if (valueObj == null) {
                             if (isUpdateRequest) {
                                 addInferenceResponseFailure(
-                                    item.id(),
+                                    itemIndex,
                                     new ElasticsearchStatusException(
                                         "Field [{}] must be specified on an update request to calculate inference for field [{}]",
                                         RestStatus.BAD_REQUEST,
@@ -475,7 +475,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         try {
                             values = nodeStringValues(field, valueObj);
                         } catch (Exception exc) {
-                            addInferenceResponseFailure(item.id(), exc);
+                            addInferenceResponseFailure(itemIndex, exc);
                             break;
                         }
                         List<FieldInferenceRequest> fieldRequests = fieldRequestsMap.computeIfAbsent(inferenceId, k -> new ArrayList<>());

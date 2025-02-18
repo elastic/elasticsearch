@@ -404,3 +404,17 @@ from employees | where emp_no == 10003  | mv_expand first_name | keep first_name
 first_name:keyword
 Parto
 ;
+
+
+sortBeforeAndAfterMvExpand
+from employees 
+| sort first_name 
+| mv_expand job_positions 
+| sort emp_no, job_positions 
+| keep emp_no, job_positions 
+| limit 2;
+
+emp_no:integer | job_positions:keyword   
+10001          | Accountant
+10001          | Senior Python Developer          
+;

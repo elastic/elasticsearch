@@ -25,7 +25,7 @@ import java.util.Objects;
 /**
  * A {@code Project} is a {@code Plan} with one child. In {@code SELECT x FROM y}, the "SELECT" statement is a Project.
  */
-public class Project extends UnaryPlan {
+public class Project extends UnaryPlan implements SortAgnostic {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Project", Project::new);
 
     private final List<? extends NamedExpression> projections;

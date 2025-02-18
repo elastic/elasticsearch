@@ -118,7 +118,7 @@ public class TransportEsqlAsyncStopAction extends HandledTransportAction<AsyncSt
         logger.debug("Async stop for task {} - stopping", asyncIdStr);
         final EsqlExecutionInfo esqlExecutionInfo = asyncTask.executionInfo();
         if (esqlExecutionInfo != null) {
-            esqlExecutionInfo.markAsPartial();
+            esqlExecutionInfo.markAsStopped();
         }
         Runnable getResults = () -> getResultsAction.execute(task, getAsyncResultRequest, listener);
         exchangeService.finishSessionEarly(sessionID(asyncId), ActionListener.running(() -> {

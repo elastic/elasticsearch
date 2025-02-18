@@ -61,7 +61,7 @@ public class SyncPluginsAction {
      * @throws UserException if a plugins config file is found.
      */
     public static void ensureNoConfigFile(Environment env) throws UserException {
-        final Path pluginsConfig = env.configFile().resolve(ELASTICSEARCH_PLUGINS_YML);
+        final Path pluginsConfig = env.configDir().resolve(ELASTICSEARCH_PLUGINS_YML);
         if (Files.exists(pluginsConfig)) {
             throw new UserException(
                 ExitCodes.USAGE,
@@ -79,16 +79,16 @@ public class SyncPluginsAction {
      * @throws Exception if anything goes wrong
      */
     public void execute() throws Exception {
-        final Path configPath = this.env.configFile().resolve(ELASTICSEARCH_PLUGINS_YML);
-        final Path previousConfigPath = this.env.pluginsFile().resolve(ELASTICSEARCH_PLUGINS_YML_CACHE);
+        final Path configPath = this.env.configDir().resolve(ELASTICSEARCH_PLUGINS_YML);
+        final Path previousConfigPath = this.env.pluginsDir().resolve(ELASTICSEARCH_PLUGINS_YML_CACHE);
 
         if (Files.exists(configPath) == false) {
             // The `PluginsManager` will have checked that this file exists before invoking the action.
             throw new PluginSyncException("Plugins config does not exist: " + configPath.toAbsolutePath());
         }
 
-        if (Files.exists(env.pluginsFile()) == false) {
-            throw new PluginSyncException("Plugins directory missing: " + env.pluginsFile());
+        if (Files.exists(env.pluginsDir()) == false) {
+            throw new PluginSyncException("Plugins directory missing: " + env.pluginsDir());
         }
 
         // Parse descriptor file
@@ -267,14 +267,14 @@ public class SyncPluginsAction {
         final List<PluginDescriptor> plugins = new ArrayList<>();
 
         try {
-            try (DirectoryStream<Path> paths = Files.newDirectoryStream(env.pluginsFile())) {
+            try (DirectoryStream<Path> paths = Files.newDirectoryStream(env.pluginsDir())) {
                 for (Path pluginPath : paths) {
                     String filename = pluginPath.getFileName().toString();
                     if (filename.startsWith(".")) {
                         continue;
                     }
 
-                    PluginDescriptor info = PluginDescriptor.readFromProperties(env.pluginsFile().resolve(pluginPath));
+                    PluginDescriptor info = PluginDescriptor.readFromProperties(env.pluginsDir().resolve(pluginPath));
                     plugins.add(info);
 
                     // Check for a version mismatch, unless it's an official plugin since we can upgrade them.

@@ -446,7 +446,7 @@ class NodeConstruction {
             );
         }
 
-        if (initialEnvironment.dataFiles().length > 1) {
+        if (initialEnvironment.dataDirs().length > 1) {
             // NOTE: we use initialEnvironment here, but assertEquivalent below ensures the data paths do not change
             deprecationLogger.warn(
                 DeprecationCategory.SETTINGS,
@@ -467,10 +467,10 @@ class NodeConstruction {
         if (logger.isDebugEnabled()) {
             logger.debug(
                 "using config [{}], data [{}], logs [{}], plugins [{}]",
-                initialEnvironment.configFile(),
-                Arrays.toString(initialEnvironment.dataFiles()),
-                initialEnvironment.logsFile(),
-                initialEnvironment.pluginsFile()
+                initialEnvironment.configDir(),
+                Arrays.toString(initialEnvironment.dataDirs()),
+                initialEnvironment.logsDir(),
+                initialEnvironment.pluginsDir()
             );
         }
 
@@ -487,7 +487,7 @@ class NodeConstruction {
          * Create the environment based on the finalized view of the settings. This is to ensure that components get the same setting
          * values, no matter they ask for them from.
          */
-        environment = new Environment(settings, initialEnvironment.configFile());
+        environment = new Environment(settings, initialEnvironment.configDir());
         Environment.assertEquivalent(initialEnvironment, environment);
         modules.bindToInstance(Environment.class, environment);
 
@@ -847,7 +847,6 @@ class NodeConstruction {
             .scriptService(scriptService)
             .clusterService(clusterService)
             .client(client)
-            .featureService(featureService)
             .metaStateService(metaStateService)
             .valuesSourceRegistry(searchModule.getValuesSourceRegistry())
             .requestCacheKeyDifferentiator(searchModule.getRequestCacheKeyDifferentiator())
@@ -1067,7 +1066,7 @@ class NodeConstruction {
         actionModule.getReservedClusterStateService().installStateHandler(new ReservedRepositoryAction(repositoriesService));
         actionModule.getReservedClusterStateService().installStateHandler(new ReservedPipelineAction());
 
-        FileSettingsHealthIndicatorService fileSettingsHealthIndicatorService = new FileSettingsHealthIndicatorService();
+        FileSettingsHealthIndicatorService fileSettingsHealthIndicatorService = new FileSettingsHealthIndicatorService(settings);
         FileSettingsService fileSettingsService = new FileSettingsService(
             clusterService,
             actionModule.getReservedClusterStateService(),
@@ -1147,7 +1146,6 @@ class NodeConstruction {
                 clusterService,
                 threadPool,
                 systemIndices,
-                featureService,
                 clusterModule.getIndexNameExpressionResolver(),
                 metadataUpdateSettingsService,
                 metadataCreateIndexService
@@ -1161,7 +1159,6 @@ class NodeConstruction {
                 discoveryModule.getCoordinator(),
                 clusterService,
                 transportService,
-                featureService,
                 threadPool,
                 telemetryProvider,
                 repositoriesService,
@@ -1333,7 +1330,6 @@ class NodeConstruction {
         Coordinator coordinator,
         ClusterService clusterService,
         TransportService transportService,
-        FeatureService featureService,
         ThreadPool threadPool,
         TelemetryProvider telemetryProvider,
         RepositoriesService repositoriesService,
@@ -1351,7 +1347,7 @@ class NodeConstruction {
         var serverHealthIndicatorServices = Stream.of(
             new StableMasterHealthIndicatorService(coordinationDiagnosticsService, clusterService),
             new RepositoryIntegrityHealthIndicatorService(clusterService),
-            new DiskHealthIndicatorService(clusterService, featureService),
+            new DiskHealthIndicatorService(clusterService),
             new ShardsCapacityHealthIndicatorService(clusterService),
             fileSettingsHealthIndicatorService
         );
@@ -1369,7 +1365,7 @@ class NodeConstruction {
             healthService,
             telemetryProvider
         );
-        HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService, featureService, settings);
+        HealthMetadataService healthMetadataService = HealthMetadataService.create(clusterService, settings);
 
         List<HealthTracker<?>> healthTrackers = List.of(
             new DiskHealthTracker(nodeService, clusterService),
@@ -1622,7 +1618,7 @@ class NodeConstruction {
             pluginsService.filterPlugins(DiscoveryPlugin.class).toList(),
             pluginsService.filterPlugins(ClusterCoordinationPlugin.class).toList(),
             allocationService,
-            environment.configFile(),
+            environment.configDir(),
             gatewayMetaState,
             rerouteService,
             fsHealthService,
@@ -1644,7 +1640,6 @@ class NodeConstruction {
         ClusterService clusterService,
         ThreadPool threadPool,
         SystemIndices systemIndices,
-        FeatureService featureService,
         IndexNameExpressionResolver indexNameExpressionResolver,
         MetadataUpdateSettingsService metadataUpdateSettingsService,
         MetadataCreateIndexService metadataCreateIndexService
@@ -1661,7 +1656,6 @@ class NodeConstruction {
         HealthNodeTaskExecutor healthNodeTaskExecutor = HealthNodeTaskExecutor.create(
             clusterService,
             persistentTasksService,
-            featureService,
             settingsModule.getSettings(),
             clusterService.getClusterSettings()
         );

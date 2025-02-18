@@ -490,7 +490,7 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                          "http_schema": {
                            "description": "",
                            "label": "HTTP Schema",
-                           "required": true,
+                           "required": false,
                            "sensitive": false,
                            "updatable": false,
                            "type": "str",

@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -40,6 +41,7 @@ import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -48,6 +50,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
+import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -108,17 +111,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         if (errors.hasNext() == false) {
             return p;
         } else {
-            StringBuilder message = new StringBuilder();
-            int i = 0;
-
-            while (errors.hasNext()) {
-                if (i > 0) {
-                    message.append("; ");
-                }
-                message.append(errors.next().getMessage());
-                i++;
-            }
-            throw new ParsingException(message.toString());
+            throw ParsingException.combineParsingExceptions(errors);
         }
     }
 
@@ -296,6 +289,22 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
+    public PlanFactory visitInsistCommand(EsqlBaseParser.InsistCommandContext ctx) {
+        var source = source(ctx);
+        List<NamedExpression> fields = visitQualifiedNamePatterns(ctx.qualifiedNamePatterns(), ne -> {
+            if (ne instanceof UnresolvedStar || ne instanceof UnresolvedNamePattern) {
+                Source neSource = ne.source();
+                throw new ParsingException(neSource, "INSIST doesn't support wildcards, found [{}]", neSource.text());
+            }
+        });
+        return input -> new Insist(
+            source,
+            input,
+            fields.stream().map(ne -> (Attribute) new UnresolvedAttribute(ne.source(), ne.name())).toList()
+        );
+    }
+
+    @Override
     public PlanFactory visitStatsCommand(EsqlBaseParser.StatsCommandContext ctx) {
         final Stats stats = stats(source(ctx), ctx.grouping, ctx.stats);
         return input -> new Aggregate(source(ctx), input, Aggregate.AggregateType.STANDARD, stats.groupings, stats.aggregates);
@@ -432,7 +441,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 : matchField instanceof UnresolvedStar ? WILDCARD
                 : null;
             if (patternString != null) {
-                throw new ParsingException(source, "Using wildcards [*] in ENRICH WITH projections is not allowed [{}]", patternString);
+                throw new ParsingException(
+                    source,
+                    "Using wildcards [*] in ENRICH WITH projections is not allowed, found [{}]",
+                    patternString
+                );
             }
 
             List<NamedExpression> keepClauses = visitList(this, ctx.enrichWithClause(), NamedExpression.class);
@@ -447,6 +460,24 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 keepClauses.isEmpty() ? List.of() : keepClauses
             );
         };
+    }
+
+    @Override
+    public PlanFactory visitChangePointCommand(EsqlBaseParser.ChangePointCommandContext ctx) {
+        Source src = source(ctx);
+        Attribute value = visitQualifiedName(ctx.value);
+        Attribute key = ctx.key == null ? new UnresolvedAttribute(src, "@timestamp") : visitQualifiedName(ctx.key);
+        Attribute targetType = new ReferenceAttribute(
+            src,
+            ctx.targetType == null ? "type" : visitQualifiedName(ctx.targetType).name(),
+            DataType.KEYWORD
+        );
+        Attribute targetPvalue = new ReferenceAttribute(
+            src,
+            ctx.targetPvalue == null ? "pvalue" : visitQualifiedName(ctx.targetPvalue).name(),
+            DataType.DOUBLE
+        );
+        return child -> new ChangePoint(src, child, value, key, targetType, targetPvalue);
     }
 
     private static Tuple<Mode, String> parsePolicyName(Token policyToken) {

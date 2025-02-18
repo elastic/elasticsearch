@@ -21,10 +21,10 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
+import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
-import org.elasticsearch.xpack.esql.session.QueryBuilderResolver;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
@@ -62,7 +62,7 @@ public class PlanExecutor {
         EsqlExecutionInfo executionInfo,
         IndicesExpressionGrouper indicesExpressionGrouper,
         EsqlSession.PlanRunner planRunner,
-        QueryBuilderResolver queryBuilderResolver,
+        TransportActionServices services,
         ActionListener<Result> listener
     ) {
         final PlanTelemetry planTelemetry = new PlanTelemetry(functionRegistry);
@@ -78,7 +78,7 @@ public class PlanExecutor {
             verifier,
             planTelemetry,
             indicesExpressionGrouper,
-            queryBuilderResolver
+            services
         );
         QueryMetric clientId = QueryMetric.fromString("rest");
         metrics.total(clientId);

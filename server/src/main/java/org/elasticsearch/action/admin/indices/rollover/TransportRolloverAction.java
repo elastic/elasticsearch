@@ -165,7 +165,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             if (targetData) {
                 indicesToCheck.add(dataStream.getWriteIndex().getName());
             }
-            if (targetFailureStore) {
+            if (targetFailureStore && dataStream.getWriteFailureIndex() != null) {
                 indicesToCheck.add(dataStream.getWriteFailureIndex().getName());
             }
             return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indicesToCheck.toArray(new String[0]));

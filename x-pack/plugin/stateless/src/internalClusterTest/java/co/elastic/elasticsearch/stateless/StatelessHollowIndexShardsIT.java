@@ -72,7 +72,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
-import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.IngestTestPlugin;
 import org.elasticsearch.ingest.Processor;
@@ -102,6 +101,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -844,7 +844,25 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         MockTransportService.getInstance(nodeB).clearAllRules();
     }
 
-    public void testUnhollowOnIngestion() throws Exception {
+    public void testUnhollowOnIndexing() throws Exception {
+        unhollowOnIngestion(IngestionType.Index);
+    }
+
+    public void testUnhollowOnUpdates() throws Exception {
+        unhollowOnIngestion(IngestionType.Update);
+    }
+
+    public void testUnhollowOnBulkUpdates() throws Exception {
+        unhollowOnIngestion(IngestionType.BulkUpdate);
+    }
+
+    private enum IngestionType {
+        Index,
+        Update,
+        BulkUpdate
+    }
+
+    private void unhollowOnIngestion(IngestionType ingestionType) throws Exception {
         startMasterOnlyNode();
         var indexNodeSettings = Settings.builder()
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
@@ -863,9 +881,15 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         ensureGreen(indexName);
         var index = resolveIndex(indexName);
 
-        indexDocs(indexName, between(16, 128));
+        final var docsIdsGenerator = new AtomicLong();
+        final Supplier<String> docIdSupplier = () -> Long.toHexString(docsIdsGenerator.getAndIncrement());
+        var bulkResponse = indexDocs(indexName, between(16, 128), docIdSupplier);
+        var docsIds = Arrays.stream(bulkResponse.getItems()).map(BulkItemResponse::getId).collect(Collectors.toCollection(HashSet::new));
+
         flush(indexName);
-        indexDocs(indexName, between(16, 128));
+        bulkResponse = indexDocs(indexName, between(16, 128), docIdSupplier);
+        Arrays.stream(bulkResponse.getItems()).forEach(item -> docsIds.add(item.getId()));
+
         var hollowShardsServiceA = internalCluster().getInstance(HollowShardsService.class, indexNodeA);
         for (int i = 0; i < numberOfShards; i++) {
             var indexShard = findIndexShard(index, i);
@@ -889,20 +913,62 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         }
 
         // Try to inject documents from background threads, the shards should unhollow on first ingestion
-        int indexDocsThreads = randomIntBetween(1, 8);
-        var indexDocsExecutor = Executors.newFixedThreadPool(indexDocsThreads);
+        int ingestingThreads = randomIntBetween(1, 8);
+        var ingestExecutor = Executors.newFixedThreadPool(ingestingThreads);
         try {
             List<Long> generationsBeforeUnhollow = IntStream.range(0, numberOfShards)
                 .mapToObj(i -> statelessCommitService.getLatestUploadedBcc(new ShardId(index, i)).lastCompoundCommit().generation())
                 .toList();
-            var indexedDocsLatch = new CountDownLatch(indexDocsThreads);
-            for (int i = 0; i < indexDocsThreads; i++) {
-                indexDocsExecutor.submit(() -> {
-                    indexDocs(indexName, randomIntBetween(16, 64));
-                    indexedDocsLatch.countDown();
-                });
+            var ingestLatch = new CountDownLatch(ingestingThreads);
+            for (int i = 0; i < ingestingThreads; i++) {
+                Runnable ingestRunnable = switch (ingestionType) {
+                    // Index docs
+                    case Index -> () -> {
+                        try {
+                            indexDocs(indexName, randomIntBetween(16, 64));
+                        } finally {
+                            ingestLatch.countDown();
+                        }
+                    };
+                    // Update doc or Upsert new doc
+                    case Update -> () -> {
+                        try {
+                            for (int j = 0; j < 32; j++) { // need enough updates to be sure to hollow every shard
+                                final var upsertOrUpdate = randomBoolean();
+                                var docId = upsertOrUpdate ? docIdSupplier.get() : randomFrom(docsIds);
+                                var response = client().prepareUpdate(indexName, docId)
+                                    .setDoc(frequently() ? "field" : "field_" + docId, randomUnicodeOfLength(10))
+                                    .setDocAsUpsert(upsertOrUpdate)
+                                    .get();
+                                assertThat(
+                                    response.getResult(),
+                                    equalTo(upsertOrUpdate ? DocWriteResponse.Result.CREATED : DocWriteResponse.Result.UPDATED)
+                                );
+                                assertThat(response.getId(), equalTo(docId));
+                            }
+                        } finally {
+                            ingestLatch.countDown();
+                        }
+                    };
+                    // Bulk update docs
+                    case BulkUpdate -> () -> {
+                        try {
+                            var client = client();
+                            var bulkUpdates = client.prepareBulk();
+                            for (int j = 0; j < 32; j++) { // need enough updates to be sure to hollow every shard
+                                var docId = randomFrom(docsIds);
+                                bulkUpdates.add(client.prepareUpdate(indexName, docId).setDoc("field", randomUnicodeOfLength(10)));
+                            }
+                            assertNoFailures(bulkUpdates.get());
+                        } finally {
+                            ingestLatch.countDown();
+                        }
+                    };
+                    default -> throw new AssertionError("Unexpected value");
+                };
+                ingestExecutor.submit(ingestRunnable);
             }
-            safeAwait(indexedDocsLatch);
+            safeAwait(ingestLatch, TimeValue.THIRTY_SECONDS);
             for (int i = 0; i < numberOfShards; i++) {
                 // Should unhollow only once
                 assertThat(
@@ -911,7 +977,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
                 );
             }
         } finally {
-            terminate(indexDocsExecutor);
+            terminate(ingestExecutor);
         }
 
         // Check that shards switched to the index engine and flushed a blob with a new translog node ID
@@ -1190,30 +1256,34 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
                     List<String> docIds = randomSubsetOf(Math.min(8, insertedDocs.size()), insertedDocs);
                     try {
                         if (randomBoolean()) {
-                            var multiGetItemResponse = client().prepareMultiGet().addIds(indexName, docIds).get(TimeValue.THIRTY_SECONDS);
-                            for (MultiGetItemResponse itemResponse : multiGetItemResponse) {
-                                // Benign exceptions on relocations
-                                if (itemResponse.getFailure() != null
-                                    && ExceptionsHelper.unwrap(
-                                        itemResponse.getFailure().getFailure(),
-                                        IllegalIndexShardStateException.class
-                                    ) != null) {
-                                    continue;
-                                }
-                                assertFalse(itemResponse.isFailed());
-                                assertTrue(itemResponse.getResponse().isExists());
-                            }
-                        } else {
-                            for (String docId : docIds) {
+                            assertBusy(() -> {
                                 try {
-                                    assertTrue(client().prepareGet(indexName, docId).get(TimeValue.THIRTY_SECONDS).isExists());
+                                    var multiGetItemResponse = safeGet(client().prepareMultiGet().addIds(indexName, docIds).execute());
+                                    for (MultiGetItemResponse itemResponse : multiGetItemResponse) {
+                                        assertFalse(itemResponse.isFailed());
+                                        assertTrue(itemResponse.getResponse().isExists());
+                                    }
                                 } catch (Exception e) {
-                                    // Benign exceptions on relocations
-                                    if (ExceptionsHelper.unwrap(e, IllegalIndexShardStateException.class) != null) {
-                                        continue;
+                                    // Retry on AlreadyClosedException
+                                    if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class) != null) {
+                                        throw new AssertionError(e);
                                     }
                                     throw e;
                                 }
+                            }, 30, TimeUnit.SECONDS);
+                        } else {
+                            for (String docId : docIds) {
+                                assertBusy(() -> {
+                                    try {
+                                        assertTrue(safeGet(client().prepareGet(indexName, docId).execute()).isExists());
+                                    } catch (Exception e) {
+                                        // Retry on AlreadyClosedException
+                                        if (ExceptionsHelper.unwrap(e, AlreadyClosedException.class) != null) {
+                                            throw new AssertionError(e);
+                                        }
+                                        throw e;
+                                    }
+                                }, 30, TimeUnit.SECONDS);
                             }
                         }
                     } catch (Exception e) {
@@ -1224,32 +1294,26 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         }
 
         var stopUpdating = new AtomicBoolean(false);
-        // TODO Support updates in https://elasticco.atlassian.net/browse/ES-10708
-        /*threads.add(new Thread(() -> {
+        threads.add(new Thread(() -> {
             while (stopUpdating.get() == false) {
                 safeSleep(randomLongBetween(0, 100));
-                lock.lock();
-                try {
-                    if (insertedDocs.isEmpty()) {
-                        continue;
-                    }
-                    List<String> docIds = randomSubsetOf(Math.min(insertedDocs.size(), 64), insertedDocs);
-                    if (docIds.isEmpty()) {
-                        continue;
-                    }
-                    var bulkRequestBuilder = client().prepareBulk();
-                    for (String docId : docIds) {
-                        bulkRequestBuilder.add(
-                            new UpdateRequest(indexName, docId).doc("field", randomUnicodeOfCodepointLengthBetween(1, 25))
-                        );
-                    }
-                    assertNoFailures(bulkRequestBuilder.get());
-                    logger.info("Updated {} docs", docIds.size());
-                } finally {
-                    lock.unlock();
+                if (insertedDocs.isEmpty()) {
+                    continue;
                 }
+                List<String> docIds = randomSubsetOf(Math.min(insertedDocs.size(), 64), insertedDocs);
+                if (docIds.isEmpty()) {
+                    continue;
+                }
+                var client = client();
+                var bulkRequestBuilder = client.prepareBulk();
+                for (String docId : docIds) {
+                    bulkRequestBuilder.add(
+                        client.prepareUpdate(indexName, docId).setDoc("field", randomUnicodeOfCodepointLengthBetween(1, 25))
+                    );
+                }
+                assertNoFailures(bulkRequestBuilder.get());
             }
-        }));*/
+        }));
 
         for (Thread thread : threads) {
             thread.start();
@@ -1279,9 +1343,12 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         for (int i = 0; i < numOfShards; i++) {
             var indexShard = findIndexShard(index, i);
             assertThat(indexShard.getEngineOrNull(), instanceOf(IndexEngine.class));
-            assertFalse(((IndexEngine) indexShard.getEngineOrNull()).isLastCommitHollow());
+            IndexEngine indexEngine = (IndexEngine) indexShard.getEngineOrNull();
+            assertFalse(indexEngine.isLastCommitHollow());
         }
+
         // Verify that all ingested docs are searchable
+        refresh(indexName);
         assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHits(true), insertedDocsCount.get());
     }
 
@@ -1313,6 +1380,12 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         var bulkResponse = indexDocs(indexName, randomIntBetween(256, 512));
         List<String> docIds = Arrays.stream(bulkResponse.getItems()).map(BulkItemResponse::getId).toList();
 
+        var hollowShardsServiceA = internalCluster().getInstance(HollowShardsService.class, indexNodeA);
+        for (int i = 0; i < numOfShards; i++) {
+            var indexShard = findIndexShard(index, i);
+            assertBusy(() -> assertThat(hollowShardsServiceA.isHollowableIndexShard(indexShard), equalTo(true)));
+            hollowShardsServiceA.ensureHollowShard(indexShard.shardId(), false);
+        }
         logger.info("--> relocating {} hollowable shards from {} to {}", numOfShards, indexNodeA, indexNodeB);
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
         assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));

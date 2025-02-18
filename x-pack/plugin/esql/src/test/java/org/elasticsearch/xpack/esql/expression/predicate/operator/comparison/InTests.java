@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
@@ -163,7 +164,7 @@ public class InTests extends AbstractFunctionTestCase {
         for (DataType type1 : DataType.stringTypes()) {
             for (DataType type2 : DataType.stringTypes()) {
                 String name = type1 == type2 ? type1.toString() : type1 + " " + type2;
-                suppliers.add(new TestCaseSupplier(name, makeTypes(type1, type2, items), () -> {
+                suppliers.add(new TestCaseSupplier(name.toLowerCase(Locale.ROOT), makeTypes(type1, type2, items), () -> {
                     List<Object> inlist = randomList(items, items, () -> randomLiteral(type1).value());
                     Object field = randomLiteral(type2).value();
                     List<TestCaseSupplier.TypedData> args = new ArrayList<>(inlist.size() + 1);

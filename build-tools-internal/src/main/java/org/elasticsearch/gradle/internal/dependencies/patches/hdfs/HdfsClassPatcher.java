@@ -54,8 +54,13 @@ public abstract class HdfsClassPatcher implements TransformAction<HdfsClassPatch
             )
         ),
         new JarPatchers(
-            "hadoop-auth",
-            Map.of("org/apache/hadoop/security/authentication/client/KerberosAuthenticator.class", SubjectGetSubjectPatcher::new)
+            "hadoop-client-api",
+            Map.ofEntries(
+                entry("org/apache/hadoop/util/ShutdownHookManager.class", ShutdownHookManagerPatcher::new),
+                entry("org/apache/hadoop/util/Shell.class", ShellPatcher::new),
+                entry("org/apache/hadoop/security/UserGroupInformation.class", SubjectGetSubjectPatcher::new),
+                entry("org/apache/hadoop/security/authentication/client/KerberosAuthenticator.class", SubjectGetSubjectPatcher::new)
+            )
         )
     );
 

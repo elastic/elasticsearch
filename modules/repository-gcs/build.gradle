@@ -52,9 +52,9 @@ dependencies {
   api 'io.opencensus:opencensus-api:0.31.1'
   api 'io.opencensus:opencensus-contrib-http-util:0.31.1'
   api 'com.google.apis:google-api-services-storage:v1-rev20220705-2.0.0'
-  api 'com.google.http-client:google-http-client-apache-v2:1.42.3'
-  api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  implementation 'com.google.http-client:google-http-client-apache-v2:1.42.3'
+  implementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  implementation "org.apache.httpcomponents:httpcore:${versions.httpcore}"
 
   testImplementation project(':test:fixtures:gcs-fixture')
   yamlRestTestImplementation project(':test:fixtures:gcs-fixture')

@@ -1,0 +1,74 @@
+basic
+required_capability: name_qualifiers
+
+FROM sample_data main
+| SORT event_duration
+| KEEP main message
+| LIMIT 1
+;
+
+main message:keyword
+foo
+;
+
+keepPattern
+required_capability: name_qualifiers
+
+FROM sample_data main
+| SORT event_duration
+| KEEP m* me*age
+| LIMIT 1
+;
+
+main message:keyword
+;
+
+dropPattern
+required_capability: name_qualifiers
+
+FROM sample_data main
+| SORT event_duration
+| KEEP main message, main event_duration
+| DROP * *duration
+| LIMIT 1
+;
+
+main message:keyword
+;
+
+evalShadow
+required_capability: name_qualifiers
+
+ROW main x = 2
+| EVAL main x = main x * 3
+;
+
+main x:integer
+6
+;
+
+rename
+required_capability: name_qualifiers
+
+FROM sample_data
+| SORT event_duration
+| RENAME message AS main message
+| KEEP * message, event_duration
+;
+
+main message:keyword, event_duration:long
+;
+
+lookupJoin
+required_capability: join_lookup_v12
+required_capability: name_qualifiers
+
+FROM employees main
+| WHERE emp_no == 10001
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup right ON language_code
+| KEEP main emp_no, main language_code, right language_code, right language_name
+;
+
+main emp_no:integer | main language_code:integer | right language_code:integer | right language_name:keyword
+;

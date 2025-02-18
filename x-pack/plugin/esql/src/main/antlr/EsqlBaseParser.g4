@@ -136,7 +136,9 @@ field
     ;
 
 fromCommand
-    : FROM indexPattern (COMMA indexPattern)* metadata?
+    // TODO: Shouldn't be an indexString, that's too general
+    // TODO: Ambiguity in case that the qualifier is METADATA? Should we use the AS keyword?
+    : FROM indexPattern (COMMA indexPattern)* qualifier=indexString? metadata?
     ;
 
 indexPattern
@@ -178,11 +180,12 @@ aggField
     ;
 
 qualifiedName
-    : identifierOrParameter (DOT identifierOrParameter)*
+    // TODO: Test all kind of valid/invalid qualifier strings and make sure they make sense. Same for patterns below.
+    : qualifier=identifier? identifierOrParameter (DOT identifierOrParameter)*
     ;
 
 qualifiedNamePattern
-    : identifierPattern (DOT identifierPattern)*
+    : qualifier=identifierPattern? identifierPattern (DOT identifierPattern)*
     ;
 
 qualifiedNamePatterns
@@ -331,7 +334,9 @@ joinCommand
     ;
 
 joinTarget
-    : index=indexPattern
+    // TODO: qualifier shouldn't be indexPattern, that's too general.
+    // TODO: Ambiguity in case that the qualifier is ON or other keyword? Should we use the AS keyword?
+    : qualifier=indexPattern? index=indexPattern
     ;
 
 joinCondition

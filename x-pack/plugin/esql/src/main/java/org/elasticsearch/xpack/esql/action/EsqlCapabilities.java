@@ -824,7 +824,12 @@ public class EsqlCapabilities {
         /**
          * Support partial_results
          */
-        SUPPORT_PARTIAL_RESULTS;
+        SUPPORT_PARTIAL_RESULTS,
+
+        /**
+         * Support qualifiers in attribute names
+         */
+        NAME_QUALIFIERS(Build.current().isSnapshot());
 
         private final boolean enabled;
 

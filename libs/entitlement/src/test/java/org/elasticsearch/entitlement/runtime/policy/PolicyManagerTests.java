@@ -54,6 +54,7 @@ public class PolicyManagerTests extends ESTestCase {
     private static Module NO_ENTITLEMENTS_MODULE;
 
     private static final PathLookup TEST_PATH_LOOKUP = new PathLookup(
+        Path.of("/user/home"),
         Path.of("/config"),
         new Path[] { Path.of("/data1/"), Path.of("/data2") },
         Path.of("/temp")

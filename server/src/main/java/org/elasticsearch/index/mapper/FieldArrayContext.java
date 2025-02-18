@@ -9,7 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.BinaryDocValuesField;
+import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 
@@ -65,7 +65,7 @@ public class FieldArrayContext {
                 for (int ord : offsetToOrd) {
                     streamOutput.writeVInt(BitUtil.zigZagEncode(ord));
                 }
-                context.doc().add(new BinaryDocValuesField(fieldName, streamOutput.bytes().toBytesRef()));
+                context.doc().add(new SortedDocValuesField(fieldName, streamOutput.bytes().toBytesRef()));
             }
         }
     }

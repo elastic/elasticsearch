@@ -186,7 +186,7 @@ public class SyntheticSourceNativeArrayIntegrationTests extends ESSingleNodeTest
                 assertThat(storedFieldNames, contains(expectedStoredFields));
             }
             var fieldInfo = FieldInfos.getMergedFieldInfos(reader).fieldInfo("field.offsets");
-            assertThat(fieldInfo.getDocValuesType(), equalTo(DocValuesType.BINARY));
+            assertThat(fieldInfo.getDocValuesType(), equalTo(DocValuesType.SORTED));
         }
     }
 
@@ -324,7 +324,7 @@ public class SyntheticSourceNativeArrayIntegrationTests extends ESSingleNodeTest
                 assertThat(storedFieldNames, contains("_id"));
             }
             var fieldInfo = FieldInfos.getMergedFieldInfos(reader).fieldInfo("object.field.offsets");
-            assertThat(fieldInfo.getDocValuesType(), equalTo(DocValuesType.BINARY));
+            assertThat(fieldInfo.getDocValuesType(), equalTo(DocValuesType.SORTED));
         }
     }
 

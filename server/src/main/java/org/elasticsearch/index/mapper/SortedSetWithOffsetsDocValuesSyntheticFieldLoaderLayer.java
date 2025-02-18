@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
@@ -46,7 +47,7 @@ final class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Co
     @Override
     public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
         SortedSetDocValues valueDocValues = DocValues.getSortedSet(leafReader, name);
-        BinaryDocValues offsetDocValues = DocValues.getBinary(leafReader, offsetsFieldName);
+        SortedDocValues offsetDocValues = DocValues.getSorted(leafReader, offsetsFieldName);
 
         return docValues = new DocValuesWithOffsetsLoader(valueDocValues, offsetDocValues);
     }
@@ -77,7 +78,7 @@ final class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Co
     }
 
     static final class DocValuesWithOffsetsLoader implements DocValuesLoader {
-        private final BinaryDocValues offsetDocValues;
+        private final SortedDocValues offsetDocValues;
         private final SortedSetDocValues valueDocValues;
         private final ByteArrayStreamInput scratch = new ByteArrayStreamInput();
 
@@ -85,7 +86,7 @@ final class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Co
         private boolean hasOffset;
         private int[] offsetToOrd;
 
-        DocValuesWithOffsetsLoader(SortedSetDocValues valueDocValues, BinaryDocValues offsetDocValues) {
+        DocValuesWithOffsetsLoader(SortedSetDocValues valueDocValues, SortedDocValues offsetDocValues) {
             this.valueDocValues = valueDocValues;
             this.offsetDocValues = offsetDocValues;
         }
@@ -96,7 +97,8 @@ final class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Co
             hasOffset = offsetDocValues.advanceExact(docId);
             if (hasValue || hasOffset) {
                 if (hasOffset) {
-                    var encodedValue = offsetDocValues.binaryValue();
+                    int offsetOrd = offsetDocValues.ordValue();
+                    var encodedValue = offsetDocValues.lookupOrd(offsetOrd);
                     scratch.reset(encodedValue.bytes, encodedValue.offset, encodedValue.length);
                     offsetToOrd = parseOffsetArray(scratch);
                 } else {

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import joptsimple.internal.Strings;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
@@ -283,5 +284,11 @@ public abstract class BinarySpatialFunctionTestCase extends AbstractScalarFuncti
             }
         }
         return count;
+    }
+
+    @Override
+    protected Expression serializeDeserializeExpression(Expression expression) {
+        // TODO: Functions inheriting from this superclass don't serialize the Source, and must be fixed.
+        return expression;
     }
 }

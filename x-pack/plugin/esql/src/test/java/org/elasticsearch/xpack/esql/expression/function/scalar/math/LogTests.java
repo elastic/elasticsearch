@@ -92,8 +92,8 @@ public class LogTests extends AbstractScalarFunctionTestCase {
                 1d,
                 Double.POSITIVE_INFINITY,
                 List.of(
-                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                    "Line -1:-1: java.lang.ArithmeticException: Log of non-positive number"
+                    "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line 1:1: java.lang.ArithmeticException: Log of non-positive number"
                 )
             )
         );
@@ -110,8 +110,8 @@ public class LogTests extends AbstractScalarFunctionTestCase {
                 Double.NEGATIVE_INFINITY,
                 0d,
                 List.of(
-                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                    "Line -1:-1: java.lang.ArithmeticException: Log of non-positive number"
+                    "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line 1:1: java.lang.ArithmeticException: Log of non-positive number"
                 )
             )
         );
@@ -128,8 +128,8 @@ public class LogTests extends AbstractScalarFunctionTestCase {
                 1d,
                 Double.POSITIVE_INFINITY,
                 List.of(
-                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                    "Line -1:-1: java.lang.ArithmeticException: Log of base 1"
+                    "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line 1:1: java.lang.ArithmeticException: Log of base 1"
                 )
             )
         );
@@ -181,8 +181,8 @@ public class LogTests extends AbstractScalarFunctionTestCase {
                 Double.NEGATIVE_INFINITY,
                 0d,
                 List.of(
-                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                    "Line -1:-1: java.lang.ArithmeticException: Log of non-positive number"
+                    "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line 1:1: java.lang.ArithmeticException: Log of non-positive number"
                 )
             )
         );

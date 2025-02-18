@@ -189,7 +189,7 @@ Minimally once this skip test is in place, the correct `skip` and `requires` che
 
 #### Test Features
 
-Both cluster and test features exist. Cluster features are meant for new capability and test features can specifically be used to gate and manage `skip` and `requires` yaml test operations.  A cluster feature is typically used when behavior is different based on how a cluster is setup or migrated whereas a test feature is used when the old code was invalid and is replaced but breaks api compatibility. Specifically in the context of backward compatibility and backporting, cluster and test features must be used consistently. When backporting and using these features they can not overlap in name and must be consistent when backported so that clusters built with these features are compatible.
+Both cluster and test features exist. Cluster features are meant for new capability and test features can specifically be used to gate and manage `skip` and `requires` yaml test operations.  For more information, see `docs/internal/Versioning.md`. Specifically in the context of backward compatibility and backporting, cluster and test features must be used consistently across branches. When backporting and using these features they can not overlap in name and must be consistent when backported so that clusters built with these features are compatible.
 
 ### Developer's workflow
 

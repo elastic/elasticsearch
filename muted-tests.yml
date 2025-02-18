@@ -386,6 +386,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/122712
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   issue: https://github.com/elastic/elasticsearch/issues/122810
+- class: org.elasticsearch.snapshots.DedicatedClusterSnapshotRestoreIT
+  method: testRestoreShrinkIndex
+  issue: https://github.com/elastic/elasticsearch/issues/121717
 
 # Examples:
 #

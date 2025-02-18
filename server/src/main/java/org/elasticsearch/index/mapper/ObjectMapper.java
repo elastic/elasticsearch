@@ -399,7 +399,9 @@ public class ObjectMapper extends Mapper {
                         throw new MapperParsingException(
                             "The mapper type ["
                                 + type
-                                + "] does not exist. It might have been created within a future version or requires a plugin to be installed. Check the documentation."
+                                + "] does not exist."
+                                + " It might have been created within a future version or requires a plugin to be installed."
+                                + " Check the documentation."
                         );
                     }
                     Mapper.Builder fieldBuilder;

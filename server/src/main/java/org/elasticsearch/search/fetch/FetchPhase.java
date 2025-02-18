@@ -168,7 +168,7 @@ public final class FetchPhase {
                 this.accumulatedBytesInLeaf = 0;
                 return bytesToSubmit;
             };
-            private final Consumer<Integer> memoryUsageBytesAccumulator = (bytes) -> { this.accumulatedBytesInLeaf += bytes; };
+            private final Consumer<Integer> memoryUsageBytesAccumulator = (bytes) -> this.accumulatedBytesInLeaf += bytes;
 
             @Override
             protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) throws IOException {
@@ -331,7 +331,7 @@ public final class FetchPhase {
         IdLoader.Leaf idLoader,
         RankDoc rankDoc,
         CircuitBreaker circuitBreaker,
-        boolean submitToCB,
+        boolean accountMemoryWithCircuitBreaker,
         Consumer<Integer> memoryUsageBytesAccumulator,
         Supplier<Integer> accumulatedBytesInLeaf
     ) throws IOException {
@@ -341,7 +341,7 @@ public final class FetchPhase {
 
         MemoryAccountingBytesRefCounted memAccountingRefCounted = null;
         RefCounted refCountedHit = null;
-        if (submitToCB) {
+        if (accountMemoryWithCircuitBreaker) {
             memAccountingRefCounted = MemoryAccountingBytesRefCounted.create(circuitBreaker);
             refCountedHit = LeakTracker.wrap(memAccountingRefCounted);
         }
@@ -355,7 +355,7 @@ public final class FetchPhase {
                     subReaderContext,
                     subDocId,
                     memAccountingRefCounted,
-                    submitToCB,
+                    accountMemoryWithCircuitBreaker,
                     memoryUsageBytesAccumulator,
                     accumulatedBytesInLeaf
                 )
@@ -369,7 +369,7 @@ public final class FetchPhase {
                 try {
                     source = sourceLoader.source(leafStoredFieldLoader, subDocId);
                     memoryUsageBytesAccumulator.accept(source.internalSourceRef().length());
-                    if (submitToCB) {
+                    if (accountMemoryWithCircuitBreaker) {
                         memAccountingRefCounted.account(accumulatedBytesInLeaf.get(), "fetch phase source loader");
                     }
                 } catch (CircuitBreakingException e) {
@@ -387,7 +387,7 @@ public final class FetchPhase {
                         subReaderContext,
                         subDocId,
                         memAccountingRefCounted,
-                        submitToCB,
+                        accountMemoryWithCircuitBreaker,
                         memoryUsageBytesAccumulator,
                         accumulatedBytesInLeaf
                     )

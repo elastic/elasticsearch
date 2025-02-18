@@ -180,6 +180,7 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 
@@ -2934,8 +2935,13 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testFetchPhaseAccountsForSourceMemoryUsage() throws Exception {
         createIndex("index");
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 48; i++) {
             prepareIndex("index").setId(String.valueOf(i)).setSource("field", randomAlphaOfLength(1000)).setRefreshPolicy(IMMEDIATE).get();
+        }
+        if (randomBoolean()) {
+            // 1 segment test is also useful so we enable the batching branch of the memory accounting
+            // we do local accounting up to 32kb (by default) before submitting to cb
+            indicesAdmin().prepareForceMerge("index").setMaxNumSegments(1).get();
         }
 
         SearchService service = getInstanceFromNode(SearchService.class);
@@ -2968,7 +2974,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             );
             ShardFetchRequest req = new ShardFetchRequest(
                 readerContext.id(),
-                IntStream.range(0, 10).boxed().collect(Collectors.toList()),
+                IntStream.range(0, 48).boxed().collect(Collectors.toList()),
                 null
             );
             PlainActionFuture<FetchSearchResult> listener = new PlainActionFuture<>();
@@ -2981,12 +2987,15 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             long usedAfterFetch = breaker.getUsed();
             assertThat(usedAfterFetch, greaterThan(usedBeforeFetch));
             logger.debug("--> usedBeforeFetch: [{}], usedAfterFetch: [{}]", usedBeforeFetch, usedAfterFetch);
-            // 10 docs with at least 1000 bytes in the source
-            assertThat((usedAfterFetch - usedBeforeFetch), greaterThan(10_000L));
+            // 48 docs with at least 1000 bytes in the source
+            assertThat((usedAfterFetch - usedBeforeFetch), greaterThanOrEqualTo(48_000L));
         } finally {
             if (fetchSearchResult != null) {
+                long usedBeforeDecref = breaker.getUsed();
+                assertThat(usedBeforeDecref, greaterThanOrEqualTo(48_000L));
                 fetchSearchResult.decRef();
-                assertThat(breaker.getUsed(), is(0L));
+                // when releasing the result references we should clear at least 48_000 bytes (48 hits with sources of at least 1000 bytes)
+                assertThat(usedBeforeDecref - breaker.getUsed(), greaterThanOrEqualTo(48_000L));
             }
             if (readerContext != null) {
                 service.freeReaderContext(readerContext.id());

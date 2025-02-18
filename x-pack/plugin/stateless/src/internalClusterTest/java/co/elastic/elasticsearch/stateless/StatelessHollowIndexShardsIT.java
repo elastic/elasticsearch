@@ -1406,7 +1406,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         // A non-real time get shouldn't read from the translog
         assertThat(client().prepareGet(indexName, id).setRealtime(false).get().isExists(), is(true));
 
-        var ids = Set.copyOf(randomSubsetOf(docIds));
+        var ids = Set.copyOf(randomNonEmptySubsetOf(docIds));
         var multiGetResponse = client().prepareMultiGet().addIds(indexName, ids).get();
         assertTrue(Stream.of(multiGetResponse.getResponses()).noneMatch(MultiGetItemResponse::isFailed));
         assertTrue(Stream.of(multiGetResponse.getResponses()).map(e -> e.getResponse()).allMatch(GetResponse::isExists));

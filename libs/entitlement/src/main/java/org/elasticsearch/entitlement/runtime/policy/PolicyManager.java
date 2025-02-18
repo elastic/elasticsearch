@@ -306,6 +306,7 @@ public class PolicyManager {
         }
     }
 
+    @SuppressForbidden(reason = "Explicitly checking File apis")
     public void checkFileWithZipMode(Class<?> callerClass, File file, int zipMode) {
         assert zipMode == OPEN_READ || zipMode == (OPEN_READ | OPEN_DELETE);
         if ((zipMode & OPEN_DELETE) == OPEN_DELETE) {

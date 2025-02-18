@@ -99,6 +99,11 @@ public class JavaBaseFileActions {
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
+    static void zipFile_6_readAndDelete() throws IOException {
+        expectZipException(() -> new ZipFile(createTempFileForWrite().toFile(), OPEN_READ | OPEN_DELETE, defaultCharset()).close());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
     static void jarFile_1() throws IOException {
         expectZipException(() -> new JarFile(readFile().toString()).close());
     }

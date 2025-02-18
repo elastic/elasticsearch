@@ -326,7 +326,7 @@ public final class IndexPrivilege extends Privilege {
         for (String part : name) {
             part = part.toLowerCase(Locale.ROOT);
             if (ACTION_MATCHER.test(part)) {
-                actions.add(actionToPattern(part));
+                actions.add(part);
             } else {
                 IndexPrivilege indexPrivilege = part == null ? null : VALUES.get(part);
                 if (indexPrivilege != null && size == 1) {
@@ -356,18 +356,9 @@ public final class IndexPrivilege extends Privilege {
         }
 
         if (false == allAccessPrivileges.isEmpty()) {
-            assert name.size() == actions.size() + allAccessPrivileges.size()
-                : "expected ["
-                    + name.size()
-                    + "] but was ["
-                    + (actions.size() + allAccessPrivileges.size())
-                    + "] for "
-                    + name
-                    + " "
-                    + allAccessPrivileges
-                    + " "
-                    + actions;
-            return Set.of(union(allAccessPrivileges, actions, IndexComponentSelectorPrivilege.ALL));
+            Set<IndexPrivilege> result = Set.of(union(allAccessPrivileges, actions, IndexComponentSelectorPrivilege.ALL));
+            assertNamesMatch(result, name);
+            return result;
         }
 
         final Set<IndexPrivilege> result = new HashSet<>();
@@ -377,7 +368,13 @@ public final class IndexPrivilege extends Privilege {
         if (false == dataAccessPrivileges.isEmpty() || false == actions.isEmpty()) {
             result.add(union(dataAccessPrivileges, actions, IndexComponentSelectorPrivilege.DATA));
         }
+        assertNamesMatch(result, name);
         return result;
+    }
+
+    private static void assertNamesMatch(Set<IndexPrivilege> privileges, Set<String> names) {
+        assert names.equals(privileges.stream().map(Privilege::name).flatMap(Set::stream).collect(Collectors.toSet()))
+            : "mismatch between names [" + names + "] and names on split privileges [" + privileges + "]";
     }
 
     private static IndexPrivilege union(
@@ -388,12 +385,14 @@ public final class IndexPrivilege extends Privilege {
         Set<Automaton> automata = HashSet.newHashSet(privileges.size() + actions.size());
         Set<String> names = new HashSet<>();
         for (var privilege : privileges) {
-            automata.add(privilege.automaton);
             names.add(privilege.getSingleName());
+            automata.add(privilege.automaton);
         }
+
         if (false == actions.isEmpty()) {
-            automata.add(patterns(actions));
             names.addAll(actions);
+            // TODO for-loop or optimize?
+            automata.add(patterns(actions.stream().map(Privilege::actionToPattern).toArray(String[]::new)));
         }
         return new IndexPrivilege(names, unionAndMinimize(automata), selectorPrivilege);
     }

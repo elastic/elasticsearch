@@ -36,6 +36,9 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingByte;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingFloat;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingSparse;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
@@ -553,8 +556,8 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             );
 
             var results = listener.actionGet(TIMEOUT);
-            assertThat(results.get(0), instanceOf(ChunkedInferenceEmbeddingSparse.class));
-            var sparseResult = (ChunkedInferenceEmbeddingSparse) results.get(0);
+            assertThat(results.get(0), instanceOf(ChunkedInferenceEmbedding.class));
+            var sparseResult = (ChunkedInferenceEmbedding) results.get(0);
             assertThat(
                 sparseResult.chunks(),
                 is(

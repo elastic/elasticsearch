@@ -16,12 +16,11 @@ import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingUtils.validateInputSizeAgainstEmbeddings;
 
-public record ChunkedInferenceEmbeddingSparse(List<SparseEmbeddingChunk> chunks) implements ChunkedInference {
+public record ChunkedInferenceEmbeddingSparse(List<SparseEmbeddingChunk> chunks) {
 
     public static List<ChunkedInference> listOf(List<String> inputs, SparseEmbeddingResults sparseEmbeddingResults) {
         validateInputSizeAgainstEmbeddings(inputs, sparseEmbeddingResults.embeddings().size());
@@ -29,12 +28,12 @@ public record ChunkedInferenceEmbeddingSparse(List<SparseEmbeddingChunk> chunks)
         var results = new ArrayList<ChunkedInference>(inputs.size());
         for (int i = 0; i < inputs.size(); i++) {
             results.add(
-                new ChunkedInferenceEmbeddingSparse(
+                new ChunkedInferenceEmbedding(
                     List.of(
                         new SparseEmbeddingChunk(
                             sparseEmbeddingResults.embeddings().get(i).tokens(),
                             inputs.get(i),
-                            new TextOffset(0, inputs.get(i).length())
+                            new ChunkedInference.TextOffset(0, inputs.get(i).length())
                         )
                     )
                 )
@@ -44,26 +43,22 @@ public record ChunkedInferenceEmbeddingSparse(List<SparseEmbeddingChunk> chunks)
         return results;
     }
 
-    @Override
-    public Iterator<Chunk> chunksAsMatchedTextAndByteReference(XContent xcontent) throws IOException {
-        var asChunk = new ArrayList<Chunk>();
-        for (var chunk : chunks) {
-            asChunk.add(new Chunk(chunk.matchedText(), chunk.offset(), toBytesReference(xcontent, chunk.weightedTokens())));
-        }
-        return asChunk.iterator();
-    }
-
-    private static BytesReference toBytesReference(XContent xContent, List<WeightedToken> tokens) throws IOException {
-        XContentBuilder b = XContentBuilder.builder(xContent);
-        b.startObject();
-        for (var weightedToken : tokens) {
-            weightedToken.toXContent(b, ToXContent.EMPTY_PARAMS);
-        }
-        b.endObject();
-        return BytesReference.bytes(b);
-    }
-
-    public record SparseEmbeddingChunk(List<WeightedToken> weightedTokens, String matchedText, TextOffset offset)
+    public record SparseEmbeddingChunk(List<WeightedToken> weightedTokens, String matchedText, ChunkedInference.TextOffset offset)
         implements
-            EmbeddingResults.EmbeddingChunk {}
+            EmbeddingResults.EmbeddingChunk {
+
+        public ChunkedInference.Chunk toChunk(XContent xcontent) throws IOException {
+            return new ChunkedInference.Chunk(matchedText, offset, toBytesReference(xcontent, weightedTokens));
+        }
+
+        private static BytesReference toBytesReference(XContent xContent, List<WeightedToken> tokens) throws IOException {
+            XContentBuilder b = XContentBuilder.builder(xContent);
+            b.startObject();
+            for (var weightedToken : tokens) {
+                weightedToken.toXContent(b, ToXContent.EMPTY_PARAMS);
+            }
+            b.endObject();
+            return BytesReference.bytes(b);
+        }
+    }
 }

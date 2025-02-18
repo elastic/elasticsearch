@@ -34,6 +34,7 @@ import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingFloat;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 
@@ -179,7 +180,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             var results = new ArrayList<ChunkedInference>();
             for (int i = 0; i < input.size(); i++) {
                 results.add(
-                    new ChunkedInferenceEmbeddingFloat(
+                    new ChunkedInferenceEmbedding(
                         List.of(
                             new ChunkedInferenceEmbeddingFloat.FloatEmbeddingChunk(
                                 nonChunkedResults.embeddings().get(i).values(),

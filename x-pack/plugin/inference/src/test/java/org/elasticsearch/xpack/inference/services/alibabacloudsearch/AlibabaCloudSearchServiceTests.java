@@ -29,6 +29,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingFloat;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingSparse;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
@@ -423,12 +424,14 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, instanceOf(List.class));
             assertThat(results, hasSize(2));
-            var firstResult = results.get(0);
-            if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
-                assertThat(firstResult, instanceOf(ChunkedInferenceEmbeddingFloat.class));
-            } else if (TaskType.SPARSE_EMBEDDING.equals(taskType)) {
-                assertThat(firstResult, instanceOf(ChunkedInferenceEmbeddingSparse.class));
-            }
+            var firstResult = results.getFirst();
+            assertThat(firstResult, instanceOf(ChunkedInferenceEmbedding.class));
+            Class<?> expectedClass = switch(taskType) {
+                case TEXT_EMBEDDING -> ChunkedInferenceEmbeddingFloat.FloatEmbeddingChunk.class;
+                case SPARSE_EMBEDDING -> ChunkedInferenceEmbeddingSparse.SparseEmbeddingChunk.class;
+                default -> null;
+            };
+            assertThat(((ChunkedInferenceEmbedding) firstResult).chunks().getFirst(), instanceOf(expectedClass));
         }
     }
 

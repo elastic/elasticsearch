@@ -24,6 +24,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingSparse;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
@@ -102,8 +103,8 @@ public class HuggingFaceElserServiceTests extends ESTestCase {
             );
 
             var result = listener.actionGet(TIMEOUT).get(0);
-            assertThat(result, instanceOf(ChunkedInferenceEmbeddingSparse.class));
-            var sparseResult = (ChunkedInferenceEmbeddingSparse) result;
+            assertThat(result, instanceOf(ChunkedInferenceEmbedding.class));
+            var sparseResult = (ChunkedInferenceEmbedding) result;
             assertThat(
                 sparseResult.chunks(),
                 is(

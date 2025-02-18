@@ -15,9 +15,7 @@ import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingByte;
-import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingFloat;
-import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingSparse;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
@@ -237,28 +235,6 @@ public class EmbeddingRequestChunker {
                 );
             embeddingChunks.add(chunk);
         }
-
-        switch (embeddingType) {
-            case FLOAT:
-                List<ChunkedInferenceEmbeddingFloat.FloatEmbeddingChunk> floatEmbeddingChunks = new ArrayList<>();
-                embeddingChunks.forEach(chunk -> floatEmbeddingChunks.add((ChunkedInferenceEmbeddingFloat.FloatEmbeddingChunk) chunk));
-                return new ChunkedInferenceEmbeddingFloat(floatEmbeddingChunks);
-            case BYTE:
-                List<ChunkedInferenceEmbeddingByte.ByteEmbeddingChunk> byteEmbeddingChunks = new ArrayList<>();
-                embeddingChunks.forEach(chunk -> byteEmbeddingChunks.add((ChunkedInferenceEmbeddingByte.ByteEmbeddingChunk) chunk));
-                return new ChunkedInferenceEmbeddingByte(byteEmbeddingChunks);
-            case SPARSE:
-                List<ChunkedInferenceEmbeddingSparse.SparseEmbeddingChunk> sparseEmbeddingChunks = new ArrayList<>();
-                embeddingChunks.forEach(chunk -> sparseEmbeddingChunks.add((ChunkedInferenceEmbeddingSparse.SparseEmbeddingChunk) chunk));
-                return new ChunkedInferenceEmbeddingSparse(sparseEmbeddingChunks);
-            default:
-                return new ChunkedInferenceError(
-                    new ElasticsearchStatusException(
-                        "Unexpected class [{}]",
-                        RestStatus.INTERNAL_SERVER_ERROR,
-                        embeddingChunks.getFirst().getClass().getName()
-                    )
-                );
-        }
+        return new ChunkedInferenceEmbedding(embeddingChunks);
     }
 }

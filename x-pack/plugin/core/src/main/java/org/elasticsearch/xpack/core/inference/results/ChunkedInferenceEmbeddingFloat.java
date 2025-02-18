@@ -13,35 +13,29 @@ import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 
-public record ChunkedInferenceEmbeddingFloat(List<FloatEmbeddingChunk> chunks) implements ChunkedInference {
+public record ChunkedInferenceEmbeddingFloat(List<FloatEmbeddingChunk> chunks) {
 
-    @Override
-    public Iterator<Chunk> chunksAsMatchedTextAndByteReference(XContent xcontent) throws IOException {
-        var asChunk = new ArrayList<Chunk>();
-        for (var chunk : chunks) {
-            asChunk.add(new Chunk(chunk.matchedText(), chunk.offset(), toBytesReference(xcontent, chunk.embedding())));
-        }
-        return asChunk.iterator();
-    }
-
-    /**
-     * Serialises the {@code value} array, according to the provided {@link XContent}, into a {@link BytesReference}.
-     */
-    private static BytesReference toBytesReference(XContent xContent, float[] value) throws IOException {
-        XContentBuilder b = XContentBuilder.builder(xContent);
-        b.startArray();
-        for (float v : value) {
-            b.value(v);
-        }
-        b.endArray();
-        return BytesReference.bytes(b);
-    }
-
-    public record FloatEmbeddingChunk(float[] embedding, String matchedText, TextOffset offset)
+    public record FloatEmbeddingChunk(float[] embedding, String matchedText, ChunkedInference.TextOffset offset)
         implements
-            EmbeddingResults.EmbeddingChunk {}
+            EmbeddingResults.EmbeddingChunk {
+
+        public ChunkedInference.Chunk toChunk(XContent xcontent) throws IOException {
+            return new ChunkedInference.Chunk(matchedText, offset, toBytesReference(xcontent, embedding));
+        }
+
+        /**
+         * Serialises the {@code value} array, according to the provided {@link XContent}, into a {@link BytesReference}.
+         */
+        private static BytesReference toBytesReference(XContent xContent, float[] value) throws IOException {
+            XContentBuilder b = XContentBuilder.builder(xContent);
+            b.startArray();
+            for (float v : value) {
+                b.value(v);
+            }
+            b.endArray();
+            return BytesReference.bytes(b);
+        }
+    }
 }

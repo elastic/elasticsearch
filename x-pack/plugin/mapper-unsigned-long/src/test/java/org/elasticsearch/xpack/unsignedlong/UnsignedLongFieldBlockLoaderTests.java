@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.unsignedlong;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
-
 import org.elasticsearch.index.mapper.NumberFieldBlockLoaderTestCase;
 import org.elasticsearch.logsdb.datageneration.FieldType;
 import org.elasticsearch.plugins.Plugin;

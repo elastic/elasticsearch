@@ -9,8 +9,6 @@
 
 package org.elasticsearch.index.mapper.blockloader;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
-
 import org.elasticsearch.index.mapper.NumberFieldBlockLoaderTestCase;
 import org.elasticsearch.logsdb.datageneration.FieldType;
 

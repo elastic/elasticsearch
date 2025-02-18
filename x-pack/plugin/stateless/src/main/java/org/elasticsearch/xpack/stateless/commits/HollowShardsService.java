@@ -47,6 +47,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
 
+import static org.elasticsearch.core.Strings.format;
+
 /**
  * Functionality around the hollowing of inactive shards to reduce their memory footprint.
  *
@@ -228,7 +230,6 @@ public class HollowShardsService extends AbstractLifecycleComponent {
         final var shardId = indexShard.shardId();
         var existingBlocker = hollowShards.remove(shardId);
         if (existingBlocker != null) {
-            logger.debug(() -> "uninstalling ingestion blocker for shard " + shardId);
             // A hollow shard blocks ingestion, thus it cannot have new non-persisted operations.
             assert indexShard.state() == IndexShardState.CLOSED
                 || indexShard.getLocalCheckpoint() == indexShard.getEngineOrNull().getMaxSeqNo()
@@ -241,6 +242,7 @@ public class HollowShardsService extends AbstractLifecycleComponent {
                     + " and max seq no "
                     + indexShard.getEngineOrNull().getMaxSeqNo()
                     + ")";
+            logger.info("{} unhollowing shard completed", shardId);
             existingBlocker.listener.onResponse(null);
         }
     }
@@ -326,7 +328,7 @@ public class HollowShardsService extends AbstractLifecycleComponent {
                 }
 
                 private void failUnhollowing(ShardId shardId, Exception e) {
-                    logger.error("Unable to unhollow shard [" + shardId + "]", e);
+                    logger.error(() -> format("%s unhollowing shard failed", shardId), e);
                     var indexShard = indicesService.getShardOrNull(shardId);
                     if (indexShard != null) {
                         // This should close the shard which uninstalls the ingestion blocker

@@ -232,40 +232,42 @@ works in parallel with the storage engine.)
 ### Core Components
 
 The `DesiredBalanceShardsAllocator` is what runs shard allocation decisions. It leverages the `DesiredBalanceComputer` to produce
-`DesiredBalance` instances for the cluster based on the latest cluster changes (add/remove nodes, create/remove indices, load, etc). Then
+`DesiredBalance` instances for the cluster based on the latest cluster changes (add/remove nodes, create/remove indices, load, etc.). Then
 the `DesiredBalanceReconciler` is invoked to choose the next steps to take to move the cluster from the current shard allocation to the
-latest computed `DesiredBalance` shard allocation. The `Reconciler` will apply changes to a copy of the `RoutingNodes`, which is then
-published in a cluster state update that will reach the data nodes to start the individual shard creation/recovery/move work.
+latest computed `DesiredBalance` shard allocation. The `DesiredBalanceReconciler` will apply changes to a copy of the `RoutingNodes`, which
+is then published in a cluster state update that will reach the data nodes to start the individual shard recovery/deletion/move work.
 
-The `Reconciler` is throttled by cluster settings, like the max number of concurrent shard moves and recoveries per cluster and node: this
-is why the `Reconciler` will make, and publish via cluster state updates, incremental changes to the cluster shard allocation. The
-`DesiredBalanceShardsAllocator` is the endpoint for reroute requests, which may trigger immediate requests to the `Reconciler`, but
-asynchronous requests to the `DesiredBalanceComputer` via the `ContinuousComputation` component. Cluster state changes that affect shard
-balancing (for example index deletion) all call some reroute method interface that reaches the `DesiredBalanceShardsAllocator` to run
-reconciliation and queue a request for the `DesiredBalancerComputer`, leading to desired balance computation and reconciliation actions.
-Asynchronous completion of a new `DesiredBalance` will also invoke a reconciliation action, as will cluster state updates completing shard
-moves/recoveries (unthrottling the next shard move/recovery).
+The `DesiredBalanceReconciler` is throttled by cluster settings, like the max number of concurrent shard moves and recoveries per cluster
+and node: this is why the `DesiredBalanceReconciler` will make, and publish via cluster state updates, incremental changes to the cluster
+shard allocation. The `DesiredBalanceShardsAllocator` is the endpoint for reroute requests, which may trigger immediate requests to the
+`DesiredBalanceReconciler`, but asynchronous requests to the `DesiredBalanceComputer` via the `ContinuousComputation` component. Cluster
+state changes that affect shard balancing (for example index deletion) all call some reroute method interface that reaches the
+`DesiredBalanceShardsAllocator` to run reconciliation and queue a request for the `DesiredBalancerComputer`, leading to desired balance
+computation and reconciliation actions. Asynchronous completion of a new `DesiredBalance` will also invoke a reconciliation action, as will
+cluster state updates completing shard moves/recoveries (unthrottling the next shard move/recovery).
 
-The `ContinuousComputation` maintains a queue of desired balance computation requests, each of which holds the latest cluster information at
-the time of the request, and a thread that runs the `DesiredBalanceComputer`. The ContinuousComputation thread grabs the latest request,
-with the freshest cluster information, feeds it into the `DesiredBalanceComputer` and publishes a `DesiredBalance` back to the
+The `ContinuousComputation` saves the latest desired balance computation request, which holds the cluster information at the time of that
+request, and a thread that runs the `DesiredBalanceComputer`. The `ContinuousComputation` thread takes the latest request, with the
+associated cluster information, feeds it into the `DesiredBalanceComputer` and publishes a `DesiredBalance` back to the
 `DesiredBalanceShardsAllocator` to use for reconciliation actions. Sometimes the `ContinuousComputation` thread's desired balance
-computation will be signalled to end early and get a `DesiredBalance` published more quickly, if newer cluster state changes are significant
-or to get unassigned shards started as soon as possible.
+computation will be signalled to exit early and publish the initial `DesiredBalance` improvements it has made, when newer rebalancing
+requests (due to cluster state changes) have arrived, or in order to begin recovery of unassigned shards as quickly as possible.
 
 ### Rebalancing Process
 
 There are different priorities in shard allocation, reflected in which moves the `DesiredBalancerReconciler` selects to do first given that
 it can only move, recover, or remove a limited number of shards at once. The first priority is assigning unassigned shards, primaries being
-more important than replicas. The second is to move shards that violate node resource limits or hard limits. The `AllocationDeciders` holds
-a group of `AllocationDecider` types that place hard constraints on shard allocation. There is a decider that manages disk memory usage
-thresholds that does not allow further shard assignment or requires shards to be moved off; or another that excludes a configurable list of
-indices from certain nodes; or one that will not attempt to recover a shard on a certain node after so many failed retries. The third
-priority is to rebalance shards to even out the relative weight of shards on each node: the intention is to avoid, or ease, future
-hot-spotting on data nodes due to too many shards being placed on the same data node. Node shard weight is based on a sum of factors: disk
-memory usage, projected shard write load, total number of shards, and an incentive to spread out shards within the same index. See the
-`WeightFunction` and `NodeAllocationStatsAndWeightsCalculator` classes for more details on the weight calculations that support the
-`DesiredBalanceComputer` decisions.
+more important than replicas. The second is to move shards that violate any rule (such as node resource limits) as defined by an
+`AllocationDecider`. The `AllocationDeciders` holds a group of `AllocationDecider` implementations that place hard constraints on shard
+allocation. There is a decider, `DiskThresholdDecider`, that manages disk memory usage thresholds, such that further shards may not be
+allowed assignment to a node, or shards may be required to move off because they grew to exceed the disk space; or another,
+`FilterAllocationDecider`, that excludes a configurable list of indices from certain nodes; or `MaxRetryAllocationDecider` that will not
+attempt to recover a shard on a certain node after so many failed retries. The third priority is to rebalance shards to even out the
+relative weight of shards on each node: the intention is to avoid, or ease, future hot-spotting on data nodes due to too many shards being
+placed on the same data node. Node shard weight is based on a sum of factors: disk memory usage, projected shard write load, total number
+of shards, and an incentive to distribute shards within the same index across different nodes. See the `WeightFunction` and
+`NodeAllocationStatsAndWeightsCalculator` classes for more details on the weight calculations that support the `DesiredBalanceComputer`
+decisions.
 
 # Autoscaling
 

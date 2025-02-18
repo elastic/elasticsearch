@@ -45,7 +45,7 @@ public class AverageSearchLoadSampler {
      */
     public static final Setting<Boolean> USE_VCPU_REQUEST = Setting.boolSetting(
         "serverless.autoscaling.search.use_vcpu_request",
-        false,
+        true,
         Setting.Property.NodeScope,
         Setting.Property.OperatorDynamic
     );

@@ -62,6 +62,7 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -98,8 +99,10 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -572,12 +575,30 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         return masterNodeName;
     }
 
+    protected static BulkResponse indexDocs(String indexName, int numDocs, Supplier<String> docIdSupplier) {
+        return indexDocs(indexName, numDocs, UnaryOperator.identity(), docIdSupplier);
+    }
+
     protected static BulkResponse indexDocs(String indexName, int numDocs, UnaryOperator<BulkRequestBuilder> requestOperator) {
-        var bulkRequest = client().prepareBulk();
+        return indexDocs(indexName, numDocs, requestOperator, null);
+    }
+
+    private static <T> BulkResponse indexDocs(
+        String indexName,
+        int numDocs,
+        UnaryOperator<BulkRequestBuilder> bulkRequestOperator,
+        @Nullable Supplier<String> docIdSupplier
+    ) {
+        final var client = client();
+        var bulkRequest = client.prepareBulk();
         for (int i = 0; i < numDocs; i++) {
-            bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
+            var indexRequest = client.prepareIndex(indexName);
+            if (docIdSupplier != null) {
+                indexRequest.setId(Objects.requireNonNull(docIdSupplier.get()));
+            }
+            bulkRequest.add(indexRequest.setSource("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
         }
-        var bulkResponse = requestOperator.apply(bulkRequest).get();
+        var bulkResponse = bulkRequestOperator.apply(bulkRequest).get();
         assertNoFailures(bulkResponse);
         return bulkResponse;
     }

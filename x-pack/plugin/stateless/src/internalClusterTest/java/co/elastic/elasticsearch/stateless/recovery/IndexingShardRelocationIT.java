@@ -927,6 +927,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
         logger.info("--> add more docs so that the refresh produces a new commit");
         indexDocs(indexName, scaledRandomIntBetween(100, 1_000));
 
+        final AtomicBoolean delayActions = new AtomicBoolean(true);
         final Queue<CheckedRunnable<Exception>> delayedActions = ConcurrentCollections.newQueue();
         // check that the source indexing shard sent a new commit notification with the correct generation and node id
         final var sourceNotificationReceived = new CountDownLatch(1);
@@ -939,7 +940,11 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
                     assertThat(notification.getNodeId(), equalTo(getNodeId(indexNodeSource)));
                     // Delayed the uploaded notification to ensure fetching from the indexing node
                     if (notification.isUploaded()) {
-                        delayedActions.add(() -> handler.messageReceived(request, channel, task));
+                        if (delayActions.get()) {
+                            delayedActions.add(() -> handler.messageReceived(request, channel, task));
+                        } else {
+                            handler.messageReceived(request, channel, task);
+                        }
                     } else {
                         sourceNotificationReceived.countDown();
                         handler.messageReceived(request, channel, task);
@@ -985,7 +990,11 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
                     );
                     // Delayed the uploaded notification to ensure fetching from the indexing node
                     if (notification.isUploaded()) {
-                        delayedActions.add(() -> handler.messageReceived(request, channel, task));
+                        if (delayActions.get()) {
+                            delayedActions.add(() -> handler.messageReceived(request, channel, task));
+                        } else {
+                            handler.messageReceived(request, channel, task);
+                        }
                     } else {
                         targetNotificationReceived.countDown();
                         handler.messageReceived(request, channel, task);
@@ -1023,6 +1032,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
         safeAwait(targetGetChunkRequestReceived);
         assertThat(refreshFuture.actionGet().getFailedShards(), equalTo(0));
 
+        delayActions.set(false);
         for (CheckedRunnable<Exception> delayedAction : delayedActions) {
             delayedAction.run();
         }

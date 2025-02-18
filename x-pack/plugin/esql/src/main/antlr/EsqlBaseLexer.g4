@@ -87,6 +87,7 @@ JOIN_LOOKUP : 'lookup'        -> pushMode(JOIN_MODE);
 // MYCOMMAND : 'mycommand' -> ...
 DEV_CHANGE_POINT : {this.isDevVersion()}? 'change_point'  -> pushMode(CHANGE_POINT_MODE);
 DEV_INLINESTATS :  {this.isDevVersion()}? 'inlinestats'   -> pushMode(EXPRESSION_MODE);
+DEV_INSIST :      {this.isDevVersion()}? 'insist_🐔'      -> pushMode(PROJECT_MODE);
 DEV_LOOKUP :       {this.isDevVersion()}? 'lookup_🐔'     -> pushMode(LOOKUP_MODE);
 DEV_METRICS :      {this.isDevVersion()}? 'metrics'       -> pushMode(METRICS_MODE);
 // list of all JOIN commands
@@ -308,8 +309,9 @@ FROM_MULTILINE_COMMENT
 FROM_WS
     : WS -> channel(HIDDEN)
     ;
+
 //
-// DROP, KEEP
+// DROP, KEEP, INSIST
 //
 mode PROJECT_MODE;
 PROJECT_PIPE : PIPE -> type(PIPE), popMode;
@@ -655,3 +657,14 @@ CHANGE_POINT_UNQUOTED_IDENTIFIER: UNQUOTED_IDENTIFIER -> type(UNQUOTED_IDENTIFIE
 CHANGE_POINT_LINE_COMMENT: LINE_COMMENT -> channel(HIDDEN);
 CHANGE_POINT_MULTILINE_COMMENT: MULTILINE_COMMENT -> channel(HIDDEN);
 CHANGE_POINT_WS: WS -> channel(HIDDEN);
+
+//
+// INSIST command
+//
+mode INSIST_MODE;
+INSIST_PIPE : PIPE -> type(PIPE), popMode;
+INSIST_IDENTIFIER: UNQUOTED_IDENTIFIER -> type(UNQUOTED_IDENTIFIER);
+
+INSIST_WS : WS -> channel(HIDDEN);
+INSIST_LINE_COMMENT : LINE_COMMENT -> channel(HIDDEN);
+INSIST_MULTILINE_COMMENT : MULTILINE_COMMENT -> channel(HIDDEN);

@@ -15,6 +15,9 @@ import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 
 import java.io.File;
 import java.io.FileDescriptor;
+import java.io.FileFilter;
+import java.io.FilenameFilter;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
@@ -61,10 +64,13 @@ import java.nio.file.AccessMode;
 import java.nio.file.CopyOption;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileStore;
+import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.WatchEvent;
+import java.nio.file.WatchService;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.UserPrincipal;
 import java.nio.file.spi.FileSystemProvider;
@@ -837,7 +843,7 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void check$java_lang_Runtime$load(Class<?> callerClass, Runtime that, String filename) {
-        // TODO: check filesystem entitlement READ
+        policyManager.checkFileRead(callerClass, Path.of(filename));
         policyManager.checkLoadingNativeLibraries(callerClass);
     }
 
@@ -848,7 +854,7 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void check$java_lang_System$$load(Class<?> callerClass, String filename) {
-        // TODO: check filesystem entitlement READ
+        policyManager.checkFileRead(callerClass, Path.of(filename));
         policyManager.checkLoadingNativeLibraries(callerClass);
     }
 
@@ -932,7 +938,7 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void check$java_lang_foreign_SymbolLookup$$libraryLookup(Class<?> callerClass, Path path, Arena arena) {
-        // TODO: check filesystem entitlement READ
+        policyManager.checkFileRead(callerClass, path);
         policyManager.checkLoadingNativeLibraries(callerClass);
     }
 
@@ -953,6 +959,21 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     // old io (ie File)
 
     @Override
+    public void check$java_io_File$canExecute(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$canRead(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$canWrite(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
     public void check$java_io_File$createNewFile(Class<?> callerClass, File file) {
         policyManager.checkFileWrite(callerClass, file);
     }
@@ -970,6 +991,61 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     @Override
     public void check$java_io_File$deleteOnExit(Class<?> callerClass, File file) {
         policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$exists(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$isDirectory(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$isFile(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$isHidden(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$lastModified(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$length(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$list(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$list(Class<?> callerClass, File file, FilenameFilter filter) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$listFiles(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$listFiles(Class<?> callerClass, File file, FileFilter filter) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$listFiles(Class<?> callerClass, File file, FilenameFilter filter) {
+        policyManager.checkFileRead(callerClass, file);
     }
 
     @Override
@@ -1477,5 +1553,39 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     @Override
     public void checkType(Class<?> callerClass, FileStore that) {
         policyManager.checkReadStoreAttributes(callerClass);
+    }
+
+    @Override
+    public void checkPathToRealPath(Class<?> callerClass, Path that, LinkOption... options) {
+        boolean followLinks = true;
+        for (LinkOption option : options) {
+            if (option == LinkOption.NOFOLLOW_LINKS) {
+                followLinks = false;
+            }
+        }
+        if (followLinks) {
+            try {
+                policyManager.checkFileRead(callerClass, Files.readSymbolicLink(that));
+            } catch (IOException | UnsupportedOperationException e) {
+                // that is not a link, or unrelated IOException or unsupported
+            }
+        }
+        policyManager.checkFileRead(callerClass, that);
+    }
+
+    @Override
+    public void checkPathRegister(Class<?> callerClass, Path that, WatchService watcher, WatchEvent.Kind<?>... events) {
+        policyManager.checkFileRead(callerClass, that);
+    }
+
+    @Override
+    public void checkPathRegister(
+        Class<?> callerClass,
+        Path that,
+        WatchService watcher,
+        WatchEvent.Kind<?>[] events,
+        WatchEvent.Modifier... modifiers
+    ) {
+        policyManager.checkFileRead(callerClass, that);
     }
 }

@@ -75,7 +75,7 @@ abstract class DataNodeRequestSender {
         this.esqlExecutor = esqlExecutor;
         this.rootTask = rootTask;
         this.allowPartialResults = allowPartialResults;
-        this.concurrentRequests = new Semaphore(concurrentRequests);
+        this.concurrentRequests = concurrentRequests > 1 ? new Semaphore(concurrentRequests) : null;
     }
 
     final void startComputeOnDataNodes(
@@ -168,7 +168,9 @@ abstract class DataNodeRequestSender {
         sendRequest(request.node, request.shardIds, request.aliasFilters, new NodeListener() {
             void onAfter(List<DriverProfile> profiles) {
                 nodePermits.get(request.node).release();
-                concurrentRequests.release();
+                if (concurrentRequests != null) {
+                    concurrentRequests.release();
+                }
                 trySendingRequestsForPendingShards(targetShards, computeListener);
                 listener.onResponse(profiles);
             }
@@ -290,12 +292,11 @@ abstract class DataNodeRequestSender {
             }
         }
 
-        var size = Math.min(concurrentRequests.availablePermits(), nodeToShardIds.size());
-        final List<NodeRequest> nodeRequests = new ArrayList<>(size);
+        final List<NodeRequest> nodeRequests = new ArrayList<>(nodeToShardIds.size());
         for (var entry : nodeToShardIds.entrySet()) {
             var node = entry.getKey();
             var shardIds = entry.getValue();
-            if (concurrentRequests.tryAcquire()) {
+            if (concurrentRequests == null || concurrentRequests.tryAcquire()) {
                 Map<Index, AliasFilter> aliasFilters = new HashMap<>();
                 for (ShardId shardId : shardIds) {
                     var aliasFilter = targetShards.getShard(shardId).aliasFilter;

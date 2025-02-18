@@ -1,6 +1,13 @@
 io.netty.transport:
   - inbound_network
   - outbound_network
+  - manage_threads
 io.netty.common:
   - inbound_network
   - outbound_network
+  - manage_threads
+  - files:
+    - path: "/etc/os-release"
+      mode: "read"
+    - path: "/usr/lib/os-release"
+      mode: "read"

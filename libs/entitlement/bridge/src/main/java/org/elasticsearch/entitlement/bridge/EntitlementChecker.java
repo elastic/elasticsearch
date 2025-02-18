@@ -608,6 +608,7 @@ public interface EntitlementChecker {
         Class<?> callerClass,
         Path path,
         Set<? extends OpenOption> options,
+        ExecutorService executor,
         FileAttribute<?>... attrs
     );
 

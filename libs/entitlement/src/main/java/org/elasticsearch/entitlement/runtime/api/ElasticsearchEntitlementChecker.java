@@ -1182,6 +1182,7 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
         Class<?> callerClass,
         Path path,
         Set<? extends OpenOption> options,
+        ExecutorService executor,
         FileAttribute<?>... attrs
     ) {
         if (isOpenForWrite(options)) {

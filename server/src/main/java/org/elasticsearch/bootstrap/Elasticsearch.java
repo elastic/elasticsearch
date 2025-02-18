@@ -249,8 +249,8 @@ class Elasticsearch {
                 nodeEnv.settings()::getGlobValues,
                 nodeEnv.dataDirs(),
                 nodeEnv.configDir(),
-                nodeEnv.tmpDir(),
-                nodeEnv.logsDir()
+                nodeEnv.logsDir(),
+                nodeEnv.tmpDir()
             );
         } else {
             assert RuntimeVersionFeature.isSecurityManagerAvailable();

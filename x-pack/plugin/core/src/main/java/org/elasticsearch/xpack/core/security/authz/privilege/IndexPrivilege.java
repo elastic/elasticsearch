@@ -277,6 +277,7 @@ public final class IndexPrivilege extends Privilege {
         this.selectorPrivilege = selectorPrivilege;
     }
 
+    // TODO javadoc
     public static IndexPrivilege getSingle(Set<String> name) {
         var single = getSplitBySelector(name);
         if (single.size() != 1) {
@@ -285,6 +286,7 @@ public final class IndexPrivilege extends Privilege {
         return single.iterator().next();
     }
 
+    // TODO javadoc
     public static Set<IndexPrivilege> getSplitBySelector(Set<String> name) {
         return CACHE.computeIfAbsent(name, (theName) -> {
             if (theName.isEmpty()) {
@@ -293,17 +295,6 @@ public final class IndexPrivilege extends Privilege {
                 return resolve(theName);
             }
         });
-    }
-
-    public IndexComponentSelectorPrivilege getSelectorPrivilege() {
-        return selectorPrivilege;
-    }
-
-    public String getSingleName() {
-        if (name().size() != 1) {
-            throw new IllegalStateException("Expected a single name, but got: " + name());
-        }
-        return name().iterator().next();
     }
 
     @Nullable
@@ -355,10 +346,24 @@ public final class IndexPrivilege extends Privilege {
             }
         }
 
+        final Set<IndexPrivilege> result = combineIntoResult(allAccessPrivileges, failureAccessPrivileges, dataAccessPrivileges, actions);
+        assertNamesMatch(result, name);
+        return result;
+    }
+
+    private static Set<IndexPrivilege> combineIntoResult(
+        Set<IndexPrivilege> allAccessPrivileges,
+        Set<IndexPrivilege> failureAccessPrivileges,
+        Set<IndexPrivilege> dataAccessPrivileges,
+        Set<String> actions
+    ) {
+        assert false == allAccessPrivileges.isEmpty()
+            || false == failureAccessPrivileges.isEmpty()
+            || false == dataAccessPrivileges.isEmpty()
+            || false == actions.isEmpty() : "at least one of the privilege sets or actions must be non-empty";
+
         if (false == allAccessPrivileges.isEmpty()) {
-            Set<IndexPrivilege> result = Set.of(union(allAccessPrivileges, actions, IndexComponentSelectorPrivilege.ALL));
-            assertNamesMatch(result, name);
-            return result;
+            return Set.of(union(allAccessPrivileges, actions, IndexComponentSelectorPrivilege.ALL));
         }
 
         final Set<IndexPrivilege> result = new HashSet<>();
@@ -368,7 +373,6 @@ public final class IndexPrivilege extends Privilege {
         if (false == dataAccessPrivileges.isEmpty() || false == actions.isEmpty()) {
             result.add(union(dataAccessPrivileges, actions, IndexComponentSelectorPrivilege.DATA));
         }
-        assertNamesMatch(result, name);
         return result;
     }
 
@@ -383,15 +387,14 @@ public final class IndexPrivilege extends Privilege {
         IndexComponentSelectorPrivilege selectorPrivilege
     ) {
         Set<Automaton> automata = HashSet.newHashSet(privileges.size() + actions.size());
-        Set<String> names = new HashSet<>();
-        for (var privilege : privileges) {
+        Set<String> names = HashSet.newHashSet(privileges.size() + actions.size());
+        for (IndexPrivilege privilege : privileges) {
             names.add(privilege.getSingleName());
             automata.add(privilege.automaton);
         }
 
         if (false == actions.isEmpty()) {
             names.addAll(actions);
-            // TODO for-loop or optimize?
             automata.add(patterns(actions.stream().map(Privilege::actionToPattern).toArray(String[]::new)));
         }
         return new IndexPrivilege(names, unionAndMinimize(automata), selectorPrivilege);
@@ -419,5 +422,16 @@ public final class IndexPrivilege extends Privilege {
             .filter(e -> e.getValue().predicate.test(action))
             .map(Map.Entry::getKey)
             .toList();
+    }
+
+    public IndexComponentSelectorPrivilege getSelectorPrivilege() {
+        return selectorPrivilege;
+    }
+
+    public String getSingleName() {
+        if (name().size() != 1) {
+            throw new IllegalStateException("Expected a single name, but got: " + name());
+        }
+        return name().iterator().next();
     }
 }

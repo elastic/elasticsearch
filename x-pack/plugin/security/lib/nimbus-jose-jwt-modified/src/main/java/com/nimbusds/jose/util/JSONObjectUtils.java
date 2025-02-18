@@ -13,9 +13,9 @@ import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.text.ParseException;
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
-import java.util.Date;
 
 /**
  * This class wraps {@link org.elasticsearch.nimbus.jose.util.JSONObjectUtils}, which is copied directly from the source

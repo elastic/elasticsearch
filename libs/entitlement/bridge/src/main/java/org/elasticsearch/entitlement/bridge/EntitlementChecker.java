@@ -10,6 +10,7 @@
 package org.elasticsearch.entitlement.bridge;
 
 import java.io.File;
+import java.io.FileDescriptor;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
@@ -480,13 +481,53 @@ public interface EntitlementChecker {
 
     void check$java_io_File$setWritable(Class<?> callerClass, File file, boolean writable, boolean ownerOnly);
 
+    void check$java_io_FileInputStream$(Class<?> callerClass, File file);
+
+    void check$java_io_FileInputStream$(Class<?> callerClass, FileDescriptor fd);
+
+    void check$java_io_FileInputStream$(Class<?> callerClass, String name);
+
     void check$java_io_FileOutputStream$(Class<?> callerClass, File file);
 
     void check$java_io_FileOutputStream$(Class<?> callerClass, File file, boolean append);
 
+    void check$java_io_FileOutputStream$(Class<?> callerClass, FileDescriptor fd);
+
     void check$java_io_FileOutputStream$(Class<?> callerClass, String name);
 
     void check$java_io_FileOutputStream$(Class<?> callerClass, String name, boolean append);
+
+    void check$java_io_FileReader$(Class<?> callerClass, File file);
+
+    void check$java_io_FileReader$(Class<?> callerClass, File file, Charset charset);
+
+    void check$java_io_FileReader$(Class<?> callerClass, FileDescriptor fd);
+
+    void check$java_io_FileReader$(Class<?> callerClass, String name);
+
+    void check$java_io_FileReader$(Class<?> callerClass, String name, Charset charset);
+
+    void check$java_io_FileWriter$(Class<?> callerClass, File file);
+
+    void check$java_io_FileWriter$(Class<?> callerClass, File file, boolean append);
+
+    void check$java_io_FileWriter$(Class<?> callerClass, File file, Charset charset);
+
+    void check$java_io_FileWriter$(Class<?> callerClass, File file, Charset charset, boolean append);
+
+    void check$java_io_FileWriter$(Class<?> callerClass, FileDescriptor fd);
+
+    void check$java_io_FileWriter$(Class<?> callerClass, String name);
+
+    void check$java_io_FileWriter$(Class<?> callerClass, String name, boolean append);
+
+    void check$java_io_FileWriter$(Class<?> callerClass, String name, Charset charset);
+
+    void check$java_io_FileWriter$(Class<?> callerClass, String name, Charset charset, boolean append);
+
+    void check$java_io_RandomAccessFile$(Class<?> callerClass, String name, String mode);
+
+    void check$java_io_RandomAccessFile$(Class<?> callerClass, File file, String mode);
 
     void check$java_util_Scanner$(Class<?> callerClass, File source);
 

@@ -2609,6 +2609,7 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(new Literal(EMPTY, "minimum_should_match", DataType.KEYWORD), ee.key());
         assertEquals(new Literal(EMPTY, 3.0, DataType.DOUBLE), ee.value());
         assertEquals(DataType.DOUBLE, ee.dataType());
+    }
 
     public void testResolveInsist_fieldExists_insistedOutputContainsNoUnmappedFields() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());

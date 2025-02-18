@@ -2231,9 +2231,9 @@ public class VerifierTests extends ESTestCase {
             containsString(
                 "1:20: Invalid option [unknown_option] in [QSTR(\"first_name: Jean\", {\"unknown_option\": true})]," + " expected one of "
             )
-          };
+        );
     }
-          
+
     public void testInsistNotOnTopOfFrom() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
 

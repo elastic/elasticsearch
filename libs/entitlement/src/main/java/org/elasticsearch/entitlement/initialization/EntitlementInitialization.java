@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.initialization;
 
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.internal.provider.ProviderLocator;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
@@ -133,7 +134,7 @@ public class EntitlementInitialization {
     private static PolicyManager createPolicyManager() {
         EntitlementBootstrap.BootstrapArgs bootstrapArgs = EntitlementBootstrap.bootstrapArgs();
         Map<String, Policy> pluginPolicies = bootstrapArgs.pluginPolicies();
-        var pathLookup = new PathLookup(bootstrapArgs.configDir(), bootstrapArgs.dataDirs(), bootstrapArgs.tempDir());
+        var pathLookup = new PathLookup(getUserHome(), bootstrapArgs.configDir(), bootstrapArgs.dataDirs(), bootstrapArgs.tempDir());
         Path logsDir = EntitlementBootstrap.bootstrapArgs().logsDir();
 
         // TODO(ES-10031): Decide what goes in the elasticsearch default policy and extend it
@@ -219,6 +220,14 @@ public class EntitlementInitialization {
             ENTITLEMENTS_MODULE,
             pathLookup
         );
+    }
+
+    private static Path getUserHome() {
+        String userHome = System.getProperty("user.home");
+        if (userHome == null) {
+            throw new IllegalStateException("user.home system property is required");
+        }
+        return PathUtils.get(userHome);
     }
 
     private static Stream<InstrumentationService.InstrumentationInfo> fileSystemProviderChecks() throws ClassNotFoundException,

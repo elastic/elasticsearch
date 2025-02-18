@@ -239,7 +239,6 @@ public class LimitedRoleTests extends ESTestCase {
     }
 
     private static IndexPrivilege randomIndexPrivilege() {
-        // TODO handle failure store
         return IndexPrivilege.getSingleSelector(Set.of(randomFrom(IndexPrivilege.names())));
     }
 

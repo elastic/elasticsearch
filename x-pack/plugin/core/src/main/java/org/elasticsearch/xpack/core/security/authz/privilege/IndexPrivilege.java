@@ -277,11 +277,11 @@ public final class IndexPrivilege extends Privilege {
      * than one selector. The caller must ensure that the names only map to privileges with the same selector.
      */
     public static IndexPrivilege getSingleSelector(Set<String> name) {
-        var single = getSplitBySelector(name);
-        if (single.size() != 1) {
-            throw new IllegalArgumentException("expected singleton");
+        final Set<IndexPrivilege> splitBySelector = getSplitBySelector(name);
+        if (splitBySelector.size() != 1) {
+            throw new IllegalArgumentException("index privilege patterns " + name + " did not map to a single selector " + splitBySelector);
         }
-        return single.iterator().next();
+        return splitBySelector.iterator().next();
     }
 
     /**
@@ -437,9 +437,10 @@ public final class IndexPrivilege extends Privilege {
     }
 
     public String getSingleName() {
-        if (name().size() != 1) {
-            throw new IllegalStateException("Expected a single name, but got: " + name());
+        final Set<String> names = name();
+        if (names.size() != 1) {
+            throw new IllegalStateException("expected single name for privilege but got " + names);
         }
-        return name().iterator().next();
+        return names.iterator().next();
     }
 }

@@ -334,8 +334,7 @@ public class DriverTests extends ESTestCase {
         DriverContext driverContext = driverContext();
         ThreadPool threadPool = threadPool();
         try {
-            PlainActionFuture<Void> sourceFuture = new PlainActionFuture<>();
-            var sourceHandler = new ExchangeSourceHandler(between(1, 5), threadPool.executor("esql"), sourceFuture);
+            var sourceHandler = new ExchangeSourceHandler(between(1, 5), threadPool.executor("esql"));
             var sinkHandler = new ExchangeSinkHandler(driverContext.blockFactory(), between(1, 5), System::currentTimeMillis);
             var sourceOperator = new ExchangeSourceOperator(sourceHandler.createExchangeSource());
             var sinkOperator = new ExchangeSinkOperator(sinkHandler.createExchangeSink(() -> {}), Function.identity());
@@ -351,7 +350,6 @@ public class DriverTests extends ESTestCase {
             sinkHandler.fetchPageAsync(true, ActionListener.noop());
             future.actionGet(5, TimeUnit.SECONDS);
             assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
-            sourceFuture.actionGet(5, TimeUnit.SECONDS);
         } finally {
             terminate(threadPool);
         }

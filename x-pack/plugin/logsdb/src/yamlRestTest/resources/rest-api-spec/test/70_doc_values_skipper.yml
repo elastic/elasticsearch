@@ -1,0 +1,173 @@
+---
+create logs index without doc values sparse index:
+  - requires:
+      cluster_features: [ "mapper.doc_values_skipper" ]
+      reason: requires setting 'index.mapping.use_doc_values_skipper' to enable the doc values sparse index
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping:
+                use_doc_values_skipper: false
+              mode: logsdb
+              number_of_shards: 2
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host.name:
+                type: keyword
+              agent_id:
+                type: keyword
+              process_id:
+                type: integer
+              http_method:
+                type: keyword
+              message:
+                type: text
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:30:00Z", ignored_field_stats: "foo", "agent_id": "darth-vader", "process_id": 101, "http_method": "GET", "message": "No, I am your father." }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:31:00Z", "host.name": "bar", "agent_id": "yoda", "process_id": 102, "http_method": "PUT", "message": "Do. Or do not. There is no try." }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:32:00Z", "host.name": "foo", "agent_id": "obi-wan", "process_id": 103, "http_method": "GET", "message": "May the force be with you." }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:33:00Z", "host.name": "baz", "agent_id": "darth-vader", "process_id": 102, "http_method": "POST", "message": "I find your lack of faith disturbing." }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:34:00Z", "host.name": "baz", "agent_id": "yoda", "process_id": 104, "http_method": "POST", "message": "Wars not make one great." }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:35:00Z", "host.name": "foo", "agent_id": "obi-wan", "process_id": 105, "http_method": "GET", "message": "That's no moon. It's a space station." }
+
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 6 }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            range:
+              "@timestamp":
+                gte: "2024-02-12T10:30:00Z"
+                lte: "2024-02-12T10:35:00Z"
+
+  - match: { hits.total.value: 6 }
+
+
+  - do:
+      indices.get_settings:
+        index: test
+
+  - is_true: test
+  - match: { test.settings.index.mode: "logsdb" }
+
+  - do:
+      indices.disk_usage:
+        index: test
+        run_expensive_tasks: true
+
+  - gt: { test.fields.@timestamp.points_in_bytes: 0 }
+  - gt: { test.fields.@timestamp.doc_values_in_bytes: 0 }
+
+---
+create logs index with doc values sparse index:
+  - requires:
+      cluster_features: [ "mapper.doc_values_skipper" ]
+      reason: requires setting 'index.mapping.use_doc_values_skipper' to enable the doc values sparse index
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping:
+                use_doc_values_skipper: true
+              mode: logsdb
+              number_of_shards: 2
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host.name:
+                type: keyword
+              agent_id:
+                type: keyword
+              process_id:
+                type: integer
+              http_method:
+                type: keyword
+              message:
+                type: text
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:30:00Z", ignored_field_stats: "foo", "agent_id": "darth-vader", "process_id": 101, "http_method": "GET", "message": "No, I am your father." }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:31:00Z", "host.name": "bar", "agent_id": "yoda", "process_id": 102, "http_method": "PUT", "message": "Do. Or do not. There is no try." }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:32:00Z", "host.name": "foo", "agent_id": "obi-wan", "process_id": 103, "http_method": "GET", "message": "May the force be with you." }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:33:00Z", "host.name": "baz", "agent_id": "darth-vader", "process_id": 102, "http_method": "POST", "message": "I find your lack of faith disturbing." }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:34:00Z", "host.name": "baz", "agent_id": "yoda", "process_id": 104, "http_method": "POST", "message": "Wars not make one great." }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:35:00Z", "host.name": "foo", "agent_id": "obi-wan", "process_id": 105, "http_method": "GET", "message": "That's no moon. It's a space station." }
+
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 6 }
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            range:
+              "@timestamp":
+                gte: "2024-02-12T10:30:00Z"
+                lte: "2024-02-12T10:35:00Z"
+
+  - match: { hits.total.value: 6 }
+
+
+  - do:
+      indices.get_settings:
+        index: test
+
+  - is_true: test
+  - match: { test.settings.index.mode: "logsdb" }
+
+  - do:
+      indices.disk_usage:
+        index: test
+        run_expensive_tasks: true
+
+  - match: { test.fields.@timestamp.points_in_bytes: 0 }
+  - gt: { test.fields.@timestamp.doc_values_in_bytes: 0 }

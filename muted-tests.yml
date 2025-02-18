@@ -323,6 +323,9 @@ tests:
 - class: org.elasticsearch.snapshots.DedicatedClusterSnapshotRestoreIT
   method: testRestoreShrinkIndex
   issue: https://github.com/elastic/elasticsearch/issues/121717
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/cat/allocation/cat-allocation-example}
+  issue: https://github.com/elastic/elasticsearch/issues/121976
 
 # Examples:
 #

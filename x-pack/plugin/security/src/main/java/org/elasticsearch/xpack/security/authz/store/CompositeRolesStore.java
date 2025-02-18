@@ -539,41 +539,38 @@ public class CompositeRolesStore {
             .cluster(clusterPrivileges, configurableClusterPrivileges)
             .runAs(runAsPrivilege);
 
-        for (Map.Entry<Set<String>, MergeableIndicesPrivilege> entry : indicesPrivilegesMap.entrySet()) {
-            MergeableIndicesPrivilege indicesPrivilege = entry.getValue();
-            builder.add(
-                fieldPermissionsCache.getFieldPermissions(indicesPrivilege.fieldPermissionsDefinition),
-                indicesPrivilege.query,
-                IndexPrivilege.getSplitBySelector(indicesPrivilege.privileges),
+        indicesPrivilegesMap.forEach(
+            (key, privilege) -> builder.add(
+                fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
+                privilege.query,
+                IndexPrivilege.getSplitBySelector(privilege.privileges),
                 false,
-                indicesPrivilege.indices.toArray(Strings.EMPTY_ARRAY)
-            );
-
-        }
-        for (Map.Entry<Set<String>, MergeableIndicesPrivilege> entry : restrictedIndicesPrivilegesMap.entrySet()) {
-            MergeableIndicesPrivilege indicesPrivilege = entry.getValue();
-            builder.add(
-                fieldPermissionsCache.getFieldPermissions(indicesPrivilege.fieldPermissionsDefinition),
-                indicesPrivilege.query,
-                IndexPrivilege.getSplitBySelector(indicesPrivilege.privileges),
+                privilege.indices.toArray(Strings.EMPTY_ARRAY)
+            )
+        );
+        restrictedIndicesPrivilegesMap.forEach(
+            (key, privilege) -> builder.add(
+                fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
+                privilege.query,
+                IndexPrivilege.getSplitBySelector(privilege.privileges),
                 true,
-                indicesPrivilege.indices.toArray(Strings.EMPTY_ARRAY)
-            );
-        }
+                privilege.indices.toArray(Strings.EMPTY_ARRAY)
+            )
+        );
 
         remoteIndicesPrivilegesByCluster.forEach((clusterAliasKey, remoteIndicesPrivilegesForCluster) -> {
-            remoteIndicesPrivilegesForCluster.forEach((privilege) -> {
-                builder.addRemoteIndicesGroup(
+            remoteIndicesPrivilegesForCluster.forEach(
+                (privilege) -> builder.addRemoteIndicesGroup(
                     clusterAliasKey,
                     fieldPermissionsCache.getFieldPermissions(
                         new FieldPermissionsDefinition(privilege.getGrantedFields(), privilege.getDeniedFields())
                     ),
                     privilege.getQuery() == null ? null : newHashSet(privilege.getQuery()),
-                    IndexPrivilege.getSplitBySelector(Set.of(Objects.requireNonNull(privilege.getPrivileges()))),
+                    IndexPrivilege.getSplitBySelector(newHashSet(Objects.requireNonNull(privilege.getPrivileges()))),
                     privilege.allowRestrictedIndices(),
                     newHashSet(Objects.requireNonNull(privilege.getIndices())).toArray(new String[0])
-                );
-            });
+                )
+            );
         });
 
         if (remoteClusterPermissions.hasAnyPrivileges()) {

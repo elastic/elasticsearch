@@ -447,16 +447,16 @@ public interface Role {
             final String[] clusterAliases = remoteIndicesPrivileges.remoteClusters();
             assert Arrays.equals(new String[] { "*" }, clusterAliases)
                 : "reserved role should not define remote indices privileges for specific clusters";
-            final RoleDescriptor.IndicesPrivileges indexPrivilege = remoteIndicesPrivileges.indicesPrivileges();
+            final RoleDescriptor.IndicesPrivileges indicesPrivileges = remoteIndicesPrivileges.indicesPrivileges();
             builder.addRemoteIndicesGroup(
                 Set.of(clusterAliases),
                 fieldPermissionsCache.getFieldPermissions(
-                    new FieldPermissionsDefinition(indexPrivilege.getGrantedFields(), indexPrivilege.getDeniedFields())
+                    new FieldPermissionsDefinition(indicesPrivileges.getGrantedFields(), indicesPrivileges.getDeniedFields())
                 ),
-                indexPrivilege.getQuery() == null ? null : Collections.singleton(indexPrivilege.getQuery()),
-                IndexPrivilege.getSplitBySelector(Set.of(indexPrivilege.getPrivileges())),
-                indexPrivilege.allowRestrictedIndices(),
-                indexPrivilege.getIndices()
+                indicesPrivileges.getQuery() == null ? null : Collections.singleton(indicesPrivileges.getQuery()),
+                IndexPrivilege.getSplitBySelector(Set.of(indicesPrivileges.getPrivileges())),
+                indicesPrivileges.allowRestrictedIndices(),
+                indicesPrivileges.getIndices()
             );
         }
 

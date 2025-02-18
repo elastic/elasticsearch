@@ -64,7 +64,7 @@ public class IndexPrivilegeTests extends ESTestCase {
         assertThat(findPrivilegesThatGrant(TransportDeleteAction.NAME), equalTo(List.of("delete", "write", "all")));
         assertThat(
             findPrivilegesThatGrant(IndicesStatsAction.NAME),
-            equalTo(List.of("monitor", "manage", "cross_cluster_replication", "all"))
+            equalTo(List.of("monitor", "cross_cluster_replication", "manage", "all"))
         );
         assertThat(findPrivilegesThatGrant(RefreshAction.NAME), equalTo(List.of("maintenance", "manage", "all")));
     }

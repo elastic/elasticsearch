@@ -1614,24 +1614,34 @@ public class RBACEngineTests extends ESTestCase {
         final RemoteIndicesPermission.Builder remoteIndicesBuilder = RemoteIndicesPermission.builder();
         final String concreteClusterAlias = randomAlphaOfLength(10);
         final int numGroups = randomIntBetween(2, 5);
+        int extraGroups = 0;
         for (int i = 0; i < numGroups; i++) {
-            remoteIndicesBuilder.addGroup(
-                Set.copyOf(randomNonEmptySubsetOf(List.of(concreteClusterAlias, "*"))),
-                // TODO handle failure store
-                IndexPrivilege.getSingle(Set.copyOf(randomSubsetOf(randomIntBetween(1, 4), IndexPrivilege.names()))),
-                new FieldPermissions(
-                    new FieldPermissionsDefinition(
-                        Set.of(
-                            randomBoolean()
-                                ? randomFieldGrantExcludeGroup()
-                                : new FieldPermissionsDefinition.FieldGrantExcludeGroup(null, null)
-                        )
-                    )
-                ),
-                randomBoolean() ? Set.of(randomDlsQuery()) : null,
-                randomBoolean(),
-                generateRandomStringArray(3, 10, false, false)
+            Set<IndexPrivilege> splitBySelector = IndexPrivilege.getSplitBySelector(
+                Set.copyOf(randomSubsetOf(randomIntBetween(1, 4), IndexPrivilege.names()))
             );
+            // If we end up with failure and data access, we will split and end up with extra groups. Need to account for this for the
+            // final assertion
+            if (splitBySelector.size() == 2) {
+                extraGroups++;
+            }
+            for (var privilege : splitBySelector) {
+                remoteIndicesBuilder.addGroup(
+                    Set.copyOf(randomNonEmptySubsetOf(List.of(concreteClusterAlias, "*"))),
+                    privilege,
+                    new FieldPermissions(
+                        new FieldPermissionsDefinition(
+                            Set.of(
+                                randomBoolean()
+                                    ? randomFieldGrantExcludeGroup()
+                                    : new FieldPermissionsDefinition.FieldGrantExcludeGroup(null, null)
+                            )
+                        )
+                    ),
+                    randomBoolean() ? Set.of(randomDlsQuery()) : null,
+                    randomBoolean(),
+                    generateRandomStringArray(3, 10, false, false)
+                );
+            }
         }
         final RemoteIndicesPermission permissions = remoteIndicesBuilder.build();
         List<RemoteIndicesPermission.RemoteIndicesGroup> remoteIndicesGroups = permissions.remoteIndicesGroups();
@@ -1673,7 +1683,10 @@ public class RBACEngineTests extends ESTestCase {
         final RoleDescriptorsIntersection actual2 = future2.get();
 
         assertThat(actual1, equalTo(actual2));
-        assertThat(actual1.roleDescriptorsList().iterator().next().iterator().next().getIndicesPrivileges().length, equalTo(numGroups));
+        assertThat(
+            actual1.roleDescriptorsList().iterator().next().iterator().next().getIndicesPrivileges().length,
+            equalTo(numGroups + extraGroups)
+        );
     }
 
     public void testGetRoleDescriptorsIntersectionForRemoteClusterWithoutMatchingGroups() throws ExecutionException, InterruptedException {
@@ -1754,11 +1767,6 @@ public class RBACEngineTests extends ESTestCase {
                                 IndicesPrivileges.builder()
                                     .indices("*")
                                     .privileges("monitor", "read", "read_cross_cluster", "view_index_metadata")
-                                    .allowRestrictedIndices(true)
-                                    .build(),
-                                IndicesPrivileges.builder()
-                                    .indices("*")
-                                    .privileges("read_failure_store")
                                     .allowRestrictedIndices(true)
                                     .build() },
                             null,

@@ -98,8 +98,13 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         Runnable runOnTaskFailure,
         ActionListener<ComputeResponse> outListener
     ) {
-        final boolean allowPartialResults = configuration.allowPartialResults();
-        DataNodeRequestSender sender = new DataNodeRequestSender(transportService, esqlExecutor, parentTask, allowPartialResults) {
+        new DataNodeRequestSender(
+            transportService,
+            esqlExecutor,
+            parentTask,
+            configuration.allowPartialResults(),
+            configuration.pragmas().maxConcurrentNodePerCluster()
+        ) {
             @Override
             protected void sendRequest(
                 DiscoveryNode node,
@@ -129,7 +134,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     listener.delegateFailureAndWrap((l, unused) -> {
                         final Runnable onGroupFailure;
                         final CancellableTask groupTask;
-                        if (allowPartialResults) {
+                        if (configuration.allowPartialResults()) {
                             groupTask = RemoteListenerGroup.createGroupTask(
                                 transportService,
                                 parentTask,
@@ -148,7 +153,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             final var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
                             exchangeSource.addRemoteSink(
                                 remoteSink,
-                                allowPartialResults == false,
+                                configuration.allowPartialResults() == false,
                                 pagesFetched::incrementAndGet,
                                 queryPragmas.concurrentExchangeClients(),
                                 computeListener.acquireAvoid()
@@ -180,8 +185,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                     })
                 );
             }
-        };
-        sender.startComputeOnDataNodes(
+        }.startComputeOnDataNodes(
             clusterAlias,
             concreteIndices,
             originalIndices,

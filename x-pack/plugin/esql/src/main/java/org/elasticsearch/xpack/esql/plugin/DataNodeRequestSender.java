@@ -56,6 +56,7 @@ abstract class DataNodeRequestSender {
     private final Executor esqlExecutor;
     private final CancellableTask rootTask;
     private final boolean allowPartialResults;
+    private final Semaphore concurrentRequests;
     private final ReentrantLock sendingLock = new ReentrantLock();
     private final Queue<ShardId> pendingShardIds = ConcurrentCollections.newQueue();
     private final Map<DiscoveryNode, Semaphore> nodePermits = new HashMap<>();
@@ -63,11 +64,18 @@ abstract class DataNodeRequestSender {
     private final AtomicBoolean changed = new AtomicBoolean();
     private boolean reportedFailure = false; // guarded by sendingLock
 
-    DataNodeRequestSender(TransportService transportService, Executor esqlExecutor, CancellableTask rootTask, boolean allowPartialResults) {
+    DataNodeRequestSender(
+        TransportService transportService,
+        Executor esqlExecutor,
+        CancellableTask rootTask,
+        boolean allowPartialResults,
+        int concurrentRequests
+    ) {
         this.transportService = transportService;
         this.esqlExecutor = esqlExecutor;
         this.rootTask = rootTask;
         this.allowPartialResults = allowPartialResults;
+        this.concurrentRequests = new Semaphore(concurrentRequests);
     }
 
     final void startComputeOnDataNodes(
@@ -128,8 +136,7 @@ abstract class DataNodeRequestSender {
                         reportedFailure = true;
                         reportFailures(computeListener);
                     } else {
-                        var nodeRequests = selectNodeRequests(targetShards);
-                        for (NodeRequest request : nodeRequests) {
+                        for (NodeRequest request : selectNodeRequests(targetShards)) {
                             sendOneNodeRequest(targetShards, computeListener, request);
                         }
                     }
@@ -161,6 +168,7 @@ abstract class DataNodeRequestSender {
         sendRequest(request.node, request.shardIds, request.aliasFilters, new NodeListener() {
             void onAfter(List<DriverProfile> profiles) {
                 nodePermits.get(request.node).release();
+                concurrentRequests.release();
                 trySendingRequestsForPendingShards(targetShards, computeListener);
                 listener.onResponse(profiles);
             }
@@ -243,17 +251,11 @@ abstract class DataNodeRequestSender {
     /**
      * (Remaining) allocated nodes of a given shard id and its alias filter
      */
-    record TargetShard(ShardId shardId, List<DiscoveryNode> remainingNodes, AliasFilter aliasFilter) {
+    record TargetShard(ShardId shardId, List<DiscoveryNode> remainingNodes, AliasFilter aliasFilter) {}
 
-    }
+    record NodeRequest(DiscoveryNode node, List<ShardId> shardIds, Map<Index, AliasFilter> aliasFilters) {}
 
-    record NodeRequest(DiscoveryNode node, List<ShardId> shardIds, Map<Index, AliasFilter> aliasFilters) {
-
-    }
-
-    private record ShardFailure(boolean fatal, Exception failure) {
-
-    }
+    private record ShardFailure(boolean fatal, Exception failure) {}
 
     /**
      * Selects the next nodes to send requests to. Limits to at most one outstanding request per node.
@@ -287,17 +289,28 @@ abstract class DataNodeRequestSender {
                 nodeToShardIds.computeIfAbsent(selectedNode, unused -> new ArrayList<>()).add(shard.shardId);
             }
         }
-        final List<NodeRequest> nodeRequests = new ArrayList<>(nodeToShardIds.size());
-        for (var e : nodeToShardIds.entrySet()) {
-            List<ShardId> shardIds = e.getValue();
-            Map<Index, AliasFilter> aliasFilters = new HashMap<>();
-            for (ShardId shardId : shardIds) {
-                var aliasFilter = targetShards.getShard(shardId).aliasFilter;
-                if (aliasFilter != null) {
-                    aliasFilters.put(shardId.getIndex(), aliasFilter);
+
+        var size = Math.min(concurrentRequests.availablePermits(), nodeToShardIds.size());
+        final List<NodeRequest> nodeRequests = new ArrayList<>(size);
+        for (var entry : nodeToShardIds.entrySet()) {
+            var node = entry.getKey();
+            var shardIds = entry.getValue();
+            if (concurrentRequests.tryAcquire()) {
+                Map<Index, AliasFilter> aliasFilters = new HashMap<>();
+                for (ShardId shardId : shardIds) {
+                    var aliasFilter = targetShards.getShard(shardId).aliasFilter;
+                    if (aliasFilter != null) {
+                        aliasFilters.put(shardId.getIndex(), aliasFilter);
+                    }
                 }
+                nodeRequests.add(new NodeRequest(node, shardIds, aliasFilters));
+            } else {
+                pendingShardIds.addAll(shardIds);
+                for (ShardId shardId : shardIds) {
+                    targetShards.getShard(shardId).remainingNodes.add(node);
+                }
+                nodePermits.get(node).release();
             }
-            nodeRequests.add(new NodeRequest(e.getKey(), shardIds, aliasFilters));
         }
         return nodeRequests;
     }

@@ -15,8 +15,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceResults;
-import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContent;
@@ -53,7 +53,7 @@ import java.util.stream.Collectors;
  */
 public record InferenceTextEmbeddingFloatResults(List<InferenceFloatEmbedding> embeddings)
     implements
-        InferenceServiceResults,
+        EmbeddingResults<ChunkedInferenceEmbeddingFloat.FloatEmbeddingChunk, InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding>,
         TextEmbedding {
     public static final String NAME = "text_embedding_service_results";
     public static final String TEXT_EMBEDDING = TaskType.TEXT_EMBEDDING.toString();
@@ -151,7 +151,12 @@ public record InferenceTextEmbeddingFloatResults(List<InferenceFloatEmbedding> e
         return Objects.hash(embeddings);
     }
 
-    public record InferenceFloatEmbedding(float[] values) implements Writeable, ToXContentObject, EmbeddingInt {
+    public record InferenceFloatEmbedding(float[] values)
+        implements
+            Writeable,
+            ToXContentObject,
+            EmbeddingInt,
+            EmbeddingResults.EmbeddingResult<ChunkedInferenceEmbeddingFloat.FloatEmbeddingChunk> {
         public static final String EMBEDDING = "embedding";
 
         public InferenceFloatEmbedding(StreamInput in) throws IOException {
@@ -219,6 +224,11 @@ public record InferenceTextEmbeddingFloatResults(List<InferenceFloatEmbedding> e
         @Override
         public int hashCode() {
             return Arrays.hashCode(values);
+        }
+
+        @Override
+        public ChunkedInferenceEmbeddingFloat.FloatEmbeddingChunk toEmbeddingChunk(String text, ChunkedInference.TextOffset offset) {
+            return new ChunkedInferenceEmbeddingFloat.FloatEmbeddingChunk(values, text, offset);
         }
     }
 }

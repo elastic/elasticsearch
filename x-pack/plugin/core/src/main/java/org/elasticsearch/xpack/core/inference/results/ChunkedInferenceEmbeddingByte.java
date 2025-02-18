@@ -41,5 +41,5 @@ public record ChunkedInferenceEmbeddingByte(List<ChunkedInferenceEmbeddingByte.B
         return BytesReference.bytes(builder);
     }
 
-    public record ByteEmbeddingChunk(byte[] embedding, String matchedText, TextOffset offset) {}
+    public record ByteEmbeddingChunk(byte[] embedding, String matchedText, TextOffset offset) implements EmbeddingResults.EmbeddingChunk {}
 }

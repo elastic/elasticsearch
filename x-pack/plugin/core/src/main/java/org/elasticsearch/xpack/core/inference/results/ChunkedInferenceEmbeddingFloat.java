@@ -41,5 +41,7 @@ public record ChunkedInferenceEmbeddingFloat(List<FloatEmbeddingChunk> chunks) i
         return BytesReference.bytes(b);
     }
 
-    public record FloatEmbeddingChunk(float[] embedding, String matchedText, TextOffset offset) {}
+    public record FloatEmbeddingChunk(float[] embedding, String matchedText, TextOffset offset)
+        implements
+            EmbeddingResults.EmbeddingChunk {}
 }

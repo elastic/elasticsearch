@@ -63,5 +63,7 @@ public record ChunkedInferenceEmbeddingSparse(List<SparseEmbeddingChunk> chunks)
         return BytesReference.bytes(b);
     }
 
-    public record SparseEmbeddingChunk(List<WeightedToken> weightedTokens, String matchedText, TextOffset offset) {}
+    public record SparseEmbeddingChunk(List<WeightedToken> weightedTokens, String matchedText, TextOffset offset)
+        implements
+            EmbeddingResults.EmbeddingChunk {}
 }

@@ -13,8 +13,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceResults;
-import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContent;
@@ -33,7 +33,9 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 
-public record SparseEmbeddingResults(List<Embedding> embeddings) implements InferenceServiceResults {
+public record SparseEmbeddingResults(List<Embedding> embeddings)
+    implements
+        EmbeddingResults<ChunkedInferenceEmbeddingSparse.SparseEmbeddingChunk, SparseEmbeddingResults.Embedding> {
 
     public static final String NAME = "sparse_embedding_results";
     public static final String SPARSE_EMBEDDING = TaskType.SPARSE_EMBEDDING.toString();
@@ -114,7 +116,11 @@ public record SparseEmbeddingResults(List<Embedding> embeddings) implements Infe
             .toList();
     }
 
-    public record Embedding(List<WeightedToken> tokens, boolean isTruncated) implements Writeable, ToXContentObject {
+    public record Embedding(List<WeightedToken> tokens, boolean isTruncated)
+        implements
+            Writeable,
+            ToXContentObject,
+            EmbeddingResult<ChunkedInferenceEmbeddingSparse.SparseEmbeddingChunk> {
 
         public static final String EMBEDDING = "embedding";
         public static final String IS_TRUNCATED = "is_truncated";
@@ -162,6 +168,11 @@ public record SparseEmbeddingResults(List<Embedding> embeddings) implements Infe
         @Override
         public String toString() {
             return Strings.toString(this);
+        }
+
+        @Override
+        public ChunkedInferenceEmbeddingSparse.SparseEmbeddingChunk toEmbeddingChunk(String text, ChunkedInference.TextOffset offset) {
+            return new ChunkedInferenceEmbeddingSparse.SparseEmbeddingChunk(tokens, text, offset);
         }
     }
 }

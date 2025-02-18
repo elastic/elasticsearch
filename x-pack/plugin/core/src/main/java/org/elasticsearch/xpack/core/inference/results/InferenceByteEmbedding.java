@@ -13,6 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -20,7 +21,12 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
-public record InferenceByteEmbedding(byte[] values) implements Writeable, ToXContentObject, EmbeddingInt {
+public record InferenceByteEmbedding(byte[] values)
+    implements
+        Writeable,
+        ToXContentObject,
+        EmbeddingInt,
+        EmbeddingResults.EmbeddingResult<ChunkedInferenceEmbeddingByte.ByteEmbeddingChunk> {
     public static final String EMBEDDING = "embedding";
 
     public InferenceByteEmbedding(StreamInput in) throws IOException {
@@ -91,5 +97,10 @@ public record InferenceByteEmbedding(byte[] values) implements Writeable, ToXCon
     @Override
     public int hashCode() {
         return Arrays.hashCode(values);
+    }
+
+    @Override
+    public ChunkedInferenceEmbeddingByte.ByteEmbeddingChunk toEmbeddingChunk(String text, ChunkedInference.TextOffset offset) {
+        return new ChunkedInferenceEmbeddingByte.ByteEmbeddingChunk(values, text, offset);
     }
 }

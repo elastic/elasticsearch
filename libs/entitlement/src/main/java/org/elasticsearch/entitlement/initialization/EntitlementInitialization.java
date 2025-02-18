@@ -162,6 +162,7 @@ public class EntitlementInitialization {
                     new FilesEntitlement(
                         Stream.concat(
                             Stream.of(
+                                FileData.ofPath(bootstrapArgs.tempDir(), READ_WRITE),
                                 FileData.ofPath(bootstrapArgs.configDir(), READ),
                                 FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
                                 // OS release on Linux

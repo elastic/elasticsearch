@@ -458,9 +458,8 @@ public final class FetchPhase {
             rootId = leafRootLoader.id();
 
             if (requiresSource) {
-                BytesReference source = leafRootLoader.source();
-                if (source != null) {
-                    rootSource = Source.fromBytes(source);
+                if (leafRootLoader.source() != null) {
+                    rootSource = Source.fromBytes(leafRootLoader.source());
                 }
             }
         }
@@ -471,8 +470,6 @@ public final class FetchPhase {
         assert nestedIdentity != null;
         Source nestedSource = nestedIdentity.extractSource(rootSource);
 
-        // nested hits do not record their source size, as the top level hit will do so (nested hits will only reference part of the top
-        // level source)
         SearchHit nestedHit = new SearchHit(topDocId, rootId, nestedIdentity);
         return new HitContext(nestedHit, subReaderContext, nestedInfo.doc(), childFieldLoader.storedFields(), nestedSource, rankDoc);
     }

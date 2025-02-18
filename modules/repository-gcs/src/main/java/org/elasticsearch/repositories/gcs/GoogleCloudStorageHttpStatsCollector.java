@@ -62,6 +62,7 @@ final class GoogleCloudStorageHttpStatsCollector implements HttpResponseIntercep
         }
         final HttpClientContext clientContext = HttpClientContext.adapt(context);
         final HttpRequest request = clientContext.getRequest();
+        assert request != null;
         for (HttpRequestTracker tracker : trackers) {
             if (tracker.track(request, gcsOperationStats)) {
                 return;

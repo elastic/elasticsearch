@@ -1,0 +1,5 @@
+pr: 122280
+summary: Use `FallbackSyntheticSourceBlockLoader` for number fields
+area: Mapping
+type: enhancement
+issues: []

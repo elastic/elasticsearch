@@ -75,7 +75,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
     public ElasticInferenceServiceSparseEmbeddingsServiceSettings(
         String modelId,
         @Nullable Integer maxInputTokens,
-        RateLimitSettings rateLimitSettings
+        @Nullable RateLimitSettings rateLimitSettings
     ) {
         this.modelId = Objects.requireNonNull(modelId);
         this.maxInputTokens = maxInputTokens;

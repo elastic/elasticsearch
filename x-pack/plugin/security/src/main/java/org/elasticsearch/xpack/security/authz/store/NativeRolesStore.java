@@ -37,7 +37,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseUtils;
@@ -141,8 +140,6 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
     private final ClusterService clusterService;
 
-    private final FeatureService featureService;
-
     private final ReservedRoleNameChecker reservedRoleNameChecker;
 
     private final NamedXContentRegistry xContentRegistry;
@@ -153,7 +150,6 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         XPackLicenseState licenseState,
         SecurityIndexManager securityIndex,
         ClusterService clusterService,
-        FeatureService featureService,
         ReservedRoleNameChecker reservedRoleNameChecker,
         NamedXContentRegistry xContentRegistry
     ) {
@@ -162,7 +158,6 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         this.licenseState = licenseState;
         this.securityIndex = securityIndex;
         this.clusterService = clusterService;
-        this.featureService = featureService;
         this.reservedRoleNameChecker = reservedRoleNameChecker;
         this.xContentRegistry = xContentRegistry;
         this.enabled = settings.getAsBoolean(NATIVE_ROLES_ENABLED, true);
@@ -186,6 +181,9 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             return;
         }
 
+        assert names == null || names.stream().noneMatch(reservedRoleNameChecker::isReserved)
+            : "native roles store should not be called with reserved role names";
+
         final SecurityIndexManager frozenSecurityIndex = this.securityIndex.defensiveCopy();
         if (frozenSecurityIndex.indexExists() == false) {
             // TODO remove this short circuiting and fix tests that fail without this!
@@ -194,7 +192,9 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
             listener.onResponse(RoleRetrievalResult.failure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS)));
         } else if (names == null || names.isEmpty()) {
             securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
-                QueryBuilder query = QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE);
+                QueryBuilder query = QueryBuilders.boolQuery()
+                    .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                    .mustNot(QueryBuilders.termQuery("metadata_flattened._reserved", true));
                 final Supplier<ThreadContext.StoredContext> supplier = client.threadPool().getThreadContext().newRestorableContext(false);
                 try (ThreadContext.StoredContext ignore = client.threadPool().getThreadContext().stashWithOrigin(SECURITY_ORIGIN)) {
                     SearchRequest request = client.prepareSearch(SECURITY_MAIN_ALIAS)

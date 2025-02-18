@@ -32,6 +32,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -193,7 +194,7 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
         assertThat(bulkResponse.hasFailures(), equalTo(true));
         for (BulkItemResponse bulkItemResponse : bulkResponse.getItems()) {
             assertThat(bulkItemResponse.isFailed(), equalTo(true));
-            assertThat(bulkItemResponse.getFailureMessage(), containsString("expected [String|Number|Boolean]"));
+            assertThat(bulkItemResponse.getFailureMessage(), containsString("expected [String]"));
         }
     }
 }

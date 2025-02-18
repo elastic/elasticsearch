@@ -47,12 +47,10 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         Mode mode();
 
         static FileData ofPath(Path path, Mode mode) {
-            assert path.isAbsolute();
             return new AbsolutePathFileData(path, mode);
         }
 
         static FileData ofRelativePath(Path relativePath, BaseDir baseDir, Mode mode) {
-            assert relativePath.isAbsolute() == false;
             return new RelativePathFileData(relativePath, baseDir, mode);
         }
     }

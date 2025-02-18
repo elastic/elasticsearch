@@ -19,7 +19,6 @@ import java.util.Objects;
 
 public class MergeExec extends PhysicalPlan {
 
-    // private final List<? extends PhysicalPlan> physSubPlans;
     private final List<Attribute> output;
 
     public MergeExec(Source source, List<PhysicalPlan> children, List<Attribute> output) {
@@ -59,10 +58,6 @@ public class MergeExec extends PhysicalPlan {
     @Override
     public List<Attribute> output() {
         return output;
-    }
-
-    public List<? extends PhysicalPlan> subPlans() {
-        return null; // physSubPlans;
     }
 
     @Override

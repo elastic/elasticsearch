@@ -452,7 +452,6 @@ public class EsqlSession {
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
     ) {
-        indices = indices.stream().distinct().toList();  // TODO remove if possible
         // TODO we plan to support joins in the future when possible, but for now we'll just fail early if we see one
         if (indices.size() > 1) {
             // Note: JOINs are not supported but we detect them when

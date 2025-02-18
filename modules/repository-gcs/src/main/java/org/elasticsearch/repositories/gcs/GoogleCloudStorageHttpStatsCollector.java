@@ -9,10 +9,12 @@
 
 package org.elasticsearch.repositories.gcs;
 
-import com.google.api.client.http.GenericUrl;
-import com.google.api.client.http.HttpRequest;
-import com.google.api.client.http.HttpResponse;
-import com.google.api.client.http.HttpResponseInterceptor;
+import org.apache.http.HttpRequest;
+import org.apache.http.HttpResponse;
+import org.apache.http.HttpResponseInterceptor;
+import org.apache.http.client.protocol.HttpClientContext;
+import org.apache.http.protocol.HttpContext;
+import org.elasticsearch.rest.RestStatus;
 
 import java.util.List;
 import java.util.Locale;
@@ -53,11 +55,13 @@ final class GoogleCloudStorageHttpStatsCollector implements HttpResponseIntercep
     }
 
     @Override
-    public void interceptResponse(final HttpResponse response) {
+    public void process(HttpResponse response, HttpContext context) {
         // TODO keep track of unsuccessful requests in different entries
-        if (response.isSuccessStatusCode() == false) return;
-
-        final HttpRequest request = response.getRequest();
+        if (RestStatus.isSuccessful(response.getStatusLine().getStatusCode()) == false) {
+            return;
+        }
+        final HttpClientContext clientContext = HttpClientContext.adapt(context);
+        final HttpRequest request = clientContext.getRequest();
         for (HttpRequestTracker tracker : trackers) {
             if (tracker.track(request, gcsOperationStats)) {
                 return;
@@ -109,11 +113,17 @@ final class GoogleCloudStorageHttpStatsCollector implements HttpResponseIntercep
         }
 
         private boolean matchesCriteria(final HttpRequest httpRequest) {
-            return method.equalsIgnoreCase(httpRequest.getRequestMethod()) && pathMatches(httpRequest.getUrl());
+            return method.equalsIgnoreCase(httpRequest.getRequestLine().getMethod())
+                && pathMatches(stripRequestParameters(httpRequest.getRequestLine().getUri()));
         }
 
-        private boolean pathMatches(final GenericUrl url) {
-            return pathPattern.matcher(url.getRawPath()).matches();
+        private boolean pathMatches(final String url) {
+            return pathPattern.matcher(url).matches();
+        }
+
+        private String stripRequestParameters(String uri) {
+            final int queryIndex = uri.indexOf('?');
+            return queryIndex == -1 ? uri : uri.substring(0, queryIndex);
         }
     }
 }

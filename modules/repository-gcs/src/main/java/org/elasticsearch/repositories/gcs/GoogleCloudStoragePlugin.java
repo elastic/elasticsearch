@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
@@ -22,6 +23,7 @@ import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -34,14 +36,14 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
 
     @SuppressWarnings("this-escape")
     public GoogleCloudStoragePlugin(final Settings settings) {
-        this.storageService = createStorageService();
+        this.storageService = createStorageService(settings);
         // eagerly load client settings so that secure settings are readable (not closed)
         reload(settings);
     }
 
     // overridable for tests
-    protected GoogleCloudStorageService createStorageService() {
-        return new GoogleCloudStorageService();
+    protected GoogleCloudStorageService createStorageService(Settings settings) {
+        return new GoogleCloudStorageService(settings);
     }
 
     @Override
@@ -78,7 +80,8 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
             GoogleCloudStorageClientSettings.TOKEN_URI_SETTING,
             GoogleCloudStorageClientSettings.PROXY_TYPE_SETTING,
             GoogleCloudStorageClientSettings.PROXY_HOST_SETTING,
-            GoogleCloudStorageClientSettings.PROXY_PORT_SETTING
+            GoogleCloudStorageClientSettings.PROXY_PORT_SETTING,
+            GoogleCloudStorageService.MAX_OPEN_CONNECTIONS
         );
     }
 
@@ -91,5 +94,11 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
         // instance.
         final Map<String, GoogleCloudStorageClientSettings> clientsSettings = GoogleCloudStorageClientSettings.load(settings);
         this.storageService.refreshAndClearCache(clientsSettings);
+    }
+
+    @Override
+    public void close() throws IOException {
+        IOUtils.closeWhileHandlingException(this.storageService);
+        super.close();
     }
 }

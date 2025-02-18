@@ -52,9 +52,9 @@ dependencies {
   api 'io.opencensus:opencensus-api:0.31.1'
   api 'io.opencensus:opencensus-contrib-http-util:0.31.1'
   api 'com.google.apis:google-api-services-storage:v1-rev20220705-2.0.0'
-
-  testImplementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
-  testImplementation "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  api 'com.google.http-client:google-http-client-apache-v2:1.42.3'
+  api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
 
   testImplementation project(':test:fixtures:gcs-fixture')
   yamlRestTestImplementation project(':test:fixtures:gcs-fixture')
@@ -103,7 +103,6 @@ tasks.named("thirdPartyAudit").configure {
   )
 
   ignoreMissingClasses(
-    'com.google.api.client.http.apache.v2.ApacheHttpTransport',
     'com.google.appengine.api.datastore.Blob',
     'com.google.appengine.api.datastore.DatastoreService',
     'com.google.appengine.api.datastore.DatastoreServiceFactory',
@@ -128,48 +127,6 @@ tasks.named("thirdPartyAudit").configure {
     'org.apache.log.Hierarchy',
     'org.apache.log.Logger',
     'javax.jms.Message',
-
-    // optional apache http client dependencies
-    'org.apache.http.ConnectionReuseStrategy',
-    'org.apache.http.Header',
-    'org.apache.http.HttpEntity',
-    'org.apache.http.HttpEntityEnclosingRequest',
-    'org.apache.http.HttpHost',
-    'org.apache.http.HttpRequest',
-    'org.apache.http.HttpResponse',
-    'org.apache.http.HttpVersion',
-    'org.apache.http.RequestLine',
-    'org.apache.http.StatusLine',
-    'org.apache.http.client.AuthenticationHandler',
-    'org.apache.http.client.HttpClient',
-    'org.apache.http.client.HttpRequestRetryHandler',
-    'org.apache.http.client.RedirectHandler',
-    'org.apache.http.client.RequestDirector',
-    'org.apache.http.client.UserTokenHandler',
-    'org.apache.http.client.methods.HttpEntityEnclosingRequestBase',
-    'org.apache.http.client.methods.HttpRequestBase',
-    'org.apache.http.config.Registry',
-    'org.apache.http.config.RegistryBuilder',
-    'org.apache.http.conn.ClientConnectionManager',
-    'org.apache.http.conn.ConnectionKeepAliveStrategy',
-    'org.apache.http.conn.params.ConnManagerParams',
-    'org.apache.http.conn.params.ConnRouteParams',
-    'org.apache.http.conn.routing.HttpRoutePlanner',
-    'org.apache.http.conn.scheme.PlainSocketFactory',
-    'org.apache.http.conn.scheme.SchemeRegistry',
-    'org.apache.http.conn.socket.PlainConnectionSocketFactory',
-    'org.apache.http.conn.ssl.SSLSocketFactory',
-    'org.apache.http.conn.ssl.X509HostnameVerifier',
-    'org.apache.http.entity.AbstractHttpEntity',
-    'org.apache.http.impl.client.DefaultHttpClient',
-    'org.apache.http.impl.client.HttpClientBuilder',
-    'org.apache.http.impl.conn.PoolingHttpClientConnectionManager',
-    'org.apache.http.params.HttpConnectionParams',
-    'org.apache.http.params.HttpParams',
-    'org.apache.http.params.HttpProtocolParams',
-    'org.apache.http.protocol.HttpContext',
-    'org.apache.http.protocol.HttpProcessor',
-    'org.apache.http.protocol.HttpRequestExecutor',
 
     // commons-logging provided dependencies
     'javax.servlet.ServletContextEvent',

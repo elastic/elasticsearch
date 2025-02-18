@@ -10,9 +10,8 @@
 package org.elasticsearch.repositories.gcs;
 
 import com.google.api.client.googleapis.GoogleUtils;
-import com.google.api.client.http.HttpRequestInitializer;
 import com.google.api.client.http.HttpTransport;
-import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.http.apache.v2.ApacheHttpTransport;
 import com.google.api.client.util.SecurityUtils;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.auth.oauth2.ServiceAccountCredentials;
@@ -22,15 +21,23 @@ import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
 import com.google.cloud.storage.StorageRetryStrategy;
 
+import org.apache.http.impl.client.HttpClientBuilder;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
+import org.apache.http.ssl.SSLContexts;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 
 import java.io.BufferedReader;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -40,14 +47,29 @@ import java.net.URI;
 import java.net.URL;
 import java.security.KeyStore;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
+
+import javax.net.ssl.SSLContext;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.core.Strings.format;
 
-public class GoogleCloudStorageService {
+public class GoogleCloudStorageService implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(GoogleCloudStorageService.class);
+
+    private static final int DEFAULT_MAX_CONNECTIONS = 50;
+
+    static final Setting<Integer> MAX_OPEN_CONNECTIONS = Setting.intSetting(
+        "repository.gcs.http_client.max_open_connections",
+        DEFAULT_MAX_CONNECTIONS,
+        1,
+        Setting.Property.NodeScope
+    );
+
+    private final AtomicReference<PoolingHttpClientConnectionManager> connectionManager = new AtomicReference<>();
+    private final int maxOpenConnections;
 
     private volatile Map<String, GoogleCloudStorageClientSettings> clientSettings = emptyMap();
 
@@ -57,6 +79,10 @@ public class GoogleCloudStorageService {
      * the repository name.
      */
     private volatile Map<String, Storage> clientCache = emptyMap();
+
+    public GoogleCloudStorageService(Settings settings) {
+        maxOpenConnections = MAX_OPEN_CONNECTIONS.get(settings);
+    }
 
     /**
      * Refreshes the client settings and clears the client cache. Subsequent calls to
@@ -131,7 +157,6 @@ public class GoogleCloudStorageService {
     private Storage createClient(GoogleCloudStorageClientSettings gcsClientSettings, GoogleCloudStorageOperationsStats stats)
         throws IOException {
         final HttpTransport httpTransport = SocketAccess.doPrivilegedIOException(() -> {
-            final NetHttpTransport.Builder builder = new NetHttpTransport.Builder();
             // requires java.lang.RuntimePermission "setFactory"
             // Pin the TLS trust certificates.
             // We manually load the key store from jks instead of using GoogleUtils.getCertificateTrustStore() because that uses a .p12
@@ -140,36 +165,34 @@ public class GoogleCloudStorageService {
             try (InputStream keyStoreStream = GoogleUtils.class.getResourceAsStream("google.jks")) {
                 SecurityUtils.loadKeyStore(certTrustStore, keyStoreStream, "notasecret");
             }
-            builder.trustCertificates(certTrustStore);
-            Proxy proxy = gcsClientSettings.getProxy();
-            if (proxy != null) {
-                builder.setProxy(proxy);
-                notifyProxyIsSet(proxy);
-            }
-            return builder.build();
-        });
+            final SSLContext sslContext = SSLContexts.custom().loadTrustMaterial(certTrustStore, null).build();
+            final GoogleCloudStorageHttpStatsCollector httpStatsCollector = new GoogleCloudStorageHttpStatsCollector(stats);
+            final HttpClientBuilder builder = HttpClients.custom()
+                .addInterceptorLast(httpStatsCollector)
+                .setSSLContext(sslContext)
+                .setConnectionManager(connectionManager.updateAndGet(existing -> {
+                    if (existing == null) {
+                        final PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager();
+                        connectionManager.setMaxTotal(maxOpenConnections);
+                        connectionManager.setDefaultMaxPerRoute(maxOpenConnections);
+                        return connectionManager;
+                    }
+                    return existing;
+                }))
+                .setConnectionManagerShared(true)
+                // ApacheHttpTransport indicates to disable redirect and retries
+                .disableRedirectHandling()
+                .disableAutomaticRetries();
 
-        final GoogleCloudStorageHttpStatsCollector httpStatsCollector = new GoogleCloudStorageHttpStatsCollector(stats);
+            return new ApacheHttpTransport(builder.build());
+        });
 
         final HttpTransportOptions httpTransportOptions = new HttpTransportOptions(
             HttpTransportOptions.newBuilder()
                 .setConnectTimeout(toTimeout(gcsClientSettings.getConnectTimeout()))
                 .setReadTimeout(toTimeout(gcsClientSettings.getReadTimeout()))
                 .setHttpTransportFactory(() -> httpTransport)
-        ) {
-
-            @Override
-            public HttpRequestInitializer getHttpRequestInitializer(ServiceOptions<?, ?> serviceOptions) {
-                HttpRequestInitializer requestInitializer = super.getHttpRequestInitializer(serviceOptions);
-
-                return (httpRequest) -> {
-                    if (requestInitializer != null) requestInitializer.initialize(httpRequest);
-
-                    httpRequest.setResponseInterceptor(httpStatsCollector);
-                };
-            }
-        };
-
+        );
         final StorageOptions storageOptions = createStorageOptions(gcsClientSettings, httpTransportOptions);
         return storageOptions.getService();
     }
@@ -280,4 +303,9 @@ public class GoogleCloudStorageService {
 
     // used for unit testing
     void notifyProxyIsSet(Proxy proxy) {}
+
+    @Override
+    public void close() {
+        IOUtils.closeWhileHandlingException(connectionManager.get());
+    }
 }

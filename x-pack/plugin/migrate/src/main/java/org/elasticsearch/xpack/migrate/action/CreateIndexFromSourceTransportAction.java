@@ -89,9 +89,12 @@ public class CreateIndexFromSourceTransportAction extends HandledTransportAction
 
         Settings.Builder settings = Settings.builder()
             // first settings from source index
-            .put(filterSettings(sourceIndex))
-            // then override with request settings
-            .put(request.settingsOverride());
+            .put(filterSettings(sourceIndex));
+
+        if (request.settingsOverride().isEmpty() == false) {
+            applyOverrides(settings, request.settingsOverride());
+        }
+
         if (request.removeIndexBlocks()) {
             // lastly, override with settings to remove index blocks if requested
             INDEX_BLOCK_SETTINGS.forEach(settings::remove);
@@ -112,6 +115,16 @@ public class CreateIndexFromSourceTransportAction extends HandledTransportAction
         createIndexRequest.setParentTask(new TaskId(clusterService.localNode().getId(), task.getId()));
 
         client.admin().indices().create(createIndexRequest, listener.map(response -> response));
+    }
+
+    private void applyOverrides(Settings.Builder settings, Settings overrides) {
+        overrides.keySet().forEach(key -> {
+            if (overrides.get(key) != null) {
+                settings.put(key, overrides.get(key));
+            } else {
+                settings.remove(key);
+            }
+        });
     }
 
     private static Map<String, Object> toMap(@Nullable MappingMetadata sourceMapping) {

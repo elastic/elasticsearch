@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.test.FailingFieldPlugin;
@@ -268,12 +269,62 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
         }
     }
 
+    public void testFailSearchShardsOnLocalCluster() throws Exception {
+        populateIndices();
+        Exception simulatedFailure = randomFailure();
+        for (TransportService transportService : cluster(LOCAL_CLUSTER).getInstances(TransportService.class)) {
+            MockTransportService ts = asInstanceOf(MockTransportService.class, transportService);
+            ts.addRequestHandlingBehavior(
+                EsqlSearchShardsAction.NAME,
+                (handler, request, channel, task) -> { channel.sendResponse(simulatedFailure); }
+            );
+        }
+        try {
+            EsqlQueryRequest request = new EsqlQueryRequest();
+            request.query("FROM ok*,*a:ok* | KEEP id");
+            request.includeCCSMetadata(randomBoolean());
+            {
+                request.allowPartialResults(false);
+                var error = expectThrows(Exception.class, () -> runQuery(request).close());
+                EsqlTestUtils.assertEsqlFailure(error);
+                var unwrapped = ExceptionsHelper.unwrap(error, simulatedFailure.getClass());
+                assertNotNull(unwrapped);
+                assertThat(unwrapped.getMessage(), equalTo(simulatedFailure.getMessage()));
+            }
+            request.allowPartialResults(true);
+            try (var resp = runQuery(request)) {
+                assertTrue(resp.isPartial());
+                List<List<Object>> rows = getValuesList(resp);
+                Set<String> returnedIds = new HashSet<>();
+                for (List<Object> row : rows) {
+                    assertThat(row.size(), equalTo(1));
+                    String id = (String) row.get(0);
+                    assertTrue(returnedIds.add(id));
+                }
+                assertThat(returnedIds, equalTo(remote1.okIds));
+                if (request.includeCCSMetadata()) {
+                    EsqlExecutionInfo.Cluster localInfo = resp.getExecutionInfo().getCluster(LOCAL_CLUSTER);
+                    assertThat(localInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.PARTIAL));
+
+                    EsqlExecutionInfo.Cluster remoteInfo = resp.getExecutionInfo().getCluster(REMOTE_CLUSTER_1);
+                    assertThat(remoteInfo.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+                }
+            }
+        } finally {
+            for (TransportService transportService : cluster(LOCAL_CLUSTER).getInstances(TransportService.class)) {
+                MockTransportService ts = asInstanceOf(MockTransportService.class, transportService);
+                ts.clearAllRules();
+            }
+        }
+    }
+
     private static Exception randomFailure() {
         return randomFrom(
             new IllegalStateException("driver was closed already"),
             new CircuitBreakingException("low memory", CircuitBreaker.Durability.PERMANENT),
             new IOException("broken disk"),
-            new ResourceNotFoundException("exchange sink was not found")
+            new ResourceNotFoundException("exchange sink was not found"),
+            new EsRejectedExecutionException("node is shutting down")
         );
     }
 

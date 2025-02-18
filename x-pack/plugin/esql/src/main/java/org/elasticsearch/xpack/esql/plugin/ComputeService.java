@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.RunOnce;
@@ -213,15 +214,18 @@ public class ComputeService {
                         cancelQueryOnFailure,
                         computeListener.acquireCompute().delegateFailure((l, profiles) -> {
                             if (execInfo.clusterInfo.containsKey(LOCAL_CLUSTER)) {
-                                var tookTime = TimeValue.timeValueNanos(System.nanoTime() - execInfo.getRelativeStartNanos());
-                                final Integer failedShards = execInfo.getCluster(LOCAL_CLUSTER).getFailedShards();
-                                var status = localClusterWasInterrupted.get() || (failedShards != null && failedShards > 0)
-                                    ? EsqlExecutionInfo.Cluster.Status.PARTIAL
-                                    : EsqlExecutionInfo.Cluster.Status.SUCCESSFUL;
-                                execInfo.swapCluster(
-                                    LOCAL_CLUSTER,
-                                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(status).setTook(tookTime).build()
-                                );
+                                execInfo.swapCluster(LOCAL_CLUSTER, (k, v) -> {
+                                    var tookTime = TimeValue.timeValueNanos(System.nanoTime() - execInfo.getRelativeStartNanos());
+                                    var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(tookTime);
+                                    if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
+                                        final Integer failedShards = execInfo.getCluster(LOCAL_CLUSTER).getFailedShards();
+                                        var status = localClusterWasInterrupted.get() || (failedShards != null && failedShards > 0)
+                                            ? EsqlExecutionInfo.Cluster.Status.PARTIAL
+                                            : EsqlExecutionInfo.Cluster.Status.SUCCESSFUL;
+                                        builder.setStatus(status);
+                                    }
+                                    return builder.build();
+                                });
                             }
                             l.onResponse(profiles);
                         })
@@ -244,6 +248,7 @@ public class ComputeService {
                     );
                     // starts computes on data nodes on the main cluster
                     if (localConcreteIndices != null && localConcreteIndices.indices().length > 0) {
+                        final var dataNodesListener = localListener.acquireCompute();
                         dataNodeComputeHandler.startComputeOnDataNodes(
                             sessionId,
                             LOCAL_CLUSTER,
@@ -254,7 +259,7 @@ public class ComputeService {
                             localOriginalIndices,
                             exchangeSource,
                             cancelQueryOnFailure,
-                            localListener.acquireCompute().map(r -> {
+                            ActionListener.wrap(r -> {
                                 localClusterWasInterrupted.set(execInfo.isStopped());
                                 execInfo.swapCluster(
                                     LOCAL_CLUSTER,
@@ -264,7 +269,19 @@ public class ComputeService {
                                         .setFailedShards(r.getFailedShards())
                                         .build()
                                 );
-                                return r.getProfiles();
+                                dataNodesListener.onResponse(r.getProfiles());
+                            }, e -> {
+                                if (configuration.allowPartialResults()) {
+                                    execInfo.swapCluster(
+                                        LOCAL_CLUSTER,
+                                        (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(
+                                            EsqlExecutionInfo.Cluster.Status.PARTIAL
+                                        ).setFailures(List.of(new ShardSearchFailure(e))).build()
+                                    );
+                                    dataNodesListener.onResponse(List.of());
+                                } else {
+                                    dataNodesListener.onFailure(e);
+                                }
                             })
                         );
                     }

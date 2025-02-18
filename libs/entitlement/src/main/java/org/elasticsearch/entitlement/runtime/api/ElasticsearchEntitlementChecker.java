@@ -15,6 +15,8 @@ import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 
 import java.io.File;
 import java.io.FileDescriptor;
+import java.io.FileFilter;
+import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
@@ -870,6 +872,21 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     // old io (ie File)
 
     @Override
+    public void check$java_io_File$canExecute(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$canRead(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$canWrite(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
     public void check$java_io_File$createNewFile(Class<?> callerClass, File file) {
         policyManager.checkFileWrite(callerClass, file);
     }
@@ -887,6 +904,61 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     @Override
     public void check$java_io_File$deleteOnExit(Class<?> callerClass, File file) {
         policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$exists(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$isDirectory(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$isFile(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$isHidden(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$lastModified(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$length(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$list(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$list(Class<?> callerClass, File file, FilenameFilter filter) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$listFiles(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$listFiles(Class<?> callerClass, File file, FileFilter filter) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$listFiles(Class<?> callerClass, File file, FilenameFilter filter) {
+        policyManager.checkFileRead(callerClass, file);
     }
 
     @Override

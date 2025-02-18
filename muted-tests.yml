@@ -136,9 +136,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/118914
 - class: org.elasticsearch.xpack.security.authc.ldap.ActiveDirectoryRunAsIT
   issue: https://github.com/elastic/elasticsearch/issues/115727
-- class: org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapperTests
-  method: testCartesianBoundsBlockLoader
-  issue: https://github.com/elastic/elasticsearch/issues/119201
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=transform/transforms_start_stop/Test start/stop/start transform}
   issue: https://github.com/elastic/elasticsearch/issues/119508
@@ -318,9 +315,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsRecoveryTests
   method: testSnapshotRecovery {p0=false p1=true}
   issue: https://github.com/elastic/elasticsearch/issues/122551
-- class: org.elasticsearch.index.mapper.ShapeGeometryFieldMapperTests
-  method: testCartesianBoundsBlockLoader
-  issue: https://github.com/elastic/elasticsearch/issues/122661
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/snapshot-restore/apis/get-snapshot-api/line_408}
   issue: https://github.com/elastic/elasticsearch/issues/122681

@@ -129,7 +129,7 @@ public class RetrieverRewriteIT extends ESIntegTestCase {
             );
             assertThat(
                 ex.getDetailedMessage(),
-                containsString("[open_point_in_time] action requires all shards to be available. Missing shards")
+                containsString("Search rejected due to missing shards")
             );
         } finally {
             internalCluster().restartNode(randomDataNode);

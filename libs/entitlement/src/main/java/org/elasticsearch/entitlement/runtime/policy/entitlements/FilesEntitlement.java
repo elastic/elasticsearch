@@ -36,102 +36,48 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
 
     public enum BaseDir {
         CONFIG,
-        DATA
+        DATA,
+        HOME
     }
 
     public sealed interface FileData {
 
-        final class AbsolutePathFileData implements FileData {
-            private final Path path;
-            private final Mode mode;
+        Stream<Path> resolvePaths(PathLookup pathLookup);
 
-            private AbsolutePathFileData(Path path, Mode mode) {
-                this.path = path;
-                this.mode = mode;
-            }
-
-            @Override
-            public Stream<Path> resolvePaths(PathLookup pathLookup) {
-                return Stream.of(path);
-            }
-
-            @Override
-            public Mode mode() {
-                return mode;
-            }
-
-            @Override
-            public boolean equals(Object obj) {
-                if (obj == this) return true;
-                if (obj == null || obj.getClass() != this.getClass()) return false;
-                var that = (AbsolutePathFileData) obj;
-                return Objects.equals(this.path, that.path) && Objects.equals(this.mode, that.mode);
-            }
-
-            @Override
-            public int hashCode() {
-                return Objects.hash(path, mode);
-            }
-        }
-
-        final class RelativePathFileData implements FileData {
-            private final Path relativePath;
-            private final BaseDir baseDir;
-            private final Mode mode;
-
-            private RelativePathFileData(Path relativePath, BaseDir baseDir, Mode mode) {
-                this.relativePath = relativePath;
-                this.baseDir = baseDir;
-                this.mode = mode;
-            }
-
-            @Override
-            public Stream<Path> resolvePaths(PathLookup pathLookup) {
-                Objects.requireNonNull(pathLookup);
-                switch (baseDir) {
-                    case CONFIG:
-                        return Stream.of(pathLookup.configDir().resolve(relativePath));
-                    case DATA:
-                        return Arrays.stream(pathLookup.dataDirs()).map(d -> d.resolve(relativePath));
-                    default:
-                        throw new IllegalArgumentException();
-                }
-            }
-
-            @Override
-            public Mode mode() {
-                return mode;
-            }
-
-            @Override
-            public boolean equals(Object obj) {
-                if (obj == this) return true;
-                if (obj == null || obj.getClass() != this.getClass()) return false;
-                var that = (RelativePathFileData) obj;
-                return Objects.equals(this.mode, that.mode)
-                    && Objects.equals(this.relativePath, that.relativePath)
-                    && Objects.equals(this.baseDir, that.baseDir);
-            }
-
-            @Override
-            public int hashCode() {
-                return Objects.hash(relativePath, baseDir, mode);
-            }
-        }
+        Mode mode();
 
         static FileData ofPath(Path path, Mode mode) {
-            assert path.isAbsolute();
             return new AbsolutePathFileData(path, mode);
         }
 
         static FileData ofRelativePath(Path relativePath, BaseDir baseDir, Mode mode) {
-            assert relativePath.isAbsolute() == false;
             return new RelativePathFileData(relativePath, baseDir, mode);
         }
+    }
 
-        Stream<Path> resolvePaths(PathLookup pathLookup);
+    private record AbsolutePathFileData(Path path, Mode mode) implements FileData {
+        @Override
+        public Stream<Path> resolvePaths(PathLookup pathLookup) {
+            return Stream.of(path);
+        }
+    }
 
-        Mode mode();
+    private record RelativePathFileData(Path relativePath, BaseDir baseDir, Mode mode) implements FileData {
+
+        @Override
+        public Stream<Path> resolvePaths(PathLookup pathLookup) {
+            Objects.requireNonNull(pathLookup);
+            switch (baseDir) {
+                case CONFIG:
+                    return Stream.of(pathLookup.configDir().resolve(relativePath));
+                case DATA:
+                    return Arrays.stream(pathLookup.dataDirs()).map(d -> d.resolve(relativePath));
+                case HOME:
+                    return Stream.of(pathLookup.homeDir().resolve(relativePath));
+                default:
+                    throw new IllegalArgumentException();
+            }
+        }
     }
 
     private static Mode parseMode(String mode) {
@@ -145,12 +91,14 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
     }
 
     private static BaseDir parseBaseDir(String baseDir) {
-        if (baseDir.equals("config")) {
-            return BaseDir.CONFIG;
-        } else if (baseDir.equals("data")) {
-            return BaseDir.DATA;
-        }
-        throw new PolicyValidationException("invalid relative directory: " + baseDir + ", valid values: [config, data]");
+        return switch (baseDir) {
+            case "config" -> BaseDir.CONFIG;
+            case "data" -> BaseDir.DATA;
+            case "home" -> BaseDir.HOME;
+            default -> throw new PolicyValidationException(
+                "invalid relative directory: " + baseDir + ", valid values: [config, data, home]"
+            );
+        };
     }
 
     @ExternalEntitlement(parameterNames = { "paths" }, esModulesOnly = false)

@@ -12,8 +12,6 @@ package org.elasticsearch.action.search;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -239,7 +237,6 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 }
             };
 
-            CircuitBreaker breaker = new NoopCircuitBreaker(CircuitBreaker.REQUEST);
             SearchHit hit1 = new SearchHit(1, "ID");
             hit1.setDocumentField("someField", new DocumentField("someField", Collections.singletonList(null)));
             SearchHit hit2 = new SearchHit(2, "ID2");

@@ -27,7 +27,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 public class UpdateConnectorApiKeyIdAction {
 
-    public static final String NAME = "indices:data/write/xpack/connector/update_api_key_id";
+    public static final String NAME = "cluster:admin/xpack/connector/update_api_key_id";
     public static final ActionType<ConnectorUpdateActionResponse> INSTANCE = new ActionType<>(NAME);
 
     private UpdateConnectorApiKeyIdAction() {/* no instances */}

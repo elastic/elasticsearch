@@ -23,8 +23,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.Index;
 
 import java.util.List;
@@ -42,8 +40,6 @@ public class DataStreamAutoShardingService {
 
     private static final Logger logger = LogManager.getLogger(DataStreamAutoShardingService.class);
     public static final String DATA_STREAMS_AUTO_SHARDING_ENABLED = "data_streams.auto_sharding.enabled";
-
-    public static final NodeFeature DATA_STREAM_AUTO_SHARDING_FEATURE = new NodeFeature("data_stream.auto_sharding");
 
     public static final Setting<List<String>> DATA_STREAMS_AUTO_SHARDING_EXCLUDES_SETTING = Setting.listSetting(
         "data_streams.auto_sharding.excludes",
@@ -101,7 +97,6 @@ public class DataStreamAutoShardingService {
     );
     private final ClusterService clusterService;
     private final boolean isAutoShardingEnabled;
-    private final FeatureService featureService;
     private final LongSupplier nowSupplier;
     private volatile TimeValue increaseShardsCooldown;
     private volatile TimeValue reduceShardsCooldown;
@@ -109,12 +104,7 @@ public class DataStreamAutoShardingService {
     private volatile int maxWriteThreads;
     private volatile List<String> dataStreamExcludePatterns;
 
-    public DataStreamAutoShardingService(
-        Settings settings,
-        ClusterService clusterService,
-        FeatureService featureService,
-        LongSupplier nowSupplier
-    ) {
+    public DataStreamAutoShardingService(Settings settings, ClusterService clusterService, LongSupplier nowSupplier) {
         this.clusterService = clusterService;
         this.isAutoShardingEnabled = settings.getAsBoolean(DATA_STREAMS_AUTO_SHARDING_ENABLED, false);
         this.increaseShardsCooldown = DATA_STREAMS_AUTO_SHARDING_INCREASE_SHARDS_COOLDOWN.get(settings);
@@ -122,7 +112,6 @@ public class DataStreamAutoShardingService {
         this.minWriteThreads = CLUSTER_AUTO_SHARDING_MIN_WRITE_THREADS.get(settings);
         this.maxWriteThreads = CLUSTER_AUTO_SHARDING_MAX_WRITE_THREADS.get(settings);
         this.dataStreamExcludePatterns = DATA_STREAMS_AUTO_SHARDING_EXCLUDES_SETTING.get(settings);
-        this.featureService = featureService;
         this.nowSupplier = nowSupplier;
     }
 
@@ -165,15 +154,6 @@ public class DataStreamAutoShardingService {
         Metadata metadata = state.metadata();
         if (isAutoShardingEnabled == false) {
             logger.debug("Data stream auto sharding service is not enabled.");
-            return NOT_APPLICABLE_RESULT;
-        }
-
-        if (featureService.clusterHasFeature(state, DataStreamAutoShardingService.DATA_STREAM_AUTO_SHARDING_FEATURE) == false) {
-            logger.debug(
-                "Data stream auto sharding service cannot compute the optimal number of shards for data stream [{}] because the cluster "
-                    + "doesn't have the auto sharding feature",
-                dataStream.getName()
-            );
             return NOT_APPLICABLE_RESULT;
         }
 

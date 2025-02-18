@@ -39,6 +39,9 @@ import java.util.function.Function;
  * @see CountedCollector#onFailure(int, SearchShardTarget, Exception)
  */
 final class DfsQueryPhase extends SearchPhase {
+
+    public static final String NAME = "dfs_query";
+
     private final SearchPhaseResults<SearchPhaseResult> queryResult;
     private final List<DfsSearchResult> searchResults;
     private final AggregatedDfs dfs;
@@ -56,7 +59,7 @@ final class DfsQueryPhase extends SearchPhase {
         Function<SearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory,
         AbstractSearchAsyncAction<?> context
     ) {
-        super("dfs_query");
+        super(NAME);
         this.progressListener = context.getTask().getProgressListener();
         this.queryResult = queryResult;
         this.searchResults = searchResults;
@@ -68,13 +71,13 @@ final class DfsQueryPhase extends SearchPhase {
     }
 
     @Override
-    public void run() {
+    protected void run() {
         // TODO we can potentially also consume the actual per shard results from the initial phase here in the aggregateDfs
         // to free up memory early
         final CountedCollector<SearchPhaseResult> counter = new CountedCollector<>(
             queryResult,
             searchResults.size(),
-            () -> context.executeNextPhase(this, () -> nextPhaseFactory.apply(queryResult)),
+            () -> context.executeNextPhase(NAME, () -> nextPhaseFactory.apply(queryResult)),
             context
         );
 
@@ -106,7 +109,7 @@ final class DfsQueryPhase extends SearchPhase {
                             response.setSearchProfileDfsPhaseResult(dfsResult.searchProfileDfsPhaseResult());
                             counter.onResult(response);
                         } catch (Exception e) {
-                            context.onPhaseFailure(DfsQueryPhase.this, "", e);
+                            context.onPhaseFailure(NAME, "", e);
                         }
                     }
 

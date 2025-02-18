@@ -43,7 +43,7 @@ For more information on managing indices, refer to <<indices, Index APIs>>.
 
 * To filter the list of indices, use the search bar or click a badge.
 Badges indicate if an index is a <<ccr-put-follow,follower index>>, a
-<<rollup-get-rollup-index-caps,rollup index>>, or <<unfreeze-index-api,frozen>>.
+<<rollup-get-rollup-index-caps,rollup index>>, or <<frozen-indices,frozen>>.
 
 * To drill down into the index
 <<mapping,mappings>>, <<index-modules-settings,settings>>, and statistics,

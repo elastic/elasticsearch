@@ -206,7 +206,7 @@ will return:
 // TEST[continued]
 
 This uses the default parameters that were defined with the template.
-You can also specify one or mre parameters to the render call, for example:
+You can also specify one or more parameters to the render call, for example:
 
 [source,console]
 ----

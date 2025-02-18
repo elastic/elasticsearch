@@ -189,9 +189,7 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
             remoteCluster = in.readString();
             leaderIndexPatterns = in.readStringCollectionAsList();
             followIndexNamePattern = in.readOptionalString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_9_0)) {
-                settings = Settings.readSettingsFromStream(in);
-            }
+            settings = Settings.readSettingsFromStream(in);
             parameters = new FollowParameters(in);
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
                 leaderIndexExclusionPatterns = in.readStringCollectionAsList();
@@ -205,9 +203,7 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
             out.writeString(remoteCluster);
             out.writeStringCollection(leaderIndexPatterns);
             out.writeOptionalString(followIndexNamePattern);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_9_0)) {
-                settings.writeTo(out);
-            }
+            settings.writeTo(out);
             parameters.writeTo(out);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_14_0)) {
                 out.writeStringCollection(leaderIndexExclusionPatterns);

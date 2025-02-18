@@ -33,6 +33,9 @@ To get started with Connector APIs, check out <<es-connectors-tutorial-api, our 
 `<connector_id>`::
 (Required, string)
 
+`include_deleted`::
+(Optional, boolean) A flag indicating whether to also return connectors that have been soft-deleted. Defaults to `false`.
+
 [[get-connector-api-response-codes]]
 ==== {api-response-codes-title}
 

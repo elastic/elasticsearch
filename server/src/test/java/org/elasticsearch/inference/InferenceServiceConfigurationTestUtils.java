@@ -9,8 +9,8 @@
 
 package org.elasticsearch.inference;
 
+import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
@@ -19,14 +19,16 @@ import static org.elasticsearch.test.ESTestCase.randomInt;
 public class InferenceServiceConfigurationTestUtils {
 
     public static InferenceServiceConfiguration getRandomServiceConfigurationField() {
-        return new InferenceServiceConfiguration.Builder().setProvider(randomAlphaOfLength(10))
-            .setTaskTypes(getRandomTaskTypeConfiguration())
-            .setConfiguration(getRandomServiceConfiguration(10))
+        return new InferenceServiceConfiguration.Builder().setService(randomAlphaOfLength(10))
+            .setName(randomAlphaOfLength(6))
+            .setTaskTypes(getRandomTaskTypes())
+            .setConfigurations(getRandomServiceConfiguration(10))
             .build();
     }
 
-    private static List<TaskSettingsConfiguration> getRandomTaskTypeConfiguration() {
-        return List.of(TaskSettingsConfigurationTestUtils.getRandomTaskSettingsConfigurationField());
+    private static EnumSet<TaskType> getRandomTaskTypes() {
+        TaskType[] values = TaskType.values();
+        return EnumSet.of(values[randomInt(values.length - 1)]);
     }
 
     private static Map<String, SettingsConfiguration> getRandomServiceConfiguration(int numFields) {

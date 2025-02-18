@@ -47,7 +47,7 @@ public class RestSearchScrollActionTests extends ESTestCase {
                 public void searchScroll(SearchScrollRequest request, ActionListener<SearchResponse> listener) {
                     scrollCalled.set(true);
                     assertThat(request.scrollId(), equalTo("BODY"));
-                    assertThat(request.scroll().keepAlive().getStringRep(), equalTo("1m"));
+                    assertThat(request.scroll().getStringRep(), equalTo("1m"));
                 }
             };
             RestSearchScrollAction action = new RestSearchScrollAction();

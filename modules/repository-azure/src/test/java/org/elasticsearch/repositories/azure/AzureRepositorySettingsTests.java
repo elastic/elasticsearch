@@ -133,7 +133,7 @@ public class AzureRepositorySettingsTests extends ESTestCase {
         // chunk size in settings
         int size = randomIntBetween(1, 256);
         azureRepository = azureRepository(Settings.builder().put("chunk_size", size + "mb").build());
-        assertEquals(new ByteSizeValue(size, ByteSizeUnit.MB), azureRepository.chunkSize());
+        assertEquals(ByteSizeValue.of(size, ByteSizeUnit.MB), azureRepository.chunkSize());
 
         // zero bytes is not allowed
         IllegalArgumentException e = expectThrows(

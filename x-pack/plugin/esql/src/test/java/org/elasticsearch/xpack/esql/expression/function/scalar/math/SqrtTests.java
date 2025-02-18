@@ -81,8 +81,8 @@ public class SqrtTests extends AbstractScalarFunctionTestCase {
             Integer.MIN_VALUE,
             -1,
             List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.ArithmeticException: Square root of negative"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.ArithmeticException: Square root of negative"
             )
         );
         TestCaseSupplier.forUnaryLong(
@@ -93,8 +93,8 @@ public class SqrtTests extends AbstractScalarFunctionTestCase {
             Long.MIN_VALUE,
             -1,
             List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.ArithmeticException: Square root of negative"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.ArithmeticException: Square root of negative"
             )
         );
         TestCaseSupplier.forUnaryDouble(
@@ -105,11 +105,11 @@ public class SqrtTests extends AbstractScalarFunctionTestCase {
             Double.NEGATIVE_INFINITY,
             -Double.MIN_VALUE,
             List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.ArithmeticException: Square root of negative"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.ArithmeticException: Square root of negative"
             )
         );
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers, (v, p) -> "numeric"));
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

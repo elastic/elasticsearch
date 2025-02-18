@@ -106,7 +106,6 @@ public class UpdateIndexMigrationVersionAction extends ActionType<UpdateIndexMig
                 threadPool,
                 actionFilters,
                 Request::new,
-                indexNameExpressionResolver,
                 UpdateIndexMigrationVersionResponse::new,
                 threadPool.executor(ThreadPool.Names.MANAGEMENT)
             );

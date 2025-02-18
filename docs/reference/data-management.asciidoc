@@ -8,6 +8,7 @@ The data you store in {es} generally falls into one of two categories:
 
 * *Content*: a collection of items you want to search, such as a catalog of products
 * *Time series data*: a stream of continuously-generated timestamped data, such as log entries
+
 *Content* might be frequently updated,
 but the value of the content remains relatively constant over time.
 You want to be able to retrieve items quickly regardless of how old they are.

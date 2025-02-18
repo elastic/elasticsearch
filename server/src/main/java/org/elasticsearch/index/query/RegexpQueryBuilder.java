@@ -88,9 +88,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         syntaxFlagsValue = in.readVInt();
         maxDeterminizedStates = in.readVInt();
         rewrite = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            caseInsensitive = in.readBoolean();
-        }
+        caseInsensitive = in.readBoolean();
     }
 
     @Override
@@ -100,9 +98,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
         out.writeVInt(syntaxFlagsValue);
         out.writeVInt(maxDeterminizedStates);
         out.writeOptionalString(rewrite);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            out.writeBoolean(caseInsensitive);
-        }
+        out.writeBoolean(caseInsensitive);
     }
 
     /** Returns the field name used in this query. */

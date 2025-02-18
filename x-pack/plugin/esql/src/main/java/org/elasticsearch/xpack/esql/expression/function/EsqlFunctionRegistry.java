@@ -134,11 +134,14 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Left;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Locate;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Md5;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Repeat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Replace;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Reverse;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Right;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Sha1;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Sha256;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Space;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Split;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -221,6 +224,7 @@ public class EsqlFunctionRegistry {
     // it has with the alias name associated to the FunctionDefinition instance
     private final Map<String, FunctionDefinition> defs = new LinkedHashMap<>();
     private final Map<String, String> aliases = new HashMap<>();
+    private final Map<Class<? extends Function>, String> names = new HashMap<>();
 
     private SnapshotFunctionRegistry snapshotRegistry = null;
 
@@ -253,6 +257,12 @@ public class EsqlFunctionRegistry {
 
     public boolean functionExists(String functionName) {
         return defs.containsKey(functionName);
+    }
+
+    public String functionName(Class<? extends Function> clazz) {
+        String name = names.get(clazz);
+        Check.notNull(name, "Cannot find function by class {}", clazz);
+        return name;
     }
 
     public Collection<FunctionDefinition> listFunctions() {
@@ -333,11 +343,14 @@ public class EsqlFunctionRegistry {
                 def(Left.class, Left::new, "left"),
                 def(Length.class, Length::new, "length"),
                 def(Locate.class, Locate::new, "locate"),
+                def(Md5.class, Md5::new, "md5"),
                 def(RTrim.class, RTrim::new, "rtrim"),
                 def(Repeat.class, Repeat::new, "repeat"),
                 def(Replace.class, Replace::new, "replace"),
                 def(Reverse.class, Reverse::new, "reverse"),
                 def(Right.class, Right::new, "right"),
+                def(Sha1.class, Sha1::new, "sha1"),
+                def(Sha256.class, Sha256::new, "sha256"),
                 def(Space.class, Space::new, "space"),
                 def(StartsWith.class, StartsWith::new, "starts_with"),
                 def(Substring.class, Substring::new, "substring"),
@@ -418,7 +431,10 @@ public class EsqlFunctionRegistry {
                 def(MvSum.class, MvSum::new, "mv_sum"),
                 def(Split.class, Split::new, "split") },
             // fulltext functions
-            new FunctionDefinition[] { def(Match.class, bi(Match::new), "match"), def(QueryString.class, uni(QueryString::new), "qstr") } };
+            new FunctionDefinition[] {
+                def(Kql.class, uni(Kql::new), "kql"),
+                def(Match.class, tri(Match::new), "match"),
+                def(QueryString.class, uni(QueryString::new), "qstr") } };
 
     }
 
@@ -428,7 +444,6 @@ public class EsqlFunctionRegistry {
                 // The delay() function is for debug/snapshot environments only and should never be enabled in a non-snapshot build.
                 // This is an experimental function and can be removed without notice.
                 def(Delay.class, Delay::new, "delay"),
-                def(Kql.class, uni(Kql::new), "kql"),
                 def(Rate.class, Rate::withUnresolvedTimestamp, "rate"),
                 def(Term.class, bi(Term::new), "term") } };
     }
@@ -460,10 +475,51 @@ public class EsqlFunctionRegistry {
         return name.toLowerCase(Locale.ROOT);
     }
 
-    public record ArgSignature(String name, String[] type, String description, boolean optional, DataType targetDataType) {
+    public static class ArgSignature {
+        protected final String name;
+        protected final String[] type;
+        protected final String description;
+        protected final boolean optional;
+        protected final DataType targetDataType;
+
+        public ArgSignature(String name, String[] type, String description, boolean optional, DataType targetDataType) {
+            this.name = name;
+            this.type = type;
+            this.description = description;
+            this.optional = optional;
+            this.targetDataType = targetDataType;
+        }
 
         public ArgSignature(String name, String[] type, String description, boolean optional) {
             this(name, type, description, optional, UNSUPPORTED);
+        }
+
+        public String name() {
+            return name;
+        }
+
+        public String[] type() {
+            return type;
+        }
+
+        public String description() {
+            return description;
+        }
+
+        public boolean optional() {
+            return optional;
+        }
+
+        public DataType targetDataType() {
+            return targetDataType;
+        }
+
+        public Map<String, MapEntryArgSignature> mapParams() {
+            return Map.of();
+        }
+
+        public boolean mapArg() {
+            return false;
         }
 
         @Override
@@ -479,7 +535,45 @@ public class EsqlFunctionRegistry {
                 + optional
                 + ", targetDataType="
                 + targetDataType
-                + '}';
+                + "}}";
+        }
+    }
+
+    public static class MapArgSignature extends ArgSignature {
+        private final Map<String, MapEntryArgSignature> mapParams;
+
+        public MapArgSignature(String name, String description, boolean optional, Map<String, MapEntryArgSignature> mapParams) {
+            super(name, new String[] { "map" }, description, optional);
+            this.mapParams = mapParams;
+        }
+
+        @Override
+        public Map<String, MapEntryArgSignature> mapParams() {
+            return mapParams;
+        }
+
+        @Override
+        public boolean mapArg() {
+            return true;
+        }
+
+        @Override
+        public String toString() {
+            return "MapArgSignature{"
+                + "name='map', type='map', description='"
+                + description
+                + "', optional="
+                + optional
+                + ", targetDataType=unsupported, mapParams={"
+                + mapParams.values().stream().map(mapArg -> "{" + mapArg + "}").collect(Collectors.joining(", "))
+                + "}}";
+        }
+    }
+
+    public record MapEntryArgSignature(String name, String valueHint, String type, String description) {
+        @Override
+        public String toString() {
+            return "name='" + name + "', values=" + valueHint + ", description='" + description + "'";
         }
     }
 
@@ -489,7 +583,7 @@ public class EsqlFunctionRegistry {
         String[] returnType,
         String description,
         boolean variadic,
-        boolean isAggregation
+        FunctionType type
     ) {
         /**
          * The name of every argument.
@@ -532,7 +626,7 @@ public class EsqlFunctionRegistry {
     public static FunctionDescription description(FunctionDefinition def) {
         Constructor<?> constructor = constructorFor(def.clazz());
         if (constructor == null) {
-            return new FunctionDescription(def.name(), List.of(), null, null, false, false);
+            return new FunctionDescription(def.name(), List.of(), null, null, false, FunctionType.SCALAR);
         }
         FunctionInfo functionInfo = functionInfo(def);
         String functionDescription = functionInfo == null ? "" : functionInfo.description().replace('\n', ' ');
@@ -541,20 +635,44 @@ public class EsqlFunctionRegistry {
 
         List<EsqlFunctionRegistry.ArgSignature> args = new ArrayList<>(params.length);
         boolean variadic = false;
-        boolean isAggregation = functionInfo == null ? false : functionInfo.isAggregation();
         for (int i = 1; i < params.length; i++) { // skipping 1st argument, the source
             if (Configuration.class.isAssignableFrom(params[i].getType()) == false) {
-                Param paramInfo = params[i].getAnnotation(Param.class);
-                String name = paramInfo == null ? params[i].getName() : paramInfo.name();
                 variadic |= List.class.isAssignableFrom(params[i].getType());
-                String[] type = paramInfo == null ? new String[] { "?" } : removeUnderConstruction(paramInfo.type());
-                String desc = paramInfo == null ? "" : paramInfo.description().replace('\n', ' ');
-                boolean optional = paramInfo == null ? false : paramInfo.optional();
-                DataType targetDataType = getTargetType(type);
-                args.add(new EsqlFunctionRegistry.ArgSignature(name, type, desc, optional, targetDataType));
+                MapParam mapParamInfo = params[i].getAnnotation(MapParam.class); // refactor this
+                if (mapParamInfo != null) {
+                    args.add(mapParam(mapParamInfo));
+                } else {
+                    Param paramInfo = params[i].getAnnotation(Param.class);
+                    args.add(paramInfo != null ? param(paramInfo) : paramWithoutAnnotation(params[i].getName()));
+                }
             }
         }
-        return new FunctionDescription(def.name(), args, returnType, functionDescription, variadic, isAggregation);
+        return new FunctionDescription(def.name(), args, returnType, functionDescription, variadic, functionInfo.type());
+    }
+
+    public static ArgSignature param(Param param) {
+        String[] type = removeUnderConstruction(param.type());
+        String desc = param.description().replace('\n', ' ');
+        DataType targetDataType = getTargetType(type);
+        return new EsqlFunctionRegistry.ArgSignature(param.name(), type, desc, param.optional(), targetDataType);
+    }
+
+    public static ArgSignature mapParam(MapParam mapParam) {
+        String desc = mapParam.description().replace('\n', ' ');
+        Map<String, MapEntryArgSignature> params = new HashMap<>(mapParam.params().length);
+        for (MapParam.MapParamEntry param : mapParam.params()) {
+            String valueHint = param.valueHint().length <= 1
+                ? Arrays.toString(param.valueHint())
+                : "[" + String.join(", ", param.valueHint()) + "]";
+            String type = param.type().length <= 1 ? Arrays.toString(param.type()) : "[" + String.join(", ", param.type()) + "]";
+            MapEntryArgSignature mapArg = new MapEntryArgSignature(param.name(), valueHint, type, param.description());
+            params.put(param.name(), mapArg);
+        }
+        return new EsqlFunctionRegistry.MapArgSignature(mapParam.name(), desc, mapParam.optional(), params);
+    }
+
+    public static ArgSignature paramWithoutAnnotation(String name) {
+        return new EsqlFunctionRegistry.ArgSignature(name, new String[] { "?" }, "", false, UNSUPPORTED);
     }
 
     /**
@@ -646,6 +764,14 @@ public class EsqlFunctionRegistry {
                 }
                 aliases.put(alias, f.name());
             }
+            Check.isTrue(
+                names.containsKey(f.clazz()) == false,
+                "function type [{}} is registered twice with names [{}] and [{}]",
+                f.clazz(),
+                names.get(f.clazz()),
+                f.name()
+            );
+            names.put(f.clazz(), f.name());
         }
         // sort the temporary map by key name and add it to the global map of functions
         defs.putAll(

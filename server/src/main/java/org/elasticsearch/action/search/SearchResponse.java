@@ -343,8 +343,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     }
 
     /**
-     * If scrolling was enabled ({@link SearchRequest#scroll(org.elasticsearch.search.Scroll)}, the
-     * scroll id that can be used to continue scrolling.
+     * If scrolling was enabled ({@link SearchRequest#scroll(TimeValue)}, the scroll id that can be used to continue scrolling.
      */
     public String getScrollId() {
         return scrollId;
@@ -392,13 +391,13 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
 
     public Iterator<? extends ToXContent> innerToXContentChunked(ToXContent.Params params) {
         return Iterators.concat(
-            ChunkedToXContentHelper.singleChunk(SearchResponse.this::headerToXContent),
+            ChunkedToXContentHelper.chunk(SearchResponse.this::headerToXContent),
             Iterators.single(clusters),
             Iterators.concat(
                 hits.toXContentChunked(params),
-                aggregations == null ? Collections.emptyIterator() : ChunkedToXContentHelper.singleChunk(aggregations),
-                suggest == null ? Collections.emptyIterator() : ChunkedToXContentHelper.singleChunk(suggest),
-                profileResults == null ? Collections.emptyIterator() : ChunkedToXContentHelper.singleChunk(profileResults)
+                aggregations == null ? Collections.emptyIterator() : ChunkedToXContentHelper.chunk(aggregations),
+                suggest == null ? Collections.emptyIterator() : ChunkedToXContentHelper.chunk(suggest),
+                profileResults == null ? Collections.emptyIterator() : ChunkedToXContentHelper.chunk(profileResults)
             )
         );
     }

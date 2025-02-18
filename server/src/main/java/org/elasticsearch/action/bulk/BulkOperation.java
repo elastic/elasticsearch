@@ -24,7 +24,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -216,11 +216,9 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         }
         try (RefCountingRunnable refs = new RefCountingRunnable(runnable)) {
             for (String dataStream : failureStoresToBeRolledOver) {
-                RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null);
-                rolloverRequest.setIndicesOptions(
-                    IndicesOptions.builder(rolloverRequest.indicesOptions())
-                        .selectorOptions(IndicesOptions.SelectorOptions.FAILURES)
-                        .build()
+                RolloverRequest rolloverRequest = new RolloverRequest(
+                    IndexNameExpressionResolver.combineSelector(dataStream, IndexComponentSelector.FAILURES),
+                    null
                 );
                 // We are executing a lazy rollover because it is an action specialised for this situation, when we want an
                 // unconditional and performant rollover.
@@ -656,7 +654,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
      * If so, we'll need to roll it over before we index the failed documents into the failure store.
      */
     private void maybeMarkFailureStoreForRollover(DataStream dataStream) {
-        if (dataStream.getFailureIndices().isRolloverOnWrite() == false) {
+        if (dataStream.getFailureComponent().isRolloverOnWrite() == false) {
             return;
         }
         failureStoresToBeRolledOver.add(dataStream.getName());

@@ -3669,7 +3669,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 threadPool,
                 actionFilters,
                 UpdateIndexShardSnapshotStatusRequest::new,
-                indexNameExpressionResolver,
                 in -> ActionResponse.Empty.INSTANCE,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
@@ -3885,6 +3884,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         public void onFailure(Exception e) {
             logSnapshotFailure("create", snapshot, e);
             listener.onFailure(e);
+        }
+
+        @Override
+        public String toString() {
+            return "CreateSnapshotTask{repository=" + repository.getMetadata().name() + ", snapshot=" + snapshot + '}';
         }
     }
 

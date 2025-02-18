@@ -394,6 +394,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.action.downsample;
     exports org.elasticsearch.plugins.internal
         to
+            org.elasticsearch.inference,
             org.elasticsearch.metering,
             org.elasticsearch.stateless,
             org.elasticsearch.settings.secure,
@@ -424,21 +425,14 @@ module org.elasticsearch.server {
 
     provides org.elasticsearch.features.FeatureSpecification
         with
-            org.elasticsearch.action.admin.indices.stats.IndicesStatsFeatures,
             org.elasticsearch.action.bulk.BulkFeatures,
             org.elasticsearch.features.FeatureInfrastructureFeatures,
-            org.elasticsearch.health.HealthFeatures,
-            org.elasticsearch.cluster.metadata.MetadataFeatures,
-            org.elasticsearch.rest.RestFeatures,
-            org.elasticsearch.repositories.RepositoriesFeatures,
-            org.elasticsearch.action.admin.cluster.allocation.AllocationStatsFeatures,
             org.elasticsearch.rest.action.admin.cluster.ClusterRerouteFeatures,
             org.elasticsearch.index.mapper.MapperFeatures,
-            org.elasticsearch.ingest.IngestGeoIpFeatures,
+            org.elasticsearch.index.IndexFeatures,
             org.elasticsearch.search.SearchFeatures,
             org.elasticsearch.script.ScriptFeatures,
             org.elasticsearch.search.retriever.RetrieversFeatures,
-            org.elasticsearch.reservedstate.service.FileSettingsFeatures,
             org.elasticsearch.action.admin.cluster.stats.ClusterStatsFeatures;
 
     uses org.elasticsearch.plugins.internal.SettingsExtension;
@@ -467,7 +461,8 @@ module org.elasticsearch.server {
         with
             org.elasticsearch.index.codec.Elasticsearch814Codec,
             org.elasticsearch.index.codec.Elasticsearch816Codec,
-            org.elasticsearch.index.codec.Elasticsearch900Codec;
+            org.elasticsearch.index.codec.Elasticsearch900Codec,
+            org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec;
 
     provides org.apache.logging.log4j.core.util.ContextDataProvider with org.elasticsearch.common.logging.DynamicContextDataProvider;
 

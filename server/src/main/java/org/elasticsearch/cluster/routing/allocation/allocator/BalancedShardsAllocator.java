@@ -112,6 +112,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         Property.NodeScope
     );
 
+    // TODO: deduplicate these fields, use the fields in NodeAllocationStatsAndWeightsCalculator instead.
     private volatile float indexBalanceFactor;
     private volatile float shardBalanceFactor;
     private volatile float writeLoadBalanceFactor;
@@ -168,7 +169,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> nodeLevelWeights = new HashMap<>();
         for (var entry : balancer.nodes.entrySet()) {
             var node = entry.getValue();
-            var nodeWeight = weightFunction.nodeWeight(
+            var nodeWeight = weightFunction.calculateNodeWeight(
                 node.numShards(),
                 balancer.avgShardsPerNode(),
                 node.writeLoad(),
@@ -263,7 +264,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final RoutingAllocation allocation;
         private final RoutingNodes routingNodes;
         private final Metadata metadata;
-        private final WeightFunction weight;
+        private final WeightFunction weightFunction;
 
         private final float threshold;
         private final float avgShardsPerNode;
@@ -272,12 +273,17 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final Map<String, ModelNode> nodes;
         private final NodeSorter sorter;
 
-        private Balancer(WriteLoadForecaster writeLoadForecaster, RoutingAllocation allocation, WeightFunction weight, float threshold) {
+        private Balancer(
+            WriteLoadForecaster writeLoadForecaster,
+            RoutingAllocation allocation,
+            WeightFunction weightFunction,
+            float threshold
+        ) {
             this.writeLoadForecaster = writeLoadForecaster;
             this.allocation = allocation;
             this.routingNodes = allocation.routingNodes();
             this.metadata = allocation.metadata();
-            this.weight = weight;
+            this.weightFunction = weightFunction;
             this.threshold = threshold;
             avgShardsPerNode = WeightFunction.avgShardPerNode(metadata, routingNodes);
             avgWriteLoadPerNode = WeightFunction.avgWriteLoadPerNode(writeLoadForecaster, metadata, routingNodes);
@@ -355,7 +361,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
          * to sort based on an index.
          */
         private NodeSorter newNodeSorter() {
-            return new NodeSorter(nodesArray(), weight, this);
+            return new NodeSorter(nodesArray(), weightFunction, this);
         }
 
         /**
@@ -435,7 +441,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
             // balance the shard, if a better node can be found
             final String idxName = shard.getIndexName();
-            final float currentWeight = weight.weight(this, currentNode, idxName);
+            final float currentWeight = weightFunction.calculateNodeWeightWithIndex(this, currentNode, idxName);
             final AllocationDeciders deciders = allocation.deciders();
             Type rebalanceDecisionType = Type.NO;
             ModelNode targetNode = null;
@@ -451,7 +457,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 // this is a comparison of the number of shards on this node to the number of shards
                 // that should be on each node on average (both taking the cluster as a whole into account
                 // as well as shards per index)
-                final float nodeWeight = weight.weight(this, node, idxName);
+                final float nodeWeight = weightFunction.calculateNodeWeightWithIndex(this, node, idxName);
                 // if the node we are examining has a worse (higher) weight than the node the shard is
                 // assigned to, then there is no way moving the shard to the node with the worse weight
                 // can make the balance of the cluster better, so we check for that here
@@ -1028,7 +1034,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 }
 
                 // weight of this index currently on the node
-                float currentWeight = weight.weight(this, node, shard.getIndexName());
+                float currentWeight = weightFunction.calculateNodeWeightWithIndex(this, node, shard.getIndexName());
                 // moving the shard would not improve the balance, and we are not in explain mode, so short circuit
                 if (currentWeight > minWeight && explain == false) {
                     continue;
@@ -1319,7 +1325,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         public float weight(ModelNode node) {
-            return function.weight(balancer, node, index);
+            return function.calculateNodeWeightWithIndex(balancer, node, index);
         }
 
         public float minWeightDelta() {

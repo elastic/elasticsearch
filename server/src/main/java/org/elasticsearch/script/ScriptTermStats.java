@@ -16,7 +16,6 @@ import org.apache.lucene.index.TermStates;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.util.CachedSupplier;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 
 import java.io.IOException;
@@ -29,8 +28,6 @@ import java.util.function.Supplier;
  * Access the term statistics of the children query of a script_score query.
  */
 public class ScriptTermStats {
-
-    public static final NodeFeature TERM_STAT_FEATURE = new NodeFeature("script.term_stats");
 
     private final IntSupplier docIdSupplier;
     private final Term[] terms;

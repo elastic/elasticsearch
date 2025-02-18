@@ -11,7 +11,6 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
@@ -41,12 +40,14 @@ import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.profile.Profilers;
+import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.transport.LeakTracker;
 
 import java.io.IOException;
@@ -84,9 +85,24 @@ public abstract class SearchContext implements Releasable {
 
     protected SearchContext() {}
 
-    public abstract void setTask(SearchShardTask task);
+    public final List<Runnable> getCancellationChecks() {
+        final Runnable timeoutRunnable = QueryPhase.getTimeoutCheck(this);
+        if (lowLevelCancellation()) {
+            // This searching doesn't live beyond this phase, so we don't need to remove query cancellation
+            Runnable c = () -> {
+                final CancellableTask task = getTask();
+                if (task != null) {
+                    task.ensureNotCancelled();
+                }
+            };
+            return timeoutRunnable == null ? List.of(c) : List.of(c, timeoutRunnable);
+        }
+        return timeoutRunnable == null ? List.of() : List.of(timeoutRunnable);
+    }
 
-    public abstract SearchShardTask getTask();
+    public abstract void setTask(CancellableTask task);
+
+    public abstract CancellableTask getTask();
 
     public abstract boolean isCancelled();
 
@@ -385,7 +401,7 @@ public abstract class SearchContext implements Releasable {
         }
         if (scrollContext() != null) {
             if (scrollContext().scroll != null) {
-                result.append("scroll=[").append(scrollContext().scroll.keepAlive()).append("]");
+                result.append("scroll=[").append(scrollContext().scroll).append("]");
             } else {
                 result.append("scroll=[null]");
             }

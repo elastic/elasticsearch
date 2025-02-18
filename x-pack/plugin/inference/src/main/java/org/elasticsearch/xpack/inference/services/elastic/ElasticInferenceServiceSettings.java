@@ -7,12 +7,21 @@
 
 package org.elasticsearch.xpack.inference.services.elastic;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 
+import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Encapsulates settings using {@link Setting}. This does not represent service settings that are persisted
+ * via {@link org.elasticsearch.inference.ServiceSettings}, but rather Elasticsearch settings passed on startup.
+ */
 public class ElasticInferenceServiceSettings {
+
+    public static final String ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX = "xpack.inference.elastic.http.ssl.";
 
     @Deprecated
     static final Setting<String> EIS_GATEWAY_URL = Setting.simpleString("xpack.inference.eis.gateway.url", Setting.Property.NodeScope);
@@ -22,7 +31,6 @@ public class ElasticInferenceServiceSettings {
         Setting.Property.NodeScope
     );
 
-    // Adjust this variable to be volatile, if the setting can be updated at some point in time
     @Deprecated
     private final String eisGatewayUrl;
 
@@ -31,20 +39,31 @@ public class ElasticInferenceServiceSettings {
     public ElasticInferenceServiceSettings(Settings settings) {
         eisGatewayUrl = EIS_GATEWAY_URL.get(settings);
         elasticInferenceServiceUrl = ELASTIC_INFERENCE_SERVICE_URL.get(settings);
-
     }
+
+    public static final SSLConfigurationSettings ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_SETTINGS = SSLConfigurationSettings.withPrefix(
+        ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX,
+        false
+    );
+
+    public static final Setting<Boolean> ELASTIC_INFERENCE_SERVICE_SSL_ENABLED = Setting.boolSetting(
+        ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX + "enabled",
+        true,
+        Setting.Property.NodeScope
+    );
 
     public static List<Setting<?>> getSettingsDefinitions() {
-        return List.of(EIS_GATEWAY_URL, ELASTIC_INFERENCE_SERVICE_URL);
-    }
+        ArrayList<Setting<?>> settings = new ArrayList<>();
+        settings.add(EIS_GATEWAY_URL);
+        settings.add(ELASTIC_INFERENCE_SERVICE_URL);
+        settings.add(ELASTIC_INFERENCE_SERVICE_SSL_ENABLED);
+        settings.addAll(ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_SETTINGS.getEnabledSettings());
 
-    @Deprecated
-    public String getEisGatewayUrl() {
-        return eisGatewayUrl;
+        return settings;
     }
 
     public String getElasticInferenceServiceUrl() {
-        return elasticInferenceServiceUrl;
+        return Strings.isEmpty(elasticInferenceServiceUrl) ? eisGatewayUrl : elasticInferenceServiceUrl;
     }
 
 }

@@ -222,10 +222,6 @@ setup:
         - headers
         - allowed_warnings
 
-  - requires:
-      cluster_features: ["simulate.mapping.validation.templates"]
-      reason: "ingest simulate index mapping validation added in 8.16"
-
   - do:
       headers:
         Content-Type: application/json
@@ -312,10 +308,6 @@ setup:
       features:
         - headers
         - allowed_warnings
-
-  - requires:
-      cluster_features: ["simulate.component.template.substitutions"]
-      reason: "ingest simulate component template substitutions added in 8.16"
 
   - do:
       headers:
@@ -494,10 +486,6 @@ setup:
         - headers
         - allowed_warnings
 
-  - requires:
-      cluster_features: ["simulate.component.template.substitutions"]
-      reason: "ingest simulate component template substitutions added in 8.16"
-
   - do:
       headers:
         Content-Type: application/json
@@ -616,10 +604,6 @@ setup:
       features:
         - headers
         - allowed_warnings
-
-  - requires:
-      cluster_features: ["simulate.component.template.substitutions"]
-      reason: "ingest simulate component template substitutions added in 8.16"
 
   - do:
       headers:
@@ -816,10 +800,6 @@ setup:
         - headers
         - allowed_warnings
 
-  - requires:
-      cluster_features: ["simulate.index.template.substitutions"]
-      reason: "ingest simulate index template substitutions added in 8.16"
-
   - do:
       headers:
         Content-Type: application/json
@@ -1009,10 +989,6 @@ setup:
       features:
         - headers
         - allowed_warnings
-
-  - requires:
-      cluster_features: ["simulate.index.template.substitutions"]
-      reason: "ingest simulate component template substitutions added in 8.16"
 
   - do:
       headers:
@@ -1226,10 +1202,6 @@ setup:
       features:
         - headers
         - allowed_warnings
-
-  - requires:
-      cluster_features: ["simulate.mapping.addition"]
-      reason: "ingest simulate mapping addition added in 8.17"
 
   - do:
       headers:
@@ -1463,10 +1435,6 @@ setup:
         - headers
         - allowed_warnings
 
-  - requires:
-      cluster_features: ["simulate.mapping.addition"]
-      reason: "ingest simulate mapping addition added in 8.17"
-
   - do:
       indices.put_template:
         name: my-legacy-template
@@ -1583,10 +1551,6 @@ setup:
       features:
         - headers
         - allowed_warnings
-
-  - requires:
-      cluster_features: ["simulate.support.non.template.mapping"]
-      reason: "ingest simulate support for indices with mappings that didn't come from templates added in 8.17"
 
   # A global match-everything legacy template is added to the cluster sometimes (rarely). We have to get rid of this template if it exists
   # because this test is making sure we get correct behavior when an index matches *no* template:

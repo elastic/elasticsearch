@@ -41,22 +41,24 @@ import java.util.List;
  */
 public final class TimeSeriesAggregationOperatorFactories {
 
+    public record SupplierWithChannels(AggregatorFunctionSupplier supplier, List<Integer> channels) {}
+
     public record Initial(
         int tsHashChannel,
         int timeBucketChannel,
         List<BlockHash.GroupSpec> groupings,
-        List<AggregatorFunctionSupplier> rates,
-        List<AggregatorFunctionSupplier> nonRates,
+        List<SupplierWithChannels> rates,
+        List<SupplierWithChannels> nonRates,
         int maxPageSize
     ) implements Operator.OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
             List<GroupingAggregator.Factory> aggregators = new ArrayList<>(groupings.size() + rates.size() + nonRates.size());
-            for (AggregatorFunctionSupplier f : rates) {
-                aggregators.add(f.groupingAggregatorFactory(AggregatorMode.INITIAL));
+            for (SupplierWithChannels f : rates) {
+                aggregators.add(f.supplier.groupingAggregatorFactory(AggregatorMode.INITIAL, f.channels));
             }
-            for (AggregatorFunctionSupplier f : nonRates) {
-                aggregators.add(f.groupingAggregatorFactory(AggregatorMode.INITIAL));
+            for (SupplierWithChannels f : nonRates) {
+                aggregators.add(f.supplier.groupingAggregatorFactory(AggregatorMode.INITIAL, f.channels));
             }
             aggregators.addAll(valuesAggregatorForGroupings(groupings, timeBucketChannel));
             return new HashAggregationOperator(
@@ -76,18 +78,18 @@ public final class TimeSeriesAggregationOperatorFactories {
         int tsHashChannel,
         int timeBucketChannel,
         List<BlockHash.GroupSpec> groupings,
-        List<AggregatorFunctionSupplier> rates,
-        List<AggregatorFunctionSupplier> nonRates,
+        List<SupplierWithChannels> rates,
+        List<SupplierWithChannels> nonRates,
         int maxPageSize
     ) implements Operator.OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
             List<GroupingAggregator.Factory> aggregators = new ArrayList<>(groupings.size() + rates.size() + nonRates.size());
-            for (AggregatorFunctionSupplier f : rates) {
-                aggregators.add(f.groupingAggregatorFactory(AggregatorMode.FINAL));
+            for (SupplierWithChannels f : rates) {
+                aggregators.add(f.supplier.groupingAggregatorFactory(AggregatorMode.FINAL, f.channels));
             }
-            for (AggregatorFunctionSupplier f : nonRates) {
-                aggregators.add(f.groupingAggregatorFactory(AggregatorMode.INTERMEDIATE));
+            for (SupplierWithChannels f : nonRates) {
+                aggregators.add(f.supplier.groupingAggregatorFactory(AggregatorMode.INTERMEDIATE, f.channels));
             }
             aggregators.addAll(valuesAggregatorForGroupings(groupings, timeBucketChannel));
             List<BlockHash.GroupSpec> hashGroups = List.of(
@@ -109,18 +111,18 @@ public final class TimeSeriesAggregationOperatorFactories {
 
     public record Final(
         List<BlockHash.GroupSpec> groupings,
-        List<AggregatorFunctionSupplier> outerRates,
-        List<AggregatorFunctionSupplier> nonRates,
+        List<SupplierWithChannels> outerRates,
+        List<SupplierWithChannels> nonRates,
         int maxPageSize
     ) implements Operator.OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
             List<GroupingAggregator.Factory> aggregators = new ArrayList<>(outerRates.size() + nonRates.size());
-            for (AggregatorFunctionSupplier f : outerRates) {
-                aggregators.add(f.groupingAggregatorFactory(AggregatorMode.SINGLE));
+            for (SupplierWithChannels f : outerRates) {
+                aggregators.add(f.supplier.groupingAggregatorFactory(AggregatorMode.SINGLE, f.channels));
             }
-            for (AggregatorFunctionSupplier f : nonRates) {
-                aggregators.add(f.groupingAggregatorFactory(AggregatorMode.FINAL));
+            for (SupplierWithChannels f : nonRates) {
+                aggregators.add(f.supplier.groupingAggregatorFactory(AggregatorMode.FINAL, f.channels));
             }
             return new HashAggregationOperator(
                 aggregators,
@@ -139,17 +141,17 @@ public final class TimeSeriesAggregationOperatorFactories {
         List<GroupingAggregator.Factory> aggregators = new ArrayList<>();
         for (BlockHash.GroupSpec g : groupings) {
             if (g.channel() != timeBucketChannel) {
-                final List<Integer> channels = List.of(g.channel());
                 // TODO: perhaps introduce a specialized aggregator for this?
                 var aggregatorSupplier = (switch (g.elementType()) {
-                    case BYTES_REF -> new org.elasticsearch.compute.aggregation.ValuesBytesRefAggregatorFunctionSupplier(channels);
-                    case DOUBLE -> new org.elasticsearch.compute.aggregation.ValuesDoubleAggregatorFunctionSupplier(channels);
-                    case INT -> new org.elasticsearch.compute.aggregation.ValuesIntAggregatorFunctionSupplier(channels);
-                    case LONG -> new org.elasticsearch.compute.aggregation.ValuesLongAggregatorFunctionSupplier(channels);
-                    case BOOLEAN -> new org.elasticsearch.compute.aggregation.ValuesBooleanAggregatorFunctionSupplier(channels);
+                    case BYTES_REF -> new org.elasticsearch.compute.aggregation.ValuesBytesRefAggregatorFunctionSupplier();
+                    case DOUBLE -> new org.elasticsearch.compute.aggregation.ValuesDoubleAggregatorFunctionSupplier();
+                    case INT -> new org.elasticsearch.compute.aggregation.ValuesIntAggregatorFunctionSupplier();
+                    case LONG -> new org.elasticsearch.compute.aggregation.ValuesLongAggregatorFunctionSupplier();
+                    case BOOLEAN -> new org.elasticsearch.compute.aggregation.ValuesBooleanAggregatorFunctionSupplier();
                     case FLOAT, NULL, DOC, COMPOSITE, UNKNOWN -> throw new IllegalArgumentException("unsupported grouping type");
                 });
-                aggregators.add(aggregatorSupplier.groupingAggregatorFactory(AggregatorMode.SINGLE));
+                final List<Integer> channels = List.of(g.channel());
+                aggregators.add(aggregatorSupplier.groupingAggregatorFactory(AggregatorMode.SINGLE, channels));
             }
         }
         return aggregators;

@@ -11,6 +11,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.ToXContent;
@@ -22,6 +23,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Flow;
+
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
 
 /**
  * Chat Completion results that only contain a Flow.Publisher.
@@ -131,39 +134,25 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<? extends Chu
 
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-
-            Iterator<? extends ToXContent> choicesIterator = Collections.emptyIterator();
-            if (choices != null) {
-                choicesIterator = Iterators.concat(
-                    ChunkedToXContentHelper.startArray(CHOICES_FIELD),
-                    Iterators.flatMap(choices.iterator(), c -> c.toXContentChunked(params)),
-                    ChunkedToXContentHelper.endArray()
-                );
-            }
-
-            Iterator<? extends ToXContent> usageIterator = Collections.emptyIterator();
-            if (usage != null) {
-                usageIterator = Iterators.concat(
-                    ChunkedToXContentHelper.startObject(USAGE_FIELD),
-                    ChunkedToXContentHelper.field(COMPLETION_TOKENS_FIELD, usage.completionTokens()),
-                    ChunkedToXContentHelper.field(PROMPT_TOKENS_FIELD, usage.promptTokens()),
-                    ChunkedToXContentHelper.field(TOTAL_TOKENS_FIELD, usage.totalTokens()),
-                    ChunkedToXContentHelper.endObject()
-                );
-            }
-
             return Iterators.concat(
                 ChunkedToXContentHelper.startObject(),
-                ChunkedToXContentHelper.field(ID_FIELD, id),
-                choicesIterator,
-                ChunkedToXContentHelper.field(MODEL_FIELD, model),
-                ChunkedToXContentHelper.field(OBJECT_FIELD, object),
-                usageIterator,
+                chunk((b, p) -> b.field(ID_FIELD, id)),
+                choices != null ? ChunkedToXContentHelper.array(CHOICES_FIELD, choices.iterator(), params) : Collections.emptyIterator(),
+                chunk((b, p) -> b.field(MODEL_FIELD, model).field(OBJECT_FIELD, object)),
+                usage != null
+                    ? chunk(
+                        (b, p) -> b.startObject(USAGE_FIELD)
+                            .field(COMPLETION_TOKENS_FIELD, usage.completionTokens())
+                            .field(PROMPT_TOKENS_FIELD, usage.promptTokens())
+                            .field(TOTAL_TOKENS_FIELD, usage.totalTokens())
+                            .endObject()
+                    )
+                    : Collections.emptyIterator(),
                 ChunkedToXContentHelper.endObject()
             );
         }
 
-        public record Choice(ChatCompletionChunk.Choice.Delta delta, String finishReason, int index) {
+        public record Choice(ChatCompletionChunk.Choice.Delta delta, String finishReason, int index) implements ChunkedToXContentObject {
 
             /*
               choices: Array<{
@@ -172,12 +161,13 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<? extends Chu
                 index: number;
               }>;
              */
+            @Override
             public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
                 return Iterators.concat(
                     ChunkedToXContentHelper.startObject(),
                     delta.toXContentChunked(params),
-                    ChunkedToXContentHelper.optionalField(FINISH_REASON_FIELD, finishReason),
-                    ChunkedToXContentHelper.field(INDEX_FIELD, index),
+                    optionalField(FINISH_REASON_FIELD, finishReason),
+                    chunk((b, p) -> b.field(INDEX_FIELD, index)),
                     ChunkedToXContentHelper.endObject()
                 );
             }
@@ -206,9 +196,9 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<? extends Chu
                 public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
                     var xContent = Iterators.concat(
                         ChunkedToXContentHelper.startObject(DELTA_FIELD),
-                        ChunkedToXContentHelper.optionalField(CONTENT_FIELD, content),
-                        ChunkedToXContentHelper.optionalField(REFUSAL_FIELD, refusal),
-                        ChunkedToXContentHelper.optionalField(ROLE_FIELD, role)
+                        optionalField(CONTENT_FIELD, content),
+                        optionalField(REFUSAL_FIELD, refusal),
+                        optionalField(ROLE_FIELD, role)
                     );
 
                     if (toolCalls != null && toolCalls.isEmpty() == false) {
@@ -240,7 +230,7 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<? extends Chu
                     return toolCalls;
                 }
 
-                public static class ToolCall {
+                public static class ToolCall implements ChunkedToXContentObject {
                     private final int index;
                     private final String id;
                     public ChatCompletionChunk.Choice.Delta.ToolCall.Function function;
@@ -278,26 +268,27 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<? extends Chu
                         };
                         type?: 'function';
                      */
+                    @Override
                     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
                         var content = Iterators.concat(
                             ChunkedToXContentHelper.startObject(),
-                            ChunkedToXContentHelper.field(INDEX_FIELD, index),
-                            ChunkedToXContentHelper.optionalField(ID_FIELD, id)
+                            chunk((b, p) -> b.field(INDEX_FIELD, index)),
+                            optionalField(ID_FIELD, id)
                         );
 
                         if (function != null) {
                             content = Iterators.concat(
                                 content,
                                 ChunkedToXContentHelper.startObject(FUNCTION_FIELD),
-                                ChunkedToXContentHelper.optionalField(FUNCTION_ARGUMENTS_FIELD, function.getArguments()),
-                                ChunkedToXContentHelper.optionalField(FUNCTION_NAME_FIELD, function.getName()),
+                                optionalField(FUNCTION_ARGUMENTS_FIELD, function.getArguments()),
+                                optionalField(FUNCTION_NAME_FIELD, function.getName()),
                                 ChunkedToXContentHelper.endObject()
                             );
                         }
 
                         content = Iterators.concat(
                             content,
-                            ChunkedToXContentHelper.field(TYPE_FIELD, type),
+                            ChunkedToXContentHelper.chunk((b, p) -> b.field(TYPE_FIELD, type)),
                             ChunkedToXContentHelper.endObject()
                         );
                         return content;
@@ -325,5 +316,14 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<? extends Chu
         }
 
         public record Usage(int completionTokens, int promptTokens, int totalTokens) {}
+
+        private static Iterator<ToXContent> optionalField(String name, String value) {
+            if (value == null) {
+                return Collections.emptyIterator();
+            } else {
+                return ChunkedToXContentHelper.chunk((b, p) -> b.field(name, value));
+            }
+        }
+
     }
 }

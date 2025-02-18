@@ -80,7 +80,7 @@ public class GetIndexActionTests extends ESSingleNodeTestCase {
     }
 
     public void testIncludeDefaults() {
-        GetIndexRequest defaultsRequest = new GetIndexRequest().indices(indexName).includeDefaults(true);
+        GetIndexRequest defaultsRequest = new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(indexName).includeDefaults(true);
         ActionTestUtils.execute(
             getIndexAction,
             null,
@@ -95,7 +95,7 @@ public class GetIndexActionTests extends ESSingleNodeTestCase {
     }
 
     public void testDoNotIncludeDefaults() {
-        GetIndexRequest noDefaultsRequest = new GetIndexRequest().indices(indexName);
+        GetIndexRequest noDefaultsRequest = new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(indexName);
         ActionTestUtils.execute(
             getIndexAction,
             null,

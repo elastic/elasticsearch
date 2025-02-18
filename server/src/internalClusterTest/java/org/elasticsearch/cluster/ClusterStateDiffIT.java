@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -565,7 +564,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 settingsBuilder.put(randomSettings(Settings.EMPTY)).put(IndexMetadata.SETTING_VERSION_CREATED, randomWriteVersion());
                 builder.settings(settingsBuilder);
                 builder.numberOfShards(randomIntBetween(1, 10)).numberOfReplicas(randomInt(10));
-                builder.eventIngestedRange(IndexLongFieldRange.UNKNOWN, TransportVersion.current());
+                builder.eventIngestedRange(IndexLongFieldRange.UNKNOWN);
                 int aliasCount = randomInt(10);
                 for (int i = 0; i < aliasCount; i++) {
                     builder.putAlias(randomAlias());

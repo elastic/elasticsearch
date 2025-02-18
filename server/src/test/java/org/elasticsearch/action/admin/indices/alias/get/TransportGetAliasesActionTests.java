@@ -44,7 +44,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         metadata.put(IndexMetadata.builder("c").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0));
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
 
-        GetAliasesRequest request = new GetAliasesRequest();
+        GetAliasesRequest request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT);
         Map<String, List<AliasMetadata>> aliases = Map.of("b", Collections.singletonList(new AliasMetadata.Builder("y").build()));
         Map<String, List<AliasMetadata>> result = TransportGetAliasesAction.postProcess(
             request,
@@ -60,7 +60,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         assertThat(result.get("b").size(), equalTo(1));
         assertThat(result.get("c").size(), equalTo(0));
 
-        request = new GetAliasesRequest();
+        request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT);
         request.replaceAliases("y", "z");
         aliases = Map.of("b", Collections.singletonList(new AliasMetadata.Builder("y").build()));
         result = TransportGetAliasesAction.postProcess(
@@ -77,7 +77,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         assertThat(result.get("b").size(), equalTo(1));
         assertThat(result.get("c").size(), equalTo(0));
 
-        request = new GetAliasesRequest("y", "z");
+        request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT, "y", "z");
         aliases = Map.of("b", Collections.singletonList(new AliasMetadata.Builder("y").build()));
         result = TransportGetAliasesAction.postProcess(
             request,
@@ -95,7 +95,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
     public void testDeprecationWarningEmittedForTotalWildcard() {
         ClusterState state = systemIndexTestClusterState();
 
-        GetAliasesRequest request = new GetAliasesRequest();
+        GetAliasesRequest request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT);
         Map<String, List<AliasMetadata>> aliases = Map.of(
             ".b",
             Collections.singletonList(new AliasMetadata.Builder(".y").build()),
@@ -130,7 +130,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
     public void testDeprecationWarningEmittedWhenSystemIndexIsRequested() {
         ClusterState state = systemIndexTestClusterState();
 
-        GetAliasesRequest request = new GetAliasesRequest();
+        GetAliasesRequest request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT);
         request.indices(".b");
         Map<String, List<AliasMetadata>> aliases = Map.of(".b", Collections.singletonList(new AliasMetadata.Builder(".y").build()));
         final String[] concreteIndices = { ".b" };
@@ -159,7 +159,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
     public void testDeprecationWarningEmittedWhenSystemIndexIsRequestedByAlias() {
         ClusterState state = systemIndexTestClusterState();
 
-        GetAliasesRequest request = new GetAliasesRequest(".y");
+        GetAliasesRequest request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT, ".y");
         Map<String, List<AliasMetadata>> aliases = Map.of(".b", Collections.singletonList(new AliasMetadata.Builder(".y").build()));
         final String[] concreteIndices = { "a", ".b", "c" };
         assertEquals(state.metadata().findAliases(request.aliases(), concreteIndices), aliases);
@@ -187,7 +187,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
     public void testDeprecationWarningNotEmittedWhenSystemAccessAllowed() {
         ClusterState state = systemIndexTestClusterState();
 
-        GetAliasesRequest request = new GetAliasesRequest(".y");
+        GetAliasesRequest request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT, ".y");
         Map<String, List<AliasMetadata>> aliases = Map.of(".b", Collections.singletonList(new AliasMetadata.Builder(".y").build()));
         final String[] concreteIndices = { "a", ".b", "c" };
         assertEquals(state.metadata().findAliases(request.aliases(), concreteIndices), aliases);
@@ -210,7 +210,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
     public void testDeprecationWarningNotEmittedWhenOnlyNonsystemIndexRequested() {
         ClusterState state = systemIndexTestClusterState();
 
-        GetAliasesRequest request = new GetAliasesRequest();
+        GetAliasesRequest request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT);
         request.indices("c");
         Map<String, List<AliasMetadata>> aliases = Map.of("c", Collections.singletonList(new AliasMetadata.Builder("d").build()));
         final String[] concreteIndices = { "c" };
@@ -239,7 +239,7 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         clusterState = ClusterState.builder(clusterState).metadata(builder).build();
 
         // return all all data streams with aliases
-        var getAliasesRequest = new GetAliasesRequest();
+        var getAliasesRequest = new GetAliasesRequest(TEST_REQUEST_TIMEOUT);
         var result = TransportGetAliasesAction.postProcess(resolver, getAliasesRequest, clusterState);
         assertThat(result.keySet(), containsInAnyOrder("logs-foo", "logs-bar"));
         assertThat(result.get("logs-foo"), contains(new DataStreamAlias("logs", List.of("logs-bar", "logs-foo"), null, null)));
@@ -252,20 +252,20 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         );
 
         // filter by alias name
-        getAliasesRequest = new GetAliasesRequest("secret");
+        getAliasesRequest = new GetAliasesRequest(TEST_REQUEST_TIMEOUT, "secret");
         result = TransportGetAliasesAction.postProcess(resolver, getAliasesRequest, clusterState);
         assertThat(result.keySet(), containsInAnyOrder("logs-bar"));
         assertThat(result.get("logs-bar"), contains(new DataStreamAlias("secret", List.of("logs-bar"), null, null)));
 
         // filter by data stream:
-        getAliasesRequest = new GetAliasesRequest().indices("logs-foo");
+        getAliasesRequest = new GetAliasesRequest(TEST_REQUEST_TIMEOUT).indices("logs-foo");
         result = TransportGetAliasesAction.postProcess(resolver, getAliasesRequest, clusterState);
         assertThat(result.keySet(), containsInAnyOrder("logs-foo"));
         assertThat(result.get("logs-foo"), contains(new DataStreamAlias("logs", List.of("logs-bar", "logs-foo"), null, null)));
     }
 
     public void testNetNewSystemIndicesDontErrorWhenNotRequested() {
-        GetAliasesRequest aliasesRequest = new GetAliasesRequest();
+        GetAliasesRequest aliasesRequest = new GetAliasesRequest(TEST_REQUEST_TIMEOUT);
         // `.b` will be the "net new" system index this test case
         ClusterState clusterState = systemIndexTestClusterState();
         String[] concreteIndices;

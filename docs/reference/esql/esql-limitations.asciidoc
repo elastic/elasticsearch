@@ -30,11 +30,11 @@ include::processing-commands/limit.asciidoc[tag=limitation]
 ** You can use `to_datetime` to cast to millisecond dates to use unsupported functions
 * `double` (`float`, `half_float`, `scaled_float` are represented as `double`)
 * `ip`
-* `keyword` family including `keyword`, `constant_keyword`, and `wildcard`
+* `keyword` <<keyword, family>> including `keyword`, `constant_keyword`, and `wildcard`
 * `int` (`short` and `byte` are represented as `int`)
 * `long`
 * `null`
-* `text`
+* `text` <<text, family>> including `text`, `semantic_text` and `match_only_text`
 * experimental:[] `unsigned_long`
 * `version`
 * Spatial types
@@ -112,7 +112,9 @@ it is necessary to use the search function, like <<esql-match>>, in a <<esql-whe
 directly after the <<esql-from>> source command, or close enough to it.
 Otherwise, the query will fail with a validation error.
 Another limitation is that any <<esql-where>> command containing a full-text search function
-cannot also use disjunctions (`OR`) unless all functions used in the OR clauses are full-text functions themselves.
+cannot use disjunctions (`OR`), unless:
+
+* All functions used in the OR clauses are full-text functions themselves, or scoring is not used
 
 For example, this query is valid:
 
@@ -131,15 +133,7 @@ FROM books
 | WHERE MATCH(author, "Faulkner")
 ----
 
-And this query will fail due to the disjunction:
-
-[source,esql]
-----
-FROM books
-| WHERE MATCH(author, "Faulkner") OR author LIKE "Hemingway"
-----
-
-However this query will succeed because it uses full text functions on both `OR` clauses:
+And this query that uses a disjunction will succeed:
 
 [source,esql]
 ----
@@ -147,10 +141,26 @@ FROM books
 | WHERE MATCH(author, "Faulkner") OR QSTR("author: Hemingway")
 ----
 
+However using scoring will fail because it uses a non full text function as part of the disjunction:
+
+[source,esql]
+----
+FROM books METADATA _score
+| WHERE MATCH(author, "Faulkner") OR author LIKE "Hemingway"
+----
+
+Scoring will work in the following query, as it uses full text functions on both `OR` clauses:
+
+[source,esql]
+----
+FROM books METADATA _score
+| WHERE MATCH(author, "Faulkner") OR QSTR("author: Hemingway")
+----
+
 
 Note that, because of <<esql-limitations-text-fields,the way {esql} treats `text` values>>,
 any queries on `text` fields that do not explicitly use the full-text functions,
-<<esql-match>> or <<esql-qstr>>, will behave as if the fields are actually `keyword` fields:
+<<esql-match>>, <<esql-qstr>> or <<esql-kql>>, will behave as if the fields are actually `keyword` fields:
 they are case-sensitive and need to match the full string.
 
 [discrete]

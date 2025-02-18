@@ -90,6 +90,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     //////////////////////////////////////////////////////////
     public static final String TRACES_MAPPINGS_COMPONENT_TEMPLATE_NAME = "traces@mappings";
     public static final String TRACES_SETTINGS_COMPONENT_TEMPLATE_NAME = "traces@settings";
+    public static final String TRACES_ILM_POLICY_NAME = "traces@lifecycle";
 
     //////////////////////////////////////////////////////////
     // Synthetics components (for matching synthetics-*-* indices)
@@ -98,6 +99,13 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     public static final String SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE_NAME = "synthetics@settings";
     public static final String SYNTHETICS_ILM_POLICY_NAME = "synthetics@lifecycle";
     public static final String SYNTHETICS_INDEX_TEMPLATE_NAME = "synthetics";
+
+    //////////////////////////////////////////////////////////
+    // Agentless components (for matching agentless-*-* indices)
+    //////////////////////////////////////////////////////////
+    public static final String AGENTLESS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "agentless@mappings";
+    public static final String AGENTLESS_SETTINGS_COMPONENT_TEMPLATE_NAME = "agentless@settings";
+    public static final String AGENTLESS_INDEX_TEMPLATE_NAME = "agentless";
 
     ///////////////////////////////////
     // Kibana reporting template
@@ -199,6 +207,20 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
                 ADDITIONAL_TEMPLATE_VARIABLES
             ),
             new IndexTemplateConfig(
+                AGENTLESS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+                "/agentless@mappings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                AGENTLESS_SETTINGS_COMPONENT_TEMPLATE_NAME,
+                "/agentless@settings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
                 KIBANA_REPORTING_COMPONENT_TEMPLATE_NAME,
                 "/kibana-reporting@settings.json",
                 REGISTRY_VERSION,
@@ -241,6 +263,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         new LifecyclePolicyConfig(LOGS_ILM_POLICY_NAME, "/logs@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
         new LifecyclePolicyConfig(METRICS_ILM_POLICY_NAME, "/metrics@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
         new LifecyclePolicyConfig(SYNTHETICS_ILM_POLICY_NAME, "/synthetics@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
+        new LifecyclePolicyConfig(TRACES_ILM_POLICY_NAME, "/traces@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
         new LifecyclePolicyConfig(ILM_7_DAYS_POLICY_NAME, "/7-days@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
         new LifecyclePolicyConfig(ILM_30_DAYS_POLICY_NAME, "/30-days@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
         new LifecyclePolicyConfig(ILM_90_DAYS_POLICY_NAME, "/90-days@lifecycle.json", ADDITIONAL_TEMPLATE_VARIABLES),
@@ -281,6 +304,13 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         new IndexTemplateConfig(
             SYNTHETICS_INDEX_TEMPLATE_NAME,
             "/synthetics@template.json",
+            REGISTRY_VERSION,
+            TEMPLATE_VERSION_VARIABLE,
+            ADDITIONAL_TEMPLATE_VARIABLES
+        ),
+        new IndexTemplateConfig(
+            AGENTLESS_INDEX_TEMPLATE_NAME,
+            "/agentless@template.json",
             REGISTRY_VERSION,
             TEMPLATE_VERSION_VARIABLE,
             ADDITIONAL_TEMPLATE_VARIABLES

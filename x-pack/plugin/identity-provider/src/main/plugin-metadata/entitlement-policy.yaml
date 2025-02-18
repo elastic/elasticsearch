@@ -1,2 +1,5 @@
 ALL-UNNAMED:
   - set_https_connection_properties # potentially required by apache.httpcomponents
+  - write_system_properties:
+      properties:
+        - org.apache.xml.security.ignoreLineBreaks

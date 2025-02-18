@@ -193,6 +193,7 @@ Which returns:
 ----
 {
   "took": 28,
+  "is_partial": false,
   "columns": [
     {"name": "author", "type": "text"},
     {"name": "name", "type": "text"},

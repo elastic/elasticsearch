@@ -91,7 +91,7 @@ public class DataStreamSecurityIT extends SecurityIntegTestCase {
                         : original.getIndices().get(0).getName();
                     DataStream broken = original.copy()
                         .setBackingIndices(
-                            original.getBackingIndices()
+                            original.getDataComponent()
                                 .copy()
                                 .setIndices(List.of(new Index(brokenIndexName, "broken"), original.getIndices().get(1)))
                                 .build()

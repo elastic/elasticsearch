@@ -359,16 +359,14 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         String const_value = fieldType().value();
 
         if (const_value == null) {
-            return new SyntheticSourceSupport.Native(SourceLoader.SyntheticFieldLoader.NOTHING);
+            return new SyntheticSourceSupport.Native(() -> SourceLoader.SyntheticFieldLoader.NOTHING);
         }
 
-        var loader = new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), false) {
+        return new SyntheticSourceSupport.Native(() -> new SortedNumericDocValuesSyntheticFieldLoader(fullPath(), leafName(), false) {
             @Override
             protected void writeValue(XContentBuilder b, long ignored) throws IOException {
                 b.value(const_value);
             }
-        };
-
-        return new SyntheticSourceSupport.Native(loader);
+        });
     }
 }

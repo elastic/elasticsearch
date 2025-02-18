@@ -29,7 +29,6 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFields;
@@ -156,9 +155,6 @@ public enum IndexMode {
 
         @Override
         public void validateMapping(MappingLookup lookup) {
-            if (lookup.nestedLookup() != NestedLookup.EMPTY) {
-                throw new IllegalArgumentException("cannot have nested fields when index is in " + tsdbMode());
-            }
             if (((RoutingFieldMapper) lookup.getMapper(RoutingFieldMapper.NAME)).required()) {
                 throw new IllegalArgumentException(routingRequiredBad());
             }
@@ -178,7 +174,7 @@ public enum IndexMode {
 
         @Override
         public CompressedXContent getDefaultMapping(final IndexSettings indexSettings) {
-            return DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING;
+            return DEFAULT_MAPPING_TIMESTAMP;
         }
 
         @Override
@@ -260,9 +256,9 @@ public enum IndexMode {
 
         @Override
         public CompressedXContent getDefaultMapping(final IndexSettings indexSettings) {
-            return indexSettings != null && indexSettings.getIndexSortConfig().hasPrimarySortOnField(HOST_NAME)
-                ? DEFAULT_LOGS_TIMESTAMP_MAPPING_WITH_HOSTNAME
-                : DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING;
+            return indexSettings != null && indexSettings.logsdbAddHostNameField()
+                ? DEFAULT_MAPPING_TIMESTAMP_HOSTNAME
+                : DEFAULT_MAPPING_TIMESTAMP;
         }
 
         @Override
@@ -392,7 +388,7 @@ public enum IndexMode {
         }
     };
 
-    private static final String HOST_NAME = "host.name";
+    static final String HOST_NAME = "host.name";
 
     private static void validateRoutingPathSettings(Map<Setting<?>, Object> settings) {
         settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
@@ -432,14 +428,14 @@ public enum IndexMode {
         });
     }
 
-    private static final CompressedXContent DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING;
+    private static final CompressedXContent DEFAULT_MAPPING_TIMESTAMP;
 
-    private static final CompressedXContent DEFAULT_LOGS_TIMESTAMP_MAPPING_WITH_HOSTNAME;
+    private static final CompressedXContent DEFAULT_MAPPING_TIMESTAMP_HOSTNAME;
 
     static {
         try {
-            DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING = createDefaultMapping(false);
-            DEFAULT_LOGS_TIMESTAMP_MAPPING_WITH_HOSTNAME = createDefaultMapping(true);
+            DEFAULT_MAPPING_TIMESTAMP = createDefaultMapping(false);
+            DEFAULT_MAPPING_TIMESTAMP_HOSTNAME = createDefaultMapping(true);
         } catch (IOException e) {
             throw new AssertionError(e);
         }
@@ -623,10 +619,7 @@ public enum IndexMode {
                 }
             }
             if (indexMode == LOOKUP) {
-                return Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all")
-                    .build();
+                return Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build();
             } else {
                 return Settings.EMPTY;
             }

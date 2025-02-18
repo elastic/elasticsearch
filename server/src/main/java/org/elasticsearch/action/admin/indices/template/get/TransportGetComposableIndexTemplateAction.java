@@ -12,51 +12,61 @@ package org.elasticsearch.action.admin.indices.template.get;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.action.support.ChannelActionListener;
+import org.elasticsearch.action.support.local.TransportLocalClusterStateAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.HashMap;
 import java.util.Map;
 
-public class TransportGetComposableIndexTemplateAction extends TransportMasterNodeReadAction<
+public class TransportGetComposableIndexTemplateAction extends TransportLocalClusterStateAction<
     GetComposableIndexTemplateAction.Request,
     GetComposableIndexTemplateAction.Response> {
 
     private final ClusterSettings clusterSettings;
 
+    /**
+     * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService until
+     * we no longer need to support calling this action remotely.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @SuppressWarnings("this-escape")
     @Inject
     public TransportGetComposableIndexTemplateAction(
         TransportService transportService,
         ClusterService clusterService,
-        ThreadPool threadPool,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ActionFilters actionFilters
     ) {
         super(
             GetComposableIndexTemplateAction.NAME,
-            transportService,
-            clusterService,
-            threadPool,
             actionFilters,
-            GetComposableIndexTemplateAction.Request::new,
-            indexNameExpressionResolver,
-            GetComposableIndexTemplateAction.Response::new,
+            transportService.getTaskManager(),
+            clusterService,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         clusterSettings = clusterService.getClusterSettings();
+
+        transportService.registerRequestHandler(
+            actionName,
+            executor,
+            false,
+            true,
+            GetComposableIndexTemplateAction.Request::new,
+            (request, channel, task) -> executeDirect(task, request, new ChannelActionListener<>(channel))
+        );
     }
 
     @Override
@@ -65,12 +75,13 @@ public class TransportGetComposableIndexTemplateAction extends TransportMasterNo
     }
 
     @Override
-    protected void masterOperation(
+    protected void localClusterStateOperation(
         Task task,
         GetComposableIndexTemplateAction.Request request,
         ClusterState state,
         ActionListener<GetComposableIndexTemplateAction.Response> listener
     ) {
+        final var cancellableTask = (CancellableTask) task;
         Map<String, ComposableIndexTemplate> allTemplates = state.metadata().templatesV2();
         Map<String, ComposableIndexTemplate> results;
         // If we did not ask for a specific name, then we return all templates
@@ -91,6 +102,7 @@ public class TransportGetComposableIndexTemplateAction extends TransportMasterNo
                 throw new ResourceNotFoundException("index template matching [" + request.name() + "] not found");
             }
         }
+        cancellableTask.ensureNotCancelled();
         if (request.includeDefaults()) {
             listener.onResponse(
                 new GetComposableIndexTemplateAction.Response(

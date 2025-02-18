@@ -91,6 +91,12 @@ class ESRestTestFeatureService implements TestFeatureService {
         }
 
         if (hasFeatureMetadata()) {
+            if (isRestApiCompatibilityTest()) {
+                // assume this is a feature that has been assumed, then removed in this version
+                // the feature is therefore logically present, but not specified by the cluster
+                return true;
+            }
+
             throw new IllegalArgumentException(
                 Strings.format(
                     "Unknown feature %s: check the respective FeatureSpecification is provided both in module-info.java "
@@ -100,6 +106,10 @@ class ESRestTestFeatureService implements TestFeatureService {
             );
         }
         return false;
+    }
+
+    private static boolean isRestApiCompatibilityTest() {
+        return Boolean.parseBoolean(System.getProperty("tests.restCompat", "false"));
     }
 
     public static boolean hasFeatureMetadata() {

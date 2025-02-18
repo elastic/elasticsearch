@@ -1,8 +1,4 @@
 setup:
-  - requires:
-      cluster_features: [ "query_rules.test" ]
-      reason: Introduced in 8.16.0
-
   - do:
       query_rules.put_ruleset:
         ruleset_id: test-ruleset

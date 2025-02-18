@@ -122,7 +122,7 @@ public class MvMedianAbsoluteDeviationTests extends AbstractMultivalueFunctionTe
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecks(false, cases, (v, p) -> "numeric");
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(false, cases);
     }
 
     /**

@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvSum}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code MvEvaluatorImplementer} instead.
  */
 public final class MvSumIntEvaluator extends AbstractMultivalueFunction.AbstractNullableEvaluator {
   private final Source source;

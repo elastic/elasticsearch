@@ -44,7 +44,6 @@ public class TransportPutAnalyticsCollectionAction extends TransportMasterNodeAc
             threadPool,
             actionFilters,
             PutAnalyticsCollectionAction.Request::new,
-            indexNameExpressionResolver,
             PutAnalyticsCollectionAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

@@ -32,7 +32,8 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.migrate.action.ReindexDataStreamAction.REINDEX_DATA_STREAM_FEATURE_FLAG;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 
 public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
 
@@ -41,9 +42,40 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
         return List.of(MigratePlugin.class, ReindexPlugin.class, MockTransportService.TestPlugin.class, DataStreamsPlugin.class);
     }
 
-    public void testDestIndexCreated() throws Exception {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
+    public void testOldSettingsManuallyFiltered() throws Exception {
+        var numShards = randomIntBetween(1, 10);
+        var staticSettings = Settings.builder()
+            // setting to filter
+            .put("index.soft_deletes.enabled", true)
+            // good setting to keep
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+            .build();
 
+        // start with a static setting
+        var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
+        indicesAdmin().create(new CreateIndexRequest(sourceIndex, staticSettings)).get();
+
+        // create from source
+        var destIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
+        assertAcked(
+            client().execute(CreateIndexFromSourceAction.INSTANCE, new CreateIndexFromSourceAction.Request(sourceIndex, destIndex))
+        );
+
+        // assert both static and dynamic settings set on dest index
+        var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(sourceIndex, destIndex)).actionGet();
+        var destSettings = settingsResponse.getIndexToSettings().get(destIndex);
+        var sourceSettings = settingsResponse.getIndexToSettings().get(sourceIndex);
+
+        // sanity check that source settings were added
+        assertEquals(true, sourceSettings.getAsBoolean("index.soft_deletes.enabled", false));
+        assertEquals(numShards, Integer.parseInt(destSettings.get(IndexMetadata.SETTING_NUMBER_OF_SHARDS)));
+
+        // check that old setting was not added to index
+        assertNull(destSettings.get("index.soft_deletes.enabled"));
+        assertEquals(numShards, Integer.parseInt(destSettings.get(IndexMetadata.SETTING_NUMBER_OF_SHARDS)));
+    }
+
+    public void testDestIndexCreated() throws Exception {
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         indicesAdmin().create(new CreateIndexRequest(sourceIndex)).get();
 
@@ -54,15 +86,13 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
         );
 
         try {
-            indicesAdmin().getIndex(new GetIndexRequest().indices(destIndex)).actionGet();
+            indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(destIndex)).actionGet();
         } catch (IndexNotFoundException e) {
             fail();
         }
     }
 
     public void testSettingsCopiedFromSource() throws Exception {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
-
         // start with a static setting
         var numShards = randomIntBetween(1, 10);
         var staticSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
@@ -87,8 +117,6 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
     }
 
     public void testMappingsCopiedFromSource() {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
-
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         String mapping = """
             {
@@ -110,7 +138,8 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
             client().execute(CreateIndexFromSourceAction.INSTANCE, new CreateIndexFromSourceAction.Request(sourceIndex, destIndex))
         );
 
-        var mappingsResponse = indicesAdmin().getMappings(new GetMappingsRequest().indices(sourceIndex, destIndex)).actionGet();
+        var mappingsResponse = indicesAdmin().getMappings(new GetMappingsRequest(TEST_REQUEST_TIMEOUT).indices(sourceIndex, destIndex))
+            .actionGet();
         Map<String, MappingMetadata> mappings = mappingsResponse.mappings();
         var destMappings = mappings.get(destIndex).sourceAsMap();
         var sourceMappings = mappings.get(sourceIndex).sourceAsMap();
@@ -121,8 +150,6 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
     }
 
     public void testSettingsOverridden() throws Exception {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
-
         var numShardsSource = randomIntBetween(1, 10);
         var numReplicasSource = randomIntBetween(0, 10);
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
@@ -142,7 +169,7 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
         assertAcked(
             client().execute(
                 CreateIndexFromSourceAction.INSTANCE,
-                new CreateIndexFromSourceAction.Request(sourceIndex, destIndex, settingsOverride, Map.of())
+                new CreateIndexFromSourceAction.Request(sourceIndex, destIndex, settingsOverride, Map.of(), randomBoolean())
             )
         );
 
@@ -155,10 +182,11 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
     }
 
     public void testSettingsNullOverride() throws Exception {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
-
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
-        var sourceSettings = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build();
+        var sourceSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)
+            .put(IndexMetadata.SETTING_BLOCKS_READ, true)
+            .build();
         indicesAdmin().create(new CreateIndexRequest(sourceIndex, sourceSettings)).get();
 
         Settings settingsOverride = Settings.builder().putNull(IndexMetadata.SETTING_BLOCKS_WRITE).build();
@@ -168,18 +196,54 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
         assertAcked(
             client().execute(
                 CreateIndexFromSourceAction.INSTANCE,
-                new CreateIndexFromSourceAction.Request(sourceIndex, destIndex, settingsOverride, Map.of())
+                new CreateIndexFromSourceAction.Request(sourceIndex, destIndex, settingsOverride, Map.of(), false)
             )
         );
 
         // assert settings overridden
         var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(destIndex)).actionGet();
-        assertNull(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_BLOCKS_WRITE));
+        var destSettings = settingsResponse.getIndexToSettings().get(destIndex);
+
+        // sanity check
+        assertTrue(destSettings.getAsBoolean(IndexMetadata.SETTING_BLOCKS_READ, false));
+
+        // override null removed
+        assertThat(destSettings.keySet(), not(hasItem(IndexMetadata.SETTING_BLOCKS_WRITE)));
+    }
+
+    public void testRemoveIndexBlocksByDefault() throws Exception {
+        var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
+
+        var sourceSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_BLOCKS_WRITE, randomBoolean())
+            .put(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE, randomBoolean())
+            .build();
+        indicesAdmin().create(new CreateIndexRequest(sourceIndex, sourceSettings)).get();
+
+        var settingsOverride = Settings.builder()
+            .put(IndexMetadata.SETTING_BLOCKS_WRITE, randomBoolean())
+            .put(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE, randomBoolean())
+            .put(IndexMetadata.SETTING_BLOCKS_READ, randomBoolean())
+            .build();
+
+        // create from source
+        var destIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
+
+        CreateIndexFromSourceAction.Request request = new CreateIndexFromSourceAction.Request(sourceIndex, destIndex);
+        request.settingsOverride(settingsOverride);
+        assertAcked(client().execute(CreateIndexFromSourceAction.INSTANCE, request));
+
+        // assert settings overridden
+        var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(destIndex)).actionGet();
+        var destSettings = settingsResponse.getIndexToSettings().get(destIndex);
+
+        // remove block settings override both source settings and override settings
+        assertThat(destSettings.keySet(), not(hasItem(IndexMetadata.SETTING_BLOCKS_WRITE)));
+        assertThat(destSettings.keySet(), not(hasItem(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE)));
+        assertThat(destSettings.keySet(), not(hasItem(IndexMetadata.SETTING_BLOCKS_READ)));
     }
 
     public void testMappingsOverridden() {
-        assumeTrue("requires the migration reindex feature flag", REINDEX_DATA_STREAM_FEATURE_FLAG.isEnabled());
-
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         String sourceMapping = """
             {
@@ -220,11 +284,11 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
         assertAcked(
             client().execute(
                 CreateIndexFromSourceAction.INSTANCE,
-                new CreateIndexFromSourceAction.Request(sourceIndex, destIndex, Settings.EMPTY, mappingOverride)
+                new CreateIndexFromSourceAction.Request(sourceIndex, destIndex, Settings.EMPTY, mappingOverride, randomBoolean())
             )
         );
 
-        var mappingsResponse = indicesAdmin().getMappings(new GetMappingsRequest().indices(destIndex)).actionGet();
+        var mappingsResponse = indicesAdmin().getMappings(new GetMappingsRequest(TEST_REQUEST_TIMEOUT).indices(destIndex)).actionGet();
         Map<String, MappingMetadata> mappings = mappingsResponse.mappings();
         var destMappings = mappings.get(destIndex).sourceAsMap();
 

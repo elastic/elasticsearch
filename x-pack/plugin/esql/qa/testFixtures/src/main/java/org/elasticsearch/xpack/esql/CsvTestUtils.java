@@ -24,6 +24,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.VersionUtils;
@@ -478,7 +479,15 @@ public final class CsvTestUtils {
         GEO_POINT(x -> x == null ? null : GEO.wktToWkb(x), BytesRef.class),
         CARTESIAN_POINT(x -> x == null ? null : CARTESIAN.wktToWkb(x), BytesRef.class),
         GEO_SHAPE(x -> x == null ? null : GEO.wktToWkb(x), BytesRef.class),
-        CARTESIAN_SHAPE(x -> x == null ? null : CARTESIAN.wktToWkb(x), BytesRef.class);
+        CARTESIAN_SHAPE(x -> x == null ? null : CARTESIAN.wktToWkb(x), BytesRef.class),
+        UNSUPPORTED(Type::convertUnsupported, Void.class);
+
+        private static Void convertUnsupported(String s) {
+            if (s != null) {
+                throw new IllegalArgumentException(Strings.format("Unsupported type should always be null, was '%s'", s));
+            }
+            return null;
+        }
 
         private static final Map<String, Type> LOOKUP = new HashMap<>();
 
@@ -486,6 +495,9 @@ public final class CsvTestUtils {
             for (Type value : Type.values()) {
                 LOOKUP.put(value.name(), value);
             }
+            // Types with a different field caps family type
+            LOOKUP.put("SEMANTIC_TEXT", TEXT);
+
             // widen smaller types
             LOOKUP.put("SHORT", INTEGER);
             LOOKUP.put("BYTE", INTEGER);
@@ -536,6 +548,9 @@ public final class CsvTestUtils {
         }
 
         public static Type asType(ElementType elementType, Type actualType) {
+            if (actualType == Type.UNSUPPORTED) {
+                return UNSUPPORTED;
+            }
             return switch (elementType) {
                 case INT -> INTEGER;
                 case LONG -> LONG;

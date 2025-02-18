@@ -22,7 +22,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.Diagnosis.Resource.Type;
-import org.elasticsearch.health.HealthFeatures;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
@@ -37,7 +36,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.node.DiscoveryNode.DISCOVERY_NODE_COMPARATOR;
@@ -382,10 +380,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     private ClusterState createClusterStateWith(RepositoriesMetadata metadata) {
-        var features = Set.of(HealthFeatures.SUPPORTS_EXTENDED_REPOSITORY_INDICATOR.id());
-        var builder = ClusterState.builder(new ClusterName("test-cluster"))
-            .nodes(DiscoveryNodes.builder().add(node1).add(node2).build())
-            .nodeFeatures(Map.of(node1.getId(), features, node2.getId(), features));
+        var builder = ClusterState.builder(new ClusterName("test-cluster")).nodes(DiscoveryNodes.builder().add(node1).add(node2).build());
         if (metadata != null) {
             builder.metadata(Metadata.builder().putCustom(RepositoriesMetadata.TYPE, metadata));
         }
@@ -399,7 +394,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
     private RepositoryIntegrityHealthIndicatorService createRepositoryIntegrityHealthIndicatorService(ClusterState clusterState) {
         var clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
-        return new RepositoryIntegrityHealthIndicatorService(clusterService, featureService);
+        return new RepositoryIntegrityHealthIndicatorService(clusterService);
     }
 
     private SimpleHealthIndicatorDetails createDetails(int total, int corruptedCount, List<String> corrupted, int unknown, int invalid) {

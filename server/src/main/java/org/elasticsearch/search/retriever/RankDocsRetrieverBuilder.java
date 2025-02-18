@@ -90,11 +90,13 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
 
     @Override
     public QueryBuilder explainQuery() {
-        return new RankDocsQueryBuilder(
+        var explainQuery = new RankDocsQueryBuilder(
             rankDocs.get(),
             sources.stream().map(RetrieverBuilder::explainQuery).toArray(QueryBuilder[]::new),
             true
         );
+        explainQuery.queryName(retrieverName());
+        return explainQuery;
     }
 
     @Override
@@ -123,8 +125,12 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
         } else {
             rankQuery = new RankDocsQueryBuilder(rankDocResults, null, false);
         }
+        rankQuery.queryName(retrieverName());
         // ignore prefilters of this level, they were already propagated to children
         searchSourceBuilder.query(rankQuery);
+        if (searchSourceBuilder.size() < 0) {
+            searchSourceBuilder.size(rankWindowSize);
+        }
         if (sourceHasMinScore()) {
             searchSourceBuilder.minScore(this.minScore() == null ? Float.MIN_VALUE : this.minScore());
         }

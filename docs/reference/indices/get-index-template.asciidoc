@@ -65,7 +65,7 @@ expressions. If omitted, all templates are returned.
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 
-include::{docdir}/rest-api/common-parms.asciidoc[tag=local]
+include::{docdir}/rest-api/common-parms.asciidoc[tag=local-deprecated-9.0.0]
 
 include::{docdir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 

@@ -55,7 +55,7 @@ public class BulkProcessorIT extends ESIntegTestCase {
                 .setConcurrentRequests(randomIntBetween(0, 1))
                 .setBulkActions(numDocs)
                 .setFlushInterval(TimeValue.timeValueHours(24))
-                .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
+                .setBulkSize(ByteSizeValue.of(1, ByteSizeUnit.GB))
                 .build()
         ) {
 
@@ -83,7 +83,7 @@ public class BulkProcessorIT extends ESIntegTestCase {
                 .setConcurrentRequests(randomIntBetween(0, 10))
                 .setBulkActions(numDocs + randomIntBetween(1, 100))
                 .setFlushInterval(TimeValue.timeValueHours(24))
-                .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
+                .setBulkSize(ByteSizeValue.of(1, ByteSizeUnit.GB))
                 .build()
         ) {
 
@@ -115,7 +115,7 @@ public class BulkProcessorIT extends ESIntegTestCase {
                 .setConcurrentRequests(randomIntBetween(0, 10))
                 .setBulkActions(numDocs + randomIntBetween(1, 100))
                 .setFlushInterval(TimeValue.timeValueHours(24))
-                .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
+                .setBulkSize(ByteSizeValue.of(1, ByteSizeUnit.GB))
                 .setFlushCondition(flushEnabled::get)
                 .build()
         ) {
@@ -159,7 +159,7 @@ public class BulkProcessorIT extends ESIntegTestCase {
                 .setBulkActions(bulkActions)
                 // set interval and size to high values
                 .setFlushInterval(TimeValue.timeValueHours(24))
-                .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
+                .setBulkSize(ByteSizeValue.of(1, ByteSizeUnit.GB))
                 .build()
         ) {
 
@@ -202,7 +202,7 @@ public class BulkProcessorIT extends ESIntegTestCase {
             .setConcurrentRequests(randomIntBetween(0, 1))
             .setBulkActions(numDocs)
             .setFlushInterval(TimeValue.timeValueHours(24))
-            .setBulkSize(new ByteSizeValue(randomIntBetween(1, 10), RandomPicks.randomFrom(random(), ByteSizeUnit.values())))
+            .setBulkSize(ByteSizeValue.of(randomIntBetween(1, 10), RandomPicks.randomFrom(random(), ByteSizeUnit.values())))
             .build();
 
         MultiGetRequestBuilder multiGetRequestBuilder = indexDocs(client(), processor, numDocs);
@@ -250,7 +250,7 @@ public class BulkProcessorIT extends ESIntegTestCase {
                 .setBulkActions(bulkActions)
                 // set interval and size to high values
                 .setFlushInterval(TimeValue.timeValueHours(24))
-                .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
+                .setBulkSize(ByteSizeValue.of(1, ByteSizeUnit.GB))
                 .build()
         ) {
 

@@ -47,7 +47,8 @@ public interface RemoteClusterClient {
 
     /**
      * Obtain a connection to the remote cluster for use with the {@link #execute} override that allows to specify the connection. Useful
-     * for cases where you need to inspect {@link Transport.Connection#getVersion} before deciding the exact remote action to invoke.
+     * for cases where you need to inspect {@link Transport.Connection#getTransportVersion} before deciding the exact remote action to
+     * invoke.
      */
     <Request extends ActionRequest> void getConnection(@Nullable Request request, ActionListener<Transport.Connection> listener);
 }

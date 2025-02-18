@@ -11,10 +11,9 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -28,12 +27,12 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
-import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -90,7 +89,7 @@ class MapperUtils {
                 enrich.mode(),
                 enrich.policy().getType(),
                 enrich.matchField(),
-                BytesRefs.toString(enrich.policyName().fold()),
+                BytesRefs.toString(enrich.policyName().fold(FoldContext.small() /* TODO remove me */)),
                 enrich.policy().getMatchField(),
                 enrich.concreteIndices(),
                 enrich.enrichFields()
@@ -98,13 +97,18 @@ class MapperUtils {
         }
 
         if (p instanceof MvExpand mvExpand) {
-            MvExpandExec result = new MvExpandExec(mvExpand.source(), child, mvExpand.target(), mvExpand.expanded());
-            if (mvExpand.limit() != null) {
-                // MvExpand could have an inner limit
-                // see PushDownAndCombineLimits rule
-                return new LimitExec(result.source(), result, new Literal(Source.EMPTY, mvExpand.limit(), DataType.INTEGER));
-            }
-            return result;
+            return new MvExpandExec(mvExpand.source(), child, mvExpand.target(), mvExpand.expanded());
+        }
+
+        if (p instanceof ChangePoint changePoint) {
+            return new ChangePointExec(
+                changePoint.source(),
+                child,
+                changePoint.value(),
+                changePoint.key(),
+                changePoint.targetType(),
+                changePoint.targetPvalue()
+            );
         }
 
         return unsupported(p);

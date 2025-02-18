@@ -8,25 +8,25 @@
  */
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.transport.Transport;
 
-import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 
 /**
  * Base class for all individual search phases like collecting distributed frequencies, fetching documents, querying shards.
  */
-abstract class SearchPhase implements CheckedRunnable<IOException> {
+abstract class SearchPhase {
     private final String name;
 
     protected SearchPhase(String name) {
         this.name = Objects.requireNonNull(name, "name must not be null");
     }
+
+    protected abstract void run();
 
     /**
      * Returns the phases name.
@@ -45,14 +45,14 @@ abstract class SearchPhase implements CheckedRunnable<IOException> {
             + "]. Consider using `allow_partial_search_results` setting to bypass this error.";
     }
 
-    protected void doCheckNoMissingShards(String phaseName, SearchRequest request, GroupShardsIterator<SearchShardIterator> shardsIts) {
+    protected void doCheckNoMissingShards(String phaseName, SearchRequest request, List<SearchShardIterator> shardsIts) {
         doCheckNoMissingShards(phaseName, request, shardsIts, this::missingShardsErrorMessage);
     }
 
     protected static void doCheckNoMissingShards(
         String phaseName,
         SearchRequest request,
-        GroupShardsIterator<SearchShardIterator> shardsIts,
+        List<SearchShardIterator> shardsIts,
         Function<StringBuilder, String> makeErrorMessage
     ) {
         assert request.allowPartialSearchResults() != null : "SearchRequest missing setting for allowPartialSearchResults";

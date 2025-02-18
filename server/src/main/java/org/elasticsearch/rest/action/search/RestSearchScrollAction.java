@@ -16,7 +16,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.xcontent.XContentParseException;
 
 import java.io.IOException;
@@ -54,7 +53,7 @@ public class RestSearchScrollAction extends BaseRestHandler {
         searchScrollRequest.scrollId(scrollId);
         String scroll = request.param("scroll");
         if (scroll != null) {
-            searchScrollRequest.scroll(new Scroll(parseTimeValue(scroll, null, "scroll")));
+            searchScrollRequest.scroll(parseTimeValue(scroll, null, "scroll"));
         }
 
         request.withContentOrSourceParamParserOrNull(xContentParser -> {

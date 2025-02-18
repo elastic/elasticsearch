@@ -57,6 +57,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -157,184 +158,72 @@ public class AmazonBedrockServiceTests extends ESTestCase {
             String content = XContentHelper.stripWhitespace(
                 """
                     {
-                         "provider": "amazonbedrock",
-                         "task_types": [
-                               {
-                                   "task_type": "text_embedding",
-                                   "configuration": {}
-                               },
-                               {
-                                   "task_type": "completion",
-                                   "configuration": {
-                                       "top_p": {
-                                           "default_value": null,
-                                           "depends_on": [],
-                                           "display": "numeric",
-                                           "label": "Top P",
-                                           "order": 3,
-                                           "required": false,
-                                           "sensitive": false,
-                                           "tooltip": "Alternative to temperature. A number in the range of 0.0 to 1.0, to eliminate low-probability tokens.",
-                                           "type": "int",
-                                           "ui_restrictions": [],
-                                           "validations": [],
-                                           "value": null
-                                       },
-                                       "max_new_tokens": {
-                                           "default_value": null,
-                                           "depends_on": [],
-                                           "display": "numeric",
-                                           "label": "Max New Tokens",
-                                           "order": 1,
-                                           "required": false,
-                                           "sensitive": false,
-                                           "tooltip": "Sets the maximum number for the output tokens to be generated.",
-                                           "type": "int",
-                                           "ui_restrictions": [],
-                                           "validations": [],
-                                           "value": null
-                                       },
-                                       "top_k": {
-                                           "default_value": null,
-                                           "depends_on": [],
-                                           "display": "numeric",
-                                           "label": "Top K",
-                                           "order": 4,
-                                           "required": false,
-                                           "sensitive": false,
-                                           "tooltip": "Only available for anthropic, cohere, and mistral providers. Alternative to temperature.",
-                                           "type": "int",
-                                           "ui_restrictions": [],
-                                           "validations": [],
-                                           "value": null
-                                       },
-                                       "temperature": {
-                                           "default_value": null,
-                                           "depends_on": [],
-                                           "display": "numeric",
-                                           "label": "Temperature",
-                                           "order": 2,
-                                           "required": false,
-                                           "sensitive": false,
-                                           "tooltip": "A number between 0.0 and 1.0 that controls the apparent creativity of the results.",
-                                           "type": "int",
-                                           "ui_restrictions": [],
-                                           "validations": [],
-                                           "value": null
-                                       }
-                                   }
-                               }
-                         ],
-                         "configuration": {
-                             "secret_key": {
-                                 "default_value": null,
-                                 "depends_on": [],
-                                 "display": "textbox",
-                                 "label": "Secret Key",
-                                 "order": 2,
-                                 "required": true,
-                                 "sensitive": true,
-                                 "tooltip": "A valid AWS secret key that is paired with the access_key.",
-                                 "type": "str",
-                                 "ui_restrictions": [],
-                                 "validations": [],
-                                 "value": null
-                             },
-                             "provider": {
-                                 "default_value": null,
-                                 "depends_on": [],
-                                 "display": "dropdown",
-                                 "label": "Provider",
-                                 "options": [
-                                     {
-                                         "label": "amazontitan",
-                                         "value": "amazontitan"
-                                     },
-                                     {
-                                         "label": "anthropic",
-                                         "value": "anthropic"
-                                     },
-                                     {
-                                         "label": "ai21labs",
-                                         "value": "ai21labs"
-                                     },
-                                     {
-                                         "label": "cohere",
-                                         "value": "cohere"
-                                     },
-                                     {
-                                         "label": "meta",
-                                         "value": "meta"
-                                     },
-                                     {
-                                         "label": "mistral",
-                                         "value": "mistral"
-                                     }
-                                 ],
-                                 "order": 3,
-                                 "required": true,
-                                 "sensitive": false,
-                                 "tooltip": "The model provider for your deployment.",
-                                 "type": "str",
-                                 "ui_restrictions": [],
-                                 "validations": [],
-                                 "value": null
-                             },
-                             "access_key": {
-                                 "default_value": null,
-                                 "depends_on": [],
-                                 "display": "textbox",
-                                 "label": "Access Key",
-                                 "order": 1,
-                                 "required": true,
-                                 "sensitive": true,
-                                 "tooltip": "A valid AWS access key that has permissions to use Amazon Bedrock.",
-                                 "type": "str",
-                                 "ui_restrictions": [],
-                                 "validations": [],
-                                 "value": null
-                             },
-                             "model": {
-                                 "default_value": null,
-                                 "depends_on": [],
-                                 "display": "textbox",
-                                 "label": "Model",
-                                 "order": 4,
-                                 "required": true,
-                                 "sensitive": false,
-                                 "tooltip": "The base model ID or an ARN to a custom model based on a foundational model.",
-                                 "type": "str",
-                                 "ui_restrictions": [],
-                                 "validations": [],
-                                 "value": null
-                             },
-                             "rate_limit.requests_per_minute": {
-                                 "default_value": null,
-                                 "depends_on": [],
-                                 "display": "numeric",
-                                 "label": "Rate Limit",
-                                 "order": 6,
+                         "service": "amazonbedrock",
+                         "name": "Amazon Bedrock",
+                         "task_types": ["text_embedding", "completion"],
+                         "configurations": {
+                              "dimensions": {
+                                 "description": "The number of dimensions the resulting embeddings should have. For more information refer to https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-titan-embed-text.html.",
+                                 "label": "Dimensions",
                                  "required": false,
                                  "sensitive": false,
-                                 "tooltip": "By default, the amazonbedrock service sets the number of requests allowed per minute to 240.",
+                                 "updatable": false,
                                  "type": "int",
-                                 "ui_restrictions": [],
-                                 "validations": [],
-                                 "value": null
+                                 "supported_task_types": ["text_embedding"]
                              },
-                             "region": {
-                                 "default_value": null,
-                                 "depends_on": [],
-                                 "display": "textbox",
-                                 "label": "Region",
-                                 "order": 5,
+                             "secret_key": {
+                                 "description": "A valid AWS secret key that is paired with the access_key.",
+                                 "label": "Secret Key",
+                                 "required": true,
+                                 "sensitive": true,
+                                 "updatable": true,
+                                 "type": "str",
+                                 "supported_task_types": ["text_embedding", "completion"]
+                             },
+                             "provider": {
+                                 "description": "The model provider for your deployment.",
+                                 "label": "Provider",
                                  "required": true,
                                  "sensitive": false,
-                                 "tooltip": "The region that your model or ARN is deployed in.",
+                                 "updatable": false,
                                  "type": "str",
-                                 "ui_restrictions": [],
-                                 "validations": [],
-                                 "value": null
+                                 "supported_task_types": ["text_embedding", "completion"]
+                             },
+                             "access_key": {
+                                 "description": "A valid AWS access key that has permissions to use Amazon Bedrock.",
+                                 "label": "Access Key",
+                                 "required": true,
+                                 "sensitive": true,
+                                 "updatable": true,
+                                 "type": "str",
+                                 "supported_task_types": ["text_embedding", "completion"]
+                             },
+                             "model": {
+                                 "description": "The base model ID or an ARN to a custom model based on a foundational model.",
+                                 "label": "Model",
+                                 "required": true,
+                                 "sensitive": false,
+                                 "updatable": false,
+                                 "type": "str",
+                                 "supported_task_types": ["text_embedding", "completion"]
+                             },
+                             "rate_limit.requests_per_minute": {
+                                 "description": "By default, the amazonbedrock service sets the number of requests allowed per minute to 240.",
+                                 "label": "Rate Limit",
+                                 "required": false,
+                                 "sensitive": false,
+                                 "updatable": false,
+                                 "type": "int",
+                                 "supported_task_types": ["text_embedding", "completion"]
+                             },
+                             "region": {
+                                 "description": "The region that your model or ARN is deployed in.",
+                                 "label": "Region",
+                                 "required": true,
+                                 "sensitive": false,
+                                 "updatable": false,
+                                 "type": "str",
+                                 "supported_task_types": ["text_embedding", "completion"]
                              }
                          }
                      }
@@ -1493,8 +1382,8 @@ public class AmazonBedrockServiceTests extends ESTestCase {
 
     public void testSupportsStreaming() throws IOException {
         try (var service = new AmazonBedrockService(mock(), mock(), createWithEmptySettings(mock()))) {
-            assertTrue(service.canStream(TaskType.COMPLETION));
-            assertTrue(service.canStream(TaskType.ANY));
+            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION)));
+            assertFalse(service.canStream(TaskType.ANY));
         }
     }
 

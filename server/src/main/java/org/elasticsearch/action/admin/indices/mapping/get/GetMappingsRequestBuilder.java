@@ -11,13 +11,14 @@ package org.elasticsearch.action.admin.indices.mapping.get;
 
 import org.elasticsearch.action.support.master.info.ClusterInfoRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
+import org.elasticsearch.core.TimeValue;
 
 public class GetMappingsRequestBuilder extends ClusterInfoRequestBuilder<
     GetMappingsRequest,
     GetMappingsResponse,
     GetMappingsRequestBuilder> {
 
-    public GetMappingsRequestBuilder(ElasticsearchClient client, String... indices) {
-        super(client, GetMappingsAction.INSTANCE, new GetMappingsRequest().indices(indices));
+    public GetMappingsRequestBuilder(ElasticsearchClient client, TimeValue masterTimeout, String... indices) {
+        super(client, GetMappingsAction.INSTANCE, new GetMappingsRequest(masterTimeout).indices(indices));
     }
 }

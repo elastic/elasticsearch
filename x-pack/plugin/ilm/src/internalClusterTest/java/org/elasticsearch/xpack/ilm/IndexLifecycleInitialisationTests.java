@@ -388,7 +388,7 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
     private IndexLifecycleExplainResponse executeExplainRequestAndGetTestIndexResponse(String indexName) throws ExecutionException,
         InterruptedException {
-        ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest();
+        ExplainLifecycleRequest explainRequest = new ExplainLifecycleRequest(TEST_REQUEST_TIMEOUT);
         ExplainLifecycleResponse explainResponse = client().execute(ExplainLifecycleAction.INSTANCE, explainRequest).get();
         assertThat(explainResponse.getIndexResponses().size(), equalTo(1));
         return explainResponse.getIndexResponses().get(indexName);

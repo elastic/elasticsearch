@@ -11,10 +11,13 @@ Returns true if the provided query matches the row.
 
 The match operator is equivalent to the <<esql-match,match function>>.
 
+For using the function syntax, or adding <<match-field-params,match query parameters>>, you can use the
+<<esql-match,match function>>.
+
 [.text-center]
 image::esql/functions/signature/match_operator.svg[Embedded,opts=inline]
 
-include::types/match.asciidoc[]
+include::types/match_operator.asciidoc[]
 
 [source.merge.styled,esql]
 ----

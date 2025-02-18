@@ -29,14 +29,21 @@ public class PiTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Pi Test", List.of(DataType.INTEGER), () -> {
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(1, DataType.INTEGER, "foo")),
-                "LiteralsEvaluator[lit=3.141592653589793]",
-                DataType.DOUBLE,
-                equalTo(Math.PI)
-            );
-        })));
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(
+            true,
+            List.of(
+                new TestCaseSupplier(
+                    "Pi Test",
+                    List.of(),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(),
+                        "LiteralsEvaluator[lit=3.141592653589793]",
+                        DataType.DOUBLE,
+                        equalTo(Math.PI)
+                    )
+                )
+            )
+        );
     }
 
     @Override

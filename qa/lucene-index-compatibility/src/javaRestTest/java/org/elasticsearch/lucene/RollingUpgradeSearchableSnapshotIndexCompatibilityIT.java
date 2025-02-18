@@ -13,7 +13,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.test.cluster.util.Version;
 
@@ -51,11 +50,7 @@ public class RollingUpgradeSearchableSnapshotIndexCompatibilityIT extends Rollin
             createIndex(
                 client(),
                 index,
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-                    .build()
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
             );
 
             logger.debug("--> indexing [{}] docs in [{}]", numDocs, index);
@@ -73,7 +68,6 @@ public class RollingUpgradeSearchableSnapshotIndexCompatibilityIT extends Rollin
         try {
             logger.debug("--> mounting index [{}] as [{}]", index, mountedIndex);
             mountIndex(repository, snapshot, index, randomBoolean(), mountedIndex);
-
             ensureGreen(mountedIndex);
 
             updateRandomIndexSettings(mountedIndex);
@@ -81,6 +75,14 @@ public class RollingUpgradeSearchableSnapshotIndexCompatibilityIT extends Rollin
 
             assertThat(indexVersion(mountedIndex), equalTo(VERSION_MINUS_2));
             assertDocCount(client(), mountedIndex, numDocs);
+
+            logger.debug("--> closing mounted index [{}]", mountedIndex);
+            closeIndex(mountedIndex);
+            ensureGreen(mountedIndex);
+
+            logger.debug("--> re-opening index [{}]", mountedIndex);
+            openIndex(mountedIndex);
+            ensureGreen(mountedIndex);
 
             logger.debug("--> deleting mounted index [{}]", mountedIndex);
             deleteIndex(mountedIndex);
@@ -115,11 +117,7 @@ public class RollingUpgradeSearchableSnapshotIndexCompatibilityIT extends Rollin
             createIndex(
                 client(),
                 index,
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-                    .build()
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
             );
 
             logger.debug("--> indexing [{}] docs in [{}]", numDocs, index);
@@ -137,10 +135,22 @@ public class RollingUpgradeSearchableSnapshotIndexCompatibilityIT extends Rollin
 
         ensureGreen(mountedIndex);
 
+        if (isIndexClosed(mountedIndex)) {
+            logger.debug("--> re-opening index [{}] after upgrade", mountedIndex);
+            openIndex(mountedIndex);
+            ensureGreen(mountedIndex);
+        }
+
         updateRandomIndexSettings(mountedIndex);
         updateRandomMappings(mountedIndex);
 
         assertThat(indexVersion(mountedIndex), equalTo(VERSION_MINUS_2));
         assertDocCount(client(), mountedIndex, numDocs);
+
+        if (randomBoolean()) {
+            logger.debug("--> random closing of index [{}] before upgrade", mountedIndex);
+            closeIndex(mountedIndex);
+            ensureGreen(mountedIndex);
+        }
     }
 }

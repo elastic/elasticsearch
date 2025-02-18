@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
@@ -81,8 +82,8 @@ public class MulTests extends AbstractScalarFunctionTestCase {
                     "MulDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                     DataType.DOUBLE,
                     equalTo(null)
-                ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                    .withWarning("Line -1:-1: java.lang.ArithmeticException: not a finite double number: Infinity")
+                ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning("Line 1:1: java.lang.ArithmeticException: not a finite double number: Infinity")
             ),
             new TestCaseSupplier(
                 List.of(DataType.DOUBLE, DataType.DOUBLE),
@@ -94,8 +95,8 @@ public class MulTests extends AbstractScalarFunctionTestCase {
                     "MulDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                     DataType.DOUBLE,
                     equalTo(null)
-                ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                    .withWarning("Line -1:-1: java.lang.ArithmeticException: not a finite double number: -Infinity")
+                ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning("Line 1:1: java.lang.ArithmeticException: not a finite double number: -Infinity")
             )
         ));
 
@@ -124,7 +125,20 @@ public class MulTests extends AbstractScalarFunctionTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedData(anyNullIsNull(false, suppliers));
+        suppliers = errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), MulTests::mulErrorMessageString);
+
+        // Cannot use parameterSuppliersFromTypedDataWithDefaultChecks as error messages are non-trivial
+        return parameterSuppliersFromTypedData(suppliers);
+    }
+
+    private static String mulErrorMessageString(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
+        try {
+            return typeErrorMessage(includeOrdinal, validPerPosition, types, (a, b) -> "numeric");
+        } catch (IllegalStateException e) {
+            // This means all the positional args were okay, so the expected error is from the combination
+            return "[*] has arguments with incompatible types [" + types.get(0).typeName() + "] and [" + types.get(1).typeName() + "]";
+
+        }
     }
 
     @Override

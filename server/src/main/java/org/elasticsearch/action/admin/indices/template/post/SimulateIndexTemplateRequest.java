@@ -12,16 +12,20 @@ package org.elasticsearch.action.admin.indices.template.post;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.action.support.local.LocalClusterStateRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
-public class SimulateIndexTemplateRequest extends MasterNodeReadRequest<SimulateIndexTemplateRequest> {
+public class SimulateIndexTemplateRequest extends LocalClusterStateRequest {
 
     private String indexName;
 
@@ -30,14 +34,18 @@ public class SimulateIndexTemplateRequest extends MasterNodeReadRequest<Simulate
 
     private boolean includeDefaults = false;
 
-    public SimulateIndexTemplateRequest(String indexName) {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    public SimulateIndexTemplateRequest(TimeValue masterTimeout, String indexName) {
+        super(masterTimeout);
         if (Strings.isNullOrEmpty(indexName)) {
             throw new IllegalArgumentException("index name cannot be null or empty");
         }
         this.indexName = indexName;
     }
 
+    /**
+     * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to read these requests until
+     * we no longer need to support calling this action remotely.
+     */
     public SimulateIndexTemplateRequest(StreamInput in) throws IOException {
         super(in);
         indexName = in.readString();
@@ -48,22 +56,17 @@ public class SimulateIndexTemplateRequest extends MasterNodeReadRequest<Simulate
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(indexName);
-        out.writeOptionalWriteable(indexTemplateRequest);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            out.writeBoolean(includeDefaults);
-        }
-    }
-
-    @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (indexTemplateRequest != null) {
             validationException = indexTemplateRequest.validateIndexTemplate(validationException);
         }
         return validationException;
+    }
+
+    @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, "", parentTaskId, headers);
     }
 
     public String getIndexName() {

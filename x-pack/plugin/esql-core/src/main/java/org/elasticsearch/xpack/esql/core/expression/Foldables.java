@@ -10,9 +10,9 @@ import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 
 public abstract class Foldables {
 
-    public static Object valueOf(Expression e) {
+    public static Object valueOf(FoldContext ctx, Expression e) {
         if (e.foldable()) {
-            return e.fold();
+            return e.fold(ctx);
         }
         throw new QlIllegalArgumentException("Cannot determine value for {}", e);
     }

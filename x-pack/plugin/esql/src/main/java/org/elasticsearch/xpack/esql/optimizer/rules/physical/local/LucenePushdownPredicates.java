@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 /**
@@ -60,8 +62,36 @@ public interface LucenePushdownPredicates {
         return false;
     }
 
-    default boolean isPushableMetadataAttribute(Expression exp) {
-        return exp instanceof MetadataAttribute ma && ma.name().equals(MetadataAttribute.SCORE);
+    static boolean isPushableTextFieldAttribute(Expression exp) {
+        return exp instanceof FieldAttribute fa && (fa.dataType() == DataType.TEXT || fa.dataType() == DataType.SEMANTIC_TEXT);
+    }
+
+    static boolean isPushableMetadataAttribute(Expression exp) {
+        return exp instanceof MetadataAttribute ma && (ma.searchable() || ma.name().equals(MetadataAttribute.SCORE));
+    }
+
+    default boolean isPushableAttribute(Expression exp) {
+        return isPushableFieldAttribute(exp) || isPushableMetadataAttribute(exp);
+    }
+
+    static TypedAttribute checkIsPushableAttribute(Expression e) {
+        Check.isTrue(
+            e instanceof FieldAttribute || e instanceof MetadataAttribute,
+            "Expected a FieldAttribute or MetadataAttribute but received [{}]",
+            e
+        );
+        return (TypedAttribute) e;
+    }
+
+    static FieldAttribute checkIsFieldAttribute(Expression e) {
+        Check.isTrue(e instanceof FieldAttribute, "Expected a FieldAttribute but received [{}] of type [{}]", e, e.getClass());
+        return (FieldAttribute) e;
+    }
+
+    static String pushableAttributeName(TypedAttribute attribute) {
+        return attribute instanceof FieldAttribute fa
+            ? fa.exactAttribute().name() // equality should always be against an exact match (which is important for strings)
+            : attribute.name();
     }
 
     /**

@@ -21,6 +21,7 @@ import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -29,18 +30,28 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.test.ESTestCase.createTestAnalysis;
 
 public class MapperTestUtils {
-
     public static MapperService newMapperService(
         NamedXContentRegistry xContentRegistry,
         Path tempDir,
         Settings indexSettings,
         String indexName
     ) throws IOException {
-        IndicesModule indicesModule = new IndicesModule(Collections.emptyList());
+        return newMapperService(List.of(), xContentRegistry, tempDir, indexSettings, indexName);
+    }
+
+    public static MapperService newMapperService(
+        List<MapperPlugin> extraMappers,
+        NamedXContentRegistry xContentRegistry,
+        Path tempDir,
+        Settings indexSettings,
+        String indexName
+    ) throws IOException {
+        IndicesModule indicesModule = new IndicesModule(extraMappers);
         return newMapperService(xContentRegistry, tempDir, indexSettings, indicesModule, indexName);
     }
 

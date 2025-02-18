@@ -48,18 +48,18 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.data.TestBlockFactory;
-import org.elasticsearch.compute.operator.AnyOperatorTestCase;
-import org.elasticsearch.compute.operator.CannedSourceOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
-import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
+import org.elasticsearch.compute.test.AnyOperatorTestCase;
+import org.elasticsearch.compute.test.CannedSourceOperator;
+import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
+import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -1299,6 +1299,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         var vsShardContext = new ValuesSourceReaderOperator.ShardContext(reader(indexKey), () -> SourceLoader.FROM_STORED_SOURCE);
         try (
             Driver driver = new Driver(
+                "test",
                 driverContext,
                 luceneFactory.get(driverContext),
                 List.of(
@@ -1376,6 +1377,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         int[] pages = new int[] { 0 };
         try (
             Driver d = new Driver(
+                "test",
                 driverContext,
                 simpleInput(driverContext, 10),
                 List.of(
@@ -1497,6 +1499,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         boolean success = false;
         try (
             Driver d = new Driver(
+                "test",
                 driverContext,
                 new CannedSourceOperator(input),
                 operators,
@@ -1524,6 +1527,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         for (int i = 0; i < dummyDrivers; i++) {
             drivers.add(
                 new Driver(
+                    "test",
                     "dummy-session",
                     0,
                     0,

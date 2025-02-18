@@ -35,6 +35,7 @@ import static org.mockito.Mockito.mock;
 
 public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<LifecyclePolicy> {
 
+    // Excluding the deprecated freeze action and test it separately
     private String lifecycleName;
 
     @Override
@@ -220,7 +221,8 @@ public class LifecyclePolicyTests extends AbstractXContentSerializingTestCase<Li
                         new SearchableSnapshotAction(
                             randomAlphaOfLength(10),
                             randomBoolean(),
-                            (randomBoolean() ? null : randomIntBetween(1, 100))
+                            (randomBoolean() ? null : randomIntBetween(1, 100)),
+                            null
                         )
                     )
                 )

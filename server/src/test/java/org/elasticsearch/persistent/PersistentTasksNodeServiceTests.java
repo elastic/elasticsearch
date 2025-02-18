@@ -260,12 +260,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         when(client.settings()).thenReturn(Settings.EMPTY);
         PersistentTasksService persistentTasksService = new PersistentTasksService(null, null, client) {
             @Override
-            void sendCancelRequest(
-                final long taskId,
-                final String reason,
-                final TimeValue timeout,
-                final ActionListener<ListTasksResponse> listener
-            ) {
+            void sendCancelRequest(final long taskId, final String reason, final ActionListener<ListTasksResponse> listener) {
                 capturedTaskId.set(taskId);
                 capturedListener.set(listener);
             }
@@ -356,12 +351,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         when(client.settings()).thenReturn(Settings.EMPTY);
         PersistentTasksService persistentTasksService = new PersistentTasksService(null, null, client) {
             @Override
-            void sendCancelRequest(
-                final long taskId,
-                final String reason,
-                final TimeValue timeout,
-                final ActionListener<ListTasksResponse> listener
-            ) {
+            void sendCancelRequest(final long taskId, final String reason, final ActionListener<ListTasksResponse> listener) {
                 fail("Shouldn't be called during local abort");
             }
 

@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.equalTo;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
 
-    private static final long FLOOD_STAGE_BYTES = new ByteSizeValue(10, ByteSizeUnit.KB).getBytes();
+    private static final long FLOOD_STAGE_BYTES = ByteSizeValue.of(10, ByteSizeUnit.KB).getBytes();
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {

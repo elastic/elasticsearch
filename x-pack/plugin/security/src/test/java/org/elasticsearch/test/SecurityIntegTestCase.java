@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.test;
 
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
@@ -416,7 +417,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
                 )
             )
         );
-        GetIndexRequest getIndexRequest = new GetIndexRequest();
+        GetIndexRequest getIndexRequest = new GetIndexRequest(TEST_REQUEST_TIMEOUT);
         getIndexRequest.indices(SECURITY_MAIN_ALIAS);
         getIndexRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
         GetIndexResponse getIndexResponse = client.admin().indices().getIndex(getIndexRequest).actionGet();
@@ -439,7 +440,11 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         );
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(SECURITY_MAIN_ALIAS).waitForActiveShards(ActiveShardCount.ALL)
             .masterNodeTimeout(TEST_REQUEST_TIMEOUT);
-        client.admin().indices().create(createIndexRequest).actionGet();
+        try {
+            client.admin().indices().create(createIndexRequest).actionGet();
+        } catch (ResourceAlreadyExistsException e) {
+            logger.info("Security index already exists, ignoring.", e);
+        }
     }
 
     protected static Index resolveSecurityIndex(Metadata metadata) {

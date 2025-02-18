@@ -75,12 +75,10 @@ Follow these steps:
 * Leave the *Redirect URIs* blank for now.
 * *Register* the application.
 * Find and keep the **Application (client) ID** and **Directory (tenant) ID** handy.
-* Locate the **Secret** by navigating to **Client credentials: Certificates & Secrets**.
-* Select **New client secret**
-* Pick a name for your client secret.
-Select an expiration date. (At this expiration date, you will need to generate a new secret and update your connector configuration.)
-** Save the client secret **Secret ID** before leaving this screen.
-** Save the client secret **Value** before leaving this screen.
+* Create a certificate and private key. This can, for example, be done by running `openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout azure_app.key -out azure_app.crt` command. Store both in a safe and secure place
+* Locate the **Certificates** by navigating to **Client credentials: Certificates & Secrets**.
+* Select **Upload certificate**
+* Upload the certificate created in one of previous steps: `azure_app.crt`
 * Set up the permissions the OAuth App will request from the Azure Portal service account.
 ** Navigate to **API Permissions** and click **Add Permission**.
 ** Add **application permissions** until the list looks like the following:
@@ -113,6 +111,24 @@ When entities are not available via the Graph API the connector falls back to us
 
 [discrete#es-connectors-sharepoint-online-oauth-app-permissions]
 ====== SharePoint permissions
+
+Microsoft is https://learn.microsoft.com/en-us/sharepoint/dev/sp-add-ins/retirement-announcement-for-azure-acs[retiring Azure Access Control Service (ACS)]. This affects permission configuration:
+
+* *Tenants created after November 1st, 2024*: Certificate authentication is required
+* *Tenants created before November 1st, 2024*: Secret-based authentication must be migrated to certificate authentication by April 2nd, 2026
+
+[discrete#es-connectors-sharepoint-online-oauth-app-certificate-auth]
+===== Certificate Authentication
+
+This authentication method does not require additional setup other than creating and uploading certificates to the OAuth App.
+
+[discrete#es-connectors-sharepoint-online-oauth-app-secret-auth]
+===== Secret Authentication
+
+[IMPORTANT]
+====
+This method is only applicable to tenants created before November 1st, 2024. This method will be fully retired as of April 2nd, 2026.
+====
 
 Refer to the following documentation for setting https://learn.microsoft.com/en-us/sharepoint/dev/solution-guidance/security-apponly-azureacs[SharePoint permissions^].
 
@@ -219,8 +235,17 @@ The tenant name for the Azure account hosting the Sharepoint Online instance.
 Client ID::
 The client id to authenticate with SharePoint Online.
 
+Authentication Method::
+Authentication method to use to connector to Sharepoint Online and Rest APIs. `secret` is deprecated and `certificate` is recommended.
+
 Secret value::
-The secret value to authenticate with SharePoint Online.
+The secret value to authenticate with SharePoint Online, if Authentication Method: `secret` is chosen.
+
+Content of certificate file::
+Content of certificate file if Authentication Method: `certificate` is chosen.
+
+Content of private key file::
+Content of private key file if Authentication Method: `certificate` is chosen.
 
 Comma-separated list of sites::
 List of site collection names or paths to fetch from SharePoint.
@@ -588,12 +613,10 @@ Follow these steps:
 * Leave the *Redirect URIs* blank for now.
 * *Register* the application.
 * Find and keep the **Application (client) ID** and **Directory (tenant) ID** handy.
-* Locate the **Secret** by navigating to **Client credentials: Certificates & Secrets**.
-* Select **New client secret**
-* Pick a name for your client secret.
-Select an expiration date. (At this expiration date, you will need to generate a new secret and update your connector configuration.)
-** Save the client secret **Secret ID** before leaving this screen.
-** Save the client secret **Value** before leaving this screen.
+* Create a certificate and private key. This can, for example, be done by running `openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout azure_app.key -out azure_app.crt` command. Store both in a safe and secure place
+* Locate the **Certificates** by navigating to **Client credentials: Certificates & Secrets**.
+* Select **Upload certificate**
+* Upload the certificate created in one of previous steps: `azure_app.crt`
 * Set up the permissions the OAuth App will request from the Azure Portal service account.
 ** Navigate to **API Permissions** and click **Add Permission**.
 ** Add **application permissions** until the list looks like the following:
@@ -626,6 +649,23 @@ When entities are not available via the Graph API the connector falls back to us
 
 [discrete#es-connectors-sharepoint-online-client-oauth-app-permissions]
 ====== SharePoint permissions
+
+Microsoft is https://learn.microsoft.com/en-us/sharepoint/dev/sp-add-ins/retirement-announcement-for-azure-acs[retiring Azure Access Control Service (ACS)]. This affects permission configuration:
+* *Tenants created after November 1st, 2024*: Certificate authentication is required
+* *Tenants created before November 1st, 2024*: Secret-based authentication must be migrated to certificate authentication by April 2nd, 2026
+
+[discrete#es-connectors-sharepoint-online-client-oauth-app-certificate-auth]
+===== Certificate Authentication
+
+This authentication method does not require additional setup other than creating and uploading certificates to the OAuth App.
+
+[discrete#es-connectors-sharepoint-online-client-oauth-app-secret-auth]
+===== Secret Authentication
+
+[IMPORTANT]
+====
+This method is only applicable to tenants created before November 1st, 2024. This method will be fully retired as of April 2nd, 2026.
+====
 
 Refer to the following documentation for setting https://learn.microsoft.com/en-us/sharepoint/dev/solution-guidance/security-apponly-azureacs[SharePoint permissions^].
 
@@ -742,8 +782,17 @@ The tenant name for the Azure account hosting the Sharepoint Online instance.
 `client_id`::
 The client id to authenticate with SharePoint Online.
 
+`auth_method`::
+Authentication method to use to connector to Sharepoint Online and Rest APIs. `secret` is deprecated and `certificate` is recommended.
+
 `secret_value`::
-The secret value to authenticate with SharePoint Online.
+The secret value to authenticate with SharePoint Online, if auth_method: `secret` is chosen.
+
+`certificate`::
+Content of certificate file if auth_method: `certificate` is chosen.
+
+`private_key`::
+Content of private key file if auth_method: `certificate` is chosen.
 
 `site_collections`::
 List of site collection names or paths to fetch from SharePoint.

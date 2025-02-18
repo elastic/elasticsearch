@@ -54,18 +54,7 @@ subprojects {
     dependsOn copyTestClasses
     classpath += configurations.testArtifacts
     testClassesDirs = project.files(testArtifactsDir)
-
-    Provider<TestClustersRegistry> serviceProvider = GradleUtils.getBuildService(
-      project.gradle.sharedServices,
-      TestClustersPlugin.REGISTRY_SERVICE_NAME
-    )
-
-    def clusterInfo = project.getProviders().of(TestClusterValueSource.class) {
-      it.parameters.path.set(clusterPath)
-      it.parameters.clusterName.set(taskName)
-      it.parameters.service = serviceProvider
-    }
-
+    def clusterInfo = getClusterInfo(taskName);
     nonInputProperties.systemProperty 'tests.audit.logfile', clusterInfo.map { it.auditLogs.get(0) }
     nonInputProperties.systemProperty 'tests.audit.yesterday.logfile',
       clusterInfo.map { it.auditLogs.get(0).getParentFile().toString() + "/javaRestTest_audit-${new Date().format('yyyy-MM-dd')}-1.json" }

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
@@ -18,18 +18,12 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 
-public class TransportListConnectorAction extends HandledTransportAction<ListConnectorAction.Request, ListConnectorAction.Response> {
+public class TransportListConnectorAction extends TransportAction<ListConnectorAction.Request, ListConnectorAction.Response> {
     protected final ConnectorIndexService connectorIndexService;
 
     @Inject
     public TransportListConnectorAction(TransportService transportService, ActionFilters actionFilters, Client client) {
-        super(
-            ListConnectorAction.NAME,
-            transportService,
-            actionFilters,
-            ListConnectorAction.Request::new,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
+        super(ListConnectorAction.NAME, actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.connectorIndexService = new ConnectorIndexService(client);
     }
 
@@ -44,6 +38,8 @@ public class TransportListConnectorAction extends HandledTransportAction<ListCon
             request.getConnectorNames(),
             request.getConnectorServiceTypes(),
             request.getConnectorSearchQuery(),
+            request.getIncludeDeleted(),
+
             listener.map(r -> new ListConnectorAction.Response(r.connectors(), r.totalResults()))
         );
     }

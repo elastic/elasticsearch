@@ -165,7 +165,7 @@ public abstract class AbstractAzureServerTestCase extends ESTestCase {
                 .put(CONTAINER_SETTING.getKey(), CONTAINER)
                 .put(ACCOUNT_SETTING.getKey(), clientName)
                 .put(LOCATION_MODE_SETTING.getKey(), locationMode)
-                .put(MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), new ByteSizeValue(1, ByteSizeUnit.MB))
+                .put(MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.getKey(), ByteSizeValue.of(1, ByteSizeUnit.MB))
                 .build()
         );
 

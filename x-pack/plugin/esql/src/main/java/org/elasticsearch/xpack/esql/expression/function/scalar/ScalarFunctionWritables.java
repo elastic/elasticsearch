@@ -8,12 +8,11 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
-import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingWritables;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Least;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FromAggregateMetricDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateDiff;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateExtract;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateFormat;
@@ -37,15 +36,20 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Hash;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Left;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Locate;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Md5;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Repeat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Replace;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Reverse;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Right;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Sha1;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Sha256;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Split;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
 
@@ -64,6 +68,7 @@ public class ScalarFunctionWritables {
         entries.add(Concat.ENTRY);
         entries.add(E.ENTRY);
         entries.add(EndsWith.ENTRY);
+        entries.add(FromAggregateMetricDouble.ENTRY);
         entries.add(Greatest.ENTRY);
         entries.add(Hash.ENTRY);
         entries.add(Hypot.ENTRY);
@@ -79,6 +84,7 @@ public class ScalarFunctionWritables {
         entries.add(Left.ENTRY);
         entries.add(Locate.ENTRY);
         entries.add(Log.ENTRY);
+        entries.add(Md5.ENTRY);
         entries.add(Now.ENTRY);
         entries.add(Or.ENTRY);
         entries.add(Pi.ENTRY);
@@ -88,6 +94,8 @@ public class ScalarFunctionWritables {
         entries.add(Replace.ENTRY);
         entries.add(Reverse.ENTRY);
         entries.add(Round.ENTRY);
+        entries.add(Sha1.ENTRY);
+        entries.add(Sha256.ENTRY);
         entries.add(Split.ENTRY);
         entries.add(Substring.ENTRY);
         entries.add(StartsWith.ENTRY);

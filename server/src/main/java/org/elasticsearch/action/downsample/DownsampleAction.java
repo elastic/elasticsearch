@@ -82,7 +82,7 @@ public class DownsampleAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public IndicesOptions indicesOptions() {
-            return IndicesOptions.STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED;
+            return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
         }
 
         @Override

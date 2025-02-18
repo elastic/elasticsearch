@@ -15,6 +15,14 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
@@ -30,23 +38,53 @@ public class CreateIndexFromSourceAction extends ActionType<AcknowledgedResponse
         super(NAME);
     }
 
-    public static class Request extends ActionRequest implements IndicesRequest {
-
+    public static class Request extends ActionRequest implements IndicesRequest, ToXContent {
         private final String sourceIndex;
         private final String destIndex;
-        private final Settings settingsOverride;
-        private final Map<String, Object> mappingsOverride;
+        private Settings settingsOverride;
+        private Map<String, Object> mappingsOverride;
+        private boolean removeIndexBlocks;
+        private static final ParseField SETTINGS_OVERRIDE_FIELD = new ParseField("settings_override");
+        private static final ParseField MAPPINGS_OVERRIDE_FIELD = new ParseField("mappings_override");
+        private static final ParseField REMOVE_INDEX_BLOCKS_FIELD = new ParseField("remove_index_blocks");
+        private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>("create_index_from_source_request");
 
-        public Request(String sourceIndex, String destIndex) {
-            this(sourceIndex, destIndex, Settings.EMPTY, Map.of());
+        static {
+            PARSER.declareField(
+                (parser, request, context) -> request.settingsOverride(Settings.fromXContent(parser)),
+                SETTINGS_OVERRIDE_FIELD,
+                ObjectParser.ValueType.OBJECT
+            );
+            PARSER.declareField(
+                (parser, request, context) -> request.mappingsOverride(Map.of("_doc", parser.map())),
+                MAPPINGS_OVERRIDE_FIELD,
+                ObjectParser.ValueType.OBJECT
+            );
+            PARSER.declareField(
+                (parser, request, context) -> request.removeIndexBlocks(parser.booleanValue()),
+                REMOVE_INDEX_BLOCKS_FIELD,
+                ObjectParser.ValueType.BOOLEAN
+            );
         }
 
-        public Request(String sourceIndex, String destIndex, Settings settingsOverride, Map<String, Object> mappingsOverride) {
+        public Request(String sourceIndex, String destIndex) {
+            this(sourceIndex, destIndex, Settings.EMPTY, Map.of(), true);
+        }
+
+        public Request(
+            String sourceIndex,
+            String destIndex,
+            Settings settingsOverride,
+            Map<String, Object> mappingsOverride,
+            boolean removeIndexBlocks
+        ) {
+            Objects.requireNonNull(settingsOverride);
             Objects.requireNonNull(mappingsOverride);
             this.sourceIndex = sourceIndex;
             this.destIndex = destIndex;
             this.settingsOverride = settingsOverride;
             this.mappingsOverride = mappingsOverride;
+            this.removeIndexBlocks = removeIndexBlocks;
         }
 
         @SuppressWarnings("unchecked")
@@ -56,6 +94,7 @@ public class CreateIndexFromSourceAction extends ActionType<AcknowledgedResponse
             this.destIndex = in.readString();
             this.settingsOverride = Settings.readSettingsFromStream(in);
             this.mappingsOverride = (Map<String, Object>) in.readGenericValue();
+            this.removeIndexBlocks = in.readBoolean();
         }
 
         @Override
@@ -65,6 +104,7 @@ public class CreateIndexFromSourceAction extends ActionType<AcknowledgedResponse
             out.writeString(destIndex);
             settingsOverride.writeTo(out);
             out.writeGenericValue(mappingsOverride);
+            out.writeBoolean(removeIndexBlocks);
         }
 
         @Override
@@ -72,20 +112,59 @@ public class CreateIndexFromSourceAction extends ActionType<AcknowledgedResponse
             return null;
         }
 
-        public String getSourceIndex() {
+        public String sourceIndex() {
             return sourceIndex;
         }
 
-        public String getDestIndex() {
+        public String destIndex() {
             return destIndex;
         }
 
-        public Settings getSettingsOverride() {
+        public Settings settingsOverride() {
             return settingsOverride;
         }
 
-        public Map<String, Object> getMappingsOverride() {
+        public Map<String, Object> mappingsOverride() {
             return mappingsOverride;
+        }
+
+        public boolean removeIndexBlocks() {
+            return removeIndexBlocks;
+        }
+
+        public void settingsOverride(Settings settingsOverride) {
+            this.settingsOverride = settingsOverride;
+        }
+
+        public void mappingsOverride(Map<String, Object> mappingsOverride) {
+            this.mappingsOverride = mappingsOverride;
+        }
+
+        public void removeIndexBlocks(boolean removeIndexBlocks) {
+            this.removeIndexBlocks = removeIndexBlocks;
+        }
+
+        public void fromXContent(XContentParser parser) throws IOException {
+            PARSER.parse(parser, this, null);
+        }
+
+        /*
+         * This only exists for the sake of testing the xcontent parser
+         */
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+            if (mappingsOverride.containsKey("_doc")) {
+                builder.field(MAPPINGS_OVERRIDE_FIELD.getPreferredName(), mappingsOverride.get("_doc"));
+            }
+
+            if (settingsOverride.isEmpty() == false) {
+                builder.startObject(SETTINGS_OVERRIDE_FIELD.getPreferredName());
+                settingsOverride.toXContent(builder, params);
+                builder.endObject();
+            }
+            builder.field(REMOVE_INDEX_BLOCKS_FIELD.getPreferredName(), removeIndexBlocks);
+
+            return builder;
         }
 
         @Override
@@ -96,12 +175,14 @@ public class CreateIndexFromSourceAction extends ActionType<AcknowledgedResponse
             return Objects.equals(sourceIndex, request.sourceIndex)
                 && Objects.equals(destIndex, request.destIndex)
                 && Objects.equals(settingsOverride, request.settingsOverride)
-                && Objects.equals(mappingsOverride, request.mappingsOverride);
+                && Objects.equals(mappingsOverride, request.mappingsOverride)
+                && removeIndexBlocks == request.removeIndexBlocks;
+
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(sourceIndex, destIndex, settingsOverride, mappingsOverride);
+            return Objects.hash(sourceIndex, destIndex, settingsOverride, mappingsOverride, removeIndexBlocks);
         }
 
         @Override
@@ -112,6 +193,16 @@ public class CreateIndexFromSourceAction extends ActionType<AcknowledgedResponse
         @Override
         public IndicesOptions indicesOptions() {
             return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
+        }
+
+        @Override
+        public String getDescription() {
+            return "creating index " + destIndex + " from " + sourceIndex;
         }
     }
 }

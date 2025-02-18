@@ -889,7 +889,6 @@ public enum SearchResponseUtils {
             shardTarget,
             index,
             clusterAlias,
-            null,
             get(SearchHit.Fields.INNER_HITS, values, null),
             get(SearchHit.DOCUMENT_FIELDS, values, Collections.emptyMap()),
             get(SearchHit.METADATA_FIELDS, values, Collections.emptyMap()),
@@ -987,7 +986,7 @@ public enum SearchResponseUtils {
                 }
             }
         }
-        return new InternalAggregations(aggregations);
+        return InternalAggregations.from(aggregations);
     }
 
     private static final InstantiatingObjectParser<ProfileResult, Void> PROFILE_RESULT_PARSER;

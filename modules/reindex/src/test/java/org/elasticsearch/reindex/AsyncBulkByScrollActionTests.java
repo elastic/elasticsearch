@@ -597,7 +597,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             capturedCommand.get().run();
 
             // So the next request is going to have to wait an extra 100 seconds or so (base was 10 seconds, so 110ish)
-            assertThat(client.lastScroll.get().request.scroll().keepAlive().seconds(), either(equalTo(110L)).or(equalTo(109L)));
+            assertThat(client.lastScroll.get().request.scroll().seconds(), either(equalTo(110L)).or(equalTo(109L)));
 
             // Now we can simulate a response and check the delay that we used for the task
             if (randomBoolean()) {

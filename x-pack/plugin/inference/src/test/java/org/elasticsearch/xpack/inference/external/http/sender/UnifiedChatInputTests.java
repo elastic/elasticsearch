@@ -24,20 +24,8 @@ public class UnifiedChatInputTests extends ESTestCase {
             Matchers.is(
                 UnifiedCompletionRequest.of(
                     List.of(
-                        new UnifiedCompletionRequest.Message(
-                            new UnifiedCompletionRequest.ContentString("hello"),
-                            "a role",
-                            null,
-                            null,
-                            null
-                        ),
-                        new UnifiedCompletionRequest.Message(
-                            new UnifiedCompletionRequest.ContentString("awesome"),
-                            "a role",
-                            null,
-                            null,
-                            null
-                        )
+                        new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "a role", null, null),
+                        new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("awesome"), "a role", null, null)
                     )
                 )
             )

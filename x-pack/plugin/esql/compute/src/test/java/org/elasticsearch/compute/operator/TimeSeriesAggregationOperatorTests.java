@@ -24,6 +24,9 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.ValuesSourceReaderOperatorTests;
+import org.elasticsearch.compute.test.ComputeTestCase;
+import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -38,6 +41,7 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.compute.lucene.TimeSeriesSortedSourceOperatorTests.createTimeSeriesSourceOperator;
 import static org.elasticsearch.compute.lucene.TimeSeriesSortedSourceOperatorTests.writeTS;
+import static org.elasticsearch.compute.operator.TimeSeriesAggregationOperatorFactories.SupplierWithChannels;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
@@ -266,7 +270,7 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             1,
             3,
             IntStream.range(0, nonBucketGroupings.size()).mapToObj(n -> new BlockHash.GroupSpec(5 + n, ElementType.BYTES_REF)).toList(),
-            List.of(new RateLongAggregatorFunctionSupplier(List.of(4, 2), unitInMillis)),
+            List.of(new SupplierWithChannels(new RateLongAggregatorFunctionSupplier(unitInMillis), List.of(4, 2))),
             List.of(),
             between(1, 100)
         ).get(ctx);
@@ -276,7 +280,7 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             0,
             1,
             IntStream.range(0, nonBucketGroupings.size()).mapToObj(n -> new BlockHash.GroupSpec(5 + n, ElementType.BYTES_REF)).toList(),
-            List.of(new RateLongAggregatorFunctionSupplier(List.of(2, 3, 4), unitInMillis)),
+            List.of(new SupplierWithChannels(new RateLongAggregatorFunctionSupplier(unitInMillis), List.of(2, 3, 4))),
             List.of(),
             between(1, 100)
         ).get(ctx);
@@ -292,7 +296,7 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
         }
         Operator finalAgg = new TimeSeriesAggregationOperatorFactories.Final(
             finalGroups,
-            List.of(new SumDoubleAggregatorFunctionSupplier(List.of(2))),
+            List.of(new SupplierWithChannels(new SumDoubleAggregatorFunctionSupplier(), List.of(2))),
             List.of(),
             between(1, 100)
         ).get(ctx);
@@ -300,6 +304,7 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
         List<Page> results = new ArrayList<>();
         OperatorTestCase.runDriver(
             new Driver(
+                "test",
                 ctx,
                 sourceOperatorFactory.get(ctx),
                 CollectionUtils.concatLists(intermediateOperators, List.of(intialAgg, intermediateAgg, finalAgg)),

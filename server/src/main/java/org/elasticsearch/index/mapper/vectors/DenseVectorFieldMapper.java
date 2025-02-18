@@ -38,7 +38,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.vectors.ES813FlatVectorFormat;
@@ -108,10 +107,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         return Math.abs(magnitude - 1.0f) > EPS;
     }
 
-    public static final NodeFeature INT4_QUANTIZATION = new NodeFeature("mapper.vectors.int4_quantization");
-    public static final NodeFeature BIT_VECTORS = new NodeFeature("mapper.vectors.bit_vectors");
-    public static final NodeFeature BBQ_FORMAT = new NodeFeature("mapper.vectors.bbq");
-
     public static final IndexVersion MAGNITUDE_STORED_INDEX_VERSION = IndexVersions.V_7_5_0;
     public static final IndexVersion INDEXED_BY_DEFAULT_INDEX_VERSION = IndexVersions.FIRST_DETACHED_INDEX_VERSION;
     public static final IndexVersion NORMALIZE_COSINE = IndexVersions.NORMALIZED_VECTOR_COSINE;
@@ -125,7 +120,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static final short MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING = 128; // minimum number of dims for floats to be dynamically mapped to
                                                                         // vector
     public static final int MAGNITUDE_BYTES = 4;
-    public static final int NUM_CANDS_OVERSAMPLE_LIMIT = 10_000; // Max oversample allowed for k and num_candidates
+    public static final int OVERSAMPLE_LIMIT = 10_000; // Max oversample allowed
 
     private static DenseVectorFieldMapper toType(FieldMapper in) {
         return (DenseVectorFieldMapper) in;
@@ -2019,9 +2014,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         public Query createKnnQuery(
             VectorData queryVector,
-            Integer k,
+            int k,
             int numCands,
-            Float numCandsFactor,
+            Float oversample,
             Query filter,
             Float similarityThreshold,
             BitSetProducer parentFilter
@@ -2037,7 +2032,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     queryVector.asFloatVector(),
                     k,
                     numCands,
-                    numCandsFactor,
+                    oversample,
                     filter,
                     similarityThreshold,
                     parentFilter
@@ -2047,12 +2042,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         private boolean needsRescore(Float rescoreOversample) {
-            return rescoreOversample != null && (indexOptions != null && indexOptions.type != null && indexOptions.type.isQuantized());
+            return rescoreOversample != null && isQuantized();
+        }
+
+        private boolean isQuantized() {
+            return indexOptions != null && indexOptions.type != null && indexOptions.type.isQuantized();
         }
 
         private Query createKnnBitQuery(
             byte[] queryVector,
-            Integer k,
+            int k,
             int numCands,
             Query filter,
             Float similarityThreshold,
@@ -2074,7 +2073,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         private Query createKnnByteQuery(
             byte[] queryVector,
-            Integer k,
+            int k,
             int numCands,
             Query filter,
             Float similarityThreshold,
@@ -2101,9 +2100,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         private Query createKnnFloatQuery(
             float[] queryVector,
-            Integer k,
+            int k,
             int numCands,
-            Float numCandsFactor,
+            Float oversample,
             Query filter,
             Float similarityThreshold,
             BitSetProducer parentFilter
@@ -2124,18 +2123,17 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
             }
 
-            Integer adjustedK = k;
-            int adjustedNumCands = numCands;
-            if (needsRescore(numCandsFactor)) {
-                // Get all candidates, get top k as part of rescoring
-                adjustedK = null;
-                // numCands * numCandsFactor <= NUM_CANDS_OVERSAMPLE_LIMIT. Adjust otherwise.
-                adjustedNumCands = Math.min((int) Math.ceil(numCands * numCandsFactor), NUM_CANDS_OVERSAMPLE_LIMIT);
+            int adjustedK = k;
+            boolean rescore = needsRescore(oversample);
+            if (rescore) {
+                // Will get k * oversample for rescoring, and get the top k
+                adjustedK = Math.min((int) Math.ceil(k * oversample), OVERSAMPLE_LIMIT);
+                numCands = Math.max(adjustedK, numCands);
             }
             Query knnQuery = parentFilter != null
-                ? new ESDiversifyingChildrenFloatKnnVectorQuery(name(), queryVector, filter, adjustedK, adjustedNumCands, parentFilter)
-                : new ESKnnFloatVectorQuery(name(), queryVector, adjustedK, adjustedNumCands, filter);
-            if (needsRescore(numCandsFactor)) {
+                ? new ESDiversifyingChildrenFloatKnnVectorQuery(name(), queryVector, filter, adjustedK, numCands, parentFilter)
+                : new ESKnnFloatVectorQuery(name(), queryVector, adjustedK, numCands, filter);
+            if (rescore) {
                 knnQuery = new RescoreKnnVectorQuery(
                     name(),
                     queryVector,
@@ -2374,11 +2372,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        var loader = fieldType().indexed
-            ? new IndexedSyntheticFieldLoader(indexCreatedVersion, fieldType().similarity)
-            : new DocValuesSyntheticFieldLoader(indexCreatedVersion);
-
-        return new SyntheticSourceSupport.Native(loader);
+        return new SyntheticSourceSupport.Native(
+            () -> fieldType().indexed
+                ? new IndexedSyntheticFieldLoader(indexCreatedVersion, fieldType().similarity)
+                : new DocValuesSyntheticFieldLoader(indexCreatedVersion)
+        );
     }
 
     private class IndexedSyntheticFieldLoader extends SourceLoader.DocValuesBasedSyntheticFieldLoader {
@@ -2406,6 +2404,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
                 KnnVectorValues.DocIndexIterator iterator = values.iterator();
                 return docId -> {
+                    if (iterator.docID() > docId) {
+                        return hasValue = false;
+                    }
+                    if (iterator.docID() == docId) {
+                        return hasValue = true;
+                    }
                     hasValue = docId == iterator.advance(docId);
                     hasMagnitude = hasValue && magnitudeReader != null && magnitudeReader.advanceExact(docId);
                     ord = iterator.index();
@@ -2416,6 +2420,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (byteVectorValues != null) {
                 KnnVectorValues.DocIndexIterator iterator = byteVectorValues.iterator();
                 return docId -> {
+                    if (iterator.docID() > docId) {
+                        return hasValue = false;
+                    }
+                    if (iterator.docID() == docId) {
+                        return hasValue = true;
+                    }
                     hasValue = docId == iterator.advance(docId);
                     ord = iterator.index();
                     return hasValue;
@@ -2478,6 +2488,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return null;
             }
             return docId -> {
+                if (values.docID() > docId) {
+                    return hasValue = false;
+                }
+                if (values.docID() == docId) {
+                    return hasValue = true;
+                }
                 hasValue = docId == values.advance(docId);
                 return hasValue;
             };

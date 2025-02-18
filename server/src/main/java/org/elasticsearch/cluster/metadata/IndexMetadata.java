@@ -563,8 +563,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
     public static final String INDEX_STATE_FILE_PREFIX = "state-";
 
-    static final TransportVersion SYSTEM_INDEX_FLAG_ADDED = TransportVersions.V_7_10_0;
-
     static final TransportVersion STATS_AND_FORECAST_ADDED = TransportVersions.V_8_6_0;
 
     private final int routingNumShards;
@@ -1644,11 +1642,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             } else {
                 mappingsUpdatedVersion = IndexVersions.ZERO;
             }
-            if (in.getTransportVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
-                isSystem = in.readBoolean();
-            } else {
-                isSystem = false;
-            }
+            isSystem = in.readBoolean();
             timestampRange = IndexLongFieldRange.readFrom(in);
             if (in.getTransportVersion().onOrAfter(STATS_AND_FORECAST_ADDED)) {
                 stats = in.readOptionalWriteable(IndexMetadataStats::new);
@@ -1694,21 +1688,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 IndexVersion.writeVersion(mappingsUpdatedVersion, out);
             }
-            if (out.getTransportVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
-                out.writeBoolean(isSystem);
-            }
+            out.writeBoolean(isSystem);
             timestampRange.writeTo(out);
             if (out.getTransportVersion().onOrAfter(STATS_AND_FORECAST_ADDED)) {
                 out.writeOptionalWriteable(stats);
                 out.writeOptionalDouble(indexWriteLoadForecast);
                 out.writeOptionalLong(shardSizeInBytesForecast);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                eventIngestedRange.writeTo(out);
-            } else {
-                assert eventIngestedRange == IndexLongFieldRange.UNKNOWN
-                    : "eventIngestedRange should be UNKNOWN until all nodes are on the new version but is " + eventIngestedRange;
-            }
+            eventIngestedRange.writeTo(out);
         }
 
         @Override
@@ -1803,9 +1790,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             builder.mappingsUpdatedVersion(IndexVersion.readVersion(in));
         }
-        if (in.getTransportVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
-            builder.system(in.readBoolean());
-        }
+        builder.system(in.readBoolean());
         builder.timestampRange(IndexLongFieldRange.readFrom(in));
 
         if (in.getTransportVersion().onOrAfter(STATS_AND_FORECAST_ADDED)) {
@@ -1813,11 +1798,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.indexWriteLoadForecast(in.readOptionalDouble());
             builder.shardSizeInBytesForecast(in.readOptionalLong());
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            builder.eventIngestedRange(IndexLongFieldRange.readFrom(in), in.getTransportVersion());
-        } else {
-            builder.eventIngestedRange(IndexLongFieldRange.UNKNOWN, in.getTransportVersion());
-        }
+        builder.eventIngestedRange(IndexLongFieldRange.readFrom(in));
         return builder.build(true);
     }
 
@@ -1859,9 +1840,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             IndexVersion.writeVersion(mappingsUpdatedVersion, out);
         }
-        if (out.getTransportVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
-            out.writeBoolean(isSystem);
-        }
+        out.writeBoolean(isSystem);
         timestampRange.writeTo(out);
         if (out.getTransportVersion().onOrAfter(STATS_AND_FORECAST_ADDED)) {
             out.writeOptionalWriteable(stats);
@@ -2098,6 +2077,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return this;
         }
 
+        public Builder putRolloverInfos(Map<String, RolloverInfo> rolloverInfos) {
+            this.rolloverInfos.clear();
+            this.rolloverInfos.putAllFromMap(rolloverInfos);
+            return this;
+        }
+
         public long version() {
             return this.version;
         }
@@ -2180,25 +2165,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return this;
         }
 
-        // only for use within this class file where minClusterTransportVersion is not known (e.g., IndexMetadataDiff.apply)
-        Builder eventIngestedRange(IndexLongFieldRange eventIngestedRange) {
+        public Builder eventIngestedRange(IndexLongFieldRange eventIngestedRange) {
             assert eventIngestedRange != null : "eventIngestedRange cannot be null";
             this.eventIngestedRange = eventIngestedRange;
-            return this;
-        }
-
-        public Builder eventIngestedRange(IndexLongFieldRange eventIngestedRange, TransportVersion minClusterTransportVersion) {
-            assert eventIngestedRange != null : "eventIngestedRange cannot be null";
-            assert minClusterTransportVersion != null || eventIngestedRange == IndexLongFieldRange.UNKNOWN
-                : "eventIngestedRange must be UNKNOWN when minClusterTransportVersion is null, but minClusterTransportVersion: "
-                    + minClusterTransportVersion
-                    + "; eventIngestedRange = "
-                    + eventIngestedRange;
-            if (minClusterTransportVersion != null && minClusterTransportVersion.before(TransportVersions.V_8_15_0)) {
-                this.eventIngestedRange = IndexLongFieldRange.UNKNOWN;
-            } else {
-                this.eventIngestedRange = eventIngestedRange;
-            }
             return this;
         }
 

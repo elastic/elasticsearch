@@ -59,3 +59,28 @@
     - match:  { detail.tokenizer.tokens.0.token: ABc }
     - match:  { detail.tokenfilters.0.name: lowercase }
     - match:  { detail.tokenfilters.0.tokens.0.token: abc }
+
+---
+"Custom analyzer is not buildable":
+  - requires:
+      test_runner_features: [ capabilities ]
+      reason: This capability required to run test
+      capabilities:
+        - method: GET
+          path: /_analyze
+          capabilities: [ wrong_custom_analyzer_returns_400 ]
+
+  - do:
+      catch: bad_request
+      indices.analyze:
+        body:
+          text: the foxes jumping quickly
+          tokenizer:
+            standard
+          filter:
+            type: hunspell
+            locale: en_US
+
+  - match: { status: 400 }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "Can not build a custom analyzer" }

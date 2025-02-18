@@ -10,16 +10,12 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.Orientation;
-import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.geometry.utils.WellKnownBinary;
-import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.Extent;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 
 import java.io.IOException;
-import java.nio.ByteOrder;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -75,29 +71,27 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
 
         @Override
         protected Object nullValueAsSource(T nullValue) {
-            // we don't support null value fors shapes
+            // we don't support null value for shapes
             return nullValue;
         }
 
-        @Override
-        public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            return blContext.fieldExtractPreference() == FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS && isBoundsExtractionSupported()
-                ? new BoundsBlockLoader(name(), coordinateEncoder())
-                : blockLoaderFromSource(blContext);
-        }
-
-        protected abstract boolean isBoundsExtractionSupported();
-
-        protected abstract CoordinateEncoder coordinateEncoder();
-
-        // Visible for testing
-        static class BoundsBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
+        protected static class BoundsBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
             private final String fieldName;
-            private final CoordinateEncoder encoder;
 
-            BoundsBlockLoader(String fieldName, CoordinateEncoder encoder) {
+            protected BoundsBlockLoader(String fieldName) {
                 this.fieldName = fieldName;
-                this.encoder = encoder;
+            }
+
+            protected void writeExtent(BlockLoader.IntBuilder builder, Extent extent) {
+                // We store the 6 values as a single multi-valued field, in the same order as the fields in the Extent class
+                builder.beginPositionEntry();
+                builder.appendInt(extent.top);
+                builder.appendInt(extent.bottom);
+                builder.appendInt(extent.negLeft);
+                builder.appendInt(extent.negRight);
+                builder.appendInt(extent.posLeft);
+                builder.appendInt(extent.posRight);
+                builder.endPositionEntry();
             }
 
             @Override
@@ -107,7 +101,7 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
                     public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs) throws IOException {
                         var binaryDocValues = context.reader().getBinaryDocValues(fieldName);
                         var reader = new GeometryDocValueReader();
-                        try (var builder = factory.bytesRefs(docs.count())) {
+                        try (var builder = factory.ints(docs.count())) {
                             for (int i = 0; i < docs.count(); i++) {
                                 read(binaryDocValues, docs.get(i), reader, builder);
                             }
@@ -119,27 +113,17 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
                     public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
                         var binaryDocValues = context.reader().getBinaryDocValues(fieldName);
                         var reader = new GeometryDocValueReader();
-                        read(binaryDocValues, docId, reader, (BytesRefBuilder) builder);
+                        read(binaryDocValues, docId, reader, (IntBuilder) builder);
                     }
 
-                    private void read(BinaryDocValues binaryDocValues, int doc, GeometryDocValueReader reader, BytesRefBuilder builder)
+                    private void read(BinaryDocValues binaryDocValues, int doc, GeometryDocValueReader reader, IntBuilder builder)
                         throws IOException {
                         if (binaryDocValues.advanceExact(doc) == false) {
                             builder.appendNull();
                             return;
                         }
                         reader.reset(binaryDocValues.binaryValue());
-                        var extent = reader.getExtent();
-                        // This is rather silly: an extent is already encoded as ints, but we convert it to Rectangle to
-                        // preserve its properties as a WKB shape, only to convert it back to ints when we compute the
-                        // aggregation. An obvious optimization would be to avoid this back-and-forth conversion.
-                        var rectangle = new Rectangle(
-                            encoder.decodeX(extent.minX()),
-                            encoder.decodeX(extent.maxX()),
-                            encoder.decodeY(extent.maxY()),
-                            encoder.decodeY(extent.minY())
-                        );
-                        builder.appendBytesRef(new BytesRef(WellKnownBinary.toWKB(rectangle, ByteOrder.LITTLE_ENDIAN)));
+                        writeExtent(builder, reader.getExtent());
                     }
 
                     @Override
@@ -151,7 +135,7 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
 
             @Override
             public BlockLoader.Builder builder(BlockLoader.BlockFactory factory, int expectedCount) {
-                return factory.bytesRefs(expectedCount);
+                return factory.ints(expectedCount);
             }
         }
     }

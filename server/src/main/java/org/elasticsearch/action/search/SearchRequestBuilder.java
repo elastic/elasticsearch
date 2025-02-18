@@ -16,7 +16,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
@@ -59,14 +58,6 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder setSearchType(SearchType searchType) {
         request.searchType(searchType);
-        return this;
-    }
-
-    /**
-     * If set, will enable scrolling of the search request.
-     */
-    public SearchRequestBuilder setScroll(Scroll scroll) {
-        request.scroll(scroll);
         return this;
     }
 

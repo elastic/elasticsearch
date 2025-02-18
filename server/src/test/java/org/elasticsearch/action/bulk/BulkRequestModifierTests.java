@@ -44,7 +44,7 @@ public class BulkRequestModifierTests extends ESTestCase {
         for (int i = 0; modifier.hasNext(); i++) {
             modifier.next();
             if (randomBoolean()) {
-                modifier.markItemAsFailed(i, new RuntimeException());
+                modifier.markItemAsFailed(i, new RuntimeException(), randomFrom(IndexDocFailureStoreStatus.values()));
                 failedSlots.add(i);
             }
         }
@@ -110,7 +110,7 @@ public class BulkRequestModifierTests extends ESTestCase {
 
         // actually mark the failures
         for (int i : failures) {
-            modifier.markItemAsFailed(i, new RuntimeException());
+            modifier.markItemAsFailed(i, new RuntimeException(), randomFrom(IndexDocFailureStoreStatus.values()));
         }
 
         // So half of the requests have "failed", so only the successful requests are left:

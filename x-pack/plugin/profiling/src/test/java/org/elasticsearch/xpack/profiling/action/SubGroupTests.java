@@ -34,25 +34,7 @@ public class SubGroupTests extends ESTestCase {
 
         XContentBuilder actualRequest = XContentFactory.contentBuilder(contentType);
         actualRequest.startObject();
-        SubGroup g = SubGroup.root("transaction.name", false).addCount("basket", 7L);
-        g.toXContent(actualRequest, ToXContent.EMPTY_PARAMS);
-        actualRequest.endObject();
-
-        assertToXContentEquivalent(BytesReference.bytes(expectedRequest), BytesReference.bytes(actualRequest), contentType);
-    }
-
-    public void testRenderLegacyXContent() throws IOException {
-        XContentType contentType = randomFrom(XContentType.values());
-        // tag::noformat
-        XContentBuilder expectedRequest = XContentFactory.contentBuilder(contentType)
-            .startObject()
-                .field("basket", 7L)
-            .endObject();
-        // end::noformat
-
-        XContentBuilder actualRequest = XContentFactory.contentBuilder(contentType);
-        actualRequest.startObject();
-        SubGroup g = SubGroup.root("transaction.name", true).addCount("basket", 7L);
+        SubGroup g = SubGroup.root("transaction.name").addCount("basket", 7L);
         g.toXContent(actualRequest, ToXContent.EMPTY_PARAMS);
         actualRequest.endObject();
 
@@ -60,8 +42,8 @@ public class SubGroupTests extends ESTestCase {
     }
 
     public void testMergeNoCommonRoot() {
-        SubGroup root1 = SubGroup.root("transaction.name", false);
-        SubGroup root2 = SubGroup.root("service.name", false);
+        SubGroup root1 = SubGroup.root("transaction.name");
+        SubGroup root2 = SubGroup.root("service.name");
 
         SubGroup toMerge = root1.copy();
 
@@ -71,7 +53,7 @@ public class SubGroupTests extends ESTestCase {
     }
 
     public void testMergeIdenticalTree() {
-        SubGroup g = SubGroup.root("transaction.name", false);
+        SubGroup g = SubGroup.root("transaction.name");
         g.addCount("basket", 5L);
         g.addCount("checkout", 7L);
 
@@ -84,11 +66,11 @@ public class SubGroupTests extends ESTestCase {
     }
 
     public void testMergeMixedTree() {
-        SubGroup g1 = SubGroup.root("transaction.name", false);
+        SubGroup g1 = SubGroup.root("transaction.name");
         g1.addCount("basket", 5L);
         g1.addCount("checkout", 7L);
 
-        SubGroup g2 = SubGroup.root("transaction.name", false);
+        SubGroup g2 = SubGroup.root("transaction.name");
         g2.addCount("catalog", 8L);
         g2.addCount("basket", 5L);
         g2.addCount("checkout", 2L);

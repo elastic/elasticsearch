@@ -76,7 +76,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
+import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardPersistentTaskState;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardTask;
@@ -91,6 +91,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -102,7 +103,7 @@ import static org.elasticsearch.xpack.core.ilm.DownsampleAction.DOWNSAMPLED_INDE
 /**
  * The master downsample action that coordinates
  *  -  creating the downsample index
- *  -  instantiating {@link DownsampleShardIndexer}s to index downsample documents
+ *  -  instantiating {@link org.elasticsearch.persistent.PersistentTasksExecutor} to start a persistent downsample task
  *  -  cleaning up state
  */
 public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAction<DownsampleAction.Request> {
@@ -165,7 +166,6 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             threadPool,
             actionFilters,
             DownsampleAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = new OriginSettingClient(client, ClientHelper.ROLLUP_ORIGIN);
@@ -285,7 +285,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
         // At any point if there is an issue, delete the downsample index
 
         // 1. Extract source index mappings
-        final GetMappingsRequest getMappingsRequest = new GetMappingsRequest().indices(sourceIndexName);
+        final GetMappingsRequest getMappingsRequest = new GetMappingsRequest(request.masterNodeTimeout()).indices(sourceIndexName);
         getMappingsRequest.setParentTask(parentTask);
         client.admin().indices().getMappings(getMappingsRequest, listener.delegateFailureAndWrap((delegate, getMappingsResponse) -> {
             final Map<String, Object> sourceIndexMappings = getMappingsResponse.mappings()
@@ -550,7 +550,7 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 persistentTaskId,
                 DownsampleShardTask.TASK_NAME,
                 params,
-                null,
+                TimeValue.THIRTY_SECONDS /* TODO should this be configurable? longer by default? infinite? */,
                 ActionListener.wrap(
                     startedTask -> persistentTasksService.waitForPersistentTaskCondition(
                         startedTask.getId(),
@@ -740,6 +740,39 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
             .endObject();
     }
 
+    // public for testing
+    public record AggregateMetricDoubleFieldSupportedMetrics(String defaultMetric, List<String> supportedMetrics) {}
+
+    // public for testing
+    public static AggregateMetricDoubleFieldSupportedMetrics getSupportedMetrics(
+        final TimeSeriesParams.MetricType metricType,
+        final Map<String, ?> fieldProperties
+    ) {
+        boolean sourceIsAggregate = fieldProperties.get("type").equals(AggregateMetricDoubleFieldMapper.CONTENT_TYPE);
+        List<String> supportedAggs = List.of(metricType.supportedAggs());
+
+        if (sourceIsAggregate) {
+            @SuppressWarnings("unchecked")
+            List<String> currentAggs = (List<String>) fieldProperties.get(AggregateMetricDoubleFieldMapper.Names.METRICS);
+            supportedAggs = supportedAggs.stream().filter(currentAggs::contains).toList();
+        }
+
+        assert supportedAggs.size() > 0;
+
+        String defaultMetric = "max";
+        if (supportedAggs.contains(defaultMetric) == false) {
+            defaultMetric = supportedAggs.get(0);
+        }
+        if (sourceIsAggregate) {
+            defaultMetric = Objects.requireNonNullElse(
+                (String) fieldProperties.get(AggregateMetricDoubleFieldMapper.Names.DEFAULT_METRIC),
+                defaultMetric
+            );
+        }
+
+        return new AggregateMetricDoubleFieldSupportedMetrics(defaultMetric, supportedAggs);
+    }
+
     private static void addMetricFieldMapping(final XContentBuilder builder, final String field, final Map<String, ?> fieldProperties)
         throws IOException {
         final TimeSeriesParams.MetricType metricType = TimeSeriesParams.MetricType.fromString(
@@ -753,12 +786,11 @@ public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAc
                 builder.field(fieldProperty, fieldProperties.get(fieldProperty));
             }
         } else {
-            final String[] supportedAggsArray = metricType.supportedAggs();
-            // We choose max as the default metric
-            final String defaultMetric = List.of(supportedAggsArray).contains("max") ? "max" : supportedAggsArray[0];
-            builder.field("type", AggregateDoubleMetricFieldMapper.CONTENT_TYPE)
-                .array(AggregateDoubleMetricFieldMapper.Names.METRICS, supportedAggsArray)
-                .field(AggregateDoubleMetricFieldMapper.Names.DEFAULT_METRIC, defaultMetric)
+            var supported = getSupportedMetrics(metricType, fieldProperties);
+
+            builder.field("type", AggregateMetricDoubleFieldMapper.CONTENT_TYPE)
+                .stringListField(AggregateMetricDoubleFieldMapper.Names.METRICS, supported.supportedMetrics)
+                .field(AggregateMetricDoubleFieldMapper.Names.DEFAULT_METRIC, supported.defaultMetric)
                 .field(TIME_SERIES_METRIC_PARAM, metricType);
         }
         builder.endObject();

@@ -175,7 +175,6 @@ public class LuceneSourceOperator extends LuceneOperator {
             }
             Page page = null;
             if (currentPagePos >= minPageSize || remainingDocs <= 0 || scorer.isDone()) {
-                pagesEmitted++;
                 IntBlock shard = null;
                 IntBlock leaf = null;
                 IntVector docs = null;

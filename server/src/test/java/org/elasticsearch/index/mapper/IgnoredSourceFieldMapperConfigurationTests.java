@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.DirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -130,7 +131,7 @@ public class IgnoredSourceFieldMapperConfigurationTests extends MapperServiceTes
         for (var entry : customSettings.entrySet()) {
             settings.put(entry.getKey(), entry.getValue());
         }
-        settings.put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC);
+        settings.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC);
         return createMapperService(settings.build(), mapping(mapping));
     }
 

@@ -155,7 +155,7 @@ public final class MlInitializationService implements ClusterStateListener {
             AnnotationIndex.createAnnotationsIndexIfNecessary(
                 client,
                 event.state(),
-                MasterNodeRequest.TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT,
+                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
                 ActionListener.wrap(r -> isIndexCreationInProgress.set(false), e -> {
                     if (e.getMessage().equals(previousException)) {
                         logger.debug("Error creating ML annotations index or aliases", e);
@@ -221,8 +221,9 @@ public final class MlInitializationService implements ClusterStateListener {
                 logger.warn("One or more of the ML internal indices could not be made hidden.");
                 return;
             }
-            GetAliasesRequest getAliasesRequest = new GetAliasesRequest().indices(mlHiddenIndexPatterns)
-                .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN);
+            GetAliasesRequest getAliasesRequest = new GetAliasesRequest(MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT).indices(
+                mlHiddenIndexPatterns
+            ).indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN);
             executeAsyncWithOrigin(client, ML_ORIGIN, GetAliasesAction.INSTANCE, getAliasesRequest, getAliasesResponseListener);
         }, finalListener::onFailure);
 

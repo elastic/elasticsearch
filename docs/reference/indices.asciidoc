@@ -24,7 +24,6 @@ index settings, aliases, mappings, and index templates.
 * <<indices-split-index>>
 * <<indices-clone-index>>
 * <<indices-rollover-index>>
-* <<unfreeze-index-api>>
 * <<indices-resolve-index-api>>
 * <<indices-resolve-cluster-api>>
 * <<indices-downsample-data-stream>>
@@ -143,6 +142,5 @@ include::indices/shrink-index.asciidoc[]
 include::indices/simulate-index.asciidoc[]
 include::indices/simulate-template.asciidoc[]
 include::indices/split-index.asciidoc[]
-include::indices/apis/unfreeze.asciidoc[]
 include::indices/update-settings.asciidoc[]
 include::indices/put-mapping.asciidoc[]

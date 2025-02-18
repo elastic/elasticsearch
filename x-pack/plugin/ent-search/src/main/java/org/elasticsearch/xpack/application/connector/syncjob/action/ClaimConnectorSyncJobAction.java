@@ -31,7 +31,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 public class ClaimConnectorSyncJobAction {
     public static final ParseField CONNECTOR_SYNC_JOB_ID_FIELD = new ParseField("connector_sync_job_id");
-    public static final String NAME = "indices:data/write/xpack/connector/sync_job/claim";
+    public static final String NAME = "cluster:admin/xpack/connector/sync_job/claim";
     public static final ActionType<ConnectorUpdateActionResponse> INSTANCE = new ActionType<>(NAME);
 
     private ClaimConnectorSyncJobAction() {/* no instances */}

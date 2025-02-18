@@ -37,7 +37,7 @@ import java.util.Iterator;
 import java.util.Locale;
 
 import static org.elasticsearch.cluster.routing.allocation.AbstractAllocationDecision.discoveryNodeToXContent;
-import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.singleChunk;
+import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
 
 /**
  * A {@code ClusterAllocationExplanation} is an explanation of why a shard is unassigned,
@@ -169,7 +169,7 @@ public final class ClusterAllocationExplanation implements ChunkedToXContentObje
     }
 
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return Iterators.concat(singleChunk((builder, p) -> {
+        return Iterators.concat(chunk((builder, p) -> {
             builder.startObject();
 
             if (isSpecificShard() == false) {

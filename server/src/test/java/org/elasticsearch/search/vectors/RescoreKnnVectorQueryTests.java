@@ -9,8 +9,6 @@
 
 package org.elasticsearch.search.vectors;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.DirectoryReader;
@@ -33,11 +31,9 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.stream.Collectors;
@@ -49,21 +45,11 @@ import static org.hamcrest.Matchers.greaterThan;
 public class RescoreKnnVectorQueryTests extends ESTestCase {
 
     public static final String FIELD_NAME = "float_vector";
-    private final int numDocs;
-    private final Integer k;
-
-    public RescoreKnnVectorQueryTests(boolean useK) {
-        this.numDocs = randomIntBetween(10, 100);
-        this.k = useK ? randomIntBetween(1, numDocs - 1) : null;
-    }
 
     public void testRescoreDocs() throws Exception {
+        int numDocs = randomIntBetween(10, 100);
         int numDims = randomIntBetween(5, 100);
-
-        Integer adjustedK = k;
-        if (k == null) {
-            adjustedK = numDocs;
-        }
+        int k = randomIntBetween(1, numDocs - 1);
 
         try (Directory d = newDirectory()) {
             addRandomDocuments(numDocs, d, numDims);
@@ -77,7 +63,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                     FIELD_NAME,
                     queryVector,
                     VectorSimilarityFunction.COSINE,
-                    adjustedK,
+                    k,
                     new MatchAllDocsQuery()
                 );
 
@@ -86,7 +72,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                 Map<Integer, Float> rescoredDocs = Arrays.stream(docs.scoreDocs)
                     .collect(Collectors.toMap(scoreDoc -> scoreDoc.doc, scoreDoc -> scoreDoc.score));
 
-                assertThat(rescoredDocs.size(), equalTo(adjustedK));
+                assertThat(rescoredDocs.size(), equalTo(k));
 
                 Collection<Float> rescoredScores = new HashSet<>(rescoredDocs.values());
 
@@ -113,7 +99,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                 assertThat(rescoredDocs.size(), equalTo(0));
 
                 // Check top scoring docs are contained in rescored docs
-                for (int i = 0; i < adjustedK; i++) {
+                for (int i = 0; i < k; i++) {
                     Float topScore = topK.poll();
                     if (rescoredScores.contains(topScore) == false) {
                         fail("Top score " + topScore + " not contained in rescored doc scores " + rescoredScores);
@@ -124,7 +110,9 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
     }
 
     public void testProfiling() throws Exception {
+        int numDocs = randomIntBetween(10, 100);
         int numDims = randomIntBetween(5, 100);
+        int k = randomIntBetween(1, numDocs - 1);
 
         try (Directory d = newDirectory()) {
             addRandomDocuments(numDocs, d, numDims);
@@ -132,13 +120,13 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
             try (IndexReader reader = DirectoryReader.open(d)) {
                 float[] queryVector = randomVector(numDims);
 
-                checkProfiling(queryVector, reader, new MatchAllDocsQuery());
-                checkProfiling(queryVector, reader, new MockQueryProfilerProvider(randomIntBetween(1, 100)));
+                checkProfiling(k, numDocs, queryVector, reader, new MatchAllDocsQuery());
+                checkProfiling(k, numDocs, queryVector, reader, new MockQueryProfilerProvider(randomIntBetween(1, 100)));
             }
         }
     }
 
-    private void checkProfiling(float[] queryVector, IndexReader reader, Query innerQuery) throws IOException {
+    private void checkProfiling(int k, int numDocs, float[] queryVector, IndexReader reader, Query innerQuery) throws IOException {
         RescoreKnnVectorQuery rescoreKnnVectorQuery = new RescoreKnnVectorQuery(
             FIELD_NAME,
             queryVector,
@@ -228,14 +216,5 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
             w.commit();
             w.forceMerge(1);
         }
-    }
-
-    @ParametersFactory
-    public static Iterable<Object[]> parameters() {
-        List<Object[]> params = new ArrayList<>();
-        params.add(new Object[] { true });
-        params.add(new Object[] { false });
-
-        return params;
     }
 }

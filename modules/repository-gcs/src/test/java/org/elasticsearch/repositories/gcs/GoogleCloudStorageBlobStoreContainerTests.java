@@ -17,6 +17,7 @@ import com.google.cloud.storage.StorageBatch;
 import com.google.cloud.storage.StorageBatchResult;
 import com.google.cloud.storage.StorageException;
 
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -87,7 +88,8 @@ public class GoogleCloudStorageBlobStoreContainerTests extends ESTestCase {
                 "repo",
                 storageService,
                 BigArrays.NON_RECYCLING_INSTANCE,
-                randomIntBetween(1, 8) * 1024
+                randomIntBetween(1, 8) * 1024,
+                BackoffPolicy.noBackoff()
             )
         ) {
             final BlobContainer container = store.blobContainer(BlobPath.EMPTY);

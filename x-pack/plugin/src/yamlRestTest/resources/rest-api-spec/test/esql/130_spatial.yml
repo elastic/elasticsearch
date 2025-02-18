@@ -149,19 +149,25 @@ geo_point unsortable with limit from row:
 
 ---
 values unsupported for geo_point:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ agg_values_spatial ]
+      reason: "Spatial types added to values aggregation in 8.19.0"
+      test_runner_features: [ capabilities, allowed_warnings_regex ]
   - do:
-      catch: '/.+argument of \[VALUES\(location\)\] must be .+/'
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM geo_points | STATS VALUES(location)'
-
----
-values unsupported for geo_point status code:
-  - do:
-      catch: bad_request
-      esql.query:
-        body:
-          query: 'FROM geo_points | STATS VALUES(location)'
+          query: 'FROM geo_points | STATS locations = VALUES(location)'
+  - length: { columns: 1 }
+  - match: { columns.0.name: locations }
+  - match: { columns.0.type: geo_point }
+  - length: { values: 1 }
+  - match: { values.0.0: ["POINT (1.0 -1.0)", "POINT (-1.0 1.0)"] }
 
 ---
 cartesian_point:

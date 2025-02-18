@@ -22,40 +22,6 @@ Before upgrading to 9.0, review these changes and take the described steps
 to mitigate the impact.
 
 [discrete]
-[[breaking_90_logs_changes]]
-==== Logs changes
-
-[[conditionally_enable_logsdb_by_default]]
-.Conditionally enable logsdb by default
-[%collapsible]
-====
-*Details* +
-Logsdb will be enabled by default for data streams matching with logs-*-* pattern.
-If upgrading from 8.x to 9.x and data streams matching with log-*-* do exist,
-then Logsdb will not be enabled by default.
-
-*Impact* +
-Logsdb reduce storage footprint in Elasticsearch for logs, but there are side effects
-to be taken into account that are described in the Logsdb docs:
-https://www.elastic.co/guide/en/elasticsearch/reference/current/logs-data-stream.html#upgrade-to-logsdb-notes
-====
-
-[discrete]
-[[breaking_90_search_changes]]
-==== Search changes
-
-[[change_semantic_text_to_act_like_normal_text_field]]
-.Change Semantic Text To Act Like A Normal Text Field
-[%collapsible]
-====
-*Details* +
-The previous semantic_text format used a complex subfield structure in _source to store the embeddings. This complicated interactions/integrations with semantic_text fields and _source in general. This new semantic_text format treats it as a normal text field, where the field's value in _source is the value assigned by the user.
-
-*Impact* +
-Users who parsed the subfield structure of the previous semantic_text format in _source will need to update their parsing logic. The new format does not directly expose the chunks and embeddings generated from the input text. The new format will be applied to all new indices, any existing indices will continue to use the previous format.
-====
-
-[discrete]
 [[breaking_90_aggregations_changes]]
 ==== Aggregations changes
 
@@ -282,6 +248,25 @@ this value, you will need to update your filters to use `elasticsearch.deprecati
 ====
 
 [discrete]
+[[breaking_90_logs_changes]]
+==== Logs changes
+
+[[conditionally_enable_logsdb_by_default]]
+.Conditionally enable logsdb by default
+[%collapsible]
+====
+*Details* +
+Logsdb will be enabled by default for data streams matching with logs-*-* pattern.
+If upgrading from 8.x to 9.x and data streams matching with log-*-* do exist,
+then Logsdb will not be enabled by default.
+
+*Impact* +
+Logsdb reduce storage footprint in Elasticsearch for logs, but there are side effects
+to be taken into account that are described in the Logsdb docs:
+https://www.elastic.co/guide/en/elasticsearch/reference/current/logs-data-stream.html#upgrade-to-logsdb-notes
+====
+
+[discrete]
 [[breaking_90_mapping_changes]]
 ==== Mapping changes
 
@@ -494,6 +479,17 @@ When providing a 'seed' parameter to a 'random_score' function in the 'function_
 
 *Impact* +
 The random scoring and ordering may change when providing a 'seed' and not providing a 'field' to a 'random_score' function.
+====
+
+[[change_semantic_text_to_act_like_normal_text_field]]
+.Change semantic text to act like a normal text field
+[%collapsible]
+====
+*Details* +
+The previous semantic_text format used a complex subfield structure in _source to store the embeddings. This complicated interactions/integrations with semantic_text fields and _source in general. This new semantic_text format treats it as a normal text field, where the field's value in _source is the value assigned by the user.
+
+*Impact* +
+Users who parsed the subfield structure of the previous semantic_text format in _source will need to update their parsing logic. The new format does not directly expose the chunks and embeddings generated from the input text. The new format will be applied to all new indices, any existing indices will continue to use the previous format.
 ====
 
 [discrete]

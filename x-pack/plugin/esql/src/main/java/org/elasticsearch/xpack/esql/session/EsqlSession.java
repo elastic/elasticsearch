@@ -226,7 +226,7 @@ public class EsqlSession {
             }
             if (p instanceof MergeExec m) {
                 List<PhysicalPlan> newSubPlans = new ArrayList<>();
-                for (var plan : m.subPlans()) {
+                for (var plan : m.children()) {
                     if (plan instanceof FragmentExec f) {
                         LogicalPlan subplan = f.fragment();
                         subplan.setAnalyzed();
@@ -278,8 +278,8 @@ public class EsqlSession {
                         return f.withFragment(frag.transformUp(LogicalPlan.class, bp -> {
                             if (bp instanceof InlineJoin ij && ij.right() == tuple.logical) {
                                 return InlineJoin.inlineData(ij, resultWrapper);
-                            } else if (bp instanceof Merge mr && mr.subPlans().stream().anyMatch(sp -> sp == tuple.logical)) {
-                                List<LogicalPlan> newSubPlans = new ArrayList<>(mr.subPlans());
+                            } else if (bp instanceof Merge mr && mr.children().stream().anyMatch(sp -> sp == tuple.logical)) {
+                                List<LogicalPlan> newSubPlans = new ArrayList<>(mr.children());
                                 for (int i = 0; i < newSubPlans.size(); i++) {
                                     if (newSubPlans.get(i) == tuple.logical) {
                                         newSubPlans.set(i, resultWrapper);
@@ -291,13 +291,13 @@ public class EsqlSession {
                         }));
                     }
                     if (p instanceof MergeExec m) {
-                        boolean anyMatch = m.subPlans()
+                        boolean anyMatch = m.children()
                             .stream()
                             .filter(sp -> FragmentExec.class.isAssignableFrom(sp.getClass()))
                             .map(FragmentExec.class::cast)
                             .anyMatch(fragmentExec -> fragmentExec.fragment() == tuple.logical);
                         if (anyMatch) {
-                            List<PhysicalPlan> newSubPlans = new ArrayList<>(m.subPlans());
+                            List<PhysicalPlan> newSubPlans = new ArrayList<>(m.children());
                             for (int i = 0; i < newSubPlans.size(); i++) {
                                 var subPlan = newSubPlans.get(i);
                                 if (subPlan instanceof FragmentExec fe && fe.fragment() == tuple.logical) {
@@ -452,6 +452,7 @@ public class EsqlSession {
         QueryBuilder requestFilter,
         ActionListener<PreAnalysisResult> listener
     ) {
+        indices = indices.stream().distinct().toList();  // TODO remove if possible
         // TODO we plan to support joins in the future when possible, but for now we'll just fail early if we see one
         if (indices.size() > 1) {
             // Note: JOINs are not supported but we detect them when

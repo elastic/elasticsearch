@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.junit.Before;
 
@@ -21,7 +22,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.Matchers.equalTo;
 
-//@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
+// @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class ForkIT extends AbstractEsqlIntegTestCase {
 
     @Before
@@ -34,11 +35,28 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             FROM test
             | WHERE id > 2
             | FORK
-               ( WHERE content:"fox" )
+               ( WHERE content:"fox" )  // match operator
                ( WHERE content:"dog" )
             | KEEP id, _fork, content
             | SORT id, _fork
             """;
+        testSimpleImpl(query);
+    }
+
+    public void testSimpleMatchFunction() {
+        var query = """
+            FROM test
+            | WHERE id > 2
+            | FORK
+               ( WHERE match(content, "fox") )  // match function
+               ( WHERE match(content, "dog") )
+            | KEEP id, _fork, content
+            | SORT id, _fork
+            """;
+        testSimpleImpl(query);
+    }
+
+    private void testSimpleImpl(String query) {
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("id", "_fork", "content"));
             assertColumnTypes(resp.columns(), List.of("integer", "keyword", "text"));
@@ -437,6 +455,87 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             Iterable<Iterable<Object>> empty = List.of();
             assertValues(resp.values(), empty);
         }
+    }
+
+    public void testSubqueryWithoutLimitOnly() {   // this should
+        var query = """
+            FROM test
+            | FORK
+               ( LIMIT 0 )  // verify optimizes away
+               ( WHERE content:"cat" )
+            | KEEP _fork, id, content
+            | SORT _fork, id
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("_fork", "id", "content"));
+            assertColumnTypes(resp.columns(), List.of("keyword", "integer", "text"));
+            Iterable<Iterable<Object>> expectedValues = List.of(List.of("fork2", 5, "There is also a white cat"));
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
+    public void testSubqueryWithUnknownField() {
+        var query = """
+            FROM test
+            | FORK
+               ( WHERE foo:"dog" )   // unknown field foo
+               ( WHERE content:"cat" )
+            | KEEP _fork, id, content
+            | SORT _fork, id
+            """;
+        var e = expectThrows(VerificationException.class, () -> run(query));
+        assertTrue(e.getMessage().contains("Unknown column [foo]"));
+    }
+
+    public void testSubqueryWithUnknownFieldMatchFunction() {
+        var query = """
+            FROM test
+            | FORK
+               ( WHERE match(bar, "dog") )   // unknown field bar
+               ( WHERE content:"cat" )
+            | KEEP _fork, id, content
+            | SORT _fork, id
+            """;
+        var e = expectThrows(VerificationException.class, () -> run(query));
+        assertTrue(e.getMessage().contains("Unknown column [bar]"));
+    }
+
+    public void testSubqueryWithUnknownFieldInThirdBranch() {
+        var query = """
+            FROM test
+            | FORK
+               ( WHERE content:"cat" )
+               ( WHERE content:"dog" )
+               ( WHERE fubar:"fox" )  // unknown fubar
+               ( WHERE content:"rabbit" )
+            | KEEP _fork, id, content
+            """;
+        var e = expectThrows(VerificationException.class, () -> run(query));
+        assertTrue(e.getMessage().contains("Unknown column [fubar]"));
+    }
+
+    public void testSubqueryWithUnknownFieldInSort() {
+        var query = """
+            FROM test
+            | FORK
+               ( WHERE content:"dog" | sort baz)   // unknown field baz
+               ( WHERE content:"cat" )
+            | KEEP _fork, id, content
+            | SORT _fork, id
+            """;
+        var e = expectThrows(VerificationException.class, () -> run(query));
+        assertTrue(e.getMessage().contains("Unknown column [baz]"));
+
+        var queryTwo = """
+            FROM test
+            | FORK
+               ( WHERE content:"dog" )
+               ( WHERE content:"cat" | sort bar)  // unknown field bar
+            | KEEP _fork, id, content
+            | SORT _fork, id
+            """;
+        e = expectThrows(VerificationException.class, () -> run(queryTwo));
+        assertTrue(e.getMessage().contains("Unknown column [bar]"));
     }
 
     public void testOneSubQuery() {

@@ -11,21 +11,30 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
+
 /**
- * A Merge is a {@code LeafPlan}, which holds several logical subplans.
+ * A Merge is a {@code LogicalPlan}, which has several logical subplans/children.
  */
-public class Merge extends LeafPlan {
+public class Merge extends LogicalPlan {
 
-    private final List<LogicalPlan> subPlans;
+    /**
+     * Replaces the stubbed source with the actual source.
+     */
+    public static LogicalPlan replaceStub(LogicalPlan source, LogicalPlan stubbed) {
+        return stubbed.transformUp(StubRelation.class, stubRelation -> source);
+    }
 
-    public Merge(Source source, List<LogicalPlan> subPlans) {
-        super(source);
-        this.subPlans = subPlans;
+    List<Attribute> lazyOutput;
+
+    public Merge(Source source, List<LogicalPlan> children) {
+        super(source, children);
     }
 
     @Override
@@ -39,13 +48,31 @@ public class Merge extends LeafPlan {
     }
 
     @Override
+    public LogicalPlan replaceChildren(List<LogicalPlan> newChildren) {
+        return new Merge(source(), newChildren);
+    }
+
+    @Override
     public boolean expressionsResolved() {
-        return subPlans.stream().allMatch(LogicalPlan::expressionsResolved);
+        return children().stream().allMatch(LogicalPlan::expressionsResolved);
+    }
+
+    @Override
+    protected NodeInfo<? extends LogicalPlan> info() {
+        return NodeInfo.create(this, Merge::new, children());
+    }
+
+    @Override
+    public List<Attribute> output() {
+        if (lazyOutput == null) {
+            lazyOutput = mergeOutputAttributes(children().get(1).output(), children().getFirst().output());
+        }
+        return lazyOutput;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(subPlans);
+        return Objects.hash(children());
     }
 
     @Override
@@ -57,20 +84,6 @@ public class Merge extends LeafPlan {
             return false;
         }
         Merge other = (Merge) o;
-        return Objects.equals(subPlans, other.subPlans);
-    }
-
-    @Override
-    protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Merge::new, subPlans);
-    }
-
-    @Override
-    public List<Attribute> output() {
-        return subPlans.getFirst().output();
-    }
-
-    public List<LogicalPlan> subPlans() {
-        return subPlans;
+        return Objects.equals(children(), other.children());
     }
 }

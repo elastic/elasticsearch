@@ -84,6 +84,8 @@ public class PropagateInlineEvals extends OptimizerRules.OptimizerRule<InlineJoi
         }
 
         // replace the old stub with the new out to capture the new output
-        return plan.replaceChildren(left, InlineJoin.replaceStub(new StubRelation(right.source(), left.output()), right));
+        StubRelation stub = new StubRelation(right.source(), left.output());
+        LogicalPlan newChild = InlineJoin.replaceStub(stub, right);
+        return plan.replaceChildren(left, newChild);
     }
 }

@@ -17,19 +17,19 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class MergeExec extends LeafExec {
+public class MergeExec extends PhysicalPlan {
 
-    private final List<? extends PhysicalPlan> physSubPlans;
+    // private final List<? extends PhysicalPlan> physSubPlans;
     private final List<Attribute> output;
 
-    public MergeExec(Source source, List<? extends PhysicalPlan> physSubPlans, List<Attribute> output) {
-        super(source);
-        this.physSubPlans = physSubPlans;
+    public MergeExec(Source source, List<PhysicalPlan> children, List<Attribute> output) {
+        super(source, children);
+        // this.physSubPlans = physSubPlans;
         this.output = output;
     }
 
     public List<LocalSupplier> suppliers() {
-        return physSubPlans.stream()
+        return children().stream()
             .filter(p -> LocalSourceExec.class.isAssignableFrom(p.getClass()))
             .map(LocalSourceExec.class::cast)
             .map(LocalSourceExec::supplier)
@@ -47,8 +47,13 @@ public class MergeExec extends LeafExec {
     }
 
     @Override
+    public PhysicalPlan replaceChildren(List<PhysicalPlan> newChildren) {
+        return new MergeExec(source(), newChildren, output());
+    }
+
+    @Override
     protected NodeInfo<MergeExec> info() {
-        return NodeInfo.create(this, MergeExec::new, physSubPlans, output);
+        return NodeInfo.create(this, MergeExec::new, children(), output);
     }
 
     @Override
@@ -57,12 +62,12 @@ public class MergeExec extends LeafExec {
     }
 
     public List<? extends PhysicalPlan> subPlans() {
-        return physSubPlans;
+        return null; // physSubPlans;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(physSubPlans);
+        return Objects.hash(children());
     }
 
     @Override
@@ -70,6 +75,6 @@ public class MergeExec extends LeafExec {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         MergeExec other = (MergeExec) o;
-        return Objects.equals(this.physSubPlans, other.physSubPlans);
+        return Objects.equals(this.children(), other.children());
     }
 }

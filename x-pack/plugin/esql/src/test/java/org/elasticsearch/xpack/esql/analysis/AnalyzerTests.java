@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -49,13 +50,14 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
-import org.elasticsearch.xpack.esql.plan.logical.Merge;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
@@ -88,7 +90,6 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.tsdbIndexR
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -2595,78 +2596,110 @@ public class AnalyzerTests extends ESTestCase {
         assumeTrue("requires FORK capability", EsqlCapabilities.Cap.FORK.isEnabled());
 
         LogicalPlan plan = analyze("""
-            from test*
-            | WHERE x > 1
-            | FORK ( WHERE b > 2 )
-                   ( WHERE C > 3 )
-                   ( WHERE d > 4 | SORT x | LIMIT 7 )
-                   ( SORT x )
+            from test
+            | WHERE first_name == "Chris"
+            | FORK ( WHERE emp_no > 1 )
+                   ( WHERE emp_no > 2 )
+                   ( WHERE emp_no > 3 | SORT emp_no | LIMIT 7 )
+                   ( SORT emp_no )
                    ( LIMIT 9 )
             """);
 
         Limit limit = as(plan, Limit.class);
-        Merge merge = as(limit.child(), Merge.class);
-        assertThat(merge.children(), empty());
-
-        // fork branch 1
-        limit = as(merge.subPlans().get(0), Limit.class);
-        assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
-        Eval eval = as(limit.child(), Eval.class);
-        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork1"))));
-        Filter filter = as(eval.child(), Filter.class);
-        assertThat(as(filter.condition(), GreaterThan.class), equalTo(greaterThan(attribute("b"), literal(2))));
-        filter = as(filter.child(), Filter.class);
-        assertThat(as(filter.condition(), GreaterThan.class), equalTo(greaterThan(attribute("x"), literal(1))));
+        Fork fork = as(limit.child(), Fork.class);
+        Filter filter = as(fork.child(), Filter.class);
+        assertThat(as(filter.condition(), Equals.class).right(), equalTo(string("Chris")));
         var esRelation = as(filter.child(), EsRelation.class);
         assertThat(esRelation.indexPattern(), equalTo("test"));
 
+        var subPlans = fork.subPlans();
+
+        // fork branch 1
+        limit = as(subPlans.get(0), Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
+        Eval eval = as(limit.child(), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork1"))));
+        filter = as(eval.child(), Filter.class);
+        assertThat(as(filter.condition(), GreaterThan.class).right(), equalTo(literal(1)));
+        var stub = as(filter.child(), StubRelation.class);
+
         // fork branch 2
-        limit = as(merge.subPlans().get(1), Limit.class);
+        limit = as(subPlans.get(1), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
         eval = as(limit.child(), Eval.class);
         assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork2"))));
         filter = as(eval.child(), Filter.class);
-        assertThat(as(filter.condition(), GreaterThan.class), equalTo(greaterThan(attribute("C"), literal(3))));
-        filter = as(filter.child(), Filter.class);
-        assertThat(as(filter.condition(), GreaterThan.class), equalTo(greaterThan(attribute("x"), literal(1))));
-        esRelation = as(filter.child(), EsRelation.class);
-        assertThat(esRelation.indexPattern(), equalTo("test"));
+        assertThat(as(filter.condition(), GreaterThan.class).right(), equalTo(literal(2)));
+        stub = as(filter.child(), StubRelation.class);
 
         // fork branch 3
-        limit = as(merge.subPlans().get(2), Limit.class);
+        limit = as(subPlans.get(2), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
         eval = as(limit.child(), Eval.class);
         assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork3"))));
         limit = as(eval.child(), Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(7));
         var orderBy = as(limit.child(), OrderBy.class);
         filter = as(orderBy.child(), Filter.class);
-        assertThat(as(filter.condition(), GreaterThan.class), equalTo(greaterThan(attribute("d"), literal(4))));
-        filter = as(filter.child(), Filter.class);
-        assertThat(as(filter.condition(), GreaterThan.class), equalTo(greaterThan(attribute("x"), literal(1))));
-        esRelation = as(filter.child(), EsRelation.class);
-        assertThat(esRelation.indexPattern(), equalTo("test"));
+        assertThat(as(filter.condition(), GreaterThan.class).right(), equalTo(literal(3)));
+        stub = as(filter.child(), StubRelation.class);
 
         // fork branch 4
-        limit = as(merge.subPlans().get(3), Limit.class);
+        limit = as(subPlans.get(3), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
         eval = as(limit.child(), Eval.class);
         assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork4"))));
         orderBy = as(eval.child(), OrderBy.class);
-        filter = as(orderBy.child(), Filter.class);
-        assertThat(as(filter.condition(), GreaterThan.class), equalTo(greaterThan(attribute("x"), literal(1))));
-        esRelation = as(filter.child(), EsRelation.class);
-        assertThat(esRelation.indexPattern(), equalTo("test"));
+        stub = as(filter.child(), StubRelation.class);
 
         // fork branch 5
-        limit = as(merge.subPlans().get(4), Limit.class);
+        limit = as(subPlans.get(4), Limit.class);
         assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
         eval = as(limit.child(), Eval.class);
         assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork5"))));
         limit = as(eval.child(), Limit.class);
-        filter = as(limit.child(), Filter.class);
-        assertThat(as(filter.condition(), GreaterThan.class), equalTo(greaterThan(attribute("x"), literal(1))));
-        esRelation = as(filter.child(), EsRelation.class);
-        assertThat(esRelation.indexPattern(), equalTo("test"));
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(9));
+        stub = as(limit.child(), StubRelation.class);
+    }
+
+    public void testBasicForkError() {
+        assumeTrue("requires FORK capability", EsqlCapabilities.Cap.FORK.isEnabled());
+
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+            from test
+            | FORK ( WHERE emp_no > 1 )
+                   ( WHERE foo > 1 )
+            """));
+        assertThat(e.getMessage(), containsString("Unknown column [foo]"));
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            from test
+            | FORK ( WHERE bar == 1 )
+                   ( WHERE emp_no > 1 )
+            """));
+        assertThat(e.getMessage(), containsString("Unknown column [bar]"));
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            from test
+            | FORK ( WHERE emp_no > 1 )
+                   ( WHERE emp_no > 2 )
+                   ( WHERE emp_no > 3 )
+                   ( WHERE emp_no > 4 )
+                   ( WHERE emp_no > 5 )
+                   ( WHERE emp_no > 6 | SORT baz )
+            """));
+        assertThat(e.getMessage(), containsString("Unknown column [baz]"));
+
+        var pe = expectThrows(ParsingException.class, () -> analyze("""
+            from test
+            | FORK ( WHERE emp_no > 1 )
+                   ( WHERE emp_no > 2 )
+                   ( WHERE emp_no > 3 | LIMIT me)
+                   ( WHERE emp_no > 4 )
+                   ( WHERE emp_no > 5 )
+                   ( WHERE emp_no > 6 | SORT emp_no | LIMIT 5 )
+            """));
+        assertThat(pe.getMessage(), containsString("mismatched input 'me' expecting INTEGER_LITERAL"));
     }
 
     private void verifyUnsupported(String query, String errorMessage) {
@@ -2734,14 +2767,6 @@ public class AnalyzerTests extends ESTestCase {
     @Override
     protected IndexAnalyzers createDefaultIndexAnalyzers() {
         return super.createDefaultIndexAnalyzers();
-    }
-
-    static GreaterThan greaterThan(Expression left, Expression right) {
-        return new GreaterThan(EMPTY, left, right);
-    }
-
-    static UnresolvedAttribute attribute(String name) {
-        return new UnresolvedAttribute(EMPTY, name);
     }
 
     static Alias alias(String name, Expression value) {

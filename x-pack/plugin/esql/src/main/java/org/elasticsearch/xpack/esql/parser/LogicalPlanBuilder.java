@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.joni.exception.SyntaxException;
@@ -610,13 +611,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public PlanFactory visitForkCommand(EsqlBaseParser.ForkCommandContext ctx) {
         List<PlanFactory> subQueries = visitForkSubQueries(ctx.forkSubQueries());
         if (subQueries.size() < 2) {
             throw new ParsingException(source(ctx), "Fork requires at least two branches");
         }
         return input -> {
-            List<LogicalPlan> subPlans = subQueries.stream().map(planFactory -> planFactory.apply(input)).toList();
+            var stub = StubRelation.EMPTY;
+            List<LogicalPlan> subPlans = subQueries.stream().map(planFactory -> planFactory.apply(stub)).toList();
             return new Fork(source(ctx), input, subPlans);
         };
     }
@@ -629,12 +632,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         for (var subQueryCtx : ctx.forkSubQuery()) {
             var subQuery = visitForkSubQuery(subQueryCtx);
             String forkValue = "fork" + count++;
-            PlanFactory newSubQuery = p -> new Eval(
+            PlanFactory eval = p -> new Eval(
                 source(ctx),
                 subQuery.apply(p),
                 List.of(new Alias(source(ctx), "_fork", new Literal(source(ctx), forkValue, KEYWORD)))
             );
-            list.add(newSubQuery);
+            list.add(eval);
         }
         return List.copyOf(list);
     }

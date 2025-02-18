@@ -444,7 +444,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                     "Inference entity [model_id] does not support task type [chat_completion] "
                         + "for inference, the task type must be one of [sparse_embedding]. "
                         + "The task type for the inference entity is chat_completion, "
-                        + "please use the _inference/chat_completion/model_id/_unified URL."
+                        + "please use the _inference/chat_completion/model_id/_stream URL."
                 )
             );
 
@@ -504,7 +504,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), Matchers.equalTo(XContentType.JSON.mediaType()));
 
             var requestMap = entityAsMap(request.getBody());
-            assertThat(requestMap, is(Map.of("input", List.of("input text"), "model_id", "my-model-id", "usage_context", "search")));
+            assertThat(requestMap, is(Map.of("input", List.of("input text"), "model", "my-model-id", "usage_context", "search")));
         }
     }
 
@@ -562,7 +562,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             );
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
-            assertThat(requestMap, is(Map.of("input", List.of("input text"), "model_id", "my-model-id", "usage_context", "ingest")));
+            assertThat(requestMap, is(Map.of("input", List.of("input text"), "model", "my-model-id", "usage_context", "ingest")));
         }
     }
 

@@ -791,7 +791,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         ContextIndexSearcher contextIndexSearcher = createSearcher(r);
         try (SearchContext searchContext = createSearchContext(contextIndexSearcher, true)) {
             FetchPhase fetchPhase = createFetchPhase(contextIndexSearcher);
-            fetchPhase.execute(searchContext, new int[] { 0, 1, 2 }, null, new NoopCircuitBreaker(CircuitBreaker.REQUEST));
+            fetchPhase.execute(searchContext, new int[] { 0, 1, 2 }, null, new NoopCircuitBreaker(CircuitBreaker.REQUEST), 0L);
             assertTrue(searchContext.queryResult().searchTimedOut());
             assertEquals(1, searchContext.fetchResult().hits().getHits().length);
         } finally {
@@ -814,7 +814,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
             FetchPhase fetchPhase = createFetchPhase(contextIndexSearcher);
             expectThrows(
                 SearchTimeoutException.class,
-                () -> fetchPhase.execute(searchContext, new int[] { 0, 1, 2 }, null, new NoopCircuitBreaker(CircuitBreaker.REQUEST))
+                () -> fetchPhase.execute(searchContext, new int[] { 0, 1, 2 }, null, new NoopCircuitBreaker(CircuitBreaker.REQUEST), 0L)
             );
             assertNull(searchContext.fetchResult().hits());
         } finally {

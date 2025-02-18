@@ -274,6 +274,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
+    /**
+     * The size of the buffer used for memory accounting.
+     * This buffer is used to locally track the memory accummulate during the executiong of
+     * a search request before submitting the accumulated value to the circuit breaker.
+     */
+    public static final Setting<ByteSizeValue> MEMORY_ACCOUNTING_BUFFER_SIZE = Setting.byteSizeSetting(
+        "search.memory_accounting_buffer_size",
+        ByteSizeValue.of(32, ByteSizeUnit.KB),
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     public static final int DEFAULT_SIZE = 10;
     public static final int DEFAULT_FROM = 0;
     private static final StackTraceElement[] EMPTY_STACK_TRACE_ARRAY = new StackTraceElement[0];
@@ -310,6 +322,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private volatile int maxOpenScrollContext;
 
     private volatile boolean enableRewriteAggsToFilterByFilter;
+
+    private volatile ByteSizeValue memoryAccountingBufferSize;
 
     private final Cancellable keepAliveReaper;
 
@@ -388,6 +402,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         enableQueryPhaseParallelCollection = QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.get(settings);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED, this::setEnableQueryPhaseParallelCollection);
+
+        memoryAccountingBufferSize = MEMORY_ACCOUNTING_BUFFER_SIZE.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(MEMORY_ACCOUNTING_BUFFER_SIZE, this::setMemoryAccountingBufferSize);
     }
 
     private void setEnableSearchWorkerThreads(boolean enableSearchWorkerThreads) {
@@ -400,6 +417,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private void setEnableQueryPhaseParallelCollection(boolean enableQueryPhaseParallelCollection) {
         this.enableQueryPhaseParallelCollection = enableQueryPhaseParallelCollection;
+    }
+
+    private void setMemoryAccountingBufferSize(ByteSizeValue memoryAccountingBufferSize) {
+        this.memoryAccountingBufferSize = memoryAccountingBufferSize;
     }
 
     private static void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
@@ -790,7 +811,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     return searchContext.rankFeatureResult();
                 }
                 RankFeatureShardPhase.prepareForFetch(searchContext, request);
-                fetchPhase.execute(searchContext, docIds, null, circuitBreaker);
+                fetchPhase.execute(searchContext, docIds, null, circuitBreaker, memoryAccountingBufferSize.getBytes());
                 RankFeatureShardPhase.processFetch(searchContext);
                 var rankFeatureResult = searchContext.rankFeatureResult();
                 rankFeatureResult.incRef();
@@ -808,7 +829,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             Releasable scope = tracer.withScope(context.getTask());
             SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context, true, afterQueryTime)
         ) {
-            fetchPhase.execute(context, shortcutDocIdsToLoad(context), null, circuitBreaker);
+            fetchPhase.execute(context, shortcutDocIdsToLoad(context), null, circuitBreaker, memoryAccountingBufferSize.getBytes());
             if (reader.singleSession()) {
                 freeReaderContext(reader.id());
             }
@@ -974,7 +995,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                             System.nanoTime()
                         )
                     ) {
-                        fetchPhase.execute(searchContext, request.docIds(), request.getRankDocks(), circuitBreaker);
+                        fetchPhase.execute(
+                            searchContext,
+                            request.docIds(),
+                            request.getRankDocks(),
+                            circuitBreaker,
+                            memoryAccountingBufferSize.getBytes()
+                        );
                         if (readerContext.singleSession()) {
                             freeReaderContext(request.contextId());
                         }

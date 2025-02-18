@@ -16,8 +16,8 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.common.MemoryAccountingBytesRefCounted;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.IdLoader;
@@ -49,6 +49,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -57,7 +58,6 @@ import java.util.function.Supplier;
  */
 public final class FetchPhase {
     private static final Logger LOGGER = LogManager.getLogger(FetchPhase.class);
-    public static final NoopCircuitBreaker NOOP_CIRCUIT_BREAKER = new NoopCircuitBreaker("fetch_phase_nested_hits");
 
     private final FetchSubPhase[] fetchSubPhases;
 
@@ -66,7 +66,13 @@ public final class FetchPhase {
         this.fetchSubPhases[fetchSubPhases.size()] = new InnerHitsPhase(this);
     }
 
-    public void execute(SearchContext context, int[] docIdsToLoad, RankDocShardInfo rankDocs, CircuitBreaker circuitBreaker) {
+    public void execute(
+        SearchContext context,
+        int[] docIdsToLoad,
+        RankDocShardInfo rankDocs,
+        CircuitBreaker circuitBreaker,
+        long memAccountingBufferSize
+    ) {
         if (LOGGER.isTraceEnabled()) {
             LOGGER.trace("{}", new SearchContextSourcePrinter(context));
         }
@@ -88,7 +94,7 @@ public final class FetchPhase {
                 : Profilers.startProfilingFetchPhase();
         SearchHits hits = null;
         try {
-            hits = buildSearchHits(context, docIdsToLoad, profiler, rankDocs, circuitBreaker);
+            hits = buildSearchHits(context, docIdsToLoad, profiler, rankDocs, circuitBreaker, memAccountingBufferSize);
         } finally {
             // Always finish profiling
             ProfileResult profileResult = profiler.finish();
@@ -115,7 +121,8 @@ public final class FetchPhase {
         int[] docIdsToLoad,
         Profiler profiler,
         RankDocShardInfo rankDocs,
-        CircuitBreaker circuitBreaker
+        CircuitBreaker circuitBreaker,
+        long memAccountingBufferSize
     ) {
 
         FetchContext fetchContext = new FetchContext(context);
@@ -152,11 +159,24 @@ public final class FetchPhase {
             LeafStoredFieldLoader leafStoredFieldLoader;
             SourceLoader.Leaf leafSourceLoader;
             IdLoader.Leaf leafIdLoader;
+            int accumulatedBytesInLeaf;
+            int docsInLeaf;
+            int processedDocs;
+
+            private final Supplier<Integer> getAndResetAccumulatedBytes = () -> {
+                int bytesToSubmit = this.accumulatedBytesInLeaf;
+                this.accumulatedBytesInLeaf = 0;
+                return bytesToSubmit;
+            };
+            private final Consumer<Integer> memoryUsageBytesAccumulator = (bytes) -> { this.accumulatedBytesInLeaf += bytes; };
 
             @Override
             protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) throws IOException {
                 Timer timer = profiler.startNextReader();
                 this.ctx = ctx;
+                this.accumulatedBytesInLeaf = 0;
+                this.docsInLeaf = docsInLeaf.length;
+                this.processedDocs = 0;
                 this.leafNestedDocuments = nestedDocuments.getLeafNestedDocuments(ctx);
                 this.leafStoredFieldLoader = storedFieldLoader.getLoader(ctx, docsInLeaf);
                 this.leafSourceLoader = sourceLoader.leaf(ctx.reader(), docsInLeaf);
@@ -175,6 +195,12 @@ public final class FetchPhase {
                 if (context.isCancelled()) {
                     throw new TaskCancelledException("cancelled");
                 }
+                ++processedDocs;
+                // indicates if we should submit the accounted memory to the circuit breaker.
+                // we do so whenever one of the following is true:
+                // 1. we have accumulated at least the size of the memory accounting buffer
+                // 2. we have reached the last document in the leaf
+                boolean enoughBytesOrLastDocInLeaf = (accumulatedBytesInLeaf >= memAccountingBufferSize) || (processedDocs == docsInLeaf);
                 HitContext hit = prepareHitContext(
                     context,
                     requiresSource,
@@ -186,7 +212,10 @@ public final class FetchPhase {
                     leafSourceLoader,
                     leafIdLoader,
                     rankDocs == null ? null : rankDocs.get(doc),
-                    circuitBreaker
+                    circuitBreaker,
+                    enoughBytesOrLastDocInLeaf,
+                    memoryUsageBytesAccumulator,
+                    getAndResetAccumulatedBytes
                 );
                 boolean success = false;
                 try {
@@ -251,7 +280,10 @@ public final class FetchPhase {
         SourceLoader.Leaf sourceLoader,
         IdLoader.Leaf idLoader,
         RankDoc rankDoc,
-        CircuitBreaker circuitBreaker
+        CircuitBreaker circuitBreaker,
+        boolean submitToCb,
+        Consumer<Integer> memoryUsageBytesAccumulator,
+        Supplier<Integer> accumulatedBytesInLeaf
     ) throws IOException {
         if (nestedDocuments.advance(docId - subReaderContext.docBase) == null) {
             return prepareNonNestedHitContext(
@@ -263,7 +295,10 @@ public final class FetchPhase {
                 sourceLoader,
                 idLoader,
                 rankDoc,
-                circuitBreaker
+                circuitBreaker,
+                submitToCb,
+                memoryUsageBytesAccumulator,
+                accumulatedBytesInLeaf
             );
         } else {
             return prepareNestedHitContext(
@@ -295,28 +330,48 @@ public final class FetchPhase {
         SourceLoader.Leaf sourceLoader,
         IdLoader.Leaf idLoader,
         RankDoc rankDoc,
-        CircuitBreaker circuitBreaker
+        CircuitBreaker circuitBreaker,
+        boolean submitToCB,
+        Consumer<Integer> memoryUsageBytesAccumulator,
+        Supplier<Integer> accumulatedBytesInLeaf
     ) throws IOException {
         int subDocId = docId - subReaderContext.docBase;
 
         leafStoredFieldLoader.advanceTo(subDocId);
 
+        MemoryAccountingBytesRefCounted memAccountingRefCounted = null;
+        RefCounted refCountedHit = null;
+        if (submitToCB) {
+            memAccountingRefCounted = MemoryAccountingBytesRefCounted.create(circuitBreaker);
+            refCountedHit = LeakTracker.wrap(memAccountingRefCounted);
+        }
         String id = idLoader.getId(subDocId);
         if (id == null) {
-            MemoryAccountingBytesRefCounted memAccountingRefCounted = MemoryAccountingBytesRefCounted.create(circuitBreaker);
-            SearchHit hit = new SearchHit(docId, null, null, LeakTracker.wrap(memAccountingRefCounted));
+            SearchHit hit = new SearchHit(docId, null, null, refCountedHit);
             // TODO: can we use real pooled buffers here as well?
-            Source source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId, memAccountingRefCounted));
+            Source source = Source.lazy(
+                lazyStoredSourceLoader(
+                    profiler,
+                    subReaderContext,
+                    subDocId,
+                    memAccountingRefCounted,
+                    submitToCB,
+                    memoryUsageBytesAccumulator,
+                    accumulatedBytesInLeaf
+                )
+            );
             return new HitContext(hit, subReaderContext, subDocId, Map.of(), source, rankDoc);
         } else {
-            MemoryAccountingBytesRefCounted memAccountingRefCounted = MemoryAccountingBytesRefCounted.create(circuitBreaker);
-            SearchHit hit = new SearchHit(docId, id, null, LeakTracker.wrap(memAccountingRefCounted));
+            SearchHit hit = new SearchHit(docId, id, null, refCountedHit);
             Source source;
             if (requiresSource) {
                 Timer timer = profiler.startLoadingSource();
                 try {
                     source = sourceLoader.source(leafStoredFieldLoader, subDocId);
-                    memAccountingRefCounted.account(source.internalSourceRef().length(), "fetch phase source loader");
+                    memoryUsageBytesAccumulator.accept(source.internalSourceRef().length());
+                    if (submitToCB) {
+                        memAccountingRefCounted.account(accumulatedBytesInLeaf.get(), "fetch phase source loader");
+                    }
                 } catch (CircuitBreakingException e) {
                     hit.decRef();
                     throw e;
@@ -326,7 +381,17 @@ public final class FetchPhase {
                     }
                 }
             } else {
-                source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId, memAccountingRefCounted));
+                source = Source.lazy(
+                    lazyStoredSourceLoader(
+                        profiler,
+                        subReaderContext,
+                        subDocId,
+                        memAccountingRefCounted,
+                        submitToCB,
+                        memoryUsageBytesAccumulator,
+                        accumulatedBytesInLeaf
+                    )
+                );
             }
             return new HitContext(hit, subReaderContext, subDocId, leafStoredFieldLoader.storedFields(), source, rankDoc);
         }
@@ -336,7 +401,10 @@ public final class FetchPhase {
         Profiler profiler,
         LeafReaderContext ctx,
         int doc,
-        MemoryAccountingBytesRefCounted memAccountingRefCounted
+        MemoryAccountingBytesRefCounted memAccountingRefCounted,
+        boolean submitToCB,
+        Consumer<Integer> memoryUsageAccumulator,
+        Supplier<Integer> accumulatedBytesInLeaf
     ) {
         return () -> {
             StoredFieldLoader rootLoader = profiler.storedFields(StoredFieldLoader.create(true, Collections.emptySet()));
@@ -344,7 +412,10 @@ public final class FetchPhase {
                 LeafStoredFieldLoader leafRootLoader = rootLoader.getLoader(ctx, null);
                 leafRootLoader.advanceTo(doc);
                 BytesReference source = leafRootLoader.source();
-                memAccountingRefCounted.account(source.length(), "fetch phase source loader");
+                memoryUsageAccumulator.accept(source.length());
+                if (submitToCB) {
+                    memAccountingRefCounted.account(accumulatedBytesInLeaf.get(), "lazy fetch phase source loader");
+                }
                 return Source.fromBytes(source);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);

@@ -98,7 +98,8 @@ public final class InnerHitsPhase implements FetchSubPhase {
             innerHitsContext.setRootId(hit.getId());
             innerHitsContext.setRootLookup(rootSource);
 
-            fetchPhase.execute(innerHitsContext, docIdsToLoad, null, NOOP_CIRCUIT_BREAKER);
+            // running the inner hits fetch phase without memory accounting as the source size is already accounted for in the outer hits
+            fetchPhase.execute(innerHitsContext, docIdsToLoad, null, NOOP_CIRCUIT_BREAKER, 0L);
             FetchSearchResult fetchResult = innerHitsContext.fetchResult();
             SearchHit[] internalHits = fetchResult.fetchResult().hits().getHits();
             for (int j = 0; j < internalHits.length; j++) {

@@ -35,6 +35,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -55,6 +56,8 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 
 class TopHitsAggregator extends MetricsAggregator {
+
+    private final long memAccountingBufferSize;
 
     private static class Collectors {
         public final TopDocsCollector<?> topDocsCollector;
@@ -87,6 +90,7 @@ class TopHitsAggregator extends MetricsAggregator {
         this.subSearchContext = subSearchContext;
         this.topDocsCollectors = new LongObjectPagedHashMap<>(1, bigArrays);
         this.fetchProfiles = context.profiling() ? new ArrayList<>() : null;
+        this.memAccountingBufferSize = context.getClusterSettings().get(SearchService.MEMORY_ACCOUNTING_BUFFER_SIZE).getBytes();
     }
 
     @Override
@@ -197,7 +201,7 @@ class TopHitsAggregator extends MetricsAggregator {
         for (int i = 0; i < topDocs.scoreDocs.length; i++) {
             docIdsToLoad[i] = topDocs.scoreDocs[i].doc;
         }
-        FetchSearchResult fetchResult = runFetchPhase(subSearchContext, docIdsToLoad, context.breaker());
+        FetchSearchResult fetchResult = runFetchPhase(subSearchContext, docIdsToLoad, context.breaker(), memAccountingBufferSize);
         if (fetchProfiles != null) {
             fetchProfiles.add(fetchResult.profileResult());
         }
@@ -221,7 +225,12 @@ class TopHitsAggregator extends MetricsAggregator {
         );
     }
 
-    private static FetchSearchResult runFetchPhase(SubSearchContext subSearchContext, int[] docIdsToLoad, CircuitBreaker breaker) {
+    private static FetchSearchResult runFetchPhase(
+        SubSearchContext subSearchContext,
+        int[] docIdsToLoad,
+        CircuitBreaker breaker,
+        long memAccountingBufferSize
+    ) {
         // Fork the search execution context for each slice, because the fetch phase does not support concurrent execution yet.
         SearchExecutionContext searchExecutionContext = new SearchExecutionContext(subSearchContext.getSearchExecutionContext());
         SubSearchContext fetchSubSearchContext = new SubSearchContext(subSearchContext) {
@@ -230,7 +239,7 @@ class TopHitsAggregator extends MetricsAggregator {
                 return searchExecutionContext;
             }
         };
-        fetchSubSearchContext.fetchPhase().execute(fetchSubSearchContext, docIdsToLoad, null, breaker);
+        fetchSubSearchContext.fetchPhase().execute(fetchSubSearchContext, docIdsToLoad, null, breaker, memAccountingBufferSize);
         return fetchSubSearchContext.fetchResult();
     }
 

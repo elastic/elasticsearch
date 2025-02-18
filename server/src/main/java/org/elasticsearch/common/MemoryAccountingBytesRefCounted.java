@@ -12,29 +12,31 @@ package org.elasticsearch.common;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.AbstractRefCounted;
 
+/**
+ * A ref counted object that accounts for memory usage in bytes and releases the
+ * accounted memory from the circuit breaker when the reference count reaches zero.
+ */
 public final class MemoryAccountingBytesRefCounted extends AbstractRefCounted {
 
-    private long bytes;
+    private int bytes;
     private final CircuitBreaker breaker;
 
-    private MemoryAccountingBytesRefCounted(long bytes, CircuitBreaker breaker) {
+    private MemoryAccountingBytesRefCounted(int bytes, CircuitBreaker breaker) {
         this.bytes = bytes;
         this.breaker = breaker;
     }
 
     public static MemoryAccountingBytesRefCounted create(CircuitBreaker breaker) {
-        return new MemoryAccountingBytesRefCounted(0L, breaker);
+        return new MemoryAccountingBytesRefCounted(0, breaker);
     }
 
-    public void account(long bytes, String label) {
+    public void account(int bytes, String label) {
         breaker.addEstimateBytesAndMaybeBreak(bytes, label);
         this.bytes += bytes;
     }
 
     @Override
     protected void closeInternal() {
-        if (bytes != 0L) {
-            breaker.addWithoutBreaking(-bytes);
-        }
+        breaker.addWithoutBreaking(-bytes);
     }
 }

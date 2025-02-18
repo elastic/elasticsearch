@@ -280,12 +280,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/122670
 - class: org.elasticsearch.telemetry.apm.ApmAgentSettingsIT
   issue: https://github.com/elastic/elasticsearch/issues/122546
-- class: org.elasticsearch.entitlement.qa.EntitlementsDeniedNonModularIT
-  issue: https://github.com/elastic/elasticsearch/issues/122569
-- class: org.elasticsearch.entitlement.qa.EntitlementsAllowedNonModularIT
-  issue: https://github.com/elastic/elasticsearch/issues/122568
-- class: org.elasticsearch.entitlement.qa.EntitlementsAllowedIT
-  issue: https://github.com/elastic/elasticsearch/issues/122680
 
 # Examples:
 #

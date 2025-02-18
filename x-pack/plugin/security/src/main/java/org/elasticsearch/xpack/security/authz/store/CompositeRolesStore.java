@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.RemoteIndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.DocumentSubsetBitsetCache;
-import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition.FieldGrantExcludeGroup;
@@ -542,43 +541,38 @@ public class CompositeRolesStore {
 
         for (Map.Entry<Set<String>, MergeableIndicesPrivilege> entry : indicesPrivilegesMap.entrySet()) {
             MergeableIndicesPrivilege indicesPrivilege = entry.getValue();
-            FieldPermissions fieldPermissions = fieldPermissionsCache.getFieldPermissions(indicesPrivilege.fieldPermissionsDefinition);
-            String[] indices = indicesPrivilege.indices.toArray(Strings.EMPTY_ARRAY);
-            Set<IndexPrivilege> splitPrivileges = IndexPrivilege.getSplitBySelector(indicesPrivilege.privileges);
-            for (var splitPrivilege : splitPrivileges) {
-                builder.add(fieldPermissions, indicesPrivilege.query, splitPrivilege, false, indices);
-            }
+            builder.add(
+                fieldPermissionsCache.getFieldPermissions(indicesPrivilege.fieldPermissionsDefinition),
+                indicesPrivilege.query,
+                IndexPrivilege.getSplitBySelector(indicesPrivilege.privileges),
+                false,
+                indicesPrivilege.indices.toArray(Strings.EMPTY_ARRAY)
+            );
+
         }
         for (Map.Entry<Set<String>, MergeableIndicesPrivilege> entry : restrictedIndicesPrivilegesMap.entrySet()) {
             MergeableIndicesPrivilege indicesPrivilege = entry.getValue();
-            FieldPermissions fieldPermissions = fieldPermissionsCache.getFieldPermissions(indicesPrivilege.fieldPermissionsDefinition);
-            String[] indices = indicesPrivilege.indices.toArray(Strings.EMPTY_ARRAY);
-            Set<IndexPrivilege> splitPrivileges = IndexPrivilege.getSplitBySelector(indicesPrivilege.privileges);
-            for (var splitPrivilege : splitPrivileges) {
-                builder.add(fieldPermissions, indicesPrivilege.query, splitPrivilege, true, indices);
-            }
+            builder.add(
+                fieldPermissionsCache.getFieldPermissions(indicesPrivilege.fieldPermissionsDefinition),
+                indicesPrivilege.query,
+                IndexPrivilege.getSplitBySelector(indicesPrivilege.privileges),
+                true,
+                indicesPrivilege.indices.toArray(Strings.EMPTY_ARRAY)
+            );
         }
 
         remoteIndicesPrivilegesByCluster.forEach((clusterAliasKey, remoteIndicesPrivilegesForCluster) -> {
             remoteIndicesPrivilegesForCluster.forEach((privilege) -> {
-                FieldPermissions fieldPermissions = fieldPermissionsCache.getFieldPermissions(
-                    new FieldPermissionsDefinition(privilege.getGrantedFields(), privilege.getDeniedFields())
+                builder.addRemoteIndicesGroup(
+                    clusterAliasKey,
+                    fieldPermissionsCache.getFieldPermissions(
+                        new FieldPermissionsDefinition(privilege.getGrantedFields(), privilege.getDeniedFields())
+                    ),
+                    privilege.getQuery() == null ? null : newHashSet(privilege.getQuery()),
+                    IndexPrivilege.getSplitBySelector(Set.of(Objects.requireNonNull(privilege.getPrivileges()))),
+                    privilege.allowRestrictedIndices(),
+                    newHashSet(Objects.requireNonNull(privilege.getIndices())).toArray(new String[0])
                 );
-                Set<BytesReference> query = privilege.getQuery() == null ? null : newHashSet(privilege.getQuery());
-                String[] indices = newHashSet(Objects.requireNonNull(privilege.getIndices())).toArray(new String[0]);
-                Set<IndexPrivilege> splitPrivileges = IndexPrivilege.getSplitBySelector(
-                    Set.of(Objects.requireNonNull(privilege.getPrivileges()))
-                );
-                for (var indexPrivilege : splitPrivileges) {
-                    builder.addRemoteIndicesGroup(
-                        clusterAliasKey,
-                        fieldPermissions,
-                        query,
-                        indexPrivilege,
-                        privilege.allowRestrictedIndices(),
-                        indices
-                    );
-                }
             });
         });
 

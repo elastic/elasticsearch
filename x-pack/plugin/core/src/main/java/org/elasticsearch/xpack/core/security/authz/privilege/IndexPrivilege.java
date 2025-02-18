@@ -194,11 +194,6 @@ public final class IndexPrivilege extends Privilege {
     public static final IndexPrivilege CREATE_DOC = new IndexPrivilege("create_doc", CREATE_DOC_AUTOMATON);
     public static final IndexPrivilege MONITOR = new IndexPrivilege("monitor", MONITOR_AUTOMATON);
     public static final IndexPrivilege MANAGE = new IndexPrivilege("manage", MANAGE_AUTOMATON);
-    public static final IndexPrivilege MANAGE_FAILURE_STORE_INTERNAL = new IndexPrivilege(
-        "manage_failure_store_internal",
-        MANAGE_AUTOMATON,
-        IndexComponentSelectorPrivilege.FAILURES
-    );
     public static final IndexPrivilege DELETE_INDEX = new IndexPrivilege("delete_index", DELETE_INDEX_AUTOMATON);
     public static final IndexPrivilege CREATE_INDEX = new IndexPrivilege("create_index", CREATE_INDEX_AUTOMATON);
     public static final IndexPrivilege VIEW_METADATA = new IndexPrivilege("view_index_metadata", VIEW_METADATA_AUTOMATON);
@@ -248,8 +243,7 @@ public final class IndexPrivilege extends Privilege {
             entry("auto_configure", AUTO_CONFIGURE),
             entry("cross_cluster_replication", CROSS_CLUSTER_REPLICATION),
             entry("cross_cluster_replication_internal", CROSS_CLUSTER_REPLICATION_INTERNAL),
-            DataStream.isFailureStoreFeatureFlagEnabled() ? entry("read_failure_store", READ_FAILURE_STORE) : null,
-            DataStream.isFailureStoreFeatureFlagEnabled() ? entry("manage_failure_store_internal", MANAGE_FAILURE_STORE_INTERNAL) : null
+            DataStream.isFailureStoreFeatureFlagEnabled() ? entry("read_failure_store", READ_FAILURE_STORE) : null
         ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue))
     );
 
@@ -347,7 +341,7 @@ public final class IndexPrivilege extends Privilege {
         }
 
         final Set<IndexPrivilege> result = combineIntoResult(allAccessPrivileges, failureAccessPrivileges, dataAccessPrivileges, actions);
-        assertNamesMatch(result, name);
+        assertNamesMatch(name, result);
         return result;
     }
 
@@ -376,8 +370,12 @@ public final class IndexPrivilege extends Privilege {
         return result;
     }
 
-    private static void assertNamesMatch(Set<IndexPrivilege> privileges, Set<String> names) {
-        assert names.equals(privileges.stream().map(Privilege::name).flatMap(Set::stream).collect(Collectors.toSet()))
+    private static void assertNamesMatch(Set<String> names, Set<IndexPrivilege> privileges) {
+        // TODO clean up
+        assert names.stream()
+            .map(n -> n.toLowerCase(Locale.ROOT))
+            .collect(Collectors.toSet())
+            .equals(privileges.stream().map(Privilege::name).flatMap(Set::stream).collect(Collectors.toSet()))
             : "mismatch between names [" + names + "] and names on split privileges [" + privileges + "]";
     }
 

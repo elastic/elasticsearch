@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.security.support;
 
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper;
@@ -41,11 +40,7 @@ public class QueryableBuiltInRolesUtilsTests extends ESTestCase {
     public void testCalculateHash() {
         assertThat(
             QueryableBuiltInRolesUtils.calculateHash(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR),
-            equalTo(
-                DataStream.isFailureStoreFeatureFlagEnabled()
-                    ? "qgdWamvjudRKGezTGfjoSCr230sFDdh2t6xFUPYiW2Q="
-                    : "bWEFdFo4WX229wdhdecfiz5QHMYEssh3ex8hizRgg+Q="
-            )
+            equalTo("bWEFdFo4WX229wdhdecfiz5QHMYEssh3ex8hizRgg+Q=")
         );
     }
 

@@ -258,11 +258,38 @@ public interface Role {
         public Builder add(
             FieldPermissions fieldPermissions,
             Set<BytesReference> query,
+            Set<IndexPrivilege> privilegesSplitBySelector,
+            boolean allowRestrictedIndices,
+            String... indices
+        ) {
+            for (var indexPrivilege : privilegesSplitBySelector) {
+                add(fieldPermissions, query, indexPrivilege, allowRestrictedIndices, indices);
+            }
+            return this;
+        }
+
+        public Builder add(
+            FieldPermissions fieldPermissions,
+            Set<BytesReference> query,
             IndexPrivilege privilege,
             boolean allowRestrictedIndices,
             String... indices
         ) {
             groups.add(new IndicesPermissionGroupDefinition(privilege, fieldPermissions, query, allowRestrictedIndices, indices));
+            return this;
+        }
+
+        public Builder addRemoteIndicesGroup(
+            final Set<String> remoteClusterAliases,
+            final FieldPermissions fieldPermissions,
+            final Set<BytesReference> query,
+            final Set<IndexPrivilege> privilegesSplitBySelector,
+            final boolean allowRestrictedIndices,
+            final String... indices
+        ) {
+            for (var indexPrivilege : privilegesSplitBySelector) {
+                addRemoteIndicesGroup(remoteClusterAliases, fieldPermissions, query, indexPrivilege, allowRestrictedIndices, indices);
+            }
             return this;
         }
 
@@ -405,15 +432,15 @@ public interface Role {
         );
 
         for (RoleDescriptor.IndicesPrivileges indexPrivilege : roleDescriptor.getIndicesPrivileges()) {
-            FieldPermissions fieldPermissions = fieldPermissionsCache.getFieldPermissions(
-                new FieldPermissionsDefinition(indexPrivilege.getGrantedFields(), indexPrivilege.getDeniedFields())
+            builder.add(
+                fieldPermissionsCache.getFieldPermissions(
+                    new FieldPermissionsDefinition(indexPrivilege.getGrantedFields(), indexPrivilege.getDeniedFields())
+                ),
+                indexPrivilege.getQuery() == null ? null : Collections.singleton(indexPrivilege.getQuery()),
+                IndexPrivilege.getSplitBySelector(Set.of(indexPrivilege.getPrivileges())),
+                indexPrivilege.allowRestrictedIndices(),
+                indexPrivilege.getIndices()
             );
-            Set<BytesReference> query = indexPrivilege.getQuery() == null ? null : Collections.singleton(indexPrivilege.getQuery());
-            boolean allowRestrictedIndices = indexPrivilege.allowRestrictedIndices();
-            Set<IndexPrivilege> splitPrivileges = IndexPrivilege.getSplitBySelector(Set.of(indexPrivilege.getPrivileges()));
-            for (var entry : splitPrivileges) {
-                builder.add(fieldPermissions, query, entry, allowRestrictedIndices, indexPrivilege.getIndices());
-            }
         }
 
         for (RoleDescriptor.RemoteIndicesPrivileges remoteIndicesPrivileges : roleDescriptor.getRemoteIndicesPrivileges()) {
@@ -421,22 +448,16 @@ public interface Role {
             assert Arrays.equals(new String[] { "*" }, clusterAliases)
                 : "reserved role should not define remote indices privileges for specific clusters";
             final RoleDescriptor.IndicesPrivileges indexPrivilege = remoteIndicesPrivileges.indicesPrivileges();
-            FieldPermissions fieldPermissions = fieldPermissionsCache.getFieldPermissions(
-                new FieldPermissionsDefinition(indexPrivilege.getGrantedFields(), indexPrivilege.getDeniedFields())
+            builder.addRemoteIndicesGroup(
+                Set.of(clusterAliases),
+                fieldPermissionsCache.getFieldPermissions(
+                    new FieldPermissionsDefinition(indexPrivilege.getGrantedFields(), indexPrivilege.getDeniedFields())
+                ),
+                indexPrivilege.getQuery() == null ? null : Collections.singleton(indexPrivilege.getQuery()),
+                IndexPrivilege.getSplitBySelector(Set.of(indexPrivilege.getPrivileges())),
+                indexPrivilege.allowRestrictedIndices(),
+                indexPrivilege.getIndices()
             );
-            Set<BytesReference> query = indexPrivilege.getQuery() == null ? null : Collections.singleton(indexPrivilege.getQuery());
-            boolean allowRestrictedIndices = indexPrivilege.allowRestrictedIndices();
-            Set<IndexPrivilege> splitPrivileges = IndexPrivilege.getSplitBySelector(Set.of(indexPrivilege.getPrivileges()));
-            for (var entry : splitPrivileges) {
-                builder.addRemoteIndicesGroup(
-                    Set.of(clusterAliases),
-                    fieldPermissions,
-                    query,
-                    entry,
-                    allowRestrictedIndices,
-                    indexPrivilege.getIndices()
-                );
-            }
         }
 
         RemoteClusterPermissions remoteClusterPermissions = roleDescriptor.getRemoteClusterPermissions();

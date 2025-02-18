@@ -11,7 +11,6 @@ import org.elasticsearch.action.admin.cluster.remote.TransportRemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesAction;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.set.Sets;
@@ -79,12 +78,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").allowRestrictedIndices(false).build(),
             RoleDescriptor.IndicesPrivileges.builder()
                 .indices("*")
-                .privileges(
-                    // TODO are there edge-cases where this is a bad idea?
-                    DataStream.isFailureStoreFeatureFlagEnabled()
-                        ? new String[] { "monitor", "read", "view_index_metadata", "read_cross_cluster", "read_failure_store" }
-                        : new String[] { "monitor", "read", "view_index_metadata", "read_cross_cluster" }
-                )
+                // TODO add read_failure_store when failures authorization is implemented
+                .privileges("monitor", "read", "view_index_metadata", "read_cross_cluster")
                 .allowRestrictedIndices(true)
                 .build() },
         new RoleDescriptor.ApplicationResourcePrivileges[] {
@@ -101,12 +96,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             new RoleDescriptor.RemoteIndicesPrivileges(
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("*")
-                    .privileges(
-                        // TODO are there edge-cases where this is a bad idea?
-                        DataStream.isFailureStoreFeatureFlagEnabled()
-                            ? new String[] { "monitor", "read", "view_index_metadata", "read_cross_cluster", "read_failure_store" }
-                            : new String[] { "monitor", "read", "view_index_metadata", "read_cross_cluster" }
-                    )
+                    // TODO add read_failure_store when failures authorization is implemented
+                    .privileges("monitor", "read", "view_index_metadata", "read_cross_cluster")
                     .allowRestrictedIndices(true)
                     .build(),
                 "*"

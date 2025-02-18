@@ -37,6 +37,16 @@ configurations {
       attribute(patched, true)
     }
   }
+  testCompileClasspath {
+    attributes {
+      attribute(patched, true)
+    }
+  }
+  testRuntimeClasspath {
+    attributes {
+      attribute(patched, true)
+    }
+  }
 }
 
 dependencies {

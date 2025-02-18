@@ -2986,19 +2986,21 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             fetchSearchResult = listener.get();
             long usedAfterFetch = breaker.getUsed();
             assertThat(usedAfterFetch, greaterThan(usedBeforeFetch));
-            logger.debug("--> usedBeforeFetch: [{}], usedAfterFetch: [{}]", usedBeforeFetch, usedAfterFetch);
+            logger.info("--> usedBeforeFetch: [{}], usedAfterFetch: [{}]", usedBeforeFetch, usedAfterFetch);
             // 48 docs with at least 1000 bytes in the source
             assertThat((usedAfterFetch - usedBeforeFetch), greaterThanOrEqualTo(48_000L));
         } finally {
-            if (fetchSearchResult != null) {
-                long usedBeforeDecref = breaker.getUsed();
-                assertThat(usedBeforeDecref, greaterThanOrEqualTo(48_000L));
-                fetchSearchResult.decRef();
-                // when releasing the result references we should clear at least 48_000 bytes (48 hits with sources of at least 1000 bytes)
-                assertThat(usedBeforeDecref - breaker.getUsed(), greaterThanOrEqualTo(48_000L));
-            }
             if (readerContext != null) {
                 service.freeReaderContext(readerContext.id());
+            }
+            if (fetchSearchResult != null) {
+                long usedBeforeResultDecRef = breaker.getUsed();
+                fetchSearchResult.decRef();
+                assertThat(usedBeforeResultDecRef, greaterThanOrEqualTo(48_000L));
+                // when releasing the result references we should clear at least 48_000 bytes (48 hits with sources of at least 1000 bytes)
+                long usedAfterResultDecRef = breaker.getUsed();
+                logger.info("--> usedBeforeResultDecRef: [{}], usedAfterResultDecRef: [{}]", usedBeforeResultDecRef, usedAfterResultDecRef);
+                assertThat(usedBeforeResultDecRef - usedAfterResultDecRef, greaterThanOrEqualTo(48_000L));
             }
         }
     }

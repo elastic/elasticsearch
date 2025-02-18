@@ -268,6 +268,7 @@ abstract class DataNodeRequestSender {
         assert sendingLock.isHeldByCurrentThread();
         final Map<DiscoveryNode, List<ShardId>> nodeToShardIds = new HashMap<>();
         final Iterator<ShardId> shardsIt = pendingShardIds.iterator();
+
         while (shardsIt.hasNext()) {
             ShardId shardId = shardsIt.next();
             ShardFailure failure = shardFailures.get(shardId);
@@ -277,18 +278,30 @@ abstract class DataNodeRequestSender {
             }
             TargetShard shard = targetShards.getShard(shardId);
             Iterator<DiscoveryNode> nodesIt = shard.remainingNodes.iterator();
-            DiscoveryNode selectedNode = null;
             while (nodesIt.hasNext()) {
                 DiscoveryNode node = nodesIt.next();
-                if (nodeToShardIds.containsKey(node) || nodePermits.get(node).tryAcquire()) {
+                List<ShardId> pendingRequest = nodeToShardIds.get(node);
+                if (pendingRequest != null) {
+                    pendingRequest.add(shard.shardId);
                     nodesIt.remove();
                     shardsIt.remove();
-                    selectedNode = node;
                     break;
                 }
-            }
-            if (selectedNode != null) {
-                nodeToShardIds.computeIfAbsent(selectedNode, unused -> new ArrayList<>()).add(shard.shardId);
+
+                if (concurrentRequests == null || concurrentRequests.tryAcquire()) {
+                    if (nodePermits.get(node).tryAcquire()) {
+                        pendingRequest = new ArrayList<>();
+                        pendingRequest.add(shard.shardId);
+                        nodeToShardIds.put(node, pendingRequest);
+
+                        nodesIt.remove();
+                        shardsIt.remove();
+
+                        break;
+                    } else if (concurrentRequests != null) {
+                        concurrentRequests.release();
+                    }
+                }
             }
         }
 
@@ -296,22 +309,14 @@ abstract class DataNodeRequestSender {
         for (var entry : nodeToShardIds.entrySet()) {
             var node = entry.getKey();
             var shardIds = entry.getValue();
-            if (concurrentRequests == null || concurrentRequests.tryAcquire()) {
-                Map<Index, AliasFilter> aliasFilters = new HashMap<>();
-                for (ShardId shardId : shardIds) {
-                    var aliasFilter = targetShards.getShard(shardId).aliasFilter;
-                    if (aliasFilter != null) {
-                        aliasFilters.put(shardId.getIndex(), aliasFilter);
-                    }
+            Map<Index, AliasFilter> aliasFilters = new HashMap<>();
+            for (ShardId shardId : shardIds) {
+                var aliasFilter = targetShards.getShard(shardId).aliasFilter;
+                if (aliasFilter != null) {
+                    aliasFilters.put(shardId.getIndex(), aliasFilter);
                 }
-                nodeRequests.add(new NodeRequest(node, shardIds, aliasFilters));
-            } else {
-                pendingShardIds.addAll(shardIds);
-                for (ShardId shardId : shardIds) {
-                    targetShards.getShard(shardId).remainingNodes.add(node);
-                }
-                nodePermits.get(node).release();
             }
+            nodeRequests.add(new NodeRequest(node, shardIds, aliasFilters));
         }
         return nodeRequests;
     }

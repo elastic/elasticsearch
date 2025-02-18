@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.BaseAnalyzerRule;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerRules.ParameterizedAnalyzerRule;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -70,6 +71,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -430,9 +432,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
-    public static class ResolveRefs extends BaseAnalyzerRule {
+    public static class ResolveRefs extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
         @Override
-        protected LogicalPlan doRule(LogicalPlan plan) {
+        protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
             if (plan.childrenResolved() == false) {
                 return plan;
             }
@@ -477,6 +479,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             if (plan instanceof LookupJoin j) {
                 return resolveLookupJoin(j);
+            }
+
+            if (plan instanceof Insist i) {
+                return resolveInsist(i, childrenOutput, context.indexResolution());
             }
 
             return plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
@@ -662,13 +668,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Attribute> resolved = new ArrayList<>(cols.size());
             for (Attribute col : cols) {
                 if (col instanceof UnresolvedAttribute ua) {
-                    Attribute resolvedCol = maybeResolveAttribute(ua, output);
-                    if (resolvedCol instanceof UnresolvedAttribute ucol) {
+                    Attribute resolvedField = maybeResolveAttribute(ua, output);
+                    if (resolvedField instanceof UnresolvedAttribute ucol) {
                         String message = ua.unresolvedMessage();
                         String match = "column [" + ucol.name() + "]";
-                        resolvedCol = ucol.withUnresolvedMessage(message.replace(match, match + " in " + side + " side of join"));
+                        resolvedField = ucol.withUnresolvedMessage(message.replace(match, match + " in " + side + " side of join"));
                     }
-                    resolved.add(resolvedCol);
+                    resolved.add(resolvedField);
                 } else {
                     throw new IllegalStateException(
                         "Surprised to discover column [ " + col.name() + "] already resolved when resolving JOIN keys"
@@ -676,6 +682,49 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
             return resolved;
+        }
+
+        private LogicalPlan resolveInsist(Insist insist, List<Attribute> childrenOutput, IndexResolution indexResolution) {
+            List<Attribute> list = new ArrayList<>();
+            for (Attribute a : insist.insistedAttributes()) {
+                list.add(resolveInsistAttribute(a, childrenOutput, indexResolution));
+            }
+            return insist.withAttributes(list);
+        }
+
+        private Attribute resolveInsistAttribute(Attribute attribute, List<Attribute> childrenOutput, IndexResolution indexResolution) {
+            Attribute resolvedCol = maybeResolveAttribute((UnresolvedAttribute) attribute, childrenOutput);
+            // Field isn't mapped anywhere.
+            if (resolvedCol instanceof UnresolvedAttribute) {
+                return insistKeyword(attribute);
+            }
+
+            // Field is partially unmapped.
+            if (resolvedCol instanceof FieldAttribute fa && indexResolution.get().isPartiallyUnmappedField(fa.name())) {
+                return fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa);
+            }
+
+            // Either the field is mapped everywhere and we can just use the resolved column, or the INSIST clause isn't on top of a FROM
+            // clause—for example, it might be on top of a ROW clause—so the verifier will catch it and fail.
+            return resolvedCol;
+        }
+
+        private static Attribute invalidInsistAttribute(FieldAttribute fa) {
+            var name = fa.name();
+            EsField field = fa.field() instanceof InvalidMappedField imf
+                ? new InvalidMappedField(name, InvalidMappedField.makeErrorsMessageIncludingInsistKeyword(imf.getTypesToIndices()))
+                : new InvalidMappedField(
+                    name,
+                    Strings.format(
+                        "mapped as [2] incompatible types: [keyword] enforced by INSIST command, and [%s] in index mappings",
+                        fa.dataType().typeName()
+                    )
+                );
+            return new FieldAttribute(fa.source(), name, field);
+        }
+
+        private static FieldAttribute insistKeyword(Attribute attribute) {
+            return new FieldAttribute(attribute.source(), attribute.name(), new PotentiallyUnmappedKeywordEsField(attribute.name()));
         }
 
         private Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {

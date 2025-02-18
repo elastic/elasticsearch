@@ -1,12 +1,30 @@
 org.elasticsearch.security:
   - set_https_connection_properties # for CommandLineHttpClient
 io.netty.transport:
+  - manage_threads
   - inbound_network
   - outbound_network
 io.netty.common:
+  - manage_threads
   - inbound_network
   - outbound_network
+  - files:
+    - path: "/etc/os-release"
+      mode: "read"
+    - path: "/usr/lib/os-release"
+      mode: "read"
 org.opensaml.xmlsec.impl:
   - write_system_properties:
       properties:
         - org.apache.xml.security.ignoreLineBreaks
+org.opensaml.saml.impl:
+  - files:
+    - relative_path: idp-docs-metadata.xml
+      relative_to: config
+      mode: read
+    - relative_path: idp-metadata.xml
+      relative_to: config
+      mode: read
+    - relative_path: saml-metadata.xml
+      relative_to: config
+      mode: read

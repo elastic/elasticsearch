@@ -15,13 +15,13 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils;
 import org.elasticsearch.xpack.searchbusinessrules.SpecifiedDocument;
 import org.junit.Before;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -32,9 +32,9 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.EXACT;
+import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.LTE;
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.PREFIX;
 import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.SUFFIX;
-import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.LTE;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class QueryRuleTests extends ESTestCase {
@@ -58,16 +58,16 @@ public class QueryRuleTests extends ESTestCase {
 
     public void testNumericValidationWithValidValues() throws IOException {
         String content = XContentHelper.stripWhitespace("""
-        {
-          "rule_id": "numeric_rule",
-          "type": "pinned",
-          "criteria": [
-            { "type": "lte", "metadata": "price", "values": ["100.50", "200"] }
-          ],
-          "actions": {
-            "ids": ["id1"]
-          }
-        }""");
+            {
+              "rule_id": "numeric_rule",
+              "type": "pinned",
+              "criteria": [
+                { "type": "lte", "metadata": "price", "values": ["100.50", "200"] }
+              ],
+              "actions": {
+                "ids": ["id1"]
+              }
+            }""");
         QueryRule queryRule = QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON);
         boolean humanReadable = true;
         BytesReference originalBytes = toShuffledXContent(queryRule, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
@@ -80,46 +80,46 @@ public class QueryRuleTests extends ESTestCase {
 
     public void testNumericValidationWithInvalidValues() throws IOException {
         String content = XContentHelper.stripWhitespace("""
-        {
-          "rule_id": "numeric_rule",
-          "type": "pinned",
-          "criteria": [
-            { "type": "lte", "metadata": "price", "values": ["abc"] }
-          ],
-          "actions": {
-            "ids": ["id1"]
-          }
-        }""");
+            {
+              "rule_id": "numeric_rule",
+              "type": "pinned",
+              "criteria": [
+                { "type": "lte", "metadata": "price", "values": ["abc"] }
+              ],
+              "actions": {
+                "ids": ["id1"]
+              }
+            }""");
         expectThrows(IllegalArgumentException.class, () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON));
     }
 
     public void testNumericValidationWithMixedValues() throws IOException {
         String content = XContentHelper.stripWhitespace("""
-        {
-          "rule_id": "numeric_rule",
-          "type": "pinned",
-          "criteria": [
-            { "type": "lte", "metadata": "price", "values": ["100", "abc", "200"] }
-          ],
-          "actions": {
-            "ids": ["id1"]
-          }
-        }""");
+            {
+              "rule_id": "numeric_rule",
+              "type": "pinned",
+              "criteria": [
+                { "type": "lte", "metadata": "price", "values": ["100", "abc", "200"] }
+              ],
+              "actions": {
+                "ids": ["id1"]
+              }
+            }""");
         expectThrows(IllegalArgumentException.class, () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON));
     }
 
     public void testNumericValidationWithEmptyValues() throws IOException {
         String content = XContentHelper.stripWhitespace("""
-        {
-          "rule_id": "numeric_rule",
-          "type": "pinned",
-          "criteria": [
-            { "type": "lte", "metadata": "price", "values": [] }
-          ],
-          "actions": {
-            "ids": ["id1"]
-          }
-        }""");
+            {
+              "rule_id": "numeric_rule",
+              "type": "pinned",
+              "criteria": [
+                { "type": "lte", "metadata": "price", "values": [] }
+              ],
+              "actions": {
+                "ids": ["id1"]
+              }
+            }""");
         expectThrows(IllegalArgumentException.class, () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON));
     }
 
@@ -420,13 +420,7 @@ public class QueryRuleTests extends ESTestCase {
         QueryRuleCriteria invalidCriteria = new QueryRuleCriteria(LTE, "price", List.of("not_a_number"));
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new QueryRule(
-                "test_rule",
-                QueryRule.QueryRuleType.PINNED,
-                List.of(invalidCriteria),
-                Map.of("ids", List.of("1")),
-                null
-            )
+            () -> new QueryRule("test_rule", QueryRule.QueryRuleType.PINNED, List.of(invalidCriteria), Map.of("ids", List.of("1")), null)
         );
 
         String expectedMessage = String.format(
@@ -475,20 +469,14 @@ public class QueryRuleTests extends ESTestCase {
 
     public void testIsRuleMatchWithNumericComparison() {
         QueryRuleCriteria criteria = new QueryRuleCriteria(LTE, "price", List.of("100"));
-        QueryRule rule = new QueryRule(
-            "test_rule",
-            QueryRule.QueryRuleType.PINNED,
-            List.of(criteria),
-            Map.of("ids", List.of("1")),
-            null
-        );
+        QueryRule rule = new QueryRule("test_rule", QueryRule.QueryRuleType.PINNED, List.of(criteria), Map.of("ids", List.of("1")), null);
 
         // Test matching value
         assertTrue(rule.isRuleMatch(Map.of("price", "50")));
-        
+
         // Test non-matching value
         assertFalse(rule.isRuleMatch(Map.of("price", "150")));
-        
+
         // Test with non-numeric value
         assertFalse(rule.isRuleMatch(Map.of("price", "not_a_number")));
     }

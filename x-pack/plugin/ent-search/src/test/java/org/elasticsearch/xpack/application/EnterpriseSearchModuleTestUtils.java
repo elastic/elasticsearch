@@ -21,26 +21,23 @@ import org.elasticsearch.xpack.application.search.TemplateParamValidator;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.test.ESTestCase.generateRandomStringArray;
+import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomDoubleBetween;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIdentifier;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
-import static org.elasticsearch.test.ESTestCase.randomList;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 import static org.elasticsearch.test.ESTestCase.randomMap;
 import static org.elasticsearch.xpack.application.rules.QueryRule.MAX_PRIORITY;
 import static org.elasticsearch.xpack.application.rules.QueryRule.MIN_PRIORITY;
-import static org.elasticsearch.xpack.application.rules.QueryRuleCriteriaType.ALWAYS;
-import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
-import static org.elasticsearch.test.ESTestCase.randomDoubleBetween;
 
 public final class EnterpriseSearchModuleTestUtils {
 
@@ -154,9 +151,7 @@ public final class EnterpriseSearchModuleTestUtils {
             );
 
             String metadata = criteriaType == QueryRuleCriteriaType.ALWAYS ? null : randomAlphaOfLength(10);
-            List<Object> values = criteriaType == QueryRuleCriteriaType.ALWAYS ?
-                null :
-                List.of(randomAlphaOfLength(5));
+            List<Object> values = criteriaType == QueryRuleCriteriaType.ALWAYS ? null : List.of(randomAlphaOfLength(5));
 
             criteria.add(new QueryRuleCriteria(criteriaType, metadata, values));
         }

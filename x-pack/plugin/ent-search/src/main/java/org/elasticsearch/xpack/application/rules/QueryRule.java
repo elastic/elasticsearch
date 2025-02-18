@@ -164,8 +164,12 @@ public class QueryRule implements Writeable, ToXContentObject {
                         Double.parseDouble(value.toString());
                     } catch (NumberFormatException e) {
                         throw new IllegalArgumentException(
-                            "Numeric comparison rule type " + criteriaType + " requires numeric values, but got " + value +
-                                " for criterion " + criterion
+                            "Numeric comparison rule type "
+                                + criteriaType
+                                + " requires numeric values, but got "
+                                + value
+                                + " for criterion "
+                                + criterion
                         );
                     }
                 }

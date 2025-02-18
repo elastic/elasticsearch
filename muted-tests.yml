@@ -330,54 +330,9 @@ tests:
 - class: org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageIT
   method: testScaleWhileShrinking
   issue: https://github.com/elastic/elasticsearch/issues/122119
-- class: org.elasticsearch.lucene.RollingUpgradeLuceneIndexCompatibilityTestCase
-  method: testIndexUpgrade {p0=[9.1.0, 8.19.0, 8.19.0]}
-  issue: https://github.com/elastic/elasticsearch/issues/122688
-- class: org.elasticsearch.lucene.RollingUpgradeLuceneIndexCompatibilityTestCase
-  method: testRestoreIndex {p0=[9.1.0, 9.1.0, 8.19.0]}
-  issue: https://github.com/elastic/elasticsearch/issues/122689
-- class: org.elasticsearch.lucene.RollingUpgradeLuceneIndexCompatibilityTestCase
-  method: testClosedIndexUpgrade {p0=[9.1.0, 8.19.0, 8.19.0]}
-  issue: https://github.com/elastic/elasticsearch/issues/122690
-- class: org.elasticsearch.lucene.RollingUpgradeLuceneIndexCompatibilityTestCase
-  method: testRestoreIndex {p0=[9.1.0, 8.19.0, 8.19.0]}
-  issue: https://github.com/elastic/elasticsearch/issues/122691
 - class: org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests
   method: testCreateAndRestorePartialSearchableSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/122693
-- class: org.elasticsearch.lucene.RollingUpgradeLuceneIndexCompatibilityTestCase
-  method: testClosedIndexUpgrade {p0=[9.1.0, 9.1.0, 8.19.0]}
-  issue: https://github.com/elastic/elasticsearch/issues/122694
-- class: org.elasticsearch.lucene.RollingUpgradeLuceneIndexCompatibilityTestCase
-  method: testClosedIndexUpgrade {p0=[9.1.0, 9.1.0, 9.1.0]}
-  issue: https://github.com/elastic/elasticsearch/issues/122695
-- class: org.elasticsearch.lucene.RollingUpgradeLuceneIndexCompatibilityTestCase
-  method: testIndexUpgrade {p0=[9.1.0, 9.1.0, 8.19.0]}
-  issue: https://github.com/elastic/elasticsearch/issues/122696
-- class: org.elasticsearch.lucene.RollingUpgradeLuceneIndexCompatibilityTestCase
-  method: testIndexUpgrade {p0=[9.1.0, 9.1.0, 9.1.0]}
-  issue: https://github.com/elastic/elasticsearch/issues/122697
-- class: org.elasticsearch.lucene.RollingUpgradeLuceneIndexCompatibilityTestCase
-  method: testRestoreIndex {p0=[9.1.0, 9.1.0, 9.1.0]}
-  issue: https://github.com/elastic/elasticsearch/issues/122698
-- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
-  method: testSearchableSnapshotUpgrade {p0=[9.1.0, 8.19.0, 8.19.0]}
-  issue: https://github.com/elastic/elasticsearch/issues/122700
-- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
-  method: testSearchableSnapshotUpgrade {p0=[9.1.0, 9.1.0, 8.19.0]}
-  issue: https://github.com/elastic/elasticsearch/issues/122701
-- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
-  method: testMountSearchableSnapshot {p0=[9.1.0, 8.19.0, 8.19.0]}
-  issue: https://github.com/elastic/elasticsearch/issues/122702
-- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
-  method: testMountSearchableSnapshot {p0=[9.1.0, 9.1.0, 8.19.0]}
-  issue: https://github.com/elastic/elasticsearch/issues/122703
-- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
-  method: testSearchableSnapshotUpgrade {p0=[9.1.0, 9.1.0, 9.1.0]}
-  issue: https://github.com/elastic/elasticsearch/issues/122704
-- class: org.elasticsearch.lucene.RollingUpgradeSearchableSnapshotIndexCompatibilityIT
-  method: testMountSearchableSnapshot {p0=[9.1.0, 9.1.0, 9.1.0]}
-  issue: https://github.com/elastic/elasticsearch/issues/122705
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/122707

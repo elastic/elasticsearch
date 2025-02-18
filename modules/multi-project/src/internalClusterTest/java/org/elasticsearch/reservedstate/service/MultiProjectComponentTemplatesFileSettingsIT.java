@@ -30,7 +30,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.multiproject.MultiProjectPlugin;
+import org.elasticsearch.multiproject.TestOnlyMultiProjectPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -66,7 +66,7 @@ public class MultiProjectComponentTemplatesFileSettingsIT extends ESIntegTestCas
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MultiProjectPlugin.class);
+        return Arrays.asList(TestOnlyMultiProjectPlugin.class);
     }
 
     @Override
@@ -78,7 +78,7 @@ public class MultiProjectComponentTemplatesFileSettingsIT extends ESIntegTestCas
     public Settings buildEnvSettings(Settings settings) {
         return Settings.builder()
             .put(super.buildEnvSettings(settings))
-            .put(MultiProjectPlugin.MULTI_PROJECT_ENABLED.getKey(), true)
+            .put(TestOnlyMultiProjectPlugin.MULTI_PROJECT_ENABLED.getKey(), true)
             .build();
     }
 
@@ -86,7 +86,7 @@ public class MultiProjectComponentTemplatesFileSettingsIT extends ESIntegTestCas
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(MultiProjectPlugin.MULTI_PROJECT_ENABLED.getKey(), true)
+            .put(TestOnlyMultiProjectPlugin.MULTI_PROJECT_ENABLED.getKey(), true)
             .build();
     }
 

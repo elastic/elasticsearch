@@ -13,22 +13,22 @@ import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.ProjectResolverFactory;
 
-public class MultiProjectResolverFactory implements ProjectResolverFactory {
+public class TestOnlyMultiProjectResolverFactory implements ProjectResolverFactory {
 
-    private final MultiProjectPlugin plugin;
+    private final TestOnlyMultiProjectPlugin plugin;
 
-    public MultiProjectResolverFactory() {
+    public TestOnlyMultiProjectResolverFactory() {
         throw new IllegalStateException("Provider must be constructed using PluginsService");
     }
 
-    public MultiProjectResolverFactory(MultiProjectPlugin plugin) {
+    public TestOnlyMultiProjectResolverFactory(TestOnlyMultiProjectPlugin plugin) {
         this.plugin = plugin;
     }
 
     @Override
     public ProjectResolver create() {
         if (plugin.multiProjectEnabled()) {
-            return new MultiProjectResolver(plugin::getThreadPool);
+            return new TestOnlyMultiProjectResolver(plugin::getThreadPool);
         } else {
             return DefaultProjectResolver.INSTANCE;
         }

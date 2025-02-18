@@ -20,26 +20,26 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class MultiProjectResolverFactoryTests extends ESTestCase {
+public class TestOnlyMultiProjectResolverFactoryTests extends ESTestCase {
 
     public void testMultiProjectEnabled() {
         final Settings settings = Settings.builder().put("multi_project.enabled", true).build();
-        var plugin = new MultiProjectPlugin(settings);
+        var plugin = new TestOnlyMultiProjectPlugin(settings);
         var pluginServices = mock(Plugin.PluginServices.class);
         when(pluginServices.threadPool()).thenReturn(mock(ThreadPool.class));
         plugin.createComponents(pluginServices);
 
-        assertThat(new MultiProjectResolverFactory(plugin).create(), instanceOf(MultiProjectResolver.class));
+        assertThat(new TestOnlyMultiProjectResolverFactory(plugin).create(), instanceOf(TestOnlyMultiProjectResolver.class));
     }
 
     public void testMultiProjectDisabled() {
         final Settings settings = randomBoolean() ? Settings.EMPTY : Settings.builder().put("multi_project.enabled", false).build();
-        var plugin = new MultiProjectPlugin(settings);
+        var plugin = new TestOnlyMultiProjectPlugin(settings);
         var pluginServices = mock(Plugin.PluginServices.class);
         when(pluginServices.threadPool()).thenReturn(mock(ThreadPool.class));
         plugin.createComponents(pluginServices);
 
-        assertThat(new MultiProjectResolverFactory(plugin).create(), sameInstance(DefaultProjectResolver.INSTANCE));
+        assertThat(new TestOnlyMultiProjectResolverFactory(plugin).create(), sameInstance(DefaultProjectResolver.INSTANCE));
     }
 
 }

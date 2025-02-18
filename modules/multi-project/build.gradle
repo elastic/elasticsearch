@@ -8,7 +8,7 @@ apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
   description = 'The Multi-Project module adds functionality for working with multiple projects in ES (only for internal use).'
-  classname = 'org.elasticsearch.multiproject.MultiProjectPlugin'
+  classname = 'org.elasticsearch.multiproject.TestOnlyMultiProjectPlugin'
 }
 
 restResources {

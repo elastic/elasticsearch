@@ -207,10 +207,11 @@ public class DateProcessorTests extends ESTestCase {
 
     public void testJavaPatternDefaultYear() {
         String format = randomFrom("dd/MM", "8dd/MM");
+        ZoneId zoneId = ZoneId.of("Europe/Amsterdam");
         DateProcessor dateProcessor = new DateProcessor(
             randomAlphaOfLength(10),
             null,
-            templatize(ZoneId.of("Europe/Amsterdam")),
+            templatize(zoneId),
             templatize(Locale.ENGLISH),
             "date_as_string",
             List.of(format),
@@ -222,7 +223,7 @@ public class DateProcessorTests extends ESTestCase {
         dateProcessor.execute(ingestDocument);
         assertThat(
             ingestDocument.getFieldValue("date_as_date", String.class),
-            equalTo(ZonedDateTime.now().getYear() + "-06-12T00:00:00.000+02:00")
+            equalTo(ZonedDateTime.now(zoneId).getYear() + "-06-12T00:00:00.000+02:00")
         );
     }
 

@@ -41,7 +41,7 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-public class MultiProjectPlugin extends Plugin implements ActionPlugin {
+public class TestOnlyMultiProjectPlugin extends Plugin implements ActionPlugin {
 
     public static final Setting<Boolean> MULTI_PROJECT_ENABLED = Setting.boolSetting(
         "multi_project.enabled",
@@ -49,13 +49,13 @@ public class MultiProjectPlugin extends Plugin implements ActionPlugin {
         Setting.Property.NodeScope
     );
 
-    private static final Logger logger = LogManager.getLogger(MultiProjectPlugin.class);
+    private static final Logger logger = LogManager.getLogger(TestOnlyMultiProjectPlugin.class);
 
     public final SetOnce<ThreadPool> threadPool = new SetOnce<>();
 
     private final boolean multiProjectEnabled;
 
-    public MultiProjectPlugin(Settings settings) {
+    public TestOnlyMultiProjectPlugin(Settings settings) {
         multiProjectEnabled = MULTI_PROJECT_ENABLED.get(settings);
         logger.info("multi-project is [{}]", multiProjectEnabled ? "enabled" : "disabled");
     }

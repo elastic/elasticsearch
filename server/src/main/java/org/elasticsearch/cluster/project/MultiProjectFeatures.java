@@ -7,19 +7,12 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.multiproject;
+package org.elasticsearch.cluster.project;
 
-import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 
-import java.util.Set;
+public class MultiProjectFeatures {
 
-public class MultiProjectFeatureSpecification implements FeatureSpecification {
+    public static final NodeFeature MULTI_PROJECT_FEATURE = new NodeFeature("multi_project");
 
-    private static final NodeFeature MULTI_PROJECT = new NodeFeature("multi_project");
-
-    @Override
-    public Set<NodeFeature> getFeatures() {
-        return Set.of(MULTI_PROJECT);
-    }
 }

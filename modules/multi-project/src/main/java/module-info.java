@@ -7,10 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.core.FixForMultiProject;
-
-// Most/all of this module should in in serverless (but is here to facilitate testing)
-@FixForMultiProject module org.elasticsearch.multiproject {
+module org.elasticsearch.multiproject {
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
@@ -20,9 +17,11 @@ import org.elasticsearch.core.FixForMultiProject;
 
     exports org.elasticsearch.multiproject.action to org.elasticsearch.server;
 
-    provides org.elasticsearch.cluster.project.ProjectResolverFactory with org.elasticsearch.multiproject.MultiProjectResolverFactory;
+    provides org.elasticsearch.cluster.project.ProjectResolverFactory
+        with
+            org.elasticsearch.multiproject.TestOnlyMultiProjectResolverFactory;
     provides org.elasticsearch.reservedstate.service.FileSettingsServiceProvider
         with
             org.elasticsearch.multiproject.MultiProjectFileSettingsServiceProvider;
-    provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.multiproject.MultiProjectFeatureSpecification;
+    provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.multiproject.TestOnlyMultiProjectFeatureSpecification;
 }

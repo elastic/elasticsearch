@@ -7,8 +7,9 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.multiproject;
+package org.elasticsearch.cluster.project;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -20,23 +21,45 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class MultiProjectResolverTests extends ESTestCase {
+public class ProjectResolverTests extends ESTestCase {
 
     private ThreadPool threadPool;
-    private MultiProjectResolver resolver;
+    private Supplier<ProjectId> fallbackProject;
+    private Supplier<Boolean> allowAllProjects;
+    private AbstractProjectResolver resolver;
 
     @Before
     public void initialize() {
         threadPool = new TestThreadPool(getClass().getName());
-        this.resolver = new MultiProjectResolver(() -> threadPool);
+        fallbackProject = () -> {
+            fail("fallbackProject not configured");
+            return null;
+        };
+        allowAllProjects = () -> {
+            fail("allowAllProjects not configured");
+            return false;
+        };
+        this.resolver = new AbstractProjectResolver(() -> threadPool.getThreadContext()) {
+            @Override
+            protected ProjectId getFallbackProjectId() {
+                return fallbackProject.get();
+            }
+
+            @Override
+            protected boolean allowAccessToAllProjects(ThreadContext threadContext) {
+                return allowAllProjects.get();
+            }
+        };
     }
 
     @After
@@ -56,7 +79,8 @@ public class MultiProjectResolverTests extends ESTestCase {
         assertEquals(expectedProject.id(), actualProject.id());
     }
 
-    public void testFallback() {
+    public void testFallbackToDefaultProject() {
+        fallbackProject = () -> Metadata.DEFAULT_PROJECT_ID;
         var projects = createProjects();
         var expectedProject = ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID).build();
         projects.put(expectedProject.id(), expectedProject);
@@ -67,6 +91,19 @@ public class MultiProjectResolverTests extends ESTestCase {
         assertEquals(expectedProject.id(), actualProject.id());
     }
 
+    public void testFallbackToException() {
+        fallbackProject = () -> { throw new UnsupportedOperationException("No fallback allowed"); };
+        var projects = createProjects();
+        var expectedProject = ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID).build();
+        projects.put(expectedProject.id(), expectedProject);
+        var metadata = Metadata.builder().projectMetadata(projects).build();
+        final UnsupportedOperationException ex = expectThrows(
+            UnsupportedOperationException.class,
+            () -> resolver.getProjectMetadata(metadata)
+        );
+        assertThat(ex.getMessage(), equalTo("No fallback allowed"));
+    }
+
     public void testGetByIdNonExisting() {
         var projects = createProjects();
         var metadata = Metadata.builder().projectMetadata(projects).build();
@@ -74,7 +111,8 @@ public class MultiProjectResolverTests extends ESTestCase {
         assertThrows(IllegalArgumentException.class, () -> resolver.getProjectMetadata(metadata));
     }
 
-    public void testGetAllProjectIds() {
+    public void testGetAllProjectIdsWhenAllowed() {
+        allowAllProjects = () -> true;
         var projects = createProjects();
         var randomProject = ProjectMetadata.builder(new ProjectId(randomUUID())).build();
         projects.put(randomProject.id(), randomProject);
@@ -84,6 +122,14 @@ public class MultiProjectResolverTests extends ESTestCase {
         for (ProjectId projectId : projects.keySet()) {
             assertTrue(actualProjects.contains(projectId));
         }
+    }
+
+    public void testGetAllProjectIdsWhenNotAllowed() {
+        allowAllProjects = () -> false;
+        var projects = createProjects();
+        var state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().projectMetadata(projects).build()).build();
+        final ElasticsearchSecurityException ex = expectThrows(ElasticsearchSecurityException.class, () -> resolver.getProjectIds(state));
+        assertThat(ex.getMessage(), Matchers.equalTo("No project id supplied, and not permitted to access all projects"));
     }
 
     public void testGetProjectIdsWithHeader() {
@@ -116,8 +162,10 @@ public class MultiProjectResolverTests extends ESTestCase {
         final String randomHeaderValue = randomAlphaOfLength(16);
         threadContext.putHeader(randomHeaderName, randomHeaderValue);
 
-        // This means that no header was set
+        // Check that no project header was set
+        allowAllProjects = () -> true;
         assertThat(resolver.getProjectIds(state), equalTo(projects.keySet()));
+
         assertThat(threadContext.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER), equalTo(opaqueId));
         assertThat(threadContext.getHeader(randomHeaderName), equalTo(randomHeaderValue));
 

@@ -37,7 +37,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.license.LicenseSettings;
-import org.elasticsearch.multiproject.MultiProjectPlugin;
+import org.elasticsearch.multiproject.TestOnlyMultiProjectPlugin;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.plugins.Plugin;
@@ -162,7 +162,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             EsqlCorePlugin.class,
             EsqlPlugin.class,
             // basic multi-project functionality
-            MultiProjectPlugin.class
+            TestOnlyMultiProjectPlugin.class
         );
     }
 

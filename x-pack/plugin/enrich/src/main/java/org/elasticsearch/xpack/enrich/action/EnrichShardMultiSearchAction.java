@@ -29,10 +29,8 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.MemoryAccountingBytesRefCounted;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -57,7 +55,6 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -264,22 +261,8 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                             }
                             return context.getFieldType(field);
                         });
-                        MemoryAccountingBytesRefCounted memAccountingRefCounted = MemoryAccountingBytesRefCounted.create(breaker);
-                        final SearchHit hit = new SearchHit(scoreDoc.doc, visitor.id(), null, LeakTracker.wrap(memAccountingRefCounted));
-                        try {
-                            BytesReference sourceBytesRef = visitor.source();
-                            memAccountingRefCounted.account(sourceBytesRef.length(), "enrich source");
-                            hit.sourceRef(filterSource(fetchSourceContext, sourceBytesRef));
-                            hits[j] = hit;
-                        } catch (CircuitBreakingException e) {
-                            hit.decRef();
-                            for (SearchHit searchHit : hits) {
-                                if (searchHit != null) {
-                                    searchHit.decRef();
-                                }
-                            }
-                            throw e;
-                        }
+                        final SearchHit hit = new SearchHit(scoreDoc.doc, visitor.id());
+                        hit.sourceRef(filterSource(fetchSourceContext, visitor.source()));
                     }
                     items[i] = new MultiSearchResponse.Item(createSearchResponse(topDocs, hits), null);
                 }

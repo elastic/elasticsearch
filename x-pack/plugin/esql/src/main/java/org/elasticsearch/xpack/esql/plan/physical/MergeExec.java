@@ -30,10 +30,7 @@ public class MergeExec extends PhysicalPlan {
      * Extracts the children as a list of suppliers. All children must be LocalSourceExec.
      */
     public List<LocalSupplier> suppliers() {
-        return children().stream()
-            .map(LocalSourceExec.class::cast)
-            .map(LocalSourceExec::supplier)
-            .toList();
+        return children().stream().map(LocalSourceExec.class::cast).map(LocalSourceExec::supplier).toList();
     }
 
     @Override

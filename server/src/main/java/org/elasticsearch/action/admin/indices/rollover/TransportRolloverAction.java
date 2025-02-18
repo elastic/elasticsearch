@@ -154,12 +154,28 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 .build(),
             IndicesOptions.GatekeeperOptions.DEFAULT
         );
-
-        return state.blocks()
-            .indicesBlockedException(
-                ClusterBlockLevel.METADATA_WRITE,
-                indexNameExpressionResolver.concreteIndexNames(state, indicesOptions, request)
-            );
+        ResolvedExpression resolvedRolloverTarget = SelectorResolver.parseExpression(request.getRolloverTarget(), request.indicesOptions());
+        final IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(resolvedRolloverTarget.resource());
+        if (indexAbstraction.getType().equals(IndexAbstraction.Type.DATA_STREAM)) {
+            DataStream dataStream = (DataStream) indexAbstraction;
+            boolean targetData = resolvedRolloverTarget.selector() != null && resolvedRolloverTarget.selector().shouldIncludeData();
+            boolean targetFailureStore = resolvedRolloverTarget.selector() != null
+                && resolvedRolloverTarget.selector().shouldIncludeFailures();
+            List<String> indicesToCheck = new ArrayList<>();
+            if (targetData) {
+                indicesToCheck.add(dataStream.getWriteIndex().getName());
+            }
+            if (targetFailureStore) {
+                indicesToCheck.add(dataStream.getWriteFailureIndex().getName());
+            }
+            return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indicesToCheck.toArray(new String[0]));
+        } else {
+            return state.blocks()
+                .indicesBlockedException(
+                    ClusterBlockLevel.METADATA_WRITE,
+                    indexNameExpressionResolver.concreteIndexNames(state, indicesOptions, request)
+                );
+        }
     }
 
     @Override

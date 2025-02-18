@@ -34,6 +34,7 @@ import java.util.List;
  */
 public class TransportPutDataStreamLifecycleAction extends AcknowledgedTransportMasterNodeAction<PutDataStreamLifecycleAction.Request> {
 
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final MetadataDataStreamsService metadataDataStreamsService;
     private final SystemIndices systemIndices;
 
@@ -54,9 +55,9 @@ public class TransportPutDataStreamLifecycleAction extends AcknowledgedTransport
             threadPool,
             actionFilters,
             PutDataStreamLifecycleAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.metadataDataStreamsService = metadataDataStreamsService;
         this.systemIndices = systemIndices;
     }

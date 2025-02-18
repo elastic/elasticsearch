@@ -64,7 +64,6 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
             threadPool,
             actionFilters,
             DeleteInferenceEndpointAction.Request::new,
-            indexNameExpressionResolver,
             DeleteInferenceEndpointAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -89,6 +88,17 @@ public class TransportDeleteInferenceEndpointAction extends TransportMasterNodeA
         ClusterState state,
         ActionListener<DeleteInferenceEndpointAction.Response> masterListener
     ) {
+        if (modelRegistry.containsDefaultConfigId(request.getInferenceEndpointId())) {
+            masterListener.onFailure(
+                new ElasticsearchStatusException(
+                    "[{}] is a reserved inference endpoint. Cannot delete a reserved inference endpoint.",
+                    RestStatus.BAD_REQUEST,
+                    request.getInferenceEndpointId()
+                )
+            );
+            return;
+        }
+
         SubscribableListener.<UnparsedModel>newForked(modelConfigListener -> {
             // Get the model from the registry
 

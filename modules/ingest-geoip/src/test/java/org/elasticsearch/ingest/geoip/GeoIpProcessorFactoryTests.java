@@ -387,7 +387,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             assertNull(lazyLoader.databaseReader.get());
         }
 
-        final Map<String, Object> field = Map.of("_field", "1.1.1.1");
+        final Map<String, Object> field = new HashMap<>(Map.of("_field", "1.1.1.1"));
         final IngestDocument document = new IngestDocument("index", "id", 1L, "routing", VersionType.EXTERNAL, field);
 
         Map<String, Object> config = new HashMap<>();
@@ -456,7 +456,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             assertNull(lazyLoader.databaseReader.get());
         }
 
-        final Map<String, Object> field = Map.of("_field", "1.1.1.1");
+        final Map<String, Object> field = new HashMap<>(Map.of("_field", "1.1.1.1"));
         final IngestDocument document = new IngestDocument("index", "id", 1L, "routing", VersionType.EXTERNAL, field);
 
         Map<String, Object> config = new HashMap<>();
@@ -500,7 +500,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
         GeoIpProcessor processor = (GeoIpProcessor) factory.create(null, processorTag, null, config);
 
-        processor.execute(RandomDocumentPicks.randomIngestDocument(random(), Map.of("_field", "89.160.20.128")));
+        processor.execute(RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>(Map.of("_field", "89.160.20.128"))));
     }
 
     public void testUpdateDatabaseWhileIngesting() throws Exception {
@@ -508,17 +508,16 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "source_field");
         GeoIpProcessor processor = (GeoIpProcessor) factory.create(null, null, null, config);
-        Map<String, Object> document = new HashMap<>();
-        document.put("source_field", "89.160.20.128");
+        Map<String, Object> document = Map.of("source_field", "89.160.20.128");
         {
-            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>(document));
             processor.execute(ingestDocument);
             Map<?, ?> geoData = (Map<?, ?>) ingestDocument.getSourceAndMetadata().get("geoip");
             assertThat(geoData.get("city_name"), equalTo("Tumba"));
         }
         {
             copyDatabase("GeoLite2-City-Test.mmdb", geoipTmpDir);
-            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>(document));
             databaseNodeService.updateDatabase("GeoLite2-City.mmdb", "md5", geoipTmpDir.resolve("GeoLite2-City-Test.mmdb"));
             processor.execute(ingestDocument);
             Map<?, ?> geoData = (Map<?, ?>) ingestDocument.getSourceAndMetadata().get("geoip");
@@ -526,7 +525,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         }
         {
             // No databases are available, so assume that databases still need to be downloaded and therefore not fail:
-            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>(document));
             databaseNodeService.removeStaleEntries(List.of("GeoLite2-City.mmdb"));
             configDatabases.updateDatabase(geoIpConfigDir.resolve("GeoLite2-City.mmdb"), false);
             processor.execute(ingestDocument);
@@ -536,7 +535,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         {
             // There are databases available, but not the right one, so tag:
             databaseNodeService.updateDatabase("GeoLite2-City-Test.mmdb", "md5", geoipTmpDir.resolve("GeoLite2-City-Test.mmdb"));
-            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+            IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>(document));
             processor.execute(ingestDocument);
             assertThat(ingestDocument.getSourceAndMetadata(), hasEntry("tags", List.of("_geoip_database_unavailable_GeoLite2-City.mmdb")));
         }

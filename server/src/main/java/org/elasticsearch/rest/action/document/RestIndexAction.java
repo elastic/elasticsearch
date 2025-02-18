@@ -20,6 +20,7 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions;
@@ -120,6 +121,7 @@ public class RestIndexAction extends BaseRestHandler {
         indexRequest.setIfPrimaryTerm(request.paramAsLong("if_primary_term", indexRequest.ifPrimaryTerm()));
         indexRequest.setRequireAlias(request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, indexRequest.isRequireAlias()));
         indexRequest.setRequireDataStream(request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, indexRequest.isRequireDataStream()));
+        indexRequest.setIncludeSourceOnError(RestUtils.getIncludeSourceOnError(request));
         String sOpType = request.param("op_type");
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards != null) {

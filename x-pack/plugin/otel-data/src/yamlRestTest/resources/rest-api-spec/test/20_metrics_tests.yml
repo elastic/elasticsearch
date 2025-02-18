@@ -276,3 +276,29 @@ Empty IP field:
           fields: ["*"]
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._ignored: ["resource.attributes.host.ip"] }
+---
+Metrics with different scope names are not duplicates:
+  - do:
+      bulk:
+        index: metrics-generic.otel-default
+        refresh: true
+        body:
+          - create: {"dynamic_templates":{"metrics.foo.bar":"counter_long"}}
+          - "@timestamp": 2024-07-18T14:00:00Z
+            scope:
+              name: foo
+            resource:
+              attributes:
+                service.name: foo
+            metrics:
+              foo.bar: 42
+          - create: {"dynamic_templates":{"metrics.foo.bar":"counter_long"}}
+          - "@timestamp": 2024-07-18T14:00:00Z
+            scope:
+              name: bar
+            resource:
+              attributes:
+                service.name: foo
+            metrics:
+              foo.bar: 42
+  - is_false: errors

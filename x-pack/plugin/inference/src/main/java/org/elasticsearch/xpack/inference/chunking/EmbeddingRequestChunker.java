@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingB
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingFloat;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingSparse;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
+import org.elasticsearch.xpack.core.inference.results.InferenceByteEmbedding;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
@@ -69,7 +70,7 @@ public class EmbeddingRequestChunker {
 
     private List<ChunkOffsetsAndInput> chunkedOffsets;
     private List<AtomicArray<List<InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding>>> floatResults;
-    private List<AtomicArray<List<InferenceTextEmbeddingByteResults.InferenceByteEmbedding>>> byteResults;
+    private List<AtomicArray<List<InferenceByteEmbedding>>> byteResults;
     private List<AtomicArray<List<SparseEmbeddingResults.Embedding>>> sparseResults;
     private AtomicArray<Exception> errors;
     private ActionListener<List<ChunkedInference>> finalListener;
@@ -389,9 +390,9 @@ public class EmbeddingRequestChunker {
 
     private ChunkedInferenceEmbeddingByte mergeByteResultsWithInputs(
         ChunkOffsetsAndInput chunks,
-        AtomicArray<List<InferenceTextEmbeddingByteResults.InferenceByteEmbedding>> debatchedResults
+        AtomicArray<List<InferenceByteEmbedding>> debatchedResults
     ) {
-        var all = new ArrayList<InferenceTextEmbeddingByteResults.InferenceByteEmbedding>();
+        var all = new ArrayList<InferenceByteEmbedding>();
         for (int i = 0; i < debatchedResults.length(); i++) {
             var subBatch = debatchedResults.get(i);
             all.addAll(subBatch);

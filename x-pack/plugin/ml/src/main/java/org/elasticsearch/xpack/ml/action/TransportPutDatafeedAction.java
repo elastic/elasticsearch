@@ -53,7 +53,6 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
             threadPool,
             actionFilters,
             PutDatafeedAction.Request::new,
-            indexNameExpressionResolver,
             PutDatafeedAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

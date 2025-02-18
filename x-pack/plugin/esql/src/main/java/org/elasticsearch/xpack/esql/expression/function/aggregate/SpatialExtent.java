@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
@@ -48,7 +49,7 @@ public final class SpatialExtent extends SpatialAggregateFunction implements ToA
     @FunctionInfo(
         returnType = { "geo_shape", "cartesian_shape" },
         description = "Calculate the spatial extent over a field with geometry type. Returns a bounding box for all values of the field.",
-        isAggregation = true,
+        type = FunctionType.AGGREGATE,
         examples = @Example(file = "spatial", tag = "st_extent_agg-airports")
     )
     public SpatialExtent(
@@ -102,25 +103,25 @@ public final class SpatialExtent extends SpatialAggregateFunction implements ToA
     }
 
     @Override
-    public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
+    public AggregatorFunctionSupplier supplier() {
         DataType type = field().dataType();
         return switch (type) {
             case DataType.GEO_POINT -> switch (fieldExtractPreference) {
-                case DOC_VALUES -> new SpatialExtentGeoPointDocValuesAggregatorFunctionSupplier(inputChannels);
-                case NONE, EXTRACT_SPATIAL_BOUNDS -> new SpatialExtentGeoPointSourceValuesAggregatorFunctionSupplier(inputChannels);
+                case DOC_VALUES -> new SpatialExtentGeoPointDocValuesAggregatorFunctionSupplier();
+                case NONE, EXTRACT_SPATIAL_BOUNDS -> new SpatialExtentGeoPointSourceValuesAggregatorFunctionSupplier();
             };
             case DataType.CARTESIAN_POINT -> switch (fieldExtractPreference) {
-                case DOC_VALUES -> new SpatialExtentCartesianPointDocValuesAggregatorFunctionSupplier(inputChannels);
-                case NONE, EXTRACT_SPATIAL_BOUNDS -> new SpatialExtentCartesianPointSourceValuesAggregatorFunctionSupplier(inputChannels);
+                case DOC_VALUES -> new SpatialExtentCartesianPointDocValuesAggregatorFunctionSupplier();
+                case NONE, EXTRACT_SPATIAL_BOUNDS -> new SpatialExtentCartesianPointSourceValuesAggregatorFunctionSupplier();
             };
             case DataType.GEO_SHAPE -> switch (fieldExtractPreference) {
-                case EXTRACT_SPATIAL_BOUNDS -> new SpatialExtentGeoShapeDocValuesAggregatorFunctionSupplier(inputChannels);
-                case NONE -> new SpatialExtentGeoShapeSourceValuesAggregatorFunctionSupplier(inputChannels);
+                case EXTRACT_SPATIAL_BOUNDS -> new SpatialExtentGeoShapeDocValuesAggregatorFunctionSupplier();
+                case NONE -> new SpatialExtentGeoShapeSourceValuesAggregatorFunctionSupplier();
                 case DOC_VALUES -> throw new EsqlIllegalArgumentException("Illegal field extract preference: " + fieldExtractPreference);
             };
             case DataType.CARTESIAN_SHAPE -> switch (fieldExtractPreference) {
-                case EXTRACT_SPATIAL_BOUNDS -> new SpatialExtentCartesianShapeDocValuesAggregatorFunctionSupplier(inputChannels);
-                case NONE -> new SpatialExtentCartesianShapeSourceValuesAggregatorFunctionSupplier(inputChannels);
+                case EXTRACT_SPATIAL_BOUNDS -> new SpatialExtentCartesianShapeDocValuesAggregatorFunctionSupplier();
+                case NONE -> new SpatialExtentCartesianShapeSourceValuesAggregatorFunctionSupplier();
                 case DOC_VALUES -> throw new EsqlIllegalArgumentException("Illegal field extract preference: " + fieldExtractPreference);
             };
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);

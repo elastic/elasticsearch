@@ -42,6 +42,7 @@ import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNotNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -93,7 +94,7 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
     }
 
     public void testTaskCreation() throws Exception {
-        HealthNodeTaskExecutor.create(clusterService, persistentTasksService, featureService, settings, clusterSettings);
+        HealthNodeTaskExecutor.create(clusterService, persistentTasksService, settings, clusterSettings);
         clusterService.getClusterApplierService().onNewClusterState("initialization", this::initialState, ActionListener.noop());
         // Ensure that if the task is gone, it will be recreated.
         clusterService.getClusterApplierService().onNewClusterState("initialization", this::initialState, ActionListener.noop());
@@ -102,26 +103,20 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
                 eq("health-node"),
                 eq("health-node"),
                 eq(new HealthNodeTaskParams()),
-                eq(null),
+                isNotNull(),
                 any()
             )
         );
     }
 
     public void testSkippingTaskCreationIfItExists() {
-        HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(
-            clusterService,
-            persistentTasksService,
-            featureService,
-            settings,
-            clusterSettings
-        );
+        HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(clusterService, persistentTasksService, settings, clusterSettings);
         executor.startTask(new ClusterChangedEvent("", stateWithHealthNodeSelectorTask(initialState()), ClusterState.EMPTY_STATE));
         verify(persistentTasksService, never()).sendStartRequest(
             eq("health-node"),
             eq("health-node"),
             eq(new HealthNodeTaskParams()),
-            eq(null),
+            isNotNull(),
             any()
         );
     }
@@ -131,7 +126,6 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
             HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(
                 clusterService,
                 persistentTasksService,
-                featureService,
                 settings,
                 clusterSettings
             );
@@ -149,7 +143,6 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
             HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(
                 clusterService,
                 persistentTasksService,
-                featureService,
                 settings,
                 clusterSettings
             );
@@ -164,13 +157,7 @@ public class HealthNodeTaskExecutorTests extends ESTestCase {
     }
 
     public void testAbortOnDisable() {
-        HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(
-            clusterService,
-            persistentTasksService,
-            featureService,
-            settings,
-            clusterSettings
-        );
+        HealthNodeTaskExecutor executor = HealthNodeTaskExecutor.create(clusterService, persistentTasksService, settings, clusterSettings);
         HealthNode task = mock(HealthNode.class);
         PersistentTaskState state = mock(PersistentTaskState.class);
         executor.nodeOperation(task, new HealthNodeTaskParams(), state);

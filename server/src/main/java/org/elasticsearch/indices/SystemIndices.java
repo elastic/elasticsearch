@@ -16,6 +16,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse.ResetFeatureStateStatus;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
@@ -110,7 +111,8 @@ import static org.elasticsearch.tasks.TaskResultsService.TASKS_FEATURE_NAME;
 public class SystemIndices {
     public static final String SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY = "_system_index_access_allowed";
     public static final String EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY = "_external_system_index_access_origin";
-    public static final String UPGRADED_INDEX_SUFFIX = "-reindexed-for-9";
+    private static final int UPGRADED_TO_VERSION = TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_VERSION.major + 1;
+    public static final String UPGRADED_INDEX_SUFFIX = "-reindexed-for-" + UPGRADED_TO_VERSION;
 
     private static final Automaton EMPTY = Automata.makeEmpty();
 

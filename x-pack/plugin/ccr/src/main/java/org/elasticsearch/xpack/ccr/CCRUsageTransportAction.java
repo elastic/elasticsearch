@@ -44,7 +44,7 @@ public class CCRUsageTransportAction extends XPackUsageFeatureTransportAction {
         Settings settings,
         XPackLicenseState licenseState
     ) {
-        super(XPackUsageFeatureAction.CCR.name(), transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver);
+        super(XPackUsageFeatureAction.CCR.name(), transportService, clusterService, threadPool, actionFilters);
         this.settings = settings;
         this.licenseState = licenseState;
     }

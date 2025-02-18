@@ -86,6 +86,24 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 fileSystemOperations
             );
         });
+
+        // Also set up the "main" project which is just used for arbitrary overrides. See InternalDistributionDownloadPlugin.
+        if (System.getProperty("tests.bwc.main.version") != null) {
+            configureBwcProject(
+                project.project(":distribution:bwc:main"),
+                buildParams,
+                new BwcVersions.UnreleasedVersionInfo(
+                    Version.fromString(System.getProperty("tests.bwc.main.version")),
+                    "main",
+                    ":distribution:bwc:main"
+                ),
+                providerFactory,
+                objectFactory,
+                toolChainService,
+                isCi,
+                fileSystemOperations
+            );
+        }
     }
 
     private static void configureBwcProject(

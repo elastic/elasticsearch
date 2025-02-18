@@ -10,6 +10,7 @@ package org.elasticsearch.compute.data;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.test.ESTestCase;
@@ -92,7 +93,16 @@ public class BlockBuilderCopyFromTests extends ESTestCase {
         Block.Builder builder = elementType.newBlockBuilder(block.getPositionCount() / 2, blockFactory);
         List<List<Object>> expected = new ArrayList<>();
         for (int i = 0; i < block.getPositionCount(); i += 2) {
-            builder.copyFrom(block, i, i + 1);
+            switch (elementType) {
+                case BOOLEAN -> ((BooleanBlockBuilder) builder).copyFrom((BooleanBlock) block, i);
+                case BYTES_REF -> ((BytesRefBlockBuilder) builder).copyFrom((BytesRefBlock) block, i, new BytesRef());
+                case DOUBLE -> ((DoubleBlockBuilder) builder).copyFrom((DoubleBlock) block, i);
+                case FLOAT -> ((FloatBlockBuilder) builder).copyFrom((FloatBlock) block, i);
+                case INT -> ((IntBlockBuilder) builder).copyFrom((IntBlock) block, i);
+                case LONG -> ((LongBlockBuilder) builder).copyFrom((LongBlock) block, i);
+                default -> throw new IllegalArgumentException("unsupported type: " + elementType);
+            }
+
             expected.add(valuesAtPositions(block, i, i + 1).get(0));
         }
         assertBlockValues(builder.build(), expected);

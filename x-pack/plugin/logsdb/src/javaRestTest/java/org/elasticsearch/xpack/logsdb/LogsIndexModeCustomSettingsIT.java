@@ -11,7 +11,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.junit.Before;
@@ -24,6 +23,7 @@ import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 
 @SuppressWarnings("unchecked")
 public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
@@ -102,12 +102,12 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
               "template": {
                 "settings": {
                   "index": {
-                    "mode": "logsdb"
-                  }
-                },
-                "mappings": {
-                  "_source": {
-                    "mode": "stored"
+                    "mode": "logsdb",
+                    "mapping": {
+                      "source": {
+                        "mode": "stored"
+                      }
+                    }
                   }
                 }
               }
@@ -115,21 +115,10 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
 
         assertOK(putComponentTemplate(client, "logs@custom", storedSourceMapping));
         Request request = new Request("PUT", "_data_stream/logs-custom-dev");
-        if (SourceFieldMapper.onOrAfterDeprecateModeVersion(minimumIndexVersion())) {
-            request.setOptions(expectVersionSpecificWarnings(v -> v.current(SourceFieldMapper.DEPRECATION_WARNING)));
-        }
         assertOK(client.performRequest(request));
-        var mapping = getMapping(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0));
-        String sourceMode = (String) subObject("_source").apply(mapping).get("mode");
-        assertThat(sourceMode, equalTo("stored"));
-
-        request = new Request("GET", "/_migration/deprecations");
-        var nodeSettings = (Map<?, ?>) ((List<?>) entityAsMap(client.performRequest(request)).get("node_settings")).getFirst();
-        assertThat(nodeSettings.get("message"), equalTo(SourceFieldMapper.DEPRECATION_WARNING));
-        assertThat(
-            (String) nodeSettings.get("details"),
-            containsString(SourceFieldMapper.DEPRECATION_WARNING + " Affected component templates: [logs@custom]")
-        );
+        var indexName = getDataStreamBackingIndex(client, "logs-custom-dev", 0);
+        var settings = (Map<?, ?>) ((Map<?, ?>) ((Map<?, ?>) getIndexSettings(indexName)).get(indexName)).get("settings");
+        assertThat(settings, hasEntry("index.mapping.source.mode", "stored"));
     }
 
     public void testConfigureDisabledSourceBeforeIndexCreation() {
@@ -163,12 +152,12 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
               "template": {
                 "settings": {
                   "index": {
-                    "mode": "logsdb"
-                  }
-                },
-                "mappings": {
-                  "_source": {
-                    "mode": "disabled"
+                    "mode": "logsdb",
+                    "mapping": {
+                      "source": {
+                        "mode": "disabled"
+                      }
+                    }
                   }
                 }
               }
@@ -186,9 +175,13 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
         var storedSourceMapping = """
             {
               "template": {
-                "mappings": {
-                  "_source": {
-                    "mode": "stored"
+                "settings": {
+                  "index": {
+                    "mapping": {
+                      "source": {
+                        "mode": "stored"
+                      }
+                    }
                   }
                 }
               }
@@ -196,22 +189,11 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
 
         assertOK(putComponentTemplate(client, "logs@custom", storedSourceMapping));
         Request request = new Request("PUT", "_data_stream/logs-custom-dev");
-        if (SourceFieldMapper.onOrAfterDeprecateModeVersion(minimumIndexVersion())) {
-            request.setOptions(expectVersionSpecificWarnings(v -> v.current(SourceFieldMapper.DEPRECATION_WARNING)));
-        }
         assertOK(client.performRequest(request));
 
-        var mapping = getMapping(client, getDataStreamBackingIndex(client, "logs-custom-dev", 0));
-        String sourceMode = (String) subObject("_source").apply(mapping).get("mode");
-        assertThat(sourceMode, equalTo("stored"));
-
-        request = new Request("GET", "/_migration/deprecations");
-        var nodeSettings = (Map<?, ?>) ((List<?>) entityAsMap(client.performRequest(request)).get("node_settings")).getFirst();
-        assertThat(nodeSettings.get("message"), equalTo(SourceFieldMapper.DEPRECATION_WARNING));
-        assertThat(
-            (String) nodeSettings.get("details"),
-            containsString(SourceFieldMapper.DEPRECATION_WARNING + " Affected component templates: [logs@custom]")
-        );
+        var indexName = getDataStreamBackingIndex(client, "logs-custom-dev", 0);
+        var settings = (Map<?, ?>) ((Map<?, ?>) ((Map<?, ?>) getIndexSettings(indexName)).get(indexName)).get("settings");
+        assertThat(settings, hasEntry("index.mapping.source.mode", "stored"));
     }
 
     public void testConfigureDisabledSourceWhenIndexIsCreated() throws IOException {
@@ -235,9 +217,13 @@ public class LogsIndexModeCustomSettingsIT extends LogsIndexModeRestTestIT {
         var disabledModeMapping = """
             {
               "template": {
-                "mappings": {
-                  "_source": {
-                    "mode": "disabled"
+                "settings": {
+                  "index": {
+                    "mapping": {
+                      "source": {
+                        "mode": "disabled"
+                      }
+                    }
                   }
                 }
               }

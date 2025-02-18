@@ -52,7 +52,6 @@ public class TransportWatcherServiceAction extends AcknowledgedTransportMasterNo
             threadPool,
             actionFilters,
             WatcherServiceRequest::new,
-            indexNameExpressionResolver,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
     }

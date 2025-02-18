@@ -84,7 +84,6 @@ public class TransportPutAutoscalingPolicyAction extends AcknowledgedTransportMa
             threadPool,
             actionFilters,
             PutAutoscalingPolicyAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.policyValidator = policyValidator;

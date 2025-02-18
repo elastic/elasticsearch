@@ -1,0 +1,5 @@
+pr: 120753
+summary: Optimize `IngestDocMetadata` `isAvailable`
+area: Ingest Node
+type: enhancement
+issues: []

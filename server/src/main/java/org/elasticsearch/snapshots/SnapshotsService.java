@@ -3669,7 +3669,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 threadPool,
                 actionFilters,
                 UpdateIndexShardSnapshotStatusRequest::new,
-                indexNameExpressionResolver,
                 in -> ActionResponse.Empty.INSTANCE,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
@@ -3885,6 +3884,11 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         public void onFailure(Exception e) {
             logSnapshotFailure("create", snapshot, e);
             listener.onFailure(e);
+        }
+
+        @Override
+        public String toString() {
+            return "CreateSnapshotTask{repository=" + repository.getMetadata().name() + ", snapshot=" + snapshot + '}';
         }
     }
 
@@ -4137,9 +4141,6 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 request.partial(),
                 indexIds,
                 CollectionUtils.concatLists(
-                    // It's ok to just get the data stream names here because we have already resolved every concrete index that will be
-                    // in the snapshot, and thus already resolved any selectors that might be present. We now only care about which data
-                    // streams we're packing up in the resulting snapshot, not what their contents are.
                     indexNameExpressionResolver.dataStreamNames(currentState, request.indicesOptions(), request.indices()),
                     systemDataStreamNames
                 ),

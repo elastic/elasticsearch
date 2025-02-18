@@ -287,6 +287,7 @@ PUT _rollup/job/sensor
 }
 --------------------------------------------------
 // TEST[setup:sensor_index]
+// TEST[warning:The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information.]
 <1> This configuration enables date histograms to be used on the `timestamp`
 field and `terms` aggregations to be used on the `node` field.
 <2> This configuration defines metrics over two fields: `temperature` and

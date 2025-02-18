@@ -41,7 +41,6 @@ public class TransportGetStoredScriptAction extends TransportMasterNodeReadActio
             threadPool,
             actionFilters,
             GetStoredScriptRequest::new,
-            indexNameExpressionResolver,
             GetStoredScriptResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

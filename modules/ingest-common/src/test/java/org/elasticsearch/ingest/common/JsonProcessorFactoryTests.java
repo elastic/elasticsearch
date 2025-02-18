@@ -74,7 +74,7 @@ public class JsonProcessorFactoryTests extends ESTestCase {
     public void testCreateWithStrictParsingParameter() throws Exception {
         String fieldName = randomAlphaOfLength(10);
         String processorTag = randomAlphaOfLength(10);
-        IngestDocument document = new IngestDocument("_index", "_id", 1, null, null, Map.of(fieldName, "123 \"foo\""));
+        IngestDocument document = new IngestDocument("_index", "_id", 1, null, null, new HashMap<>(Map.of(fieldName, "123 \"foo\"")));
 
         {
             Map<String, Object> strictConfig = new HashMap<>();

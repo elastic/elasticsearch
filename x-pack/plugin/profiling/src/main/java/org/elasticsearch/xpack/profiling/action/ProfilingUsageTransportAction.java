@@ -39,14 +39,7 @@ public class ProfilingUsageTransportAction extends XPackUsageFeatureTransportAct
         ProfilingLicenseChecker licenseChecker,
         Settings settings
     ) {
-        super(
-            XPackUsageFeatureAction.UNIVERSAL_PROFILING.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.UNIVERSAL_PROFILING.name(), transportService, clusterService, threadPool, actionFilters);
         this.licenseChecker = licenseChecker;
         this.enabled = XPackSettings.PROFILING_ENABLED.get(settings);
     }

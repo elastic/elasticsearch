@@ -105,7 +105,8 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
             null,
             null,
             null,
-            null
+            null,
+            false
         );
         this.dateFieldRangeInfo = dateFieldRangeInfo;
         this.tier = tier;

@@ -10,8 +10,9 @@ FROM books
 | WHERE QSTR("author: Faulkner")
 | KEEP book_no, author 
 | SORT book_no 
-| LIMIT 5;
+| LIMIT 5
 // end::qstr-with-field[]
+;
 
 // tag::qstr-with-field-result[]
 book_no:keyword | author:text
@@ -20,8 +21,8 @@ book_no:keyword | author:text
 2847            | Colleen Faulkner
 2883            | William Faulkner
 3293            | Danny Faulkner
-;
 // end::qstr-with-field-result[]
+;
 
 qstrWithMultipleFields
 required_capability: qstr_function
@@ -149,4 +150,41 @@ emp_no:integer | first_name:keyword | last_name:keyword
 10044          | Mingsen            | Casley
 10053          | Sanjiv             | Zschoche
 10069          | Margareta          | Bierman
+;
+
+testQstrWithNonPushableDisjunctions
+required_capability: qstr_function
+required_capability: full_text_functions_disjunctions_compute_engine
+
+from books 
+| where qstr("title:lord") or length(title) > 130 
+| keep book_no
+;
+ignoreOrder: true
+
+book_no:keyword
+2675   
+2714   
+4023   
+7140   
+8678
+;
+
+testQstrWithNonPushableDisjunctionsOnComplexExpressions
+required_capability: qstr_function
+required_capability: full_text_functions_disjunctions_compute_engine
+
+from books 
+| where (qstr("title:lord") and ratings > 4.5) or (qstr("author:dostoevsky") and length(title) > 50)
+| keep book_no
+;
+ignoreOrder: true
+
+book_no:keyword
+2675
+2924
+4023
+1937
+7140
+2714
 ;

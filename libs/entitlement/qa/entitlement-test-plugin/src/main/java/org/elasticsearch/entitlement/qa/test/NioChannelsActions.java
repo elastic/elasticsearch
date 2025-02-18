@@ -9,16 +9,14 @@
 
 package org.elasticsearch.entitlement.qa.test;
 
-import jdk.nio.Channels;
-
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.qa.entitled.EntitledActions;
 
 import java.io.FileDescriptor;
 import java.io.IOException;
 import java.nio.channels.AsynchronousFileChannel;
 import java.nio.channels.FileChannel;
-import java.nio.channels.SelectableChannel;
 import java.nio.file.StandardOpenOption;
 import java.util.Set;
 
@@ -81,15 +79,9 @@ class NioChannelsActions {
         AsynchronousFileChannel.open(file, Set.of(StandardOpenOption.READ), EsExecutors.DIRECT_EXECUTOR_SERVICE).close();
     }
 
+    @SuppressForbidden(reason = "specifically testing jdk.nio.Channels")
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
     static void channelsReadWriteSelectableChannel() throws IOException {
-
-        jdk.nio.Channels.readWriteSelectableChannel(new FileDescriptor(), new Channels.SelectableChannelCloser() {
-            @Override
-            public void implCloseChannel(SelectableChannel sc) throws IOException {}
-
-            @Override
-            public void implReleaseChannel(SelectableChannel sc) throws IOException {}
-        }).close();
+        jdk.nio.Channels.readWriteSelectableChannel(new FileDescriptor(), new DummyImplementations.DummySelectableChannelCloser()).close();
     }
 }

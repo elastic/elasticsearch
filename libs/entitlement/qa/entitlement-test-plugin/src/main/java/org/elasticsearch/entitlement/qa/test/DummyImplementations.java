@@ -9,6 +9,10 @@
 
 package org.elasticsearch.entitlement.qa.test;
 
+import jdk.nio.Channels;
+
+import org.elasticsearch.core.SuppressForbidden;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -26,7 +30,21 @@ import java.net.SocketImpl;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
-import java.nio.channels.*;
+import java.nio.channels.AsynchronousChannelGroup;
+import java.nio.channels.AsynchronousFileChannel;
+import java.nio.channels.AsynchronousServerSocketChannel;
+import java.nio.channels.AsynchronousSocketChannel;
+import java.nio.channels.CompletionHandler;
+import java.nio.channels.DatagramChannel;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.nio.channels.Pipe;
+import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.SeekableByteChannel;
+import java.nio.channels.SelectableChannel;
+import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
+import java.nio.channels.WritableByteChannel;
 import java.nio.channels.spi.AbstractSelector;
 import java.nio.channels.spi.AsynchronousChannelProvider;
 import java.nio.channels.spi.SelectorProvider;
@@ -820,5 +838,14 @@ class DummyImplementations {
         public Future<Integer> write(ByteBuffer src, long position) {
             return null;
         }
+    }
+
+    @SuppressForbidden(reason = "specifically testing readWriteSelectableChannel")
+    static class DummySelectableChannelCloser implements Channels.SelectableChannelCloser {
+        @Override
+        public void implCloseChannel(SelectableChannel sc) throws IOException {}
+
+        @Override
+        public void implReleaseChannel(SelectableChannel sc) throws IOException {}
     }
 }

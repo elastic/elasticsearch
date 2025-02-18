@@ -71,12 +71,10 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
         request.query("FROM ok*,fail*,*:ok*,*:fail* | KEEP id, fail_me | LIMIT 1000");
         request.includeCCSMetadata(randomBoolean());
         {
-            // allow_partial_results = false
-            request.includeCCSMetadata(randomBoolean());
+            request.allowPartialResults(false);
             IllegalStateException error = expectThrows(IllegalStateException.class, () -> runQuery(request).close());
             assertThat(error.getMessage(), containsString("Accessing failing field"));
         }
-        // allow_partial_results = true
         request.allowPartialResults(true);
         try (var resp = runQuery(request)) {
             assertTrue(resp.isPartial());

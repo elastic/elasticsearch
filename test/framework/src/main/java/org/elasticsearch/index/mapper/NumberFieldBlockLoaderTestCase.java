@@ -7,10 +7,8 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.mapper.blockloader;
+package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.index.mapper.BlockLoaderTestCase;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.logsdb.datageneration.FieldType;
 
 import java.util.List;
@@ -25,27 +23,31 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
     @Override
     @SuppressWarnings("unchecked")
     protected Object expected(Map<String, Object> fieldMapping, Object value) {
-        var nullValue = fieldMapping.get("null_value") != null ? convert((Number) fieldMapping.get("null_value")) : null;
+        var nullValue = fieldMapping.get("null_value") != null ? convert((Number) fieldMapping.get("null_value"), fieldMapping) : null;
 
         if (value instanceof List<?> == false) {
-            return convert(value, nullValue);
+            return convert(value, nullValue, fieldMapping);
         }
 
         boolean hasDocValues = hasDocValues(fieldMapping, true);
         boolean useDocValues = params.preference() == MappedFieldType.FieldExtractPreference.NONE || params.syntheticSource();
         if (hasDocValues && useDocValues) {
             // Sorted
-            var resultList = ((List<Object>) value).stream().map(v -> convert(v, nullValue)).filter(Objects::nonNull).sorted().toList();
+            var resultList = ((List<Object>) value).stream()
+                .map(v -> convert(v, nullValue, fieldMapping))
+                .filter(Objects::nonNull)
+                .sorted()
+                .toList();
             return maybeFoldList(resultList);
         }
 
         // parsing from source
-        var resultList = ((List<Object>) value).stream().map(v -> convert(v, nullValue)).filter(Objects::nonNull).toList();
+        var resultList = ((List<Object>) value).stream().map(v -> convert(v, nullValue, fieldMapping)).filter(Objects::nonNull).toList();
         return maybeFoldList(resultList);
     }
 
     @SuppressWarnings("unchecked")
-    private T convert(Object value, T nullValue) {
+    private T convert(Object value, T nullValue, Map<String, Object> fieldMapping) {
         if (value == null) {
             return nullValue;
         }
@@ -54,12 +56,12 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
             return nullValue;
         }
         if (value instanceof Number n) {
-            return convert(n);
+            return convert(n, fieldMapping);
         }
 
         // Malformed values are excluded
         return null;
     }
 
-    protected abstract T convert(Number value);
+    protected abstract T convert(Number value, Map<String, Object> fieldMapping);
 }

@@ -95,10 +95,9 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
 
     public void testBlockLoader() throws IOException {
         var template = new Template(Map.of(fieldName, new Template.Leaf(fieldName, fieldType)));
-        var syntheticSource = randomBoolean();
         var mapping = mappingGenerator.generate(template);
 
-        runTest(template, mapping, syntheticSource, fieldName);
+        runTest(template, mapping, fieldName);
     }
 
     @SuppressWarnings("unchecked")
@@ -131,13 +130,13 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
             topLevelMapping.put("synthetic_source_keep", "all");
         }
 
-        runTest(template, mapping, params.syntheticSource, fullFieldName.toString());
+        runTest(template, mapping, fullFieldName.toString());
     }
 
-    private void runTest(Template template, Mapping mapping, boolean syntheticSource, String fieldName) throws IOException {
+    private void runTest(Template template, Mapping mapping, String fieldName) throws IOException {
         var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
 
-        var mapperService = syntheticSource ? createSytheticSourceMapperService(mappingXContent) : createMapperService(mappingXContent);
+        var mapperService = params.syntheticSource ? createSytheticSourceMapperService(mappingXContent) : createMapperService(mappingXContent);
 
         var document = documentGenerator.generate(template, mapping);
         var documentXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(document);

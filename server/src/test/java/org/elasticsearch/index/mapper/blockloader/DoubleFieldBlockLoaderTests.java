@@ -9,7 +9,12 @@
 
 package org.elasticsearch.index.mapper.blockloader;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
+
+import org.elasticsearch.index.mapper.NumberFieldBlockLoaderTestCase;
 import org.elasticsearch.logsdb.datageneration.FieldType;
+
+import java.util.Map;
 
 public class DoubleFieldBlockLoaderTests extends NumberFieldBlockLoaderTestCase<Double> {
     public DoubleFieldBlockLoaderTests(Params params) {
@@ -17,7 +22,7 @@ public class DoubleFieldBlockLoaderTests extends NumberFieldBlockLoaderTestCase<
     }
 
     @Override
-    protected Double convert(Number value) {
+    protected Double convert(Number value, Map<String, Object> fieldMapping) {
         return value.doubleValue();
     }
 }

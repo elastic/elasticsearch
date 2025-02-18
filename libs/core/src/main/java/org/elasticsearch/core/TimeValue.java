@@ -23,6 +23,7 @@ public class TimeValue implements Comparable<TimeValue> {
     public static final TimeValue MAX_VALUE = new TimeValue(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
     public static final TimeValue THIRTY_SECONDS = new TimeValue(30, TimeUnit.SECONDS);
     public static final TimeValue ONE_MINUTE = new TimeValue(1, TimeUnit.MINUTES);
+    public static final TimeValue ONE_HOUR = new TimeValue(1, TimeUnit.HOURS);
 
     private static final long C0 = 1L;
     private static final long C1 = C0 * 1000L;

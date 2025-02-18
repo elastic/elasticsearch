@@ -33,6 +33,11 @@ public class RestInferenceAction extends BaseInferenceAction {
     }
 
     @Override
+    protected boolean shouldStream() {
+        return false;
+    }
+
+    @Override
     protected ActionListener<InferenceAction.Response> listener(RestChannel channel) {
         return new RestChunkedToXContentListener<>(channel);
     }

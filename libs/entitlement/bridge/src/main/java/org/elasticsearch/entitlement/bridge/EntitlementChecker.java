@@ -10,6 +10,9 @@
 package org.elasticsearch.entitlement.bridge;
 
 import java.io.File;
+import java.io.FileDescriptor;
+import java.io.FileFilter;
+import java.io.FilenameFilter;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
@@ -35,6 +38,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketAddress;
 import java.net.SocketImplFactory;
+import java.net.URI;
 import java.net.URL;
 import java.net.URLStreamHandler;
 import java.net.URLStreamHandlerFactory;
@@ -48,16 +52,29 @@ import java.nio.channels.CompletionHandler;
 import java.nio.channels.DatagramChannel;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.nio.channels.spi.SelectorProvider;
 import java.nio.charset.Charset;
+import java.nio.file.AccessMode;
+import java.nio.file.CopyOption;
+import java.nio.file.DirectoryStream;
+import java.nio.file.FileStore;
+import java.nio.file.LinkOption;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
+import java.nio.file.WatchEvent;
+import java.nio.file.WatchService;
+import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.UserPrincipal;
 import java.nio.file.spi.FileSystemProvider;
 import java.security.cert.CertStoreParameters;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.TimeZone;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ForkJoinPool;
 import java.util.function.Consumer;
 
 import javax.net.ssl.HostnameVerifier;
@@ -81,7 +98,7 @@ public interface EntitlementChecker {
 
     /// /////////////////
     //
-    // ClassLoader ctor
+    // create class loaders
     //
 
     void check$java_lang_ClassLoader$(Class<?> callerClass);
@@ -89,22 +106,6 @@ public interface EntitlementChecker {
     void check$java_lang_ClassLoader$(Class<?> callerClass, ClassLoader parent);
 
     void check$java_lang_ClassLoader$(Class<?> callerClass, String name, ClassLoader parent);
-
-    /// /////////////////
-    //
-    // SecureClassLoader ctor
-    //
-
-    void check$java_security_SecureClassLoader$(Class<?> callerClass);
-
-    void check$java_security_SecureClassLoader$(Class<?> callerClass, ClassLoader parent);
-
-    void check$java_security_SecureClassLoader$(Class<?> callerClass, String name, ClassLoader parent);
-
-    /// /////////////////
-    //
-    // URLClassLoader constructors
-    //
 
     void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls);
 
@@ -115,6 +116,12 @@ public interface EntitlementChecker {
     void check$java_net_URLClassLoader$(Class<?> callerClass, String name, URL[] urls, ClassLoader parent);
 
     void check$java_net_URLClassLoader$(Class<?> callerClass, String name, URL[] urls, ClassLoader parent, URLStreamHandlerFactory factory);
+
+    void check$java_security_SecureClassLoader$(Class<?> callerClass);
+
+    void check$java_security_SecureClassLoader$(Class<?> callerClass, ClassLoader parent);
+
+    void check$java_security_SecureClassLoader$(Class<?> callerClass, String name, ClassLoader parent);
 
     /// /////////////////
     //
@@ -143,6 +150,8 @@ public interface EntitlementChecker {
     // System Properties and similar
     //
 
+    void check$java_lang_System$$setProperties(Class<?> callerClass, Properties props);
+
     void check$java_lang_System$$setProperty(Class<?> callerClass, String key, String value);
 
     void check$java_lang_System$$clearProperty(Class<?> callerClass, String key);
@@ -152,33 +161,33 @@ public interface EntitlementChecker {
     // JVM-wide state changes
     //
 
-    void check$java_lang_System$$setIn(Class<?> callerClass, InputStream in);
-
-    void check$java_lang_System$$setOut(Class<?> callerClass, PrintStream out);
+    void check$com_sun_tools_jdi_VirtualMachineManagerImpl$$virtualMachineManager(Class<?> callerClass);
 
     void check$java_lang_System$$setErr(Class<?> callerClass, PrintStream err);
 
-    void check$java_lang_System$$setProperties(Class<?> callerClass, Properties props);
+    void check$java_lang_System$$setIn(Class<?> callerClass, InputStream in);
+
+    void check$java_lang_System$$setOut(Class<?> callerClass, PrintStream out);
 
     void check$java_lang_Runtime$addShutdownHook(Class<?> callerClass, Runtime runtime, Thread hook);
 
     void check$java_lang_Runtime$removeShutdownHook(Class<?> callerClass, Runtime runtime, Thread hook);
 
-    void check$jdk_tools_jlink_internal_Jlink$(Class<?> callerClass);
-
-    void check$jdk_tools_jlink_internal_Main$$run(Class<?> callerClass, PrintWriter out, PrintWriter err, String... args);
-
-    void check$jdk_vm_ci_services_JVMCIServiceLocator$$getProviders(Class<?> callerClass, Class<?> service);
-
-    void check$jdk_vm_ci_services_Services$$load(Class<?> callerClass, Class<?> service);
-
-    void check$jdk_vm_ci_services_Services$$loadSingle(Class<?> callerClass, Class<?> service, boolean required);
-
-    void check$com_sun_tools_jdi_VirtualMachineManagerImpl$$virtualMachineManager(Class<?> callerClass);
-
     void check$java_lang_Thread$$setDefaultUncaughtExceptionHandler(Class<?> callerClass, Thread.UncaughtExceptionHandler ueh);
 
-    void check$java_util_spi_LocaleServiceProvider$(Class<?> callerClass);
+    void check$java_net_DatagramSocket$$setDatagramSocketImplFactory(Class<?> callerClass, DatagramSocketImplFactory fac);
+
+    void check$java_net_HttpURLConnection$$setFollowRedirects(Class<?> callerClass, boolean set);
+
+    void check$java_net_ServerSocket$$setSocketFactory(Class<?> callerClass, SocketImplFactory fac);
+
+    void check$java_net_Socket$$setSocketImplFactory(Class<?> callerClass, SocketImplFactory fac);
+
+    void check$java_net_URL$$setURLStreamHandlerFactory(Class<?> callerClass, URLStreamHandlerFactory fac);
+
+    void check$java_net_URLConnection$$setFileNameMap(Class<?> callerClass, FileNameMap map);
+
+    void check$java_net_URLConnection$$setContentHandlerFactory(Class<?> callerClass, ContentHandlerFactory fac);
 
     void check$java_text_spi_BreakIteratorProvider$(Class<?> callerClass);
 
@@ -200,6 +209,8 @@ public interface EntitlementChecker {
 
     void check$java_util_spi_LocaleNameProvider$(Class<?> callerClass);
 
+    void check$java_util_spi_LocaleServiceProvider$(Class<?> callerClass);
+
     void check$java_util_spi_TimeZoneNameProvider$(Class<?> callerClass);
 
     void check$java_util_logging_LogManager$(Class<?> callerClass);
@@ -210,19 +221,17 @@ public interface EntitlementChecker {
 
     void check$java_util_TimeZone$$setDefault(Class<?> callerClass, TimeZone zone);
 
-    void check$java_net_DatagramSocket$$setDatagramSocketImplFactory(Class<?> callerClass, DatagramSocketImplFactory fac);
+    void check$jdk_tools_jlink_internal_Jlink$(Class<?> callerClass);
 
-    void check$java_net_HttpURLConnection$$setFollowRedirects(Class<?> callerClass, boolean set);
+    void check$jdk_tools_jlink_internal_Main$$run(Class<?> callerClass, PrintWriter out, PrintWriter err, String... args);
 
-    void check$java_net_ServerSocket$$setSocketFactory(Class<?> callerClass, SocketImplFactory fac);
+    void check$jdk_vm_ci_services_JVMCIServiceLocator$$getProviders(Class<?> callerClass, Class<?> service);
 
-    void check$java_net_Socket$$setSocketImplFactory(Class<?> callerClass, SocketImplFactory fac);
+    void check$jdk_vm_ci_services_Services$$load(Class<?> callerClass, Class<?> service);
 
-    void check$java_net_URL$$setURLStreamHandlerFactory(Class<?> callerClass, URLStreamHandlerFactory fac);
+    void check$jdk_vm_ci_services_Services$$loadSingle(Class<?> callerClass, Class<?> service, boolean required);
 
-    void check$java_net_URLConnection$$setFileNameMap(Class<?> callerClass, FileNameMap map);
-
-    void check$java_net_URLConnection$$setContentHandlerFactory(Class<?> callerClass, ContentHandlerFactory fac);
+    void check$java_nio_charset_spi_CharsetProvider$(Class<?> callerClass);
 
     /// /////////////////
     //
@@ -231,10 +240,6 @@ public interface EntitlementChecker {
     void check$java_net_ProxySelector$$setDefault(Class<?> callerClass, ProxySelector ps);
 
     void check$java_net_ResponseCache$$setDefault(Class<?> callerClass, ResponseCache rc);
-
-    void check$java_net_spi_InetAddressResolverProvider$(Class<?> callerClass);
-
-    void check$java_net_spi_URLStreamHandlerProvider$(Class<?> callerClass);
 
     void check$java_net_URL$(Class<?> callerClass, String protocol, String host, int port, String file, URLStreamHandler handler);
 
@@ -246,13 +251,13 @@ public interface EntitlementChecker {
 
     void check$java_net_DatagramSocket$connect(Class<?> callerClass, DatagramSocket that, SocketAddress addr);
 
-    void check$java_net_DatagramSocket$send(Class<?> callerClass, DatagramSocket that, DatagramPacket p);
-
-    void check$java_net_DatagramSocket$receive(Class<?> callerClass, DatagramSocket that, DatagramPacket p);
-
     void check$java_net_DatagramSocket$joinGroup(Class<?> callerClass, DatagramSocket that, SocketAddress addr, NetworkInterface ni);
 
     void check$java_net_DatagramSocket$leaveGroup(Class<?> callerClass, DatagramSocket that, SocketAddress addr, NetworkInterface ni);
+
+    void check$java_net_DatagramSocket$receive(Class<?> callerClass, DatagramSocket that, DatagramPacket p);
+
+    void check$java_net_DatagramSocket$send(Class<?> callerClass, DatagramSocket that, DatagramPacket p);
 
     void check$java_net_MulticastSocket$joinGroup(Class<?> callerClass, MulticastSocket that, InetAddress addr);
 
@@ -263,6 +268,10 @@ public interface EntitlementChecker {
     void check$java_net_MulticastSocket$leaveGroup(Class<?> callerClass, MulticastSocket that, SocketAddress addr, NetworkInterface ni);
 
     void check$java_net_MulticastSocket$send(Class<?> callerClass, MulticastSocket that, DatagramPacket p, byte ttl);
+
+    void check$java_net_spi_InetAddressResolverProvider$(Class<?> callerClass);
+
+    void check$java_net_spi_URLStreamHandlerProvider$(Class<?> callerClass);
 
     // Binding/connecting ctor
     void check$java_net_ServerSocket$(Class<?> callerClass, int port);
@@ -421,6 +430,16 @@ public interface EntitlementChecker {
 
     void check$sun_nio_ch_DatagramChannelImpl$receive(Class<?> callerClass, DatagramChannel that, ByteBuffer dst);
 
+    // providers (SPI)
+
+    // protected constructors
+    void check$java_nio_channels_spi_SelectorProvider$(Class<?> callerClass);
+
+    void check$java_nio_channels_spi_AsynchronousChannelProvider$(Class<?> callerClass);
+
+    // provider methods (dynamic)
+    void checkSelectorProviderInheritedChannel(Class<?> callerClass, SelectorProvider that);
+
     /// /////////////////
     //
     // Load native libraries
@@ -495,24 +514,250 @@ public interface EntitlementChecker {
     // File access
     //
 
+    // old io (ie File)
+    void check$java_io_File$canExecute(Class<?> callerClass, File file);
+
+    void check$java_io_File$canRead(Class<?> callerClass, File file);
+
+    void check$java_io_File$canWrite(Class<?> callerClass, File file);
+
+    void check$java_io_File$createNewFile(Class<?> callerClass, File file);
+
+    void check$java_io_File$$createTempFile(Class<?> callerClass, String prefix, String suffix, File directory);
+
+    void check$java_io_File$delete(Class<?> callerClass, File file);
+
+    void check$java_io_File$deleteOnExit(Class<?> callerClass, File file);
+
+    void check$java_io_File$exists(Class<?> callerClass, File file);
+
+    void check$java_io_File$isDirectory(Class<?> callerClass, File file);
+
+    void check$java_io_File$isFile(Class<?> callerClass, File file);
+
+    void check$java_io_File$isHidden(Class<?> callerClass, File file);
+
+    void check$java_io_File$lastModified(Class<?> callerClass, File file);
+
+    void check$java_io_File$length(Class<?> callerClass, File file);
+
+    void check$java_io_File$list(Class<?> callerClass, File file);
+
+    void check$java_io_File$list(Class<?> callerClass, File file, FilenameFilter filter);
+
+    void check$java_io_File$listFiles(Class<?> callerClass, File file);
+
+    void check$java_io_File$listFiles(Class<?> callerClass, File file, FileFilter filter);
+
+    void check$java_io_File$listFiles(Class<?> callerClass, File file, FilenameFilter filter);
+
+    void check$java_io_File$mkdir(Class<?> callerClass, File file);
+
+    void check$java_io_File$mkdirs(Class<?> callerClass, File file);
+
+    void check$java_io_File$renameTo(Class<?> callerClass, File file, File dest);
+
+    void check$java_io_File$setExecutable(Class<?> callerClass, File file, boolean executable);
+
+    void check$java_io_File$setExecutable(Class<?> callerClass, File file, boolean executable, boolean ownerOnly);
+
+    void check$java_io_File$setLastModified(Class<?> callerClass, File file, long time);
+
+    void check$java_io_File$setReadable(Class<?> callerClass, File file, boolean readable);
+
+    void check$java_io_File$setReadable(Class<?> callerClass, File file, boolean readable, boolean ownerOnly);
+
+    void check$java_io_File$setReadOnly(Class<?> callerClass, File file);
+
+    void check$java_io_File$setWritable(Class<?> callerClass, File file, boolean writable);
+
+    void check$java_io_File$setWritable(Class<?> callerClass, File file, boolean writable, boolean ownerOnly);
+
+    void check$java_io_FileInputStream$(Class<?> callerClass, File file);
+
+    void check$java_io_FileInputStream$(Class<?> callerClass, FileDescriptor fd);
+
+    void check$java_io_FileInputStream$(Class<?> callerClass, String name);
+
+    void check$java_io_FileOutputStream$(Class<?> callerClass, File file);
+
+    void check$java_io_FileOutputStream$(Class<?> callerClass, File file, boolean append);
+
+    void check$java_io_FileOutputStream$(Class<?> callerClass, FileDescriptor fd);
+
+    void check$java_io_FileOutputStream$(Class<?> callerClass, String name);
+
+    void check$java_io_FileOutputStream$(Class<?> callerClass, String name, boolean append);
+
+    void check$java_io_FileReader$(Class<?> callerClass, File file);
+
+    void check$java_io_FileReader$(Class<?> callerClass, File file, Charset charset);
+
+    void check$java_io_FileReader$(Class<?> callerClass, FileDescriptor fd);
+
+    void check$java_io_FileReader$(Class<?> callerClass, String name);
+
+    void check$java_io_FileReader$(Class<?> callerClass, String name, Charset charset);
+
+    void check$java_io_FileWriter$(Class<?> callerClass, File file);
+
+    void check$java_io_FileWriter$(Class<?> callerClass, File file, boolean append);
+
+    void check$java_io_FileWriter$(Class<?> callerClass, File file, Charset charset);
+
+    void check$java_io_FileWriter$(Class<?> callerClass, File file, Charset charset, boolean append);
+
+    void check$java_io_FileWriter$(Class<?> callerClass, FileDescriptor fd);
+
+    void check$java_io_FileWriter$(Class<?> callerClass, String name);
+
+    void check$java_io_FileWriter$(Class<?> callerClass, String name, boolean append);
+
+    void check$java_io_FileWriter$(Class<?> callerClass, String name, Charset charset);
+
+    void check$java_io_FileWriter$(Class<?> callerClass, String name, Charset charset, boolean append);
+
+    void check$java_io_RandomAccessFile$(Class<?> callerClass, String name, String mode);
+
+    void check$java_io_RandomAccessFile$(Class<?> callerClass, File file, String mode);
+
     void check$java_util_Scanner$(Class<?> callerClass, File source);
 
     void check$java_util_Scanner$(Class<?> callerClass, File source, String charsetName);
 
     void check$java_util_Scanner$(Class<?> callerClass, File source, Charset charset);
 
-    void check$java_io_FileOutputStream$(Class<?> callerClass, String name);
-
-    void check$java_io_FileOutputStream$(Class<?> callerClass, String name, boolean append);
-
-    void check$java_io_FileOutputStream$(Class<?> callerClass, File file);
-
-    void check$java_io_FileOutputStream$(Class<?> callerClass, File file, boolean append);
+    // nio
+    void check$java_nio_file_Files$$getOwner(Class<?> callerClass, Path path, LinkOption... options);
 
     void check$java_nio_file_Files$$probeContentType(Class<?> callerClass, Path path);
 
     void check$java_nio_file_Files$$setOwner(Class<?> callerClass, Path path, UserPrincipal principal);
 
-    // hand-wired methods
+    // file system providers
+    void check$java_nio_file_spi_FileSystemProvider$(Class<?> callerClass);
+
+    void checkNewFileSystem(Class<?> callerClass, FileSystemProvider that, URI uri, Map<String, ?> env);
+
+    void checkNewFileSystem(Class<?> callerClass, FileSystemProvider that, Path path, Map<String, ?> env);
+
     void checkNewInputStream(Class<?> callerClass, FileSystemProvider that, Path path, OpenOption... options);
+
+    void checkNewOutputStream(Class<?> callerClass, FileSystemProvider that, Path path, OpenOption... options);
+
+    void checkNewFileChannel(
+        Class<?> callerClass,
+        FileSystemProvider that,
+        Path path,
+        Set<? extends OpenOption> options,
+        FileAttribute<?>... attrs
+    );
+
+    void checkNewAsynchronousFileChannel(
+        Class<?> callerClass,
+        FileSystemProvider that,
+        Path path,
+        Set<? extends OpenOption> options,
+        ExecutorService executor,
+        FileAttribute<?>... attrs
+    );
+
+    void checkNewByteChannel(
+        Class<?> callerClass,
+        FileSystemProvider that,
+        Path path,
+        Set<? extends OpenOption> options,
+        FileAttribute<?>... attrs
+    );
+
+    void checkNewDirectoryStream(Class<?> callerClass, FileSystemProvider that, Path dir, DirectoryStream.Filter<? super Path> filter);
+
+    void checkCreateDirectory(Class<?> callerClass, FileSystemProvider that, Path dir, FileAttribute<?>... attrs);
+
+    void checkCreateSymbolicLink(Class<?> callerClass, FileSystemProvider that, Path link, Path target, FileAttribute<?>... attrs);
+
+    void checkCreateLink(Class<?> callerClass, FileSystemProvider that, Path link, Path existing);
+
+    void checkDelete(Class<?> callerClass, FileSystemProvider that, Path path);
+
+    void checkDeleteIfExists(Class<?> callerClass, FileSystemProvider that, Path path);
+
+    void checkReadSymbolicLink(Class<?> callerClass, FileSystemProvider that, Path link);
+
+    void checkCopy(Class<?> callerClass, FileSystemProvider that, Path source, Path target, CopyOption... options);
+
+    void checkMove(Class<?> callerClass, FileSystemProvider that, Path source, Path target, CopyOption... options);
+
+    void checkIsSameFile(Class<?> callerClass, FileSystemProvider that, Path path, Path path2);
+
+    void checkIsHidden(Class<?> callerClass, FileSystemProvider that, Path path);
+
+    void checkGetFileStore(Class<?> callerClass, FileSystemProvider that, Path path);
+
+    void checkCheckAccess(Class<?> callerClass, FileSystemProvider that, Path path, AccessMode... modes);
+
+    void checkGetFileAttributeView(Class<?> callerClass, FileSystemProvider that, Path path, Class<?> type, LinkOption... options);
+
+    void checkReadAttributes(Class<?> callerClass, FileSystemProvider that, Path path, Class<?> type, LinkOption... options);
+
+    void checkReadAttributes(Class<?> callerClass, FileSystemProvider that, Path path, String attributes, LinkOption... options);
+
+    void checkReadAttributesIfExists(Class<?> callerClass, FileSystemProvider that, Path path, Class<?> type, LinkOption... options);
+
+    void checkSetAttribute(Class<?> callerClass, FileSystemProvider that, Path path, String attribute, Object value, LinkOption... options);
+
+    void checkExists(Class<?> callerClass, FileSystemProvider that, Path path, LinkOption... options);
+
+    // file store
+    void checkGetFileStoreAttributeView(Class<?> callerClass, FileStore that, Class<?> type);
+
+    void checkGetAttribute(Class<?> callerClass, FileStore that, String attribute);
+
+    void checkGetBlockSize(Class<?> callerClass, FileStore that);
+
+    void checkGetTotalSpace(Class<?> callerClass, FileStore that);
+
+    void checkGetUnallocatedSpace(Class<?> callerClass, FileStore that);
+
+    void checkGetUsableSpace(Class<?> callerClass, FileStore that);
+
+    void checkIsReadOnly(Class<?> callerClass, FileStore that);
+
+    void checkName(Class<?> callerClass, FileStore that);
+
+    void checkType(Class<?> callerClass, FileStore that);
+
+    // path
+    void checkPathToRealPath(Class<?> callerClass, Path that, LinkOption... options);
+
+    void checkPathRegister(Class<?> callerClass, Path that, WatchService watcher, WatchEvent.Kind<?>... events);
+
+    void checkPathRegister(
+        Class<?> callerClass,
+        Path that,
+        WatchService watcher,
+        WatchEvent.Kind<?>[] events,
+        WatchEvent.Modifier... modifiers
+    );
+
+    ////////////////////
+    //
+    // Thread management
+    //
+
+    void check$java_lang_Thread$start(Class<?> callerClass, Thread thread);
+
+    void check$java_lang_Thread$setDaemon(Class<?> callerClass, Thread thread, boolean on);
+
+    void check$java_lang_ThreadGroup$setDaemon(Class<?> callerClass, ThreadGroup threadGroup, boolean daemon);
+
+    void check$java_util_concurrent_ForkJoinPool$setParallelism(Class<?> callerClass, ForkJoinPool forkJoinPool, int size);
+
+    void check$java_lang_Thread$setName(Class<?> callerClass, Thread thread, String name);
+
+    void check$java_lang_Thread$setPriority(Class<?> callerClass, Thread thread, int newPriority);
+
+    void check$java_lang_Thread$setUncaughtExceptionHandler(Class<?> callerClass, Thread thread, Thread.UncaughtExceptionHandler ueh);
+
+    void check$java_lang_ThreadGroup$setMaxPriority(Class<?> callerClass, ThreadGroup threadGroup, int pri);
 }

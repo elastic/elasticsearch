@@ -133,7 +133,6 @@ import static org.mockito.Mockito.when;
 public class ClusterStateChanges {
     private static final Settings SETTINGS = Settings.builder().put(PATH_HOME_SETTING.getKey(), "dummy").build();
 
-    private final TransportService transportService;
     private final AllocationService allocationService;
     private final ClusterService clusterService;
     private final FeatureService featureService;
@@ -221,7 +220,7 @@ public class ClusterStateChanges {
         // services
         featureService = new FeatureService(List.of());
 
-        transportService = new TransportService(
+        TransportService transportService = new TransportService(
             SETTINGS,
             transport,
             threadPool,

@@ -21,6 +21,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.file.MasterNodeFileWatchingService;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -80,7 +82,7 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
         Environment environment,
         FileSettingsHealthIndicatorService healthIndicatorService
     ) {
-        super(clusterService, environment.configFile().toAbsolutePath().resolve(OPERATOR_DIRECTORY).resolve(SETTINGS_FILE_NAME));
+        super(clusterService, environment.configDir().toAbsolutePath().resolve(OPERATOR_DIRECTORY).resolve(SETTINGS_FILE_NAME));
         this.stateService = stateService;
         this.healthIndicatorService = healthIndicatorService;
     }
@@ -212,7 +214,7 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
     }
 
     @Override
-    protected void processInitialFileMissing() throws ExecutionException, InterruptedException, IOException {
+    protected void processInitialFileMissing() throws ExecutionException, InterruptedException {
         PlainActionFuture<ActionResponse.Empty> completion = new PlainActionFuture<>();
         logger.info("setting file [{}] not found, initializing [{}] as empty", watchedFile(), NAMESPACE);
         stateService.initEmpty(NAMESPACE, completion);
@@ -236,10 +238,28 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
             )
         );
 
+        /**
+         * We want a length limit so we don't blow past the indexing limit in the case of a long description string.
+         * This is an {@code OperatorDynamic} setting so that if the truncation hampers troubleshooting efforts,
+         * the operator could override it and retry the operation without necessarily restarting the cluster.
+         */
+        public static final String DESCRIPTION_LENGTH_LIMIT_KEY = "fileSettings.descriptionLengthLimit";
+        static final Setting<Integer> DESCRIPTION_LENGTH_LIMIT = Setting.intSetting(
+            DESCRIPTION_LENGTH_LIMIT_KEY,
+            100,
+            1, // Need room for the ellipsis
+            Setting.Property.OperatorDynamic
+        );
+
+        private final Settings settings;
         private boolean isActive = false;
         private long changeCount = 0;
         private long failureStreak = 0;
         private String mostRecentFailure = null;
+
+        public FileSettingsHealthIndicatorService(Settings settings) {
+            this.settings = settings;
+        }
 
         public synchronized void startOccurred() {
             isActive = true;
@@ -262,7 +282,16 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
 
         public synchronized void failureOccurred(String description) {
             ++failureStreak;
-            mostRecentFailure = description;
+            mostRecentFailure = limitLength(description);
+        }
+
+        private String limitLength(String description) {
+            int descriptionLengthLimit = DESCRIPTION_LENGTH_LIMIT.get(settings);
+            if (description.length() > descriptionLengthLimit) {
+                return description.substring(0, descriptionLengthLimit - 1) + "…";
+            } else {
+                return description;
+            }
         }
 
         @Override

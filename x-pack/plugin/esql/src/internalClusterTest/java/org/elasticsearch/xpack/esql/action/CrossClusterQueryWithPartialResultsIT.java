@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -21,6 +23,7 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 
 import java.io.IOException;
@@ -148,6 +151,7 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
 
     public void testFailToReceiveClusterResponse() throws Exception {
         populateIndices();
+        Exception simulatedFailure = randomFailure();
         // fetched pages, but failed to receive the cluster response
         for (TransportService transportService : cluster(REMOTE_CLUSTER_1).getInstances(TransportService.class)) {
             MockTransportService ts = asInstanceOf(MockTransportService.class, transportService);
@@ -161,7 +165,7 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
 
                     @Override
                     public void sendResponse(TransportResponse response) {
-                        sendResponse(new CircuitBreakingException("simulated", CircuitBreaker.Durability.PERMANENT));
+                        sendResponse(simulatedFailure);
                     }
 
                     @Override
@@ -177,8 +181,10 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
             request.includeCCSMetadata(randomBoolean());
             {
                 request.allowPartialResults(false);
-                var error = expectThrows(CircuitBreakingException.class, () -> runQuery(request).close());
-                assertThat(error.getMessage(), equalTo("simulated"));
+                Exception error = expectThrows(Exception.class, () -> runQuery(request).close());
+                var unwrapped = ExceptionsHelper.unwrap(error, simulatedFailure.getClass());
+                assertNotNull(unwrapped);
+                assertThat(unwrapped.getMessage(), equalTo(simulatedFailure.getMessage()));
             }
             request.allowPartialResults(true);
             try (var resp = runQuery(request)) {
@@ -211,6 +217,7 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
 
     public void testFailToStartRequestOnRemoteCluster() throws Exception {
         populateIndices();
+        Exception simulatedFailure = randomFailure();
         for (TransportService transportService : cluster(REMOTE_CLUSTER_1).getInstances(TransportService.class)) {
             MockTransportService ts = asInstanceOf(MockTransportService.class, transportService);
             String actionToFail = randomFrom(
@@ -218,9 +225,7 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
                 ExchangeService.OPEN_EXCHANGE_ACTION_NAME,
                 ComputeService.CLUSTER_ACTION_NAME
             );
-            ts.addRequestHandlingBehavior(actionToFail, (handler, request, channel, task) -> {
-                channel.sendResponse(new IllegalStateException("simulated"));
-            });
+            ts.addRequestHandlingBehavior(actionToFail, (handler, request, channel, task) -> { channel.sendResponse(simulatedFailure); });
         }
         try {
             EsqlQueryRequest request = new EsqlQueryRequest();
@@ -228,8 +233,11 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
             request.includeCCSMetadata(randomBoolean());
             {
                 request.allowPartialResults(false);
-                var error = expectThrows(IllegalStateException.class, () -> runQuery(request).close());
-                assertThat(error.getMessage(), containsString("simulated"));
+                var error = expectThrows(Exception.class, () -> runQuery(request).close());
+                EsqlTestUtils.assertEsqlFailure(error);
+                var unwrapped = ExceptionsHelper.unwrap(error, simulatedFailure.getClass());
+                assertNotNull(unwrapped);
+                assertThat(unwrapped.getMessage(), equalTo(simulatedFailure.getMessage()));
             }
             request.allowPartialResults(true);
             try (var resp = runQuery(request)) {
@@ -258,6 +266,15 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
                 ts.clearAllRules();
             }
         }
+    }
+
+    private static Exception randomFailure() {
+        return randomFrom(
+            new IllegalStateException("driver was closed already"),
+            new CircuitBreakingException("low memory", CircuitBreaker.Durability.PERMANENT),
+            new IOException("broken disk"),
+            new ResourceNotFoundException("exchange sink was not found")
+        );
     }
 
     private Set<String> populateIndex(String clusterAlias, String indexName, int numShards) {
@@ -309,7 +326,7 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
         );
         Set<String> ids = new HashSet<>();
         String tag = clusterAlias.isEmpty() ? "local" : clusterAlias;
-        int numDocs = between(1, 100); // large enough to have failing documents in every shard
+        int numDocs = between(50, 100); // large enough to have failing documents in every shard
         for (int i = 0; i < numDocs; i++) {
             String id = Long.toString(nextDocId.incrementAndGet());
             client.prepareIndex(indexName).setSource("id", id, "tag", tag, "v", i).get();

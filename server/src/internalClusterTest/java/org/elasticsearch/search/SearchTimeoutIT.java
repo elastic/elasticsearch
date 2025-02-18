@@ -14,6 +14,7 @@ import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
@@ -22,8 +23,10 @@ import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -33,12 +36,23 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.search.rescore.RescoreContext;
+import org.elasticsearch.search.rescore.Rescorer;
+import org.elasticsearch.search.rescore.RescorerBuilder;
+import org.elasticsearch.search.suggest.SortBy;
+import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.search.suggest.Suggester;
+import org.elasticsearch.search.suggest.SuggestionSearchContext;
+import org.elasticsearch.search.suggest.term.TermSuggestion;
+import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -58,7 +72,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(BulkScorerTimeoutQueryPlugin.class);
+        return Collections.singleton(SearchTimeoutPlugin.class);
     }
 
     @Override
@@ -72,6 +86,9 @@ public class SearchTimeoutIT extends ESIntegTestCase {
         indexRandom(true, "test", randomIntBetween(20, 50));
     }
 
+    /**
+     * Test the scenario where the query times out before starting to collect documents, verify that partial hits are not returned
+     */
     public void testTopHitsTimeoutBeforeCollecting() {
         // setting the timeout is necessary only because we check that if a TimeExceededException is thrown, a timeout was set
         SearchRequestBuilder searchRequestBuilder = prepareSearch("test").setTimeout(new TimeValue(10, TimeUnit.SECONDS))
@@ -88,6 +105,9 @@ public class SearchTimeoutIT extends ESIntegTestCase {
         });
     }
 
+    /**
+     * Test the scenario where the query times out while collecting documents, verify that partial hits results are returned
+     */
     public void testTopHitsTimeoutWhileCollecting() {
         // setting the timeout is necessary only because we check that if a TimeExceededException is thrown, a timeout was set
         SearchRequestBuilder searchRequestBuilder = prepareSearch("test").setTimeout(new TimeValue(10, TimeUnit.SECONDS))
@@ -103,6 +123,9 @@ public class SearchTimeoutIT extends ESIntegTestCase {
         });
     }
 
+    /**
+     * Test the scenario where the query times out before starting to collect documents, verify that partial aggs results are not returned
+     */
     public void testAggsTimeoutBeforeCollecting() {
         SearchRequestBuilder searchRequestBuilder = prepareSearch("test").setSize(0)
             // setting the timeout is necessary only because we check that if a TimeExceededException is thrown, a timeout was set
@@ -123,6 +146,9 @@ public class SearchTimeoutIT extends ESIntegTestCase {
         });
     }
 
+    /**
+     * Test the scenario where the query times out while collecting documents, verify that partial aggs results are returned
+     */
     public void testAggsTimeoutWhileCollecting() {
         SearchRequestBuilder searchRequestBuilder = prepareSearch("test").setSize(0)
             // setting the timeout is necessary only because we check that if a TimeExceededException is thrown, a timeout was set
@@ -137,6 +163,56 @@ public class SearchTimeoutIT extends ESIntegTestCase {
             assertEquals(searchResponse.getSuccessfulShards(), searchResponse.getTotalShards());
             assertThat(searchResponse.getHits().getTotalHits().value(), greaterThan(0L));
             assertEquals(0, searchResponse.getHits().getHits().length);
+            StringTerms terms = searchResponse.getAggregations().get("terms");
+            assertEquals(1, terms.getBuckets().size());
+            StringTerms.Bucket bucket = terms.getBuckets().get(0);
+            assertEquals("value", bucket.getKeyAsString());
+            assertThat(bucket.getDocCount(), greaterThan(0L));
+        });
+    }
+
+    /**
+     * Test the scenario where the suggest phase (part of the query phase) times out, yet there are results
+     * available coming from executing the query and aggs on each shard.
+     */
+    public void testSuggestTimeoutWithPartialResults() {
+        SuggestBuilder suggestBuilder = new SuggestBuilder();
+        suggestBuilder.setGlobalText("text");
+        TimeoutSuggestionBuilder timeoutSuggestionBuilder = new TimeoutSuggestionBuilder();
+        suggestBuilder.addSuggestion("suggest", timeoutSuggestionBuilder);
+        SearchRequestBuilder searchRequestBuilder = prepareSearch("test").suggest(suggestBuilder)
+            .addAggregation(new TermsAggregationBuilder("terms").field("field.keyword"));
+        ElasticsearchAssertions.assertResponse(searchRequestBuilder, searchResponse -> {
+            assertThat(searchResponse.isTimedOut(), equalTo(true));
+            assertEquals(0, searchResponse.getShardFailures().length);
+            assertEquals(0, searchResponse.getFailedShards());
+            assertThat(searchResponse.getSuccessfulShards(), greaterThan(0));
+            assertEquals(searchResponse.getSuccessfulShards(), searchResponse.getTotalShards());
+            assertThat(searchResponse.getHits().getTotalHits().value(), greaterThan(0L));
+            assertThat(searchResponse.getHits().getHits().length, greaterThan(0));
+            StringTerms terms = searchResponse.getAggregations().get("terms");
+            assertEquals(1, terms.getBuckets().size());
+            StringTerms.Bucket bucket = terms.getBuckets().get(0);
+            assertEquals("value", bucket.getKeyAsString());
+            assertThat(bucket.getDocCount(), greaterThan(0L));
+        });
+    }
+
+    /**
+     * Test the scenario where the rescore phase (part of the query phase) times out, yet there are results
+     * available coming from executing the query and aggs on each shard.
+     */
+    public void testRescoreTimeoutWithPartialResults() {
+        SearchRequestBuilder searchRequestBuilder = prepareSearch("test").setRescorer(new TimeoutRescorerBuilder())
+            .addAggregation(new TermsAggregationBuilder("terms").field("field.keyword"));
+        ElasticsearchAssertions.assertResponse(searchRequestBuilder, searchResponse -> {
+            assertThat(searchResponse.isTimedOut(), equalTo(true));
+            assertEquals(0, searchResponse.getShardFailures().length);
+            assertEquals(0, searchResponse.getFailedShards());
+            assertThat(searchResponse.getSuccessfulShards(), greaterThan(0));
+            assertEquals(searchResponse.getSuccessfulShards(), searchResponse.getTotalShards());
+            assertThat(searchResponse.getHits().getTotalHits().value(), greaterThan(0L));
+            assertThat(searchResponse.getHits().getHits().length, greaterThan(0));
             StringTerms terms = searchResponse.getAggregations().get("terms");
             assertEquals(1, terms.getBuckets().size());
             StringTerms.Bucket bucket = terms.getBuckets().get(0);
@@ -171,10 +247,64 @@ public class SearchTimeoutIT extends ESIntegTestCase {
         assertEquals(429, ex.status().getStatus());
     }
 
-    public static final class BulkScorerTimeoutQueryPlugin extends Plugin implements SearchPlugin {
+    public void testPartialResultsIntolerantTimeoutWhileSuggestingOnly() {
+        SuggestBuilder suggestBuilder = new SuggestBuilder();
+        suggestBuilder.setGlobalText("text");
+        TimeoutSuggestionBuilder timeoutSuggestionBuilder = new TimeoutSuggestionBuilder();
+        suggestBuilder.addSuggestion("suggest", timeoutSuggestionBuilder);
+        ElasticsearchException ex = expectThrows(
+            ElasticsearchException.class,
+            prepareSearch("test").suggest(suggestBuilder).setAllowPartialSearchResults(false) // this line causes timeouts to report
+                                                                                              // failures
+        );
+        assertTrue(ex.toString().contains("Time exceeded"));
+        assertEquals(429, ex.status().getStatus());
+    }
+
+    public void testPartialResultsIntolerantTimeoutWhileSuggesting() {
+        SuggestBuilder suggestBuilder = new SuggestBuilder();
+        suggestBuilder.setGlobalText("text");
+        TimeoutSuggestionBuilder timeoutSuggestionBuilder = new TimeoutSuggestionBuilder();
+        suggestBuilder.addSuggestion("suggest", timeoutSuggestionBuilder);
+        ElasticsearchException ex = expectThrows(
+            ElasticsearchException.class,
+            prepareSearch("test").setQuery(new TermQueryBuilder("field", "value"))
+                .suggest(suggestBuilder)
+                .setAllowPartialSearchResults(false) // this line causes timeouts to report failures
+        );
+        assertTrue(ex.toString().contains("Time exceeded"));
+        assertEquals(429, ex.status().getStatus());
+    }
+
+    public void testPartialResultsIntolerantTimeoutWhileRescoring() {
+        ElasticsearchException ex = expectThrows(
+            ElasticsearchException.class,
+            prepareSearch("test").setQuery(new TermQueryBuilder("field", "value"))
+                .setRescorer(new TimeoutRescorerBuilder())
+                .setAllowPartialSearchResults(false) // this line causes timeouts to report failures
+        );
+        assertTrue(ex.toString().contains("Time exceeded"));
+        assertEquals(429, ex.status().getStatus());
+    }
+
+    public static final class SearchTimeoutPlugin extends Plugin implements SearchPlugin {
         @Override
         public List<QuerySpec<?>> getQueries() {
             return Collections.singletonList(new QuerySpec<QueryBuilder>("timeout", BulkScorerTimeoutQuery::new, parser -> {
+                throw new UnsupportedOperationException();
+            }));
+        }
+
+        @Override
+        public List<SuggesterSpec<?>> getSuggesters() {
+            return Collections.singletonList(new SuggesterSpec<>("timeout", TimeoutSuggestionBuilder::new, parser -> {
+                throw new UnsupportedOperationException();
+            }, TermSuggestion::new));
+        }
+
+        @Override
+        public List<RescorerSpec<?>> getRescorers() {
+            return Collections.singletonList(new RescorerSpec<>("timeout", TimeoutRescorerBuilder::new, parser -> {
                 throw new UnsupportedOperationException();
             }));
         }
@@ -313,6 +443,112 @@ public class SearchTimeoutIT extends ESIntegTestCase {
         @Override
         public TransportVersion getMinimalSupportedVersion() {
             return null;
+        }
+    }
+
+    /**
+     * Suggestion builder that triggers a timeout as part of its execution
+     */
+    private static final class TimeoutSuggestionBuilder extends TermSuggestionBuilder {
+        TimeoutSuggestionBuilder() {
+            super("field");
+        }
+
+        TimeoutSuggestionBuilder(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "timeout";
+        }
+
+        @Override
+        public SuggestionSearchContext.SuggestionContext build(SearchExecutionContext context) {
+            return new TimeoutSuggestionContext(new TimeoutSuggester((ContextIndexSearcher) context.searcher()), context);
+        }
+    }
+
+    private static final class TimeoutSuggester extends Suggester<TimeoutSuggestionContext> {
+        private final ContextIndexSearcher contextIndexSearcher;
+
+        TimeoutSuggester(ContextIndexSearcher contextIndexSearcher) {
+            this.contextIndexSearcher = contextIndexSearcher;
+        }
+
+        @Override
+        protected TermSuggestion innerExecute(
+            String name,
+            TimeoutSuggestionContext suggestion,
+            IndexSearcher searcher,
+            CharsRefBuilder spare
+        ) {
+            contextIndexSearcher.throwTimeExceededException();
+            throw new AssertionError("should have thrown TimeExceededException");
+        }
+
+        @Override
+        protected TermSuggestion emptySuggestion(String name, TimeoutSuggestionContext suggestion, CharsRefBuilder spare) {
+            return new TermSuggestion(name, suggestion.getSize(), SortBy.SCORE);
+        }
+    }
+
+    private static final class TimeoutSuggestionContext extends SuggestionSearchContext.SuggestionContext {
+        TimeoutSuggestionContext(Suggester<?> suggester, SearchExecutionContext searchExecutionContext) {
+            super(suggester, searchExecutionContext);
+        }
+    }
+
+    private static final class TimeoutRescorerBuilder extends RescorerBuilder<TimeoutRescorerBuilder> {
+        TimeoutRescorerBuilder() {
+            super();
+        }
+
+        TimeoutRescorerBuilder(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) {}
+
+        @Override
+        protected void doXContent(XContentBuilder builder, Params params) {}
+
+        @Override
+        protected RescoreContext innerBuildContext(int windowSize, SearchExecutionContext context) throws IOException {
+            return new RescoreContext(10, new Rescorer() {
+                @Override
+                public TopDocs rescore(TopDocs topDocs, IndexSearcher searcher, RescoreContext rescoreContext) {
+                    ((ContextIndexSearcher) context.searcher()).throwTimeExceededException();
+                    assert false;
+                    return null;
+                }
+
+                @Override
+                public Explanation explain(
+                    int topLevelDocId,
+                    IndexSearcher searcher,
+                    RescoreContext rescoreContext,
+                    Explanation sourceExplanation
+                ) {
+                    throw new UnsupportedOperationException();
+                }
+            });
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "timeout";
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return null;
+        }
+
+        @Override
+        public RescorerBuilder<TimeoutRescorerBuilder> rewrite(QueryRewriteContext ctx) {
+            return this;
         }
     }
 }

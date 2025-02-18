@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
@@ -91,7 +92,7 @@ public class InTests extends AbstractFunctionTestCase {
     }
 
     private static void booleans(List<TestCaseSupplier> suppliers, int items) {
-        suppliers.add(new TestCaseSupplier("boolean", List.of(DataType.BOOLEAN, DataType.BOOLEAN), () -> {
+        suppliers.add(new TestCaseSupplier("boolean", makeTypes(DataType.BOOLEAN, DataType.BOOLEAN, items), () -> {
             List<Boolean> inlist = randomList(items, items, () -> randomBoolean());
             boolean field = randomBoolean();
             List<TestCaseSupplier.TypedData> args = new ArrayList<>(inlist.size() + 1);
@@ -109,7 +110,7 @@ public class InTests extends AbstractFunctionTestCase {
     }
 
     private static void numerics(List<TestCaseSupplier> suppliers, int items) {
-        suppliers.add(new TestCaseSupplier("integer", List.of(DataType.INTEGER, DataType.INTEGER), () -> {
+        suppliers.add(new TestCaseSupplier("integer", makeTypes(DataType.INTEGER, DataType.INTEGER, items), () -> {
             List<Integer> inlist = randomList(items, items, () -> randomInt());
             int field = inlist.get(inlist.size() - 1);
             List<TestCaseSupplier.TypedData> args = new ArrayList<>(inlist.size() + 1);
@@ -125,7 +126,7 @@ public class InTests extends AbstractFunctionTestCase {
             );
         }));
 
-        suppliers.add(new TestCaseSupplier("long", List.of(DataType.LONG, DataType.LONG), () -> {
+        suppliers.add(new TestCaseSupplier("long", makeTypes(DataType.LONG, DataType.LONG, items), () -> {
             List<Long> inlist = randomList(items, items, () -> randomLong());
             long field = randomLong();
             List<TestCaseSupplier.TypedData> args = new ArrayList<>(inlist.size() + 1);
@@ -141,7 +142,7 @@ public class InTests extends AbstractFunctionTestCase {
             );
         }));
 
-        suppliers.add(new TestCaseSupplier("double", List.of(DataType.DOUBLE, DataType.DOUBLE), () -> {
+        suppliers.add(new TestCaseSupplier("double", makeTypes(DataType.DOUBLE, DataType.DOUBLE, items), () -> {
             List<Double> inlist = randomList(items, items, () -> randomDouble());
             double field = inlist.get(0);
             List<TestCaseSupplier.TypedData> args = new ArrayList<>(inlist.size() + 1);
@@ -159,58 +160,10 @@ public class InTests extends AbstractFunctionTestCase {
     }
 
     private static void bytesRefs(List<TestCaseSupplier> suppliers, int items) {
-        suppliers.add(new TestCaseSupplier("keyword", List.of(DataType.KEYWORD, DataType.KEYWORD), () -> {
-            List<Object> inlist = randomList(items, items, () -> randomLiteral(DataType.KEYWORD).value());
-            Object field = inlist.get(inlist.size() - 1);
-            List<TestCaseSupplier.TypedData> args = new ArrayList<>(inlist.size() + 1);
-            for (Object i : inlist) {
-                args.add(new TestCaseSupplier.TypedData(i, DataType.KEYWORD, "inlist" + i));
-            }
-            args.add(new TestCaseSupplier.TypedData(field, DataType.KEYWORD, "field"));
-            return new TestCaseSupplier.TestCase(
-                args,
-                matchesPattern("InBytesRefEvaluator.*"),
-                DataType.BOOLEAN,
-                equalTo(inlist.contains(field))
-            );
-        }));
-
-        suppliers.add(new TestCaseSupplier("text", List.of(DataType.TEXT, DataType.TEXT), () -> {
-            List<Object> inlist = randomList(items, items, () -> randomLiteral(DataType.TEXT).value());
-            Object field = inlist.get(0);
-            List<TestCaseSupplier.TypedData> args = new ArrayList<>(inlist.size() + 1);
-            for (Object i : inlist) {
-                args.add(new TestCaseSupplier.TypedData(i, DataType.TEXT, "inlist" + i));
-            }
-            args.add(new TestCaseSupplier.TypedData(field, DataType.TEXT, "field"));
-            return new TestCaseSupplier.TestCase(
-                args,
-                matchesPattern("InBytesRefEvaluator.*"),
-                DataType.BOOLEAN,
-                equalTo(inlist.contains(field))
-            );
-        }));
-
-        suppliers.add(new TestCaseSupplier("semantic_text", List.of(DataType.SEMANTIC_TEXT, DataType.SEMANTIC_TEXT), () -> {
-            List<Object> inlist = randomList(items, items, () -> randomLiteral(DataType.SEMANTIC_TEXT).value());
-            Object field = inlist.get(0);
-            List<TestCaseSupplier.TypedData> args = new ArrayList<>(inlist.size() + 1);
-            for (Object i : inlist) {
-                args.add(new TestCaseSupplier.TypedData(i, DataType.SEMANTIC_TEXT, "inlist" + i));
-            }
-            args.add(new TestCaseSupplier.TypedData(field, DataType.SEMANTIC_TEXT, "field"));
-            return new TestCaseSupplier.TestCase(
-                args,
-                matchesPattern("InBytesRefEvaluator.*"),
-                DataType.BOOLEAN,
-                equalTo(inlist.contains(field))
-            );
-        }));
-
         for (DataType type1 : DataType.stringTypes()) {
             for (DataType type2 : DataType.stringTypes()) {
-                if (type1 == type2 || items > 1) continue;
-                suppliers.add(new TestCaseSupplier(type1 + " " + type2, List.of(type1, type2), () -> {
+                String name = type1 == type2 ? type1.toString() : type1 + " " + type2;
+                suppliers.add(new TestCaseSupplier(name, makeTypes(type1, type2, items), () -> {
                     List<Object> inlist = randomList(items, items, () -> randomLiteral(type1).value());
                     Object field = randomLiteral(type2).value();
                     List<TestCaseSupplier.TypedData> args = new ArrayList<>(inlist.size() + 1);
@@ -227,7 +180,7 @@ public class InTests extends AbstractFunctionTestCase {
                 }));
             }
         }
-        suppliers.add(new TestCaseSupplier("ip", List.of(DataType.IP, DataType.IP), () -> {
+        suppliers.add(new TestCaseSupplier("ip", makeTypes(DataType.IP, DataType.IP, items), () -> {
             List<Object> inlist = randomList(items, items, () -> randomLiteral(DataType.IP).value());
             Object field = randomLiteral(DataType.IP).value();
             List<TestCaseSupplier.TypedData> args = new ArrayList<>(inlist.size() + 1);
@@ -243,7 +196,7 @@ public class InTests extends AbstractFunctionTestCase {
             );
         }));
 
-        suppliers.add(new TestCaseSupplier("version", List.of(DataType.VERSION, DataType.VERSION), () -> {
+        suppliers.add(new TestCaseSupplier("version", makeTypes(DataType.VERSION, DataType.VERSION, items), () -> {
             List<Object> inlist = randomList(items, items, () -> randomLiteral(DataType.VERSION).value());
             Object field = randomLiteral(DataType.VERSION).value();
             List<TestCaseSupplier.TypedData> args = new ArrayList<>(inlist.size() + 1);
@@ -259,7 +212,7 @@ public class InTests extends AbstractFunctionTestCase {
             );
         }));
 
-        suppliers.add(new TestCaseSupplier("geo_point", List.of(GEO_POINT, GEO_POINT), () -> {
+        suppliers.add(new TestCaseSupplier("geo_point", makeTypes(GEO_POINT, GEO_POINT, items), () -> {
             List<Object> inlist = randomList(items, items, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomPoint())));
             Object field = inlist.get(0);
             List<TestCaseSupplier.TypedData> args = new ArrayList<>(inlist.size() + 1);
@@ -275,7 +228,7 @@ public class InTests extends AbstractFunctionTestCase {
             );
         }));
 
-        suppliers.add(new TestCaseSupplier("geo_shape", List.of(GEO_SHAPE, GEO_SHAPE), () -> {
+        suppliers.add(new TestCaseSupplier("geo_shape", makeTypes(GEO_SHAPE, GEO_SHAPE, items), () -> {
             List<Object> inlist = randomList(
                 items,
                 items,
@@ -295,7 +248,7 @@ public class InTests extends AbstractFunctionTestCase {
             );
         }));
 
-        suppliers.add(new TestCaseSupplier("cartesian_point", List.of(CARTESIAN_POINT, CARTESIAN_POINT), () -> {
+        suppliers.add(new TestCaseSupplier("cartesian_point", makeTypes(CARTESIAN_POINT, CARTESIAN_POINT, items), () -> {
             List<Object> inlist = randomList(items, items, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomPoint())));
             Object field = new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomPoint()));
             List<TestCaseSupplier.TypedData> args = new ArrayList<>(inlist.size() + 1);
@@ -311,7 +264,7 @@ public class InTests extends AbstractFunctionTestCase {
             );
         }));
 
-        suppliers.add(new TestCaseSupplier("cartesian_shape", List.of(CARTESIAN_SHAPE, CARTESIAN_SHAPE), () -> {
+        suppliers.add(new TestCaseSupplier("cartesian_shape", makeTypes(CARTESIAN_SHAPE, CARTESIAN_SHAPE, items), () -> {
             List<Object> inlist = randomList(
                 items,
                 items,
@@ -330,6 +283,16 @@ public class InTests extends AbstractFunctionTestCase {
                 equalTo(inlist.contains(field))
             );
         }));
+    }
+
+    /**
+     * Returns a list with N dataType1, followed by 1 dataType2.
+     */
+    private static List<DataType> makeTypes(DataType dataType1, DataType dataType2, int n) {
+        List<DataType> types = new ArrayList<>(n + 1);
+        IntStream.range(0, n).forEach(i -> types.add(dataType1));
+        types.add(dataType2);
+        return types;
     }
 
     @Override

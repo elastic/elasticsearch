@@ -39,6 +39,7 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     private static final PathLookup TEST_PATH_LOOKUP = new PathLookup(
+        Path.of("/home"),
         Path.of("/config"),
         new Path[] { Path.of("/data1"), Path.of("/data2") },
         Path.of("/tmp"),
@@ -96,32 +97,36 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testReadWithRelativePath() {
-        var tree = accessTree(entitlement(Map.of("relative_path", "foo", "mode", "read", "relative_to", "config")));
-        assertThat(tree.canRead(path("foo")), is(false));
+        for (var dir : List.of("config", "home")) {
+            var tree = accessTree(entitlement(Map.of("relative_path", "foo", "mode", "read", "relative_to", dir)));
+            assertThat(tree.canRead(path("foo")), is(false));
 
-        assertThat(tree.canRead(path("/config/foo")), is(true));
+            assertThat(tree.canRead(path("/" + dir + "/foo")), is(true));
 
-        assertThat(tree.canRead(path("/config/foo/subdir")), is(true));
-        assertThat(tree.canRead(path("/config/food")), is(false));
-        assertThat(tree.canWrite(path("/config/foo")), is(false));
+            assertThat(tree.canRead(path("/" + dir + "/foo/subdir")), is(true));
+            assertThat(tree.canRead(path("/" + dir + "/food")), is(false));
+            assertThat(tree.canWrite(path("/" + dir + "/foo")), is(false));
 
-        assertThat(tree.canRead(path("/config")), is(false));
-        assertThat(tree.canRead(path("/config/before")), is(false));
-        assertThat(tree.canRead(path("/config/later")), is(false));
+            assertThat(tree.canRead(path("/" + dir)), is(false));
+            assertThat(tree.canRead(path("/" + dir + "/before")), is(false));
+            assertThat(tree.canRead(path("/" + dir + "/later")), is(false));
+        }
     }
 
     public void testWriteWithRelativePath() {
-        var tree = accessTree(entitlement(Map.of("relative_path", "foo", "mode", "read_write", "relative_to", "config")));
-        assertThat(tree.canWrite(path("/config/foo")), is(true));
-        assertThat(tree.canWrite(path("/config/foo/subdir")), is(true));
-        assertThat(tree.canWrite(path("foo")), is(false));
-        assertThat(tree.canWrite(path("/config/food")), is(false));
-        assertThat(tree.canRead(path("/config/foo")), is(true));
-        assertThat(tree.canRead(path("foo")), is(false));
+        for (var dir : List.of("config", "home")) {
+            var tree = accessTree(entitlement(Map.of("relative_path", "foo", "mode", "read_write", "relative_to", dir)));
+            assertThat(tree.canWrite(path("/" + dir + "/foo")), is(true));
+            assertThat(tree.canWrite(path("/" + dir + "/foo/subdir")), is(true));
+            assertThat(tree.canWrite(path("/" + dir)), is(false));
+            assertThat(tree.canWrite(path("/" + dir + "/food")), is(false));
+            assertThat(tree.canRead(path("/" + dir + "/foo")), is(true));
+            assertThat(tree.canRead(path("/" + dir)), is(false));
 
-        assertThat(tree.canWrite(path("/config")), is(false));
-        assertThat(tree.canWrite(path("/config/before")), is(false));
-        assertThat(tree.canWrite(path("/config/later")), is(false));
+            assertThat(tree.canWrite(path("/" + dir)), is(false));
+            assertThat(tree.canWrite(path("/" + dir + "/before")), is(false));
+            assertThat(tree.canWrite(path("/" + dir + "/later")), is(false));
+        }
     }
 
     public void testMultipleDataDirs() {

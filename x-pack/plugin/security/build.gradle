@@ -79,21 +79,21 @@ dependencies {
   runtimeOnly "joda-time:joda-time:2.10.10"
 
   // Dependencies for oidc
-  api "com.nimbusds:oauth2-oidc-sdk:11.10.1"
+  api "com.nimbusds:oauth2-oidc-sdk:11.22.2"
   api project(path: xpackModule('security:lib:nimbus-jose-jwt-modified'), configuration: 'shadow')
   if (isEclipse) {
     /*
      * Eclipse can't pick up the shadow dependency so we point it at the unmodified version of the library
      * so it can compile things.
      */
-    api "com.nimbusds:nimbus-jose-jwt:9.37.3"
+    api "com.nimbusds:nimbus-jose-jwt:10.0.1"
   }
-  api "com.nimbusds:lang-tag:1.4.4"
+  api "com.nimbusds:lang-tag:1.7"
   api "com.sun.mail:jakarta.mail:1.6.3"
   api "net.jcip:jcip-annotations:1.0"
-  api "net.minidev:json-smart:2.5.1"
-  api "net.minidev:accessors-smart:2.4.2"
-  api "org.ow2.asm:asm:8.0.1"
+  api "net.minidev:json-smart:2.5.2"
+  api "net.minidev:accessors-smart:2.5.2"
+  api "org.ow2.asm:asm:9.7.1"
 
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
 

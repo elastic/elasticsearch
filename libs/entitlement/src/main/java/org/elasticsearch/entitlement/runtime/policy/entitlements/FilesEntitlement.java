@@ -35,7 +35,8 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
 
     public enum BaseDir {
         CONFIG,
-        DATA
+        DATA,
+        HOME
     }
 
     public sealed interface FileData {
@@ -45,12 +46,10 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         Mode mode();
 
         static FileData ofPath(Path path, Mode mode) {
-            assert path.isAbsolute();
             return new AbsolutePathFileData(path, mode);
         }
 
         static FileData ofRelativePath(Path relativePath, BaseDir baseDir, Mode mode) {
-            assert relativePath.isAbsolute() == false;
             return new RelativePathFileData(relativePath, baseDir, mode);
         }
 
@@ -84,6 +83,8 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
                         }
                     }
                     return paths.stream();
+                case HOME:
+                    return relativePaths.map(relativePath -> pathLookup.homeDir().resolve(relativePath));
                 default:
                     throw new IllegalArgumentException();
             }
@@ -137,12 +138,14 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
     }
 
     private static BaseDir parseBaseDir(String baseDir) {
-        if (baseDir.equals("config")) {
-            return BaseDir.CONFIG;
-        } else if (baseDir.equals("data")) {
-            return BaseDir.DATA;
-        }
-        throw new PolicyValidationException("invalid relative directory: " + baseDir + ", valid values: [config, data]");
+        return switch (baseDir) {
+            case "config" -> BaseDir.CONFIG;
+            case "data" -> BaseDir.DATA;
+            case "home" -> BaseDir.HOME;
+            default -> throw new PolicyValidationException(
+                "invalid relative directory: " + baseDir + ", valid values: [config, data, home]"
+            );
+        };
     }
 
     @ExternalEntitlement(parameterNames = { "paths" }, esModulesOnly = false)

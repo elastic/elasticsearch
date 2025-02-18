@@ -37,6 +37,7 @@ public class FilesEntitlementTests extends ESTestCase {
     }
 
     private static final PathLookup TEST_PATH_LOOKUP = new PathLookup(
+        Path.of("home"),
         Path.of("/config"),
         new Path[] { Path.of("/data1"), Path.of("/data2") },
         Path.of("/tmp"),
@@ -56,7 +57,7 @@ public class FilesEntitlementTests extends ESTestCase {
             PolicyValidationException.class,
             () -> FilesEntitlement.build(List.of((Map.of("relative_path", "foo", "mode", "read", "relative_to", "bar"))))
         );
-        assertThat(ex.getMessage(), is("invalid relative directory: bar, valid values: [config, data]"));
+        assertThat(ex.getMessage(), is("invalid relative directory: bar, valid values: [config, data, home]"));
     }
 
     public void testFileDataRelativeWithEmptyDirectory() {

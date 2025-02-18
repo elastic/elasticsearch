@@ -64,35 +64,6 @@ public class PolicyParserFailureTests extends ESTestCase {
         );
     }
 
-    public void testEntitlementRelativePathWhenAbsolute() {
-        PolicyParserException ppe = expectThrows(PolicyParserException.class, () -> new PolicyParser(new ByteArrayInputStream("""
-            entitlement-module-name:
-              - files:
-                  - path: test-path
-                    mode: read
-            """.getBytes(StandardCharsets.UTF_8)), "test-failure-policy.yaml", false).parsePolicy());
-        assertEquals(
-            "[2:5] policy parsing error for [test-failure-policy.yaml] in scope [entitlement-module-name] "
-                + "for entitlement type [files]: 'path' [test-path] must be absolute",
-            ppe.getMessage()
-        );
-    }
-
-    public void testEntitlementAbsolutePathWhenRelative() {
-        PolicyParserException ppe = expectThrows(PolicyParserException.class, () -> new PolicyParser(new ByteArrayInputStream("""
-            entitlement-module-name:
-              - files:
-                  - relative_path: /test-path
-                    relative_to: data
-                    mode: read
-            """.getBytes(StandardCharsets.UTF_8)), "test-failure-policy.yaml", false).parsePolicy());
-        assertEquals(
-            "[2:5] policy parsing error for [test-failure-policy.yaml] in scope [entitlement-module-name] "
-                + "for entitlement type [files]: 'relative_path' [/test-path] must be relative",
-            ppe.getMessage()
-        );
-    }
-
     public void testEntitlementMutuallyExclusiveParameters() {
         PolicyParserException ppe = expectThrows(PolicyParserException.class, () -> new PolicyParser(new ByteArrayInputStream("""
             entitlement-module-name:

@@ -14,6 +14,7 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 public record PathLookup(
+    Path homeDir,
     Path configDir,
     Path[] dataDirs,
     Path tempDir,

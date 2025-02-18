@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.IndexComponentSelectorPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
@@ -411,14 +410,9 @@ public interface Role {
             );
             Set<BytesReference> query = indexPrivilege.getQuery() == null ? null : Collections.singleton(indexPrivilege.getQuery());
             boolean allowRestrictedIndices = indexPrivilege.allowRestrictedIndices();
-            Map<IndexComponentSelectorPrivilege, Set<String>> split = IndexComponentSelectorPrivilege.partitionBySelectorPrivilege(
-                indexPrivilege.getPrivileges()
-            );
-            for (var entry : split.entrySet()) {
-                IndexPrivilege privilege = IndexPrivilege.get(entry.getValue());
-                assert privilege.getSelectorPrivilege() == entry.getKey()
-                    : "expected selector privilege to match the partitioned privilege";
-                builder.add(fieldPermissions, query, privilege, allowRestrictedIndices, indexPrivilege.getIndices());
+            Set<IndexPrivilege> splitPrivileges = IndexPrivilege.getSplitBySelector(Set.of(indexPrivilege.getPrivileges()));
+            for (var entry : splitPrivileges) {
+                builder.add(fieldPermissions, query, entry, allowRestrictedIndices, indexPrivilege.getIndices());
             }
         }
 
@@ -432,18 +426,13 @@ public interface Role {
             );
             Set<BytesReference> query = indexPrivilege.getQuery() == null ? null : Collections.singleton(indexPrivilege.getQuery());
             boolean allowRestrictedIndices = indexPrivilege.allowRestrictedIndices();
-            Map<IndexComponentSelectorPrivilege, Set<String>> split = IndexComponentSelectorPrivilege.partitionBySelectorPrivilege(
-                indexPrivilege.getPrivileges()
-            );
-            for (var entry : split.entrySet()) {
-                IndexPrivilege privilege = IndexPrivilege.get(entry.getValue());
-                assert privilege.getSelectorPrivilege() == entry.getKey()
-                    : "expected selector privilege to match the partitioned privilege";
+            Set<IndexPrivilege> splitPrivileges = IndexPrivilege.getSplitBySelector(Set.of(indexPrivilege.getPrivileges()));
+            for (var entry : splitPrivileges) {
                 builder.addRemoteIndicesGroup(
                     Set.of(clusterAliases),
                     fieldPermissions,
                     query,
-                    privilege,
+                    entry,
                     allowRestrictedIndices,
                     indexPrivilege.getIndices()
                 );

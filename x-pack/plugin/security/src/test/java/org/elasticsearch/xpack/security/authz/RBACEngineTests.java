@@ -1290,7 +1290,7 @@ public class RBACEngineTests extends ESTestCase {
             {"term":{"public":true}}""");
         final Role role = Role.builder(RESTRICTED_INDICES, "test", "role")
             .cluster(Sets.newHashSet("monitor", "manage_watcher"), Collections.singleton(manageApplicationPrivileges))
-            .add(IndexPrivilege.get(Sets.newHashSet("read", "write")), "index-1")
+            .add(IndexPrivilege.getSingle(Sets.newHashSet("read", "write")), "index-1")
             .add(IndexPrivilege.ALL, "index-2", "index-3")
             .add(
                 new FieldPermissions(new FieldPermissionsDefinition(new String[] { "public.*" }, new String[0])),
@@ -1617,7 +1617,8 @@ public class RBACEngineTests extends ESTestCase {
         for (int i = 0; i < numGroups; i++) {
             remoteIndicesBuilder.addGroup(
                 Set.copyOf(randomNonEmptySubsetOf(List.of(concreteClusterAlias, "*"))),
-                IndexPrivilege.get(Set.copyOf(randomSubsetOf(randomIntBetween(1, 4), IndexPrivilege.names()))),
+                // TODO handle failure store
+                IndexPrivilege.getSingle(Set.copyOf(randomSubsetOf(randomIntBetween(1, 4), IndexPrivilege.names()))),
                 new FieldPermissions(
                     new FieldPermissionsDefinition(
                         Set.of(

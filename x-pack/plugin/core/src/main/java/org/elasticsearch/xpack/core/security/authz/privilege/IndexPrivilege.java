@@ -48,7 +48,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -257,7 +256,7 @@ public final class IndexPrivilege extends Privilege {
     public static final Predicate<String> ACTION_MATCHER = ALL.predicate();
     public static final Predicate<String> CREATE_INDEX_MATCHER = CREATE_INDEX.predicate();
 
-    private static final ConcurrentHashMap<Set<String>, IndexPrivilege> CACHE = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Set<String>, Set<IndexPrivilege>> CACHE = new ConcurrentHashMap<>();
 
     private final IndexComponentSelectorPrivilege selectorPrivilege;
 
@@ -278,10 +277,18 @@ public final class IndexPrivilege extends Privilege {
         this.selectorPrivilege = selectorPrivilege;
     }
 
-    public static IndexPrivilege get(Set<String> name) {
+    public static IndexPrivilege getSingle(Set<String> name) {
+        var single = getSplitBySelector(name);
+        if (single.size() != 1) {
+            throw new IllegalArgumentException("expected singleton");
+        }
+        return single.iterator().next();
+    }
+
+    public static Set<IndexPrivilege> getSplitBySelector(Set<String> name) {
         return CACHE.computeIfAbsent(name, (theName) -> {
             if (theName.isEmpty()) {
-                return NONE;
+                return Set.of(NONE);
             } else {
                 return resolve(theName);
             }
@@ -304,15 +311,18 @@ public final class IndexPrivilege extends Privilege {
         return VALUES.get(name.toLowerCase(Locale.ROOT));
     }
 
-    private static IndexPrivilege resolve(Set<String> name) {
+    private static Set<IndexPrivilege> resolve(Set<String> name) {
         final int size = name.size();
         if (size == 0) {
             throw new IllegalArgumentException("empty set should not be used");
         }
 
         Set<String> actions = new HashSet<>();
-        Set<Automaton> automata = new HashSet<>();
-        Set<IndexComponentSelectorPrivilege> selectorPrivileges = new HashSet<>();
+        Set<IndexPrivilege> allAccessPrivileges = new HashSet<>();
+        Set<IndexPrivilege> dataAccessPrivileges = new HashSet<>();
+        Set<IndexPrivilege> failureAccessPrivileges = new HashSet<>();
+
+        boolean containsAll = name.stream().anyMatch(n -> getNamedOrNull(n) == ALL);
         for (String part : name) {
             part = part.toLowerCase(Locale.ROOT);
             if (ACTION_MATCHER.test(part)) {
@@ -320,10 +330,17 @@ public final class IndexPrivilege extends Privilege {
             } else {
                 IndexPrivilege indexPrivilege = part == null ? null : VALUES.get(part);
                 if (indexPrivilege != null && size == 1) {
-                    return indexPrivilege;
+                    return Set.of(indexPrivilege);
                 } else if (indexPrivilege != null) {
-                    automata.add(indexPrivilege.automaton);
-                    selectorPrivileges.add(indexPrivilege.getSelectorPrivilege());
+                    if (containsAll) {
+                        allAccessPrivileges.add(indexPrivilege);
+                    } else if (indexPrivilege.selectorPrivilege == IndexComponentSelectorPrivilege.DATA) {
+                        dataAccessPrivileges.add(indexPrivilege);
+                    } else if (indexPrivilege.selectorPrivilege == IndexComponentSelectorPrivilege.FAILURES) {
+                        failureAccessPrivileges.add(indexPrivilege);
+                    } else {
+                        assert false : "unexpected selector [" + indexPrivilege.selectorPrivilege + "]";
+                    }
                 } else {
                     String errorMessage = "unknown index privilege ["
                         + part
@@ -338,27 +355,47 @@ public final class IndexPrivilege extends Privilege {
             }
         }
 
-        if (actions.isEmpty() == false) {
-            automata.add(patterns(actions));
-            selectorPrivileges.add(IndexComponentSelectorPrivilege.DATA);
+        if (false == allAccessPrivileges.isEmpty()) {
+            assert name.size() == actions.size() + allAccessPrivileges.size()
+                : "expected ["
+                    + name.size()
+                    + "] but was ["
+                    + (actions.size() + allAccessPrivileges.size())
+                    + "] for "
+                    + name
+                    + " "
+                    + allAccessPrivileges
+                    + " "
+                    + actions;
+            return Set.of(union(allAccessPrivileges, actions, IndexComponentSelectorPrivilege.ALL));
         }
 
-        return new IndexPrivilege(name, unionAndMinimize(automata), union(selectorPrivileges));
-    }
-
-    private static IndexComponentSelectorPrivilege union(Set<IndexComponentSelectorPrivilege> selectorPrivileges) {
-        assert selectorPrivileges.isEmpty() == false;
-        if (selectorPrivileges.contains(IndexComponentSelectorPrivilege.ALL)) {
-            return IndexComponentSelectorPrivilege.ALL;
-        } else if (selectorPrivileges.size() == 1) {
-            return selectorPrivileges.iterator().next();
+        final Set<IndexPrivilege> result = new HashSet<>();
+        if (false == failureAccessPrivileges.isEmpty()) {
+            result.add(union(failureAccessPrivileges, Set.of(), IndexComponentSelectorPrivilege.FAILURES));
         }
-        Iterator<IndexComponentSelectorPrivilege> iterator = selectorPrivileges.iterator();
-        IndexComponentSelectorPrivilege result = iterator.next();
-        while (iterator.hasNext()) {
-            result = result.or(iterator.next());
+        if (false == dataAccessPrivileges.isEmpty() || false == actions.isEmpty()) {
+            result.add(union(dataAccessPrivileges, actions, IndexComponentSelectorPrivilege.DATA));
         }
         return result;
+    }
+
+    private static IndexPrivilege union(
+        Collection<IndexPrivilege> privileges,
+        Collection<String> actions,
+        IndexComponentSelectorPrivilege selectorPrivilege
+    ) {
+        Set<Automaton> automata = HashSet.newHashSet(privileges.size() + actions.size());
+        Set<String> names = new HashSet<>();
+        for (var privilege : privileges) {
+            automata.add(privilege.automaton);
+            names.add(privilege.getSingleName());
+        }
+        if (false == actions.isEmpty()) {
+            automata.add(patterns(actions));
+            names.addAll(actions);
+        }
+        return new IndexPrivilege(names, unionAndMinimize(automata), selectorPrivilege);
     }
 
     static Map<String, IndexPrivilege> values() {
@@ -379,7 +416,7 @@ public final class IndexPrivilege extends Privilege {
         return VALUES.entrySet()
             .stream()
             // Only include privileges that grant data access; failures access is handled separately in authorization failure messages
-            .filter(e -> e.getValue().selectorPrivilege.grants(IndexComponentSelector.DATA))
+            .filter(e -> e.getValue().selectorPrivilege.test(IndexComponentSelector.DATA))
             .filter(e -> e.getValue().predicate.test(action))
             .map(Map.Entry::getKey)
             .toList();

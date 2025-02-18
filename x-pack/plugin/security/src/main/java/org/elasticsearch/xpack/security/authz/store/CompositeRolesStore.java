@@ -40,7 +40,6 @@ import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermi
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.IndexComponentSelectorPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
@@ -543,28 +542,20 @@ public class CompositeRolesStore {
 
         for (Map.Entry<Set<String>, MergeableIndicesPrivilege> entry : indicesPrivilegesMap.entrySet()) {
             MergeableIndicesPrivilege indicesPrivilege = entry.getValue();
-            Map<IndexComponentSelectorPrivilege, Set<String>> split = IndexComponentSelectorPrivilege.partitionBySelectorPrivilege(
-                indicesPrivilege.privileges
-            );
             FieldPermissions fieldPermissions = fieldPermissionsCache.getFieldPermissions(indicesPrivilege.fieldPermissionsDefinition);
             String[] indices = indicesPrivilege.indices.toArray(Strings.EMPTY_ARRAY);
-            for (Map.Entry<IndexComponentSelectorPrivilege, Set<String>> privilegesBySelector : split.entrySet()) {
-                IndexPrivilege indexPrivilege = IndexPrivilege.get(privilegesBySelector.getValue());
-                assert indexPrivilege.getSelectorPrivilege() == privilegesBySelector.getKey();
-                builder.add(fieldPermissions, indicesPrivilege.query, indexPrivilege, false, indices);
+            Set<IndexPrivilege> splitPrivileges = IndexPrivilege.getSplitBySelector(indicesPrivilege.privileges);
+            for (var splitPrivilege : splitPrivileges) {
+                builder.add(fieldPermissions, indicesPrivilege.query, splitPrivilege, false, indices);
             }
         }
         for (Map.Entry<Set<String>, MergeableIndicesPrivilege> entry : restrictedIndicesPrivilegesMap.entrySet()) {
             MergeableIndicesPrivilege indicesPrivilege = entry.getValue();
             FieldPermissions fieldPermissions = fieldPermissionsCache.getFieldPermissions(indicesPrivilege.fieldPermissionsDefinition);
             String[] indices = indicesPrivilege.indices.toArray(Strings.EMPTY_ARRAY);
-            Map<IndexComponentSelectorPrivilege, Set<String>> split = IndexComponentSelectorPrivilege.partitionBySelectorPrivilege(
-                indicesPrivilege.privileges
-            );
-            for (Map.Entry<IndexComponentSelectorPrivilege, Set<String>> privilegesBySelector : split.entrySet()) {
-                IndexPrivilege indexPrivilege = IndexPrivilege.get(privilegesBySelector.getValue());
-                assert indexPrivilege.getSelectorPrivilege() == privilegesBySelector.getKey();
-                builder.add(fieldPermissions, indicesPrivilege.query, IndexPrivilege.get(privilegesBySelector.getValue()), true, indices);
+            Set<IndexPrivilege> splitPrivileges = IndexPrivilege.getSplitBySelector(indicesPrivilege.privileges);
+            for (var splitPrivilege : splitPrivileges) {
+                builder.add(fieldPermissions, indicesPrivilege.query, splitPrivilege, true, indices);
             }
         }
 
@@ -575,12 +566,10 @@ public class CompositeRolesStore {
                 );
                 Set<BytesReference> query = privilege.getQuery() == null ? null : newHashSet(privilege.getQuery());
                 String[] indices = newHashSet(Objects.requireNonNull(privilege.getIndices())).toArray(new String[0]);
-                Map<IndexComponentSelectorPrivilege, Set<String>> split = IndexComponentSelectorPrivilege.partitionBySelectorPrivilege(
-                    Objects.requireNonNull(privilege.getPrivileges())
+                Set<IndexPrivilege> splitPrivileges = IndexPrivilege.getSplitBySelector(
+                    Set.of(Objects.requireNonNull(privilege.getPrivileges()))
                 );
-                for (Map.Entry<IndexComponentSelectorPrivilege, Set<String>> privilegesBySelector : split.entrySet()) {
-                    IndexPrivilege indexPrivilege = IndexPrivilege.get(privilegesBySelector.getValue());
-                    assert indexPrivilege.getSelectorPrivilege() == privilegesBySelector.getKey();
+                for (var indexPrivilege : splitPrivileges) {
                     builder.addRemoteIndicesGroup(
                         clusterAliasKey,
                         fieldPermissions,

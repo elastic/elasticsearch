@@ -37,7 +37,7 @@ public class AutomatonPatternsTests extends ESTestCase {
 
         // check that the action patterns for remote CCS are not allowed by remote CCR privileges
         Arrays.stream(CCS_INDICES_PRIVILEGE_NAMES).forEach(ccsPrivilege -> {
-            Automaton ccsAutomaton = IndexPrivilege.get(Set.of(ccsPrivilege)).getAutomaton();
+            Automaton ccsAutomaton = IndexPrivilege.getSingle(Set.of(ccsPrivilege)).getAutomaton();
             Automatons.getPatterns(ccsAutomaton).forEach(ccsPattern -> {
                 // emulate an action name that could be allowed by a CCS privilege
                 String actionName = ccsPattern.replaceAll("\\*", randomAlphaOfLengthBetween(1, 8));
@@ -49,14 +49,14 @@ public class AutomatonPatternsTests extends ESTestCase {
                         ccrPrivileges,
                         ccsPattern
                     );
-                    assertFalse(errorMessage, IndexPrivilege.get(Set.of(ccrPrivileges)).predicate().test(actionName));
+                    assertFalse(errorMessage, IndexPrivilege.getSingle(Set.of(ccrPrivileges)).predicate().test(actionName));
                 });
             });
         });
 
         // check that the action patterns for remote CCR are not allowed by remote CCS privileges
         Arrays.stream(CCR_INDICES_PRIVILEGE_NAMES).forEach(ccrPrivilege -> {
-            Automaton ccrAutomaton = IndexPrivilege.get(Set.of(ccrPrivilege)).getAutomaton();
+            Automaton ccrAutomaton = IndexPrivilege.getSingle(Set.of(ccrPrivilege)).getAutomaton();
             Automatons.getPatterns(ccrAutomaton).forEach(ccrPattern -> {
                 // emulate an action name that could be allowed by a CCR privilege
                 String actionName = ccrPattern.replaceAll("\\*", randomAlphaOfLengthBetween(1, 8));
@@ -72,7 +72,7 @@ public class AutomatonPatternsTests extends ESTestCase {
                             ccsPrivileges,
                             ccrPattern
                         );
-                        assertFalse(errorMessage, IndexPrivilege.get(Set.of(ccsPrivileges)).predicate().test(actionName));
+                        assertFalse(errorMessage, IndexPrivilege.getSingle(Set.of(ccsPrivileges)).predicate().test(actionName));
                     }
                 });
             });

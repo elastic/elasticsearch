@@ -112,7 +112,7 @@ public class CrossClusterShardTests extends ESSingleNodeTestCase {
 
         List<String> shardActions = transportActionBindings.stream()
             .map(binding -> binding.getProvider().get())
-            .filter(action -> IndexPrivilege.get(crossClusterPrivilegeNames).predicate().test(action.actionName))
+            .filter(action -> IndexPrivilege.getSingle(crossClusterPrivilegeNames).predicate().test(action.actionName))
             .filter(this::actionIsLikelyShardAction)
             .map(action -> action.actionName)
             .toList();

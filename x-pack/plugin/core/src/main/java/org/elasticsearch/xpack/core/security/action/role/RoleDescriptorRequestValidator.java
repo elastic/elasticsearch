@@ -48,7 +48,7 @@ public class RoleDescriptorRequestValidator {
         if (roleDescriptor.getIndicesPrivileges() != null) {
             for (RoleDescriptor.IndicesPrivileges idp : roleDescriptor.getIndicesPrivileges()) {
                 try {
-                    IndexPrivilege.get(Set.of(idp.getPrivileges()));
+                    IndexPrivilege.getSplitBySelector(Set.of(idp.getPrivileges()));
                 } catch (IllegalArgumentException ile) {
                     validationException = addValidationError(ile.getMessage(), validationException);
                 }
@@ -60,7 +60,7 @@ public class RoleDescriptorRequestValidator {
                 validationException = addValidationError("remote index cluster alias cannot be an empty string", validationException);
             }
             try {
-                IndexPrivilege.get(Set.of(ridp.indicesPrivileges().getPrivileges()));
+                IndexPrivilege.getSplitBySelector(Set.of(ridp.indicesPrivileges().getPrivileges()));
             } catch (IllegalArgumentException ile) {
                 validationException = addValidationError(ile.getMessage(), validationException);
             }

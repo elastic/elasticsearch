@@ -302,7 +302,7 @@ public final class IndicesPermission {
                     }
                 }
                 for (String privilege : checkForPrivileges) {
-                    IndexPrivilege indexPrivilege = IndexPrivilege.get(Collections.singleton(privilege));
+                    IndexPrivilege indexPrivilege = IndexPrivilege.getSingle(Collections.singleton(privilege));
                     if (allowedIndexPrivilegesAutomaton != null
                         && Automatons.subsetOf(indexPrivilege.getAutomaton(), allowedIndexPrivilegesAutomaton)) {
                         if (resourcePrivilegesMapBuilder != null) {
@@ -793,6 +793,7 @@ public final class IndicesPermission {
         public static final Group[] EMPTY_ARRAY = new Group[0];
 
         private final IndexPrivilege privilege;
+        private final IndexComponentSelectorPrivilege selectorPrivilege;
         private final Predicate<String> actionMatcher;
         private final String[] indices;
         private final StringMatcher indexNameMatcher;
@@ -816,6 +817,7 @@ public final class IndicesPermission {
             assert indices.length != 0;
             this.privilege = privilege;
             this.actionMatcher = privilege.predicate();
+            this.selectorPrivilege = privilege.getSelectorPrivilege();
             this.indices = indices;
             this.allowRestrictedIndices = allowRestrictedIndices;
             ConcurrentHashMap<String[], Automaton> indexNameAutomatonMemo = new ConcurrentHashMap<>(1);
@@ -863,8 +865,8 @@ public final class IndicesPermission {
             return query != null;
         }
 
-        public IndexComponentSelectorPrivilege getSelectorPrivilege() {
-            return privilege.getSelectorPrivilege();
+        public boolean checkSelector(IndexComponentSelector selector) {
+            return selectorPrivilege.test(selector);
         }
 
         public boolean allowRestrictedIndices() {

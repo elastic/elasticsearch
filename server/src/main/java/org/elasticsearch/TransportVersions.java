@@ -197,7 +197,7 @@ public class TransportVersions {
     public static final TransportVersion SLM_UNHEALTHY_IF_NO_SNAPSHOT_WITHIN = def(9_010_0_00);
     public static final TransportVersion ESQL_SUPPORT_PARTIAL_RESULTS = def(9_011_0_00);
 
-    public static final TransportVersion VOYAGE_AI_INTEGRATION_ADDED = def(9_008_0_00);
+    public static final TransportVersion VOYAGE_AI_INTEGRATION_ADDED = def(9_012_0_00);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

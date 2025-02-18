@@ -127,7 +127,7 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
     private final SimilarityMeasure similarity;
     private final Integer dimensions;
     private final Integer maxInputTokens;
-    private final Boolean dimensionsSetByUser;
+    private final boolean dimensionsSetByUser;
 
     public VoyageAIEmbeddingsServiceSettings(
         VoyageAIServiceSettings commonSettings,
@@ -135,14 +135,14 @@ public class VoyageAIEmbeddingsServiceSettings extends FilteredXContentObject im
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer dimensions,
         @Nullable Integer maxInputTokens,
-        Boolean dimensionsSetByUser
+        boolean dimensionsSetByUser
     ) {
         this.commonSettings = commonSettings;
         this.similarity = similarity;
         this.dimensions = dimensions;
         this.maxInputTokens = maxInputTokens;
         this.embeddingType = embeddingType;
-        this.dimensionsSetByUser = Objects.requireNonNull(dimensionsSetByUser);
+        this.dimensionsSetByUser = dimensionsSetByUser;
     }
 
     public VoyageAIEmbeddingsServiceSettings(StreamInput in) throws IOException {

@@ -256,32 +256,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         successfulShardExecution(iterator);
     }
 
-    private static boolean assertExecuteOnStartThread() {
-        // Ensure that the current code has the following stacktrace:
-        // AbstractSearchAsyncAction#start -> AbstractSearchAsyncAction#executePhase -> AbstractSearchAsyncAction#performPhaseOnShard
-        final StackTraceElement[] stackTraceElements = Thread.currentThread().getStackTrace();
-        assert stackTraceElements.length >= 6 : stackTraceElements;
-        int index = 0;
-        assert stackTraceElements[index++].getMethodName().equals("getStackTrace");
-        assert stackTraceElements[index++].getMethodName().equals("assertExecuteOnStartThread");
-        assert stackTraceElements[index++].getMethodName().equals("failOnUnavailable");
-        if (stackTraceElements[index].getMethodName().equals("performPhaseOnShard")) {
-            assert stackTraceElements[index].getClassName().endsWith("CanMatchPreFilterSearchPhase");
-            index++;
-        }
-        assert stackTraceElements[index].getClassName().endsWith("AbstractSearchAsyncAction");
-        assert stackTraceElements[index++].getMethodName().equals("run");
-
-        assert stackTraceElements[index].getClassName().endsWith("AbstractSearchAsyncAction");
-        assert stackTraceElements[index++].getMethodName().equals("executePhase");
-
-        assert stackTraceElements[index].getClassName().endsWith("AbstractSearchAsyncAction");
-        assert stackTraceElements[index++].getMethodName().equals("start");
-
-        assert stackTraceElements[index].getClassName().endsWith("AbstractSearchAsyncAction") == false;
-        return true;
-    }
-
     private void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final SearchShardTarget shard) {
         if (throttleConcurrentRequests) {
             var pendingExecutions = pendingExecutionsPerNode.computeIfAbsent(
@@ -323,7 +297,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     private void failOnUnavailable(int shardIndex, SearchShardIterator shardIt) {
-        assert assertExecuteOnStartThread();
         SearchShardTarget unassignedShard = new SearchShardTarget(null, shardIt.shardId(), shardIt.getClusterAlias());
         onShardFailure(shardIndex, unassignedShard, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
     }

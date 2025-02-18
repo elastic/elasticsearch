@@ -140,7 +140,6 @@ public class QueryRule implements Writeable, ToXContentObject {
     }
 
     private void validate() {
-
         if (priority != null && (priority < MIN_PRIORITY || priority > MAX_PRIORITY)) {
             throw new IllegalArgumentException("Priority was " + priority + ", must be between " + MIN_PRIORITY + " and " + MAX_PRIORITY);
         }
@@ -153,6 +152,23 @@ public class QueryRule implements Writeable, ToXContentObject {
                 validateIdOrDocAction(actions.get(DOCS_FIELD.getPreferredName()));
             } else {
                 throw new ElasticsearchParseException(type.toString() + " query rule actions must contain only one of either ids or docs");
+            }
+        }
+
+        for (QueryRuleCriteria criterion : criteria) {
+            QueryRuleCriteriaType criteriaType = criterion.criteriaType();
+            if (criteriaType.isNumericComparison()) {
+                List<Object> values = criterion.criteriaValues();
+                for (Object value : values) {
+                    try {
+                        Double.parseDouble(value.toString());
+                    } catch (NumberFormatException e) {
+                        throw new IllegalArgumentException(
+                            "Numeric comparison rule type " + criteriaType + " requires numeric values, but got " + value +
+                                " for criterion " + criterion
+                        );
+                    }
+                }
             }
         }
     }

@@ -135,4 +135,8 @@ public enum QueryRuleCriteriaType {
     private static double parseDouble(Object input) {
         return (input instanceof Number) ? ((Number) input).doubleValue() : Double.parseDouble(input.toString());
     }
+
+    public boolean isNumericComparison() {
+        return this == GT || this == GTE || this == LT || this == LTE;
+    }
 }

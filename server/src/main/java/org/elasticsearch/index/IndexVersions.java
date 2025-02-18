@@ -146,6 +146,7 @@ public class IndexVersions {
     public static final IndexVersion HOSTNAME_DOC_VALUES_SPARSE_INDEX = def(9_008_0_00, Version.LUCENE_10_0_0);
     public static final IndexVersion UPGRADE_TO_LUCENE_10_1_0 = def(9_009_0_00, Version.LUCENE_10_1_0);
     public static final IndexVersion USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT = def(9_010_00_0, Version.LUCENE_10_1_0);
+    public static final IndexVersion TIMESTAMP_DOC_VALUES_SPARSE_INDEX = def(9_011_0_00, Version.LUCENE_10_1_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

@@ -902,8 +902,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                     || amazonS3Exception.getStatusCode() == 200 && "NoSuchUpload".equals(amazonS3Exception.getErrorCode()))) {
                 // An uncaught 404 means that our multipart upload was aborted by a concurrent operation before we could complete it.
                 // Also (rarely) S3 can start processing the request during a concurrent abort and this can result in a 200 OK with an
-                // <Error><Code>NoSuchUpload</Code>... in the response, which the SDK translates to status code 200 since 1.12.691
-                // (0 for prior versions). Either way, this means that our write encountered contention:
+                // <Error><Code>NoSuchUpload</Code>... in the response. Either way, this means that our write encountered contention:
                 delegate.onResponse(OptionalBytesReference.MISSING);
             } else {
                 delegate.onFailure(e);

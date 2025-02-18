@@ -3080,6 +3080,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "FROM foo* | FORK (WHERE x>1 |STATS count(x) by y) (WHERE x>1)",
             "line 1:30: mismatched input 'STATS' expecting {'limit', 'sort', 'where'}"
         );
+        expectError(
+            "FROM foo* | FORK ( FORK (WHERE x>1) (WHERE y>1)) (WHERE z>1)",
+            "line 1:20: mismatched input 'FORK' expecting {'limit', 'sort', 'where'}"
+        );
     }
 
     static Alias alias(String name, Expression value) {

@@ -76,6 +76,7 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
     private final transient Long relativeStartNanos;  // start time for an ESQL query for calculating took times
     private transient TimeValue planningTookTime;  // time elapsed since start of query to calling ComputeService.execute
     private volatile boolean isPartial; // Does this request have partial results?
+    private transient volatile boolean isStopped; // Have we received stop command?
 
     public EsqlExecutionInfo(boolean includeCCSMetadata) {
         this(Predicates.always(), includeCCSMetadata);  // default all clusters to skip_unavailable=true
@@ -245,7 +246,13 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
      * @return the new Cluster object
      */
     public Cluster swapCluster(String clusterAlias, BiFunction<String, Cluster, Cluster> remappingFunction) {
-        return clusterInfo.compute(clusterAlias, remappingFunction);
+        return clusterInfo.compute(clusterAlias, (unused, oldCluster) -> {
+            final Cluster newCluster = remappingFunction.apply(clusterAlias, oldCluster);
+            if (newCluster != null && isPartial == false) {
+                isPartial = newCluster.isPartial();
+            }
+            return newCluster;
+        });
     }
 
     @Override
@@ -304,18 +311,12 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         return isPartial;
     }
 
-    /**
-     * Mark the query as having partial results.
-     */
-    public void markAsPartial() {
-        isPartial = true;
+    public void markAsStopped() {
+        isStopped = true;
     }
 
-    /**
-     * Mark this cluster as having partial results.
-     */
-    public void markClusterAsPartial(String clusterAlias) {
-        swapCluster(clusterAlias, (k, v) -> new Cluster.Builder(v).setStatus(Cluster.Status.PARTIAL).build());
+    public boolean isStopped() {
+        return isStopped;
     }
 
     /**
@@ -607,6 +608,10 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
 
         public List<ShardSearchFailure> getFailures() {
             return failures;
+        }
+
+        boolean isPartial() {
+            return status == Status.PARTIAL || status == Status.SKIPPED || (failedShards != null && failedShards > 0);
         }
 
         @Override

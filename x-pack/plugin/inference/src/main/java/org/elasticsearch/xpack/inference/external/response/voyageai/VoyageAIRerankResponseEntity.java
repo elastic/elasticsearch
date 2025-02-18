@@ -33,19 +33,17 @@ public class VoyageAIRerankResponseEntity {
 
     private static final Logger logger = LogManager.getLogger(VoyageAIRerankResponseEntity.class);
 
-    record RerankResult(List<RerankResultEntry> entries, String model, String object, @Nullable Usage usage) {
+    record RerankResult(List<RerankResultEntry> entries) {
 
         @SuppressWarnings("unchecked")
         public static final ConstructingObjectParser<RerankResult, Void> PARSER = new ConstructingObjectParser<>(
             RerankResult.class.getSimpleName(),
-            args -> new RerankResult((List<RerankResultEntry>) args[0], (String) args[1], (String) args[2], (Usage) args[3])
+            true,
+            args -> new RerankResult((List<RerankResultEntry>) args[0])
         );
 
         static {
             PARSER.declareObjectArray(constructorArg(), RerankResultEntry.PARSER::apply, new ParseField("data"));
-            PARSER.declareString(constructorArg(), new ParseField("model"));
-            PARSER.declareString(constructorArg(), new ParseField("object"));
-            PARSER.declareObject(optionalConstructorArg(), Usage.PARSER::apply, new ParseField("usage"));
         }
     }
 
@@ -64,18 +62,6 @@ public class VoyageAIRerankResponseEntity {
 
         public RankedDocsResults.RankedDoc toRankedDoc() {
             return new RankedDocsResults.RankedDoc(index, relevanceScore, document);
-        }
-    }
-
-    record Usage(Integer totalTokens) {
-
-        public static final ConstructingObjectParser<Usage, Void> PARSER = new ConstructingObjectParser<>(
-            Usage.class.getSimpleName(),
-            args -> new Usage((Integer) args[0])
-        );
-
-        static {
-            PARSER.declareInt(constructorArg(), new ParseField("total_tokens"));
         }
     }
 

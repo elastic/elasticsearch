@@ -10,7 +10,6 @@
 package org.elasticsearch.xpack.inference.external.response.voyageai;
 
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -32,7 +31,6 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingType.toLowerCase;
 
 public class VoyageAIEmbeddingsResponseEntity {
@@ -47,31 +45,29 @@ public class VoyageAIEmbeddingsResponseEntity {
         return String.join(", ", validTypes);
     }
 
-    record EmbeddingInt8Result(List<EmbeddingInt8ResultEntry> entries, String model, String object, @Nullable Usage usage) {
+    record EmbeddingInt8Result(List<EmbeddingInt8ResultEntry> entries) {
         @SuppressWarnings("unchecked")
         public static final ConstructingObjectParser<EmbeddingInt8Result, Void> PARSER = new ConstructingObjectParser<>(
             EmbeddingInt8Result.class.getSimpleName(),
-            args -> new EmbeddingInt8Result((List<EmbeddingInt8ResultEntry>) args[0], (String) args[1], (String) args[2], (Usage) args[3])
+            true,
+            args -> new EmbeddingInt8Result((List<EmbeddingInt8ResultEntry>) args[0])
         );
 
         static {
             PARSER.declareObjectArray(constructorArg(), EmbeddingInt8ResultEntry.PARSER::apply, new ParseField("data"));
-            PARSER.declareString(constructorArg(), new ParseField("model"));
-            PARSER.declareString(constructorArg(), new ParseField("object"));
-            PARSER.declareObject(optionalConstructorArg(), Usage.PARSER::apply, new ParseField("usage"));
         }
     }
 
-    record EmbeddingInt8ResultEntry(String object, Integer index, List<Integer> embedding) {
+    record EmbeddingInt8ResultEntry(Integer index, List<Integer> embedding) {
 
         @SuppressWarnings("unchecked")
         public static final ConstructingObjectParser<EmbeddingInt8ResultEntry, Void> PARSER = new ConstructingObjectParser<>(
             EmbeddingInt8ResultEntry.class.getSimpleName(),
-            args -> new EmbeddingInt8ResultEntry((String) args[0], (Integer) args[1], (List<Integer>) args[2])
+            true,
+            args -> new EmbeddingInt8ResultEntry((Integer) args[0], (List<Integer>) args[1])
         );
 
         static {
-            PARSER.declareString(constructorArg(), new ParseField("object"));
             PARSER.declareInt(constructorArg(), new ParseField("index"));
             PARSER.declareIntArray(constructorArg(), new ParseField("embedding"));
         }
@@ -88,49 +84,35 @@ public class VoyageAIEmbeddingsResponseEntity {
         }
     }
 
-    record EmbeddingFloatResult(List<EmbeddingFloatResultEntry> entries, String model, String object, @Nullable Usage usage) {
+    record EmbeddingFloatResult(List<EmbeddingFloatResultEntry> entries) {
         @SuppressWarnings("unchecked")
         public static final ConstructingObjectParser<EmbeddingFloatResult, Void> PARSER = new ConstructingObjectParser<>(
             EmbeddingFloatResult.class.getSimpleName(),
-            args -> new EmbeddingFloatResult((List<EmbeddingFloatResultEntry>) args[0], (String) args[1], (String) args[2], (Usage) args[3])
+            true,
+            args -> new EmbeddingFloatResult((List<EmbeddingFloatResultEntry>) args[0])
         );
 
         static {
             PARSER.declareObjectArray(constructorArg(), EmbeddingFloatResultEntry.PARSER::apply, new ParseField("data"));
-            PARSER.declareString(constructorArg(), new ParseField("model"));
-            PARSER.declareString(constructorArg(), new ParseField("object"));
-            PARSER.declareObject(optionalConstructorArg(), Usage.PARSER::apply, new ParseField("usage"));
         }
     }
 
-    record EmbeddingFloatResultEntry(String object, Integer index, List<Float> embedding) {
+    record EmbeddingFloatResultEntry(Integer index, List<Float> embedding) {
 
         @SuppressWarnings("unchecked")
         public static final ConstructingObjectParser<EmbeddingFloatResultEntry, Void> PARSER = new ConstructingObjectParser<>(
             EmbeddingFloatResultEntry.class.getSimpleName(),
-            args -> new EmbeddingFloatResultEntry((String) args[0], (Integer) args[1], (List<Float>) args[2])
+            true,
+            args -> new EmbeddingFloatResultEntry((Integer) args[0], (List<Float>) args[1])
         );
 
         static {
-            PARSER.declareString(constructorArg(), new ParseField("object"));
             PARSER.declareInt(constructorArg(), new ParseField("index"));
             PARSER.declareFloatArray(constructorArg(), new ParseField("embedding"));
         }
 
         public InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding toInferenceFloatEmbedding() {
             return InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding.of(embedding);
-        }
-    }
-
-    record Usage(Integer totalTokens) {
-
-        public static final ConstructingObjectParser<Usage, Void> PARSER = new ConstructingObjectParser<>(
-            Usage.class.getSimpleName(),
-            args -> new Usage((Integer) args[0])
-        );
-
-        static {
-            PARSER.declareInt(constructorArg(), new ParseField("total_tokens"));
         }
     }
 

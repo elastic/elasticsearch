@@ -20,6 +20,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import static org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModelTests.createModel;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -139,14 +140,14 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
         );
 
         var thrownException = expectThrows(
-            XContentParseException.class,
+            java.lang.IllegalArgumentException.class,
             () -> VoyageAIEmbeddingsResponseEntity.fromResponse(
                 request,
                 new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
             )
         );
 
-        assertThat(thrownException.getMessage(), is("[3:3] [EmbeddingFloatResult] unknown field [not_data]"));
+        assertThat(thrownException.getMessage(), is("Required [data]"));
     }
 
     public void testFromResponse_FailsWhenDataFieldNotAnArray() {
@@ -183,7 +184,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
             )
         );
 
-        assertThat(thrownException.getMessage(), is("[4:15] [EmbeddingFloatResult] failed to parse field [data]"));
+        assertThat(thrownException.getMessage(), containsString("[EmbeddingFloatResult] failed to parse field [data]"));
     }
 
     public void testFromResponse_FailsWhenEmbeddingsDoesNotExist() {
@@ -220,7 +221,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
             )
         );
 
-        assertThat(thrownException.getMessage(), is("[7:27] [EmbeddingFloatResult] failed to parse field [data]"));
+        assertThat(thrownException.getMessage(), containsString("[EmbeddingFloatResult] failed to parse field [data]"));
     }
 
     public void testFromResponse_FailsWhenEmbeddingValueIsAString() {

@@ -43,6 +43,7 @@ public class AsyncSearchErrorTraceIT extends ESIntegTestCase {
     @Before
     public void setupMessageListener() {
         transportMessageHasStackTrace = ErrorTraceHelper.setupErrorTraceListener(internalCluster());
+        // TODO: make this test work with batched query execution by enhancing ErrorTraceHelper.setupErrorTraceListener
         updateClusterSettings(Settings.builder().put(SearchService.BATCHED_QUERY_PHASE.getKey(), false));
     }
 

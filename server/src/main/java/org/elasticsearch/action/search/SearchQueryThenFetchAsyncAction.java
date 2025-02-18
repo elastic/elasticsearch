@@ -396,6 +396,10 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
 
     @Override
     protected void doRun(Map<SearchShardIterator, Integer> shardIndexMap) {
+        if (this.batchQueryPhase == false) {
+            super.doRun(shardIndexMap);
+            return;
+        }
         AbstractSearchAsyncAction.doCheckNoMissingShards(getName(), request, shardsIts, AbstractSearchAsyncAction::makeMissingShardsError);
         final Map<CanMatchPreFilterSearchPhase.SendingTarget, NodeQueryRequest> perNodeQueries = new HashMap<>();
         final String localNodeId = searchTransportService.transportService().getLocalNode().getId();
@@ -411,7 +415,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             } else {
                 final String nodeId = routing.getNodeId();
                 // local requests don't need batching as there's no network latency
-                if (this.batchQueryPhase && localNodeId.equals(nodeId) == false) {
+                if (localNodeId.equals(nodeId) == false) {
                     var perNodeRequest = perNodeQueries.computeIfAbsent(
                         new CanMatchPreFilterSearchPhase.SendingTarget(routing.getClusterAlias(), nodeId),
                         t -> new NodeQueryRequest(request, numberOfShardsTotal, timeProvider.absoluteStartMillis(), t.clusterAlias())

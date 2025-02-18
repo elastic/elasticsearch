@@ -39,7 +39,6 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Function;
 
 /**
  * Manages computes across multiple clusters by sending {@link ClusterComputeRequest} to remote clusters and executing the computes.
@@ -146,37 +145,27 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
     }
 
     private void updateExecutionInfo(EsqlExecutionInfo executionInfo, String clusterAlias, ComputeResponse resp) {
-        Function<EsqlExecutionInfo.Cluster.Status, EsqlExecutionInfo.Cluster.Status> runningToSuccess = status -> {
-            if (status != EsqlExecutionInfo.Cluster.Status.RUNNING) {
-                return status;
-            } else if (executionInfo.isStopped() || resp.failedShards > 0) {
-                return EsqlExecutionInfo.Cluster.Status.PARTIAL;
+        executionInfo.swapCluster(clusterAlias, (k, v) -> {
+            var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTotalShards(resp.getTotalShards())
+                .setSuccessfulShards(resp.getSuccessfulShards())
+                .setSkippedShards(resp.getSkippedShards())
+                .setFailedShards(resp.getFailedShards());
+            if (resp.getTook() != null) {
+                builder.setTook(TimeValue.timeValueNanos(executionInfo.planningTookTime().nanos() + resp.getTook().nanos()));
             } else {
-                return EsqlExecutionInfo.Cluster.Status.SUCCESSFUL;
+                // if the cluster is an older version and does not send back took time, then calculate it here on the coordinator
+                // and leave shard info unset, so it is not shown in the CCS metadata section of the JSON response
+                builder.setTook(executionInfo.tookSoFar());
             }
-        };
-        if (resp.getTook() != null) {
-            var tookTime = TimeValue.timeValueNanos(executionInfo.planningTookTime().nanos() + resp.getTook().nanos());
-            executionInfo.swapCluster(
-                clusterAlias,
-                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(runningToSuccess.apply(v.getStatus()))
-                    .setTook(tookTime)
-                    .setTotalShards(resp.getTotalShards())
-                    .setSuccessfulShards(resp.getSuccessfulShards())
-                    .setSkippedShards(resp.getSkippedShards())
-                    .setFailedShards(resp.getFailedShards())
-                    .build()
-            );
-        } else {
-            // if the cluster is an older version and does not send back took time, then calculate it here on the coordinator
-            // and leave shard info unset, so it is not shown in the CCS metadata section of the JSON response
-            executionInfo.swapCluster(
-                clusterAlias,
-                (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(runningToSuccess.apply(v.getStatus()))
-                    .setTook(executionInfo.tookSoFar())
-                    .build()
-            );
-        }
+            if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
+                if (executionInfo.isStopped() || resp.failedShards > 0) {
+                    builder.setStatus(EsqlExecutionInfo.Cluster.Status.PARTIAL);
+                } else {
+                    builder.setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+                }
+            }
+            return builder.build();
+        });
     }
 
     List<RemoteCluster> getRemoteClusters(

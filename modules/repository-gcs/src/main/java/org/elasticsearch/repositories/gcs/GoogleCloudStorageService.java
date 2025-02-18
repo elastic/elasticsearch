@@ -179,6 +179,7 @@ public class GoogleCloudStorageService implements Closeable {
                     }
                     return existing;
                 }))
+                .disableCookieManagement()
                 .setConnectionManagerShared(true)
                 // ApacheHttpTransport indicates to disable redirect and retries
                 .disableRedirectHandling()
@@ -187,12 +188,11 @@ public class GoogleCloudStorageService implements Closeable {
             return new ApacheHttpTransport(builder.build());
         });
 
-        final HttpTransportOptions httpTransportOptions = new HttpTransportOptions(
-            HttpTransportOptions.newBuilder()
-                .setConnectTimeout(toTimeout(gcsClientSettings.getConnectTimeout()))
-                .setReadTimeout(toTimeout(gcsClientSettings.getReadTimeout()))
-                .setHttpTransportFactory(() -> httpTransport)
-        );
+        final HttpTransportOptions httpTransportOptions = HttpTransportOptions.newBuilder()
+            .setConnectTimeout(toTimeout(gcsClientSettings.getConnectTimeout()))
+            .setReadTimeout(toTimeout(gcsClientSettings.getReadTimeout()))
+            .setHttpTransportFactory(() -> httpTransport)
+            .build();
         final StorageOptions storageOptions = createStorageOptions(gcsClientSettings, httpTransportOptions);
         return storageOptions.getService();
     }

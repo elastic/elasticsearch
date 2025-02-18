@@ -220,9 +220,10 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
             l -> client.execute(ReindexDataStreamIndexAction.INSTANCE, reindexDataStreamIndexRequest, l)
         )
             .<AcknowledgedResponse>andThen(
-                (l, result) -> updateDataStream(sourceDataStream, index.getName(), result.getDestIndex(), l, parentTaskId)
+                (l, result) -> removeReadOnlyBlock(index.getName(), parentTaskId, l.delegateFailure((delegate, response) -> {
+                    updateDataStream(sourceDataStream, index.getName(), result.getDestIndex(), delegate, parentTaskId);
+                }))
             )
-            .<AcknowledgedResponse>andThen(l -> removeReadOnlyBlock(index.getName(), parentTaskId, l))
             .<AcknowledgedResponse>andThen(l -> deleteIndex(index.getName(), parentTaskId, l))
             .addListener(ActionListener.wrap(unused -> {
                 reindexDataStreamTask.reindexSucceeded(index.getName());

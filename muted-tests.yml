@@ -315,15 +315,9 @@ tests:
 - class: org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageIT
   method: testScaleWhileShrinking
   issue: https://github.com/elastic/elasticsearch/issues/122119
-- class: org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests
-  method: testCreateAndRestorePartialSearchableSnapshot
-  issue: https://github.com/elastic/elasticsearch/issues/122693
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/122707
-- class: org.elasticsearch.indices.recovery.IndexRecoveryIT
-  method: testSourceThrottling
-  issue: https://github.com/elastic/elasticsearch/issues/122712
 - class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
   issue: https://github.com/elastic/elasticsearch/issues/122810
 - class: org.elasticsearch.snapshots.DedicatedClusterSnapshotRestoreIT

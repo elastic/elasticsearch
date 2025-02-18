@@ -126,18 +126,18 @@ setup:
               script:
                 source: "dotProduct(params.query_vector, 'vector')"
                 params:
-                  query_vector: [0.0, 111.0, -13.0, 14.0, -124.0]
+                  query_vector: [0.5, 111.3, -13.0, 14.8, -156.0]
 
   - match: {hits.total: 3}
 
   - match: {hits.hits.0._id: "2"}
-  - match: {hits.hits.0._score: 28732.0}
+  - match: {hits.hits.0._score: 32865.2}
 
   - match: {hits.hits.1._id: "3"}
-  - match: {hits.hits.1._score: 17439.0}
+  - match: {hits.hits.1._score: 21413.4}
 
   - match: {hits.hits.2._id: "1"}
-  - match: {hits.hits.2._score: 1632.0}
+  - match: {hits.hits.2._score: 1862.3}
 ---
 "Cosine Similarity":
   - do:
@@ -251,18 +251,18 @@ setup:
               script:
                 source: "cosineSimilarity(params.query_vector, 'vector')"
                 params:
-                  query_vector: [0.0, 111.0, -13.0, 14.0, -124.0]
+                  query_vector: [0.5, 111.3, -13.0, 14.8, -156.0]
 
   - match: {hits.total: 3}
 
   - match: {hits.hits.0._id: "2"}
-  - gte: {hits.hits.0._score: 0.995}
-  - lte: {hits.hits.0._score: 0.998}
+  - gte: {hits.hits.0._score: 0.989}
+  - lte: {hits.hits.0._score: 0.992}
 
   - match: {hits.hits.1._id: "3"}
-  - gte: {hits.hits.1._score: 0.829}
-  - lte: {hits.hits.1._score: 0.832}
+  - gte: {hits.hits.1._score: 0.885}
+  - lte: {hits.hits.1._score: 0.888}
 
   - match: {hits.hits.2._id: "1"}
-  - gte: {hits.hits.2._score: 0.509}
-  - lte: {hits.hits.2._score: 0.512}
+  - gte: {hits.hits.2._score: 0.505}
+  - lte: {hits.hits.2._score: 0.508}

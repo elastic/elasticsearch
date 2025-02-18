@@ -14,7 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.mapper.SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer.parseOffsetArray;
+import static org.elasticsearch.index.mapper.FieldArrayContext.parseOffsetArray;
 
 public class FieldArrayContextTests extends ESTestCase {
 

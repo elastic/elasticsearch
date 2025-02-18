@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -70,11 +71,20 @@ public class FieldArrayContext {
         }
     }
 
+    static int[] parseOffsetArray(StreamInput in) throws IOException {
+        int[] offsetToOrd = new int[BitUtil.zigZagDecode(in.readVInt())];
+        for (int i = 0; i < offsetToOrd.length; i++) {
+            offsetToOrd[i] = BitUtil.zigZagDecode(in.readVInt());
+        }
+        return offsetToOrd;
+    }
+
     private static class Offsets {
 
         int currentOffset;
-        // Need to use TreeMap here, so that we maintain the order in which each value (with offset) gets inserted,
-        // (which is in the same order the document gets parsed) so we store offsets in right order.
+        // Need to use TreeMap here, so that we maintain the order in which each value (with offset) stored inserted,
+        // (which is in the same order the document gets parsed) so we store offsets in right order. This is the same
+        // order in what the values get stored in SortedSetDocValues.
         final Map<String, List<Integer>> valueToOffsets = new TreeMap<>();
         final List<Integer> nullValueOffsets = new ArrayList<>(2);
 

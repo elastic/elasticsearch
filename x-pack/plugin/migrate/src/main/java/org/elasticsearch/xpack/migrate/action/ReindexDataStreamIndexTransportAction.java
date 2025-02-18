@@ -59,7 +59,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.READ_ONLY;
 
 public class ReindexDataStreamIndexTransportAction extends HandledTransportAction<
     ReindexDataStreamIndexAction.Request,
@@ -156,7 +156,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
             return;
         }
         final boolean wasClosed = isClosed(sourceIndex);
-        SubscribableListener.<AcknowledgedResponse>newForked(l -> setBlockWrites(sourceIndexName, l, taskId))
+        SubscribableListener.<AcknowledgedResponse>newForked(l -> setReadOnly(sourceIndexName, l, taskId))
             .<OpenIndexResponse>andThen(l -> openIndexIfClosed(sourceIndexName, wasClosed, l, taskId))
             .<BroadcastResponse>andThen(l -> refresh(sourceIndexName, l, taskId))
             .<AcknowledgedResponse>andThen(l -> deleteDestIfExists(destIndexName, l, taskId))
@@ -201,9 +201,9 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         return indexMetadata.getState().equals(IndexMetadata.State.CLOSE);
     }
 
-    private void setBlockWrites(String sourceIndexName, ActionListener<AcknowledgedResponse> listener, TaskId parentTaskId) {
-        logger.debug("Setting write block on source index [{}]", sourceIndexName);
-        addBlockToIndex(WRITE, sourceIndexName, new ActionListener<>() {
+    private void setReadOnly(String sourceIndexName, ActionListener<AcknowledgedResponse> listener, TaskId parentTaskId) {
+        logger.debug("Setting read-only on source index [{}]", sourceIndexName);
+        addBlockToIndex(READ_ONLY, sourceIndexName, new ActionListener<>() {
             @Override
             public void onResponse(AddIndexBlockResponse response) {
                 if (response.isAcknowledged()) {

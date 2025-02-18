@@ -15,6 +15,8 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.support.CountDownActionListener;
@@ -23,8 +25,10 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -218,6 +222,7 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
             .<AcknowledgedResponse>andThen(
                 (l, result) -> updateDataStream(sourceDataStream, index.getName(), result.getDestIndex(), l, parentTaskId)
             )
+            .<AcknowledgedResponse>andThen(l -> removeReadOnlyBlock(index.getName(), parentTaskId, l))
             .<AcknowledgedResponse>andThen(l -> deleteIndex(index.getName(), parentTaskId, l))
             .addListener(ActionListener.wrap(unused -> {
                 reindexDataStreamTask.reindexSucceeded(index.getName());
@@ -244,6 +249,15 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         );
         modifyDataStreamRequest.setParentTask(parentTaskId);
         client.execute(ModifyDataStreamsAction.INSTANCE, modifyDataStreamRequest, listener);
+    }
+
+    private void removeReadOnlyBlock(String indexName, TaskId parentTaskId, ActionListener<AcknowledgedResponse> listener) {
+        var updateSettingsRequest = new UpdateSettingsRequest(
+            Settings.builder().putNull(IndexMetadata.SETTING_READ_ONLY).build(),
+            indexName
+        );
+        updateSettingsRequest.setParentTask(parentTaskId);
+        client.execute(TransportUpdateSettingsAction.TYPE, updateSettingsRequest, listener);
     }
 
     private void deleteIndex(String indexName, TaskId parentTaskId, ActionListener<AcknowledgedResponse> listener) {

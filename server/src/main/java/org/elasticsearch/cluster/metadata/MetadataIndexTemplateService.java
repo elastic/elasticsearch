@@ -1082,7 +1082,7 @@ public class MetadataIndexTemplateService {
             .stream()
             // Limit to checking data streams that match any of the templates' index patterns
             .filter(ds -> namePatterns.stream().anyMatch(pattern -> Regex.simpleMatch(pattern, ds.getName())))
-            .filter(ds -> findV2Template(state.metadata(), otherTemplates, ds.getName(), ds.isHidden(), true) == null)
+            .filter(ds -> findV2TemplateFromSortedList(state.metadata(), otherTemplates, ds.getName(), ds.isHidden()) == null)
             .map(DataStream::getName)
             .collect(Collectors.toSet());
     }
@@ -1319,11 +1319,25 @@ public class MetadataIndexTemplateService {
     }
 
     /**
+     * Return the name (id) of the highest matching index template, out of the provided templates (that <i>need</i> to be sorted descending
+     * on priority beforehand), or the given index name. In the event that no templates are matched, {@code null} is returned.
+     */
+    @Nullable
+    public static String findV2TemplateFromSortedList(
+        Metadata metadata,
+        Collection<Map.Entry<String, ComposableIndexTemplate>> templates,
+        String indexName,
+        boolean isHidden
+    ) {
+        return findV2Template(metadata, templates, indexName, isHidden, true);
+    }
+
+    /**
      * Return the name (id) of the highest matching index template, out of the provided templates, for the given index name. In
      * the event that no templates are matched, {@code null} is returned.
      */
     @Nullable
-    public static String findV2Template(
+    private static String findV2Template(
         Metadata metadata,
         Collection<Map.Entry<String, ComposableIndexTemplate>> templates,
         String indexName,
@@ -1363,9 +1377,13 @@ public class MetadataIndexTemplateService {
     /**
      * Return an ordered list of the name (id) and composable index templates that would apply to an index. The first
      * one is the winner template that is applied to this index. In the event that no templates are matched,
-     * an empty list is returned. If <code>exitOnFirstMatch</code> is true, we return immediately after finding a match.
+     * an empty list is returned.
+     * <p>
+     * If <code>exitOnFirstMatch</code> is true, we return immediately after finding a match. That means that the <code>templates</code>
+     * parameter needs to be sorted based on priority (descending) for this method to return a sensible result -- otherwise this method
+     * would just return the first template that matches the name, in an unspecified order.
      */
-    static List<Tuple<String, ComposableIndexTemplate>> findV2CandidateTemplates(
+    private static List<Tuple<String, ComposableIndexTemplate>> findV2CandidateTemplates(
         Collection<Map.Entry<String, ComposableIndexTemplate>> templates,
         String indexName,
         boolean isHidden,

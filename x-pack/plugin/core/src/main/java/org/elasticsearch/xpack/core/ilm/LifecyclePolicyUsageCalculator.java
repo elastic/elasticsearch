@@ -75,7 +75,12 @@ public class LifecyclePolicyUsageCalculator {
 
         policyToDataStreams = Maps.newHashMapWithExpectedSize(expectedSize);
         for (String dataStream : allDataStreams) {
-            String indexTemplate = MetadataIndexTemplateService.findV2Template(state.metadata(), indexTemplates, dataStream, false, true);
+            String indexTemplate = MetadataIndexTemplateService.findV2TemplateFromSortedList(
+                state.metadata(),
+                indexTemplates,
+                dataStream,
+                false
+            );
             if (indexTemplate == null) {
                 // Every data stream should ordinarily have an index template, so this branch should not fire under normal circumstances.
                 continue;

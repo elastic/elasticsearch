@@ -23,6 +23,7 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -86,6 +87,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexComponentSelectorPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.restriction.Workflow;
 import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
@@ -1531,6 +1533,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testBuildRoleWithReadFailureStorePrivilegeOnly() {
+        assumeTrue("requires failure store feature", DataStream.isFailureStoreFeatureFlagEnabled());
         String indexPattern = randomAlphanumericOfLength(10);
         final Role role = buildRole(
             roleDescriptorWithIndicesPrivileges(
@@ -1542,6 +1545,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testBuildRoleWithReadFailureStorePrivilegeDuplicatesMerged() {
+        assumeTrue("requires failure store feature", DataStream.isFailureStoreFeatureFlagEnabled());
         String indexPattern = randomAlphanumericOfLength(10);
         final Role role = buildRole(
             roleDescriptorWithIndicesPrivileges(
@@ -1555,6 +1559,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testBuildRoleWithReadFailureStoreAndReadPrivilegeSplit() {
+        assumeTrue("requires failure store feature", DataStream.isFailureStoreFeatureFlagEnabled());
         String indexPattern = randomAlphanumericOfLength(10);
         final Role role = buildRole(
             roleDescriptorWithIndicesPrivileges(
@@ -1571,6 +1576,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testBuildRoleWithMultipleReadFailureStoreAndReadPrivilegeSplit() {
+        assumeTrue("requires failure store feature", DataStream.isFailureStoreFeatureFlagEnabled());
         String indexPattern = randomAlphanumericOfLength(10);
         final Role role = buildRole(
             roleDescriptorWithIndicesPrivileges(
@@ -1588,6 +1594,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testBuildRoleWithAllPrivilegeIsNeverSplit() {
+        assumeTrue("requires failure store feature", DataStream.isFailureStoreFeatureFlagEnabled());
         String indexPattern = randomAlphanumericOfLength(10);
         final Role role = buildRole(
             roleDescriptorWithIndicesPrivileges(
@@ -1601,6 +1608,32 @@ public class CompositeRolesStoreTests extends ESTestCase {
             role.indices(),
             indexGroup(IndexPrivilege.getSingleSelector(Set.of("read", "read_failure_store", "all")), false, indexPattern)
         );
+    }
+
+    public void testBuildRoleNeverSplitsWithoutFailureStoreRelatedPrivileges() {
+        String indexPattern = randomAlphanumericOfLength(10);
+        List<String> nonFailurePrivileges = IndexPrivilege.names()
+            .stream()
+            .filter(p -> IndexPrivilege.getNamedOrNull(p).getSelectorPrivilege() != IndexComponentSelectorPrivilege.FAILURES)
+            .toList();
+        Set<String> usedPrivileges = new HashSet<>();
+
+        int n = randomIntBetween(1, 5);
+        IndicesPrivileges[] indicesPrivileges = new IndicesPrivileges[n];
+        for (int i = 0; i < n; i++) {
+            IndicesPrivileges.Builder builder = IndicesPrivileges.builder();
+            // TODO this is due to an unrelated bug in index collation logic
+            List<String> privileges = randomValueOtherThanMany(
+                p -> p.get(0).equals("none"),
+                () -> randomNonEmptySubsetOf(nonFailurePrivileges)
+            );
+            usedPrivileges.addAll(privileges);
+            indicesPrivileges[i] = builder.indices(indexPattern).privileges(privileges).build();
+        }
+
+        final Role role = buildRole(roleDescriptorWithIndicesPrivileges("r1", indicesPrivileges));
+        final IndicesPermission actual = role.indices();
+        assertHasIndexGroups(actual, indexGroup(IndexPrivilege.getSingleSelector(usedPrivileges), false, indexPattern));
     }
 
     public void testCustomRolesProviderFailures() throws Exception {

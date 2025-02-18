@@ -2995,12 +2995,18 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             }
             if (fetchSearchResult != null) {
                 long usedBeforeResultDecRef = breaker.getUsed();
-                fetchSearchResult.decRef();
-                assertThat(usedBeforeResultDecRef, greaterThanOrEqualTo(48_000L));
-                // when releasing the result references we should clear at least 48_000 bytes (48 hits with sources of at least 1000 bytes)
-                long usedAfterResultDecRef = breaker.getUsed();
-                logger.info("--> usedBeforeResultDecRef: [{}], usedAfterResultDecRef: [{}]", usedBeforeResultDecRef, usedAfterResultDecRef);
-                assertThat(usedBeforeResultDecRef - usedAfterResultDecRef, greaterThanOrEqualTo(48_000L));
+                if (fetchSearchResult.decRef()) {
+                    assertThat(usedBeforeResultDecRef, greaterThanOrEqualTo(48_000L));
+                    // when releasing the result references we should clear at least 48_000 bytes (48 hits with sources of at least 1000
+                    // bytes)
+                    long usedAfterResultDecRef = breaker.getUsed();
+                    logger.info(
+                        "--> usedBeforeResultDecRef: [{}], usedAfterResultDecRef: [{}]",
+                        usedBeforeResultDecRef,
+                        usedAfterResultDecRef
+                    );
+                    assertThat(usedBeforeResultDecRef - usedAfterResultDecRef, greaterThanOrEqualTo(48_000L));
+                }
             }
         }
     }

@@ -9,11 +9,14 @@
 
 package org.elasticsearch.entitlement.runtime.api;
 
+import jdk.nio.Channels;
+
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 
 import java.io.File;
+import java.io.FileDescriptor;
 import java.io.FileFilter;
 import java.io.FilenameFilter;
 import java.io.IOException;
@@ -74,6 +77,7 @@ import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.UserPrincipal;
 import java.nio.file.spi.FileSystemProvider;
 import java.security.cert.CertStoreParameters;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -1141,6 +1145,71 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     // nio
 
     @Override
+    public void check$java_nio_channels_FileChannel$(Class<?> callerClass) {
+        policyManager.checkChangeFilesHandling(callerClass);
+    }
+
+    @Override
+    public void check$java_nio_channels_FileChannel$$open(
+        Class<?> callerClass,
+        Path path,
+        Set<? extends OpenOption> options,
+        FileAttribute<?>... attrs
+    ) {
+        if (isOpenForWrite(options)) {
+            policyManager.checkFileWrite(callerClass, path);
+        } else {
+            policyManager.checkFileRead(callerClass, path);
+        }
+    }
+
+    @Override
+    public void check$java_nio_channels_FileChannel$$open(Class<?> callerClass, Path path, OpenOption... options) {
+        if (isOpenForWrite(options)) {
+            policyManager.checkFileWrite(callerClass, path);
+        } else {
+            policyManager.checkFileRead(callerClass, path);
+        }
+    }
+
+    @Override
+    public void check$java_nio_channels_AsynchronousFileChannel$(Class<?> callerClass) {
+        policyManager.checkChangeFilesHandling(callerClass);
+    }
+
+    @Override
+    public void check$java_nio_channels_AsynchronousFileChannel$$open(
+        Class<?> callerClass,
+        Path path,
+        Set<? extends OpenOption> options,
+        FileAttribute<?>... attrs
+    ) {
+        if (isOpenForWrite(options)) {
+            policyManager.checkFileWrite(callerClass, path);
+        } else {
+            policyManager.checkFileRead(callerClass, path);
+        }
+    }
+
+    @Override
+    public void check$java_nio_channels_AsynchronousFileChannel$$open(Class<?> callerClass, Path path, OpenOption... options) {
+        if (isOpenForWrite(options)) {
+            policyManager.checkFileWrite(callerClass, path);
+        } else {
+            policyManager.checkFileRead(callerClass, path);
+        }
+    }
+
+    @Override
+    public void check$jdk_nio_Channels$$readWriteSelectableChannel(
+        Class<?> callerClass,
+        FileDescriptor fd,
+        Channels.SelectableChannelCloser closer
+    ) {
+        policyManager.checkFileDescriptorWrite(callerClass);
+    }
+
+    @Override
     public void check$java_nio_file_Files$$getOwner(Class<?> callerClass, Path path, LinkOption... options) {
         policyManager.checkFileRead(callerClass, path);
     }
@@ -1188,6 +1257,17 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
             || options.contains(StandardOpenOption.CREATE)
             || options.contains(StandardOpenOption.CREATE_NEW)
             || options.contains(StandardOpenOption.DELETE_ON_CLOSE);
+    }
+
+    private static boolean isOpenForWrite(OpenOption... options) {
+        return Arrays.stream(options)
+            .anyMatch(
+                o -> o.equals(StandardOpenOption.WRITE)
+                    || o.equals(StandardOpenOption.APPEND)
+                    || o.equals(StandardOpenOption.CREATE)
+                    || o.equals(StandardOpenOption.CREATE_NEW)
+                    || o.equals(StandardOpenOption.DELETE_ON_CLOSE)
+            );
     }
 
     @Override

@@ -9,7 +9,10 @@
 
 package org.elasticsearch.entitlement.bridge;
 
+import jdk.nio.Channels;
+
 import java.io.File;
+import java.io.FileDescriptor;
 import java.io.FileFilter;
 import java.io.FilenameFilter;
 import java.io.InputStream;
@@ -587,6 +590,36 @@ public interface EntitlementChecker {
     void check$java_util_Scanner$(Class<?> callerClass, File source, Charset charset);
 
     // nio
+    // channels
+    void check$java_nio_channels_FileChannel$(Class<?> callerClass);
+
+    void check$java_nio_channels_FileChannel$$open(
+        Class<?> callerClass,
+        Path path,
+        Set<? extends OpenOption> options,
+        FileAttribute<?>... attrs
+    );
+
+    void check$java_nio_channels_FileChannel$$open(Class<?> callerClass, Path path, OpenOption... options);
+
+    void check$java_nio_channels_AsynchronousFileChannel$(Class<?> callerClass);
+
+    void check$java_nio_channels_AsynchronousFileChannel$$open(
+        Class<?> callerClass,
+        Path path,
+        Set<? extends OpenOption> options,
+        FileAttribute<?>... attrs
+    );
+
+    void check$java_nio_channels_AsynchronousFileChannel$$open(Class<?> callerClass, Path path, OpenOption... options);
+
+    void check$jdk_nio_Channels$$readWriteSelectableChannel(
+        Class<?> callerClass,
+        FileDescriptor fd,
+        Channels.SelectableChannelCloser closer
+    );
+
+    // files
     void check$java_nio_file_Files$$getOwner(Class<?> callerClass, Path path, LinkOption... options);
 
     void check$java_nio_file_Files$$probeContentType(Class<?> callerClass, Path path);

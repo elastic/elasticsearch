@@ -254,6 +254,13 @@ public class PolicyManager {
         checkChangeJVMGlobalState(callerClass);
     }
 
+    /**
+     * Check for operations that can modify the way file operations are handled
+     */
+    public void checkChangeFilesHandling(Class<?> callerClass) {
+        checkChangeJVMGlobalState(callerClass);
+    }
+
     @SuppressForbidden(reason = "Explicitly checking File apis")
     public void checkFileRead(Class<?> callerClass, File file) {
         checkFileRead(callerClass, file.toPath());
@@ -302,6 +309,10 @@ public class PolicyManager {
                 )
             );
         }
+    }
+
+    public void checkFileDescriptorWrite(Class<?> callerClass) {
+        neverEntitled(callerClass, () -> "write file descriptor");
     }
 
     /**

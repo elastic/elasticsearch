@@ -189,8 +189,11 @@ public class EsqlCapabilities {
          */
         ST_DISTANCE,
 
-        /** Support for function {@code ST_EXTENT}. */
+        /** Support for function {@code ST_EXTENT_AGG}. */
         ST_EXTENT_AGG,
+
+        /** Optimization of ST_EXTENT_AGG with doc-values as IntBlock. */
+        ST_EXTENT_AGG_DOCVALUES,
 
         /**
          * Fix determination of CRS types in spatial functions when folding.
@@ -664,7 +667,14 @@ public class EsqlCapabilities {
         /**
          * Support for aggregate_metric_double type
          */
-        AGGREGATE_METRIC_DOUBLE(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG.isEnabled());
+        AGGREGATE_METRIC_DOUBLE(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG.isEnabled()),
+
+        /**
+         * Fix for https://github.com/elastic/elasticsearch/issues/120817
+         * and https://github.com/elastic/elasticsearch/issues/120803
+         * Support for queries that have multiple SORTs that cannot become TopN
+         */
+        REMOVE_REDUNDANT_SORT;
 
         private final boolean enabled;
 

@@ -20,6 +20,7 @@ import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -117,9 +118,15 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
 
             // before the upgrade, Kibana should work
             assertBusy(() -> testGetStarAsKibana(List.of("my-index-00001"), List.of()));
+
+            // as should a normal get *
+            assertBusy(() -> testGetStar(List.of("my-index-00001"), List.of()));
         } else {
             // after the upgrade, but before the migration, Kibana should work
             assertBusy(() -> testGetStarAsKibana(List.of("my-index-00001"), maybeSecurityIndex));
+
+            // as should a normal get *
+            assertBusy(() -> testGetStar(List.of("my-index-00001"), maybeSecurityIndex));
 
             // migrate the system features and give the cluster a moment to settle
             Request migrateSystemFeatures = new Request("POST", "/_migration/system_features");
@@ -130,9 +137,10 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             assertBusy(() -> testIndexGeoDoc());
 
             // after the migration, Kibana should work
-            if (useSecurity == false) { // BUT IT DOESN'T if security is enabled
-                assertBusy(() -> testGetStarAsKibana(List.of("my-index-00001"), maybeSecurityIndex));
-            }
+            assertBusy(() -> testGetStarAsKibana(List.of("my-index-00001"), maybeSecurityIndex));
+
+            // as should a normal get *
+            assertBusy(() -> testGetStar(List.of("my-index-00001"), maybeSecurityIndex));
 
             Request disableDownloader = new Request("PUT", "/_cluster/settings");
             disableDownloader.setJsonEntity("""
@@ -161,7 +169,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     @SuppressWarnings("unchecked")
     private void testDatabasesLoaded() throws IOException {
         Request getTaskState = new Request("GET", "/_cluster/state");
-        ObjectPath state = ObjectPath.createFromResponse(client().performRequest(getTaskState));
+        ObjectPath state = ObjectPath.createFromResponse(assertOK(client().performRequest(getTaskState)));
 
         List<?> tasks = state.evaluate("metadata.persistent_tasks.tasks");
         // Short-circuit to avoid using steams if the list is empty
@@ -187,7 +195,10 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
 
     private void testCatIndices(List<String> indexNames, @Nullable List<String> additionalIndexNames) throws IOException {
         Request catIndices = new Request("GET", "_cat/indices/*?s=index&h=index&expand_wildcards=all");
-        String response = EntityUtils.toString(client().performRequest(catIndices).getEntity());
+        // the cat APIs can sometimes 404, erroneously
+        // see https://github.com/elastic/elasticsearch/issues/104371
+        setIgnoredErrorResponseCodes(catIndices, RestStatus.NOT_FOUND);
+        String response = EntityUtils.toString(assertOK(client().performRequest(catIndices)).getEntity());
         List<String> indices = List.of(response.trim().split("\\s+"));
 
         if (additionalIndexNames != null && additionalIndexNames.isEmpty() == false) {
@@ -206,9 +217,25 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         assertOK(client().performRequest(putDoc));
 
         Request getDoc = new Request("GET", "/my-index-00001/_doc/my_id");
-        ObjectPath doc = ObjectPath.createFromResponse(client().performRequest(getDoc));
+        ObjectPath doc = ObjectPath.createFromResponse(assertOK(client().performRequest(getDoc)));
         assertNull(doc.evaluate("_source.tags"));
         assertEquals("Sweden", doc.evaluate("_source.geo.country_name"));
+    }
+
+    private void testGetStar(List<String> indexNames, @Nullable List<String> additionalIndexNames) throws IOException {
+        Request getStar = new Request("GET", "*?expand_wildcards=all");
+        getStar.setOptions(
+            RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE) // we don't care about warnings, just errors
+        );
+        Response response = assertOK(client().performRequest(getStar));
+
+        if (additionalIndexNames != null && additionalIndexNames.isEmpty() == false) {
+            indexNames = new ArrayList<>(indexNames); // recopy into a mutable list
+            indexNames.addAll(additionalIndexNames);
+        }
+
+        Map<String, Object> map = responseAsMap(response);
+        assertThat(map.keySet(), is(new HashSet<>(indexNames)));
     }
 
     private void testGetStarAsKibana(List<String> indexNames, @Nullable List<String> additionalIndexNames) throws IOException {
@@ -218,8 +245,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
                 .addHeader("X-elastic-product-origin", "kibana")
                 .setWarningsHandler(WarningsHandler.PERMISSIVE) // we don't care about warnings, just errors
         );
-        Response response = client().performRequest(getStar);
-        assertOK(response);
+        Response response = assertOK(client().performRequest(getStar));
 
         if (additionalIndexNames != null && additionalIndexNames.isEmpty() == false) {
             indexNames = new ArrayList<>(indexNames); // recopy into a mutable list

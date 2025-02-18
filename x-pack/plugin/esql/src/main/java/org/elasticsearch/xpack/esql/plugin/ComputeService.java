@@ -190,16 +190,16 @@ public class ComputeService {
          * entire plan.
          */
         List<Attribute> outputAttributes = physicalPlan.output();
+        var exchangeSource = new ExchangeSourceHandler(
+            queryPragmas.exchangeBufferSize(),
+            transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
+        );
+        listener = ActionListener.runBefore(listener, () -> exchangeService.removeExchangeSourceHandler(sessionId));
+        exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
         try (var computeListener = new ComputeListener(transportService.getThreadPool(), cancelQueryOnFailure, listener.map(profiles -> {
             execInfo.markEndQuery();  // TODO: revisit this time recording model as part of INLINESTATS improvements
             return new Result(outputAttributes, collectedPages, profiles, execInfo);
         }))) {
-            var exchangeSource = new ExchangeSourceHandler(
-                queryPragmas.exchangeBufferSize(),
-                transportService.getThreadPool().executor(ThreadPool.Names.SEARCH),
-                ActionListener.runBefore(computeListener.acquireAvoid(), () -> exchangeService.removeExchangeSourceHandler(sessionId))
-            );
-            exchangeService.addExchangeSourceHandler(sessionId, exchangeSource);
             try (Releasable ignored = exchangeSource.addEmptySink()) {
                 // run compute on the coordinator
                 final AtomicBoolean localClusterWasInterrupted = new AtomicBoolean();

@@ -409,18 +409,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.highlight/30_max_analyzed_offset/Plain highlighter with max_analyzed_offset < 0 should FAIL}
   issue: https://github.com/elastic/elasticsearch/issues/121359
-- class: org.elasticsearch.upgrades.VectorSearchIT
-  method: testBBQVectorSearch {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/121272
-- class: org.elasticsearch.upgrades.VectorSearchIT
-  method: testBBQVectorSearch {upgradedNodes=0}
-  issue: https://github.com/elastic/elasticsearch/issues/121253
-- class: org.elasticsearch.upgrades.VectorSearchIT
-  method: testBBQVectorSearch {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/121271
-- class: org.elasticsearch.upgrades.VectorSearchIT
-  method: testBBQVectorSearch {upgradedNodes=3}
-  issue: https://github.com/elastic/elasticsearch/issues/121273
 - class: org.elasticsearch.xpack.sql.qa.single_node.JdbcDocCsvSpecIT
   method: test {docs.testFilterToday}
   issue: https://github.com/elastic/elasticsearch/issues/121474

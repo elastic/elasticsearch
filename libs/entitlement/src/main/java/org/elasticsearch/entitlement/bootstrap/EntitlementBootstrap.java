@@ -28,6 +28,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static java.util.Objects.requireNonNull;
 
@@ -36,19 +37,24 @@ public class EntitlementBootstrap {
     public record BootstrapArgs(
         Map<String, Policy> pluginPolicies,
         Function<Class<?>, String> pluginResolver,
+        Function<String, String> settingResolver,
+        Function<String, Stream<String>> settingGlobResolver,
         Path[] dataDirs,
         Path configDir,
-        Path tempDir,
-        Path logsDir
+        Path logsDir,
+        Path tempDir
     ) {
         public BootstrapArgs {
             requireNonNull(pluginPolicies);
             requireNonNull(pluginResolver);
+            requireNonNull(settingResolver);
+            requireNonNull(settingGlobResolver);
             requireNonNull(dataDirs);
             if (dataDirs.length == 0) {
                 throw new IllegalArgumentException("must provide at least one data directory");
             }
             requireNonNull(configDir);
+            requireNonNull(logsDir);
             requireNonNull(tempDir);
         }
     }
@@ -73,16 +79,27 @@ public class EntitlementBootstrap {
     public static void bootstrap(
         Map<String, Policy> pluginPolicies,
         Function<Class<?>, String> pluginResolver,
+        Function<String, String> settingResolver,
+        Function<String, Stream<String>> settingGlobResolver,
         Path[] dataDirs,
         Path configDir,
-        Path tempDir,
-        Path logsDir
+        Path logsDir,
+        Path tempDir
     ) {
         logger.debug("Loading entitlement agent");
         if (EntitlementBootstrap.bootstrapArgs != null) {
             throw new IllegalStateException("plugin data is already set");
         }
-        EntitlementBootstrap.bootstrapArgs = new BootstrapArgs(pluginPolicies, pluginResolver, dataDirs, configDir, tempDir, logsDir);
+        EntitlementBootstrap.bootstrapArgs = new BootstrapArgs(
+            pluginPolicies,
+            pluginResolver,
+            settingResolver,
+            settingGlobResolver,
+            dataDirs,
+            configDir,
+            logsDir,
+            tempDir
+        );
         exportInitializationToAgent();
         loadAgent(findAgentJar());
         selfTest();

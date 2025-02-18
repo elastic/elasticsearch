@@ -183,7 +183,7 @@ public class EntitlementInitialization {
                                     FileData.ofPath(Path.of("/proc/self/mountinfo"), READ),
                                     FileData.ofPath(Path.of("/proc/diskstats"), READ)
                                 ),
-                                Arrays.stream(bootstrapArgs.dataDirs()).map(d -> FileData.ofPath(d, READ))
+                                Arrays.stream(bootstrapArgs.dataDirs()).map(d -> FileData.ofPath(d, READ_WRITE))
                             ).toList()
                         )
                     )

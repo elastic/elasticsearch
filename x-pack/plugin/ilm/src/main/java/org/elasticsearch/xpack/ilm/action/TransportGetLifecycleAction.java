@@ -108,7 +108,7 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
                                     policyMetadata.getPolicy(),
                                     policyMetadata.getVersion(),
                                     policyMetadata.getModifiedDateString(),
-                                    lifecyclePolicyUsageCalculator.calculateUsage(policyMetadata.getName())
+                                    lifecyclePolicyUsageCalculator.retrieveCalculatedUsage(policyMetadata.getName())
                                 )
                             );
                         }
@@ -125,7 +125,7 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
                             policyMetadata.getPolicy(),
                             policyMetadata.getVersion(),
                             policyMetadata.getModifiedDateString(),
-                            lifecyclePolicyUsageCalculator.calculateUsage(policyMetadata.getName())
+                            lifecyclePolicyUsageCalculator.retrieveCalculatedUsage(policyMetadata.getName())
                         )
                     );
                 }

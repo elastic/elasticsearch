@@ -107,7 +107,7 @@ public class LifecyclePolicyUsageCalculator {
     /**
      * Retrieves the pre-calculated indices, data streams, and composable templates that use the given policy.
      */
-    public ItemUsage calculateUsage(String policyName) {
+    public ItemUsage retrieveCalculatedUsage(String policyName) {
         return new ItemUsage(
             policyToIndices.getOrDefault(policyName, List.of()),
             policyToDataStreams.getOrDefault(policyName, List.of()),

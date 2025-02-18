@@ -42,7 +42,7 @@ public class LifecyclePolicyUsageCalculatorTests extends ESTestCase {
         // Test where policy does not exist
         ClusterState state = ClusterState.builder(new ClusterName("mycluster")).build();
         assertThat(
-            new LifecyclePolicyUsageCalculator(iner, state, List.of("mypolicy")).calculateUsage("mypolicy"),
+            new LifecyclePolicyUsageCalculator(iner, state, List.of("mypolicy")).retrieveCalculatedUsage("mypolicy"),
             equalTo(new ItemUsage(List.of(), List.of(), List.of()))
         );
     }
@@ -63,7 +63,7 @@ public class LifecyclePolicyUsageCalculatorTests extends ESTestCase {
             )
             .build();
         assertThat(
-            new LifecyclePolicyUsageCalculator(iner, state, List.of("mypolicy")).calculateUsage("mypolicy"),
+            new LifecyclePolicyUsageCalculator(iner, state, List.of("mypolicy")).retrieveCalculatedUsage("mypolicy"),
             equalTo(new ItemUsage(List.of(), List.of(), List.of()))
         );
     }
@@ -89,7 +89,7 @@ public class LifecyclePolicyUsageCalculatorTests extends ESTestCase {
             )
             .build();
         assertThat(
-            new LifecyclePolicyUsageCalculator(iner, state, List.of("mypolicy")).calculateUsage("mypolicy"),
+            new LifecyclePolicyUsageCalculator(iner, state, List.of("mypolicy")).retrieveCalculatedUsage("mypolicy"),
             equalTo(new ItemUsage(List.of("myindex"), List.of(), List.of()))
         );
     }
@@ -134,7 +134,7 @@ public class LifecyclePolicyUsageCalculatorTests extends ESTestCase {
             )
             .build();
         assertThat(
-            new LifecyclePolicyUsageCalculator(iner, state, List.of("mypolicy")).calculateUsage("mypolicy"),
+            new LifecyclePolicyUsageCalculator(iner, state, List.of("mypolicy")).retrieveCalculatedUsage("mypolicy"),
             equalTo(new ItemUsage(List.of("myindex"), List.of(), List.of("mytemplate")))
         );
     }
@@ -182,7 +182,7 @@ public class LifecyclePolicyUsageCalculatorTests extends ESTestCase {
 
         ClusterState state = ClusterState.builder(new ClusterName("mycluster")).metadata(mBuilder.build()).build();
         assertThat(
-            new LifecyclePolicyUsageCalculator(iner, state, List.of("mypolicy")).calculateUsage("mypolicy"),
+            new LifecyclePolicyUsageCalculator(iner, state, List.of("mypolicy")).retrieveCalculatedUsage("mypolicy"),
             equalTo(new ItemUsage(List.of("myindex", "another"), List.of("myds"), List.of("mytemplate")))
         );
     }
@@ -228,7 +228,7 @@ public class LifecyclePolicyUsageCalculatorTests extends ESTestCase {
         // Test where policy exists and is used by an index, datastream, and template
         ClusterState state = ClusterState.builder(new ClusterName("mycluster")).metadata(mBuilder.build()).build();
         assertThat(
-            new LifecyclePolicyUsageCalculator(iner, state, List.of("mypolicy")).calculateUsage("mypolicy"),
+            new LifecyclePolicyUsageCalculator(iner, state, List.of("mypolicy")).retrieveCalculatedUsage("mypolicy"),
             equalTo(new ItemUsage(List.of("myindex"), List.of(), List.of("mytemplate")))
         );
     }

@@ -55,7 +55,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
@@ -487,7 +486,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     public record CompoundTranslogMetadata(
         String name,
         long generation,
-        HashMap<ShardId, TranslogMetadata> checkpoints,
+        Map<ShardId, TranslogMetadata.Operations> operations,
         Map<ShardId, ShardSyncState.SyncMarker> syncedLocations
     ) {}
 
@@ -604,16 +603,21 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
         private final long generation;
         private final String blobName;
-        private final Map<ShardId, TranslogMetadata> checkpoints;
+        private final Map<ShardId, TranslogMetadata.Operations> operations;
         private final Set<ShardId> includedShards;
 
         private volatile boolean safeForDelete = true;
         private ArrayList<ShardId> unsafeForDeleteShards = null;
 
-        BlobTranslogFile(long generation, String blobName, Map<ShardId, TranslogMetadata> checkpoints, Set<ShardId> includedShards) {
+        BlobTranslogFile(
+            long generation,
+            String blobName,
+            Map<ShardId, TranslogMetadata.Operations> operations,
+            Set<ShardId> includedShards
+        ) {
             this.generation = generation;
             this.blobName = blobName;
-            this.checkpoints = checkpoints;
+            this.operations = operations;
             this.includedShards = includedShards;
         }
 
@@ -625,12 +629,8 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             return blobName;
         }
 
-        public Map<ShardId, TranslogMetadata> checkpoints() {
-            return checkpoints;
-        }
-
-        public Set<ShardId> includedShards() {
-            return includedShards;
+        public Map<ShardId, TranslogMetadata.Operations> operations() {
+            return operations;
         }
 
         @Override
@@ -670,8 +670,8 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 + generation
                 + ", blobName='"
                 + blobName
-                + "', checkpoints="
-                + checkpoints
+                + "', operations="
+                + operations
                 + ", includedShards="
                 + includedShards
                 + '}';
@@ -683,7 +683,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         private final TranslogReplicator.CompoundTranslogMetadata metadata;
 
         private BlobTranslogFileImpl(CompoundTranslogMetadata metadata) {
-            super(metadata.generation(), metadata.name(), metadata.checkpoints(), metadata.syncedLocations().keySet());
+            super(metadata.generation(), metadata.name(), metadata.operations(), metadata.syncedLocations().keySet());
             this.metadata = metadata;
         }
 
@@ -713,7 +713,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 BlobTranslogFileImpl translogFile = uploadTranslogTask.translogFile;
                 CompoundTranslogMetadata metadata = uploadTranslogTask.translog.metadata();
                 for (Map.Entry<ShardId, ShardSyncState.SyncMarker> entry : metadata.syncedLocations().entrySet()) {
-                    assert translogFile.checkpoints().get(entry.getKey()).totalOps() > 0;
+                    assert translogFile.operations().get(entry.getKey()).totalOps() > 0;
                     ShardSyncState shardSyncState = shardSyncStates.get(entry.getKey());
                     // If the shard sync state has been deregistered we can just ignore
                     if (shardSyncState != null) {

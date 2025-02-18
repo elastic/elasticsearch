@@ -199,7 +199,7 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
                             referenced.add(absolute);
                         }
                     }
-                    if (metadata.totalOps() > 0) {
+                    if (metadata.operations().totalOps() > 0) {
                         referenced.add(translogGeneration);
                     }
                     return new RecoveryPlan(Math.toIntExact(metadata.directory().estimatedOperationsToRecover()), referenced);
@@ -244,16 +244,17 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
         Map<ShardId, TranslogMetadata> metadata = translogHeader.metadata();
 
         // Check if the compound translog file contains eligible operations for this shard
-        if (metadata.containsKey(shardId) && metadata.get(shardId).totalOps() != 0) {
+        if (metadata.containsKey(shardId) && metadata.get(shardId).operations().totalOps() != 0) {
             TranslogMetadata translogMetadata = metadata.get(shardId);
+            TranslogMetadata.Operations operations = translogMetadata.operations();
             // Check if at least one of the operations fall within the eligible range
-            if (toSeqNo >= translogMetadata.minSeqNo() && fromSeqNo <= translogMetadata.maxSeqNo()) {
+            if (toSeqNo >= operations.minSeqNo() && fromSeqNo <= operations.maxSeqNo()) {
                 // Go to the translog file to read it
                 streamInput.skipNBytes(translogMetadata.offset());
                 BytesReference translogBytes = streamInput.readBytesReference((int) translogMetadata.size());
 
                 // Read operations from the translog file
-                int numOps = (int) translogMetadata.totalOps();
+                int numOps = (int) operations.totalOps();
                 List<Translog.Operation> eligibleOperations = new ArrayList<>(numOps);
 
                 final BufferedChecksumStreamInput checksumStreamInput = new BufferedChecksumStreamInput(

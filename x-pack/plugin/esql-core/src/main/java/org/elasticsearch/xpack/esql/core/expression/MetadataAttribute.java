@@ -32,6 +32,7 @@ public class MetadataAttribute extends TypedAttribute {
     public static final String TIMESTAMP_FIELD = "@timestamp";
     public static final String TSID_FIELD = "_tsid";
     public static final String SCORE = "_score";
+    public static final String INDEX = "_index";
 
     static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Attribute.class,
@@ -42,7 +43,7 @@ public class MetadataAttribute extends TypedAttribute {
     private static final Map<String, Tuple<DataType, Boolean>> ATTRIBUTES_MAP = Map.of(
         "_version",
         tuple(DataType.LONG, false), // _version field is not searchable
-        "_index",
+        INDEX,
         tuple(DataType.KEYWORD, true),
         IdFieldMapper.NAME,
         tuple(DataType.KEYWORD, false), // actually searchable, but fielddata access on the _id field is disallowed by default

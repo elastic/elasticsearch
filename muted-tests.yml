@@ -324,18 +324,6 @@ tests:
 - class: org.elasticsearch.index.mapper.ShapeGeometryFieldMapperTests
   method: testCartesianBoundsBlockLoader
   issue: https://github.com/elastic/elasticsearch/issues/122661
-- class: org.elasticsearch.entitlement.runtime.policy.PolicyParserTests
-  method: testPolicyBuilderOnExternalPlugin
-  issue: https://github.com/elastic/elasticsearch/issues/122663
-- class: org.elasticsearch.entitlement.runtime.policy.PolicyParserTests
-  method: testParseFiles
-  issue: https://github.com/elastic/elasticsearch/issues/122664
-- class: org.elasticsearch.entitlement.runtime.policy.PolicyParserTests
-  method: testPolicyBuilder
-  issue: https://github.com/elastic/elasticsearch/issues/122665
-- class: org.elasticsearch.entitlement.runtime.policy.PolicyParserFailureTests
-  method: testEntitlementAbsolutePathWhenRelative
-  issue: https://github.com/elastic/elasticsearch/issues/122666
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/snapshot-restore/apis/get-snapshot-api/line_408}
   issue: https://github.com/elastic/elasticsearch/issues/122681
@@ -396,6 +384,11 @@ tests:
 - class: org.elasticsearch.indices.recovery.IndexRecoveryIT
   method: testSourceThrottling
   issue: https://github.com/elastic/elasticsearch/issues/122712
+- class: org.elasticsearch.repositories.blobstore.testkit.analyze.S3RepositoryAnalysisRestIT
+  method: testRepositoryAnalysis
+  issue: https://github.com/elastic/elasticsearch/issues/122799
+- class: org.elasticsearch.xpack.esql.action.EsqlActionBreakerIT
+  issue: https://github.com/elastic/elasticsearch/issues/122810
 
 # Examples:
 #

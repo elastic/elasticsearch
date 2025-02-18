@@ -187,6 +187,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         ),
         getTestEntries(FileCheckActions.class),
         getTestEntries(FileStoreActions.class),
+        getTestEntries(JavaBaseFileActions.class),
         getTestEntries(ManageThreadsActions.class),
         getTestEntries(NativeActions.class),
         getTestEntries(NioFileSystemActions.class),

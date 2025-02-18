@@ -15,7 +15,6 @@ import org.elasticsearch.entitlement.qa.entitled.EntitledActions;
 import java.io.File;
 import java.io.FileDescriptor;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
@@ -26,12 +25,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.UserPrincipal;
-import java.util.Scanner;
 
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.ALWAYS_DENIED;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
 
 @SuppressForbidden(reason = "Explicitly checking APIs that are forbidden")
+@SuppressWarnings("unused") // Called via reflection
 class FileCheckActions {
 
     static Path testRootDir = Paths.get(System.getProperty("es.entitlements.testdir"));
@@ -205,21 +204,6 @@ class FileCheckActions {
     @EntitlementTest(expectedAccess = PLUGINS)
     static void fileSetWritableOwner() throws IOException {
         readWriteFile().toFile().setWritable(true, false);
-    }
-
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void createScannerFile() throws FileNotFoundException {
-        new Scanner(readFile().toFile());
-    }
-
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void createScannerFileWithCharset() throws IOException {
-        new Scanner(readFile().toFile(), StandardCharsets.UTF_8);
-    }
-
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void createScannerFileWithCharsetName() throws FileNotFoundException {
-        new Scanner(readFile().toFile(), "UTF-8");
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)

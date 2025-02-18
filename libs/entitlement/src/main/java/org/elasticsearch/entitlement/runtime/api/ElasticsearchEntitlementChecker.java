@@ -74,6 +74,8 @@ import java.nio.file.WatchService;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.UserPrincipal;
 import java.nio.file.spi.FileSystemProvider;
+import java.security.KeyStore;
+import java.security.Provider;
 import java.security.cert.CertStoreParameters;
 import java.util.List;
 import java.util.Locale;
@@ -1233,6 +1235,36 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
+    public void check$java_security_KeyStore$$getInstance(Class<?> callerClass, File file, char[] password) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_security_KeyStore$$getInstance(Class<?> callerClass, File file, KeyStore.LoadStoreParameter param) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_security_KeyStore$Builder$$newInstance(
+        Class<?> callerClass,
+        File file,
+        KeyStore.ProtectionParameter protection
+    ) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_security_KeyStore$Builder$$newInstance(
+        Class<?> callerClass,
+        String type,
+        Provider provider,
+        File file,
+        KeyStore.ProtectionParameter protection
+    ) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
     public void check$java_util_Scanner$(Class<?> callerClass, File source) {
         policyManager.checkFileRead(callerClass, source);
     }
@@ -1245,6 +1277,66 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     @Override
     public void check$java_util_Scanner$(Class<?> callerClass, File source, Charset charset) {
         policyManager.checkFileRead(callerClass, source);
+    }
+
+    @Override
+    public void check$java_util_jar_JarFile$(Class<?> callerClass, String name) {
+        policyManager.checkFileRead(callerClass, new File(name));
+    }
+
+    @Override
+    public void check$java_util_jar_JarFile$(Class<?> callerClass, String name, boolean verify) {
+        policyManager.checkFileRead(callerClass, new File(name));
+    }
+
+    @Override
+    public void check$java_util_jar_JarFile$(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_util_jar_JarFile$(Class<?> callerClass, File file, boolean verify) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_util_jar_JarFile$(Class<?> callerClass, File file, boolean verify, int mode) {
+        policyManager.checkFileWithZipMode(callerClass, file, mode);
+    }
+
+    @Override
+    public void check$java_util_jar_JarFile$(Class<?> callerClass, File file, boolean verify, int mode, Runtime.Version version) {
+        policyManager.checkFileWithZipMode(callerClass, file, mode);
+    }
+
+    @Override
+    public void check$java_util_zip_ZipFile$(Class<?> callerClass, String name) {
+        policyManager.checkFileRead(callerClass, new File(name));
+    }
+
+    @Override
+    public void check$java_util_zip_ZipFile$(Class<?> callerClass, String name, Charset charset) {
+        policyManager.checkFileRead(callerClass, new File(name));
+    }
+
+    @Override
+    public void check$java_util_zip_ZipFile$(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_util_zip_ZipFile$(Class<?> callerClass, File file, int mode) {
+        policyManager.checkFileWithZipMode(callerClass, file, mode);
+    }
+
+    @Override
+    public void check$java_util_zip_ZipFile$(Class<?> callerClass, File file, Charset charset) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_util_zip_ZipFile$(Class<?> callerClass, File file, int mode, Charset charset) {
+        policyManager.checkFileWithZipMode(callerClass, file, mode);
     }
 
     // nio

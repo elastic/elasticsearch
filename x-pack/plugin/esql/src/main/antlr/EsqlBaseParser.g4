@@ -55,6 +55,7 @@ processingCommand
     // in development
     | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
+    | {this.isDevVersion()}? insistCommand
     ;
 
 whereCommand
@@ -338,4 +339,8 @@ joinCondition
 
 joinPredicate
     : valueExpression
+    ;
+
+insistCommand
+    : DEV_INSIST qualifiedNamePatterns
     ;

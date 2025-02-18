@@ -246,7 +246,7 @@ public class CacheService extends AbstractLifecycleComponent {
         assert state != Lifecycle.State.INITIALIZED : state;
         if (state != Lifecycle.State.STARTED) {
             if (state == Lifecycle.State.STOPPED || state == Lifecycle.State.CLOSED) {
-                throw new AlreadyClosedException("Failed to read data from cache: cache service is stopped");
+                throw new AlreadyClosedException("Failed to read data from cache: cache service is [" + state + ']');
             } else {
                 throw new IllegalStateException("Failed to read data from cache: cache service is not started [" + state + "]");
             }

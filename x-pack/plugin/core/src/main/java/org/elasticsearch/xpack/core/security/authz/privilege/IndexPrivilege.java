@@ -271,8 +271,12 @@ public final class IndexPrivilege extends Privilege {
         this.selectorPrivilege = selectorPrivilege;
     }
 
-    // TODO javadoc
-    public static IndexPrivilege getSingle(Set<String> name) {
+    /**
+     * TODO more detail
+     * Returns an index privilege for a single selector. Delegates to {@link #getSplitBySelector(Set)} but throws if the result has more
+     * than one selector. The caller must ensure that the names only map to privileges with the same selector.
+     */
+    public static IndexPrivilege getSingleSelector(Set<String> name) {
         var single = getSplitBySelector(name);
         if (single.size() != 1) {
             throw new IllegalArgumentException("expected singleton");
@@ -280,7 +284,13 @@ public final class IndexPrivilege extends Privilege {
         return single.iterator().next();
     }
 
-    // TODO javadoc
+    /**
+     * TODO more detail
+     * Returns a set of index privileges, each privilege responsible for a separate selector.
+     * For instance, `getSplitBySelector(Set.of("view_index_metadata", "write", "read_failure_store"))` will return two index privileges
+     * one covering "view_index_metadata" and "write" for a {@link IndexComponentSelectorPrivilege#DATA}, the other covering
+     * "read_failure_store" for a {@link IndexComponentSelectorPrivilege#FAILURES} selector.
+     */
     public static Set<IndexPrivilege> getSplitBySelector(Set<String> name) {
         return CACHE.computeIfAbsent(name, (theName) -> {
             if (theName.isEmpty()) {

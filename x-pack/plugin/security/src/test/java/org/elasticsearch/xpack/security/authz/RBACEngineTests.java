@@ -1290,7 +1290,7 @@ public class RBACEngineTests extends ESTestCase {
             {"term":{"public":true}}""");
         final Role role = Role.builder(RESTRICTED_INDICES, "test", "role")
             .cluster(Sets.newHashSet("monitor", "manage_watcher"), Collections.singleton(manageApplicationPrivileges))
-            .add(IndexPrivilege.getSingle(Sets.newHashSet("read", "write")), "index-1")
+            .add(IndexPrivilege.getSingleSelector(Sets.newHashSet("read", "write")), "index-1")
             .add(IndexPrivilege.ALL, "index-2", "index-3")
             .add(
                 new FieldPermissions(new FieldPermissionsDefinition(new String[] { "public.*" }, new String[0])),

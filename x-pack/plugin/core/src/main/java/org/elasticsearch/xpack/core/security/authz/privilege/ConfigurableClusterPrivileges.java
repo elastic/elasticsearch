@@ -416,7 +416,7 @@ public final class ConfigurableClusterPrivileges {
                 for (ManageRolesIndexPermissionGroup indexPatternPrivilege : manageRolesIndexPermissionGroups) {
                     // TODO handle selectors
                     indicesPermissionBuilder.addGroup(
-                        IndexPrivilege.getSingle(Set.of(indexPatternPrivilege.privileges())),
+                        IndexPrivilege.getSingleSelector(Set.of(indexPatternPrivilege.privileges())),
                         FieldPermissions.DEFAULT,
                         null,
                         false,

@@ -84,39 +84,39 @@ public class IndexPrivilegeTests extends ESTestCase {
     public void testRelationshipBetweenPrivileges() {
         assertThat(
             Automatons.subsetOf(
-                IndexPrivilege.getSingle(Set.of("view_index_metadata")).automaton,
-                IndexPrivilege.getSingle(Set.of("manage")).automaton
+                IndexPrivilege.getSingleSelector(Set.of("view_index_metadata")).automaton,
+                IndexPrivilege.getSingleSelector(Set.of("manage")).automaton
             ),
             is(true)
         );
 
         assertThat(
             Automatons.subsetOf(
-                IndexPrivilege.getSingle(Set.of("monitor")).automaton,
-                IndexPrivilege.getSingle(Set.of("manage")).automaton
+                IndexPrivilege.getSingleSelector(Set.of("monitor")).automaton,
+                IndexPrivilege.getSingleSelector(Set.of("manage")).automaton
             ),
             is(true)
         );
 
         assertThat(
             Automatons.subsetOf(
-                IndexPrivilege.getSingle(Set.of("create", "create_doc", "index", "delete")).automaton,
-                IndexPrivilege.getSingle(Set.of("write")).automaton
+                IndexPrivilege.getSingleSelector(Set.of("create", "create_doc", "index", "delete")).automaton,
+                IndexPrivilege.getSingleSelector(Set.of("write")).automaton
             ),
             is(true)
         );
 
         assertThat(
             Automatons.subsetOf(
-                IndexPrivilege.getSingle(Set.of("create_index", "delete_index")).automaton,
-                IndexPrivilege.getSingle(Set.of("manage")).automaton
+                IndexPrivilege.getSingleSelector(Set.of("create_index", "delete_index")).automaton,
+                IndexPrivilege.getSingleSelector(Set.of("manage")).automaton
             ),
             is(true)
         );
     }
 
     public void testCrossClusterReplicationPrivileges() {
-        final IndexPrivilege crossClusterReplication = IndexPrivilege.getSingle(Set.of("cross_cluster_replication"));
+        final IndexPrivilege crossClusterReplication = IndexPrivilege.getSingleSelector(Set.of("cross_cluster_replication"));
         List.of(
             "indices:data/read/xpack/ccr/shard_changes",
             "indices:monitor/stats",
@@ -125,11 +125,16 @@ public class IndexPrivilegeTests extends ESTestCase {
             "indices:admin/seq_no/renew_retention_lease"
         ).forEach(action -> assertThat(crossClusterReplication.predicate.test(action + randomAlphaOfLengthBetween(0, 8)), is(true)));
         assertThat(
-            Automatons.subsetOf(crossClusterReplication.automaton, IndexPrivilege.getSingle(Set.of("manage", "read", "monitor")).automaton),
+            Automatons.subsetOf(
+                crossClusterReplication.automaton,
+                IndexPrivilege.getSingleSelector(Set.of("manage", "read", "monitor")).automaton
+            ),
             is(true)
         );
 
-        final IndexPrivilege crossClusterReplicationInternal = IndexPrivilege.getSingle(Set.of("cross_cluster_replication_internal"));
+        final IndexPrivilege crossClusterReplicationInternal = IndexPrivilege.getSingleSelector(
+            Set.of("cross_cluster_replication_internal")
+        );
         List.of(
             "indices:internal/admin/ccr/restore/session/clear",
             "indices:internal/admin/ccr/restore/file_chunk/get",
@@ -142,11 +147,11 @@ public class IndexPrivilegeTests extends ESTestCase {
             );
 
         assertThat(
-            Automatons.subsetOf(crossClusterReplicationInternal.automaton, IndexPrivilege.getSingle(Set.of("manage")).automaton),
+            Automatons.subsetOf(crossClusterReplicationInternal.automaton, IndexPrivilege.getSingleSelector(Set.of("manage")).automaton),
             is(false)
         );
         assertThat(
-            Automatons.subsetOf(crossClusterReplicationInternal.automaton, IndexPrivilege.getSingle(Set.of("all")).automaton),
+            Automatons.subsetOf(crossClusterReplicationInternal.automaton, IndexPrivilege.getSingleSelector(Set.of("all")).automaton),
             is(true)
         );
     }

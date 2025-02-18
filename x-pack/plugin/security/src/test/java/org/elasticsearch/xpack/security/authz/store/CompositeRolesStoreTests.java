@@ -1492,8 +1492,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertHasRemoteIndexGroupsForClusters(
             role.remoteIndices(),
             Set.of("remote-1"),
-            indexGroup(IndexPrivilege.getSingle(Set.of("read")), false, "index-1"),
-            indexGroup(IndexPrivilege.getSingle(Set.of("none")), false, "index-1")
+            indexGroup(IndexPrivilege.getSingleSelector(Set.of("read")), false, "index-1"),
+            indexGroup(IndexPrivilege.getSingleSelector(Set.of("none")), false, "index-1")
         );
     }
 
@@ -1599,7 +1599,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
         assertHasIndexGroups(
             role.indices(),
-            indexGroup(IndexPrivilege.getSingle(Set.of("read", "read_failure_store", "all")), false, indexPattern)
+            indexGroup(IndexPrivilege.getSingleSelector(Set.of("read", "read_failure_store", "all")), false, indexPattern)
         );
     }
 

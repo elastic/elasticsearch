@@ -177,7 +177,7 @@ public class SimpleRoleTests extends ESTestCase {
                 new FieldPermissions(new FieldPermissionsDefinition(new String[] { randomAlphaOfLength(5) }, null)),
                 null,
                 // TODO handle failure store
-                IndexPrivilege.getSingle(Set.of(randomFrom(IndexPrivilege.names()))),
+                IndexPrivilege.getSingleSelector(Set.of(randomFrom(IndexPrivilege.names()))),
                 randomBoolean(),
                 randomAlphaOfLength(9)
             )

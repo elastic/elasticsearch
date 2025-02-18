@@ -240,7 +240,7 @@ public class LimitedRoleTests extends ESTestCase {
 
     private static IndexPrivilege randomIndexPrivilege() {
         // TODO handle failure store
-        return IndexPrivilege.getSingle(Set.of(randomFrom(IndexPrivilege.names())));
+        return IndexPrivilege.getSingleSelector(Set.of(randomFrom(IndexPrivilege.names())));
     }
 
     public void testGetRoleDescriptorsIntersectionForRemoteClusterReturnsEmpty() {

@@ -23,13 +23,14 @@ public class MergeExec extends PhysicalPlan {
 
     public MergeExec(Source source, List<PhysicalPlan> children, List<Attribute> output) {
         super(source, children);
-        // this.physSubPlans = physSubPlans;
         this.output = output;
     }
 
+    /**
+     * Extracts the children as a list of suppliers. All children must be LocalSourceExec.
+     */
     public List<LocalSupplier> suppliers() {
         return children().stream()
-            .filter(p -> LocalSourceExec.class.isAssignableFrom(p.getClass()))
             .map(LocalSourceExec.class::cast)
             .map(LocalSourceExec::supplier)
             .toList();

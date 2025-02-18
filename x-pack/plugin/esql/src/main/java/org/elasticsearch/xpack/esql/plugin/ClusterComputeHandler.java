@@ -37,7 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
@@ -82,10 +82,10 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
         listener = ActionListener.runBefore(listener, exchangeSource.addEmptySink()::close);
         final var childSessionId = computeService.newChildSession(sessionId);
         final String clusterAlias = cluster.clusterAlias();
-        final AtomicInteger pagesFetched = new AtomicInteger();
+        final AtomicBoolean pagesFetched = new AtomicBoolean();
         final AtomicReference<ComputeResponse> finalResponse = new AtomicReference<>();
         listener = listener.delegateResponse((l, e) -> {
-            final boolean receivedResults = finalResponse.get() != null || pagesFetched.get() > 0;
+            final boolean receivedResults = finalResponse.get() != null || pagesFetched.get();
             if (receivedResults == false && EsqlCCSUtils.shouldIgnoreRuntimeError(executionInfo, clusterAlias, e)) {
                 EsqlCCSUtils.markClusterWithFinalStateAndNoShards(executionInfo, clusterAlias, EsqlExecutionInfo.Cluster.Status.SKIPPED, e);
                 l.onResponse(List.of());
@@ -122,7 +122,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     exchangeSource.addRemoteSink(
                         remoteSink,
                         failFast,
-                        pagesFetched::incrementAndGet,
+                        () -> pagesFetched.set(true),
                         queryPragmas.concurrentExchangeClients(),
                         computeListener.acquireAvoid()
                     );

@@ -25,48 +25,41 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-public record TranslogMetadata(long offset, long size, long minSeqNo, long maxSeqNo, long totalOps, Directory directory)
-    implements
-        Writeable {
+public record TranslogMetadata(long offset, long size, Operations operations, Directory directory) implements Writeable {
 
     public static TranslogMetadata readFromStore(StreamInput streamInput, int version) throws IOException {
         long offset = streamInput.readLong();
         long size = streamInput.readLong();
-        long minSeqNo = streamInput.readLong();
-        long maxSeqNo = streamInput.readLong();
-        long totalOps = streamInput.readLong();
+        Operations operations = Operations.readFromStore(streamInput);
         if (version < CompoundTranslogHeader.VERSION_WITH_REMOVED_SHARD_GENERATION_DIRECTORY) {
             streamInput.readLong();
         }
-        return new TranslogMetadata(offset, size, minSeqNo, maxSeqNo, totalOps, Directory.readFromStore(streamInput));
+        return new TranslogMetadata(offset, size, operations, Directory.readFromStore(streamInput));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(offset);
         out.writeLong(size);
-        out.writeLong(minSeqNo);
-        out.writeLong(maxSeqNo);
-        out.writeLong(totalOps);
+        operations.writeTo(out);
         directory.writeTo(out);
     }
 
-    @Override
-    public String toString() {
-        return "TranslogMetadata{"
-            + "offset="
-            + offset
-            + ", size="
-            + size
-            + ", minSeqNo="
-            + minSeqNo
-            + ", maxSeqNo="
-            + maxSeqNo
-            + ", totalOps="
-            + totalOps
-            + ", directory="
-            + directory
-            + '}';
+    public record Operations(long minSeqNo, long maxSeqNo, long totalOps) implements Writeable {
+
+        public static Operations readFromStore(StreamInput streamInput) throws IOException {
+            long minSeqNo = streamInput.readLong();
+            long maxSeqNo = streamInput.readLong();
+            long totalOps = streamInput.readLong();
+            return new Operations(minSeqNo, maxSeqNo, totalOps);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeLong(minSeqNo);
+            out.writeLong(maxSeqNo);
+            out.writeLong(totalOps);
+        }
     }
 
     public record Directory(long estimatedOperationsToRecover, int[] referencedTranslogFileOffsets) implements Writeable {
@@ -105,12 +98,12 @@ public record TranslogMetadata(long offset, long size, long minSeqNo, long maxSe
 
         @Override
         public String toString() {
-            return "Directory{"
+            return "Directory["
                 + "estimatedOperationsToRecover="
                 + estimatedOperationsToRecover
                 + ", referencedTranslogFileOffsets="
                 + Arrays.toString(referencedTranslogFileOffsets)
-                + '}';
+                + ']';
         }
     }
 }

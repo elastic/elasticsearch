@@ -110,7 +110,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
                     groupTask = rootTask;
                     onGroupFailure = cancelQueryOnFailure;
                 } else {
-                    groupTask = computeService.createGroupTask(rootTask);
+                    groupTask = computeService.createGroupTask(rootTask, () -> "compute group: cluster [" + clusterAlias + "]");
                     onGroupFailure = computeService.cancelQueryOnFailure(groupTask);
                     l = ActionListener.runAfter(l, () -> transportService.getTaskManager().unregister(groupTask));
                 }

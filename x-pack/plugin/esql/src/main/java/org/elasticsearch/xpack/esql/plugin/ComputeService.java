@@ -414,15 +414,12 @@ public class ComputeService {
         });
     }
 
-    CancellableTask createGroupTask(Task parentTask) {
+    CancellableTask createGroupTask(Task parentTask, Supplier<String> description) {
         final TaskManager taskManager = transportService.getTaskManager();
         return (CancellableTask) taskManager.register(
             "transport",
             "esql_compute_group",
-            new ComputeGroupTaskRequest(
-                parentTask.taskInfo(transportService.getLocalNode().getId(), false).taskId(),
-                parentTask::getDescription
-            )
+            new ComputeGroupTaskRequest(parentTask.taskInfo(transportService.getLocalNode().getId(), false).taskId(), description)
         );
     }
 

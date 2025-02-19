@@ -114,6 +114,16 @@ public class MultiProjectComponentTemplatesFileSettingsIT extends ESIntegTestCas
              }
         }""";
 
+    private static final String emptyProjectSecretsJSON = """
+        {
+             "metadata": {
+                 "version": "%s",
+                 "compatibility": "8.4.0"
+             },
+             "state": {
+             }
+        }""";
+
     private static final String projectJSON = """
         {
              "metadata": {
@@ -410,7 +420,7 @@ public class MultiProjectComponentTemplatesFileSettingsIT extends ESIntegTestCas
         );
     }
 
-    private void writeProjectJSONFile(String node, String json) throws Exception {
+    private void writeProjectJSONFiles(String node, String json) throws Exception {
         long version = versionCounter.incrementAndGet();
 
         FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
@@ -432,6 +442,16 @@ public class MultiProjectComponentTemplatesFileSettingsIT extends ESIntegTestCas
         Files.move(
             tempFilePath,
             fileSettingsService.watchedFile().resolveSibling("project-" + projectId.id() + ".json"),
+            StandardCopyOption.ATOMIC_MOVE
+        );
+
+        tempFilePath = createTempFile();
+        logger.info("--> writing project secrets to node {} with path {}", node, tempFilePath);
+        logger.info(Strings.format(emptyProjectSecretsJSON, version));
+        Files.write(tempFilePath, Strings.format(emptyProjectSecretsJSON, version).getBytes(StandardCharsets.UTF_8));
+        Files.move(
+            tempFilePath,
+            fileSettingsService.watchedFile().resolveSibling("project-" + projectId.id() + ".secrets.json"),
             StandardCopyOption.ATOMIC_MOVE
         );
     }
@@ -639,7 +659,7 @@ public class MultiProjectComponentTemplatesFileSettingsIT extends ESIntegTestCas
         // In internal cluster tests, the nodes share the config directory, so when we write with the data node path
         // the master will pick it up on start
         logger.info("--> write the initial settings json with all component templates and composable index templates");
-        writeProjectJSONFile(dataNode, projectJSON);
+        writeProjectJSONFiles(dataNode, projectJSON);
 
         logger.info("--> start master node");
         final String masterNode = internalCluster().startMasterOnlyNode();
@@ -649,14 +669,14 @@ public class MultiProjectComponentTemplatesFileSettingsIT extends ESIntegTestCas
 
         savedClusterState = setupClusterStateListenerForOtherDelete(internalCluster().getMasterName());
         logger.info("--> write the reduced JSON, so we delete template_other and other_component_template");
-        writeProjectJSONFile(internalCluster().getMasterName(), projectJSONLess);
+        writeProjectJSONFiles(internalCluster().getMasterName(), projectJSONLess);
 
         assertComponentAndIndexTemplateDelete(savedClusterState.v1(), savedClusterState.v2());
 
         logger.info("---> cleanup file based settings...");
         // if clean-up doesn't succeed correctly, TestCluster.wipeAllComposableIndexTemplates will fail
         savedClusterState = setupClusterStateListenerForCleanup(internalCluster().getMasterName());
-        writeProjectJSONFile(internalCluster().getMasterName(), emptyProjectJSON);
+        writeProjectJSONFiles(internalCluster().getMasterName(), emptyProjectJSON);
         boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
     }
@@ -723,7 +743,7 @@ public class MultiProjectComponentTemplatesFileSettingsIT extends ESIntegTestCas
         assertMasterNode(internalCluster().nonMasterClient(), masterNode);
         var savedClusterState = setupClusterStateListenerForError(masterNode);
 
-        writeProjectJSONFile(masterNode, projectErrorJSON);
+        writeProjectJSONFiles(masterNode, projectErrorJSON);
         assertClusterStateNotSaved(savedClusterState.v1(), savedClusterState.v2());
     }
 

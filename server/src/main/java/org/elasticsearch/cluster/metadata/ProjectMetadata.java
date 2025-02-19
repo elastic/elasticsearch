@@ -2170,7 +2170,7 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
 
         @Override
         public ProjectMetadata apply(ProjectMetadata part) {
-            if (indices.isEmpty() && templates.isEmpty() && customs.isEmpty()) {
+            if (indices.isEmpty() && templates.isEmpty() && customs.isEmpty() && reservedStateMetadata.isEmpty()) {
                 // nothing to do
                 return part;
             }

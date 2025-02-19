@@ -824,7 +824,12 @@ public class EsqlCapabilities {
         /**
          * Support partial_results
          */
-        SUPPORT_PARTIAL_RESULTS;
+        SUPPORT_PARTIAL_RESULTS,
+
+        /**
+         * Use double parameter markers to represent field or function names.
+         */
+        DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS(Build.current().isSnapshot());
 
         private final boolean enabled;
 

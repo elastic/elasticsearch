@@ -33,6 +33,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -793,6 +794,159 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             EntityUtils.toString(re.getResponse().getEntity()).replaceAll("\\\\\n\s+\\\\", ""),
             containsString("line 1:36: Unknown query parameter [n2], did you mean [n1]")
         );
+    }
+
+    public void testDoubleParamsForIdentifiers() throws IOException {
+        assumeTrue(
+            "double parameters markers for identifiers requires snapshot build",
+            EsqlCapabilities.Cap.DOUBLE_PARAMETER_MARKERS_FOR_IDENTIFIERS.isEnabled()
+        );
+        bulkLoadTestData(10);
+        // positive
+        // named double parameters
+        var query = requestObjectBuilder().query(
+            format(
+                null,
+                "from {} | eval x1 = ??n1 | where ??n2 == x1 | stats xx2 = ??fn1(??n3) by ??n4 | keep ??n4, ??n5 | sort ??n4",
+                testIndexName()
+            )
+        )
+            .params(
+                "[{\"n1\" : \"integer\"}, {\"n2\" : \"short\"}, {\"n3\" : \"double\"}, {\"n4\" : \"boolean\"}, "
+                    + "{\"n5\" : \"xx2\"}, {\"fn1\" : \"max\"}]"
+            );
+        validateResultsOfDoubleParametersForIdentifiers(query);
+
+        // positional double parameters
+        query = requestObjectBuilder().query(
+            format(
+                null,
+                "from {} | eval x1 = ??1 | where ??2 == x1 | stats xx2 = ??6(??3) by ??4 | keep ??4, ??5 | sort ??4",
+                testIndexName()
+            )
+        )
+            .params(
+                "[{\"n1\" : \"integer\"}, {\"n2\" : \"short\"}, {\"n3\" : \"double\"}, {\"n4\" : \"boolean\"}, "
+                    + "{\"n5\" : \"xx2\"}, {\"fn1\" : \"max\"}]"
+            );
+        validateResultsOfDoubleParametersForIdentifiers(query);
+
+        query = requestObjectBuilder().query(
+            format(
+                null,
+                "from {} | eval x1 = ??1 | where ??2 == x1 | stats xx2 = ??6(??3) by ??4 | keep ??4, ??5 | sort ??4",
+                testIndexName()
+            )
+        ).params("[\"integer\", \"short\", \"double\", \"boolean\", \"xx2\", \"max\"]");
+        validateResultsOfDoubleParametersForIdentifiers(query);
+
+        // anonymous double parameters
+        query = requestObjectBuilder().query(
+            format(null, "from {} | eval x1 = ?? | where ?? == x1 | stats xx2 = ??(??) by ?? | keep ??, ?? | sort ??", testIndexName())
+        )
+            .params(
+                "[{\"n1\" : \"integer\"}, {\"n2\" : \"short\"}, {\"fn1\" : \"max\"}, {\"n3\" : \"double\"}, {\"n4\" : \"boolean\"}, "
+                    + "{\"n4\" : \"boolean\"}, {\"n5\" : \"xx2\"}, {\"n4\" : \"boolean\"}]"
+            );
+        validateResultsOfDoubleParametersForIdentifiers(query);
+
+        query = requestObjectBuilder().query(
+            format(null, "from {} | eval x1 = ?? | where ?? == x1 | stats xx2 = ??(??) by ?? | keep ??, ?? | sort ??", testIndexName())
+        ).params("[\"integer\", \"short\", \"max\", \"double\", \"boolean\", \"boolean\", \"xx2\", \"boolean\"]");
+        validateResultsOfDoubleParametersForIdentifiers(query);
+
+        // missing params
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(
+                requestObjectBuilder().query(
+                    format(
+                        null,
+                        "from {} | eval x1 = ??n1 | where ??n2 == x1 | stats xx2 = max(??n3) by ??n4 | keep ??n4, ??n5 | sort ??n4",
+                        testIndexName()
+                    )
+                ).params("[]")
+            )
+        );
+        String error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
+        assertThat(error, containsString("ParsingException"));
+        assertThat(error, containsString("Unknown query parameter [n1]"));
+
+        // param inside backquote is not recognized as a param
+        Map<String, Integer> commandsWithLineNumber = Map.ofEntries(
+            entry("eval x1 = `??n1`", 33),
+            entry("where `??n1` == 1", 29),
+            entry("stats x = max(n2) by `??n1`", 44),
+            entry("stats x = max(`??n1`) by n2", 37),
+            entry("keep `??n1`", 28),
+            entry("sort `??n1`", 28)
+        );
+        for (Map.Entry<String, Integer> command : commandsWithLineNumber.entrySet()) {
+            re = expectThrows(
+                ResponseException.class,
+                () -> runEsqlSync(
+                    requestObjectBuilder().query(format(null, "from {} | {}", testIndexName(), command.getKey()))
+                        .params("[{\"n1\" : \"integer\"}, {\"n2\" : \"short\"}]")
+                )
+            );
+            error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
+            assertThat(error, containsString("VerificationException"));
+            assertThat(error, containsString("line 1:" + command.getValue() + ": Unknown column [??n1]"));
+        }
+
+        commandsWithLineNumber = Map.ofEntries(
+            entry("rename ??n1 as ??n2", 30),
+            entry("enrich idx2 ON ??n1 WITH ??n2 = ??n3", 38),
+            entry("keep ??n1", 28),
+            entry("drop ??n1", 28)
+        );
+        for (Map.Entry<String, Integer> command : commandsWithLineNumber.entrySet()) {
+            re = expectThrows(
+                ResponseException.class,
+                () -> runEsqlSync(
+                    requestObjectBuilder().query(format(null, "from {} | {}", testIndexName(), command.getKey()))
+                        .params("[{\"n1\" : \"`n1`\"}, {\"n2\" : \"`n2`\"}, {\"n3\" : \"`n3`\"}]")
+                )
+            );
+            error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
+            assertThat(error, containsString("VerificationException"));
+            assertThat(error, containsString("line 1:" + command.getValue() + ": Unknown column [`n1`]"));
+        }
+
+        // param cannot be used as a command name
+        Map<String, String> paramsAsCommandNames = Map.ofEntries(
+            entry("eval", "x = 1"),
+            entry("where", "x == 1"),
+            entry("stats", "x = count(*)"),
+            entry("keep", "x"),
+            entry("drop", "x"),
+            entry("rename", "x as y"),
+            entry("sort", "x"),
+            entry("dissect", "x \"%{foo}\""),
+            entry("grok", "x \"%{WORD:foo}\""),
+            entry("enrich", "idx2 ON x"),
+            entry("mvExpand", "x")
+        );
+        for (Map.Entry<String, String> command : paramsAsCommandNames.entrySet()) {
+            re = expectThrows(
+                ResponseException.class,
+                () -> runEsqlSync(
+                    requestObjectBuilder().query(format(null, "from {} | ??cmd {}", testIndexName(), command.getValue()))
+                        .params("[{\"cmd\" : \"" + command.getKey() + "\"}]")
+                )
+            );
+            error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
+            assertThat(error, containsString("ParsingException"));
+            assertThat(error, containsString("line 1:23: mismatched input '??cmd' expecting {'dissect', 'drop'"));
+        }
+    }
+
+    private void validateResultsOfDoubleParametersForIdentifiers(RequestObjectBuilder query) throws IOException {
+        Map<String, Object> result = runEsql(query);
+        Map<String, String> colA = Map.of("name", "boolean", "type", "boolean");
+        Map<String, String> colB = Map.of("name", "xx2", "type", "double");
+        assertEquals(List.of(colA, colB), result.get("columns"));
+        assertEquals(List.of(List.of(false, 9.1), List.of(true, 8.1)), result.get("values"));
     }
 
     public void testErrorMessageForLiteralDateMathOverflow() throws IOException {

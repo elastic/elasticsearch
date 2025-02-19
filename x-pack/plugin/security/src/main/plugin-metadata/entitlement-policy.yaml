@@ -32,3 +32,6 @@ org.opensaml.saml.impl:
     - relative_path: saml-metadata.xml
       relative_to: config
       mode: read
+    - relative_path: metadata.xml
+      relative_to: config
+      mode: read

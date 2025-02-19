@@ -1122,10 +1122,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
-            return plan.transformUp(Fork.class, fork -> addImplicitLimitToForkSubQueries(fork, context));
+            return plan.transformUp(Fork.class, fork -> resolveFunctionsInForkSubQueries(fork, context));
         }
 
-        private LogicalPlan addImplicitLimitToForkSubQueries(Fork fork, AnalyzerContext ctx) {
+        private LogicalPlan resolveFunctionsInForkSubQueries(Fork fork, AnalyzerContext ctx) {
             List<LogicalPlan> newSubPlans = new ArrayList<>();
             for (var subPlan : fork.subPlans()) {
                 newSubPlans.add(resolveFunctions.apply(subPlan, ctx));

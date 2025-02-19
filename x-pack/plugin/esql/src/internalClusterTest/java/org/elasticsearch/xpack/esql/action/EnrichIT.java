@@ -139,14 +139,23 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
         }
         if (randomBoolean()) {
             setRequestCircuitBreakerLimit(ByteSizeValue.ofBytes(between(256, 4096)));
+            EsqlQueryResponse resp = null;
             try {
-                return client.execute(EsqlQueryAction.INSTANCE, request).actionGet(2, TimeUnit.MINUTES);
+                resp = client.execute(EsqlQueryAction.INSTANCE, request).actionGet(2, TimeUnit.MINUTES);
             } catch (Exception e) {
                 logger.info("request failed", e);
                 EsqlTestUtils.assertEsqlFailure(e);
                 ensureBlocksReleased();
             } finally {
                 setRequestCircuitBreakerLimit(null);
+            }
+            if (resp != null) {
+                if (resp.isPartial()) {
+                    resp.close();
+                    assertTrue(request.allowPartialResults());
+                } else {
+                    return resp;
+                }
             }
         }
         return client.execute(EsqlQueryAction.INSTANCE, request).actionGet(30, TimeUnit.SECONDS);

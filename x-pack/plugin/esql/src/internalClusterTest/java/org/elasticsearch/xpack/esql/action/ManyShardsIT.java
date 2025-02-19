@@ -69,6 +69,7 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(3000, 5000)))
             .build();
     }
@@ -190,6 +191,7 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
             request.query("from single-node-index | stats count(user) by tags");
             request.acceptedPragmaRisks(true);
             request.pragmas(randomPragmas());
+            request.allowPartialResults(false);
             CountDownLatch queryLatch = new CountDownLatch(1);
             client().execute(EsqlQueryAction.INSTANCE, request, ActionListener.runAfter(ActionListener.wrap(r -> {
                 r.close();

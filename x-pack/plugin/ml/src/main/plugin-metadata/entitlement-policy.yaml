@@ -1,2 +1,6 @@
 org.elasticsearch.ml:
   - manage_threads
+  - files:
+      - relative_path: mlmodel.conf
+        relative_to: config
+        mode: read

@@ -1495,3 +1495,31 @@ FROM employees
 result:boolean
 null
 ;
+
+evalDateTruncYearInArbitraryIntervals
+ROW x = ["1963-01-01", "1973-04-11", "1983-04-12", "2000-02-12"]::DATETIME 
+| MV_EXPAND x 
+| EVAL y = DATE_TRUNC(10 years, x)
+;
+
+x:date                      | y:date
+1963-01-01T00:00:00.000Z    | 1961-01-01T00:00:00.000Z
+1973-04-11T00:00:00.000Z    | 1971-01-01T00:00:00.000Z
+1983-04-12T00:00:00.000Z    | 1981-01-01T00:00:00.000Z
+2000-02-12T00:00:00.000Z    | 1991-01-01T00:00:00.000Z
+;
+
+evalDateTruncMonthInArbitraryIntervals
+ROW x = ["1969-05-01", "1969-12-31", "1970-01-12", "2000-06-08"]::DATETIME 
+| MV_EXPAND x 
+| EVAL y = DATE_TRUNC(10 months, x)
+;
+
+x:date                      | y:date
+1969-05-01T00:00:00.000Z    | 1969-03-01T00:00:00.000Z
+1969-12-31T00:00:00.000Z    | 1969-03-01T00:00:00.000Z
+1970-01-12T00:00:00.000Z    | 1970-01-01T00:00:00.000Z
+2000-06-08T00:00:00.000Z    | 2000-01-01T00:00:00.000Z
+;
+
+

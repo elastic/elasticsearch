@@ -815,3 +815,34 @@ c:long |b:date
 0      |null
 1      |1965-01-01T00:00:00.000Z
 ;
+
+bucketByYearInArbitraryIntervals
+FROM employees
+| STATS c = COUNT(*) BY b = BUCKET(birth_date, 4 year)
+| SORT c DESC
+| LIMIT 5
+;
+
+c:long |b:date
+28     | 1953-01-01T00:00:00.000Z
+28     | 1957-01-01T00:00:00.000Z
+25     | 1961-01-01T00:00:00.000Z
+10     | null                    
+8      | 1949-01-01T00:00:00.000Z
+;
+
+
+bucketByMonthInArbitraryIntervals
+FROM employees
+| STATS c = COUNT(*)  BY b = BUCKET(hire_date, 20 month)
+| SORT c DESC
+| LIMIT 5
+;
+
+c:long |b:date
+20     | 1986-09-01T00:00:00.000Z
+20     | 1988-05-01T00:00:00.000Z
+19     | 1985-01-01T00:00:00.000Z
+15     | 1990-01-01T00:00:00.000Z
+13     | 1991-09-01T00:00:00.000Z
+;

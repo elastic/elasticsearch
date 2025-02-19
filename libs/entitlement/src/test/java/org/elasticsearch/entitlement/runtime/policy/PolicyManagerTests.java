@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager.ModuleEntitlements;
 import org.elasticsearch.entitlement.runtime.policy.agent.TestAgent;
 import org.elasticsearch.entitlement.runtime.policy.agent.inner.TestInnerAgent;
@@ -68,7 +69,9 @@ public class PolicyManagerTests extends ESTestCase {
                 TEST_BASE_DIR.resolve("/user/home"),
                 TEST_BASE_DIR.resolve("/config"),
                 new Path[] { TEST_BASE_DIR.resolve("/data1/"), TEST_BASE_DIR.resolve("/data2") },
-                TEST_BASE_DIR.resolve("/temp")
+                TEST_BASE_DIR.resolve("/temp"),
+                Settings.EMPTY::get,
+                Settings.EMPTY::getGlobValues
             );
         } catch (Exception e) {
             throw new IllegalStateException(e);

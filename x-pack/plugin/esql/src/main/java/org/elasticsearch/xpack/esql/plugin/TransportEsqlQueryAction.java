@@ -20,7 +20,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.injection.guice.Inject;
@@ -92,7 +92,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         ClusterService clusterService,
         ThreadPool threadPool,
         BigArrays bigArrays,
-        BlockFactory blockFactory,
+        BlockFactoryProvider blockFactoryProvider,
         Client client,
         NamedWriteableRegistry registry,
         IndexNameExpressionResolver indexNameExpressionResolver,
@@ -114,14 +114,14 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             lookupLookupShardContextFactory,
             transportService,
             bigArrays,
-            blockFactory
+            blockFactoryProvider.blockFactory()
         );
         this.lookupFromIndexService = new LookupFromIndexService(
             clusterService,
             lookupLookupShardContextFactory,
             transportService,
             bigArrays,
-            blockFactory
+            blockFactoryProvider.blockFactory()
         );
         this.computeService = new ComputeService(
             searchService,
@@ -132,7 +132,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             clusterService,
             threadPool,
             bigArrays,
-            blockFactory
+            blockFactoryProvider.blockFactory()
         );
         this.asyncTaskManagementService = new AsyncTaskManagementService<>(
             XPackPlugin.ASYNC_RESULTS_INDEX,

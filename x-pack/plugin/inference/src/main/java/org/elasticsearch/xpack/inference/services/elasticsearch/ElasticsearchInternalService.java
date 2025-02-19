@@ -728,7 +728,6 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
                 input,
                 EMBEDDING_MAX_BATCH_SIZE,
-                embeddingTypeFromTaskTypeAndSettings(model.getTaskType(), esModel.internalServiceSettings),
                 esModel.getConfigurations().getChunkingSettings()
             ).batchRequestsWithListeners(listener);
 
@@ -942,23 +941,6 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     @Override
     boolean isDefaultId(String inferenceId) {
         return DEFAULT_ELSER_ID.equals(inferenceId) || DEFAULT_E5_ID.equals(inferenceId) || DEFAULT_RERANK_ID.equals(inferenceId);
-    }
-
-    static EmbeddingRequestChunker.EmbeddingType embeddingTypeFromTaskTypeAndSettings(
-        TaskType taskType,
-        ElasticsearchInternalServiceSettings serviceSettings
-    ) {
-        return switch (taskType) {
-            case SPARSE_EMBEDDING -> EmbeddingRequestChunker.EmbeddingType.SPARSE;
-            case TEXT_EMBEDDING -> serviceSettings.elementType() == null
-                ? EmbeddingRequestChunker.EmbeddingType.FLOAT
-                : EmbeddingRequestChunker.EmbeddingType.fromDenseVectorElementType(serviceSettings.elementType());
-            default -> throw new ElasticsearchStatusException(
-                "Chunking is not supported for task type [{}]",
-                RestStatus.BAD_REQUEST,
-                taskType
-            );
-        };
     }
 
     private void validateAgainstDeployment(

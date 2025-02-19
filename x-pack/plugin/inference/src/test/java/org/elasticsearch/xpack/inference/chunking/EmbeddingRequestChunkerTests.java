@@ -32,21 +32,19 @@ import static org.hamcrest.Matchers.startsWith;
 public class EmbeddingRequestChunkerTests extends ESTestCase {
 
     public void testEmptyInput_WordChunker() {
-        var embeddingType = randomFrom(EmbeddingRequestChunker.EmbeddingType.values());
-        var batches = new EmbeddingRequestChunker(List.of(), 100, 100, 10, embeddingType).batchRequestsWithListeners(testListener());
+        var batches = new EmbeddingRequestChunker(List.of(), 100, 100, 10).batchRequestsWithListeners(testListener());
         assertThat(batches, empty());
     }
 
     public void testEmptyInput_SentenceChunker() {
-        var embeddingType = randomFrom(EmbeddingRequestChunker.EmbeddingType.values());
-        var batches = new EmbeddingRequestChunker(List.of(), 10, embeddingType, new SentenceBoundaryChunkingSettings(250, 1))
-            .batchRequestsWithListeners(testListener());
+        var batches = new EmbeddingRequestChunker(List.of(), 10, new SentenceBoundaryChunkingSettings(250, 1)).batchRequestsWithListeners(
+            testListener()
+        );
         assertThat(batches, empty());
     }
 
     public void testWhitespaceInput_SentenceChunker() {
-        var embeddingType = randomFrom(EmbeddingRequestChunker.EmbeddingType.values());
-        var batches = new EmbeddingRequestChunker(List.of("   "), 10, embeddingType, new SentenceBoundaryChunkingSettings(250, 1))
+        var batches = new EmbeddingRequestChunker(List.of("   "), 10, new SentenceBoundaryChunkingSettings(250, 1))
             .batchRequestsWithListeners(testListener());
         assertThat(batches, hasSize(1));
         assertThat(batches.get(0).batch().inputs(), hasSize(1));
@@ -54,35 +52,30 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
     }
 
     public void testBlankInput_WordChunker() {
-        var embeddingType = randomFrom(EmbeddingRequestChunker.EmbeddingType.values());
-        var batches = new EmbeddingRequestChunker(List.of(""), 100, 100, 10, embeddingType).batchRequestsWithListeners(testListener());
+        var batches = new EmbeddingRequestChunker(List.of(""), 100, 100, 10).batchRequestsWithListeners(testListener());
         assertThat(batches, hasSize(1));
         assertThat(batches.get(0).batch().inputs(), hasSize(1));
         assertThat(batches.get(0).batch().inputs().get(0), Matchers.is(""));
     }
 
     public void testBlankInput_SentenceChunker() {
-        var embeddingType = randomFrom(EmbeddingRequestChunker.EmbeddingType.values());
-        var batches = new EmbeddingRequestChunker(List.of(""), 10, embeddingType, new SentenceBoundaryChunkingSettings(250, 1))
-            .batchRequestsWithListeners(testListener());
+        var batches = new EmbeddingRequestChunker(List.of(""), 10, new SentenceBoundaryChunkingSettings(250, 1)).batchRequestsWithListeners(
+            testListener()
+        );
         assertThat(batches, hasSize(1));
         assertThat(batches.get(0).batch().inputs(), hasSize(1));
         assertThat(batches.get(0).batch().inputs().get(0), Matchers.is(""));
     }
 
     public void testInputThatDoesNotChunk_WordChunker() {
-        var embeddingType = randomFrom(EmbeddingRequestChunker.EmbeddingType.values());
-        var batches = new EmbeddingRequestChunker(List.of("ABBAABBA"), 100, 100, 10, embeddingType).batchRequestsWithListeners(
-            testListener()
-        );
+        var batches = new EmbeddingRequestChunker(List.of("ABBAABBA"), 100, 100, 10).batchRequestsWithListeners(testListener());
         assertThat(batches, hasSize(1));
         assertThat(batches.get(0).batch().inputs(), hasSize(1));
         assertThat(batches.get(0).batch().inputs().get(0), Matchers.is("ABBAABBA"));
     }
 
     public void testInputThatDoesNotChunk_SentenceChunker() {
-        var embeddingType = randomFrom(EmbeddingRequestChunker.EmbeddingType.values());
-        var batches = new EmbeddingRequestChunker(List.of("ABBAABBA"), 10, embeddingType, new SentenceBoundaryChunkingSettings(250, 1))
+        var batches = new EmbeddingRequestChunker(List.of("ABBAABBA"), 10, new SentenceBoundaryChunkingSettings(250, 1))
             .batchRequestsWithListeners(testListener());
         assertThat(batches, hasSize(1));
         assertThat(batches.get(0).batch().inputs(), hasSize(1));
@@ -91,18 +84,14 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
 
     public void testShortInputsAreSingleBatch() {
         String input = "one chunk";
-        var embeddingType = randomFrom(EmbeddingRequestChunker.EmbeddingType.values());
-
-        var batches = new EmbeddingRequestChunker(List.of(input), 100, 100, 10, embeddingType).batchRequestsWithListeners(testListener());
+        var batches = new EmbeddingRequestChunker(List.of(input), 100, 100, 10).batchRequestsWithListeners(testListener());
         assertThat(batches, hasSize(1));
         assertThat(batches.get(0).batch().inputs(), contains(input));
     }
 
     public void testMultipleShortInputsAreSingleBatch() {
         List<String> inputs = List.of("1st small", "2nd small", "3rd small");
-        var embeddingType = randomFrom(EmbeddingRequestChunker.EmbeddingType.values());
-
-        var batches = new EmbeddingRequestChunker(inputs, 100, 100, 10, embeddingType).batchRequestsWithListeners(testListener());
+        var batches = new EmbeddingRequestChunker(inputs, 100, 100, 10).batchRequestsWithListeners(testListener());
         assertThat(batches, hasSize(1));
         EmbeddingRequestChunker.BatchRequest batch = batches.getFirst().batch();
         assertEquals(batch.inputs(), inputs);
@@ -122,11 +111,8 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         for (int i = 0; i < numInputs; i++) {
             inputs.add("input " + i);
         }
-        var embeddingType = randomFrom(EmbeddingRequestChunker.EmbeddingType.values());
 
-        var batches = new EmbeddingRequestChunker(inputs, maxNumInputsPerBatch, 100, 10, embeddingType).batchRequestsWithListeners(
-            testListener()
-        );
+        var batches = new EmbeddingRequestChunker(inputs, maxNumInputsPerBatch, 100, 10).batchRequestsWithListeners(testListener());
         assertThat(batches, hasSize(4));
         assertThat(batches.get(0).batch().inputs(), hasSize(maxNumInputsPerBatch));
         assertThat(batches.get(1).batch().inputs(), hasSize(maxNumInputsPerBatch));
@@ -160,14 +146,9 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         for (int i = 0; i < numInputs; i++) {
             inputs.add("input " + i);
         }
-        var embeddingType = randomFrom(EmbeddingRequestChunker.EmbeddingType.values());
 
-        var batches = new EmbeddingRequestChunker(
-            inputs,
-            maxNumInputsPerBatch,
-            embeddingType,
-            ChunkingSettingsTests.createRandomChunkingSettings()
-        ).batchRequestsWithListeners(testListener());
+        var batches = new EmbeddingRequestChunker(inputs, maxNumInputsPerBatch, ChunkingSettingsTests.createRandomChunkingSettings())
+            .batchRequestsWithListeners(testListener());
         assertThat(batches, hasSize(4));
         assertThat(batches.get(0).batch().inputs(), hasSize(maxNumInputsPerBatch));
         assertThat(batches.get(1).batch().inputs(), hasSize(maxNumInputsPerBatch));
@@ -207,11 +188,8 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         }
 
         List<String> inputs = List.of("1st small", passageBuilder.toString(), "2nd small", "3rd small");
-        var embeddingType = randomFrom(EmbeddingRequestChunker.EmbeddingType.values());
 
-        var batches = new EmbeddingRequestChunker(inputs, batchSize, chunkSize, overlap, embeddingType).batchRequestsWithListeners(
-            testListener()
-        );
+        var batches = new EmbeddingRequestChunker(inputs, batchSize, chunkSize, overlap).batchRequestsWithListeners(testListener());
 
         assertThat(batches, hasSize(2));
 
@@ -270,8 +248,7 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         List<String> inputs = List.of("1st small", passageBuilder.toString(), "2nd small", "3rd small");
 
         var finalListener = testListener();
-        var batches = new EmbeddingRequestChunker(inputs, batchSize, chunkSize, overlap, EmbeddingRequestChunker.EmbeddingType.FLOAT)
-            .batchRequestsWithListeners(finalListener);
+        var batches = new EmbeddingRequestChunker(inputs, batchSize, chunkSize, overlap).batchRequestsWithListeners(finalListener);
         assertThat(batches, hasSize(2));
 
         // 4 inputs in 2 batches
@@ -343,8 +320,7 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         List<String> inputs = List.of("1st small", passageBuilder.toString(), "2nd small", "3rd small");
 
         var finalListener = testListener();
-        var batches = new EmbeddingRequestChunker(inputs, batchSize, chunkSize, overlap, EmbeddingRequestChunker.EmbeddingType.BYTE)
-            .batchRequestsWithListeners(finalListener);
+        var batches = new EmbeddingRequestChunker(inputs, batchSize, chunkSize, overlap).batchRequestsWithListeners(finalListener);
         assertThat(batches, hasSize(2));
 
         // 4 inputs in 2 batches
@@ -416,8 +392,7 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         List<String> inputs = List.of("1st small", "2nd small", "3rd small", passageBuilder.toString());
 
         var finalListener = testListener();
-        var batches = new EmbeddingRequestChunker(inputs, batchSize, chunkSize, overlap, EmbeddingRequestChunker.EmbeddingType.SPARSE)
-            .batchRequestsWithListeners(finalListener);
+        var batches = new EmbeddingRequestChunker(inputs, batchSize, chunkSize, overlap).batchRequestsWithListeners(finalListener);
         assertThat(batches, hasSize(3));
 
         // 4 inputs in 3 batches
@@ -497,8 +472,7 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
             }
         };
 
-        var batches = new EmbeddingRequestChunker(inputs, 10, 100, 0, EmbeddingRequestChunker.EmbeddingType.FLOAT)
-            .batchRequestsWithListeners(listener);
+        var batches = new EmbeddingRequestChunker(inputs, 10, 100, 0).batchRequestsWithListeners(listener);
         assertThat(batches, hasSize(1));
 
         var embeddings = new ArrayList<TextEmbeddingFloatResults.Embedding>();

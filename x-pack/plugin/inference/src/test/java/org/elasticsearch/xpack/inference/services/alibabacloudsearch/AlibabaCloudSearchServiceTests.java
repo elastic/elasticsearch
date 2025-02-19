@@ -43,9 +43,6 @@ import org.elasticsearch.xpack.inference.external.request.alibabacloudsearch.Ali
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionModelTests;
-import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionServiceSettingsTests;
-import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionTaskSettingsTests;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsServiceSettingsTests;
@@ -378,35 +375,6 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
 
     public void testChunkedInfer_SparseEmbeddingChunkingSettingsNotSet() throws IOException {
         testChunkedInfer(TaskType.SPARSE_EMBEDDING, null);
-    }
-
-    public void testChunkedInfer_InvalidTaskType() throws IOException {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-
-        try (var service = new AlibabaCloudSearchService(senderFactory, createWithEmptySettings(threadPool))) {
-            var model = AlibabaCloudSearchCompletionModelTests.createModel(
-                randomAlphaOfLength(10),
-                TaskType.COMPLETION,
-                AlibabaCloudSearchCompletionServiceSettingsTests.createRandom(),
-                AlibabaCloudSearchCompletionTaskSettingsTests.createRandom(),
-                null
-            );
-
-            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
-            try {
-                service.chunkedInfer(
-                    model,
-                    null,
-                    List.of("foo", "bar"),
-                    new HashMap<>(),
-                    InputType.INGEST,
-                    InferenceAction.Request.DEFAULT_TIMEOUT,
-                    listener
-                );
-            } catch (Exception e) {
-                assertThat(e, instanceOf(IllegalArgumentException.class));
-            }
-        }
     }
 
     private void testChunkedInfer(TaskType taskType, ChunkingSettings chunkingSettings) throws IOException {

@@ -68,7 +68,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConf
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
-import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.hamcrest.Matchers;
@@ -101,7 +100,6 @@ import static org.elasticsearch.xpack.inference.services.elasticsearch.Elasticse
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.NAME;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.OLD_ELSER_SERVICE_NAME;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -1549,41 +1547,6 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 )
             );
         }
-    }
-
-    public void testEmbeddingTypeFromTaskTypeAndSettings() {
-        assertEquals(
-            EmbeddingRequestChunker.EmbeddingType.SPARSE,
-            ElasticsearchInternalService.embeddingTypeFromTaskTypeAndSettings(
-                TaskType.SPARSE_EMBEDDING,
-                new ElasticsearchInternalServiceSettings(1, 1, "foo", null, null)
-            )
-        );
-        assertEquals(
-            EmbeddingRequestChunker.EmbeddingType.FLOAT,
-            ElasticsearchInternalService.embeddingTypeFromTaskTypeAndSettings(
-                TaskType.TEXT_EMBEDDING,
-                new MultilingualE5SmallInternalServiceSettings(1, 1, "foo", null)
-            )
-        );
-
-        var e1 = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> ElasticsearchInternalService.embeddingTypeFromTaskTypeAndSettings(
-                TaskType.COMPLETION,
-                new ElasticsearchInternalServiceSettings(1, 1, "foo", null, null)
-            )
-        );
-        assertThat(e1.getMessage(), containsString("Chunking is not supported for task type [completion]"));
-
-        var e2 = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> ElasticsearchInternalService.embeddingTypeFromTaskTypeAndSettings(
-                TaskType.RERANK,
-                new ElasticsearchInternalServiceSettings(1, 1, "foo", null, null)
-            )
-        );
-        assertThat(e2.getMessage(), containsString("Chunking is not supported for task type [rerank]"));
     }
 
     public void testIsDefaultId() {

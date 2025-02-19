@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.chunking;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -40,20 +39,6 @@ import java.util.stream.Collectors;
  */
 public class EmbeddingRequestChunker {
 
-    public enum EmbeddingType {
-        FLOAT,
-        BYTE,
-        SPARSE;
-
-        public static EmbeddingType fromDenseVectorElementType(DenseVectorFieldMapper.ElementType elementType) {
-            return switch (elementType) {
-                case BYTE -> EmbeddingType.BYTE;
-                case FLOAT -> EmbeddingType.FLOAT;
-                case BIT -> throw new IllegalArgumentException("Bit vectors are not supported");
-            };
-        }
-    };
-
     // Visible for testing
     record Request(int inputIndex, int chunkIndex, ChunkOffset chunk, List<String> inputs) {
         public String chunkText() {
@@ -76,34 +61,21 @@ public class EmbeddingRequestChunker {
     private final List<List<Request>> requests;
     private final List<BatchRequest> batchRequests;
     private final AtomicInteger resultCount = new AtomicInteger();
-    private final EmbeddingType embeddingType;
 
     private final List<AtomicReferenceArray<EmbeddingResults.Embedding<?>>> results;
     private final AtomicArray<Exception> errors;
     private ActionListener<List<ChunkedInference>> finalListener;
 
-    public EmbeddingRequestChunker(List<String> inputs, int maxNumberOfInputsPerBatch, EmbeddingType embeddingType) {
-        this(inputs, maxNumberOfInputsPerBatch, embeddingType, null);
+    public EmbeddingRequestChunker(List<String> inputs, int maxNumberOfInputsPerBatch) {
+        this(inputs, maxNumberOfInputsPerBatch, null);
     }
 
-    public EmbeddingRequestChunker(
-        List<String> inputs,
-        int maxNumberOfInputsPerBatch,
-        int wordsPerChunk,
-        int chunkOverlap,
-        EmbeddingType embeddingType
-    ) {
-        this(inputs, maxNumberOfInputsPerBatch, embeddingType, new WordBoundaryChunkingSettings(wordsPerChunk, chunkOverlap));
+    public EmbeddingRequestChunker(List<String> inputs, int maxNumberOfInputsPerBatch, int wordsPerChunk, int chunkOverlap) {
+        this(inputs, maxNumberOfInputsPerBatch, new WordBoundaryChunkingSettings(wordsPerChunk, chunkOverlap));
     }
 
-    public EmbeddingRequestChunker(
-        List<String> inputs,
-        int maxNumberOfInputsPerBatch,
-        EmbeddingType embeddingType,
-        ChunkingSettings chunkingSettings
-    ) {
+    public EmbeddingRequestChunker(List<String> inputs, int maxNumberOfInputsPerBatch, ChunkingSettings chunkingSettings) {
         this.inputs = inputs;
-        this.embeddingType = embeddingType;
         this.results = new ArrayList<>(inputs.size());
         this.errors = new AtomicArray<>(inputs.size());
 

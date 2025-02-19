@@ -41,6 +41,7 @@ import java.util.Objects;
  *     ]
  * }
  */
+// TODO: let this implement EmbeddingResults, so that this also supports chunking.
 public record TextEmbeddingBitResults(List<TextEmbeddingByteResults.Embedding> embeddings)
     implements
         InferenceServiceResults,

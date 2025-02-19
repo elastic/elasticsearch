@@ -180,7 +180,7 @@ public record SparseEmbeddingResults(List<Embedding> embeddings)
         }
     }
 
-    public static record Chunk(List<WeightedToken> weightedTokens, String matchedText, ChunkedInference.TextOffset offset)
+    public record Chunk(List<WeightedToken> weightedTokens, String matchedText, ChunkedInference.TextOffset offset)
         implements
             EmbeddingResults.Chunk {
 

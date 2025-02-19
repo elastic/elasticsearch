@@ -19,7 +19,7 @@ import java.util.List;
  * A call to the inference service may contain multiple input texts, so this results may
  * contain multiple results.
  */
-public interface EmbeddingResults<C extends EmbeddingResults.Chunk, R extends EmbeddingResults.Embedding<C>>
+public interface EmbeddingResults<C extends EmbeddingResults.Chunk, E extends EmbeddingResults.Embedding<C>>
     extends
         InferenceServiceResults {
 
@@ -47,5 +47,5 @@ public interface EmbeddingResults<C extends EmbeddingResults.Chunk, R extends Em
     /**
      * The resulting list of embeddings for the input texts to the inference service.
      */
-    List<R> embeddings();
+    List<E> embeddings();
 }

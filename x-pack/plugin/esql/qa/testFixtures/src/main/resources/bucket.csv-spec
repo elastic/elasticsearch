@@ -823,7 +823,7 @@ FROM employees
 | LIMIT 5
 ;
 
-c:long |b:date
+c:long | b:date
 28     | 1953-01-01T00:00:00.000Z
 28     | 1957-01-01T00:00:00.000Z
 25     | 1961-01-01T00:00:00.000Z
@@ -834,12 +834,12 @@ c:long |b:date
 
 bucketByMonthInArbitraryIntervals
 FROM employees
-| STATS c = COUNT(*)  BY b = BUCKET(hire_date, 20 month)
+| STATS c = COUNT(*) BY b = BUCKET(hire_date, 20 month)
 | SORT c DESC
 | LIMIT 5
 ;
 
-c:long |b:date
+c:long | b:date
 20     | 1986-09-01T00:00:00.000Z
 20     | 1988-05-01T00:00:00.000Z
 19     | 1985-01-01T00:00:00.000Z

@@ -29,6 +29,9 @@ public class Fork extends UnaryPlan implements SurrogateLogicalPlan {
 
     public Fork(Source source, LogicalPlan child, List<LogicalPlan> subPlans) {
         super(source, child);
+        if (subPlans.size() < 2) {
+            throw new IllegalArgumentException("requires more than two subqueries, got:" + subPlans.size());
+        }
         this.subPlans = subPlans;
     }
 

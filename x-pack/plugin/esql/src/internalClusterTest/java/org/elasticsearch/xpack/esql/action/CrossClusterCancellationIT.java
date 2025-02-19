@@ -24,6 +24,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
+import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -34,6 +35,7 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
@@ -302,10 +304,19 @@ public class CrossClusterCancellationIT extends AbstractMultiClustersTestCase {
             | STATS total = sum(const) | LIMIT 1
             """);
         request.pragmas(randomPragmas());
+        String masterNode = cluster(REMOTE_CLUSTER).getMasterName();
+
+        NetworkDisruption networkDisruption = new NetworkDisruption(
+            new NetworkDisruption.IsolateAllNodes(Set.of(cluster(REMOTE_CLUSTER).getNodeNames())),
+            NetworkDisruption.DISCONNECT
+        );
+        cluster(REMOTE_CLUSTER).setDisruptionScheme(networkDisruption);
+        networkDisruption.applyToCluster(cluster(REMOTE_CLUSTER));
+
         var requestFuture = client().execute(EsqlQueryAction.INSTANCE, request);
         assertTrue(SimplePauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS));
+        networkDisruption.startDisrupting();
         SimplePauseFieldPlugin.allowEmitting.countDown();
-        cluster(REMOTE_CLUSTER).close();
         try (var resp = requestFuture.actionGet()) {
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
             assertNotNull(executionInfo);

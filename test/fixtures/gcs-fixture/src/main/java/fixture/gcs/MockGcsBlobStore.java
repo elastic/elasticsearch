@@ -14,18 +14,22 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
 
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class MockGcsBlobStore {
 
     private static final int RESUME_INCOMPLETE = 308;
-    private final ConcurrentMap<String, BlobVersion> blobs = new ConcurrentHashMap<>();
+    // we use skip-list map so we can do paging right
+    private final ConcurrentMap<String, BlobVersion> blobs = new ConcurrentSkipListMap<>();
     private final ConcurrentMap<String, ResumableUpload> resumableUploads = new ConcurrentHashMap<>();
 
     record BlobVersion(String path, long generation, BytesReference contents) {}
@@ -164,8 +168,43 @@ public class MockGcsBlobStore {
         blobs.remove(path);
     }
 
-    Map<String, BlobVersion> listBlobs() {
-        return Map.copyOf(blobs);
+    PageOfBlobs listBlobs(int maxResults, @Nullable String delimiter) {
+        // TODO: implement delimiter/prefix logic?
+        return listBlobs(new PageToken(0, maxResults).toString());
+    }
+
+    PageOfBlobs listBlobs(String pageToken) {
+        final PageToken parsedToken = PageToken.fromString(pageToken);
+        final int page = parsedToken.page();
+        final int pageSize = parsedToken.pageSize();
+        return new PageOfBlobs(page, pageSize, blobs.values().stream().skip((long) page * pageSize).limit(pageSize).toList(), blobs.size());
+    }
+
+    List<BlobVersion> listBlobs() {
+        return new ArrayList<>(blobs.values());
+    }
+
+    record PageToken(int page, int pageSize) {
+
+        public static PageToken fromString(String pageToken) {
+            String[] parts = pageToken.split("\\.");
+            return new PageToken(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]));
+        }
+
+        public String toString() {
+            return page + "." + pageSize;
+        }
+    }
+
+    record PageOfBlobs(int page, int pageSize, List<BlobVersion> blobs, int total) {
+
+        public boolean isLastPage() {
+            return (page * pageSize) + blobs.size() == total;
+        }
+
+        public String nextPageToken() {
+            return isLastPage() ? null : new PageToken(page + 1, pageSize).toString();
+        }
     }
 
     static class BlobNotFoundException extends GcsRestException {

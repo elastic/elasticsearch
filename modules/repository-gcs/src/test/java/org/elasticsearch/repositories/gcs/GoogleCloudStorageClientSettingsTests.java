@@ -293,7 +293,7 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
     }
 
     /** Generates a random GoogleCredential along with its corresponding Service Account file provided as a byte array **/
-    private static Tuple<ServiceAccountCredentials, byte[]> randomCredential(final String clientName) throws Exception {
+    public static Tuple<ServiceAccountCredentials, byte[]> randomCredential(final String clientName) throws Exception {
         final KeyPair keyPair = KeyPairGenerator.getInstance("RSA").generateKeyPair();
         final ServiceAccountCredentials.Builder credentialBuilder = ServiceAccountCredentials.newBuilder();
         credentialBuilder.setClientId("id_" + clientName);

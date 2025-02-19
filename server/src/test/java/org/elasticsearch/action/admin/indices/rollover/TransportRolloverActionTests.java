@@ -20,11 +20,13 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsTests;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -637,29 +639,124 @@ public class TransportRolloverActionTests extends ESTestCase {
             mockMetadataDataStreamService,
             dataStreamAutoShardingService
         );
+        String dataStreamName = randomAlphaOfLength(20);
         {
             // First, make sure checkBlock returns null when there are no blocks
-            final ClusterState clusterState = createDataStream(false, false);
-            RolloverRequest rolloverRequest = new RolloverRequest("my-data-stream", null);
+            final ClusterState clusterState = createDataStream(
+                dataStreamName,
+                false,
+                false,
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean()
+            );
+            RolloverRequest rolloverRequest = new RolloverRequest(dataStreamName, null);
             assertNull(transportRolloverAction.checkBlock(rolloverRequest, clusterState));
         }
         {
             // Make sure checkBlock returns null when indices other than the write index have blocks
-            final ClusterState clusterState = createDataStream(false, true);
-            RolloverRequest rolloverRequest = new RolloverRequest("my-data-stream", null);
+            final ClusterState clusterState = createDataStream(
+                dataStreamName,
+                false,
+                true,
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean()
+            );
+            RolloverRequest rolloverRequest = new RolloverRequest(dataStreamName, null);
+            assertNull(transportRolloverAction.checkBlock(rolloverRequest, clusterState));
+        }
+        {
+            // Make sure checkBlock returns null when indices other than the write index have blocks and we use "::data"
+            final ClusterState clusterState = createDataStream(
+                dataStreamName,
+                false,
+                true,
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean()
+            );
+            RolloverRequest rolloverRequest = new RolloverRequest(dataStreamName + "::data", null);
             assertNull(transportRolloverAction.checkBlock(rolloverRequest, clusterState));
         }
         {
             // Make sure checkBlock returns an exception when the write index has a block
-            ClusterState clusterState = createDataStream(true, randomBoolean());
-            RolloverRequest rolloverRequest = new RolloverRequest("my-data-stream", null);
-            assertNotNull(transportRolloverAction.checkBlock(rolloverRequest, clusterState));
+            ClusterState clusterState = createDataStream(
+                dataStreamName,
+                true,
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean()
+            );
+            RolloverRequest rolloverRequest = new RolloverRequest(dataStreamName, null);
+            if (randomBoolean()) {
+                rolloverRequest.setIndicesOptions(IndicesOptions.lenientExpandOpenNoSelectors());
+            }
+            ClusterBlockException e = transportRolloverAction.checkBlock(rolloverRequest, clusterState);
+            assertNotNull(e);
+        }
+        {
+            // Make sure checkBlock returns an exception when the write index has a block and we use "::data"
+            ClusterState clusterState = createDataStream(
+                dataStreamName,
+                true,
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean(),
+                randomBoolean()
+            );
+            RolloverRequest rolloverRequest = new RolloverRequest(dataStreamName + "::data", null);
+            ClusterBlockException e = transportRolloverAction.checkBlock(rolloverRequest, clusterState);
+            assertNotNull(e);
         }
     }
 
-    private ClusterState createDataStream(boolean blockOnWriteIndex, boolean blocksOnNonWriteIndices) {
+    public void testCheckBlockForDataStreamFailureStores() {
+        final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(
+            mock(TransportService.class),
+            mockClusterService,
+            mockThreadPool,
+            mockActionFilters,
+            mockIndexNameExpressionResolver,
+            rolloverService,
+            mockClient,
+            mockAllocationService,
+            mockMetadataDataStreamService,
+            dataStreamAutoShardingService
+        );
+        String dataStreamName = randomAlphaOfLength(20);
+        {
+            // Make sure checkBlock returns no exception when there is no failure store block
+            ClusterState clusterState = createDataStream(dataStreamName, randomBoolean(), randomBoolean(), true, false, false);
+            RolloverRequest rolloverRequest = new RolloverRequest(dataStreamName + "::failures", null);
+            assertNull(transportRolloverAction.checkBlock(rolloverRequest, clusterState));
+        }
+        {
+            // Make sure checkBlock returns an exception when the failure store write index has a block
+            ClusterState clusterState = createDataStream(dataStreamName, randomBoolean(), randomBoolean(), true, true, randomBoolean());
+            RolloverRequest rolloverRequest = new RolloverRequest(dataStreamName + "::failures", null);
+            assertNotNull(transportRolloverAction.checkBlock(rolloverRequest, clusterState));
+        }
+        {
+            // Make sure checkBlock returns an exception when failure store non-write indices has a block
+            ClusterState clusterState = createDataStream(dataStreamName, randomBoolean(), randomBoolean(), true, false, true);
+            RolloverRequest rolloverRequest = new RolloverRequest(dataStreamName + "::failures", null);
+            assertNull(transportRolloverAction.checkBlock(rolloverRequest, clusterState));
+        }
+    }
+
+    private ClusterState createDataStream(
+        String dataStreamName,
+        boolean blockOnWriteIndex,
+        boolean blocksOnNonWriteIndices,
+        boolean includeFailureStore,
+        boolean blockOnFailureStoreWriteIndex,
+        boolean blockOnFailureStoreNonWriteIndices
+    ) {
         ClusterState.Builder clusterStateBuilder = ClusterState.builder(ClusterName.DEFAULT);
         Metadata.Builder metadataBuilder = Metadata.builder();
+        ClusterBlocks.Builder clusterBlocksBuilder = ClusterBlocks.builder();
         List<Index> indices = new ArrayList<>();
         int totalIndices = randomIntBetween(1, 20);
         for (int i = 0; i < totalIndices; i++) {
@@ -674,13 +771,31 @@ public class TransportRolloverActionTests extends ESTestCase {
                 .build();
             metadataBuilder.put(backingIndexMetadata, false);
             indices.add(backingIndexMetadata.getIndex());
-            clusterStateBuilder.blocks(ClusterBlocks.builder().addBlocks(backingIndexMetadata));
+            clusterBlocksBuilder.addBlocks(backingIndexMetadata);
         }
 
-        final DataStream dataStream = DataStream.builder("my-data-stream", indices)
+        DataStream.Builder dataStreamBuilder = DataStream.builder(dataStreamName, indices)
             .setMetadata(Map.of())
-            .setIndexMode(IndexMode.STANDARD)
-            .build();
+            .setIndexMode(randomFrom(IndexMode.values()));
+        if (includeFailureStore) {
+            List<Index> failureStoreIndices = new ArrayList<>();
+            int totalFailureStoreIndices = randomIntBetween(1, 20);
+            for (int i = 0; i < totalFailureStoreIndices; i++) {
+                Settings.Builder settingsBuilder = settings(IndexVersion.current());
+                if ((blockOnFailureStoreWriteIndex && i == totalFailureStoreIndices - 1)
+                    || (blockOnFailureStoreNonWriteIndices && i != totalFailureStoreIndices - 1)) {
+                    settingsBuilder.put(IndexMetadata.INDEX_READ_ONLY_SETTING.getKey(), true);
+                }
+                final IndexMetadata failureStoreIndexMetadata = IndexMetadata.builder(
+                    DataStream.getDefaultFailureStoreName(dataStreamName, i + 1, randomMillisUpToYear9999())
+                ).settings(settingsBuilder).numberOfShards(1).numberOfReplicas(1).build();
+                failureStoreIndices.add(failureStoreIndexMetadata.getIndex());
+                clusterBlocksBuilder.addBlocks(failureStoreIndexMetadata);
+            }
+            dataStreamBuilder.setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(failureStoreIndices).build());
+        }
+        clusterStateBuilder.blocks(clusterBlocksBuilder);
+        final DataStream dataStream = dataStreamBuilder.build();
         metadataBuilder.put(dataStream);
         return clusterStateBuilder.metadata(metadataBuilder).build();
     }

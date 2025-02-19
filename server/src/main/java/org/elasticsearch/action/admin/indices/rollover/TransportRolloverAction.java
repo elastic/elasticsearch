@@ -158,17 +158,21 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         final IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(resolvedRolloverTarget.resource());
         if (indexAbstraction.getType().equals(IndexAbstraction.Type.DATA_STREAM)) {
             DataStream dataStream = (DataStream) indexAbstraction;
-            boolean targetData = resolvedRolloverTarget.selector() != null && resolvedRolloverTarget.selector().shouldIncludeData();
             boolean targetFailureStore = resolvedRolloverTarget.selector() != null
                 && resolvedRolloverTarget.selector().shouldIncludeFailures();
-            List<String> indicesToCheck = new ArrayList<>();
-            if (targetData) {
-                indicesToCheck.add(dataStream.getWriteIndex().getName());
+            String indexToCheck;
+            if (targetFailureStore == false) {
+                indexToCheck = dataStream.getWriteIndex().getName();
+            } else if (dataStream.getWriteFailureIndex() != null) {
+                indexToCheck = dataStream.getWriteFailureIndex().getName();
+            } else {
+                indexToCheck = null;
             }
-            if (targetFailureStore && dataStream.getWriteFailureIndex() != null) {
-                indicesToCheck.add(dataStream.getWriteFailureIndex().getName());
+            if (indexToCheck == null) {
+                return null;
+            } else {
+                return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, new String[] { indexToCheck });
             }
-            return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indicesToCheck.toArray(new String[0]));
         } else {
             return state.blocks()
                 .indicesBlockedException(

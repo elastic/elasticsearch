@@ -308,7 +308,11 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         });
 
         // Get the settings to see if the write block was removed
-        var allsettings = client().admin().indices().prepareGetSettings(INTERNAL_UNMANAGED.getIndexPattern()).get().getIndexToSettings();
+        var allsettings = client().admin()
+            .indices()
+            .prepareGetSettings(TEST_REQUEST_TIMEOUT, INTERNAL_UNMANAGED.getIndexPattern())
+            .get()
+            .getIndexToSettings();
         var internalUnmanagedOldIndexSettings = allsettings.get(".int-unman-old");
         var writeBlock = internalUnmanagedOldIndexSettings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey());
         assertThat("Write block on old index should be removed on migration ERROR status", writeBlock, equalTo("false"));

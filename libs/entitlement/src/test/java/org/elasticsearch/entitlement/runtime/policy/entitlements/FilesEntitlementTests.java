@@ -9,19 +9,41 @@
 
 package org.elasticsearch.entitlement.runtime.policy.entitlements;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.entitlement.runtime.policy.PathLookup;
 import org.elasticsearch.entitlement.runtime.policy.PolicyValidationException;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.FileData;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.BeforeClass;
 
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ_WRITE;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
 public class FilesEntitlementTests extends ESTestCase {
+
+    static Settings settings;
+
+    @BeforeClass
+    public static void setupRoot() {
+        settings = Settings.EMPTY;
+    }
+
+    private static final PathLookup TEST_PATH_LOOKUP = new PathLookup(
+        Path.of("home"),
+        Path.of("/config"),
+        new Path[] { Path.of("/data1"), Path.of("/data2") },
+        Path.of("/tmp"),
+        setting -> settings.get(setting),
+        glob -> settings.getGlobValues(glob)
+    );
 
     public void testEmptyBuild() {
         PolicyValidationException pve = expectThrows(PolicyValidationException.class, () -> FilesEntitlement.build(List.of()));
@@ -35,14 +57,34 @@ public class FilesEntitlementTests extends ESTestCase {
             PolicyValidationException.class,
             () -> FilesEntitlement.build(List.of((Map.of("relative_path", "foo", "mode", "read", "relative_to", "bar"))))
         );
-        assertThat(ex.getMessage(), is("invalid relative directory: bar, valid values: [config, data]"));
+        assertThat(ex.getMessage(), is("invalid relative directory: bar, valid values: [config, data, home]"));
     }
 
     public void testFileDataRelativeWithEmptyDirectory() {
-        var fileData = FilesEntitlement.FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE);
-        var dataDirs = fileData.resolvePaths(
-            new PathLookup(Path.of("/config"), new Path[] { Path.of("/data1/"), Path.of("/data2") }, Path.of("/temp"))
-        );
+        var fileData = FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE);
+        var dataDirs = fileData.resolvePaths(TEST_PATH_LOOKUP);
         assertThat(dataDirs.toList(), contains(Path.of("/data1/"), Path.of("/data2")));
+    }
+
+    public void testPathSettingResolve() {
+        var entitlement = FilesEntitlement.build(List.of(Map.of("path_setting", "foo.bar", "mode", "read")));
+        var filesData = entitlement.filesData();
+        assertThat(filesData, contains(FileData.ofPathSetting("foo.bar", READ)));
+
+        var fileData = FileData.ofPathSetting("foo.bar", READ);
+        // empty settings
+        assertThat(fileData.resolvePaths(TEST_PATH_LOOKUP).toList(), empty());
+
+        fileData = FileData.ofPathSetting("foo.bar", READ);
+        settings = Settings.builder().put("foo.bar", "/setting/path").build();
+        assertThat(fileData.resolvePaths(TEST_PATH_LOOKUP).toList(), contains(Path.of("/setting/path")));
+
+        fileData = FileData.ofPathSetting("foo.*.bar", READ);
+        settings = Settings.builder().put("foo.baz.bar", "/setting/path").build();
+        assertThat(fileData.resolvePaths(TEST_PATH_LOOKUP).toList(), contains(Path.of("/setting/path")));
+
+        fileData = FileData.ofPathSetting("foo.*.bar", READ);
+        settings = Settings.builder().put("foo.baz.bar", "/setting/path").put("foo.baz2.bar", "/other/path").build();
+        assertThat(fileData.resolvePaths(TEST_PATH_LOOKUP).toList(), containsInAnyOrder(Path.of("/setting/path"), Path.of("/other/path")));
     }
 }

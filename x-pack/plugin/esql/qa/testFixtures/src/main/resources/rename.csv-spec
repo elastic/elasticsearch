@@ -159,6 +159,7 @@ y:integer | x:date
 ;
 
 renameIntertwinedWithSort
+required_capability: fix_precision_of_scaled_float_fields
 FROM employees | eval x = salary | rename x as y | rename y as x | sort x | rename x as y | limit 10;
 
 avg_worked_seconds:l | birth_date:date          | emp_no:i             | first_name:s         | gender:s             | height:d             | height.float:d       | height.half_float:d  | height.scaled_float:d| hire_date:date           | is_rehired:bool      | job_positions:s      | languages:i          | languages.byte:i     | languages.long:l     | languages.short:i    | last_name:s          | salary:i             | salary_change:d      | salary_change.int:i  | salary_change.keyword:s | salary_change.long:l | still_hired:bool  | y:i          

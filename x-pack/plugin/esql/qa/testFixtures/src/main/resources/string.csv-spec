@@ -734,6 +734,7 @@ null                                                                            
 ;
 
 convertFromFloats
+required_capability: fix_precision_of_scaled_float_fields
 from employees | sort emp_no| eval double = to_string(height), float = to_string(height.float), scaled_float = to_string(height.scaled_float), half_float = to_string(height.half_float) | keep emp_no, double, float, scaled_float, half_float, height  | limit 2;
 
 emp_no:integer |double:keyword |float:keyword     |scaled_float:keyword   |half_float:keyword   |height:double

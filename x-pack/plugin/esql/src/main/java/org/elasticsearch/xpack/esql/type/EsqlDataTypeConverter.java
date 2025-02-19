@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.type;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -16,10 +17,14 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.Metric;
 import org.elasticsearch.compute.data.CompositeBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -62,7 +67,6 @@ import java.time.temporal.TemporalAmount;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.StringJoiner;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -670,24 +674,23 @@ public class EsqlDataTypeConverter {
     }
 
     public static String aggregateMetricDoubleBlockToString(CompositeBlock compositeBlock, int index) {
-        var minBlock = compositeBlock.getBlock(AggregateMetricDoubleBlockBuilder.Metric.MIN.getIndex());
-        var maxBlock = compositeBlock.getBlock(AggregateMetricDoubleBlockBuilder.Metric.MAX.getIndex());
-        var sumBlock = compositeBlock.getBlock(AggregateMetricDoubleBlockBuilder.Metric.SUM.getIndex());
-        var countBlock = compositeBlock.getBlock(AggregateMetricDoubleBlockBuilder.Metric.COUNT.getIndex());
-        final StringJoiner joiner = new StringJoiner(", ");
-        if (maxBlock.isNull(index) == false) {
-            joiner.add("\"max\": " + ((DoubleBlock) maxBlock).getDouble(index));
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.startObject();
+            for (Metric metric : List.of(Metric.MIN, Metric.MAX, Metric.SUM)) {
+                var block = compositeBlock.getBlock(metric.getIndex());
+                if (block.isNull(index) == false) {
+                    builder.field(metric.name().toLowerCase(), ((DoubleBlock) block).getDouble(index));
+                }
+            }
+            var countBlock = compositeBlock.getBlock(AggregateMetricDoubleBlockBuilder.Metric.COUNT.getIndex());
+            if (countBlock.isNull(index) == false) {
+                builder.field("value_count", ((IntBlock) countBlock).getInt(index));
+            }
+            builder.endObject();
+            return Strings.toString(builder);
+        } catch (IOException e) {
+            throw new EsqlIllegalArgumentException("error rendering aggregate metric double", e);
         }
-        if (minBlock.isNull(index) == false) {
-            joiner.add("\"min\": " + ((DoubleBlock) minBlock).getDouble(index));
-        }
-        if (sumBlock.isNull(index) == false) {
-            joiner.add("\"sum\": " + ((DoubleBlock) sumBlock).getDouble(index));
-        }
-        if (countBlock.isNull(index) == false) {
-            joiner.add("\"value_count\": " + ((IntBlock) countBlock).getInt(index));
-        }
-        return "{ " + joiner + " }";
     }
 
     public enum EsqlConverter implements Converter {

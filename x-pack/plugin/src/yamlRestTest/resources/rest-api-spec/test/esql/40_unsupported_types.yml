@@ -190,7 +190,7 @@ unsupported:
   - match: { columns.28.type: integer }
 
   - length: { values: 1 }
-  - match: { values.0.0: '{ "max": 3.0, "min": 1.0, "sum": 10.1, "value_count": 5 }' }
+  - match: { values.0.0: '{"min":1.0,"max":3.0,"sum":10.1,"value_count":5}' }
   - match: { values.0.1: null }
   - match: { values.0.2: null }
   - match: { values.0.3: "2015-01-01T12:10:30.123456789Z" }

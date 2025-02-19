@@ -43,24 +43,10 @@ public class ToStringFromAggregateMetricDoubleEvaluator extends AbstractConvertF
         int positionCount = block.getPositionCount();
         try (BytesRefBlock.Builder builder = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
             for (int p = 0; p < positionCount; p++) {
-                int valueCount = block.getValueCount(p);
-                int start = block.getFirstValueIndex(p);
-                int end = start + valueCount;
-                boolean positionOpened = false;
-                boolean valuesAppended = false;
-                for (int i = start; i < end; i++) {
-                    BytesRef value = evalValue(block, i);
-                    if (positionOpened == false && valueCount > 1) {
-                        builder.beginPositionEntry();
-                        positionOpened = true;
-                    }
-                    builder.appendBytesRef(value);
-                    valuesAppended = true;
-                }
-                if (valuesAppended == false) {
+                if (block.isNull(p)) {
                     builder.appendNull();
-                } else if (positionOpened) {
-                    builder.endPositionEntry();
+                } else {
+                    builder.appendBytesRef(evalValue(block, p));
                 }
             }
             return builder.build();

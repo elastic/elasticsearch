@@ -1290,7 +1290,7 @@ public class RBACEngineTests extends ESTestCase {
             {"term":{"public":true}}""");
         final Role role = Role.builder(RESTRICTED_INDICES, "test", "role")
             .cluster(Sets.newHashSet("monitor", "manage_watcher"), Collections.singleton(manageApplicationPrivileges))
-            .add(IndexPrivilege.getSingleSelector(Sets.newHashSet("read", "write")), "index-1")
+            .add(IndexPrivilege.getSingleSelectorOrThrow(Sets.newHashSet("read", "write")), "index-1")
             .add(IndexPrivilege.ALL, "index-2", "index-3")
             .add(
                 new FieldPermissions(new FieldPermissionsDefinition(new String[] { "public.*" }, new String[0])),
@@ -1616,7 +1616,7 @@ public class RBACEngineTests extends ESTestCase {
         final int numGroups = randomIntBetween(2, 5);
         int extraGroups = 0;
         for (int i = 0; i < numGroups; i++) {
-            Set<IndexPrivilege> splitBySelector = IndexPrivilege.getSplitBySelector(
+            Set<IndexPrivilege> splitBySelector = IndexPrivilege.getSplitBySelectorAccess(
                 Set.copyOf(randomSubsetOf(randomIntBetween(1, 4), IndexPrivilege.names()))
             );
             // If we end up with failure and data access, we will split and end up with extra groups. Need to account for this for the

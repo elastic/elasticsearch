@@ -205,7 +205,7 @@ public class PrivilegeTests extends ESTestCase {
 
     public void testIndexAction() throws Exception {
         Set<String> actionName = Sets.newHashSet("indices:admin/mapping/delete");
-        IndexPrivilege index = IndexPrivilege.getSingleSelector(actionName);
+        IndexPrivilege index = IndexPrivilege.getSingleSelectorOrThrow(actionName);
         assertThat(index, notNullValue());
         assertThat(index.predicate().test("indices:admin/mapping/delete"), is(true));
         assertThat(index.predicate().test("indices:admin/mapping/dele"), is(false));
@@ -218,7 +218,7 @@ public class PrivilegeTests extends ESTestCase {
         IndexPrivilege second = values[randomIntBetween(0, values.length - 1)];
 
         Set<String> name = Sets.newHashSet(first.name().iterator().next(), second.name().iterator().next());
-        Set<IndexPrivilege> indices = IndexPrivilege.getSplitBySelector(name);
+        Set<IndexPrivilege> indices = IndexPrivilege.getSplitBySelectorAccess(name);
 
         Automaton automaton = null;
         if (indices.size() == 1) {

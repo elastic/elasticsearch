@@ -27,7 +27,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
-import org.elasticsearch.xpack.core.security.authz.privilege.IndexComponentSelectorPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexComponentSelectorPredicate;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
@@ -302,7 +302,7 @@ public final class IndicesPermission {
                     }
                 }
                 for (String privilege : checkForPrivileges) {
-                    IndexPrivilege indexPrivilege = IndexPrivilege.getSingleSelector(Collections.singleton(privilege));
+                    IndexPrivilege indexPrivilege = IndexPrivilege.getSingleSelectorOrThrow(Collections.singleton(privilege));
                     if (allowedIndexPrivilegesAutomaton != null
                         && Automatons.subsetOf(indexPrivilege.getAutomaton(), allowedIndexPrivilegesAutomaton)) {
                         if (resourcePrivilegesMapBuilder != null) {
@@ -793,7 +793,7 @@ public final class IndicesPermission {
         public static final Group[] EMPTY_ARRAY = new Group[0];
 
         private final IndexPrivilege privilege;
-        private final IndexComponentSelectorPrivilege selectorPrivilege;
+        private final IndexComponentSelectorPredicate selectorPredicate;
         private final Predicate<String> actionMatcher;
         private final String[] indices;
         private final StringMatcher indexNameMatcher;
@@ -817,7 +817,7 @@ public final class IndicesPermission {
             assert indices.length != 0;
             this.privilege = privilege;
             this.actionMatcher = privilege.predicate();
-            this.selectorPrivilege = privilege.getSelectorPrivilege();
+            this.selectorPredicate = privilege.getSelectorPredicate();
             this.indices = indices;
             this.allowRestrictedIndices = allowRestrictedIndices;
             ConcurrentHashMap<String[], Automaton> indexNameAutomatonMemo = new ConcurrentHashMap<>(1);
@@ -866,7 +866,7 @@ public final class IndicesPermission {
         }
 
         public boolean checkSelector(IndexComponentSelector selector) {
-            return selectorPrivilege.test(selector);
+            return selectorPredicate.test(selector);
         }
 
         public boolean allowRestrictedIndices() {

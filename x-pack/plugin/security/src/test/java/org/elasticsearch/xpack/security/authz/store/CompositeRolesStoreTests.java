@@ -87,7 +87,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivileg
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeTests;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
-import org.elasticsearch.xpack.core.security.authz.privilege.IndexComponentSelectorPrivilege;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexComponentSelectorPredicate;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.restriction.Workflow;
 import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
@@ -1494,8 +1494,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertHasRemoteIndexGroupsForClusters(
             role.remoteIndices(),
             Set.of("remote-1"),
-            indexGroup(IndexPrivilege.getSingleSelector(Set.of("read")), false, "index-1"),
-            indexGroup(IndexPrivilege.getSingleSelector(Set.of("none")), false, "index-1")
+            indexGroup(IndexPrivilege.getSingleSelectorOrThrow(Set.of("read")), false, "index-1"),
+            indexGroup(IndexPrivilege.getSingleSelectorOrThrow(Set.of("none")), false, "index-1")
         );
     }
 
@@ -1606,7 +1606,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
         assertHasIndexGroups(
             role.indices(),
-            indexGroup(IndexPrivilege.getSingleSelector(Set.of("read", "read_failure_store", "all")), false, indexPattern)
+            indexGroup(IndexPrivilege.getSingleSelectorOrThrow(Set.of("read", "read_failure_store", "all")), false, indexPattern)
         );
     }
 
@@ -1614,7 +1614,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         String indexPattern = randomAlphanumericOfLength(10);
         List<String> nonFailurePrivileges = IndexPrivilege.names()
             .stream()
-            .filter(p -> IndexPrivilege.getNamedOrNull(p).getSelectorPrivilege() != IndexComponentSelectorPrivilege.FAILURES)
+            .filter(p -> IndexPrivilege.getNamedOrNull(p).getSelectorPredicate() != IndexComponentSelectorPredicate.FAILURES)
             .toList();
         Set<String> usedPrivileges = new HashSet<>();
 
@@ -1633,7 +1633,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         final Role role = buildRole(roleDescriptorWithIndicesPrivileges("r1", indicesPrivileges));
         final IndicesPermission actual = role.indices();
-        assertHasIndexGroups(actual, indexGroup(IndexPrivilege.getSingleSelector(usedPrivileges), false, indexPattern));
+        assertHasIndexGroups(actual, indexGroup(IndexPrivilege.getSingleSelectorOrThrow(usedPrivileges), false, indexPattern));
     }
 
     public void testCustomRolesProviderFailures() throws Exception {

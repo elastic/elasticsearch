@@ -414,7 +414,9 @@ public final class ConfigurableClusterPrivileges {
             this.requestPredicateSupplier = (restrictedIndices) -> {
                 IndicesPermission.Builder indicesPermissionBuilder = new IndicesPermission.Builder(restrictedIndices);
                 for (ManageRolesIndexPermissionGroup indexPatternPrivilege : manageRolesIndexPermissionGroups) {
-                    Set<IndexPrivilege> splitBySelector = IndexPrivilege.getSplitBySelector(Set.of(indexPatternPrivilege.privileges()));
+                    Set<IndexPrivilege> splitBySelector = IndexPrivilege.getSplitBySelectorAccess(
+                        Set.of(indexPatternPrivilege.privileges())
+                    );
                     for (IndexPrivilege indexPrivilege : splitBySelector) {
                         indicesPermissionBuilder.addGroup(
                             indexPrivilege,

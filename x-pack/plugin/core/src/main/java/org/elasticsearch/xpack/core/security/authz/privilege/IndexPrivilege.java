@@ -179,11 +179,11 @@ public final class IndexPrivilege extends Privilege {
     );
 
     public static final IndexPrivilege NONE = new IndexPrivilege("none", Automatons.EMPTY);
-    public static final IndexPrivilege ALL = new IndexPrivilege("all", ALL_AUTOMATON, IndexComponentSelectorPrivilege.ALL);
+    public static final IndexPrivilege ALL = new IndexPrivilege("all", ALL_AUTOMATON, IndexComponentSelectorPredicate.ALL);
     public static final IndexPrivilege READ_FAILURE_STORE = new IndexPrivilege(
         "read_failure_store",
         READ_AUTOMATON,
-        IndexComponentSelectorPrivilege.FAILURES
+        IndexComponentSelectorPredicate.FAILURES
     );
     public static final IndexPrivilege READ = new IndexPrivilege("read", READ_AUTOMATON);
     public static final IndexPrivilege READ_CROSS_CLUSTER = new IndexPrivilege("read_cross_cluster", READ_CROSS_CLUSTER_AUTOMATON);
@@ -252,47 +252,59 @@ public final class IndexPrivilege extends Privilege {
 
     private static final ConcurrentHashMap<Set<String>, Set<IndexPrivilege>> CACHE = new ConcurrentHashMap<>();
 
-    private final IndexComponentSelectorPrivilege selectorPrivilege;
+    private final IndexComponentSelectorPredicate selectorPredicate;
 
     private IndexPrivilege(String name, Automaton automaton) {
         this(Collections.singleton(name), automaton);
     }
 
-    private IndexPrivilege(String name, Automaton automaton, IndexComponentSelectorPrivilege selectorPrivilege) {
-        this(Collections.singleton(name), automaton, selectorPrivilege);
+    private IndexPrivilege(String name, Automaton automaton, IndexComponentSelectorPredicate selectorPredicate) {
+        this(Collections.singleton(name), automaton, selectorPredicate);
     }
 
     private IndexPrivilege(Set<String> name, Automaton automaton) {
-        this(name, automaton, IndexComponentSelectorPrivilege.DATA);
+        this(name, automaton, IndexComponentSelectorPredicate.DATA);
     }
 
-    private IndexPrivilege(Set<String> name, Automaton automaton, IndexComponentSelectorPrivilege selectorPrivilege) {
+    private IndexPrivilege(Set<String> name, Automaton automaton, IndexComponentSelectorPredicate selectorPredicate) {
         super(name, automaton);
-        this.selectorPrivilege = selectorPrivilege;
+        this.selectorPredicate = selectorPredicate;
     }
 
     /**
-     * TODO more detail
-     * Returns an index privilege for a single selector. Delegates to {@link #getSplitBySelector(Set)} but throws if the result has more
-     * than one selector. The caller must ensure that the names only map to privileges with the same selector.
+     * Delegates to {@link #getSplitBySelectorAccess(Set)} but throws if the result is not a singleton, i.e., covers more than one selector.
+     * Use this method if you know that the input name set corresponds to privileges covering the same selector, for instance if you have a
+     * single input name, or multiple names that all grant access to one selector e.g., {@link IndexComponentSelector#DATA}.
      */
-    public static IndexPrivilege getSingleSelector(Set<String> name) {
-        final Set<IndexPrivilege> splitBySelector = getSplitBySelector(name);
+    public static IndexPrivilege getSingleSelectorOrThrow(Set<String> names) {
+        final Set<IndexPrivilege> splitBySelector = getSplitBySelectorAccess(names);
         if (splitBySelector.size() != 1) {
-            throw new IllegalArgumentException("index privilege patterns " + name + " did not map to a single selector " + splitBySelector);
+            throw new IllegalArgumentException(
+                "index privilege patterns " + names + " did not map to a single selector " + splitBySelector
+            );
         }
         return splitBySelector.iterator().next();
     }
 
     /**
-     * TODO more detail
-     * Returns a set of index privileges, each privilege responsible for a separate selector.
-     * For instance, `getSplitBySelector(Set.of("view_index_metadata", "write", "read_failure_store"))` will return two index privileges
-     * one covering "view_index_metadata" and "write" for a {@link IndexComponentSelectorPrivilege#DATA}, the other covering
-     * "read_failure_store" for a {@link IndexComponentSelectorPrivilege#FAILURES} selector.
+     * Returns a set {@link IndexPrivilege} that captures the access granted by the privileges and actions specified in the input name set.
+     * This method returns a set of index privileges, instead of a single index privilege to capture that different index privileges grant
+     * access to different {@link IndexComponentSelector}s. Most privileges grant access to the
+     * (implicit) {@link IndexComponentSelector#DATA} selector. The {@link IndexPrivilege#READ_FAILURE_STORE} grants access to
+     * {@link IndexComponentSelector#FAILURES}.
+     * The implementation for authorization for access by selector requires that index privileges are (generally) not combined across
+     * selector boundaries since their underlying automata would be combined, granting more access than is valid.
+     * This method conceptually splits the input names into ones that correspond to different selector access, and return an index privilege
+     * for each partition.
+     * For instance, `getSplitBySelectorAccess(Set.of("view_index_metadata", "write", "read_failure_store"))` will return two index
+     * privileges one covering `view_index_metadata` and `write` for a {@link IndexComponentSelectorPredicate#DATA}, the other covering
+     * `read_failure_store` for a {@link IndexComponentSelectorPredicate#FAILURES} selector.
+     * A notable exception is the {@link IndexPrivilege#ALL} privilege. If this privilege is included in the input name set, this method
+     * returns a single index privilege that grants access to all selectors.
+     * All raw actions are treated as granting access to the {@link IndexComponentSelector#DATA} selector.
      */
-    public static Set<IndexPrivilege> getSplitBySelector(Set<String> name) {
-        return CACHE.computeIfAbsent(name, (theName) -> {
+    public static Set<IndexPrivilege> getSplitBySelectorAccess(Set<String> names) {
+        return CACHE.computeIfAbsent(names, (theName) -> {
             if (theName.isEmpty()) {
                 return Set.of(NONE);
             } else {
@@ -312,12 +324,12 @@ public final class IndexPrivilege extends Privilege {
             throw new IllegalArgumentException("empty set should not be used");
         }
 
-        Set<String> actions = new HashSet<>();
-        Set<IndexPrivilege> allAccessPrivileges = new HashSet<>();
-        Set<IndexPrivilege> dataAccessPrivileges = new HashSet<>();
-        Set<IndexPrivilege> failureAccessPrivileges = new HashSet<>();
+        final Set<String> actions = new HashSet<>();
+        final Set<IndexPrivilege> allSelectorAccessPrivileges = new HashSet<>();
+        final Set<IndexPrivilege> dataSelectorAccessPrivileges = new HashSet<>();
+        final Set<IndexPrivilege> failuresSelectorAccessPrivileges = new HashSet<>();
 
-        boolean containsAll = name.stream().anyMatch(n -> getNamedOrNull(n) == ALL);
+        boolean containsAllAccessPrivilege = name.stream().anyMatch(n -> getNamedOrNull(n) == ALL);
         for (String part : name) {
             part = part.toLowerCase(Locale.ROOT);
             if (ACTION_MATCHER.test(part)) {
@@ -327,14 +339,18 @@ public final class IndexPrivilege extends Privilege {
                 if (indexPrivilege != null && size == 1) {
                     return Set.of(indexPrivilege);
                 } else if (indexPrivilege != null) {
-                    if (containsAll) {
-                        allAccessPrivileges.add(indexPrivilege);
-                    } else if (indexPrivilege.selectorPrivilege == IndexComponentSelectorPrivilege.DATA) {
-                        dataAccessPrivileges.add(indexPrivilege);
-                    } else if (indexPrivilege.selectorPrivilege == IndexComponentSelectorPrivilege.FAILURES) {
-                        failureAccessPrivileges.add(indexPrivilege);
+                    // if we have an all access privilege, we don't need to partition anymore since it grants access to all selectors and
+                    // any other name in the group has its selector-access superseded.
+                    if (containsAllAccessPrivilege) {
+                        allSelectorAccessPrivileges.add(indexPrivilege);
+                    } else if (indexPrivilege.selectorPredicate == IndexComponentSelectorPredicate.DATA) {
+                        dataSelectorAccessPrivileges.add(indexPrivilege);
+                    } else if (indexPrivilege.selectorPredicate == IndexComponentSelectorPredicate.FAILURES) {
+                        failuresSelectorAccessPrivileges.add(indexPrivilege);
                     } else {
-                        assert false : "unexpected selector [" + indexPrivilege.selectorPrivilege + "]";
+                        String errorMessage = "unexpected selector [" + indexPrivilege.selectorPredicate + "]";
+                        assert false : errorMessage;
+                        throw new IllegalStateException(errorMessage);
                     }
                 } else {
                     String errorMessage = "unknown index privilege ["
@@ -350,38 +366,44 @@ public final class IndexPrivilege extends Privilege {
             }
         }
 
-        final Set<IndexPrivilege> result = combineIntoResult(allAccessPrivileges, failureAccessPrivileges, dataAccessPrivileges, actions);
+        final Set<IndexPrivilege> result = combineIndexPrivileges(
+            allSelectorAccessPrivileges,
+            dataSelectorAccessPrivileges,
+            failuresSelectorAccessPrivileges,
+            actions
+        );
         assertNamesMatch(name, result);
         return result;
     }
 
-    private static Set<IndexPrivilege> combineIntoResult(
-        Set<IndexPrivilege> allAccessPrivileges,
-        Set<IndexPrivilege> failureAccessPrivileges,
-        Set<IndexPrivilege> dataAccessPrivileges,
+    private static Set<IndexPrivilege> combineIndexPrivileges(
+        Set<IndexPrivilege> allSelectorAccessPrivileges,
+        Set<IndexPrivilege> dataSelectorAccessPrivileges,
+        Set<IndexPrivilege> failuresSelectorAccessPrivileges,
         Set<String> actions
     ) {
-        assert false == allAccessPrivileges.isEmpty()
-            || false == failureAccessPrivileges.isEmpty()
-            || false == dataAccessPrivileges.isEmpty()
+        assert false == allSelectorAccessPrivileges.isEmpty()
+            || false == dataSelectorAccessPrivileges.isEmpty()
+            || false == failuresSelectorAccessPrivileges.isEmpty()
             || false == actions.isEmpty() : "at least one of the privilege sets or actions must be non-empty";
 
-        if (false == allAccessPrivileges.isEmpty()) {
-            return Set.of(union(allAccessPrivileges, actions, IndexComponentSelectorPrivilege.ALL));
+        if (false == allSelectorAccessPrivileges.isEmpty()) {
+            assert failuresSelectorAccessPrivileges.isEmpty() && dataSelectorAccessPrivileges.isEmpty()
+                : "data and failure access must be empty when all access is present";
+            return Set.of(union(allSelectorAccessPrivileges, actions, IndexComponentSelectorPredicate.ALL));
         }
 
         final Set<IndexPrivilege> result = new HashSet<>();
-        if (false == failureAccessPrivileges.isEmpty()) {
-            result.add(union(failureAccessPrivileges, Set.of(), IndexComponentSelectorPrivilege.FAILURES));
+        if (false == failuresSelectorAccessPrivileges.isEmpty()) {
+            result.add(union(failuresSelectorAccessPrivileges, Set.of(), IndexComponentSelectorPredicate.FAILURES));
         }
-        if (false == dataAccessPrivileges.isEmpty() || false == actions.isEmpty()) {
-            result.add(union(dataAccessPrivileges, actions, IndexComponentSelectorPrivilege.DATA));
+        if (false == dataSelectorAccessPrivileges.isEmpty() || false == actions.isEmpty()) {
+            result.add(union(dataSelectorAccessPrivileges, actions, IndexComponentSelectorPredicate.DATA));
         }
         return result;
     }
 
     private static void assertNamesMatch(Set<String> names, Set<IndexPrivilege> privileges) {
-        // TODO clean up
         assert names.stream()
             .map(n -> n.toLowerCase(Locale.ROOT))
             .collect(Collectors.toSet())
@@ -392,10 +414,10 @@ public final class IndexPrivilege extends Privilege {
     private static IndexPrivilege union(
         Collection<IndexPrivilege> privileges,
         Collection<String> actions,
-        IndexComponentSelectorPrivilege selectorPrivilege
+        IndexComponentSelectorPredicate selectorPredicate
     ) {
-        Set<Automaton> automata = HashSet.newHashSet(privileges.size() + actions.size());
-        Set<String> names = HashSet.newHashSet(privileges.size() + actions.size());
+        final Set<Automaton> automata = HashSet.newHashSet(privileges.size() + actions.size());
+        final Set<String> names = HashSet.newHashSet(privileges.size() + actions.size());
         for (IndexPrivilege privilege : privileges) {
             names.add(privilege.getSingleName());
             automata.add(privilege.automaton);
@@ -405,7 +427,7 @@ public final class IndexPrivilege extends Privilege {
             names.addAll(actions);
             automata.add(patterns(actions.stream().map(Privilege::actionToPattern).toArray(String[]::new)));
         }
-        return new IndexPrivilege(names, unionAndMinimize(automata), selectorPrivilege);
+        return new IndexPrivilege(names, unionAndMinimize(automata), selectorPredicate);
     }
 
     static Map<String, IndexPrivilege> values() {
@@ -426,14 +448,14 @@ public final class IndexPrivilege extends Privilege {
         return VALUES.entrySet()
             .stream()
             // Only include privileges that grant data access; failures access is handled separately in authorization failure messages
-            .filter(e -> e.getValue().selectorPrivilege.test(IndexComponentSelector.DATA))
+            .filter(e -> e.getValue().selectorPredicate.test(IndexComponentSelector.DATA))
             .filter(e -> e.getValue().predicate.test(action))
             .map(Map.Entry::getKey)
             .toList();
     }
 
-    public IndexComponentSelectorPrivilege getSelectorPrivilege() {
-        return selectorPrivilege;
+    public IndexComponentSelectorPredicate getSelectorPredicate() {
+        return selectorPredicate;
     }
 
     public String getSingleName() {

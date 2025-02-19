@@ -437,7 +437,7 @@ public interface Role {
                     new FieldPermissionsDefinition(indexPrivilege.getGrantedFields(), indexPrivilege.getDeniedFields())
                 ),
                 indexPrivilege.getQuery() == null ? null : Collections.singleton(indexPrivilege.getQuery()),
-                IndexPrivilege.getSplitBySelector(Set.of(indexPrivilege.getPrivileges())),
+                IndexPrivilege.getSplitBySelectorAccess(Set.of(indexPrivilege.getPrivileges())),
                 indexPrivilege.allowRestrictedIndices(),
                 indexPrivilege.getIndices()
             );
@@ -454,7 +454,7 @@ public interface Role {
                     new FieldPermissionsDefinition(indicesPrivileges.getGrantedFields(), indicesPrivileges.getDeniedFields())
                 ),
                 indicesPrivileges.getQuery() == null ? null : Collections.singleton(indicesPrivileges.getQuery()),
-                IndexPrivilege.getSplitBySelector(Set.of(indicesPrivileges.getPrivileges())),
+                IndexPrivilege.getSplitBySelectorAccess(Set.of(indicesPrivileges.getPrivileges())),
                 indicesPrivileges.allowRestrictedIndices(),
                 indicesPrivileges.getIndices()
             );

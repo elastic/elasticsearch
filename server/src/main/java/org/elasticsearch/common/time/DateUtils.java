@@ -374,7 +374,7 @@ public class DateUtils {
      */
     public static long roundIntervalMonthOfYear(final long utcMillis, final int monthInterval) {
         if (monthInterval <= 0) {
-            throw new IllegalArgumentException("month interval must be strictly positive, got  [" + monthInterval + "]");
+            throw new IllegalArgumentException("month interval must be strictly positive, got [" + monthInterval + "]");
         }
         int year = getYear(utcMillis);
         int month = getMonthOfYear(utcMillis, year);
@@ -400,7 +400,7 @@ public class DateUtils {
      */
     public static long roundYearInterval(final long utcMillis, final int yearInterval) {
         if (yearInterval <= 0) {
-            throw new IllegalArgumentException("year interval [" + yearInterval + "] must be positive");
+            throw new IllegalArgumentException("year interval must be strictly positive, got [" + yearInterval + "]");
         }
         int year = getYear(utcMillis);
         return utcMillisAtStartOfYear(((year - 1) / yearInterval) * yearInterval + 1);
@@ -425,7 +425,7 @@ public class DateUtils {
      */
     public static long roundWeekIntervalOfWeekYear(final long utcMillis, final int weekInterval) {
         if (weekInterval <= 0) {
-            throw new IllegalArgumentException("week interval [" + weekInterval + "] must be positive");
+            throw new IllegalArgumentException("week interval must be strictly positive, got [" + weekInterval + "]");
         }
         return roundFloor(utcMillis + 3 * 86400 * 1000L, 604800000L * weekInterval) - 3 * 86400 * 1000L;
     }

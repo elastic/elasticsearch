@@ -230,7 +230,7 @@ public class DateUtilsTests extends ESTestCase {
         assertThat(DateUtils.roundMonthOfYear(-1), is(dec1969));
 
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> DateUtils.roundIntervalMonthOfYear(0, -1));
-        assertThat(exc.getMessage(), is("month interval [-1] must be positive"));
+        assertThat(exc.getMessage(), is("month interval must be strictly positive, got [-1]"));
         assertThat(DateUtils.roundIntervalMonthOfYear(1, 5), is(0L));
         long epochMilli = LocalDate.of(1969, 7, 1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
         assertThat(DateUtils.roundIntervalMonthOfYear(-1, 13), is(epochMilli));
@@ -251,7 +251,7 @@ public class DateUtilsTests extends ESTestCase {
         assertThat(DateUtils.roundYear(endOf1996), is(startOf1996));
 
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> DateUtils.roundYearInterval(0, -1));
-        assertThat(exc.getMessage(), is("year interval [-1] must be positive"));
+        assertThat(exc.getMessage(), is("year interval must be strictly positive, got [-1]"));
         assertThat(DateUtils.roundYearInterval(0, 2), is(startOf1969));
         long startOf1968 = Year.of(1968).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
         assertThat(DateUtils.roundYearInterval(0, 7), is(startOf1968));
@@ -270,7 +270,7 @@ public class DateUtilsTests extends ESTestCase {
         assertThat(DateUtils.roundWeekOfWeekYear(-1), is(epochMilli));
 
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> DateUtils.roundWeekIntervalOfWeekYear(0, -1));
-        assertThat(exc.getMessage(), is("week interval [-1] must be positive"));
+        assertThat(exc.getMessage(), is("week interval must be strictly positive, got [-1]"));
         assertThat(DateUtils.roundWeekIntervalOfWeekYear(0, 3), is(epochMilli));
         assertThat(DateUtils.roundWeekIntervalOfWeekYear(1, 3), is(epochMilli));
         assertThat(DateUtils.roundWeekIntervalOfWeekYear(-1, 2), is(epochMilli));

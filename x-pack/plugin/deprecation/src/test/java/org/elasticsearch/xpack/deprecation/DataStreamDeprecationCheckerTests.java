@@ -329,7 +329,7 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
         DataStream dataStream = new DataStream(
             randomAlphaOfLength(10),
             allIndices,
-            randomNegativeLong(),
+            randomNonNegativeLong(),
             Map.of(),
             true,
             false,

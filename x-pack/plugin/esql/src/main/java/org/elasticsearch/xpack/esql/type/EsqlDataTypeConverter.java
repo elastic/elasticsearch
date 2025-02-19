@@ -679,12 +679,12 @@ public class EsqlDataTypeConverter {
             for (Metric metric : List.of(Metric.MIN, Metric.MAX, Metric.SUM)) {
                 var block = compositeBlock.getBlock(metric.getIndex());
                 if (block.isNull(index) == false) {
-                    builder.field(metric.name().toLowerCase(), ((DoubleBlock) block).getDouble(index));
+                    builder.field(metric.getLabel(), ((DoubleBlock) block).getDouble(index));
                 }
             }
-            var countBlock = compositeBlock.getBlock(AggregateMetricDoubleBlockBuilder.Metric.COUNT.getIndex());
+            var countBlock = compositeBlock.getBlock(Metric.COUNT.getIndex());
             if (countBlock.isNull(index) == false) {
-                builder.field("value_count", ((IntBlock) countBlock).getInt(index));
+                builder.field(Metric.COUNT.getLabel(), ((IntBlock) countBlock).getInt(index));
             }
             builder.endObject();
             return Strings.toString(builder);

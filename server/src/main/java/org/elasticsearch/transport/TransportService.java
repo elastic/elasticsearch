@@ -83,7 +83,7 @@ public class TransportService extends AbstractLifecycleComponent
     /**
      * A feature flag enabling transport upgrades for serverless.
      */
-    private static final String SERVERLESS_TRANSPORT_SYSTEM_PROPERTY = "es.serverless_transport";
+    static final String SERVERLESS_TRANSPORT_SYSTEM_PROPERTY = "es.serverless_transport";
     private static final boolean SERVERLESS_TRANSPORT_FEATURE_FLAG = Booleans.parseBoolean(
         System.getProperty(SERVERLESS_TRANSPORT_SYSTEM_PROPERTY),
         false

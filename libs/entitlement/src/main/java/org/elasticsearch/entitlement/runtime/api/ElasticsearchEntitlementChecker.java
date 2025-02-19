@@ -14,6 +14,10 @@ import org.elasticsearch.entitlement.bridge.EntitlementChecker;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 
 import java.io.File;
+import java.io.FileDescriptor;
+import java.io.FileFilter;
+import java.io.FilenameFilter;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
@@ -60,10 +64,13 @@ import java.nio.file.AccessMode;
 import java.nio.file.CopyOption;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileStore;
+import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.WatchEvent;
+import java.nio.file.WatchService;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.UserPrincipal;
 import java.nio.file.spi.FileSystemProvider;
@@ -75,6 +82,7 @@ import java.util.Properties;
 import java.util.Set;
 import java.util.TimeZone;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ForkJoinPool;
 import java.util.function.Consumer;
 
 import javax.net.ssl.HostnameVerifier;
@@ -835,7 +843,7 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void check$java_lang_Runtime$load(Class<?> callerClass, Runtime that, String filename) {
-        // TODO: check filesystem entitlement READ
+        policyManager.checkFileRead(callerClass, Path.of(filename));
         policyManager.checkLoadingNativeLibraries(callerClass);
     }
 
@@ -846,7 +854,7 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void check$java_lang_System$$load(Class<?> callerClass, String filename) {
-        // TODO: check filesystem entitlement READ
+        policyManager.checkFileRead(callerClass, Path.of(filename));
         policyManager.checkLoadingNativeLibraries(callerClass);
     }
 
@@ -930,7 +938,7 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void check$java_lang_foreign_SymbolLookup$$libraryLookup(Class<?> callerClass, Path path, Arena arena) {
-        // TODO: check filesystem entitlement READ
+        policyManager.checkFileRead(callerClass, path);
         policyManager.checkLoadingNativeLibraries(callerClass);
     }
 
@@ -951,6 +959,21 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     // old io (ie File)
 
     @Override
+    public void check$java_io_File$canExecute(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$canRead(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$canWrite(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
     public void check$java_io_File$createNewFile(Class<?> callerClass, File file) {
         policyManager.checkFileWrite(callerClass, file);
     }
@@ -968,6 +991,61 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     @Override
     public void check$java_io_File$deleteOnExit(Class<?> callerClass, File file) {
         policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$exists(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$isDirectory(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$isFile(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$isHidden(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$lastModified(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$length(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$list(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$list(Class<?> callerClass, File file, FilenameFilter filter) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$listFiles(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$listFiles(Class<?> callerClass, File file, FileFilter filter) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_File$listFiles(Class<?> callerClass, File file, FilenameFilter filter) {
+        policyManager.checkFileRead(callerClass, file);
     }
 
     @Override
@@ -1027,6 +1105,21 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
+    public void check$java_io_FileInputStream$(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_FileInputStream$(Class<?> callerClass, FileDescriptor fd) {
+        policyManager.checkFileDescriptorRead(callerClass);
+    }
+
+    @Override
+    public void check$java_io_FileInputStream$(Class<?> callerClass, String name) {
+        policyManager.checkFileRead(callerClass, new File(name));
+    }
+
+    @Override
     public void check$java_io_FileOutputStream$(Class<?> callerClass, String name) {
         policyManager.checkFileWrite(callerClass, new File(name));
     }
@@ -1044,6 +1137,99 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     @Override
     public void check$java_io_FileOutputStream$(Class<?> callerClass, File file, boolean append) {
         policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_FileOutputStream$(Class<?> callerClass, FileDescriptor fd) {
+        policyManager.checkFileDescriptorWrite(callerClass);
+    }
+
+    @Override
+    public void check$java_io_FileReader$(Class<?> callerClass, File file) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_FileReader$(Class<?> callerClass, File file, Charset charset) {
+        policyManager.checkFileRead(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_FileReader$(Class<?> callerClass, FileDescriptor fd) {
+        policyManager.checkFileDescriptorRead(callerClass);
+    }
+
+    @Override
+    public void check$java_io_FileReader$(Class<?> callerClass, String name) {
+        policyManager.checkFileRead(callerClass, new File(name));
+    }
+
+    @Override
+    public void check$java_io_FileReader$(Class<?> callerClass, String name, Charset charset) {
+        policyManager.checkFileRead(callerClass, new File(name));
+    }
+
+    @Override
+    public void check$java_io_FileWriter$(Class<?> callerClass, File file) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_FileWriter$(Class<?> callerClass, File file, boolean append) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_FileWriter$(Class<?> callerClass, File file, Charset charset) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_FileWriter$(Class<?> callerClass, File file, Charset charset, boolean append) {
+        policyManager.checkFileWrite(callerClass, file);
+    }
+
+    @Override
+    public void check$java_io_FileWriter$(Class<?> callerClass, FileDescriptor fd) {
+        policyManager.checkFileDescriptorWrite(callerClass);
+    }
+
+    @Override
+    public void check$java_io_FileWriter$(Class<?> callerClass, String name) {
+        policyManager.checkFileWrite(callerClass, new File(name));
+    }
+
+    @Override
+    public void check$java_io_FileWriter$(Class<?> callerClass, String name, boolean append) {
+        policyManager.checkFileWrite(callerClass, new File(name));
+    }
+
+    @Override
+    public void check$java_io_FileWriter$(Class<?> callerClass, String name, Charset charset) {
+        policyManager.checkFileWrite(callerClass, new File(name));
+    }
+
+    @Override
+    public void check$java_io_FileWriter$(Class<?> callerClass, String name, Charset charset, boolean append) {
+        policyManager.checkFileWrite(callerClass, new File(name));
+    }
+
+    @Override
+    public void check$java_io_RandomAccessFile$(Class<?> callerClass, String name, String mode) {
+        if (mode.equals("r")) {
+            policyManager.checkFileRead(callerClass, new File(name));
+        } else {
+            policyManager.checkFileWrite(callerClass, new File(name));
+        }
+    }
+
+    @Override
+    public void check$java_io_RandomAccessFile$(Class<?> callerClass, File file, String mode) {
+        if (mode.equals("r")) {
+            policyManager.checkFileRead(callerClass, file);
+        } else {
+            policyManager.checkFileWrite(callerClass, file);
+        }
     }
 
     @Override
@@ -1278,6 +1464,52 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
         policyManager.checkFileRead(callerClass, path);
     }
 
+    // Thread management
+
+    @Override
+    public void check$java_lang_Thread$start(Class<?> callerClass, Thread thread) {
+        policyManager.checkManageThreadsEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_Thread$setDaemon(Class<?> callerClass, Thread thread, boolean on) {
+        policyManager.checkManageThreadsEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_ThreadGroup$setDaemon(Class<?> callerClass, ThreadGroup threadGroup, boolean daemon) {
+        policyManager.checkManageThreadsEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_util_concurrent_ForkJoinPool$setParallelism(Class<?> callerClass, ForkJoinPool forkJoinPool, int size) {
+        policyManager.checkManageThreadsEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_Thread$setName(Class<?> callerClass, Thread thread, String name) {
+        policyManager.checkManageThreadsEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_Thread$setPriority(Class<?> callerClass, Thread thread, int newPriority) {
+        policyManager.checkManageThreadsEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_Thread$setUncaughtExceptionHandler(
+        Class<?> callerClass,
+        Thread thread,
+        Thread.UncaughtExceptionHandler ueh
+    ) {
+        policyManager.checkManageThreadsEntitlement(callerClass);
+    }
+
+    @Override
+    public void check$java_lang_ThreadGroup$setMaxPriority(Class<?> callerClass, ThreadGroup threadGroup, int pri) {
+        policyManager.checkManageThreadsEntitlement(callerClass);
+    }
+
     @Override
     public void checkGetFileStoreAttributeView(Class<?> callerClass, FileStore that, Class<?> type) {
         policyManager.checkWriteStoreAttributes(callerClass);
@@ -1321,5 +1553,39 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     @Override
     public void checkType(Class<?> callerClass, FileStore that) {
         policyManager.checkReadStoreAttributes(callerClass);
+    }
+
+    @Override
+    public void checkPathToRealPath(Class<?> callerClass, Path that, LinkOption... options) {
+        boolean followLinks = true;
+        for (LinkOption option : options) {
+            if (option == LinkOption.NOFOLLOW_LINKS) {
+                followLinks = false;
+            }
+        }
+        if (followLinks) {
+            try {
+                policyManager.checkFileRead(callerClass, Files.readSymbolicLink(that));
+            } catch (IOException | UnsupportedOperationException e) {
+                // that is not a link, or unrelated IOException or unsupported
+            }
+        }
+        policyManager.checkFileRead(callerClass, that);
+    }
+
+    @Override
+    public void checkPathRegister(Class<?> callerClass, Path that, WatchService watcher, WatchEvent.Kind<?>... events) {
+        policyManager.checkFileRead(callerClass, that);
+    }
+
+    @Override
+    public void checkPathRegister(
+        Class<?> callerClass,
+        Path that,
+        WatchService watcher,
+        WatchEvent.Kind<?>[] events,
+        WatchEvent.Modifier... modifiers
+    ) {
+        policyManager.checkFileRead(callerClass, that);
     }
 }

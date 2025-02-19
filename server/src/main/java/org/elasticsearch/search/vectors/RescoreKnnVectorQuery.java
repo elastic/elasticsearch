@@ -23,6 +23,7 @@ import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Objects;
 
 /**
@@ -60,6 +61,7 @@ public class RescoreKnnVectorQuery extends Query implements QueryProfilerProvide
         TopDocs topDocs = searcher.search(query, k);
         vectorOperations = topDocs.totalHits.value();
         ScoreDoc[] scoreDocs = topDocs.scoreDocs;
+        Arrays.sort(scoreDocs, Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
         int[] docIds = new int[scoreDocs.length];
         float[] scores = new float[scoreDocs.length];
         for (int i = 0; i < scoreDocs.length; i++) {

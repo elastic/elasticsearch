@@ -543,7 +543,7 @@ public class CompositeRolesStore {
             (key, privilege) -> builder.add(
                 fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
                 privilege.query,
-                IndexPrivilege.getSplitBySelectorAccess(privilege.privileges),
+                IndexPrivilege.splitBySelectorAccess(privilege.privileges),
                 false,
                 privilege.indices.toArray(Strings.EMPTY_ARRAY)
             )
@@ -552,7 +552,7 @@ public class CompositeRolesStore {
             (key, privilege) -> builder.add(
                 fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
                 privilege.query,
-                IndexPrivilege.getSplitBySelectorAccess(privilege.privileges),
+                IndexPrivilege.splitBySelectorAccess(privilege.privileges),
                 true,
                 privilege.indices.toArray(Strings.EMPTY_ARRAY)
             )
@@ -566,7 +566,7 @@ public class CompositeRolesStore {
                         new FieldPermissionsDefinition(privilege.getGrantedFields(), privilege.getDeniedFields())
                     ),
                     privilege.getQuery() == null ? null : newHashSet(privilege.getQuery()),
-                    IndexPrivilege.getSplitBySelectorAccess(newHashSet(Objects.requireNonNull(privilege.getPrivileges()))),
+                    IndexPrivilege.splitBySelectorAccess(newHashSet(Objects.requireNonNull(privilege.getPrivileges()))),
                     privilege.allowRestrictedIndices(),
                     newHashSet(Objects.requireNonNull(privilege.getIndices())).toArray(new String[0])
                 )

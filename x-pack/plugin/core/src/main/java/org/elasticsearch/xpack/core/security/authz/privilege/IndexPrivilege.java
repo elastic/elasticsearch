@@ -184,7 +184,8 @@ public final class IndexPrivilege extends Privilege {
     public static final IndexPrivilege ALL = new IndexPrivilege("all", ALL_AUTOMATON, IndexComponentSelectorPredicate.ALL);
     public static final IndexPrivilege READ_FAILURE_STORE = new IndexPrivilege(
         "read_failure_store",
-        READ_AUTOMATON,
+        // TODO use READ_AUTOMATON here in authorization follow-up
+        Automatons.EMPTY,
         IndexComponentSelectorPredicate.FAILURES
     );
     public static final IndexPrivilege READ = new IndexPrivilege("read", READ_AUTOMATON);
@@ -274,13 +275,13 @@ public final class IndexPrivilege extends Privilege {
     }
 
     /**
-     * Delegates to {@link #getSplitBySelectorAccess(Set)} but throws if the result is not a singleton, i.e., covers more than one selector.
+     * Delegates to {@link #splitBySelectorAccess(Set)} but throws if the result is not a singleton, i.e., covers more than one selector.
      * Use this method if you know that the input name set corresponds to privileges covering the same selector, for instance if you have a
      * single input name, or multiple names that all grant access to one selector e.g., {@link IndexComponentSelector#DATA}.
      * @throws IllegalArgumentException if privileges and actions for input names cover access to more than one selector
      */
     public static IndexPrivilege getWithSingleSelectorAccess(Set<String> names) {
-        final Set<IndexPrivilege> splitBySelector = getSplitBySelectorAccess(names);
+        final Set<IndexPrivilege> splitBySelector = splitBySelectorAccess(names);
         if (splitBySelector.size() != 1) {
             throw new IllegalArgumentException(
                 "index privilege patterns " + names + " did not map to a single selector " + splitBySelector
@@ -299,14 +300,14 @@ public final class IndexPrivilege extends Privilege {
      * selector boundaries since their underlying automata would be combined, granting more access than is valid.
      * This method conceptually splits the input names into ones that correspond to different selector access, and return an index privilege
      * for each partition.
-     * For instance, `getSplitBySelectorAccess(Set.of("view_index_metadata", "write", "read_failure_store"))` will return two index
+     * For instance, `splitBySelectorAccess(Set.of("view_index_metadata", "write", "read_failure_store"))` will return two index
      * privileges one covering `view_index_metadata` and `write` for a {@link IndexComponentSelectorPredicate#DATA}, the other covering
      * `read_failure_store` for a {@link IndexComponentSelectorPredicate#FAILURES} selector.
      * A notable exception is the {@link IndexPrivilege#ALL} privilege. If this privilege is included in the input name set, this method
      * returns a single index privilege that grants access to all selectors.
      * All raw actions are treated as granting access to the {@link IndexComponentSelector#DATA} selector.
      */
-    public static Set<IndexPrivilege> getSplitBySelectorAccess(Set<String> names) {
+    public static Set<IndexPrivilege> splitBySelectorAccess(Set<String> names) {
         return CACHE.computeIfAbsent(names, (theName) -> {
             if (theName.isEmpty()) {
                 return Set.of(NONE);

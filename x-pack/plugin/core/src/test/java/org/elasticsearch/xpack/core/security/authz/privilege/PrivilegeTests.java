@@ -218,7 +218,7 @@ public class PrivilegeTests extends ESTestCase {
         IndexPrivilege second = values[randomIntBetween(0, values.length - 1)];
 
         Set<String> name = Sets.newHashSet(first.name().iterator().next(), second.name().iterator().next());
-        Set<IndexPrivilege> indices = IndexPrivilege.getSplitBySelectorAccess(name);
+        Set<IndexPrivilege> indices = IndexPrivilege.splitBySelectorAccess(name);
 
         Automaton automaton = null;
         if (indices.size() == 1) {

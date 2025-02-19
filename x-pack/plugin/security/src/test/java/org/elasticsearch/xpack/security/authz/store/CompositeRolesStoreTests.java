@@ -1703,6 +1703,53 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
     }
 
+    public void testBuildRoleWithFailureStorePrivilegeCollatesToKeepDlsFlsFromAnotherGroup() {
+        assumeTrue("requires failure store feature", DataStream.isFailureStoreFeatureFlagEnabled());
+        String indexPattern = randomAlphanumericOfLength(10);
+        boolean allowRestrictedIndices = randomBoolean();
+        final Role role = buildRole(
+            roleDescriptorWithIndicesPrivileges(
+                "r1",
+                new IndicesPrivileges[] {
+                    IndicesPrivileges.builder()
+                        .indices(indexPattern)
+                        .privileges("read_failure_store")
+                        .query("{\"match\":{\"field\":\"a\"}}")
+                        .grantedFields("field")
+                        .allowRestrictedIndices(allowRestrictedIndices)
+                        .build(),
+                    IndicesPrivileges.builder()
+                        .indices(indexPattern)
+                        .privileges("read", "view_index_metadata")
+                        .query("{\"match\":{\"field\":\"a\"}}")
+                        .grantedFields("field")
+                        .allowRestrictedIndices(allowRestrictedIndices)
+                        .build() }
+            )
+        );
+        assertHasIndexGroups(
+            role.indices(),
+            indexGroup(
+                IndexPrivilege.getWithSingleSelectorAccess(Set.of("read_failure_store")),
+                allowRestrictedIndices,
+                "{\"match\":{\"field\":\"a\"}}",
+                new FieldPermissionsDefinition(
+                    Set.of(new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "field" }, null))
+                ),
+                indexPattern
+            ),
+            indexGroup(
+                IndexPrivilege.getWithSingleSelectorAccess(Set.of("read", "view_index_metadata")),
+                allowRestrictedIndices,
+                "{\"match\":{\"field\":\"a\"}}",
+                new FieldPermissionsDefinition(
+                    Set.of(new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "field" }, null))
+                ),
+                indexPattern
+            )
+        );
+    }
+
     public void testBuildRoleNeverSplitsWithoutFailureStoreRelatedPrivileges() {
         String indexPattern = randomAlphanumericOfLength(10);
         List<String> nonFailurePrivileges = IndexPrivilege.names()

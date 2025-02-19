@@ -9,6 +9,8 @@
 
 package org.elasticsearch.entitlement.runtime.api;
 
+import jdk.nio.Channels;
+
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
@@ -1349,6 +1351,72 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     // nio
+
+    @Override
+    public void check$java_nio_channels_FileChannel$(Class<?> callerClass) {
+        policyManager.checkChangeFilesHandling(callerClass);
+    }
+
+    @Override
+    public void check$java_nio_channels_FileChannel$$open(
+        Class<?> callerClass,
+        Path path,
+        Set<? extends OpenOption> options,
+        FileAttribute<?>... attrs
+    ) {
+        if (isOpenForWrite(options)) {
+            policyManager.checkFileWrite(callerClass, path);
+        } else {
+            policyManager.checkFileRead(callerClass, path);
+        }
+    }
+
+    @Override
+    public void check$java_nio_channels_FileChannel$$open(Class<?> callerClass, Path path, OpenOption... options) {
+        if (isOpenForWrite(options)) {
+            policyManager.checkFileWrite(callerClass, path);
+        } else {
+            policyManager.checkFileRead(callerClass, path);
+        }
+    }
+
+    @Override
+    public void check$java_nio_channels_AsynchronousFileChannel$(Class<?> callerClass) {
+        policyManager.checkChangeFilesHandling(callerClass);
+    }
+
+    @Override
+    public void check$java_nio_channels_AsynchronousFileChannel$$open(
+        Class<?> callerClass,
+        Path path,
+        Set<? extends OpenOption> options,
+        ExecutorService executor,
+        FileAttribute<?>... attrs
+    ) {
+        if (isOpenForWrite(options)) {
+            policyManager.checkFileWrite(callerClass, path);
+        } else {
+            policyManager.checkFileRead(callerClass, path);
+        }
+    }
+
+    @Override
+    public void check$java_nio_channels_AsynchronousFileChannel$$open(Class<?> callerClass, Path path, OpenOption... options) {
+        if (isOpenForWrite(options)) {
+            policyManager.checkFileWrite(callerClass, path);
+        } else {
+            policyManager.checkFileRead(callerClass, path);
+        }
+    }
+
+    @Override
+    public void check$jdk_nio_Channels$$readWriteSelectableChannel(
+        Class<?> callerClass,
+        FileDescriptor fd,
+        Channels.SelectableChannelCloser closer
+    ) {
+        policyManager.checkFileDescriptorWrite(callerClass);
+    }
 
     @Override
     public void check$java_nio_file_Files$$getOwner(Class<?> callerClass, Path path, LinkOption... options) {

@@ -1,0 +1,5 @@
+pr: 119995
+summary: Add representative count to apm-data plugin
+area: Ingest Node
+type: enhancement
+issues: []

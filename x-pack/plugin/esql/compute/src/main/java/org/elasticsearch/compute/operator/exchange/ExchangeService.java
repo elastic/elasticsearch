@@ -61,8 +61,8 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     public static final String EXCHANGE_ACTION_NAME = "internal:data/read/esql/exchange";
     public static final String EXCHANGE_ACTION_NAME_FOR_CCS = "cluster:internal:data/read/esql/exchange";
 
-    private static final String OPEN_EXCHANGE_ACTION_NAME = "internal:data/read/esql/open_exchange";
-    private static final String OPEN_EXCHANGE_ACTION_NAME_FOR_CCS = "cluster:internal:data/read/esql/open_exchange";
+    public static final String OPEN_EXCHANGE_ACTION_NAME = "internal:data/read/esql/open_exchange";
+    public static final String OPEN_EXCHANGE_ACTION_NAME_FOR_CCS = "cluster:internal:data/read/esql/open_exchange";
 
     /**
      * The time interval for an exchange sink handler to be considered inactive and subsequently

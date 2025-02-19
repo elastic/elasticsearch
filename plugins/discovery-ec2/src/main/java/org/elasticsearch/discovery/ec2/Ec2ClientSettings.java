@@ -9,6 +9,8 @@
 
 package org.elasticsearch.discovery.ec2;
 
+import org.elasticsearch.core.UpdateForV10;
+
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
@@ -64,11 +66,13 @@ final class Ec2ClientSettings {
     );
 
     /** The protocol to use to connect  to ec2. */
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION) // no longer used, should be removed in v10
     static final Setting<HttpScheme> PROTOCOL_SETTING = new Setting<>(
         "discovery.ec2.protocol",
         "https",
         s -> HttpScheme.valueOf(s.toUpperCase(Locale.ROOT)),
-        Property.NodeScope
+        Property.NodeScope,
+        Property.Deprecated
     );
     // NOMERGE should we now reject this if set to `http` or just silently ignore it?
 

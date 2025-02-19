@@ -47,8 +47,6 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
 
     // proxy for testing
     Ec2Client buildClient(AwsCredentialsProvider credentials, Ec2ClientSettings clientSettings) {
-        // TODO NOMERGE protocol no longer supported? clientConfiguration.setProtocol(clientSettings.protocol);
-
         final var httpClientBuilder = ApacheHttpClient.builder();
         httpClientBuilder.socketTimeout(Duration.of(clientSettings.readTimeoutMillis, ChronoUnit.MILLIS));
 

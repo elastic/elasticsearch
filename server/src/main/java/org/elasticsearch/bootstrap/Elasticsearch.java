@@ -245,8 +245,11 @@ class Elasticsearch {
             EntitlementBootstrap.bootstrap(
                 pluginPolicies,
                 pluginsResolver::resolveClassToPluginName,
+                nodeEnv.settings()::get,
+                nodeEnv.settings()::getGlobValues,
                 nodeEnv.dataDirs(),
                 nodeEnv.configDir(),
+                nodeEnv.logsDir(),
                 nodeEnv.tmpDir()
             );
         } else {

@@ -404,7 +404,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             .addSettingsUpdateConsumer(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED, this::setEnableQueryPhaseParallelCollection);
 
         memoryAccountingBufferSize = MEMORY_ACCOUNTING_BUFFER_SIZE.get(settings).getBytes();
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(MEMORY_ACCOUNTING_BUFFER_SIZE, this::setMemoryAccountingBufferSize);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(MEMORY_ACCOUNTING_BUFFER_SIZE, newValue -> this.memoryAccountingBufferSize = newValue.getBytes());
     }
 
     private void setEnableSearchWorkerThreads(boolean enableSearchWorkerThreads) {
@@ -417,10 +418,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private void setEnableQueryPhaseParallelCollection(boolean enableQueryPhaseParallelCollection) {
         this.enableQueryPhaseParallelCollection = enableQueryPhaseParallelCollection;
-    }
-
-    private void setMemoryAccountingBufferSize(ByteSizeValue memoryAccountingBufferSize) {
-        this.memoryAccountingBufferSize = memoryAccountingBufferSize.getBytes();
     }
 
     private static void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {

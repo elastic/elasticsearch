@@ -120,7 +120,7 @@ public class StatelessNumberOfShardsIT extends AbstractStatelessIntegTestCase {
 
     private void assertNumberOfShards(String indexName, int expectedNumberOfShards) {
         assertResponse(
-            indicesAdmin().prepareGetSettings(indexName),
+            indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName),
             response -> assertThat(
                 Integer.valueOf(response.getSetting(indexName, SETTING_NUMBER_OF_SHARDS)),
                 equalTo(expectedNumberOfShards)

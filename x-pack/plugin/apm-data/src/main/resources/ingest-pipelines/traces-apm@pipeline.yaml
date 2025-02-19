@@ -31,7 +31,7 @@ processors:
     ignore_failure: true
     ignore_missing: true
 - script:
-    if: ctx.event?.outcome == 'success'
+    if: ctx.event?.outcome == 'success' && ctx[ctx.processor?.event]?.representative_count != null
     source: |
         ctx.event.success_count = ctx[ctx.processor?.event]?.representative_count;
 - set:

@@ -106,7 +106,7 @@ public class IndexPrivilegeTests extends ESTestCase {
     }
 
     public void testGetWithSingleSelectorAccessFailuresSelector() {
-        assumeTrue("This test requires the failure store to be enabled", DataStream.isFailureStoreFeatureFlagEnabled());
+        assumeTrue("requires failure store feature", DataStream.isFailureStoreFeatureFlagEnabled());
         {
             IndexPrivilege actual = IndexPrivilege.getWithSingleSelectorAccess(Set.of("read_failure_store"));
             assertThat(actual, equalTo(IndexPrivilege.READ_FAILURE_STORE));
@@ -147,7 +147,7 @@ public class IndexPrivilegeTests extends ESTestCase {
     }
 
     public void testGetSplitBySelectorAccess() {
-        assumeTrue("This test requires the failure store to be enabled", DataStream.isFailureStoreFeatureFlagEnabled());
+        assumeTrue("requires failure store feature", DataStream.isFailureStoreFeatureFlagEnabled());
         {
             Set<IndexPrivilege> actual = IndexPrivilege.getSplitBySelectorAccess(Set.of("read_failure_store"));
             assertThat(actual, containsInAnyOrder(IndexPrivilege.READ_FAILURE_STORE));

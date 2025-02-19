@@ -73,6 +73,8 @@ import java.nio.file.attribute.FileTime;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.UserPrincipal;
 import java.nio.file.spi.FileSystemProvider;
+import java.security.KeyStore;
+import java.security.Provider;
 import java.security.cert.CertStoreParameters;
 import java.util.List;
 import java.util.Locale;
@@ -629,11 +631,49 @@ public interface EntitlementChecker {
 
     void check$java_io_RandomAccessFile$(Class<?> callerClass, File file, String mode);
 
+    void check$java_security_KeyStore$$getInstance(Class<?> callerClass, File file, char[] password);
+
+    void check$java_security_KeyStore$$getInstance(Class<?> callerClass, File file, KeyStore.LoadStoreParameter param);
+
+    void check$java_security_KeyStore$Builder$$newInstance(Class<?> callerClass, File file, KeyStore.ProtectionParameter protection);
+
+    void check$java_security_KeyStore$Builder$$newInstance(
+        Class<?> callerClass,
+        String type,
+        Provider provider,
+        File file,
+        KeyStore.ProtectionParameter protection
+    );
+
     void check$java_util_Scanner$(Class<?> callerClass, File source);
 
     void check$java_util_Scanner$(Class<?> callerClass, File source, String charsetName);
 
     void check$java_util_Scanner$(Class<?> callerClass, File source, Charset charset);
+
+    void check$java_util_jar_JarFile$(Class<?> callerClass, String name);
+
+    void check$java_util_jar_JarFile$(Class<?> callerClass, String name, boolean verify);
+
+    void check$java_util_jar_JarFile$(Class<?> callerClass, File file);
+
+    void check$java_util_jar_JarFile$(Class<?> callerClass, File file, boolean verify);
+
+    void check$java_util_jar_JarFile$(Class<?> callerClass, File file, boolean verify, int mode);
+
+    void check$java_util_jar_JarFile$(Class<?> callerClass, File file, boolean verify, int mode, Runtime.Version version);
+
+    void check$java_util_zip_ZipFile$(Class<?> callerClass, String name);
+
+    void check$java_util_zip_ZipFile$(Class<?> callerClass, String name, Charset charset);
+
+    void check$java_util_zip_ZipFile$(Class<?> callerClass, File file);
+
+    void check$java_util_zip_ZipFile$(Class<?> callerClass, File file, int mode);
+
+    void check$java_util_zip_ZipFile$(Class<?> callerClass, File file, Charset charset);
+
+    void check$java_util_zip_ZipFile$(Class<?> callerClass, File file, int mode, Charset charset);
 
     // nio
     void check$java_nio_file_Files$$getOwner(Class<?> callerClass, Path path, LinkOption... options);

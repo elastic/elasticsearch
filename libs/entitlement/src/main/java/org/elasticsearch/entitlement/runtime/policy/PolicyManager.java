@@ -417,11 +417,12 @@ public class PolicyManager {
     }
 
     private static void notEntitled(String message, Class<?> callerClass) {
+        var exception = new NotEntitledException(message);
         // don't log self tests in EntitlementBootstrap
         if (EntitlementBootstrap.class.equals(callerClass) == false) {
-            logger.warn(message);
+            logger.warn(message, exception);
         }
-        throw new NotEntitledException(message);
+        throw exception;
     }
 
     public void checkManageThreadsEntitlement(Class<?> callerClass) {

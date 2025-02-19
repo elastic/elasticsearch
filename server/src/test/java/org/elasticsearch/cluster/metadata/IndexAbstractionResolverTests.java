@@ -29,6 +29,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
+import static org.elasticsearch.indices.SystemIndices.EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
 import static org.elasticsearch.indices.SystemIndices.SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
@@ -257,16 +258,44 @@ public class IndexAbstractionResolverTests extends ESTestCase {
             List.of(new SystemIndices.Feature("name", "description", List.of(fooDescriptor, barDescriptor)))
         );
 
-        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, "false");
-        indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, systemIndices);
-        indexAbstractionResolver = new IndexAbstractionResolver(indexNameExpressionResolver);
-
         metadata = Metadata.builder().put(foo, true).put(barReindexed, true).put(other, true).build();
 
-        assertThat(isIndexVisible("other", "*"), is(true));
-        assertThat(isIndexVisible(".foo", "*"), is(false));
-        assertThat(isIndexVisible(".bar", "*"), is(false));
+        {
+            final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+            threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, "true");
+            indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, systemIndices);
+            indexAbstractionResolver = new IndexAbstractionResolver(indexNameExpressionResolver);
+
+            // this covers the GET * case -- with system access, you can see everything
+            assertThat(isIndexVisible("other", "*"), is(true));
+            assertThat(isIndexVisible(".foo", "*"), is(true));
+            assertThat(isIndexVisible(".bar", "*"), is(true));
+        }
+
+        {
+            final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+            threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, "false");
+            indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, systemIndices);
+            indexAbstractionResolver = new IndexAbstractionResolver(indexNameExpressionResolver);
+
+            // this covers the GET * case -- without system access, you can't see everything
+            assertThat(isIndexVisible("other", "*"), is(true));
+            assertThat(isIndexVisible(".foo", "*"), is(false));
+            assertThat(isIndexVisible(".bar", "*"), is(false));
+        }
+
+        {
+            final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+            threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, "true");
+            threadContext.putHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, "some-elastic-product");
+            indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, systemIndices);
+            indexAbstractionResolver = new IndexAbstractionResolver(indexNameExpressionResolver);
+
+            // this covers the GET * case -- with product (only) access, you can't see everything
+            assertThat(isIndexVisible("other", "*"), is(true));
+            assertThat(isIndexVisible(".foo", "*"), is(false));
+            assertThat(isIndexVisible(".bar", "*"), is(false));
+        }
     }
 
     private static XContentBuilder mappings() {

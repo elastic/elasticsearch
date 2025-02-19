@@ -114,7 +114,7 @@ public class RestIndicesAction extends AbstractCatAction {
                 // security benefits - it's more of a convenience thing.
                 client.admin()
                     .indices()
-                    .prepareGetSettings(indices)
+                    .prepareGetSettings(masterNodeTimeout, indices)
                     .setIndicesOptions(indicesOptions)
                     .setMasterNodeTimeout(masterNodeTimeout)
                     .setNames(IndexSettings.INDEX_SEARCH_THROTTLED.getKey())

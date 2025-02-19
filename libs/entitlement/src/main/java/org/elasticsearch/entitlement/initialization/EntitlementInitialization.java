@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.initialization;
 
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.internal.provider.ProviderLocator;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
@@ -46,9 +47,13 @@ import java.nio.file.FileSystems;
 import java.nio.file.LinkOption;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
+import java.nio.file.WatchEvent;
+import java.nio.file.WatchService;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.spi.FileSystemProvider;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -96,6 +101,7 @@ public class EntitlementInitialization {
         Stream.of(
             fileSystemProviderChecks(),
             fileStoreChecks(),
+            pathChecks(),
             Stream.of(
                 INSTRUMENTATION_SERVICE.lookupImplementationMethod(
                     SelectorProvider.class,
@@ -129,28 +135,35 @@ public class EntitlementInitialization {
     private static PolicyManager createPolicyManager() {
         EntitlementBootstrap.BootstrapArgs bootstrapArgs = EntitlementBootstrap.bootstrapArgs();
         Map<String, Policy> pluginPolicies = bootstrapArgs.pluginPolicies();
-        var pathLookup = new PathLookup(bootstrapArgs.configDir(), bootstrapArgs.dataDirs(), bootstrapArgs.tempDir());
-        Path logsDir = EntitlementBootstrap.bootstrapArgs().logsDir();
+        var pathLookup = new PathLookup(
+            getUserHome(),
+            bootstrapArgs.configDir(),
+            bootstrapArgs.dataDirs(),
+            bootstrapArgs.tempDir(),
+            bootstrapArgs.settingResolver(),
+            bootstrapArgs.settingGlobResolver()
+        );
 
-        // TODO(ES-10031): Decide what goes in the elasticsearch default policy and extend it
-        var serverPolicy = new Policy(
-            "server",
-            List.of(
-                new Scope("org.elasticsearch.base", List.of(new CreateClassLoaderEntitlement())),
-                new Scope("org.elasticsearch.xcontent", List.of(new CreateClassLoaderEntitlement())),
-                new Scope(
-                    "org.elasticsearch.server",
-                    List.of(
-                        new ExitVMEntitlement(),
-                        new ReadStoreAttributesEntitlement(),
-                        new CreateClassLoaderEntitlement(),
-                        new InboundNetworkEntitlement(),
-                        new OutboundNetworkEntitlement(),
-                        new LoadNativeLibrariesEntitlement(),
-                        new ManageThreadsEntitlement(),
-                        new FilesEntitlement(
-                            List.of(
+        List<Scope> serverScopes = new ArrayList<>();
+        Collections.addAll(
+            serverScopes,
+            new Scope("org.elasticsearch.base", List.of(new CreateClassLoaderEntitlement())),
+            new Scope("org.elasticsearch.xcontent", List.of(new CreateClassLoaderEntitlement())),
+            new Scope(
+                "org.elasticsearch.server",
+                List.of(
+                    new ExitVMEntitlement(),
+                    new ReadStoreAttributesEntitlement(),
+                    new CreateClassLoaderEntitlement(),
+                    new InboundNetworkEntitlement(),
+                    new OutboundNetworkEntitlement(),
+                    new LoadNativeLibrariesEntitlement(),
+                    new ManageThreadsEntitlement(),
+                    new FilesEntitlement(
+                        Stream.concat(
+                            Stream.of(
                                 FileData.ofPath(bootstrapArgs.tempDir(), READ_WRITE),
+                                FileData.ofPath(bootstrapArgs.configDir(), READ),
                                 FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
                                 // OS release on Linux
                                 FileData.ofPath(Path.of("/etc/os-release"), READ),
@@ -169,23 +182,46 @@ public class EntitlementInitialization {
                                 // // io stats on Linux
                                 FileData.ofPath(Path.of("/proc/self/mountinfo"), READ),
                                 FileData.ofPath(Path.of("/proc/diskstats"), READ)
-                            )
-                        )
+                            ),
+                            Arrays.stream(bootstrapArgs.dataDirs()).map(d -> FileData.ofPath(d, READ))
+                        ).toList()
                     )
-                ),
-                new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),
-                new Scope("io.netty.transport", List.of(new InboundNetworkEntitlement(), new OutboundNetworkEntitlement())),
-                new Scope("org.apache.lucene.core", List.of(new LoadNativeLibrariesEntitlement(), new ManageThreadsEntitlement())),
-                new Scope("org.apache.logging.log4j.core", List.of(new ManageThreadsEntitlement())),
-                new Scope(
-                    "org.elasticsearch.nativeaccess",
-                    List.of(
-                        new LoadNativeLibrariesEntitlement(),
-                        new FilesEntitlement(List.of(FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE)))
+                )
+            ),
+            new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),
+            new Scope("io.netty.transport", List.of(new InboundNetworkEntitlement(), new OutboundNetworkEntitlement())),
+            new Scope(
+                "org.apache.lucene.core",
+                List.of(
+                    new LoadNativeLibrariesEntitlement(),
+                    new ManageThreadsEntitlement(),
+                    new FilesEntitlement(
+                        Stream.concat(
+                            Stream.of(FileData.ofPath(bootstrapArgs.configDir(), READ)),
+                            Arrays.stream(bootstrapArgs.dataDirs()).map(d -> FileData.ofPath(d, READ_WRITE))
+                        ).toList()
                     )
+                )
+            ),
+            new Scope("org.apache.logging.log4j.core", List.of(new ManageThreadsEntitlement())),
+            new Scope(
+                "org.elasticsearch.nativeaccess",
+                List.of(
+                    new LoadNativeLibrariesEntitlement(),
+                    new FilesEntitlement(List.of(FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE)))
                 )
             )
         );
+
+        Path trustStorePath = trustStorePath();
+        if (trustStorePath != null) {
+            serverScopes.add(
+                new Scope("org.bouncycastle.fips.tls", List.of(new FilesEntitlement(List.of(FileData.ofPath(trustStorePath, READ)))))
+            );
+        }
+
+        // TODO(ES-10031): Decide what goes in the elasticsearch default policy and extend it
+        var serverPolicy = new Policy("server", serverScopes);
         // agents run without a module, so this is a special hack for the apm agent
         // this should be removed once https://github.com/elastic/elasticsearch/issues/109335 is completed
         List<Entitlement> agentEntitlements = List.of(new CreateClassLoaderEntitlement(), new ManageThreadsEntitlement());
@@ -199,6 +235,19 @@ public class EntitlementInitialization {
             ENTITLEMENTS_MODULE,
             pathLookup
         );
+    }
+
+    private static Path getUserHome() {
+        String userHome = System.getProperty("user.home");
+        if (userHome == null) {
+            throw new IllegalStateException("user.home system property is required");
+        }
+        return PathUtils.get(userHome);
+    }
+
+    private static Path trustStorePath() {
+        String trustStore = System.getProperty("javax.net.ssl.trustStore");
+        return trustStore != null ? Path.of(trustStore) : null;
     }
 
     private static Stream<InstrumentationService.InstrumentationInfo> fileSystemProviderChecks() throws ClassNotFoundException,
@@ -282,6 +331,33 @@ public class EntitlementInitialization {
                     instrumentation.of("name"),
                     instrumentation.of("type")
 
+                );
+            } catch (NoSuchMethodException | ClassNotFoundException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    private static Stream<InstrumentationService.InstrumentationInfo> pathChecks() {
+        var pathClasses = StreamSupport.stream(FileSystems.getDefault().getRootDirectories().spliterator(), false)
+            .map(Path::getClass)
+            .distinct();
+        return pathClasses.flatMap(pathClass -> {
+            InstrumentationInfoFactory instrumentation = (String methodName, Class<?>... parameterTypes) -> INSTRUMENTATION_SERVICE
+                .lookupImplementationMethod(
+                    Path.class,
+                    methodName,
+                    pathClass,
+                    EntitlementChecker.class,
+                    "checkPath" + Character.toUpperCase(methodName.charAt(0)) + methodName.substring(1),
+                    parameterTypes
+                );
+
+            try {
+                return Stream.of(
+                    instrumentation.of("toRealPath", LinkOption[].class),
+                    instrumentation.of("register", WatchService.class, WatchEvent.Kind[].class),
+                    instrumentation.of("register", WatchService.class, WatchEvent.Kind[].class, WatchEvent.Modifier[].class)
                 );
             } catch (NoSuchMethodException | ClassNotFoundException e) {
                 throw new RuntimeException(e);

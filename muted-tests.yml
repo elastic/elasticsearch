@@ -325,6 +325,9 @@ tests:
 - class: org.elasticsearch.action.admin.indices.create.ShrinkIndexIT
   method: testShrinkIndexPrimaryTerm
   issue: https://github.com/elastic/elasticsearch/issues/122974
+- class: org.elasticsearch.test.apmintegration.TracesApmIT
+  method: testApmIntegration
+  issue: https://github.com/elastic/elasticsearch/issues/122129
 
 # Examples:
 #

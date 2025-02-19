@@ -50,8 +50,7 @@ import java.util.Objects;
  */
 public record TextEmbeddingByteResults(List<Embedding> embeddings)
     implements
-        EmbeddingResults<TextEmbeddingByteResults.Chunk, TextEmbeddingByteResults.Embedding>,
-        TextEmbedding {
+        TextEmbeddingResults<TextEmbeddingByteResults.Chunk, TextEmbeddingByteResults.Embedding> {
     public static final String NAME = "text_embedding_service_byte_results";
     public static final String TEXT_EMBEDDING_BYTES = "text_embedding_bytes";
 

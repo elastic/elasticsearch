@@ -55,8 +55,7 @@ import java.util.stream.Collectors;
  */
 public record TextEmbeddingFloatResults(List<Embedding> embeddings)
     implements
-        EmbeddingResults<TextEmbeddingFloatResults.Chunk, TextEmbeddingFloatResults.Embedding>,
-        TextEmbedding {
+        TextEmbeddingResults<TextEmbeddingFloatResults.Chunk, TextEmbeddingFloatResults.Embedding> {
     public static final String NAME = "text_embedding_service_results";
     public static final String TEXT_EMBEDDING = TaskType.TEXT_EMBEDDING.toString();
 

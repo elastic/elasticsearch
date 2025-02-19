@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.inference.InferenceResults;
-import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 
@@ -41,11 +40,9 @@ import java.util.Objects;
  *     ]
  * }
  */
-// TODO: let this implement EmbeddingResults, so that this also supports chunking.
 public record TextEmbeddingBitResults(List<TextEmbeddingByteResults.Embedding> embeddings)
     implements
-        InferenceServiceResults,
-        TextEmbedding {
+        TextEmbeddingResults<TextEmbeddingByteResults.Chunk, TextEmbeddingByteResults.Embedding> {
     public static final String NAME = "text_embedding_service_bit_results";
     public static final String TEXT_EMBEDDING_BITS = "text_embedding_bits";
 

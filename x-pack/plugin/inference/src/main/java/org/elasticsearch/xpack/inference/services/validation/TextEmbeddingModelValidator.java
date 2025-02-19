@@ -14,8 +14,8 @@ import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.inference.results.TextEmbedding;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 
 public class TextEmbeddingModelValidator implements ModelValidator {
 
@@ -33,7 +33,7 @@ public class TextEmbeddingModelValidator implements ModelValidator {
     }
 
     private Model postValidate(InferenceService service, Model model, InferenceServiceResults results) {
-        if (results instanceof TextEmbedding embeddingResults) {
+        if (results instanceof TextEmbeddingResults<?, ?> embeddingResults) {
             var serviceSettings = model.getServiceSettings();
             var dimensions = serviceSettings.dimensions();
             int embeddingSize = getEmbeddingSize(embeddingResults);
@@ -67,7 +67,7 @@ public class TextEmbeddingModelValidator implements ModelValidator {
         }
     }
 
-    private int getEmbeddingSize(TextEmbedding embeddingResults) {
+    private int getEmbeddingSize(TextEmbeddingResults<?, ?> embeddingResults) {
         int embeddingSize;
         try {
             embeddingSize = embeddingResults.getFirstEmbeddingSize();

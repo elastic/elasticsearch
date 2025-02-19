@@ -55,7 +55,10 @@ public record TextEmbeddingBitResults(List<TextEmbeddingByteResults.Embedding> e
 
     @Override
     public int getFirstEmbeddingSize() {
-        return TextEmbeddingUtils.getFirstEmbeddingSize(new ArrayList<>(embeddings));
+        if (embeddings.isEmpty()) {
+            throw new IllegalStateException("Embeddings list is empty");
+        }
+        return embeddings.getFirst().values().length;
     }
 
     @Override

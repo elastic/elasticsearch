@@ -24,7 +24,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -62,7 +61,10 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings)
 
     @Override
     public int getFirstEmbeddingSize() {
-        return TextEmbeddingUtils.getFirstEmbeddingSize(new ArrayList<>(embeddings));
+        if (embeddings.isEmpty()) {
+            throw new IllegalStateException("Embeddings list is empty");
+        }
+        return embeddings.getFirst().values().length;
     }
 
     @Override
@@ -117,7 +119,7 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings)
         return Objects.hash(embeddings);
     }
 
-    public record Embedding(byte[] values) implements Writeable, ToXContentObject, EmbeddingInt, EmbeddingResults.Embedding<Chunk> {
+    public record Embedding(byte[] values) implements Writeable, ToXContentObject, EmbeddingResults.Embedding<Chunk> {
         public static final String EMBEDDING = "embedding";
 
         public Embedding(StreamInput in) throws IOException {
@@ -170,11 +172,6 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings)
                 doubleArray[i] = ((Byte) values[i]).doubleValue();
             }
             return doubleArray;
-        }
-
-        @Override
-        public int getSize() {
-            return values().length;
         }
 
         @Override

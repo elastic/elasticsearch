@@ -100,7 +100,10 @@ public record TextEmbeddingFloatResults(List<Embedding> embeddings)
 
     @Override
     public int getFirstEmbeddingSize() {
-        return TextEmbeddingUtils.getFirstEmbeddingSize(new ArrayList<>(embeddings));
+        if (embeddings.isEmpty()) {
+            throw new IllegalStateException("Embeddings list is empty");
+        }
+        return embeddings.getFirst().values().length;
     }
 
     @Override
@@ -153,7 +156,7 @@ public record TextEmbeddingFloatResults(List<Embedding> embeddings)
         return Objects.hash(embeddings);
     }
 
-    public record Embedding(float[] values) implements Writeable, ToXContentObject, EmbeddingInt, EmbeddingResults.Embedding<Chunk> {
+    public record Embedding(float[] values) implements Writeable, ToXContentObject, EmbeddingResults.Embedding<Chunk> {
         public static final String EMBEDDING = "embedding";
 
         public Embedding(StreamInput in) throws IOException {
@@ -171,11 +174,6 @@ public record TextEmbeddingFloatResults(List<Embedding> embeddings)
                 embeddingValues[i] = embeddingValuesList.get(i);
             }
             return new Embedding(embeddingValues);
-        }
-
-        @Override
-        public int getSize() {
-            return values.length;
         }
 
         @Override

@@ -858,7 +858,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     @AfterClass
     public static void renderSignature() throws IOException {
-        if (System.getProperty("generateDocs") == null) {
+        if (System.getProperty("generateDocs") == null || true) {
             return;
         }
         String name = functionName();
@@ -933,7 +933,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     protected static void renderDocs(String name) throws IOException {
-        if (System.getProperty("generateDocs") == null) {
+        if (System.getProperty("generateDocs") == null || true) {
             return;
         }
         if (binaryOperator(name) != null || unaryOperator(name) != null || searchOperator(name) != null || likeOrInOperator(name)) {

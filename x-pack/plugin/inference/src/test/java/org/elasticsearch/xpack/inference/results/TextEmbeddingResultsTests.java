@@ -130,10 +130,7 @@ public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<T
     }
 
     public static Map<String, Object> buildExpectationFloat(List<float[]> embeddings) {
-        return Map.of(
-            TextEmbeddingFloatResults.TEXT_EMBEDDING,
-            embeddings.stream().map(TextEmbeddingFloatResults.Embedding::new).toList()
-        );
+        return Map.of(TextEmbeddingFloatResults.TEXT_EMBEDDING, embeddings.stream().map(TextEmbeddingFloatResults.Embedding::new).toList());
     }
 
     public static Map<String, Object> buildExpectationByte(List<byte[]> embeddings) {

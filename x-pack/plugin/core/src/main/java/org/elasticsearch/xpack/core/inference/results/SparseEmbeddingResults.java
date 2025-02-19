@@ -51,7 +51,9 @@ public record SparseEmbeddingResults(List<Embedding> embeddings)
 
         for (InferenceResults result : results) {
             if (result instanceof TextExpansionResults expansionResults) {
-                embeddings.add(SparseEmbeddingResults.Embedding.create(expansionResults.getWeightedTokens(), expansionResults.isTruncated()));
+                embeddings.add(
+                    SparseEmbeddingResults.Embedding.create(expansionResults.getWeightedTokens(), expansionResults.isTruncated())
+                );
             } else if (result instanceof org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults errorResult) {
                 if (errorResult.getException() instanceof ElasticsearchStatusException statusException) {
                     throw statusException;
@@ -118,8 +120,11 @@ public record SparseEmbeddingResults(List<Embedding> embeddings)
             .toList();
     }
 
-    public record Embedding(List<WeightedToken> tokens, boolean isTruncated) implements Writeable, ToXContentObject,
-        EmbeddingResults.Embedding<Chunk> {
+    public record Embedding(List<WeightedToken> tokens, boolean isTruncated)
+        implements
+            Writeable,
+            ToXContentObject,
+            EmbeddingResults.Embedding<Chunk> {
 
         public static final String EMBEDDING = "embedding";
         public static final String IS_TRUNCATED = "is_truncated";
@@ -170,7 +175,7 @@ public record SparseEmbeddingResults(List<Embedding> embeddings)
         }
 
         @Override
-        public Chunk toEmbeddingChunk(String text, ChunkedInference.TextOffset offset) {
+        public Chunk toChunk(String text, ChunkedInference.TextOffset offset) {
             return new Chunk(tokens, text, offset);
         }
     }

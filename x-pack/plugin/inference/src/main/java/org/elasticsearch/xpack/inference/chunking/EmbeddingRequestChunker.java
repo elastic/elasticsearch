@@ -227,7 +227,7 @@ public class EmbeddingRequestChunker {
         AtomicReferenceArray<EmbeddingResults.Embedding<?>> result = results.get(index);
         for (int i = 0; i < request.size(); i++) {
             EmbeddingResults.Chunk chunk = result.get(i)
-                .toEmbeddingChunk(
+                .toChunk(
                     request.get(i).chunkText(),
                     new ChunkedInference.TextOffset(request.get(i).chunk.start(), request.get(i).chunk.end())
                 );

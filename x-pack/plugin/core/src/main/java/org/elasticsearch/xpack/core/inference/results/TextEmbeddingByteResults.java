@@ -188,7 +188,7 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings)
         }
 
         @Override
-        public Chunk toEmbeddingChunk(String text, ChunkedInference.TextOffset offset) {
+        public Chunk toChunk(String text, ChunkedInference.TextOffset offset) {
             return new Chunk(values, text, offset);
         }
     }

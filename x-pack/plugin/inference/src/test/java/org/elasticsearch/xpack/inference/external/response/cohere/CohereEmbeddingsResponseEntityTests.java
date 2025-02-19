@@ -264,13 +264,7 @@ public class CohereEmbeddingsResponseEntityTests extends ESTestCase {
 
         MatcherAssert.assertThat(
             parsedResults.embeddings(),
-            is(
-                List.of(
-                    new TextEmbeddingByteResults.Embedding(
-                        new byte[] { (byte) -55, (byte) 74, (byte) 101, (byte) 67, (byte) 83 }
-                    )
-                )
-            )
+            is(List.of(new TextEmbeddingByteResults.Embedding(new byte[] { (byte) -55, (byte) 74, (byte) 101, (byte) 67, (byte) 83 })))
         );
     }
 
@@ -413,9 +407,7 @@ public class CohereEmbeddingsResponseEntityTests extends ESTestCase {
             is(
                 List.of(
                     new TextEmbeddingByteResults.Embedding(new byte[] { (byte) -55, (byte) 74, (byte) 101, (byte) 67 }),
-                    new TextEmbeddingByteResults.Embedding(
-                        new byte[] { (byte) 34, (byte) -64, (byte) 97, (byte) 65, (byte) -42 }
-                    )
+                    new TextEmbeddingByteResults.Embedding(new byte[] { (byte) 34, (byte) -64, (byte) 97, (byte) 65, (byte) -42 })
                 )
             )
         );

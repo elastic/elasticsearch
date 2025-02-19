@@ -41,10 +41,7 @@ public class GoogleAiStudioEmbeddingsResponseEntityTests extends ESTestCase {
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(
-            parsedResults.embeddings(),
-            is(List.of(TextEmbeddingFloatResults.Embedding.of(List.of(-0.00606332F, 0.058092743F))))
-        );
+        assertThat(parsedResults.embeddings(), is(List.of(TextEmbeddingFloatResults.Embedding.of(List.of(-0.00606332F, 0.058092743F)))));
     }
 
     public void testFromResponse_CreatesResultsForMultipleItems() throws IOException {

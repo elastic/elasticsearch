@@ -18,7 +18,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;

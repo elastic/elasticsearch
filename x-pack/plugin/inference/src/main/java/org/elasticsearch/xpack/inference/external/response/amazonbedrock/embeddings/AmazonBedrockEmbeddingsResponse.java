@@ -69,10 +69,8 @@ public class AmazonBedrockEmbeddingsResponse extends AmazonBedrockResponse {
         }
     }
 
-    private static List<TextEmbeddingFloatResults.Embedding> parseEmbeddings(
-        XContentParser jsonParser,
-        AmazonBedrockProvider provider
-    ) throws IOException {
+    private static List<TextEmbeddingFloatResults.Embedding> parseEmbeddings(XContentParser jsonParser, AmazonBedrockProvider provider)
+        throws IOException {
         switch (provider) {
             case AMAZONTITAN -> {
                 return parseTitanEmbeddings(jsonParser);
@@ -121,8 +119,7 @@ public class AmazonBedrockEmbeddingsResponse extends AmazonBedrockResponse {
         return embeddingList;
     }
 
-    private static TextEmbeddingFloatResults.Embedding parseCohereEmbeddingsListItem(XContentParser parser)
-        throws IOException {
+    private static TextEmbeddingFloatResults.Embedding parseCohereEmbeddingsListItem(XContentParser parser) throws IOException {
         List<Float> embeddingValuesList = parseList(parser, XContentUtils::parseFloat);
         return TextEmbeddingFloatResults.Embedding.of(embeddingValuesList);
     }

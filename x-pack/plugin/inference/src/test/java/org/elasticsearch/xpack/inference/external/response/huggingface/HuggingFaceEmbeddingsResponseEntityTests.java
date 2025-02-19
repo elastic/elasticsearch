@@ -296,10 +296,7 @@ public class HuggingFaceEmbeddingsResponseEntityTests extends ESTestCase {
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(
-            parsedResults.embeddings(),
-            is(List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 4.0294965E10F })))
-        );
+        assertThat(parsedResults.embeddings(), is(List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 4.0294965E10F }))));
     }
 
     public void testFromResponse_SucceedsWhenEmbeddingValueIsLong_ObjectFormat() throws IOException {
@@ -318,10 +315,7 @@ public class HuggingFaceEmbeddingsResponseEntityTests extends ESTestCase {
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(
-            parsedResults.embeddings(),
-            is(List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 4.0294965E10F })))
-        );
+        assertThat(parsedResults.embeddings(), is(List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 4.0294965E10F }))));
     }
 
     public void testFromResponse_FailsWhenEmbeddingValueIsAnObject_ObjectFormat() {

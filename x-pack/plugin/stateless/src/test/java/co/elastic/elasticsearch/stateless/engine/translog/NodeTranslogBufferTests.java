@@ -102,8 +102,8 @@ public class NodeTranslogBufferTests extends ESTestCase {
 
         assertTrue(translogBuffer.writeToBuffer(activeShard, new BytesArray(new byte[100]), 1, new Translog.Location(0, 0, 100)));
         TranslogReplicator.CompoundTranslog translog = translogBuffer.complete(0, Set.of(activeShard));
-        assertThat(translog.metadata().checkpoints().keySet(), hasItems(activeShardId));
-        assertThat(translog.metadata().checkpoints().size(), equalTo(1));
+        assertThat(translog.metadata().operations().keySet(), hasItems(activeShardId));
+        assertThat(translog.metadata().operations().size(), equalTo(1));
         assertThat(translog.metadata().syncedLocations().keySet(), hasItems(activeShardId));
         assertThat(translog.metadata().syncedLocations().size(), equalTo(1));
     }
@@ -123,8 +123,8 @@ public class NodeTranslogBufferTests extends ESTestCase {
         assertTrue(translogBuffer.writeToBuffer(activeShard, new BytesArray(new byte[100]), 1, new Translog.Location(0, 0, 100)));
 
         TranslogReplicator.CompoundTranslog translog = translogBuffer.complete(0, Set.of(activeShard, activeButNoBufferedDataShard));
-        assertThat(translog.metadata().checkpoints().keySet(), hasItems(activeShardId, activeButNoBufferedShardId));
-        assertThat(translog.metadata().checkpoints().size(), equalTo(2));
+        assertThat(translog.metadata().operations().keySet(), hasItems(activeShardId, activeButNoBufferedShardId));
+        assertThat(translog.metadata().operations().size(), equalTo(2));
         assertThat(translog.metadata().syncedLocations().keySet(), hasItems(activeShardId));
         assertThat(translog.metadata().syncedLocations().size(), equalTo(1));
     }
@@ -145,8 +145,8 @@ public class NodeTranslogBufferTests extends ESTestCase {
         assertTrue(translogBuffer.writeToBuffer(activeShard, new BytesArray(new byte[100]), 1, new Translog.Location(0, 0, 100)));
 
         TranslogReplicator.CompoundTranslog translog = translogBuffer.complete(0, Set.of(activeShard, closedShard));
-        assertThat(translog.metadata().checkpoints().keySet(), hasItems(activeShardId));
-        assertThat(translog.metadata().checkpoints().size(), equalTo(1));
+        assertThat(translog.metadata().operations().keySet(), hasItems(activeShardId));
+        assertThat(translog.metadata().operations().size(), equalTo(1));
         assertThat(translog.metadata().syncedLocations().keySet(), hasItems(activeShardId));
         assertThat(translog.metadata().syncedLocations().size(), equalTo(1));
     }

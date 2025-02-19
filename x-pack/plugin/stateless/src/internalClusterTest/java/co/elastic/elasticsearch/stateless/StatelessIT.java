@@ -821,7 +821,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         }
 
         assertThat(
-            indicesAdmin().prepareGetSettings(indexName)
+            indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
                 .setNames("index.number_of_replicas")
                 .get()
                 .getSetting(indexName, "index.number_of_replicas"),
@@ -963,7 +963,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
     }
 
     protected static TimeValue getRefreshIntervalSetting(String index, boolean includeDefaults) throws Exception {
-        var request = new GetSettingsRequest();
+        var request = new GetSettingsRequest(TEST_REQUEST_TIMEOUT);
         request = request.indices(index).includeDefaults(includeDefaults);
         GetSettingsResponse response = client().admin().indices().getSettings(request).get();
         String value = response.getSetting(index, IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey());

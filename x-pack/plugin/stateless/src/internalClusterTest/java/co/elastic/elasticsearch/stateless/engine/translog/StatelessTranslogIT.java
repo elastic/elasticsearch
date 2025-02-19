@@ -778,7 +778,7 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
             try (StreamInput streamInput = new InputStreamStreamInput(translogBlobContainer.readBlob(operationPurpose, blob.name()))) {
                 CompoundTranslogHeader header = CompoundTranslogHeader.readFromStore(blob.name(), streamInput);
                 TranslogMetadata metadata = header.metadata().get(shardId);
-                totalOps += metadata.totalOps();
+                totalOps += metadata.operations().totalOps();
                 assertThat(metadata.directory().estimatedOperationsToRecover(), equalTo(totalOps));
                 Set<Long> actualReferenced = Arrays.stream(metadata.directory().referencedTranslogFileOffsets())
                     .mapToLong(r -> generation - r)
@@ -786,7 +786,7 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
                     .collect(Collectors.toSet());
 
                 assertThat(actualReferenced, equalTo(referencedFiles));
-                if (metadata.totalOps() > 0) {
+                if (metadata.operations().totalOps() > 0) {
                     referencedFiles.add(generation);
                 }
             }

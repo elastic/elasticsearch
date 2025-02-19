@@ -83,10 +83,9 @@ public abstract class Rounding implements Writeable {
             private final long extraLocalOffsetLookup = TimeUnit.DAYS.toMillis(92);
 
             long roundFloor(long utcMillis, int multiplier) {
-                if (multiplier == 1) {
-                    return DateUtils.roundQuarterOfYear(utcMillis);
-                }
-                return DateUtils.roundIntervalMonthOfYear(utcMillis, multiplier * 3);
+                return multiplier == 1
+                    ? DateUtils.roundQuarterOfYear(utcMillis)
+                    : DateUtils.roundIntervalMonthOfYear(utcMillis, multiplier * 3);
             }
 
             long extraLocalOffsetLookup() {

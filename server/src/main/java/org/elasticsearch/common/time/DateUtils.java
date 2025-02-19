@@ -374,7 +374,7 @@ public class DateUtils {
      */
     public static long roundIntervalMonthOfYear(final long utcMillis, final int monthInterval) {
         if (monthInterval <= 0) {
-            throw new IllegalArgumentException("month interval [" + monthInterval + "] must be positive");
+            throw new IllegalArgumentException("month interval must be strictly positive, got  [" + monthInterval + "]");
         }
         int year = getYear(utcMillis);
         int month = getMonthOfYear(utcMillis, year);
@@ -403,7 +403,7 @@ public class DateUtils {
             throw new IllegalArgumentException("year interval [" + yearInterval + "] must be positive");
         }
         int year = getYear(utcMillis);
-        return utcMillisAtStartOfYear((year - 1) / yearInterval * yearInterval + 1);
+        return utcMillisAtStartOfYear(((year - 1) / yearInterval) * yearInterval + 1);
     }
 
     /**

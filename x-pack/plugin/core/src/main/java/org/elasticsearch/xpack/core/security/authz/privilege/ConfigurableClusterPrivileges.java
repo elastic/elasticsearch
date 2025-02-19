@@ -562,7 +562,7 @@ public final class ConfigurableClusterPrivileges {
                     IndexPrivilege namedPrivilege = IndexPrivilege.getNamedOrNull(privilege);
                     if (namedPrivilege != null && namedPrivilege.getSelectorPredicate() == IndexComponentSelectorPredicate.FAILURES) {
                         throw new IllegalArgumentException(
-                            "Failure store related privileges and not supported as targets of manage roles but found [" + privilege + "]"
+                            "Failure store related privileges are not supported as targets of manage roles but found [" + privilege + "]"
                         );
                     }
                 }

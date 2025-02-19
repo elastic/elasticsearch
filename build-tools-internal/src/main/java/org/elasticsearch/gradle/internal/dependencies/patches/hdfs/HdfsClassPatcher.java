@@ -101,11 +101,9 @@ public abstract class HdfsClassPatcher implements TransformAction<HdfsClassPatch
                 String entryName = entry.getName();
                 // Add the entry to the new JAR file
                 jos.putNextEntry(new JarEntry(entryName));
-                System.out.println("EntryName = " + entryName);
 
                 Function<ClassWriter, ClassVisitor> classPatcher = jarPatchers.get(entryName);
                 if (classPatcher != null) {
-                    System.out.println("Patching " + entryName);
                     byte[] classToPatch = jarFile.getInputStream(entry).readAllBytes();
 
                     ClassReader classReader = new ClassReader(classToPatch);

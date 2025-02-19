@@ -29,7 +29,9 @@ import static org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent
 
 /**
  * A utility class for parsing {@link AnalyticsEvent} objects from payloads (such as HTTP POST request bodies) or input streams.
+ * @deprecated in 9.0
  */
+@Deprecated
 public class AnalyticsEventFactory {
 
     public static final AnalyticsEventFactory INSTANCE = new AnalyticsEventFactory();

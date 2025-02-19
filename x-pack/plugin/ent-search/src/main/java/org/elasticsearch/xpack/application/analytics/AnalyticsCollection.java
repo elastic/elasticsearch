@@ -28,7 +28,9 @@ import static org.elasticsearch.xpack.application.analytics.AnalyticsConstants.E
 
 /**
  * The {@link AnalyticsCollection} model.
+ * @deprecated in 9.0
  */
+@Deprecated
 public class AnalyticsCollection implements Writeable, ToXContentObject {
 
     private static final ObjectParser<AnalyticsCollection, String> PARSER = ObjectParser.fromBuilder(

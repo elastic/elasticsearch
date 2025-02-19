@@ -31,7 +31,9 @@ import static org.elasticsearch.xpack.application.analytics.AnalyticsConstants.E
 
 /**
  * This class represents Analytics events object meant to be emitted to the event queue.
+ * @deprecated in 9.0
  */
+@Deprecated
 public class AnalyticsEvent implements Writeable, ToXContentObject {
 
     public static final ParseField TIMESTAMP_FIELD = new ParseField("@timestamp");

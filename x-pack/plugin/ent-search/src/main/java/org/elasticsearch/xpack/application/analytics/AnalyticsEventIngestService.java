@@ -17,7 +17,9 @@ import java.util.Objects;
 
 /**
  * Event emitter will index Analytics events submitted through a @{PostAnalyticsEventAction.Request} request.
+ * @deprecated in 9.0
  */
+@Deprecated
 public class AnalyticsEventIngestService {
     private final AnalyticsCollectionResolver collectionResolver;
 

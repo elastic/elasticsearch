@@ -28,7 +28,9 @@ import static org.elasticsearch.xpack.application.analytics.AnalyticsConstants.E
 
 /**
  * A service that allows the resolution of {@link AnalyticsCollection} by name.
+ * @deprecated in 9.0
  */
+@Deprecated
 public class AnalyticsCollectionResolver {
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 

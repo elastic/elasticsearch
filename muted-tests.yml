@@ -326,6 +326,9 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/cat/allocation/cat-allocation-example}
   issue: https://github.com/elastic/elasticsearch/issues/121976
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
+  method: testEnrichExplosionManyMatches
+  issue: https://github.com/elastic/elasticsearch/issues/122913
 
 # Examples:
 #

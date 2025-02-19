@@ -140,41 +140,6 @@ public class IndexPrivilegeTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> IndexPrivilege.getSingleSelectorOrThrow(Set.of("none", "read_failure_store")));
     }
 
-    public void testGetSingleSelectorWithFailuresSelectorOrThrow() {
-        assumeTrue("This test requires the failure store to be enabled", DataStream.isFailureStoreFeatureFlagEnabled());
-        {
-            IndexPrivilege actual = IndexPrivilege.getSingleSelectorOrThrow(Set.of("read_failure_store"));
-            assertThat(actual, equalTo(IndexPrivilege.READ_FAILURE_STORE));
-            assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.FAILURES));
-        }
-        {
-            IndexPrivilege actual = IndexPrivilege.getSingleSelectorOrThrow(Set.of("all", "read_failure_store"));
-            assertThat(actual.name(), equalTo(Set.of("all", "read_failure_store")));
-            assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.ALL));
-            assertThat(Automatons.subsetOf(IndexPrivilege.ALL.automaton, actual.automaton), is(true));
-        }
-        {
-            IndexPrivilege actual = IndexPrivilege.getSingleSelectorOrThrow(
-                Set.of("all", "indices:data/read/search", "read_failure_store")
-            );
-            assertThat(actual.name(), equalTo(Set.of("all", "indices:data/read/search", "read_failure_store")));
-            assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.ALL));
-            assertThat(Automatons.subsetOf(IndexPrivilege.ALL.automaton, actual.automaton), is(true));
-        }
-        {
-            IndexPrivilege actual = IndexPrivilege.getSingleSelectorOrThrow(Set.of("all", "read", "read_failure_store"));
-            assertThat(actual.name(), equalTo(Set.of("all", "read", "read_failure_store")));
-            assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.ALL));
-            assertThat(Automatons.subsetOf(IndexPrivilege.ALL.automaton, actual.automaton), is(true));
-        }
-        expectThrows(IllegalArgumentException.class, () -> IndexPrivilege.getSingleSelectorOrThrow(Set.of("read", "read_failure_store")));
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> IndexPrivilege.getSingleSelectorOrThrow(Set.of("indices:data/read/search", "read_failure_store"))
-        );
-        expectThrows(IllegalArgumentException.class, () -> IndexPrivilege.getSingleSelectorOrThrow(Set.of("none", "read_failure_store")));
-    }
-
     public void testPrivilegesForRollupFieldCapsAction() {
         final Collection<String> privileges = findPrivilegesThatGrant(GetRollupIndexCapsAction.NAME);
         assertThat(Set.copyOf(privileges), equalTo(Set.of("manage", "all", "view_index_metadata", "read")));

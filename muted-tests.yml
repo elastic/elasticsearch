@@ -283,6 +283,8 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/122680
 - class: org.elasticsearch.entitlement.qa.EntitlementsDeniedNonModularIT
   issue: https://github.com/elastic/elasticsearch/issues/122569
+- class: org.elasticsearch.entitlement.qa.EntitlementsAllowedNonModularIT
+  issue: https://github.com/elastic/elasticsearch/issues/122568
 
 # Examples:
 #

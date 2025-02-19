@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.AddDefaultTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.BooleanSimplification;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.CombineBinaryComparisons;
@@ -28,11 +27,12 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateEvalFoldables;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateInlineEvals;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropagateNullable;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PropgateUnmappedFields;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneColumns;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneEmptyPlans;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneLiteralsInOrderBy;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneOrderByBeforeStats;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantOrderBy;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneRedundantSortClauses;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineFilters;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownAndCombineLimits;
@@ -116,10 +116,9 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
 
     protected static List<Batch<LogicalPlan>> rules() {
         var skip = new Batch<>("Skip Compute", new SkipQueryOnLimitZero());
-        var defaultTopN = new Batch<>("Add default TopN", new AddDefaultTopN());
         var label = new Batch<>("Set as Optimized", Limiter.ONCE, new SetAsOptimized());
 
-        return asList(substitutions(), operators(), skip, cleanup(), defaultTopN, label);
+        return asList(substitutions(), operators(), skip, cleanup(), label);
     }
 
     protected static Batch<LogicalPlan> substitutions() {
@@ -189,12 +188,12 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PushDownRegexExtract(),
             new PushDownEnrich(),
             new PushDownAndCombineOrderBy(),
-            new PruneOrderByBeforeStats(),
+            new PruneRedundantOrderBy(),
             new PruneRedundantSortClauses()
         );
     }
 
     protected static Batch<LogicalPlan> cleanup() {
-        return new Batch<>("Clean Up", new ReplaceLimitAndSortAsTopN(), new ReplaceRowAsLocalRelation());
+        return new Batch<>("Clean Up", new ReplaceLimitAndSortAsTopN(), new ReplaceRowAsLocalRelation(), new PropgateUnmappedFields());
     }
 }

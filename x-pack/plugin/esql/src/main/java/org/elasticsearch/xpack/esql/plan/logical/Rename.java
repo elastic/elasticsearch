@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import java.util.List;
 import java.util.Objects;
 
-public class Rename extends UnaryPlan implements TelemetryAware {
+public class Rename extends UnaryPlan implements TelemetryAware, SortAgnostic {
 
     private final List<Alias> renamings;
 

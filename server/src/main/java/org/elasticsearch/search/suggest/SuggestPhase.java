@@ -10,7 +10,9 @@ package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
@@ -40,12 +42,17 @@ public class SuggestPhase {
             for (Map.Entry<String, SuggestionSearchContext.SuggestionContext> entry : suggest.suggestions().entrySet()) {
                 SuggestionSearchContext.SuggestionContext suggestion = entry.getValue();
                 Suggester<SuggestionContext> suggester = suggestion.getSuggester();
-                Suggestion<? extends Entry<? extends Option>> result = suggester.execute(
-                    entry.getKey(),
-                    suggestion,
-                    context.searcher(),
-                    spare
-                );
+                Suggestion<? extends Entry<? extends Option>> result;
+                try {
+                    result = suggester.execute(entry.getKey(), suggestion, context.searcher(), spare);
+                } catch (ContextIndexSearcher.TimeExceededException timeExceededException) {
+                    SearchTimeoutException.handleTimeout(
+                        context.request().allowPartialSearchResults(),
+                        context.shardTarget(),
+                        context.queryResult()
+                    );
+                    result = suggester.emptySuggestion(entry.getKey(), suggestion, spare);
+                }
                 if (result != null) {
                     assert entry.getKey().equals(result.name);
                     suggestions.add(result);
@@ -56,5 +63,4 @@ public class SuggestPhase {
             throw new ElasticsearchException("I/O exception during suggest phase", e);
         }
     }
-
 }

@@ -585,10 +585,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     ensureClusterInfoServiceRunning();
                     beforeIndexDeletion();
                     cluster().wipe(excludeTemplates()); // wipe after to make sure we fail in the test that didn't ack the delete
+                    cluster().assertAfterTest();
                     if (afterClass || currentClusterScope == Scope.TEST) {
                         cluster().close();
                     }
-                    cluster().assertAfterTest();
                 }
             } finally {
                 if (currentClusterScope == Scope.TEST) {
@@ -1783,7 +1783,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
         }
         for (CountDownLatch operation : inFlightAsyncOperations) {
-            safeAwait(operation);
+            safeAwait(operation, TEST_REQUEST_TIMEOUT);
         }
         if (bogusIds.isEmpty() == false) {
             // delete the bogus types again - it might trigger merges or at least holes in the segments and enforces deleted docs!

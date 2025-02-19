@@ -156,29 +156,30 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         );
         ResolvedExpression resolvedRolloverTarget = SelectorResolver.parseExpression(request.getRolloverTarget(), request.indicesOptions());
         final IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(resolvedRolloverTarget.resource());
+        final String[] indicesToCheck;
         if (indexAbstraction.getType().equals(IndexAbstraction.Type.DATA_STREAM)) {
             DataStream dataStream = (DataStream) indexAbstraction;
             boolean targetFailureStore = resolvedRolloverTarget.selector() != null
                 && resolvedRolloverTarget.selector().shouldIncludeFailures();
-            String indexToCheck;
             if (targetFailureStore == false) {
-                indexToCheck = dataStream.getWriteIndex().getName();
+                assert dataStream.getWriteIndex() != null : dataStream.getName() + " is a data stream but has no write index";
+                assert dataStream.getWriteIndex().getName() != null
+                    : dataStream.getName() + " is a data stream but the write index is null";
+                indicesToCheck = new String[] { dataStream.getWriteIndex().getName() };
             } else if (dataStream.getWriteFailureIndex() != null) {
-                indexToCheck = dataStream.getWriteFailureIndex().getName();
+                assert dataStream.getWriteFailureIndex().getName() != null
+                    : "the write index for the data stream " + dataStream.getName() + " is null";
+                indicesToCheck = new String[] { dataStream.getWriteFailureIndex().getName() };
             } else {
-                indexToCheck = null;
-            }
-            if (indexToCheck == null) {
-                return null;
-            } else {
-                return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, new String[] { indexToCheck });
+                indicesToCheck = null;
             }
         } else {
-            return state.blocks()
-                .indicesBlockedException(
-                    ClusterBlockLevel.METADATA_WRITE,
-                    indexNameExpressionResolver.concreteIndexNames(state, indicesOptions, request)
-                );
+            indicesToCheck = indexNameExpressionResolver.concreteIndexNames(state, indicesOptions, request);
+        }
+        if (indicesToCheck == null) {
+            return null;
+        } else {
+            return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indicesToCheck);
         }
     }
 

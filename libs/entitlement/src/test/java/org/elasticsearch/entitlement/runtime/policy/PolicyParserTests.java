@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoaderEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
@@ -18,17 +19,28 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetwork
 import org.elasticsearch.entitlement.runtime.policy.entitlements.SetHttpsConnectionPropertiesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.WriteSystemPropertiesEntitlement;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.BeforeClass;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
+@ESTestCase.WithoutSecurityManager
 public class PolicyParserTests extends ESTestCase {
+
+    public static String TEST_ABSOLUTE_PATH_TO_FILE;
+
+    @BeforeClass
+    public static void beforeClass() throws IOException {
+        TEST_ABSOLUTE_PATH_TO_FILE = createTempFile().toAbsolutePath().toString();
+    }
 
     private static class TestWrongEntitlementName implements Entitlement {}
 
@@ -79,15 +91,23 @@ public class PolicyParserTests extends ESTestCase {
         );
     }
 
+    private static InputStream createFilesTestPolicy() {
+        return new ByteArrayInputStream(Strings.format("""
+            entitlement-module-name:
+              - files:
+                - path: '%s'
+                  mode: "read_write"
+            """, TEST_ABSOLUTE_PATH_TO_FILE).getBytes(StandardCharsets.UTF_8));
+    }
+
     public void testPolicyBuilder() throws IOException {
-        Policy parsedPolicy = new PolicyParser(PolicyParserTests.class.getResourceAsStream("test-policy.yaml"), "test-policy.yaml", false)
-            .parsePolicy();
+        Policy parsedPolicy = new PolicyParser(createFilesTestPolicy(), "test-policy.yaml", false).parsePolicy();
         Policy expected = new Policy(
             "test-policy.yaml",
             List.of(
                 new Scope(
                     "entitlement-module-name",
-                    List.of(FilesEntitlement.build(List.of(Map.of("path", "/test/path/to/file", "mode", "read_write"))))
+                    List.of(FilesEntitlement.build(List.of(Map.of("path", TEST_ABSOLUTE_PATH_TO_FILE, "mode", "read_write"))))
                 )
             )
         );
@@ -95,14 +115,13 @@ public class PolicyParserTests extends ESTestCase {
     }
 
     public void testPolicyBuilderOnExternalPlugin() throws IOException {
-        Policy parsedPolicy = new PolicyParser(PolicyParserTests.class.getResourceAsStream("test-policy.yaml"), "test-policy.yaml", true)
-            .parsePolicy();
+        Policy parsedPolicy = new PolicyParser(createFilesTestPolicy(), "test-policy.yaml", true).parsePolicy();
         Policy expected = new Policy(
             "test-policy.yaml",
             List.of(
                 new Scope(
                     "entitlement-module-name",
-                    List.of(FilesEntitlement.build(List.of(Map.of("path", "/test/path/to/file", "mode", "read_write"))))
+                    List.of(FilesEntitlement.build(List.of(Map.of("path", TEST_ABSOLUTE_PATH_TO_FILE, "mode", "read_write"))))
                 )
             )
         );
@@ -110,31 +129,27 @@ public class PolicyParserTests extends ESTestCase {
     }
 
     public void testParseFiles() throws IOException {
-        Policy policyWithOnePath = new PolicyParser(new ByteArrayInputStream("""
-            entitlement-module-name:
-              - files:
-                - path: "/test/path/to/file"
-                  mode: "read_write"
-            """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", false).parsePolicy();
+        Policy policyWithOnePath = new PolicyParser(createFilesTestPolicy(), "test-policy.yaml", false).parsePolicy();
         Policy expected = new Policy(
             "test-policy.yaml",
             List.of(
                 new Scope(
                     "entitlement-module-name",
-                    List.of(FilesEntitlement.build(List.of(Map.of("path", "/test/path/to/file", "mode", "read_write"))))
+                    List.of(FilesEntitlement.build(List.of(Map.of("path", TEST_ABSOLUTE_PATH_TO_FILE, "mode", "read_write"))))
                 )
             )
         );
         assertEquals(expected, policyWithOnePath);
 
-        Policy policyWithTwoPaths = new PolicyParser(new ByteArrayInputStream("""
+        String testPathToReadDir = createTempDir().toAbsolutePath().toString();
+        Policy policyWithTwoPaths = new PolicyParser(new ByteArrayInputStream(Strings.format("""
             entitlement-module-name:
               - files:
-                - path: "/test/path/to/file"
+                - path: '%s'
                   mode: "read_write"
-                - path: "/test/path/to/read-dir/"
+                - path: '%s'
                   mode: "read"
-            """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", false).parsePolicy();
+            """, TEST_ABSOLUTE_PATH_TO_FILE, testPathToReadDir).getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", false).parsePolicy();
         expected = new Policy(
             "test-policy.yaml",
             List.of(
@@ -143,8 +158,8 @@ public class PolicyParserTests extends ESTestCase {
                     List.of(
                         FilesEntitlement.build(
                             List.of(
-                                Map.of("path", "/test/path/to/file", "mode", "read_write"),
-                                Map.of("path", "/test/path/to/read-dir/", "mode", "read")
+                                Map.of("path", TEST_ABSOLUTE_PATH_TO_FILE, "mode", "read_write"),
+                                Map.of("path", testPathToReadDir, "mode", "read")
                             )
                         )
                     )
@@ -153,18 +168,29 @@ public class PolicyParserTests extends ESTestCase {
         );
         assertEquals(expected, policyWithTwoPaths);
 
-        Policy policyWithMultiplePathsAndBaseDir = new PolicyParser(new ByteArrayInputStream("""
-            entitlement-module-name:
-              - files:
-                - relative_path: "test/path/to/file"
-                  relative_to: "data"
-                  mode: "read_write"
-                - relative_path: "test/path/to/read-dir/"
-                  relative_to: "config"
-                  mode: "read"
-                - path: "/path/to/file"
-                  mode: "read_write"
-            """.getBytes(StandardCharsets.UTF_8)), "test-policy.yaml", false).parsePolicy();
+        String relativePathToFile = Path.of("test/path/to/file").normalize().toString();
+        String relativePathToDir = Path.of("test/path/to/read-dir/").normalize().toString();
+        Policy policyWithMultiplePathsAndBaseDir = new PolicyParser(
+            new ByteArrayInputStream(Strings.format("""
+                entitlement-module-name:
+                  - files:
+                    - relative_path: '%s'
+                      relative_to: "data"
+                      mode: "read_write"
+                    - relative_path: '%s'
+                      relative_to: "config"
+                      mode: "read"
+                    - path: '%s'
+                      mode: "read_write"
+                    - path_setting: foo.bar
+                      mode: read
+                    - relative_path_setting: foo.bar
+                      relative_to: config
+                      mode: read
+                """, relativePathToFile, relativePathToDir, TEST_ABSOLUTE_PATH_TO_FILE).getBytes(StandardCharsets.UTF_8)),
+            "test-policy.yaml",
+            false
+        ).parsePolicy();
         expected = new Policy(
             "test-policy.yaml",
             List.of(
@@ -173,9 +199,11 @@ public class PolicyParserTests extends ESTestCase {
                     List.of(
                         FilesEntitlement.build(
                             List.of(
-                                Map.of("relative_path", "test/path/to/file", "mode", "read_write", "relative_to", "data"),
-                                Map.of("relative_path", "test/path/to/read-dir/", "mode", "read", "relative_to", "config"),
-                                Map.of("path", "/path/to/file", "mode", "read_write")
+                                Map.of("relative_path", relativePathToFile, "mode", "read_write", "relative_to", "data"),
+                                Map.of("relative_path", relativePathToDir, "mode", "read", "relative_to", "config"),
+                                Map.of("path", TEST_ABSOLUTE_PATH_TO_FILE, "mode", "read_write"),
+                                Map.of("path_setting", "foo.bar", "mode", "read"),
+                                Map.of("relative_path_setting", "foo.bar", "relative_to", "config", "mode", "read")
                             )
                         )
                     )

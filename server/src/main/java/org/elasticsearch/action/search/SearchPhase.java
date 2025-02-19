@@ -43,13 +43,13 @@ abstract class SearchPhase implements CheckedRunnable<IOException> {
         }
     }
 
-    protected String missingShardsErrorMessage(StringBuilder missingShards) {
+    private static String makeMissingShardsError(StringBuilder missingShards) {
         return "Search rejected due to missing shards ["
             + missingShards
             + "]. Consider using `allow_partial_search_results` setting to bypass this error.";
     }
 
-    protected void doCheckNoMissingShards(String phaseName, SearchRequest request, List<SearchShardIterator> shardsIts) {
+    protected static void doCheckNoMissingShards(String phaseName, SearchRequest request, List<SearchShardIterator> shardsIts) {
         assert request.allowPartialSearchResults() != null : "SearchRequest missing setting for allowPartialSearchResults";
         if (request.allowPartialSearchResults() == false) {
             final StringBuilder missingShards = new StringBuilder();
@@ -65,7 +65,7 @@ abstract class SearchPhase implements CheckedRunnable<IOException> {
             }
             if (missingShards.isEmpty() == false) {
                 // Status red - shard is missing all copies and would produce partial results for an index search
-                final String msg = missingShardsErrorMessage(missingShards);
+                final String msg = makeMissingShardsError(missingShards);
                 throw new SearchPhaseExecutionException(phaseName, msg, null, ShardSearchFailure.EMPTY_ARRAY);
             }
         }

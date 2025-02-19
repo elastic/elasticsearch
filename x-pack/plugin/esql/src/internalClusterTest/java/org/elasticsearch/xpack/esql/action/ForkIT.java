@@ -262,6 +262,32 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testLimitOnlyInFirstSubQuery() {
+        var query = """
+            FROM test
+            | FORK
+               ( LIMIT 100 )
+               ( WHERE content:"fox" )
+            | SORT _fork, id
+            | KEEP _fork, id, content
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("_fork", "id", "content"));
+            assertColumnTypes(resp.columns(), List.of("keyword", "integer", "text"));
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                List.of("fork1", 1, "This is a brown fox"),
+                List.of("fork1", 2, "This is a brown dog"),
+                List.of("fork1", 3, "This dog is really brown"),
+                List.of("fork1", 4, "The dog is brown but this document is very very long"),
+                List.of("fork1", 5, "There is also a white cat"),
+                List.of("fork1", 6, "The quick brown fox jumps over the lazy dog"),
+                List.of("fork2", 1, "This is a brown fox"),
+                List.of("fork2", 6, "The quick brown fox jumps over the lazy dog")
+            );
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
     public void testLimitOnlyInSecondSubQuery() {
         var query = """
             FROM test

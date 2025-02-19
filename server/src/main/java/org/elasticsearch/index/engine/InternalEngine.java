@@ -2925,7 +2925,7 @@ public class InternalEngine extends Engine {
                  * {@link IndexWriter#commit()} call flushes all documents, we defer computation of the maximum sequence number to the time
                  * of invocation of the commit data iterator (which occurs after all documents have been flushed to Lucene).
                  */
-                final Map<String, String> extraCommitUserData = getCommitExtraUserData();
+                final Map<String, String> extraCommitUserData = getCommitExtraUserData(localCheckpoint);
                 final Map<String, String> commitData = Maps.newMapWithExpectedSize(8 + extraCommitUserData.size());
                 commitData.putAll(extraCommitUserData);
                 commitData.put(Translog.TRANSLOG_UUID_KEY, translog.getTranslogUUID());
@@ -2973,8 +2973,10 @@ public class InternalEngine extends Engine {
     /**
      * Allows InternalEngine extenders to return custom key-value pairs which will be included in the Lucene commit user-data. Custom user
      * data keys can be overwritten by if their keys conflict keys used by InternalEngine.
+     *
+     * @param localCheckpoint the local checkpoint of the commit
      */
-    protected Map<String, String> getCommitExtraUserData() {
+    protected Map<String, String> getCommitExtraUserData(final long localCheckpoint) {
         return Collections.emptyMap();
     }
 

@@ -69,9 +69,7 @@ public class CompoundTranslogHeaderTests extends AbstractWireSerializingTestCase
             TranslogMetadata value = new TranslogMetadata(
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                includeShardTranslogGeneration ? randomNonNegativeLong() : -1,
+                new TranslogMetadata.Operations(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
                 includeDirectory ? new TranslogMetadata.Directory(randomNonNegativeLong(), randomInts(10).toArray()) : null
             );
             metadata.put(new ShardId(randomAlphaOfLength(10), randomAlphaOfLength(20), randomIntBetween(0, 10)), value);
@@ -91,49 +89,49 @@ public class CompoundTranslogHeaderTests extends AbstractWireSerializingTestCase
                 case 0 -> new TranslogMetadata(
                     randomValueOtherThan(oldValue.offset(), CompoundTranslogHeaderTests::randomNonNegativeLong),
                     oldValue.size(),
-                    oldValue.minSeqNo(),
-                    oldValue.maxSeqNo(),
-                    oldValue.totalOps(),
+                    oldValue.operations(),
                     oldValue.directory()
                 );
                 case 1 -> new TranslogMetadata(
                     oldValue.offset(),
                     randomValueOtherThan(oldValue.size(), CompoundTranslogHeaderTests::randomNonNegativeLong),
-                    oldValue.minSeqNo(),
-                    oldValue.maxSeqNo(),
-                    oldValue.totalOps(),
+                    oldValue.operations(),
                     oldValue.directory()
                 );
                 case 2 -> new TranslogMetadata(
                     oldValue.offset(),
                     oldValue.size(),
-                    randomValueOtherThan(oldValue.minSeqNo(), CompoundTranslogHeaderTests::randomNonNegativeLong),
-                    oldValue.maxSeqNo(),
-                    oldValue.totalOps(),
+                    new TranslogMetadata.Operations(
+                        randomValueOtherThan(oldValue.operations().minSeqNo(), CompoundTranslogHeaderTests::randomNonNegativeLong),
+                        oldValue.operations().maxSeqNo(),
+                        oldValue.operations().totalOps()
+                    ),
                     oldValue.directory()
                 );
                 case 3 -> new TranslogMetadata(
                     oldValue.offset(),
                     oldValue.size(),
-                    oldValue.minSeqNo(),
-                    randomValueOtherThan(oldValue.maxSeqNo(), CompoundTranslogHeaderTests::randomNonNegativeLong),
-                    oldValue.totalOps(),
+                    new TranslogMetadata.Operations(
+                        oldValue.operations().minSeqNo(),
+                        randomValueOtherThan(oldValue.operations().maxSeqNo(), CompoundTranslogHeaderTests::randomNonNegativeLong),
+                        oldValue.operations().totalOps()
+                    ),
                     oldValue.directory()
                 );
                 case 4 -> new TranslogMetadata(
                     oldValue.offset(),
                     oldValue.size(),
-                    oldValue.minSeqNo(),
-                    oldValue.maxSeqNo(),
-                    randomValueOtherThan(oldValue.totalOps(), CompoundTranslogHeaderTests::randomNonNegativeLong),
+                    new TranslogMetadata.Operations(
+                        oldValue.operations().minSeqNo(),
+                        oldValue.operations().maxSeqNo(),
+                        randomValueOtherThan(oldValue.operations().totalOps(), CompoundTranslogHeaderTests::randomNonNegativeLong)
+                    ),
                     oldValue.directory()
                 );
                 case 5 -> new TranslogMetadata(
                     oldValue.offset(),
                     oldValue.size(),
-                    oldValue.minSeqNo(),
-                    oldValue.maxSeqNo(),
-                    oldValue.totalOps(),
+                    oldValue.operations(),
                     new TranslogMetadata.Directory(
                         randomValueOtherThan(
                             oldValue.directory().estimatedOperationsToRecover(),
@@ -145,9 +143,7 @@ public class CompoundTranslogHeaderTests extends AbstractWireSerializingTestCase
                 case 6 -> new TranslogMetadata(
                     oldValue.offset(),
                     oldValue.size(),
-                    oldValue.minSeqNo(),
-                    oldValue.maxSeqNo(),
-                    oldValue.totalOps(),
+                    oldValue.operations(),
                     new TranslogMetadata.Directory(
                         oldValue.directory().estimatedOperationsToRecover(),
                         randomValueOtherThan(oldValue.directory().referencedTranslogFileOffsets(), () -> randomInts(10).toArray())
@@ -240,9 +236,9 @@ public class CompoundTranslogHeaderTests extends AbstractWireSerializingTestCase
             out.writeMap(testInstance.metadata(), StreamOutput::writeWriteable, (out1, value) -> {
                 out1.writeLong(value.offset());
                 out1.writeLong(value.size());
-                out1.writeLong(value.minSeqNo());
-                out1.writeLong(value.maxSeqNo());
-                out1.writeLong(value.totalOps());
+                out1.writeLong(value.operations().minSeqNo());
+                out1.writeLong(value.operations().maxSeqNo());
+                out1.writeLong(value.operations().totalOps());
                 out1.writeLong(-1L);
                 value.directory().writeTo(out1);
             });

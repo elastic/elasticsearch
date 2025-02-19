@@ -3339,13 +3339,13 @@ public class IndexShardTests extends IndexShardTestCase {
         Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
         IndexMetadata metadata = IndexMetadata.builder("test").putMapping("""
             { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
-        IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
+        IndexShard initializingShard = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
 
         var future = new PlainActionFuture<Long>();
-        primary.waitForPrimaryTermAndGeneration(0L, 0L, future);
+        initializingShard.waitForPrimaryTermAndGeneration(0L, 0L, future);
 
         assertFalse("waitForPrimaryTermAndGeneration should be waiting", future.isDone());
-        closeShards(primary);
+        closeShards(initializingShard);
         // Should bail out earlier without calling the engine
         assertNotNull(ExceptionsHelper.unwrap(expectThrows(Exception.class, future::get), IndexShardClosedException.class));
     }

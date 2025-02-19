@@ -369,14 +369,14 @@ public final class IndexPrivilege extends Privilege {
             }
         }
 
-        final Set<IndexPrivilege> result = combineIndexPrivileges(
+        final Set<IndexPrivilege> combined = combineIndexPrivileges(
             allSelectorAccessPrivileges,
             dataSelectorAccessPrivileges,
             failuresSelectorAccessPrivileges,
             actions
         );
-        assertNamesMatch(name, result);
-        return result;
+        assertNamesMatch(name, combined);
+        return combined;
     }
 
     private static Set<IndexPrivilege> combineIndexPrivileges(
@@ -396,14 +396,14 @@ public final class IndexPrivilege extends Privilege {
             return Set.of(union(allSelectorAccessPrivileges, actions, IndexComponentSelectorPredicate.ALL));
         }
 
-        final Set<IndexPrivilege> result = new HashSet<>();
+        final Set<IndexPrivilege> combined = new HashSet<>();
         if (false == failuresSelectorAccessPrivileges.isEmpty()) {
-            result.add(union(failuresSelectorAccessPrivileges, Set.of(), IndexComponentSelectorPredicate.FAILURES));
+            combined.add(union(failuresSelectorAccessPrivileges, Set.of(), IndexComponentSelectorPredicate.FAILURES));
         }
         if (false == dataSelectorAccessPrivileges.isEmpty() || false == actions.isEmpty()) {
-            result.add(union(dataSelectorAccessPrivileges, actions, IndexComponentSelectorPredicate.DATA));
+            combined.add(union(dataSelectorAccessPrivileges, actions, IndexComponentSelectorPredicate.DATA));
         }
-        return result;
+        return combined;
     }
 
     private static void assertNamesMatch(Set<String> names, Set<IndexPrivilege> privileges) {
@@ -428,7 +428,7 @@ public final class IndexPrivilege extends Privilege {
 
         if (false == actions.isEmpty()) {
             names.addAll(actions);
-            automata.add(patterns(actions.stream().map(Privilege::actionToPattern).toArray(String[]::new)));
+            automata.add(patterns(actions.stream().map(Privilege::actionToPattern).toList()));
         }
         return new IndexPrivilege(names, unionAndMinimize(automata), selectorPredicate);
     }

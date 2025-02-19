@@ -105,7 +105,7 @@ public class IndexPrivilegeTests extends ESTestCase {
         }
     }
 
-    public void testGetSingleSelectorWithFailuresSelectorOrThrow() {
+    public void testGetWithSingleSelectorAccessFailuresSelector() {
         assumeTrue("This test requires the failure store to be enabled", DataStream.isFailureStoreFeatureFlagEnabled());
         {
             IndexPrivilege actual = IndexPrivilege.getWithSingleSelectorAccess(Set.of("read_failure_store"));
@@ -144,6 +144,80 @@ public class IndexPrivilegeTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> IndexPrivilege.getWithSingleSelectorAccess(Set.of("none", "read_failure_store"))
         );
+    }
+
+    public void testGetSplitBySelectorAccess() {
+        assumeTrue("This test requires the failure store to be enabled", DataStream.isFailureStoreFeatureFlagEnabled());
+        {
+            Set<IndexPrivilege> actual = IndexPrivilege.getSplitBySelectorAccess(Set.of("read_failure_store"));
+            assertThat(actual, containsInAnyOrder(IndexPrivilege.READ_FAILURE_STORE));
+            assertThat(actual.iterator().next().getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.FAILURES));
+        }
+        {
+            Set<IndexPrivilege> actual = IndexPrivilege.getSplitBySelectorAccess(Set.of("read_failure_store", "READ_FAILURE_STORE"));
+            assertThat(actual, containsInAnyOrder(IndexPrivilege.READ_FAILURE_STORE));
+            assertThat(actual.iterator().next().getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.FAILURES));
+        }
+        {
+            Set<IndexPrivilege> actual = IndexPrivilege.getSplitBySelectorAccess(
+                Set.of("read_failure_store", "read", "READ_FAILURE_STORE")
+            );
+            assertThat(actual, containsInAnyOrder(IndexPrivilege.READ_FAILURE_STORE, IndexPrivilege.READ));
+            List<IndexComponentSelectorPredicate> actualPredicates = actual.stream().map(IndexPrivilege::getSelectorPredicate).toList();
+            assertThat(
+                actualPredicates,
+                containsInAnyOrder(IndexComponentSelectorPredicate.DATA, IndexComponentSelectorPredicate.FAILURES)
+            );
+        }
+        {
+            Set<IndexPrivilege> actual = IndexPrivilege.getSplitBySelectorAccess(
+                Set.of("read_failure_store", "read", "view_index_metadata")
+            );
+            assertThat(
+                actual,
+                containsInAnyOrder(
+                    IndexPrivilege.READ_FAILURE_STORE,
+                    IndexPrivilege.getWithSingleSelectorAccess(Set.of("read", "view_index_metadata"))
+                )
+            );
+            List<IndexComponentSelectorPredicate> actualPredicates = actual.stream().map(IndexPrivilege::getSelectorPredicate).toList();
+            assertThat(
+                actualPredicates,
+                containsInAnyOrder(IndexComponentSelectorPredicate.DATA, IndexComponentSelectorPredicate.FAILURES)
+            );
+        }
+        {
+            Set<IndexPrivilege> actual = IndexPrivilege.getSplitBySelectorAccess(
+                Set.of("read_failure_store", "read", "indices:data/read/search", "view_index_metadata")
+            );
+            assertThat(
+                actual,
+                containsInAnyOrder(
+                    IndexPrivilege.READ_FAILURE_STORE,
+                    IndexPrivilege.getWithSingleSelectorAccess(Set.of("read", "indices:data/read/search", "view_index_metadata"))
+                )
+            );
+            List<IndexComponentSelectorPredicate> actualPredicates = actual.stream().map(IndexPrivilege::getSelectorPredicate).toList();
+            assertThat(
+                actualPredicates,
+                containsInAnyOrder(IndexComponentSelectorPredicate.DATA, IndexComponentSelectorPredicate.FAILURES)
+            );
+        }
+        {
+            Set<IndexPrivilege> actual = IndexPrivilege.getSplitBySelectorAccess(
+                Set.of("read_failure_store", "all", "read", "indices:data/read/search", "view_index_metadata")
+            );
+            assertThat(
+                actual,
+                containsInAnyOrder(
+                    IndexPrivilege.getWithSingleSelectorAccess(
+                        Set.of("read_failure_store", "all", "read", "indices:data/read/search", "view_index_metadata")
+                    )
+                )
+            );
+            List<IndexComponentSelectorPredicate> actualPredicates = actual.stream().map(IndexPrivilege::getSelectorPredicate).toList();
+            assertThat(actualPredicates, containsInAnyOrder(IndexComponentSelectorPredicate.ALL));
+        }
     }
 
     public void testPrivilegesForRollupFieldCapsAction() {

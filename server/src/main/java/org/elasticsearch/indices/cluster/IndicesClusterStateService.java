@@ -26,9 +26,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.Type;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -759,11 +761,19 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         ActionListener<Boolean> listener
     ) {
         try {
+            long sourcePrimaryTerm;
+            if (shardRouting.recoverySource().getType() == Type.SPLIT) {
+                IndexMetadata metadata = originalState.metadata().index(shardRouting.index());
+                // TODO: Resolve the source primary term from the source
+                sourcePrimaryTerm = -1;
+            } else {
+                sourcePrimaryTerm = -1;
+            }
             logger.debug("{} creating shard with primary term [{}], iteration [{}]", shardRouting.shardId(), primaryTerm, iteration);
             indicesService.createShard(
                 shardRouting,
                 recoveryTargetService,
-                new RecoveryListener(shardRouting, primaryTerm),
+                new RecoveryListener(shardRouting, primaryTerm, sourcePrimaryTerm),
                 repositoriesService,
                 failedShardHandler,
                 this::updateGlobalCheckpointForShard,
@@ -987,10 +997,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * Primary term with which the shard was created
          */
         private final long primaryTerm;
+        private final long sourcePrimaryTerm;
 
-        private RecoveryListener(final ShardRouting shardRouting, final long primaryTerm) {
+        private RecoveryListener(final ShardRouting shardRouting, final long primaryTerm, final long sourcePrimaryTerm) {
             this.shardRouting = shardRouting;
             this.primaryTerm = primaryTerm;
+            this.sourcePrimaryTerm = sourcePrimaryTerm;
         }
 
         @Override
@@ -999,14 +1011,26 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             ShardLongFieldRange timestampMillisFieldRange,
             ShardLongFieldRange eventIngestedMillisFieldRange
         ) {
-            shardStateAction.shardStarted(
-                shardRouting,
-                primaryTerm,
-                "after " + state.getRecoverySource(),
-                timestampMillisFieldRange,
-                eventIngestedMillisFieldRange,
-                ActionListener.noop()
-            );
+            if (state.getRecoverySource() instanceof RecoverySource.SplitRecoverySource) {
+                shardStateAction.shardSplit(
+                    shardRouting,
+                    primaryTerm,
+                    "after " + state.getRecoverySource(),
+                    timestampMillisFieldRange,
+                    eventIngestedMillisFieldRange,
+                    sourcePrimaryTerm,
+                    ActionListener.noop()
+                );
+            } else {
+                shardStateAction.shardStarted(
+                    shardRouting,
+                    primaryTerm,
+                    "after " + state.getRecoverySource(),
+                    timestampMillisFieldRange,
+                    eventIngestedMillisFieldRange,
+                    ActionListener.noop()
+                );
+            }
         }
 
         @Override

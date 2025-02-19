@@ -34,6 +34,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.in;
 
 public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase {
 
@@ -87,10 +88,8 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
             }
         }
 
-        for (String allocatedNode : allocatedNodes) {
-            if (randomBoolean()) {
-                internalCluster().restartNode(allocatedNode);
-            }
+        if (randomBoolean()) {
+            internalCluster().restartNode(randomFrom(allocatedNodes));
         }
         ensureGreen(indexName);
         allocatedNodes = internalCluster().nodesInclude(indexName);
@@ -149,9 +148,7 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
                 assertHitCount(resp, docCount);
             });
             final Set<String> allocatedNodes = internalCluster().nodesInclude(indexName);
-            for (String allocatedNode : allocatedNodes) {
-                internalCluster().restartNode(allocatedNode);
-            }
+            internalCluster().restartNode(randomFrom(allocatedNodes));
             ensureGreen(indexName);
             assertNoFailuresAndResponse(
                 prepareSearch().setQuery(new RangeQueryBuilder("created_date").gte("2011-01-01").lte("2011-12-12"))

@@ -250,7 +250,8 @@ public class EntitlementInitialization {
                     FileData.ofPath(Path.of("/co/elastic/apm/agent/"), READ),
                     FileData.ofPath(Path.of("/agent/co/elastic/apm/agent/"), READ)
                 )
-            ));
+            )
+        );
         var resolver = EntitlementBootstrap.bootstrapArgs().pluginResolver();
         return new PolicyManager(
             serverPolicy,

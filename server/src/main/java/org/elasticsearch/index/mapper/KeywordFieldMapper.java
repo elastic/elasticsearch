@@ -446,7 +446,8 @@ public final class KeywordFieldMapper extends FieldMapper {
                 && hasDocValues()
                 && fieldtype.stored() == false
                 && copyTo.copyToFields().isEmpty()
-                && multiFieldsBuilder.hasMultiFields() == false) {
+                && multiFieldsBuilder.hasMultiFields() == false
+                && indexCreatedVersion.onOrAfter(IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD)) {
                 // Skip stored, we will be synthesizing from stored fields, no point to keep track of the offsets
                 // Skip copy_to and multi fields, supporting that requires more work. However, copy_to usage is rare in metrics and
                 // logging use cases

@@ -215,8 +215,10 @@ public class EntitlementInitialization {
 
         Path trustStorePath = trustStorePath();
         if (trustStorePath != null) {
-            serverScopes.add(
-                new Scope("org.bouncycastle.fips.tls", List.of(new FilesEntitlement(List.of(FileData.ofPath(trustStorePath, READ)))))
+            Collections.addAll(
+                serverScopes,
+                new Scope("org.bouncycastle.fips.tls", List.of(new FilesEntitlement(List.of(FileData.ofPath(trustStorePath, READ))))),
+                new Scope("org.bouncycastle.fips.core", List.of(new ManageThreadsEntitlement()))
             );
         }
 

@@ -1,0 +1,5 @@
+pr: 122660
+summary: Render `aggregate_metric_double`
+area: "Compute Engine, TSDB"
+type: enhancement
+issues: []

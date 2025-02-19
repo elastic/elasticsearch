@@ -62,7 +62,8 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
         );
 
         // assert both static and dynamic settings set on dest index
-        var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(sourceIndex, destIndex)).actionGet();
+        var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(sourceIndex, destIndex))
+            .actionGet();
         var destSettings = settingsResponse.getIndexToSettings().get(destIndex);
         var sourceSettings = settingsResponse.getIndexToSettings().get(sourceIndex);
 
@@ -111,7 +112,7 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
         );
 
         // assert both static and dynamic settings set on dest index
-        var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(destIndex)).actionGet();
+        var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(destIndex)).actionGet();
         assertEquals(numReplicas, Integer.parseInt(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_NUMBER_OF_REPLICAS)));
         assertEquals(numShards, Integer.parseInt(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_NUMBER_OF_SHARDS)));
     }
@@ -176,7 +177,7 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
         // assert settings overridden
         int expectedShards = overrideNumShards ? numShardsSource + 1 : numShardsSource;
         int expectedReplicas = overrideNumShards ? numReplicasSource : numReplicasSource + 1;
-        var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(destIndex)).actionGet();
+        var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(destIndex)).actionGet();
         assertEquals(expectedShards, Integer.parseInt(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_NUMBER_OF_SHARDS)));
         assertEquals(expectedReplicas, Integer.parseInt(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_NUMBER_OF_REPLICAS)));
     }
@@ -201,7 +202,7 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
         );
 
         // assert settings overridden
-        var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(destIndex)).actionGet();
+        var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(destIndex)).actionGet();
         var destSettings = settingsResponse.getIndexToSettings().get(destIndex);
 
         // sanity check
@@ -234,7 +235,7 @@ public class CreateIndexFromSourceActionIT extends ESIntegTestCase {
         assertAcked(client().execute(CreateIndexFromSourceAction.INSTANCE, request));
 
         // assert settings overridden
-        var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(destIndex)).actionGet();
+        var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(destIndex)).actionGet();
         var destSettings = settingsResponse.getIndexToSettings().get(destIndex);
 
         // remove block settings override both source settings and override settings

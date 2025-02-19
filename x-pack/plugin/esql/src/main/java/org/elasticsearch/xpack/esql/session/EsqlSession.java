@@ -208,39 +208,33 @@ public class EsqlSession {
     ) {
         List<PlanTuple> subplans = new ArrayList<>();
 
-        // Currently inlinestats and fork are limited and supported as streaming operators, thus present inside the fragment as logical
-        // plans. Below they get collected, translated into a separate, coordinator based plan and the results 'broadcasted'
-        // as a local relation.
-        physicalPlan = physicalPlan.transformUp(PhysicalPlan.class, p -> {
-            if (p instanceof FragmentExec f) {
-                f.fragment().forEachUp(LogicalPlan.class, bp -> {
-                    if (bp instanceof InlineJoin ij) {
-                        // extract the right side of the plan and replace its source
-                        LogicalPlan subplan = InlineJoin.replaceStub(ij.left(), ij.right());
-                        // mark the new root node as optimized
-                        subplan.setOptimized();
-                        PhysicalPlan subqueryPlan = logicalPlanToPhysicalPlan(subplan, request);
-                        subplans.add(new PlanTuple(subqueryPlan, subplan));
-                    }
-                });
-            }
-            if (p instanceof MergeExec m) {
-                List<PhysicalPlan> newSubPlans = new ArrayList<>();
-                for (var plan : m.children()) {
-                    if (plan instanceof FragmentExec f) {
-                        LogicalPlan subplan = f.fragment();
-                        subplan.setAnalyzed();
-                        subplan = optimizedPlan(subplan);
-                        PhysicalPlan subqueryPlan = logicalPlanToPhysicalPlan(subplan, request);
-                        subplans.add(new PlanTuple(subqueryPlan, subplan));
-                        plan = new FragmentExec(subplan);
-                    }
-                    newSubPlans.add(plan);
-                }
-                return new MergeExec(m.source(), newSubPlans, m.output());
-            }
+        // Currently the inlinestats are limited and supported as streaming operators, thus present inside the fragment as logical plans
+        // Below they get collected, translated into a separate, coordinator based plan and the results 'broadcasted' as a local relation
+        physicalPlan.forEachUp(FragmentExec.class, f -> {
+            f.fragment().forEachUp(InlineJoin.class, ij -> {
+                // extract the right side of the plan and replace its source
+                LogicalPlan subplan = InlineJoin.replaceStub(ij.left(), ij.right());
+                // mark the new root node as optimized
+                subplan.setOptimized();
+                PhysicalPlan subqueryPlan = logicalPlanToPhysicalPlan(subplan, request);
+                subplans.add(new PlanTuple(subqueryPlan, ij.right()));
+            });
+        });
 
-            return p;
+        // Currently fork is limited and supported as streaming operators, similar to inlinestats
+        physicalPlan = physicalPlan.transformUp(MergeExec.class, m -> {
+            List<PhysicalPlan> newSubPlans = new ArrayList<>();
+            for (var plan : m.children()) {
+                if (plan instanceof FragmentExec fragmentExec) {
+                    LogicalPlan subplan = fragmentExec.fragment();
+                    subplan = optimizedPlan(subplan);
+                    PhysicalPlan subqueryPlan = logicalPlanToPhysicalPlan(subplan, request);
+                    subplans.add(new PlanTuple(subqueryPlan, subplan));
+                    plan = new FragmentExec(subplan);
+                }
+                newSubPlans.add(plan);
+            }
+            return new MergeExec(m.source(), newSubPlans, m.output());
         });
 
         Iterator<PlanTuple> iterator = subplans.iterator();

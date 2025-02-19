@@ -47,23 +47,34 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
     public static final String CONTENT_TYPE = "_tsid";
     public static final TimeSeriesIdFieldType FIELD_TYPE = new TimeSeriesIdFieldType();
 
+    private static final TimeSeriesIdFieldMapper INSTANCE_WITHOUT_SKIPPER = new TimeSeriesIdFieldMapper(false);
+    private static final TimeSeriesIdFieldMapper INSTANCE_WITH_SKIPPER = new TimeSeriesIdFieldMapper(true);
+
+    public static TimeSeriesIdFieldMapper getInstance(boolean useDocValuesSkipper) {
+        if (useDocValuesSkipper) {
+            return INSTANCE_WITH_SKIPPER;
+        } else {
+            return INSTANCE_WITHOUT_SKIPPER;
+        }
+    }
+
+    public static TimeSeriesIdFieldMapper getInstance(MappingParserContext context) {
+        boolean useDocValuesSkipper = context.indexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ID_DOC_VALUES_SPARSE_INDEX)
+            && context.getIndexSettings().useDocValuesSkipper();
+        return TimeSeriesIdFieldMapper.getInstance(useDocValuesSkipper);
+    }
+
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(this.indexCreatedVersion, this.useDocValuesSkipper).init(this);
+        return new Builder(this.useDocValuesSkipper).init(this);
     }
 
     public static class Builder extends MetadataFieldMapper.Builder {
 
-        private final IndexVersion indexCreatedVersion;
         private final boolean useDocValuesSkipper;
 
-        public Builder(MappingParserContext context) {
-            this(context.indexVersionCreated(), context.getIndexSettings().useDocValuesSkipper());
-        }
-
-        protected Builder(IndexVersion indexCreatedVersion, boolean useDocValuesSkipper) {
+        protected Builder(boolean useDocValuesSkipper) {
             super(NAME);
-            this.indexCreatedVersion = indexCreatedVersion;
             this.useDocValuesSkipper = useDocValuesSkipper;
         }
 
@@ -74,7 +85,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
         @Override
         public TimeSeriesIdFieldMapper build() {
-            return new TimeSeriesIdFieldMapper(indexCreatedVersion, useDocValuesSkipper);
+            return TimeSeriesIdFieldMapper.getInstance(useDocValuesSkipper);
         }
     }
 
@@ -123,12 +134,10 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private final IndexVersion indexCreatedVersion;
     private final boolean useDocValuesSkipper;
 
-    private TimeSeriesIdFieldMapper(IndexVersion indexCreatedVersion, boolean useDocValuesSkipper) {
+    private TimeSeriesIdFieldMapper(boolean useDocValuesSkipper) {
         super(FIELD_TYPE);
-        this.indexCreatedVersion = indexCreatedVersion;
         this.useDocValuesSkipper = useDocValuesSkipper;
     }
 
@@ -149,7 +158,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
             timeSeriesId = routingPathFields.buildHash().toBytesRef();
         }
 
-        if (this.useDocValuesSkipper && this.indexCreatedVersion.onOrAfter(IndexVersions.TIME_SERIES_ID_DOC_VALUES_SPARSE_INDEX)) {
+        if (this.useDocValuesSkipper) {
             context.doc().add(SortedDocValuesField.indexedField(fieldType().name(), timeSeriesId));
         } else {
             context.doc().add(new SortedDocValuesField(fieldType().name(), timeSeriesId));

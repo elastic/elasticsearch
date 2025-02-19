@@ -189,7 +189,7 @@ public enum IndexMode {
 
         @Override
         public MetadataFieldMapper timeSeriesIdFieldMapper(MappingParserContext c) {
-            return new TimeSeriesIdFieldMapper.Builder(c).build();
+            return TimeSeriesIdFieldMapper.getInstance(c);
         }
 
         @Override

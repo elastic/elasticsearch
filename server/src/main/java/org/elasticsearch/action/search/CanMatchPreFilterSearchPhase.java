@@ -201,7 +201,7 @@ final class CanMatchPreFilterSearchPhase {
 
     private void checkNoMissingShards(List<SearchShardIterator> shards) {
         assert assertSearchCoordinationThread();
-        SearchPhase.doCheckNoMissingShards("can_match", request, shards, SearchPhase::makeMissingShardsError);
+        SearchPhase.doCheckNoMissingShards("can_match", request, shards);
     }
 
     private Map<SendingTarget, List<SearchShardIterator>> groupByNode(List<SearchShardIterator> shards) {

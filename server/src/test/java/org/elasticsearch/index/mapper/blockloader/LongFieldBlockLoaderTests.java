@@ -9,7 +9,10 @@
 
 package org.elasticsearch.index.mapper.blockloader;
 
+import org.elasticsearch.index.mapper.NumberFieldBlockLoaderTestCase;
 import org.elasticsearch.logsdb.datageneration.FieldType;
+
+import java.util.Map;
 
 public class LongFieldBlockLoaderTests extends NumberFieldBlockLoaderTestCase<Long> {
     public LongFieldBlockLoaderTests() {
@@ -17,7 +20,7 @@ public class LongFieldBlockLoaderTests extends NumberFieldBlockLoaderTestCase<Lo
     }
 
     @Override
-    protected Long convert(Number value) {
+    protected Long convert(Number value, Map<String, Object> fieldMapping) {
         return value.longValue();
     }
 }

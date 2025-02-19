@@ -73,6 +73,8 @@ import static org.elasticsearch.xpack.core.security.support.Automatons.unionAndM
  *
  * Also note that the `internal:transport/proxy/` prefix is automatically added and stripped for actions that go
  * through a CCR/CCS proxy. No action should be explicitly named like that.
+ *
+ * Each named privilege is associated with an {@link IndexComponentSelector} it grants access to.
  */
 public final class IndexPrivilege extends Privilege {
     private static final Logger logger = LogManager.getLogger(IndexPrivilege.class);
@@ -276,7 +278,7 @@ public final class IndexPrivilege extends Privilege {
      * Use this method if you know that the input name set corresponds to privileges covering the same selector, for instance if you have a
      * single input name, or multiple names that all grant access to one selector e.g., {@link IndexComponentSelector#DATA}.
      */
-    public static IndexPrivilege getSingleSelectorOrThrow(Set<String> names) {
+    public static IndexPrivilege getWithSingleSelectorAccess(Set<String> names) {
         final Set<IndexPrivilege> splitBySelector = getSplitBySelectorAccess(names);
         if (splitBySelector.size() != 1) {
             throw new IllegalArgumentException(

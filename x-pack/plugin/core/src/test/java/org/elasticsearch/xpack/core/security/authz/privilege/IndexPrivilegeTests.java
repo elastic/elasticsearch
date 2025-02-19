@@ -70,35 +70,35 @@ public class IndexPrivilegeTests extends ESTestCase {
         assertThat(findPrivilegesThatGrant(RefreshAction.NAME), equalTo(List.of("maintenance", "manage", "all")));
     }
 
-    public void testGetSingleSelectorOrThrow() {
+    public void testGetWithSingleSelectorAccess() {
         {
-            IndexPrivilege actual = IndexPrivilege.getSingleSelectorOrThrow(Set.of("all"));
+            IndexPrivilege actual = IndexPrivilege.getWithSingleSelectorAccess(Set.of("all"));
             assertThat(actual, equalTo(IndexPrivilege.ALL));
             assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.ALL));
         }
         {
-            IndexPrivilege actual = IndexPrivilege.getSingleSelectorOrThrow(Set.of("read"));
+            IndexPrivilege actual = IndexPrivilege.getWithSingleSelectorAccess(Set.of("read"));
             assertThat(actual, equalTo(IndexPrivilege.READ));
             assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.DATA));
         }
         {
-            IndexPrivilege actual = IndexPrivilege.getSingleSelectorOrThrow(Set.of("none"));
+            IndexPrivilege actual = IndexPrivilege.getWithSingleSelectorAccess(Set.of("none"));
             assertThat(actual, equalTo(IndexPrivilege.NONE));
             assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.DATA));
         }
         {
-            IndexPrivilege actual = IndexPrivilege.getSingleSelectorOrThrow(Set.of());
+            IndexPrivilege actual = IndexPrivilege.getWithSingleSelectorAccess(Set.of());
             assertThat(actual, equalTo(IndexPrivilege.NONE));
             assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.DATA));
         }
         {
-            IndexPrivilege actual = IndexPrivilege.getSingleSelectorOrThrow(Set.of("indices:data/read/search"));
+            IndexPrivilege actual = IndexPrivilege.getWithSingleSelectorAccess(Set.of("indices:data/read/search"));
             assertThat(actual.getSingleName(), equalTo("indices:data/read/search"));
             assertThat(actual.predicate.test("indices:data/read/search"), is(true));
             assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.DATA));
         }
         {
-            IndexPrivilege actual = IndexPrivilege.getSingleSelectorOrThrow(Set.of("all", "read", "indices:data/read/search"));
+            IndexPrivilege actual = IndexPrivilege.getWithSingleSelectorAccess(Set.of("all", "read", "indices:data/read/search"));
             assertThat(actual.name, equalTo(Set.of("all", "read", "indices:data/read/search")));
             assertThat(Automatons.subsetOf(IndexPrivilege.ALL.automaton, actual.automaton), is(true));
             assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.ALL));
@@ -108,18 +108,18 @@ public class IndexPrivilegeTests extends ESTestCase {
     public void testGetSingleSelectorWithFailuresSelectorOrThrow() {
         assumeTrue("This test requires the failure store to be enabled", DataStream.isFailureStoreFeatureFlagEnabled());
         {
-            IndexPrivilege actual = IndexPrivilege.getSingleSelectorOrThrow(Set.of("read_failure_store"));
+            IndexPrivilege actual = IndexPrivilege.getWithSingleSelectorAccess(Set.of("read_failure_store"));
             assertThat(actual, equalTo(IndexPrivilege.READ_FAILURE_STORE));
             assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.FAILURES));
         }
         {
-            IndexPrivilege actual = IndexPrivilege.getSingleSelectorOrThrow(Set.of("all", "read_failure_store"));
+            IndexPrivilege actual = IndexPrivilege.getWithSingleSelectorAccess(Set.of("all", "read_failure_store"));
             assertThat(actual.name(), equalTo(Set.of("all", "read_failure_store")));
             assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.ALL));
             assertThat(Automatons.subsetOf(IndexPrivilege.ALL.automaton, actual.automaton), is(true));
         }
         {
-            IndexPrivilege actual = IndexPrivilege.getSingleSelectorOrThrow(
+            IndexPrivilege actual = IndexPrivilege.getWithSingleSelectorAccess(
                 Set.of("all", "indices:data/read/search", "read_failure_store")
             );
             assertThat(actual.name(), equalTo(Set.of("all", "indices:data/read/search", "read_failure_store")));
@@ -127,17 +127,23 @@ public class IndexPrivilegeTests extends ESTestCase {
             assertThat(Automatons.subsetOf(IndexPrivilege.ALL.automaton, actual.automaton), is(true));
         }
         {
-            IndexPrivilege actual = IndexPrivilege.getSingleSelectorOrThrow(Set.of("all", "read", "read_failure_store"));
+            IndexPrivilege actual = IndexPrivilege.getWithSingleSelectorAccess(Set.of("all", "read", "read_failure_store"));
             assertThat(actual.name(), equalTo(Set.of("all", "read", "read_failure_store")));
             assertThat(actual.getSelectorPredicate(), equalTo(IndexComponentSelectorPredicate.ALL));
             assertThat(Automatons.subsetOf(IndexPrivilege.ALL.automaton, actual.automaton), is(true));
         }
-        expectThrows(IllegalArgumentException.class, () -> IndexPrivilege.getSingleSelectorOrThrow(Set.of("read", "read_failure_store")));
         expectThrows(
             IllegalArgumentException.class,
-            () -> IndexPrivilege.getSingleSelectorOrThrow(Set.of("indices:data/read/search", "read_failure_store"))
+            () -> IndexPrivilege.getWithSingleSelectorAccess(Set.of("read", "read_failure_store"))
         );
-        expectThrows(IllegalArgumentException.class, () -> IndexPrivilege.getSingleSelectorOrThrow(Set.of("none", "read_failure_store")));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexPrivilege.getWithSingleSelectorAccess(Set.of("indices:data/read/search", "read_failure_store"))
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexPrivilege.getWithSingleSelectorAccess(Set.of("none", "read_failure_store"))
+        );
     }
 
     public void testPrivilegesForRollupFieldCapsAction() {
@@ -155,39 +161,39 @@ public class IndexPrivilegeTests extends ESTestCase {
     public void testRelationshipBetweenPrivileges() {
         assertThat(
             Automatons.subsetOf(
-                IndexPrivilege.getSingleSelectorOrThrow(Set.of("view_index_metadata")).automaton,
-                IndexPrivilege.getSingleSelectorOrThrow(Set.of("manage")).automaton
+                IndexPrivilege.getWithSingleSelectorAccess(Set.of("view_index_metadata")).automaton,
+                IndexPrivilege.getWithSingleSelectorAccess(Set.of("manage")).automaton
             ),
             is(true)
         );
 
         assertThat(
             Automatons.subsetOf(
-                IndexPrivilege.getSingleSelectorOrThrow(Set.of("monitor")).automaton,
-                IndexPrivilege.getSingleSelectorOrThrow(Set.of("manage")).automaton
+                IndexPrivilege.getWithSingleSelectorAccess(Set.of("monitor")).automaton,
+                IndexPrivilege.getWithSingleSelectorAccess(Set.of("manage")).automaton
             ),
             is(true)
         );
 
         assertThat(
             Automatons.subsetOf(
-                IndexPrivilege.getSingleSelectorOrThrow(Set.of("create", "create_doc", "index", "delete")).automaton,
-                IndexPrivilege.getSingleSelectorOrThrow(Set.of("write")).automaton
+                IndexPrivilege.getWithSingleSelectorAccess(Set.of("create", "create_doc", "index", "delete")).automaton,
+                IndexPrivilege.getWithSingleSelectorAccess(Set.of("write")).automaton
             ),
             is(true)
         );
 
         assertThat(
             Automatons.subsetOf(
-                IndexPrivilege.getSingleSelectorOrThrow(Set.of("create_index", "delete_index")).automaton,
-                IndexPrivilege.getSingleSelectorOrThrow(Set.of("manage")).automaton
+                IndexPrivilege.getWithSingleSelectorAccess(Set.of("create_index", "delete_index")).automaton,
+                IndexPrivilege.getWithSingleSelectorAccess(Set.of("manage")).automaton
             ),
             is(true)
         );
     }
 
     public void testCrossClusterReplicationPrivileges() {
-        final IndexPrivilege crossClusterReplication = IndexPrivilege.getSingleSelectorOrThrow(Set.of("cross_cluster_replication"));
+        final IndexPrivilege crossClusterReplication = IndexPrivilege.getWithSingleSelectorAccess(Set.of("cross_cluster_replication"));
         List.of(
             "indices:data/read/xpack/ccr/shard_changes",
             "indices:monitor/stats",
@@ -198,12 +204,12 @@ public class IndexPrivilegeTests extends ESTestCase {
         assertThat(
             Automatons.subsetOf(
                 crossClusterReplication.automaton,
-                IndexPrivilege.getSingleSelectorOrThrow(Set.of("manage", "read", "monitor")).automaton
+                IndexPrivilege.getWithSingleSelectorAccess(Set.of("manage", "read", "monitor")).automaton
             ),
             is(true)
         );
 
-        final IndexPrivilege crossClusterReplicationInternal = IndexPrivilege.getSingleSelectorOrThrow(
+        final IndexPrivilege crossClusterReplicationInternal = IndexPrivilege.getWithSingleSelectorAccess(
             Set.of("cross_cluster_replication_internal")
         );
         List.of(
@@ -220,14 +226,14 @@ public class IndexPrivilegeTests extends ESTestCase {
         assertThat(
             Automatons.subsetOf(
                 crossClusterReplicationInternal.automaton,
-                IndexPrivilege.getSingleSelectorOrThrow(Set.of("manage")).automaton
+                IndexPrivilege.getWithSingleSelectorAccess(Set.of("manage")).automaton
             ),
             is(false)
         );
         assertThat(
             Automatons.subsetOf(
                 crossClusterReplicationInternal.automaton,
-                IndexPrivilege.getSingleSelectorOrThrow(Set.of("all")).automaton
+                IndexPrivilege.getWithSingleSelectorAccess(Set.of("all")).automaton
             ),
             is(true)
         );

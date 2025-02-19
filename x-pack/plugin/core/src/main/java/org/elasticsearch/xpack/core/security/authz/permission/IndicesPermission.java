@@ -302,7 +302,7 @@ public final class IndicesPermission {
                     }
                 }
                 for (String privilege : checkForPrivileges) {
-                    IndexPrivilege indexPrivilege = IndexPrivilege.getSingleSelectorOrThrow(Collections.singleton(privilege));
+                    IndexPrivilege indexPrivilege = IndexPrivilege.getWithSingleSelectorAccess(Collections.singleton(privilege));
                     if (allowedIndexPrivilegesAutomaton != null
                         && Automatons.subsetOf(indexPrivilege.getAutomaton(), allowedIndexPrivilegesAutomaton)) {
                         if (resourcePrivilegesMapBuilder != null) {

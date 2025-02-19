@@ -1494,8 +1494,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertHasRemoteIndexGroupsForClusters(
             role.remoteIndices(),
             Set.of("remote-1"),
-            indexGroup(IndexPrivilege.getSingleSelectorOrThrow(Set.of("read")), false, "index-1"),
-            indexGroup(IndexPrivilege.getSingleSelectorOrThrow(Set.of("none")), false, "index-1")
+            indexGroup(IndexPrivilege.getWithSingleSelectorAccess(Set.of("read")), false, "index-1"),
+            indexGroup(IndexPrivilege.getWithSingleSelectorAccess(Set.of("none")), false, "index-1")
         );
     }
 
@@ -1606,7 +1606,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
         assertHasIndexGroups(
             role.indices(),
-            indexGroup(IndexPrivilege.getSingleSelectorOrThrow(Set.of("read", "read_failure_store", "all")), false, indexPattern)
+            indexGroup(IndexPrivilege.getWithSingleSelectorAccess(Set.of("read", "read_failure_store", "all")), false, indexPattern)
         );
     }
 
@@ -1633,7 +1633,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         final Role role = buildRole(roleDescriptorWithIndicesPrivileges("r1", indicesPrivileges));
         final IndicesPermission actual = role.indices();
-        assertHasIndexGroups(actual, indexGroup(IndexPrivilege.getSingleSelectorOrThrow(usedPrivileges), false, indexPattern));
+        assertHasIndexGroups(actual, indexGroup(IndexPrivilege.getWithSingleSelectorAccess(usedPrivileges), false, indexPattern));
     }
 
     public void testCustomRolesProviderFailures() throws Exception {

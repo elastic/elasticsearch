@@ -183,7 +183,7 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
         for (Map.Entry<String, Set<String>> privilegesByAlias : privilegesByAliasMap.entrySet()) {
             final String aliasName = privilegesByAlias.getKey();
             final Set<String> aliasPrivilegeNames = privilegesByAlias.getValue();
-            final Automaton aliasPrivilegeAutomaton = IndexPrivilege.getSingleSelectorOrThrow(aliasPrivilegeNames).getAutomaton();
+            final Automaton aliasPrivilegeAutomaton = IndexPrivilege.getWithSingleSelectorAccess(aliasPrivilegeNames).getAutomaton();
             final SortedSet<String> inferiorIndexNames = new TreeSet<>();
             // check if the alias grants superiors privileges than the indices it points to
             for (Index index : aliasOrIndexMap.get(aliasName).getIndices()) {
@@ -193,7 +193,7 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
                     // compute automaton once per index no matter how many times it is pointed to
                     final Automaton indexPrivilegeAutomaton = indexAutomatonMap.computeIfAbsent(
                         index.getName(),
-                        i -> IndexPrivilege.getSingleSelectorOrThrow(indexPrivileges).getAutomaton()
+                        i -> IndexPrivilege.getWithSingleSelectorAccess(indexPrivileges).getAutomaton()
                     );
                     if (false == Automatons.subsetOf(indexPrivilegeAutomaton, aliasPrivilegeAutomaton)) {
                         inferiorIndexNames.add(index.getName());

@@ -258,7 +258,7 @@ public final class IndicesRequestCache implements Closeable {
                 + entity.getCacheIdentity()
                 + ",value=" // BytesRef's toString already has [] so we don't add it here
                 + value.toBytesRef() // BytesRef has a readable toString
-                + ")";
+                + "])";
         }
     }
 

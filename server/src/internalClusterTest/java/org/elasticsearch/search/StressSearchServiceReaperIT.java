@@ -35,6 +35,7 @@ public class StressSearchServiceReaperIT extends ESIntegTestCase {
             .build();
     }
 
+    // see issue #5165 - this test fails each time without the fix in pull #5170
     public void testStressReaper() throws ExecutionException, InterruptedException {
         int num = randomIntBetween(100, 150);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[num];
@@ -45,16 +46,7 @@ public class StressSearchServiceReaperIT extends ESIntegTestCase {
         indexRandom(true, builders);
         final int iterations = scaledRandomIntBetween(500, 1000);
         for (int i = 0; i < iterations; i++) {
-            SearchResponse response = null;
-            try {
-                SearchRequestBuilder searchRequestBuilder = prepareSearch("test").setQuery(matchAllQuery()).setSize(num);
-                response = searchRequestBuilder.get();
-                assertHitCountAndNoFailures(searchRequestBuilder, num);
-            } finally {
-                if (response != null) {
-                    response.decRef();
-                }
-            }
+            assertHitCountAndNoFailures(prepareSearch("test").setQuery(matchAllQuery()).setSize(num), num);
         }
     }
 }

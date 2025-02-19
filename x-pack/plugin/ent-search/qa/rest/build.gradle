@@ -37,3 +37,11 @@ testClusters.configureEach {
 artifacts {
   restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
 }
+
+
+tasks.named("yamlRestCompatTestTransform").configure(
+  { task ->
+    // Behavioral Analytics is deprecated with 9.0.0.
+    task.addAllowedWarning("Behavioral Analytics is deprecated and will be removed in a future release.")
+  }
+)

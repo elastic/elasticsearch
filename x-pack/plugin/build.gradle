@@ -110,8 +110,6 @@ tasks.named("yamlRestCompatTestTransform").configure(
     task.skipTest("esql/40_tsdb/from index pattern unsupported counter", "TODO: support for subset of metric fields")
     task.skipTest("esql/40_unsupported_types/unsupported", "TODO: support for subset of metric fields")
     task.skipTest("esql/40_unsupported_types/unsupported with sort", "TODO: support for subset of metric fields")
-    // Behavioral Analytics deprecated in 9.0
-    task.addAllowedWarning("Behavioral Analytics is deprecated and will be removed in a future release.")
   }
 )
 

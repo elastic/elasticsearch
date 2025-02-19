@@ -116,29 +116,29 @@ public class OffsetDocValuesLoaderTests extends MapperServiceTestCase {
         String mapping;
         if (randomBoolean()) {
             mapping = """
-            {
-                "_doc": {
-                    "properties": {
-                        "field": {
-                            "type": "keyword",
-                            "synthetic_source_keep": "{{synthetic_source_keep}}"
+                {
+                    "_doc": {
+                        "properties": {
+                            "field": {
+                                "type": "keyword",
+                                "synthetic_source_keep": "{{synthetic_source_keep}}"
+                            }
                         }
                     }
                 }
-            }
-            """.replace("{{synthetic_source_keep}}", randomBoolean() ? "none" : "all");
+                """.replace("{{synthetic_source_keep}}", randomBoolean() ? "none" : "all");
         } else {
             mapping = """
-            {
-                "_doc": {
-                    "properties": {
-                        "field": {
-                            "type": "keyword"
+                {
+                    "_doc": {
+                        "properties": {
+                            "field": {
+                                "type": "keyword"
+                            }
                         }
                     }
                 }
-            }
-            """;
+                """;
             if (randomBoolean()) {
                 settingsBuilder.put("index.mapping.synthetic_source_keep", "none");
             }

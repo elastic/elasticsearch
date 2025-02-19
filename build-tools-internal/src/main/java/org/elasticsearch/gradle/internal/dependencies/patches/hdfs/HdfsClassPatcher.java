@@ -29,12 +29,16 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static java.util.Map.entry;
@@ -42,11 +46,12 @@ import static java.util.Map.entry;
 @CacheableTransform
 public abstract class HdfsClassPatcher implements TransformAction<HdfsClassPatcher.Parameters> {
 
-    record JarPatchers(String artifactName, Map<String, Function<ClassWriter, ClassVisitor>> jarPatchers) {}
+    record JarPatchers(String artifactTag, Pattern artifactPattern, Map<String, Function<ClassWriter, ClassVisitor>> jarPatchers) {}
 
     static final List<JarPatchers> allPatchers = List.of(
         new JarPatchers(
             "hadoop-common",
+            Pattern.compile("hadoop-common-(?!.*tests)"),
             Map.ofEntries(
                 entry("org/apache/hadoop/util/ShutdownHookManager.class", ShutdownHookManagerPatcher::new),
                 entry("org/apache/hadoop/util/Shell.class", ShellPatcher::new),
@@ -55,6 +60,7 @@ public abstract class HdfsClassPatcher implements TransformAction<HdfsClassPatch
         ),
         new JarPatchers(
             "hadoop-client-api",
+            Pattern.compile("hadoop-client-api.*"),
             Map.ofEntries(
                 entry("org/apache/hadoop/util/ShutdownHookManager.class", ShutdownHookManagerPatcher::new),
                 entry("org/apache/hadoop/util/Shell.class", ShellPatcher::new),
@@ -81,14 +87,30 @@ public abstract class HdfsClassPatcher implements TransformAction<HdfsClassPatch
         File inputFile = getInputArtifact().get().getAsFile();
 
         List<String> matchingArtifacts = getParameters().getMatchingArtifacts();
-        if (matchingArtifacts.isEmpty() == false
-            && matchingArtifacts.stream().noneMatch(supported -> inputFile.getName().contains(supported))) {
+        List<JarPatchers> patchersToApply = allPatchers.stream().filter(jp -> matchingArtifacts.contains(jp.artifactTag()) &&
+            jp.artifactPattern().asMatchPredicate().test(inputFile.getName())).toList();
+        if (patchersToApply.isEmpty()) {
             outputs.file(getInputArtifact());
         } else {
-            Stream<JarPatchers> patchersToApply = allPatchers.stream().filter(jp -> matchingArtifacts.contains(jp.artifactName()));
             patchersToApply.forEach(patchers -> {
+                System.out.println("Patching " + inputFile.getName());
+
+                Map<String, Function<ClassWriter, ClassVisitor>> jarPatchers = new HashMap<>(patchers.jarPatchers());
                 File outputFile = outputs.file(inputFile.getName().replace(".jar", "-patched.jar"));
-                patchJar(inputFile, outputFile, patchers.jarPatchers());
+
+                patchJar(inputFile, outputFile, jarPatchers);
+
+                if (jarPatchers.isEmpty() == false) {
+                    throw new IllegalArgumentException(
+                        String.format(
+                            Locale.ROOT,
+                            "error patching [%s] with [%s]: the jar does not contain [%s]",
+                            inputFile.getName(),
+                            patchers.artifactPattern().toString(),
+                            String.join(", ", jarPatchers.keySet())
+                        )
+                    );
+                }
             });
         }
     }
@@ -102,7 +124,7 @@ public abstract class HdfsClassPatcher implements TransformAction<HdfsClassPatch
                 // Add the entry to the new JAR file
                 jos.putNextEntry(new JarEntry(entryName));
 
-                Function<ClassWriter, ClassVisitor> classPatcher = jarPatchers.get(entryName);
+                Function<ClassWriter, ClassVisitor> classPatcher = jarPatchers.remove(entryName);
                 if (classPatcher != null) {
                     byte[] classToPatch = jarFile.getInputStream(entry).readAllBytes();
 

@@ -671,12 +671,12 @@ public class TranslogReplicatorTests extends ESTestCase {
         when(objectStoreService.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
         doAnswer(invocation -> {
             var metadata = CompoundTranslogHeader.readFromStore("test", invocation.<BytesReference>getArgument(1).streamInput()).metadata();
-            if (metadata.get(shardId).maxSeqNo() == 1L) {
+            if (metadata.get(shardId).operations().maxSeqNo() == 1L) {
                 firstSyncCompleter.set(invocation.getArgument(2));
                 intermediateStartedLatch.countDown();
                 return null;
             }
-            if (metadata.get(shardId).maxSeqNo() == 3L) {
+            if (metadata.get(shardId).operations().maxSeqNo() == 3L) {
                 finalSyncStartedLatch.countDown();
             }
             invocation.<ActionListener<Void>>getArgument(2).onResponse(null);

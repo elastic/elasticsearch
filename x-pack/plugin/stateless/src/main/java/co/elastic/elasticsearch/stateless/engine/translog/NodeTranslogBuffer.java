@@ -37,6 +37,7 @@ import java.util.Map;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 public class NodeTranslogBuffer implements Releasable {
 
@@ -154,10 +155,13 @@ public class NodeTranslogBuffer implements Releasable {
                 CompositeBytesReference.of(headerStream.bytes(), compoundTranslogStream.bytes()),
                 () -> Releasables.close(headerStream, compoundTranslogStream)
             );
+            Map<ShardId, TranslogMetadata.Operations> operations = metadata.entrySet()
+                .stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().operations()));
             TranslogReplicator.CompoundTranslogMetadata compoundMetadata = new TranslogReplicator.CompoundTranslogMetadata(
                 Strings.format("%019d", generation),
                 generation,
-                metadata,
+                operations,
                 syncedLocations
             );
 
@@ -175,9 +179,19 @@ public class NodeTranslogBuffer implements Releasable {
     private TranslogMetadata metadata(ShardBuffer buffer, long position, long size, TranslogMetadata.Directory directory) {
         if (size == 0) {
             assert buffer == null;
-            return new TranslogMetadata(position, 0, SequenceNumbers.NO_OPS_PERFORMED, SequenceNumbers.NO_OPS_PERFORMED, 0, directory);
+            return new TranslogMetadata(
+                position,
+                0,
+                new TranslogMetadata.Operations(SequenceNumbers.NO_OPS_PERFORMED, SequenceNumbers.NO_OPS_PERFORMED, 0),
+                directory
+            );
         } else {
-            return new TranslogMetadata(position, size, buffer.minSeqNo(), buffer.maxSeqNo(), buffer.totalOps(), directory);
+            return new TranslogMetadata(
+                position,
+                size,
+                new TranslogMetadata.Operations(buffer.minSeqNo(), buffer.maxSeqNo(), buffer.totalOps()),
+                directory
+            );
         }
     }
 

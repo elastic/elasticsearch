@@ -240,7 +240,15 @@ public class EntitlementInitialization {
         var serverPolicy = new Policy("server", serverScopes);
         // agents run without a module, so this is a special hack for the apm agent
         // this should be removed once https://github.com/elastic/elasticsearch/issues/109335 is completed
-        List<Entitlement> agentEntitlements = List.of(new CreateClassLoaderEntitlement(), new ManageThreadsEntitlement());
+        List<Entitlement> agentEntitlements = List.of(
+            new CreateClassLoaderEntitlement(),
+            new ManageThreadsEntitlement(),
+            new FilesEntitlement(
+                List.of(
+                    FileData.ofPath(Path.of("/co/elastic/apm/agent/"), READ),
+                    FileData.ofPath(Path.of("/agent/co/elastic/apm/agent/"), READ)
+                )
+            ));
         var resolver = EntitlementBootstrap.bootstrapArgs().pluginResolver();
         return new PolicyManager(
             serverPolicy,

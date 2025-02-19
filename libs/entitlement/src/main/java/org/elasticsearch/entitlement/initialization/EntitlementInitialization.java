@@ -165,33 +165,34 @@ public class EntitlementInitialization {
                     new LoadNativeLibrariesEntitlement(),
                     new ManageThreadsEntitlement(),
                     new FilesEntitlement(
-                        List.of(
-                            // Base ES directories
-                            FileData.ofPath(bootstrapArgs.tempDir(), READ_WRITE),
-                            FileData.ofPath(bootstrapArgs.configDir(), READ),
-                            FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
-                            FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE),
+                        Stream.concat(
+                            Stream.of(
+                                // Base ES directories
+                                FileData.ofPath(bootstrapArgs.tempDir(), READ_WRITE),
+                                FileData.ofPath(bootstrapArgs.configDir(), READ),
+                                FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
+                                FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE),
 
-                            // OS release on Linux
-                            FileData.ofPath(Path.of("/etc/os-release"), READ),
-                            FileData.ofPath(Path.of("/etc/system-release"), READ),
-                            FileData.ofPath(Path.of("/usr/lib/os-release"), READ),
-                            // read max virtual memory areas
-                            FileData.ofPath(Path.of("/proc/sys/vm/max_map_count"), READ),
-                            FileData.ofPath(Path.of("/proc/meminfo"), READ),
-                            // load averages on Linux
-                            FileData.ofPath(Path.of("/proc/loadavg"), READ),
-                            // control group stats on Linux. cgroup v2 stats are in an unpredicable
-                            // location under `/sys/fs/cgroup`, so unfortunately we have to allow
-                            // read access to the entire directory hierarchy.
-                            FileData.ofPath(Path.of("/proc/self/cgroup"), READ),
-                            FileData.ofPath(Path.of("/sys/fs/cgroup/"), READ),
-                            // // io stats on Linux
-                            FileData.ofPath(Path.of("/proc/self/mountinfo"), READ),
-                            FileData.ofPath(Path.of("/proc/diskstats"), READ)
-
-                        // TODO: use FileData.ofPathSetting("repositories.fs.location", READ_WRITE)
-                        )
+                                // OS release on Linux
+                                FileData.ofPath(Path.of("/etc/os-release"), READ),
+                                FileData.ofPath(Path.of("/etc/system-release"), READ),
+                                FileData.ofPath(Path.of("/usr/lib/os-release"), READ),
+                                // read max virtual memory areas
+                                FileData.ofPath(Path.of("/proc/sys/vm/max_map_count"), READ),
+                                FileData.ofPath(Path.of("/proc/meminfo"), READ),
+                                // load averages on Linux
+                                FileData.ofPath(Path.of("/proc/loadavg"), READ),
+                                // control group stats on Linux. cgroup v2 stats are in an unpredicable
+                                // location under `/sys/fs/cgroup`, so unfortunately we have to allow
+                                // read access to the entire directory hierarchy.
+                                FileData.ofPath(Path.of("/proc/self/cgroup"), READ),
+                                FileData.ofPath(Path.of("/sys/fs/cgroup/"), READ),
+                                // // io stats on Linux
+                                FileData.ofPath(Path.of("/proc/self/mountinfo"), READ),
+                                FileData.ofPath(Path.of("/proc/diskstats"), READ)
+                            ),
+                            getRepositoryFileData(bootstrapArgs)
+                        ).toList()
                     )
                 )
             ),
@@ -247,6 +248,10 @@ public class EntitlementInitialization {
             ENTITLEMENTS_MODULE,
             pathLookup
         );
+    }
+
+    private static Stream<FileData> getRepositoryFileData(EntitlementBootstrap.BootstrapArgs bootstrapArgs) {
+        return Stream.of(FileData.ofPath(bootstrapArgs.repoDirResolver().apply(""), READ_WRITE));
     }
 
     private static Path getUserHome() {

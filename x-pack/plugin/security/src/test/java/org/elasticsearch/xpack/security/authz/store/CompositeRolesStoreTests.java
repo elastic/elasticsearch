@@ -1652,6 +1652,57 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
     }
 
+    public void testBuildRoleWithFailureStorePrivilegeCollatesToRemoveDlsFlsFromAnotherGroup() {
+        assumeTrue("requires failure store feature", DataStream.isFailureStoreFeatureFlagEnabled());
+        String indexPattern = randomAlphanumericOfLength(10);
+        boolean allowRestrictedIndices = randomBoolean();
+        final Role role = buildRole(
+            roleDescriptorWithIndicesPrivileges(
+                "r1",
+                new IndicesPrivileges[] {
+                    IndicesPrivileges.builder()
+                        .indices(indexPattern)
+                        .privileges("read_failure_store")
+                        .allowRestrictedIndices(allowRestrictedIndices)
+                        .build(),
+                    IndicesPrivileges.builder()
+                        .indices(indexPattern)
+                        .privileges("read", "view_index_metadata")
+                        .query("{\"match\":{\"field\":\"a\"}}")
+                        .grantedFields("field")
+                        .allowRestrictedIndices(allowRestrictedIndices)
+                        .build() }
+            )
+        );
+        assertHasIndexGroups(
+            role.indices(),
+            indexGroup(
+                IndexPrivilege.getWithSingleSelectorAccess(Set.of("read_failure_store")),
+                allowRestrictedIndices,
+                null,
+                new FieldPermissionsDefinition(
+                    Set.of(
+                        new FieldPermissionsDefinition.FieldGrantExcludeGroup(null, null),
+                        new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "field" }, null)
+                    )
+                ),
+                indexPattern
+            ),
+            indexGroup(
+                IndexPrivilege.getWithSingleSelectorAccess(Set.of("read", "view_index_metadata")),
+                allowRestrictedIndices,
+                null,
+                new FieldPermissionsDefinition(
+                    Set.of(
+                        new FieldPermissionsDefinition.FieldGrantExcludeGroup(null, null),
+                        new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "field" }, null)
+                    )
+                ),
+                indexPattern
+            )
+        );
+    }
+
     public void testBuildRoleNeverSplitsWithoutFailureStoreRelatedPrivileges() {
         String indexPattern = randomAlphanumericOfLength(10);
         List<String> nonFailurePrivileges = IndexPrivilege.names()
@@ -3541,6 +3592,16 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final FieldPermissionsDefinition.FieldGrantExcludeGroup flsGroup,
         final String... indices
     ) {
+        return indexGroup(privilege, allowRestrictedIndices, query, new FieldPermissionsDefinition(Set.of(flsGroup)), indices);
+    }
+
+    private static Matcher<IndicesPermission.Group> indexGroup(
+        final IndexPrivilege privilege,
+        final boolean allowRestrictedIndices,
+        @Nullable final String query,
+        final FieldPermissionsDefinition fieldPermissionsDefinition,
+        final String... indices
+    ) {
         return new BaseMatcher<>() {
             @Override
             public boolean matches(Object o) {
@@ -3551,7 +3612,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 return equalTo(query == null ? null : Set.of(new BytesArray(query))).matches(group.getQuery())
                     && equalTo(privilege).matches(group.privilege())
                     && equalTo(allowRestrictedIndices).matches(group.allowRestrictedIndices())
-                    && equalTo(new FieldPermissions(new FieldPermissionsDefinition(Set.of(flsGroup)))).matches(group.getFieldPermissions())
+                    && equalTo(new FieldPermissions(fieldPermissionsDefinition)).matches(group.getFieldPermissions())
                     && arrayContaining(indices).matches(group.indices());
             }
 
@@ -3567,8 +3628,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
                         + Strings.arrayToCommaDelimitedString(indices)
                         + ", query="
                         + query
-                        + ", fieldGrantExcludeGroup="
-                        + flsGroup
+                        + ", fieldPermissionsDefinition="
+                        + fieldPermissionsDefinition
                         + '}'
                 );
             }

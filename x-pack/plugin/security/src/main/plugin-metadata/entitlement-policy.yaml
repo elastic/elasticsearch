@@ -17,6 +17,8 @@ io.netty.common:
       mode: "read"
     - path: "/usr/lib/os-release"
       mode: "read"
+    - path: "/proc/sys/net/core/somaxconn"
+      mode: read
 org.opensaml.xmlsec.impl:
   - write_system_properties:
       properties:

@@ -1,0 +1,11 @@
+pr: 122960
+summary: Deprecate Behavioral Analytics CRUD apis
+area: Relevance
+type: deprecation
+issues: []
+deprecation:
+  title: Deprecate Behavioral Analytics CRUD apis
+  area: Relevance
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users

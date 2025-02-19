@@ -20,7 +20,11 @@ configurations {
       attribute(patched, true)
     }
   }
-  hdfs3
+  hdfs3 {
+    attributes {
+      attribute(patched, true)
+    }
+  }
   consumable("shadowedHdfs2")
 }
 

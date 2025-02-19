@@ -9,12 +9,14 @@
 
 package org.elasticsearch.entitlement.qa.test;
 
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.qa.entitled.EntitledActions;
 
 import java.io.File;
 import java.io.FileDescriptor;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
@@ -25,7 +27,17 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.UserPrincipal;
+import java.security.GeneralSecurityException;
+import java.security.KeyStore;
+import java.util.Scanner;
+import java.util.jar.JarFile;
+import java.util.zip.ZipException;
+import java.util.zip.ZipFile;
 
+import static java.nio.charset.Charset.defaultCharset;
+import static java.util.zip.ZipFile.OPEN_DELETE;
+import static java.util.zip.ZipFile.OPEN_READ;
+import static org.elasticsearch.entitlement.qa.entitled.EntitledActions.createTempFileForWrite;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.ALWAYS_DENIED;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
 
@@ -345,6 +357,141 @@ class FileCheckActions {
     static void filesSetOwner() throws IOException {
         UserPrincipal owner = EntitledActions.getFileOwner(readWriteFile());
         Files.setOwner(readWriteFile(), owner); // set to existing owner, just trying to execute the method
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void keystoreGetInstance_FileCharArray() throws IOException {
+        try {
+            KeyStore.getInstance(readFile().toFile(), new char[0]);
+        } catch (GeneralSecurityException expected) {
+            return;
+        }
+        throw new AssertionError("Expected an exception");
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void keystoreGetInstance_FileLoadStoreParameter() throws IOException {
+        try {
+            KeyStore.LoadStoreParameter loadStoreParameter = () -> null;
+            KeyStore.getInstance(readFile().toFile(), loadStoreParameter);
+        } catch (GeneralSecurityException expected) {
+            return;
+        }
+        throw new AssertionError("Expected an exception");
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void keystoreBuilderNewInstance() {
+        try {
+            KeyStore.Builder.newInstance("", null, readFile().toFile(), null);
+        } catch (NullPointerException expected) {
+            return;
+        }
+        throw new AssertionError("Expected an exception");
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void zipFile_String() throws IOException {
+        expectZipException(() -> new ZipFile(readFile().toString()).close());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void zipFile_StringCharset() throws IOException {
+        expectZipException(() -> new ZipFile(readFile().toString(), defaultCharset()).close());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void zipFile_File() throws IOException {
+        expectZipException(() -> new ZipFile(readFile().toFile()).close());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void zipFile_FileCharset() throws IOException {
+        expectZipException(() -> new ZipFile(readFile().toFile(), defaultCharset()).close());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void zipFile_FileReadOnly() throws IOException {
+        expectZipException(() -> new ZipFile(readFile().toFile(), OPEN_READ).close());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void zipFile_FileReadAndDelete() throws IOException {
+        expectZipException(() -> new ZipFile(createTempFileForWrite().toFile(), OPEN_READ | OPEN_DELETE).close());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void zipFile_ReadOnlyCharset() throws IOException {
+        expectZipException(() -> new ZipFile(readFile().toFile(), OPEN_READ, defaultCharset()).close());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void zipFile_ReadAndDeleteCharset() throws IOException {
+        expectZipException(() -> new ZipFile(createTempFileForWrite().toFile(), OPEN_READ | OPEN_DELETE, defaultCharset()).close());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void jarFile_String() throws IOException {
+        expectZipException(() -> new JarFile(readFile().toString()).close());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void jarFile_StringBoolean() throws IOException {
+        expectZipException(() -> new JarFile(readFile().toString(), false).close());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void jarFile_FileReadOnly() throws IOException {
+        expectZipException(() -> new JarFile(readFile().toFile(), false, OPEN_READ).close());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void jarFile_FileReadAndDelete() throws IOException {
+        expectZipException(() -> new JarFile(createTempFileForWrite().toFile(), false, OPEN_READ | OPEN_DELETE).close());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void jarFile_FileBooleanReadOnlyVersion() throws IOException {
+        expectZipException(() -> new JarFile(readFile().toFile(), false, OPEN_READ, Runtime.version()).close());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void jarFile_FileBooleanReadAndDeleteOnlyVersion() throws IOException {
+        expectZipException(() -> new JarFile(createTempFileForWrite().toFile(), false, OPEN_READ | OPEN_DELETE, Runtime.version()).close());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void jarFile_File() throws IOException {
+        expectZipException(() -> new JarFile(readFile().toFile()).close());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void jarFileFileBoolean() throws IOException {
+        expectZipException(() -> new JarFile(readFile().toFile(), false).close());
+    }
+
+    private static void expectZipException(CheckedRunnable<IOException> action) throws IOException {
+        try {
+            action.run();
+        } catch (ZipException expected) {
+            return;
+        }
+        throw new AssertionError("Expected an exception");
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void createScannerFile() throws FileNotFoundException {
+        new Scanner(readFile().toFile());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void createScannerFileWithCharset() throws IOException {
+        new Scanner(readFile().toFile(), StandardCharsets.UTF_8);
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void createScannerFileWithCharsetName() throws FileNotFoundException {
+        new Scanner(readFile().toFile(), "UTF-8");
     }
 
     private FileCheckActions() {}

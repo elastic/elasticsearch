@@ -282,18 +282,13 @@ public class EsqlSession {
                         .map(FragmentExec.class::cast)
                         .anyMatch(fragmentExec -> fragmentExec.fragment() == tuple.logical);
                     if (changed) {
-                        List<PhysicalPlan> newSubPlans = new ArrayList<>(m.children());
-                        for (int i = 0; i < newSubPlans.size(); i++) {
-                            var subPlan = newSubPlans.get(i);
+                        List<PhysicalPlan> newSubPlans = m.children().stream().map(subPlan -> {
                             if (subPlan instanceof FragmentExec fe && fe.fragment() == tuple.logical) {
-                                var resultsExec = new LocalSourceExec(
-                                    resultWrapper.source(),
-                                    resultWrapper.output(),
-                                    resultWrapper.supplier()
-                                );
-                                newSubPlans.set(i, resultsExec);
+                                return new LocalSourceExec(resultWrapper.source(), resultWrapper.output(), resultWrapper.supplier());
+                            } else {
+                                return subPlan;
                             }
-                        }
+                        }).toList();
                         return new MergeExec(m.source(), newSubPlans, m.output());
                     }
                     return m;

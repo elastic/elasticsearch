@@ -33,6 +33,7 @@ import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.LocaleUtils;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
@@ -60,6 +61,7 @@ import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.LongScriptFieldDistanceFeatureQuery;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.text.NumberFormat;
@@ -69,6 +71,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -905,10 +908,61 @@ public final class DateFieldMapper extends FieldMapper {
             if (hasDocValues()) {
                 return new BlockDocValuesReader.LongsBlockLoader(name());
             }
+
+            if (false) {
+                return new FallbackSyntheticSourceBlockLoader(fallbackSyntheticSourceBlockLoaderReader(), name()) {
+                    @Override
+                    public Builder builder(BlockFactory factory, int expectedCount) {
+                        return factory.longs(expectedCount);
+                    }
+                };
+            }
+
             BlockSourceReader.LeafIteratorLookup lookup = isStored() || isIndexed()
                 ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
                 : BlockSourceReader.lookupMatchingAll();
             return new BlockSourceReader.LongsBlockLoader(sourceValueFetcher(blContext.sourcePaths(name())), lookup);
+        }
+
+        private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {
+            Function<String, Long> dateParser = this::parse;
+
+            return new FallbackSyntheticSourceBlockLoader.ReaderWithNullValueSupport<Long>(nullValue) {
+                @Override
+                public void convertValue(Object value, List<Long> accumulator) {
+                    try {
+                        String date = value instanceof Number ? NUMBER_FORMAT.format(value) : value.toString();
+                        accumulator.add(dateParser.apply(date));
+                    } catch (Exception e) {
+                        // Malformed value, skip it
+                    }
+                }
+
+                @Override
+                protected void parseNonNullValue(XContentParser parser, List<Long> accumulator) throws IOException {
+                    // Aligned with implementation of `parseCreateField(XContentParser)`
+                    try {
+                        String dateAsString = parser.textOrNull();
+
+                        if (dateAsString == null) {
+                            accumulator.add(dateParser.apply(nullValue));
+                        } else {
+                            accumulator.add(dateParser.apply(dateAsString));
+                        }
+                    } catch (Exception e) {
+                        // Malformed value, skip it
+                    }
+                }
+
+                @Override
+                public void writeToBlock(List<Long> values, BlockLoader.Builder blockBuilder) {
+                    var longBuilder = (BlockLoader.LongBuilder) blockBuilder;
+
+                    for (var value : values) {
+                        longBuilder.appendLong(value);
+                    }
+                }
+            };
         }
 
         @Override

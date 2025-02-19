@@ -35,6 +35,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             case LONG, INTEGER, SHORT, BYTE, DOUBLE, FLOAT, HALF_FLOAT, UNSIGNED_LONG -> numberMapping(map, request.fieldType());
             case SCALED_FLOAT -> scaledFloatMapping(map);
             case COUNTED_KEYWORD -> plain(Map.of("index", ESTestCase.randomBoolean()));
+            case BOOLEAN -> booleanMapping(map);
         });
     }
 
@@ -103,6 +104,20 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
 
             if (ESTestCase.randomDouble() <= 0.2) {
                 injected.put("null_value", ESTestCase.randomDouble());
+            }
+
+            if (ESTestCase.randomBoolean()) {
+                injected.put("ignore_malformed", ESTestCase.randomBoolean());
+            }
+
+            return injected;
+        };
+    }
+
+    private Supplier<Map<String, Object>> booleanMapping(Map<String, Object> injected) {
+        return () -> {
+            if (ESTestCase.randomDouble() <= 0.2) {
+                injected.put("null_value", ESTestCase.randomFrom(true, false, "true", "false"));
             }
 
             if (ESTestCase.randomBoolean()) {

@@ -59,4 +59,9 @@ public class DefaultPrimitiveTypesHandler implements DataSourceHandler {
     public DataSourceResponse.StringGenerator handle(DataSourceRequest.StringGenerator request) {
         return new DataSourceResponse.StringGenerator(() -> ESTestCase.randomAlphaOfLengthBetween(0, 50));
     }
+
+    @Override
+    public DataSourceResponse.BooleanGenerator handle(DataSourceRequest.BooleanGenerator request) {
+        return new DataSourceResponse.BooleanGenerator(ESTestCase::randomBoolean);
+    }
 }

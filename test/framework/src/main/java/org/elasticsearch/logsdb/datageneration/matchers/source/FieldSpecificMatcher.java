@@ -351,6 +351,35 @@ interface FieldSpecificMatcher {
         }
     }
 
+    class BooleanMatcher extends GenericMappingAwareMatcher {
+        BooleanMatcher(
+            XContentBuilder actualMappings,
+            Settings.Builder actualSettings,
+            XContentBuilder expectedMappings,
+            Settings.Builder expectedSettings
+        ) {
+            super("boolean", actualMappings, actualSettings, expectedMappings, expectedSettings);
+        }
+
+        @Override
+        Object convert(Object value, Object nullValue) {
+            Boolean nullValueBool = null;
+            if (nullValue != null) {
+                nullValueBool = nullValue instanceof Boolean b ? b : Boolean.parseBoolean((String) nullValue);
+            }
+
+            if (value == null) {
+                return nullValueBool;
+            }
+            if (value instanceof String s && s.isEmpty()) {
+                // This a documented behavior.
+                return false;
+            }
+
+            return value;
+        }
+    }
+
     /**
      * Generic matcher that supports common matching logic like null values.
      */

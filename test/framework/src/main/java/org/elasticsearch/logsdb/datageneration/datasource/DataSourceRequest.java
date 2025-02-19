@@ -15,6 +15,7 @@ import org.elasticsearch.logsdb.datageneration.FieldType;
 import org.elasticsearch.logsdb.datageneration.fields.DynamicMapping;
 
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public interface DataSourceRequest<TResponse extends DataSourceResponse> {
@@ -74,6 +75,13 @@ public interface DataSourceRequest<TResponse extends DataSourceResponse> {
         }
     }
 
+    record BooleanGenerator() implements DataSourceRequest<DataSourceResponse.BooleanGenerator> {
+        public DataSourceResponse.BooleanGenerator accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
+
+
     record NullWrapper() implements DataSourceRequest<DataSourceResponse.NullWrapper> {
         public DataSourceResponse.NullWrapper accept(DataSourceHandler handler) {
             return handler.handle(this);
@@ -94,6 +102,12 @@ public interface DataSourceRequest<TResponse extends DataSourceResponse> {
 
     record MalformedWrapper(Supplier<Object> malformedValues) implements DataSourceRequest<DataSourceResponse.MalformedWrapper> {
         public DataSourceResponse.MalformedWrapper accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
+
+    record TransformWrapper(double transformedProportion, Function<Object, Object> transformation) implements DataSourceRequest<DataSourceResponse.TransformWrapper> {
+        public DataSourceResponse.TransformWrapper accept(DataSourceHandler handler) {
             return handler.handle(this);
         }
     }

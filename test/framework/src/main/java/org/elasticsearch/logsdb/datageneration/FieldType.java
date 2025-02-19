@@ -10,6 +10,7 @@
 package org.elasticsearch.logsdb.datageneration;
 
 import org.elasticsearch.logsdb.datageneration.datasource.DataSource;
+import org.elasticsearch.logsdb.datageneration.fields.leaf.BooleanFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.ByteFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.CountedKeywordFieldDataGenerator;
 import org.elasticsearch.logsdb.datageneration.fields.leaf.DoubleFieldDataGenerator;
@@ -36,7 +37,8 @@ public enum FieldType {
     FLOAT("float"),
     HALF_FLOAT("half_float"),
     SCALED_FLOAT("scaled_float"),
-    COUNTED_KEYWORD("counted_keyword");
+    COUNTED_KEYWORD("counted_keyword"),
+    BOOLEAN("boolean");
 
     private final String name;
 
@@ -57,6 +59,7 @@ public enum FieldType {
             case HALF_FLOAT -> new HalfFloatFieldDataGenerator(fieldName, dataSource);
             case SCALED_FLOAT -> new ScaledFloatFieldDataGenerator(fieldName, dataSource);
             case COUNTED_KEYWORD -> new CountedKeywordFieldDataGenerator(fieldName, dataSource);
+            case BOOLEAN -> new BooleanFieldDataGenerator(dataSource);
         };
     }
 

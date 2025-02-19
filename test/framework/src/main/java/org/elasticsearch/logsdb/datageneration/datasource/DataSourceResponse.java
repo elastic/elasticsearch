@@ -35,6 +35,8 @@ public interface DataSourceResponse {
 
     record StringGenerator(Supplier<String> generator) implements DataSourceResponse {}
 
+    record BooleanGenerator(Supplier<Boolean> generator) implements DataSourceResponse {}
+
     record NullWrapper(Function<Supplier<Object>, Supplier<Object>> wrapper) implements DataSourceResponse {}
 
     record ArrayWrapper(Function<Supplier<Object>, Supplier<Object>> wrapper) implements DataSourceResponse {}
@@ -42,6 +44,8 @@ public interface DataSourceResponse {
     record RepeatingWrapper(Function<Supplier<Object>, Supplier<Object>> wrapper) implements DataSourceResponse {}
 
     record MalformedWrapper(Function<Supplier<Object>, Supplier<Object>> wrapper) implements DataSourceResponse {}
+
+    record TransformWrapper(Function<Supplier<Object>, Supplier<Object>> wrapper) implements DataSourceResponse {}
 
     interface ChildFieldGenerator extends DataSourceResponse {
         int generateChildFieldCount();

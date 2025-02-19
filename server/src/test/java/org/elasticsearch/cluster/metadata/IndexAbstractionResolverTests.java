@@ -296,14 +296,10 @@ public class IndexAbstractionResolverTests extends ESTestCase {
     }
 
     private boolean isIndexVisible(String index, String selector) {
-        return IndexAbstractionResolver.isIndexVisible(
-            "*",
-            selector,
-            index,
-            IndicesOptions.strictExpandHidden(),
-            metadata,
-            indexNameExpressionResolver,
-            true
-        );
+        return isIndexVisible(index, selector, IndicesOptions.strictExpandHidden());
+    }
+
+    private boolean isIndexVisible(String index, String selector, IndicesOptions indicesOptions) {
+        return IndexAbstractionResolver.isIndexVisible("*", selector, index, indicesOptions, metadata, indexNameExpressionResolver, true);
     }
 }

@@ -12,31 +12,32 @@ package org.elasticsearch.common;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.AbstractRefCounted;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 /**
  * A ref counted object that accounts for memory usage in bytes and releases the
  * accounted memory from the circuit breaker when the reference count reaches zero.
  */
 public final class MemoryAccountingBytesRefCounted extends AbstractRefCounted {
 
-    private int bytes;
+    private final AtomicInteger bytes = new AtomicInteger(0);
     private final CircuitBreaker breaker;
 
-    private MemoryAccountingBytesRefCounted(int bytes, CircuitBreaker breaker) {
-        this.bytes = bytes;
+    private MemoryAccountingBytesRefCounted(CircuitBreaker breaker) {
         this.breaker = breaker;
     }
 
     public static MemoryAccountingBytesRefCounted create(CircuitBreaker breaker) {
-        return new MemoryAccountingBytesRefCounted(0, breaker);
+        return new MemoryAccountingBytesRefCounted(breaker);
     }
 
     public void account(int bytes, String label) {
         breaker.addEstimateBytesAndMaybeBreak(bytes, label);
-        this.bytes += bytes;
+        this.bytes.addAndGet(bytes);
     }
 
     @Override
     protected void closeInternal() {
-        breaker.addWithoutBreaking(-bytes);
+        breaker.addWithoutBreaking(-bytes.get());
     }
 }

@@ -166,6 +166,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
+import static org.elasticsearch.search.SearchService.MEMORY_ACCOUNTING_BUFFER_SIZE;
 import static org.elasticsearch.search.SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED;
 import static org.elasticsearch.search.SearchService.SEARCH_WORKER_THREADS_ENABLED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -2940,8 +2941,16 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         }
         if (randomBoolean()) {
             // 1 segment test is also useful so we enable the batching branch of the memory accounting
-            // we do local accounting up to 32kb (by default) before submitting to cb
+
             indicesAdmin().prepareForceMerge("index").setMaxNumSegments(1).get();
+
+            // let's do local accounting up to 32kb before submitting to cb
+            ClusterUpdateSettingsResponse response = client().admin()
+                .cluster()
+                .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .setPersistentSettings(Settings.builder().put(MEMORY_ACCOUNTING_BUFFER_SIZE.getKey(), "32k").build())
+                .get();
+            assertTrue(response.isAcknowledged());
         }
 
         SearchService service = getInstanceFromNode(SearchService.class);
@@ -2993,6 +3002,12 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
             if (readerContext != null) {
                 service.freeReaderContext(readerContext.id());
             }
+            // reset original default setting
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                .setPersistentSettings(Settings.builder().putNull(SearchService.MEMORY_ACCOUNTING_BUFFER_SIZE.getKey()).build())
+                .get();
             if (fetchSearchResult != null) {
                 long usedBeforeResultDecRef = breaker.getUsed();
                 if (fetchSearchResult.decRef()) {

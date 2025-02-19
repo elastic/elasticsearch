@@ -49,7 +49,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
+import java.util.function.IntConsumer;
+import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -163,12 +164,12 @@ public final class FetchPhase {
             int docsInLeaf;
             int processedDocs;
 
-            private final Supplier<Integer> getAndResetAccumulatedBytes = () -> {
+            private final IntSupplier getAndResetAccumulatedBytes = () -> {
                 int bytesToSubmit = this.accumulatedBytesInLeaf;
                 this.accumulatedBytesInLeaf = 0;
                 return bytesToSubmit;
             };
-            private final Consumer<Integer> memoryUsageBytesAccumulator = (bytes) -> this.accumulatedBytesInLeaf += bytes;
+            private final IntConsumer memoryUsageBytesAccumulator = (bytes) -> this.accumulatedBytesInLeaf += bytes;
 
             @Override
             protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) throws IOException {
@@ -282,8 +283,8 @@ public final class FetchPhase {
         RankDoc rankDoc,
         CircuitBreaker circuitBreaker,
         boolean submitToCb,
-        Consumer<Integer> memoryUsageBytesAccumulator,
-        Supplier<Integer> accumulatedBytesInLeaf
+        IntConsumer memoryUsageBytesAccumulator,
+        IntSupplier accumulatedBytesInLeaf
     ) throws IOException {
         if (nestedDocuments.advance(docId - subReaderContext.docBase) == null) {
             return prepareNonNestedHitContext(
@@ -332,8 +333,8 @@ public final class FetchPhase {
         RankDoc rankDoc,
         CircuitBreaker circuitBreaker,
         boolean accountMemoryWithCircuitBreaker,
-        Consumer<Integer> memoryUsageBytesAccumulator,
-        Supplier<Integer> accumulatedBytesInLeaf
+        IntConsumer memoryUsageBytesAccumulator,
+        IntSupplier accumulatedBytesInLeaf
     ) throws IOException {
         int subDocId = docId - subReaderContext.docBase;
 
@@ -370,7 +371,7 @@ public final class FetchPhase {
                     source = sourceLoader.source(leafStoredFieldLoader, subDocId);
                     memoryUsageBytesAccumulator.accept(source.internalSourceRef().length());
                     if (accountMemoryWithCircuitBreaker) {
-                        memAccountingRefCounted.account(accumulatedBytesInLeaf.get(), "fetch phase source loader");
+                        memAccountingRefCounted.account(accumulatedBytesInLeaf.getAsInt(), "fetch phase source loader");
                     }
                 } catch (CircuitBreakingException e) {
                     hit.decRef();
@@ -403,8 +404,8 @@ public final class FetchPhase {
         int doc,
         MemoryAccountingBytesRefCounted memAccountingRefCounted,
         boolean submitToCB,
-        Consumer<Integer> memoryUsageAccumulator,
-        Supplier<Integer> accumulatedBytesInLeaf
+        IntConsumer memoryUsageAccumulator,
+        IntSupplier accumulatedBytesInLeaf
     ) {
         return () -> {
             StoredFieldLoader rootLoader = profiler.storedFields(StoredFieldLoader.create(true, Collections.emptySet()));
@@ -414,7 +415,7 @@ public final class FetchPhase {
                 BytesReference source = leafRootLoader.source();
                 memoryUsageAccumulator.accept(source.length());
                 if (submitToCB) {
-                    memAccountingRefCounted.account(accumulatedBytesInLeaf.get(), "lazy fetch phase source loader");
+                    memAccountingRefCounted.account(accumulatedBytesInLeaf.getAsInt(), "lazy fetch phase source loader");
                 }
                 return Source.fromBytes(source);
             } catch (IOException e) {

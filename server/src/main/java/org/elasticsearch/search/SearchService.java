@@ -281,7 +281,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     public static final Setting<ByteSizeValue> MEMORY_ACCOUNTING_BUFFER_SIZE = Setting.byteSizeSetting(
         "search.memory_accounting_buffer_size",
-        ByteSizeValue.of(32, ByteSizeUnit.KB),
+        ByteSizeValue.of(1, ByteSizeUnit.MB),
         Property.Dynamic,
         Property.NodeScope
     );
@@ -323,7 +323,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private volatile boolean enableRewriteAggsToFilterByFilter;
 
-    private volatile ByteSizeValue memoryAccountingBufferSize;
+    private volatile long memoryAccountingBufferSize;
 
     private final Cancellable keepAliveReaper;
 
@@ -403,7 +403,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED, this::setEnableQueryPhaseParallelCollection);
 
-        memoryAccountingBufferSize = MEMORY_ACCOUNTING_BUFFER_SIZE.get(settings);
+        memoryAccountingBufferSize = MEMORY_ACCOUNTING_BUFFER_SIZE.get(settings).getBytes();
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MEMORY_ACCOUNTING_BUFFER_SIZE, this::setMemoryAccountingBufferSize);
     }
 
@@ -420,7 +420,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private void setMemoryAccountingBufferSize(ByteSizeValue memoryAccountingBufferSize) {
-        this.memoryAccountingBufferSize = memoryAccountingBufferSize;
+        this.memoryAccountingBufferSize = memoryAccountingBufferSize.getBytes();
     }
 
     private static void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
@@ -811,7 +811,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     return searchContext.rankFeatureResult();
                 }
                 RankFeatureShardPhase.prepareForFetch(searchContext, request);
-                fetchPhase.execute(searchContext, docIds, null, circuitBreaker, memoryAccountingBufferSize.getBytes());
+                fetchPhase.execute(searchContext, docIds, null, circuitBreaker, memoryAccountingBufferSize);
                 RankFeatureShardPhase.processFetch(searchContext);
                 var rankFeatureResult = searchContext.rankFeatureResult();
                 rankFeatureResult.incRef();
@@ -829,7 +829,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             Releasable scope = tracer.withScope(context.getTask());
             SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context, true, afterQueryTime)
         ) {
-            fetchPhase.execute(context, shortcutDocIdsToLoad(context), null, circuitBreaker, memoryAccountingBufferSize.getBytes());
+            fetchPhase.execute(context, shortcutDocIdsToLoad(context), null, circuitBreaker, memoryAccountingBufferSize);
             if (reader.singleSession()) {
                 freeReaderContext(reader.id());
             }
@@ -1000,7 +1000,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                             request.docIds(),
                             request.getRankDocks(),
                             circuitBreaker,
-                            memoryAccountingBufferSize.getBytes()
+                            memoryAccountingBufferSize
                         );
                         if (readerContext.singleSession()) {
                             freeReaderContext(request.contextId());

@@ -227,8 +227,8 @@ public final class FetchPhase {
             /**
              * Accumulates the given bytes in the leaf and returns the accumulated bytes in the leaf.
              * @param bytes the amount of bytes to accumulate locally
-             * @param resetLocallyAccumulatedBytes if the local counter for the accumulated bytes should be reset. Normally this will be true
-             *                                     when submitting the accumulated bytes to the circuit breaker.
+             * @param resetLocallyAccumulatedBytes if the local counter for the accumulated bytes should be reset. Normally this will be
+             *                                     true when submitting the accumulated bytes to the circuit breaker.
              * @return the currently accumulated bytes in the leaf, including the provided bytes
              */
             private int accumulateLocally(int bytes, boolean resetLocallyAccumulatedBytes) {

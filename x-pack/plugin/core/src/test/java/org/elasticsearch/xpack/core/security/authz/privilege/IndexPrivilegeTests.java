@@ -13,6 +13,7 @@ import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.update.TransportUpdateAction;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
@@ -67,6 +68,74 @@ public class IndexPrivilegeTests extends ESTestCase {
             equalTo(List.of("monitor", "cross_cluster_replication", "manage", "all"))
         );
         assertThat(findPrivilegesThatGrant(RefreshAction.NAME), equalTo(List.of("maintenance", "manage", "all")));
+    }
+
+    public void testGetSingleSelector() {
+        {
+            IndexPrivilege actual = IndexPrivilege.getSingleSelector(Set.of("all"));
+            assertThat(actual, equalTo(IndexPrivilege.ALL));
+            assertThat(actual.getSelectorPrivilege(), equalTo(IndexComponentSelectorPrivilege.ALL));
+        }
+        {
+            IndexPrivilege actual = IndexPrivilege.getSingleSelector(Set.of("read"));
+            assertThat(actual, equalTo(IndexPrivilege.READ));
+            assertThat(actual.getSelectorPrivilege(), equalTo(IndexComponentSelectorPrivilege.DATA));
+        }
+        {
+            IndexPrivilege actual = IndexPrivilege.getSingleSelector(Set.of("none"));
+            assertThat(actual, equalTo(IndexPrivilege.NONE));
+            assertThat(actual.getSelectorPrivilege(), equalTo(IndexComponentSelectorPrivilege.DATA));
+        }
+        {
+            IndexPrivilege actual = IndexPrivilege.getSingleSelector(Set.of());
+            assertThat(actual, equalTo(IndexPrivilege.NONE));
+            assertThat(actual.getSelectorPrivilege(), equalTo(IndexComponentSelectorPrivilege.DATA));
+        }
+        {
+            IndexPrivilege actual = IndexPrivilege.getSingleSelector(Set.of("indices:data/read/search"));
+            assertThat(actual.getSingleName(), equalTo("indices:data/read/search"));
+            assertThat(actual.predicate.test("indices:data/read/search"), is(true));
+            assertThat(actual.getSelectorPrivilege(), equalTo(IndexComponentSelectorPrivilege.DATA));
+        }
+        {
+            IndexPrivilege actual = IndexPrivilege.getSingleSelector(Set.of("all", "read", "indices:data/read/search"));
+            assertThat(actual.name, equalTo(Set.of("all", "read", "indices:data/read/search")));
+            assertThat(Automatons.subsetOf(IndexPrivilege.ALL.automaton, actual.automaton), is(true));
+            assertThat(actual.getSelectorPrivilege(), equalTo(IndexComponentSelectorPrivilege.ALL));
+        }
+    }
+
+    public void testGetSingleSelectorWithFailuresSelector() {
+        assumeTrue("This test requires the failure store to be enabled", DataStream.isFailureStoreFeatureFlagEnabled());
+        {
+            IndexPrivilege actual = IndexPrivilege.getSingleSelector(Set.of("read_failure_store"));
+            assertThat(actual, equalTo(IndexPrivilege.READ_FAILURE_STORE));
+            assertThat(actual.getSelectorPrivilege(), equalTo(IndexComponentSelectorPrivilege.FAILURES));
+        }
+        {
+            IndexPrivilege actual = IndexPrivilege.getSingleSelector(Set.of("all", "read_failure_store"));
+            assertThat(actual.name(), equalTo(Set.of("all", "read_failure_store")));
+            assertThat(actual.getSelectorPrivilege(), equalTo(IndexComponentSelectorPrivilege.ALL));
+            assertThat(Automatons.subsetOf(IndexPrivilege.ALL.automaton, actual.automaton), is(true));
+        }
+        {
+            IndexPrivilege actual = IndexPrivilege.getSingleSelector(Set.of("all", "indices:data/read/search", "read_failure_store"));
+            assertThat(actual.name(), equalTo(Set.of("all", "indices:data/read/search", "read_failure_store")));
+            assertThat(actual.getSelectorPrivilege(), equalTo(IndexComponentSelectorPrivilege.ALL));
+            assertThat(Automatons.subsetOf(IndexPrivilege.ALL.automaton, actual.automaton), is(true));
+        }
+        {
+            IndexPrivilege actual = IndexPrivilege.getSingleSelector(Set.of("all", "read", "read_failure_store"));
+            assertThat(actual.name(), equalTo(Set.of("all", "read", "read_failure_store")));
+            assertThat(actual.getSelectorPrivilege(), equalTo(IndexComponentSelectorPrivilege.ALL));
+            assertThat(Automatons.subsetOf(IndexPrivilege.ALL.automaton, actual.automaton), is(true));
+        }
+        expectThrows(IllegalArgumentException.class, () -> IndexPrivilege.getSingleSelector(Set.of("read", "read_failure_store")));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexPrivilege.getSingleSelector(Set.of("indices:data/read/search", "read_failure_store"))
+        );
+        expectThrows(IllegalArgumentException.class, () -> IndexPrivilege.getSingleSelector(Set.of("none", "read_failure_store")));
     }
 
     public void testPrivilegesForRollupFieldCapsAction() {

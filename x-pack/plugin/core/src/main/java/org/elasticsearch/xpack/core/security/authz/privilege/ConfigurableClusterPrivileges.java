@@ -558,6 +558,15 @@ public final class ConfigurableClusterPrivileges {
                 if (indexPrivilege.privileges == null || indexPrivilege.privileges.length == 0) {
                     throw new IllegalArgumentException("Indices privileges must define at least one privilege");
                 }
+                for (String privilege : indexPrivilege.privileges) {
+                    IndexPrivilege namedPrivilege = IndexPrivilege.getNamedOrNull(privilege);
+                    if (namedPrivilege != null && namedPrivilege.getSelectorPredicate() == IndexComponentSelectorPredicate.FAILURES) {
+                        throw new IllegalArgumentException(
+                            "Failure store related privileges and not supported as targets of manage roles but found [" + privilege + "]"
+                        );
+                    }
+                }
+
             }
             return new ManageRolesPrivilege(indexPrivileges);
         }

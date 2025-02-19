@@ -33,13 +33,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.jar.JarOutputStream;
 import java.util.regex.Pattern;
-import java.util.stream.Stream;
 
 import static java.util.Map.entry;
 
@@ -87,8 +85,9 @@ public abstract class HdfsClassPatcher implements TransformAction<HdfsClassPatch
         File inputFile = getInputArtifact().get().getAsFile();
 
         List<String> matchingArtifacts = getParameters().getMatchingArtifacts();
-        List<JarPatchers> patchersToApply = allPatchers.stream().filter(jp -> matchingArtifacts.contains(jp.artifactTag()) &&
-            jp.artifactPattern().asMatchPredicate().test(inputFile.getName())).toList();
+        List<JarPatchers> patchersToApply = allPatchers.stream()
+            .filter(jp -> matchingArtifacts.contains(jp.artifactTag()) && jp.artifactPattern().matcher(inputFile.getName()).find())
+            .toList();
         if (patchersToApply.isEmpty()) {
             outputs.file(getInputArtifact());
         } else {

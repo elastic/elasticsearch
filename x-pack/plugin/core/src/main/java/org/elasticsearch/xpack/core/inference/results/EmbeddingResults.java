@@ -14,11 +14,9 @@ import org.elasticsearch.xcontent.XContent;
 import java.io.IOException;
 import java.util.List;
 
-public interface EmbeddingResults<C extends EmbeddingResults.EmbeddingChunk, E extends EmbeddingResults.EmbeddingResult<C>>
-    extends
-        InferenceServiceResults {
+public interface EmbeddingResults<C extends EmbeddingResults.Chunk, R extends EmbeddingResults.Embedding<C>> extends InferenceServiceResults {
 
-    interface EmbeddingChunk {
+    interface Chunk {
         ChunkedInference.Chunk toChunk(XContent xcontent) throws IOException;
 
         String matchedText();
@@ -26,9 +24,9 @@ public interface EmbeddingResults<C extends EmbeddingResults.EmbeddingChunk, E e
         ChunkedInference.TextOffset offset();
     }
 
-    interface EmbeddingResult<C extends EmbeddingResults.EmbeddingChunk> {
+    interface Embedding<C extends Chunk> {
         C toEmbeddingChunk(String text, ChunkedInference.TextOffset offset);
     }
 
-    List<E> embeddings();
+    List<R> embeddings();
 }

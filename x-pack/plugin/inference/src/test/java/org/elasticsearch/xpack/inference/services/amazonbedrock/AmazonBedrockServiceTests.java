@@ -36,8 +36,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
-import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingFloat;
-import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockMockRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -966,8 +965,8 @@ public class AmazonBedrockServiceTests extends ESTestCase {
 
         try (var service = new AmazonBedrockService(factory, amazonBedrockFactory, createWithEmptySettings(threadPool))) {
             try (var requestSender = (AmazonBedrockMockRequestSender) amazonBedrockFactory.createSender()) {
-                var results = new InferenceTextEmbeddingFloatResults(
-                    List.of(new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { 0.123F, 0.678F }))
+                var results = new TextEmbeddingFloatResults(
+                    List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 0.123F, 0.678F }))
                 );
                 requestSender.enqueue(results);
 
@@ -1052,8 +1051,8 @@ public class AmazonBedrockServiceTests extends ESTestCase {
 
         try (var service = new AmazonBedrockService(factory, amazonBedrockFactory, createWithEmptySettings(threadPool))) {
             try (var requestSender = (AmazonBedrockMockRequestSender) amazonBedrockFactory.createSender()) {
-                var results = new InferenceTextEmbeddingFloatResults(
-                    List.of(new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { 0.123F, 0.678F }))
+                var results = new TextEmbeddingFloatResults(
+                    List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 0.123F, 0.678F }))
                 );
                 requestSender.enqueue(results);
 
@@ -1111,8 +1110,8 @@ public class AmazonBedrockServiceTests extends ESTestCase {
 
         try (var service = new AmazonBedrockService(factory, amazonBedrockFactory, createWithEmptySettings(threadPool))) {
             try (var requestSender = (AmazonBedrockMockRequestSender) amazonBedrockFactory.createSender()) {
-                var results = new InferenceTextEmbeddingFloatResults(
-                    List.of(new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { 0.123F, 0.678F }))
+                var results = new TextEmbeddingFloatResults(
+                    List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 0.123F, 0.678F }))
                 );
                 requestSender.enqueue(results);
 
@@ -1170,8 +1169,8 @@ public class AmazonBedrockServiceTests extends ESTestCase {
 
         try (var service = new AmazonBedrockService(factory, amazonBedrockFactory, createWithEmptySettings(threadPool))) {
             try (var requestSender = (AmazonBedrockMockRequestSender) amazonBedrockFactory.createSender()) {
-                var results = new InferenceTextEmbeddingFloatResults(
-                    List.of(new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { 0.123F, 0.678F }))
+                var results = new TextEmbeddingFloatResults(
+                    List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 0.123F, 0.678F }))
                 );
                 requestSender.enqueue(results);
 
@@ -1219,8 +1218,8 @@ public class AmazonBedrockServiceTests extends ESTestCase {
 
         try (var service = new AmazonBedrockService(factory, amazonBedrockFactory, createWithEmptySettings(threadPool))) {
             try (var requestSender = (AmazonBedrockMockRequestSender) amazonBedrockFactory.createSender()) {
-                var results = new InferenceTextEmbeddingFloatResults(
-                    List.of(new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { 0.123F, 0.678F }))
+                var results = new TextEmbeddingFloatResults(
+                    List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 0.123F, 0.678F }))
                 );
                 requestSender.enqueue(results);
 
@@ -1429,14 +1428,14 @@ public class AmazonBedrockServiceTests extends ESTestCase {
         try (var service = new AmazonBedrockService(factory, amazonBedrockFactory, createWithEmptySettings(threadPool))) {
             try (var requestSender = (AmazonBedrockMockRequestSender) amazonBedrockFactory.createSender()) {
                 {
-                    var mockResults1 = new InferenceTextEmbeddingFloatResults(
-                        List.of(new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { 0.123F, 0.678F }))
+                    var mockResults1 = new TextEmbeddingFloatResults(
+                        List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 0.123F, 0.678F }))
                     );
                     requestSender.enqueue(mockResults1);
                 }
                 {
-                    var mockResults2 = new InferenceTextEmbeddingFloatResults(
-                        List.of(new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { 0.223F, 0.278F }))
+                    var mockResults2 = new TextEmbeddingFloatResults(
+                        List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 0.223F, 0.278F }))
                     );
                     requestSender.enqueue(mockResults2);
                 }
@@ -1459,10 +1458,10 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     var floatResult = (ChunkedInferenceEmbedding) results.get(0);
                     assertThat(floatResult.chunks(), hasSize(1));
                     assertEquals("abc", floatResult.chunks().get(0).matchedText());
-                    assertThat(floatResult.chunks().get(0), instanceOf(ChunkedInferenceEmbeddingFloat.FloatEmbeddingChunk.class));
+                    assertThat(floatResult.chunks().get(0), instanceOf(TextEmbeddingFloatResults.Chunk.class));
                     assertArrayEquals(
                         new float[] { 0.123F, 0.678F },
-                        ((ChunkedInferenceEmbeddingFloat.FloatEmbeddingChunk) floatResult.chunks().get(0)).embedding(),
+                        ((TextEmbeddingFloatResults.Chunk) floatResult.chunks().get(0)).embedding(),
                         0.0f
                     );
                 }
@@ -1471,10 +1470,10 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                     var floatResult = (ChunkedInferenceEmbedding) results.get(1);
                     assertThat(floatResult.chunks(), hasSize(1));
                     assertEquals("xyz", floatResult.chunks().get(0).matchedText());
-                    assertThat(floatResult.chunks().get(0), instanceOf(ChunkedInferenceEmbeddingFloat.FloatEmbeddingChunk.class));
+                    assertThat(floatResult.chunks().get(0), instanceOf(TextEmbeddingFloatResults.Chunk.class));
                     assertArrayEquals(
                         new float[] { 0.223F, 0.278F },
-                        ((ChunkedInferenceEmbeddingFloat.FloatEmbeddingChunk) floatResult.chunks().get(0)).embedding(),
+                        ((TextEmbeddingFloatResults.Chunk) floatResult.chunks().get(0)).embedding(),
                         0.0f
                     );
                 }

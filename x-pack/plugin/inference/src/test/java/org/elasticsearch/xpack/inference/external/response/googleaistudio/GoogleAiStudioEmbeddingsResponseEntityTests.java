@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.external.response.googleaistudio;
 
 import org.apache.http.HttpResponse;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
 
@@ -36,14 +36,14 @@ public class GoogleAiStudioEmbeddingsResponseEntityTests extends ESTestCase {
             }
             """;
 
-        InferenceTextEmbeddingFloatResults parsedResults = GoogleAiStudioEmbeddingsResponseEntity.fromResponse(
+        TextEmbeddingFloatResults parsedResults = GoogleAiStudioEmbeddingsResponseEntity.fromResponse(
             mock(Request.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
         assertThat(
             parsedResults.embeddings(),
-            is(List.of(InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding.of(List.of(-0.00606332F, 0.058092743F))))
+            is(List.of(TextEmbeddingFloatResults.Embedding.of(List.of(-0.00606332F, 0.058092743F))))
         );
     }
 
@@ -67,7 +67,7 @@ public class GoogleAiStudioEmbeddingsResponseEntityTests extends ESTestCase {
             }
             """;
 
-        InferenceTextEmbeddingFloatResults parsedResults = GoogleAiStudioEmbeddingsResponseEntity.fromResponse(
+        TextEmbeddingFloatResults parsedResults = GoogleAiStudioEmbeddingsResponseEntity.fromResponse(
             mock(Request.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
@@ -76,8 +76,8 @@ public class GoogleAiStudioEmbeddingsResponseEntityTests extends ESTestCase {
             parsedResults.embeddings(),
             is(
                 List.of(
-                    InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding.of(List.of(-0.00606332F, 0.058092743F)),
-                    InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding.of(List.of(0.030681048F, 0.01714732F))
+                    TextEmbeddingFloatResults.Embedding.of(List.of(-0.00606332F, 0.058092743F)),
+                    TextEmbeddingFloatResults.Embedding.of(List.of(0.030681048F, 0.01714732F))
                 )
             )
         );

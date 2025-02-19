@@ -42,12 +42,15 @@ import java.util.Objects;
  *     ]
  * }
  */
-public record InferenceTextEmbeddingBitResults(List<InferenceByteEmbedding> embeddings) implements InferenceServiceResults, TextEmbedding {
+public record TextEmbeddingBitResults(List<TextEmbeddingByteResults.Embedding> embeddings)
+    implements
+        InferenceServiceResults,
+        TextEmbedding {
     public static final String NAME = "text_embedding_service_bit_results";
     public static final String TEXT_EMBEDDING_BITS = "text_embedding_bits";
 
-    public InferenceTextEmbeddingBitResults(StreamInput in) throws IOException {
-        this(in.readCollectionAsList(InferenceByteEmbedding::new));
+    public TextEmbeddingBitResults(StreamInput in) throws IOException {
+        this(in.readCollectionAsList(TextEmbeddingByteResults.Embedding::new));
     }
 
     @Override
@@ -98,7 +101,7 @@ public record InferenceTextEmbeddingBitResults(List<InferenceByteEmbedding> embe
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        InferenceTextEmbeddingBitResults that = (InferenceTextEmbeddingBitResults) o;
+        TextEmbeddingBitResults that = (TextEmbeddingBitResults) o;
         return Objects.equals(embeddings, that.embeddings);
     }
 

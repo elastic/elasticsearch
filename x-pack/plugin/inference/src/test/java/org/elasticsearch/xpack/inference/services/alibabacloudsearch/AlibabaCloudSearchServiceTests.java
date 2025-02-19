@@ -30,9 +30,8 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
-import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingFloat;
-import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingSparse;
-import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.alibabacloudsearch.AlibabaCloudSearchActionVisitor;
@@ -275,8 +274,8 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                 TimeValue timeout,
                 ActionListener<InferenceServiceResults> listener
             ) {
-                InferenceTextEmbeddingFloatResults results = new InferenceTextEmbeddingFloatResults(
-                    List.of(new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { -0.028680f, 0.022033f }))
+                TextEmbeddingFloatResults results = new TextEmbeddingFloatResults(
+                    List.of(new TextEmbeddingFloatResults.Embedding(new float[] { -0.028680f, 0.022033f }))
                 );
 
                 listener.onResponse(results);
@@ -426,9 +425,9 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
             assertThat(results, hasSize(2));
             var firstResult = results.getFirst();
             assertThat(firstResult, instanceOf(ChunkedInferenceEmbedding.class));
-            Class<?> expectedClass = switch(taskType) {
-                case TEXT_EMBEDDING -> ChunkedInferenceEmbeddingFloat.FloatEmbeddingChunk.class;
-                case SPARSE_EMBEDDING -> ChunkedInferenceEmbeddingSparse.SparseEmbeddingChunk.class;
+            Class<?> expectedClass = switch (taskType) {
+                case TEXT_EMBEDDING -> TextEmbeddingFloatResults.Chunk.class;
+                case SPARSE_EMBEDDING -> SparseEmbeddingResults.Chunk.class;
                 default -> null;
             };
             assertThat(((ChunkedInferenceEmbedding) firstResult).chunks().getFirst(), instanceOf(expectedClass));
@@ -555,10 +554,10 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
         ) {
             public ExecutableAction accept(AlibabaCloudSearchActionVisitor visitor, Map<String, Object> taskSettings, InputType inputType) {
                 return (inferenceInputs, timeout, listener) -> {
-                    InferenceTextEmbeddingFloatResults results = new InferenceTextEmbeddingFloatResults(
+                    TextEmbeddingFloatResults results = new TextEmbeddingFloatResults(
                         List.of(
-                            new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { 0.0123f, -0.0123f }),
-                            new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { 0.0456f, -0.0456f })
+                            new TextEmbeddingFloatResults.Embedding(new float[] { 0.0123f, -0.0123f }),
+                            new TextEmbeddingFloatResults.Embedding(new float[] { 0.0456f, -0.0456f })
                         )
                     );
 

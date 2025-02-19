@@ -22,8 +22,8 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbedding;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
 
@@ -754,7 +754,7 @@ public final class ServiceUtils {
                         new ElasticsearchStatusException(
                             "Could not determine embedding size. "
                                 + "Expected a result of type ["
-                                + InferenceTextEmbeddingFloatResults.NAME
+                                + TextEmbeddingFloatResults.NAME
                                 + "] got ["
                                 + r.getWriteableName()
                                 + "]",

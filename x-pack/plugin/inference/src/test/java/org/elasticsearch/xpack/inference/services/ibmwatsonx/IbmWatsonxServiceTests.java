@@ -36,7 +36,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
-import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingFloat;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.action.ibmwatsonx.IbmWatsonxActionCreator;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
@@ -734,11 +734,11 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                 var floatResult = (ChunkedInferenceEmbedding) results.get(0);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals(input.get(0), floatResult.chunks().get(0).matchedText());
-                assertThat(floatResult.chunks().get(0), Matchers.instanceOf(ChunkedInferenceEmbeddingFloat.FloatEmbeddingChunk.class));
+                assertThat(floatResult.chunks().get(0), Matchers.instanceOf(TextEmbeddingFloatResults.Chunk.class));
                 assertTrue(
                     Arrays.equals(
                         new float[] { 0.0123f, -0.0123f },
-                        ((ChunkedInferenceEmbeddingFloat.FloatEmbeddingChunk) floatResult.chunks().get(0)).embedding()
+                        ((TextEmbeddingFloatResults.Chunk) floatResult.chunks().get(0)).embedding()
                     )
                 );
             }
@@ -749,11 +749,11 @@ public class IbmWatsonxServiceTests extends ESTestCase {
                 var floatResult = (ChunkedInferenceEmbedding) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals(input.get(1), floatResult.chunks().get(0).matchedText());
-                assertThat(floatResult.chunks().get(0), Matchers.instanceOf(ChunkedInferenceEmbeddingFloat.FloatEmbeddingChunk.class));
+                assertThat(floatResult.chunks().get(0), Matchers.instanceOf(TextEmbeddingFloatResults.Chunk.class));
                 assertTrue(
                     Arrays.equals(
                         new float[] { 0.0456f, -0.0456f },
-                        ((ChunkedInferenceEmbeddingFloat.FloatEmbeddingChunk) floatResult.chunks().get(0)).embedding()
+                        ((TextEmbeddingFloatResults.Chunk) floatResult.chunks().get(0)).embedding()
                     )
                 );
             }

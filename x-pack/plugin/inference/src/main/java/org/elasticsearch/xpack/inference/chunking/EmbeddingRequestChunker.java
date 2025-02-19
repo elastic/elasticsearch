@@ -18,7 +18,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.chunking.Chunker.ChunkOffset;
 
 import java.util.ArrayList;
@@ -78,7 +78,7 @@ public class EmbeddingRequestChunker {
     private final AtomicInteger resultCount = new AtomicInteger();
     private final EmbeddingType embeddingType;
 
-    private final List<AtomicReferenceArray<EmbeddingResults.EmbeddingResult<?>>> results;
+    private final List<AtomicReferenceArray<EmbeddingResults.Embedding<?>>> results;
     private final AtomicArray<Exception> errors;
     private ActionListener<List<ChunkedInference>> finalListener;
 
@@ -176,9 +176,7 @@ public class EmbeddingRequestChunker {
                     sendFinalResponse();
                 }
             } else {
-                onFailure(
-                    unexpectedResultTypeException(inferenceServiceResults.getWriteableName(), InferenceTextEmbeddingFloatResults.NAME)
-                );
+                onFailure(unexpectedResultTypeException(inferenceServiceResults.getWriteableName(), TextEmbeddingFloatResults.NAME));
             }
         }
 
@@ -224,17 +222,17 @@ public class EmbeddingRequestChunker {
     }
 
     private ChunkedInference mergeResultsWithInputs(int index) {
-        List<EmbeddingResults.EmbeddingChunk> embeddingChunks = new ArrayList<>();
+        List<EmbeddingResults.Chunk> chunks = new ArrayList<>();
         List<Request> request = requests.get(index);
-        AtomicReferenceArray<EmbeddingResults.EmbeddingResult<?>> result = results.get(index);
+        AtomicReferenceArray<EmbeddingResults.Embedding<?>> result = results.get(index);
         for (int i = 0; i < request.size(); i++) {
-            EmbeddingResults.EmbeddingChunk chunk = result.get(i)
+            EmbeddingResults.Chunk chunk = result.get(i)
                 .toEmbeddingChunk(
                     request.get(i).chunkText(),
                     new ChunkedInference.TextOffset(request.get(i).chunk.start(), request.get(i).chunk.end())
                 );
-            embeddingChunks.add(chunk);
+            chunks.add(chunk);
         }
-        return new ChunkedInferenceEmbedding(embeddingChunks);
+        return new ChunkedInferenceEmbedding(chunks);
     }
 }

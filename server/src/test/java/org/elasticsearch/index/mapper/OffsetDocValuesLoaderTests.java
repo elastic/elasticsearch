@@ -112,7 +112,23 @@ public class OffsetDocValuesLoaderTests extends MapperServiceTestCase {
     }
 
     public void testOffsetArrayNoSourceArrayKeep() throws Exception {
-        String mapping = """
+        var settingsBuilder = Settings.builder().put("index.mapping.source.mode", "synthetic");
+        String mapping;
+        if (randomBoolean()) {
+            mapping = """
+            {
+                "_doc": {
+                    "properties": {
+                        "field": {
+                            "type": "keyword",
+                            "synthetic_source_keep": "{{synthetic_source_keep}}"
+                        }
+                    }
+                }
+            }
+            """.replace("{{synthetic_source_keep}}", randomBoolean() ? "none" : "all");
+        } else {
+            mapping = """
             {
                 "_doc": {
                     "properties": {
@@ -123,9 +139,9 @@ public class OffsetDocValuesLoaderTests extends MapperServiceTestCase {
                 }
             }
             """;
-        var settingsBuilder = Settings.builder().put("index.mapping.source.mode", "synthetic");
-        if (randomBoolean()) {
-            settingsBuilder.put("index.mapping.synthetic_source_keep", randomBoolean() ? "none" : "all");
+            if (randomBoolean()) {
+                settingsBuilder.put("index.mapping.synthetic_source_keep", "none");
+            }
         }
         try (var mapperService = createMapperService(settingsBuilder.build(), mapping)) {
             var fieldMapper = mapperService.mappingLookup().getMapper("field");

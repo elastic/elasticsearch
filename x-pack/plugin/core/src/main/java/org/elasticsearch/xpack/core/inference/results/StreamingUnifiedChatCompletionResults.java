@@ -18,7 +18,6 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
-import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.Iterator;
@@ -26,6 +25,9 @@ import java.util.List;
 import java.util.concurrent.Flow;
 
 import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.chunk;
+import static org.elasticsearch.xpack.core.inference.DequeUtils.dequeEquals;
+import static org.elasticsearch.xpack.core.inference.DequeUtils.dequeHashCode;
+import static org.elasticsearch.xpack.core.inference.DequeUtils.readDeque;
 
 /**
  * Chat Completion results that only contain a Flow.Publisher.
@@ -69,11 +71,7 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<? extends Inf
         public static String NAME = "streaming_unified_chat_completion_results";
 
         public Results(StreamInput in) throws IOException {
-            this(deque(in));
-        }
-
-        private static Deque<ChatCompletionChunk> deque(StreamInput in) throws IOException {
-            return in.readCollection(ArrayDeque::new, ((stream, deque) -> deque.offer(new ChatCompletionChunk(stream))));
+            this(readDeque(in, ChatCompletionChunk::new));
         }
 
         @Override
@@ -98,30 +96,9 @@ public record StreamingUnifiedChatCompletionResults(Flow.Publisher<? extends Inf
             return dequeEquals(chunks, results.chunks());
         }
 
-        private static boolean dequeEquals(Deque<?> thisDeque, Deque<?> otherDeque) {
-            if (thisDeque.size() != otherDeque.size()) {
-                return false;
-            }
-            var thisIter = thisDeque.iterator();
-            var otherIter = otherDeque.iterator();
-            while (thisIter.hasNext() && otherIter.hasNext()) {
-                if (thisIter.next().equals(otherIter.next()) == false) {
-                    return false;
-                }
-            }
-            return true;
-        }
-
         @Override
         public int hashCode() {
             return dequeHashCode(chunks);
-        }
-
-        private static int dequeHashCode(Deque<?> deque) {
-            if (deque == null) {
-                return 0;
-            }
-            return deque.stream().reduce(1, (hashCode, chunk) -> 31 * hashCode + (chunk == null ? 0 : chunk.hashCode()), Integer::sum);
         }
     }
 

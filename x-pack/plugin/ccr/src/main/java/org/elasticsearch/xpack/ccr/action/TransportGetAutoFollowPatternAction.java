@@ -48,7 +48,6 @@ public class TransportGetAutoFollowPatternAction extends TransportMasterNodeRead
             threadPool,
             actionFilters,
             GetAutoFollowPatternAction.Request::new,
-            indexNameExpressionResolver,
             GetAutoFollowPatternAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

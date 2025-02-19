@@ -240,7 +240,6 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 Releasables.closeExpectNoException(shard, segments, docs, docBlock, scores);
             }
         }
-        pagesEmitted++;
         return page;
     }
 

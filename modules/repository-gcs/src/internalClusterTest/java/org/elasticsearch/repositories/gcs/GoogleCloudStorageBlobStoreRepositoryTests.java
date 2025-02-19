@@ -25,6 +25,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -143,7 +144,7 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
             Settings.builder().put("chunk_size", size + "mb").build()
         );
         chunkSize = GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.CHUNK_SIZE, repositoryMetadata);
-        assertEquals(new ByteSizeValue(size, ByteSizeUnit.MB), chunkSize);
+        assertEquals(ByteSizeValue.of(size, ByteSizeUnit.MB), chunkSize);
 
         // zero bytes is not allowed
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
@@ -268,7 +269,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESMockAPIBasedRe
                             metadata.name(),
                             storageService,
                             bigArrays,
-                            randomIntBetween(1, 8) * 1024
+                            randomIntBetween(1, 8) * 1024,
+                            BackoffPolicy.noBackoff()
                         ) {
                             @Override
                             long getLargeBlobThresholdInBytes() {

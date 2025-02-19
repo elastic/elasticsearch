@@ -19,6 +19,14 @@ dependencies {
   testImplementation(project(':modules:analysis-common'))
   testImplementation(project(':test:framework'))
   testImplementation(project(xpackModule('esql-core')))
+  testImplementation(project(xpackModule('esql:compute:test'))) {
+    /*
+     * compute:test depends on this project's main code which is fine
+     * but we don't need to pull in the jar because we already have
+     * it being, you know, in this project....
+     */
+    transitive = false
+  }
   testImplementation(project(xpackModule('core')))
   testImplementation(project(xpackModule('ml')))
 }

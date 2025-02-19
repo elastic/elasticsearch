@@ -31,8 +31,12 @@ Retrieves roles with <<query-dsl,Query DSL>> in a <<paginate-search-results,pagi
 
 The role management APIs are generally the preferred way to manage roles, rather than using
 <<roles-management-file,file-based role management>>.
-The query roles API does not retrieve roles that are defined in roles files, nor <<built-in-roles,built-in>> ones.
+The query roles API does not retrieve roles that are defined in `roles.yml` files.
 You can optionally filter the results with a query. Also, the results can be paginated and sorted.
+
+NOTE: This API automatically returns <<built-in-roles,built-in>> roles as well.
+The built-in roles can be filtered out by using the `metadata._reserved` field in the query.
+See <<security-api-query-role-example,example>> below.
 
 [[security-api-query-role-request-body]]
 ==== {api-request-body-title}
@@ -127,12 +131,21 @@ It contains the array of values that have been used for sorting.
 [[security-api-query-role-example]]
 ==== {api-examples-title}
 
-The following request lists all roles, sorted by the role name:
+The following request lists all roles (except built-in ones), sorted by the role name:
 
 [source,console]
 ----
 POST /_security/_query/role
 {
+    "query": {
+      "bool": {
+        "must_not": {
+          "term": {
+            "metadata._reserved": true
+          }
+        }
+      }
+    },
     "sort": ["name"]
 }
 ----
@@ -222,6 +235,7 @@ retrieved for one or more roles:
     ]
 }
 ----
+// TESTRESPONSE[s/"total": 2/"total" : $body.total/]
 // TEST[continued]
 
 <1> The list of roles that were retrieved for this request
@@ -287,3 +301,4 @@ POST /_security/_query/role
     ]
 }
 ----
+// TESTRESPONSE[s/"total": 2/"total" : $body.total/]

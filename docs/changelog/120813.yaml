@@ -1,0 +1,17 @@
+pr: 120813
+summary: Change Semantic Text To Act Like A Normal Text Field
+area: Search
+type: breaking
+issues: []
+breaking:
+  title: Change Semantic Text To Act Like A Normal Text Field
+  area: Search
+  details:
+    The previous semantic_text format used a complex subfield structure in _source to store the embeddings.
+    This complicated interactions/integrations with semantic_text fields and _source in general.
+    This new semantic_text format treats it as a normal text field, where the field's value in _source is the value assigned by the user.
+  impact:
+    Users who parsed the subfield structure of the previous semantic_text format in _source will need to update their parsing logic.
+    The new format does not directly expose the chunks and embeddings generated from the input text.
+    The new format will be applied to all new indices, any existing indices will continue to use the previous format.
+  notable: true

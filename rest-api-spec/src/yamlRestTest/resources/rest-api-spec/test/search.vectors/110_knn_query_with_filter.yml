@@ -59,9 +59,6 @@ setup:
 
 ---
 "Simple knn query":
-  - requires:
-      cluster_features: "search.vectors.k_param_supported"
-      reason: 'k param for knn as query is required'
   - do:
       search:
         index: my_index

@@ -73,6 +73,7 @@ Lucene 10 ships with an updated Korean dictionary (mecab-ko-dic-2.1.1).  For det
 The change is small and should generally provide better analysis results. Existing indices for full-text use cases should be reindexed though.
 ====
 
+
 [discrete]
 [[breaking_90_cluster_and_node_setting_changes]]
 ==== Cluster and node setting changes
@@ -318,3 +319,320 @@ The `elser` service of the inference API will be removed in an upcoming release.
 In the current version there is no impact. In a future version, users of the `elser` service will no longer be able to use it, and will be required to use the `elasticsearch` service to access elser through the inference API.
 ====
 
+[discrete]
+[[breaking_90_anomaly_detection_results]]
+=== Anomaly detection results migration
+
+The {anomaly-detect} result indices `.ml-anomalies-*` created in {es} 7.x must be either reindexed, marked read-only, or deleted before upgrading to 9.x. 
+
+**Reindexing**: While anomaly detection results are being reindexed, jobs continue to run and process new data.
+However, you cannot completely delete an {anomaly-job} that stores results in this index until the reindexing is complete.
+
+**Marking indices as read-only**: This is useful for large indexes that contain the results of only one or a few {anomaly-jobs}.
+If you delete these jobs later, you will not be able to create a new job with the same name.
+
+**Deleting**: Delete jobs that are no longer needed in the {ml-app} in {kib}.
+The result index is deleted when all jobs that store results in it have been deleted.
+
+[[which_indices_require_attention]]
+.Which indices require attention?
+[%collapsible]
+====
+
+To identify indices that require action, use the <<migration-api-deprecation,Deprecation info API>>:
+
+[source,console]
+------------------------------------------------------------
+GET /.ml-anomalies-*/_migration/deprecations
+------------------------------------------------------------
+// TEST[skip:TBD]
+
+The response contains the list of critical deprecation warnings in the `index_settings` section:
+
+[source,console-result]
+------------------------------------------------------------
+"index_settings": {
+    ".ml-anomalies-shared": [
+      {
+        "level": "critical",
+        "message": "Index created before 8.0",
+        "url": "https://ela.st/es-deprecation-8-reindex",
+        "details": "This index was created with version 7.8.23 and is not compatible with 9.0. Reindex or remove the index before upgrading.",
+        "resolve_during_rolling_upgrade": false
+      }
+    ]
+  }
+------------------------------------------------------------
+// NOTCONSOLE
+
+
+====
+
+[[reindex_anomaly_result_index]]
+.Reindexing anomaly result indices
+[%collapsible]
+====
+For an index with less than 10GB that contains results from multiple jobs that are still required, we recommend reindexing into a new format using UI.
+You can use the <<cat-indices>> to obtain the size of an index:
+
+[source,console]
+------------------------------------------------------------
+GET _cat/indices/.ml-anomalies-custom-example?v&h=index,store.size
+------------------------------------------------------------
+// TEST[skip:TBD]
+
+The reindexing can be initiated in the Kibana Upgrade Assistant.
+
+If an index size is greater than 10 GB it is recommended to use the Reindex API.
+Reindexing consists of the following steps:
+
+. Set the original index to read-only.
++
+--
+[source,console]
+------------------------------------------------------------
+PUT .ml-anomalies-custom-example/_block/read_only
+------------------------------------------------------------
+// TEST[skip:TBD]
+--
+
+. Create a new index from the legacy index.
++
+--
+[source,console]
+------------------------------------------------------------
+POST _create_from/.ml-anomalies-custom-example/.reindexed-v9-ml-anomalies-custom-example
+------------------------------------------------------------
+// TEST[skip:TBD]
+--
+
+. Reindex documents.
+To accelerate the reindexing process, it is recommended that the number of replicas be set to `0` before the reindexing and then set back to the original number once it is completed.
+.. Get the number of replicas.
++
+--
+[source,console]
+------------------------------------------------------------
+GET /.reindexed-v9-ml-anomalies-custom-example/_settings
+------------------------------------------------------------
+// TEST[skip:TBD]
+Note the number of replicas in the response. For example:
+[source,console-result]
+------------------------------------------------------------
+{
+  ".reindexed-v9-ml-anomalies-custom-example": {
+    "settings": {
+      "index": {
+        "number_of_replicas": "1",
+        "number_of_shards": "1"
+      }
+    }
+  }
+}
+------------------------------------------------------------
+// NOTCONSOLE
+--
+.. Set the number of replicas to `0`.
++
+--
+[source,console]
+------------------------------------------------------------
+PUT /.reindexed-v9-ml-anomalies-custom-example/_settings
+{
+  "index": {
+    "number_of_replicas": 0
+  }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+--
+.. Start the reindexing process in asynchronous mode.
++
+--
+[source,console]
+------------------------------------------------------------
+POST _reindex?wait_for_completion=false
+{
+  "source": {
+    "index": ".ml-anomalies-custom-example"
+  },
+  "dest": {
+    "index": ".reindexed-v9-ml-anomalies-custom-example"
+  }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+The response will contain a task_id. You can check when the task is completed using the following command:
+[source,console]
+------------------------------------------------------------
+GET _tasks/<task_id>
+------------------------------------------------------------
+// TEST[skip:TBD]
+--
+.. Set the number of replicas to the original number when the reindexing is finished.
++
+--
+[source,console]
+------------------------------------------------------------
+PUT /.reindexed-v9-ml-anomalies-custom-example/_settings
+{
+  "index": {
+    "number_of_replicas": "<original_number_of_replicas>"
+  }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+--
+
+. Get the aliases the original index is pointing to.
++
+--
+[source,console]
+------------------------------------------------------------
+GET .ml-anomalies-custom-example/_alias
+------------------------------------------------------------
+// TEST[skip:TBD]
+
+The response may contain multiple aliases if the results of multiple jobs are stored in the same index.
+
+[source,console-result]
+------------------------------------------------------------
+{
+  ".ml-anomalies-custom-example": {
+    "aliases": {
+      ".ml-anomalies-example1": {
+        "filter": {
+          "term": {
+            "job_id": {
+              "value": "example1"
+            }
+          }
+        },
+        "is_hidden": true
+      },
+      ".ml-anomalies-example2": {
+        "filter": {
+          "term": {
+            "job_id": {
+              "value": "example2"
+            }
+          }
+        },
+        "is_hidden": true
+      }
+    }
+  }
+}
+------------------------------------------------------------
+// NOTCONSOLE
+--
+
+. Now you can reassign the aliases to the new index and delete the original index in one step.
+Note that when adding the new index to the aliases, you must use the same filter and is_hidden parameters as for the original index.
++
+--
+[source,console]
+------------------------------------------------------------
+POST _aliases
+{
+  "actions": [
+    {
+      "add": {
+        "index": ".reindexed-v9-ml-anomalies-custom-example",
+        "alias": ".ml-anomalies-example1",
+        "filter": {
+          "term": {
+            "job_id": {
+              "value": "example1"
+            }
+          }
+        },
+        "is_hidden": true
+      }
+    },
+    {
+      "add": {
+        "index": ".reindexed-v9-ml-anomalies-custom-example",
+        "alias": ".ml-anomalies-example2",
+        "filter": {
+          "term": {
+            "job_id": {
+              "value": "example2"
+            }
+          }
+        },
+        "is_hidden": true
+      }
+    },
+    {
+      "remove": {
+        "index": ".ml-anomalies-custom-example",
+        "aliases": ".ml-anomalies-*"
+      }
+    },
+    {
+      "remove_index": {
+        "index": ".ml-anomalies-custom-example"
+      }
+    },
+    {
+      "add": {
+        "index": ".reindexed-v9-ml-anomalies-custom-example",
+        "alias": ".ml-anomalies-custom-example",
+        "is_hidden": true
+      }
+    }
+  ]
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+--
+====
+
+[[mark_anomaly_result_index_read_only]]
+.Marking anomaly result indices as read-only
+[%collapsible]
+====
+Legacy indexes created in {es} 7.x can be made read-only and supported in {es} 9.x.
+Making an index with a large amount of historical results read-only allows for a quick migration to the next major release, since you don't have to wait for the data to be reindexed into the new format.
+However, it has the limitation that even after deleting an {anomaly-job}, the historical results associated with this job are not completely deleted.
+Therefore, the system will prevent you from creating a new job with the same name.
+
+To set the index as read-only, add the `write` block to the index:
+
+[source,console]
+------------------------------------------------------------
+PUT .ml-anomalies-custom-example/_block/write
+------------------------------------------------------------
+// TEST[skip:TBD]
+
+Indices created in {es} 7.x that have a `write` block will not raise a critical deprecation warning.
+====
+
+[[delete_anomaly_result_index]]
+.Deleting anomaly result indices
+[%collapsible]
+====
+If an index contains results of the jobs that are no longer required.
+To list all jobs that stored results in an index, use the terms aggregation:
+
+[source,console]
+------------------------------------------------------------
+GET .ml-anomalies-custom-example/_search
+{
+  "size": 0, 
+  "aggs": {
+    "job_ids": {
+      "terms": {
+        "field": "job_id", 
+        "size": 100 
+      }
+    }
+  }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+
+The jobs can be deleted in the UI.
+After the last job is deleted, the index will be deleted as well.
+====

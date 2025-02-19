@@ -29,12 +29,15 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentUtils;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -49,6 +52,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.InferencePlugin.INFERENCE_API_FEATURE;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.OLD_ELSER_SERVICE_NAME;
 
 public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
@@ -57,6 +61,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
 
     private static final Logger logger = LogManager.getLogger(TransportPutInferenceModelAction.class);
 
+    private final XPackLicenseState licenseState;
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
     private volatile boolean skipValidationAndStart;
@@ -68,6 +73,7 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
+        XPackLicenseState licenseState,
         ModelRegistry modelRegistry,
         InferenceServiceRegistry serviceRegistry,
         Settings settings
@@ -79,10 +85,10 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
             threadPool,
             actionFilters,
             PutInferenceModelAction.Request::new,
-            indexNameExpressionResolver,
             PutInferenceModelAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.licenseState = licenseState;
         this.modelRegistry = modelRegistry;
         this.serviceRegistry = serviceRegistry;
         this.skipValidationAndStart = InferencePlugin.SKIP_VALIDATE_AND_START.get(settings);
@@ -97,6 +103,22 @@ public class TransportPutInferenceModelAction extends TransportMasterNodeAction<
         ClusterState state,
         ActionListener<PutInferenceModelAction.Response> listener
     ) throws Exception {
+        if (INFERENCE_API_FEATURE.check(licenseState) == false) {
+            listener.onFailure(LicenseUtils.newComplianceException(XPackField.INFERENCE));
+            return;
+        }
+
+        if (modelRegistry.containsDefaultConfigId(request.getInferenceEntityId())) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "[{}] is a reserved inference ID. Cannot create a new inference endpoint with a reserved ID.",
+                    RestStatus.BAD_REQUEST,
+                    request.getInferenceEntityId()
+                )
+            );
+            return;
+        }
+
         var requestAsMap = requestToMap(request);
         var resolvedTaskType = ServiceUtils.resolveTaskType(request.getTaskType(), (String) requestAsMap.remove(TaskType.NAME));
 

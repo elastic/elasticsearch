@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.data.BlockWritables;
@@ -49,6 +51,7 @@ public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCa
 
     private DriverProfile randomDriverProfile() {
         return new DriverProfile(
+            RandomStrings.randomAsciiLettersOfLength(random(), 5),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
@@ -63,7 +66,12 @@ public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCa
         String name = randomAlphaOfLength(4);
         Operator.Status status = randomBoolean()
             ? null
-            : new AbstractPageMappingOperator.Status(randomNonNegativeLong(), between(0, Integer.MAX_VALUE));
+            : new AbstractPageMappingOperator.Status(
+                randomNonNegativeLong(),
+                randomNonNegativeInt(),
+                randomNonNegativeLong(),
+                randomNonNegativeLong()
+            );
         return new DriverStatus.OperatorStatus(name, status);
     }
 }

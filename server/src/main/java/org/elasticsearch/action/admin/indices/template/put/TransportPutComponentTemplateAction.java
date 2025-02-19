@@ -56,7 +56,6 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
             threadPool,
             actionFilters,
             PutComponentTemplateAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexTemplateService = indexTemplateService;

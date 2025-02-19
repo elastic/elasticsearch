@@ -51,7 +51,6 @@ public class TransportPauseFollowAction extends AcknowledgedTransportMasterNodeA
             threadPool,
             actionFilters,
             PauseFollowAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.persistentTasksService = persistentTasksService;

@@ -119,9 +119,10 @@ public class RRFQueryPhaseRankCoordinatorContext extends QueryPhaseRankCoordinat
                     }
 
                     value.score += 1.0f / (rankConstant + frank);
+                    assert value.positions != null && value.scores != null;
                     value.positions[fqi] = frank - 1;
+                    assert rrfRankDoc.scores != null;
                     value.scores[fqi] = rrfRankDoc.scores[fqi];
-
                     return value;
                 });
             }
@@ -139,6 +140,8 @@ public class RRFQueryPhaseRankCoordinatorContext extends QueryPhaseRankCoordinat
             if (rrf1.score != rrf2.score) {
                 return rrf1.score < rrf2.score ? 1 : -1;
             }
+            assert rrf1.positions != null && rrf1.scores != null;
+            assert rrf2.positions != null && rrf2.scores != null;
             assert rrf1.positions.length == rrf2.positions.length;
             for (int qi = 0; qi < rrf1.positions.length; ++qi) {
                 if (rrf1.positions[qi] != NO_RANK && rrf2.positions[qi] != NO_RANK) {

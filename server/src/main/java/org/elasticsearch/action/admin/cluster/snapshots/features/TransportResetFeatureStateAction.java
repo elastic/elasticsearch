@@ -54,7 +54,6 @@ public class TransportResetFeatureStateAction extends TransportMasterNodeAction<
             threadPool,
             actionFilters,
             ResetFeatureStateRequest::fromStream,
-            indexNameExpressionResolver,
             ResetFeatureStateResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

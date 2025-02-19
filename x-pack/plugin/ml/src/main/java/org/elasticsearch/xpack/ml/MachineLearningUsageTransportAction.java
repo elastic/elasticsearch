@@ -132,14 +132,7 @@ public class MachineLearningUsageTransportAction extends XPackUsageFeatureTransp
         JobManagerHolder jobManagerHolder,
         MachineLearningExtensionHolder machineLearningExtensionHolder
     ) {
-        super(
-            XPackUsageFeatureAction.MACHINE_LEARNING.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.MACHINE_LEARNING.name(), transportService, clusterService, threadPool, actionFilters);
         this.client = new OriginSettingClient(client, ML_ORIGIN);
         this.licenseState = licenseState;
         this.jobManagerHolder = jobManagerHolder;

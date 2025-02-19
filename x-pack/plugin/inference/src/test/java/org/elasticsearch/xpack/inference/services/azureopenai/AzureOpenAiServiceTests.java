@@ -54,6 +54,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -1470,7 +1471,17 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                                     "required": false,
                                     "sensitive": true,
                                     "updatable": true,
-                                    "type": "str"
+                                    "type": "str",
+                                    "supported_task_types": ["text_embedding", "completion"]
+                                },
+                                "dimensions": {
+                                    "description": "The number of dimensions the resulting embeddings should have. For more information refer to https://learn.microsoft.com/en-us/azure/ai-services/openai/reference#request-body-1.",
+                                    "label": "Dimensions",
+                                    "required": false,
+                                    "sensitive": false,
+                                    "updatable": false,
+                                    "type": "int",
+                                    "supported_task_types": ["text_embedding"]
                                 },
                                 "entra_id": {
                                     "description": "You must provide either an API key or an Entra ID.",
@@ -1478,7 +1489,8 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                                     "required": false,
                                     "sensitive": true,
                                     "updatable": true,
-                                    "type": "str"
+                                    "type": "str",
+                                    "supported_task_types": ["text_embedding", "completion"]
                                 },
                                 "rate_limit.requests_per_minute": {
                                     "description": "The azureopenai service sets a default number of requests allowed per minute depending on the task type.",
@@ -1486,7 +1498,8 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                                     "required": false,
                                     "sensitive": false,
                                     "updatable": false,
-                                    "type": "int"
+                                    "type": "int",
+                                    "supported_task_types": ["text_embedding", "completion"]
                                 },
                                 "deployment_id": {
                                     "description": "The deployment name of your deployed models.",
@@ -1494,7 +1507,8 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                                     "required": true,
                                     "sensitive": false,
                                     "updatable": false,
-                                    "type": "str"
+                                    "type": "str",
+                                    "supported_task_types": ["text_embedding", "completion"]
                                 },
                                 "resource_name": {
                                     "description": "The name of your Azure OpenAI resource.",
@@ -1502,7 +1516,8 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                                     "required": true,
                                     "sensitive": false,
                                     "updatable": false,
-                                    "type": "str"
+                                    "type": "str",
+                                    "supported_task_types": ["text_embedding", "completion"]
                                 },
                                 "api_version": {
                                     "description": "The Azure API version ID to use.",
@@ -1510,7 +1525,8 @@ public class AzureOpenAiServiceTests extends ESTestCase {
                                     "required": true,
                                     "sensitive": false,
                                     "updatable": false,
-                                    "type": "str"
+                                    "type": "str",
+                                    "supported_task_types": ["text_embedding", "completion"]
                                 }
                             }
                         }
@@ -1533,8 +1549,8 @@ public class AzureOpenAiServiceTests extends ESTestCase {
 
     public void testSupportsStreaming() throws IOException {
         try (var service = new AzureOpenAiService(mock(), createWithEmptySettings(mock()))) {
-            assertTrue(service.canStream(TaskType.COMPLETION));
-            assertTrue(service.canStream(TaskType.ANY));
+            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION)));
+            assertFalse(service.canStream(TaskType.ANY));
         }
     }
 

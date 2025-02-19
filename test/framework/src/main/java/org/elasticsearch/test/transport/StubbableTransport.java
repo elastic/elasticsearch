@@ -139,11 +139,6 @@ public class StubbableTransport implements Transport {
     }
 
     @Override
-    public TransportVersion getVersion() {
-        return delegate.getVersion();
-    }
-
-    @Override
     public void setMessageListener(TransportMessageListener listener) {
         delegate.setMessageListener(listener);
     }

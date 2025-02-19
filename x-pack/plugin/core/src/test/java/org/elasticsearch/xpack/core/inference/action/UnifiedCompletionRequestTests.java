@@ -183,7 +183,7 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
         return new UnifiedCompletionRequest(
             randomList(5, UnifiedCompletionRequestTests::randomMessage),
             randomAlphaOfLengthOrNull(10),
-            randomPositiveLongOrNull(),
+            randomNonNegativeLongOrNull(),
             randomStopOrNull(),
             randomFloatOrNull(),
             randomToolChoiceOrNull(),

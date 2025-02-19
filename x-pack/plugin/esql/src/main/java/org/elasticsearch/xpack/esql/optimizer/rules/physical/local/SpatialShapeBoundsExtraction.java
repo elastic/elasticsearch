@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.lucene.spatial.GeometryDocValueWriter;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -49,9 +50,20 @@ import java.util.stream.Collectors;
 public class SpatialShapeBoundsExtraction extends ParameterizedOptimizerRule<AggregateExec, LocalPhysicalOptimizerContext> {
     @Override
     protected PhysicalPlan rule(AggregateExec aggregate, LocalPhysicalOptimizerContext ctx) {
-        var foundAttributes = new HashSet<Attribute>();
+        Set<Attribute> foundAttributes = findSpatialShapeBoundsAttributes(aggregate, ctx);
+        if (foundAttributes.isEmpty()) {
+            return aggregate;
+        }
+        return aggregate.transformDown(PhysicalPlan.class, exec -> switch (exec) {
+            case AggregateExec agg -> transformAggregateExec(agg, foundAttributes);
+            case FieldExtractExec fieldExtractExec -> transformFieldExtractExec(fieldExtractExec, foundAttributes);
+            default -> exec;
+        });
+    }
 
-        return aggregate.transformDown(UnaryExec.class, exec -> {
+    private static Set<Attribute> findSpatialShapeBoundsAttributes(AggregateExec aggregate, LocalPhysicalOptimizerContext ctx) {
+        var foundAttributes = new HashSet<Attribute>();
+        aggregate.transformDown(UnaryExec.class, exec -> {
             switch (exec) {
                 case AggregateExec agg -> {
                     List<AggregateFunction> aggregateFunctions = agg.aggregates()
@@ -84,18 +96,27 @@ public class SpatialShapeBoundsExtraction extends ParameterizedOptimizerRule<Agg
                 }
                 case EvalExec evalExec -> foundAttributes.removeAll(evalExec.references());
                 case FilterExec filterExec -> foundAttributes.removeAll(filterExec.condition().references());
-                case FieldExtractExec fieldExtractExec -> {
-                    var boundsAttributes = new HashSet<>(foundAttributes);
-                    boundsAttributes.retainAll(fieldExtractExec.attributesToExtract());
-                    if (boundsAttributes.isEmpty() == false) {
-                        exec = fieldExtractExec.withBoundsAttributes(boundsAttributes);
-                    }
-                }
                 default -> { // Do nothing
                 }
             }
             return exec;
         });
+        return foundAttributes;
+    }
+
+    private static PhysicalPlan transformFieldExtractExec(FieldExtractExec fieldExtractExec, Set<Attribute> foundAttributes) {
+        var boundsAttributes = new HashSet<>(foundAttributes);
+        boundsAttributes.retainAll(fieldExtractExec.attributesToExtract());
+        return fieldExtractExec.withBoundsAttributes(boundsAttributes);
+    }
+
+    private static PhysicalPlan transformAggregateExec(AggregateExec agg, Set<Attribute> foundAttributes) {
+        return agg.transformExpressionsDown(
+            SpatialExtent.class,
+            spatialExtent -> foundAttributes.contains(spatialExtent.field())
+                ? spatialExtent.withFieldExtractPreference(MappedFieldType.FieldExtractPreference.EXTRACT_SPATIAL_BOUNDS)
+                : spatialExtent
+        );
     }
 
     private static boolean isShape(DataType dataType) {

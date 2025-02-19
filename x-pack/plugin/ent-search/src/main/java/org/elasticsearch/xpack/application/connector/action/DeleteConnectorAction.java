@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -35,19 +35,16 @@ public class DeleteConnectorAction {
     public static class Request extends ConnectorActionRequest implements ToXContentObject {
 
         private final String connectorId;
+        private final boolean hardDelete;
         private final boolean deleteSyncJobs;
 
         private static final ParseField CONNECTOR_ID_FIELD = new ParseField("connector_id");
+        private static final ParseField HARD_DELETE_FIELD = new ParseField("hard");
         private static final ParseField DELETE_SYNC_JOB_FIELD = new ParseField("delete_sync_jobs");
 
-        public Request(StreamInput in) throws IOException {
-            super(in);
-            this.connectorId = in.readString();
-            this.deleteSyncJobs = in.readBoolean();
-        }
-
-        public Request(String connectorId, boolean deleteSyncJobs) {
+        public Request(String connectorId, boolean hardDelete, boolean deleteSyncJobs) {
             this.connectorId = connectorId;
+            this.hardDelete = hardDelete;
             this.deleteSyncJobs = deleteSyncJobs;
         }
 
@@ -66,15 +63,17 @@ public class DeleteConnectorAction {
             return connectorId;
         }
 
+        public boolean isHardDelete() {
+            return hardDelete;
+        }
+
         public boolean shouldDeleteSyncJobs() {
             return deleteSyncJobs;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeString(connectorId);
-            out.writeBoolean(deleteSyncJobs);
+            TransportAction.localOnly();
         }
 
         @Override
@@ -82,18 +81,21 @@ public class DeleteConnectorAction {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return deleteSyncJobs == request.deleteSyncJobs && Objects.equals(connectorId, request.connectorId);
+            return hardDelete == request.hardDelete
+                && deleteSyncJobs == request.deleteSyncJobs
+                && Objects.equals(connectorId, request.connectorId);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(connectorId, deleteSyncJobs);
+            return Objects.hash(connectorId, hardDelete, deleteSyncJobs);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(CONNECTOR_ID_FIELD.getPreferredName(), connectorId);
+            builder.field(HARD_DELETE_FIELD.getPreferredName(), hardDelete);
             builder.field(DELETE_SYNC_JOB_FIELD.getPreferredName(), deleteSyncJobs);
             builder.endObject();
             return builder;
@@ -102,10 +104,11 @@ public class DeleteConnectorAction {
         private static final ConstructingObjectParser<DeleteConnectorAction.Request, Void> PARSER = new ConstructingObjectParser<>(
             "delete_connector_request",
             false,
-            (p) -> new Request((String) p[0], (boolean) p[1])
+            (p) -> new Request((String) p[0], (boolean) p[1], (boolean) p[2])
         );
         static {
             PARSER.declareString(constructorArg(), CONNECTOR_ID_FIELD);
+            PARSER.declareBoolean(constructorArg(), HARD_DELETE_FIELD);
             PARSER.declareBoolean(constructorArg(), DELETE_SYNC_JOB_FIELD);
         }
 

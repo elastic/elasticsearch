@@ -438,7 +438,7 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
             public Future<HttpResponse> answer(InvocationOnMock invocationOnMock) throws Throwable {
                 HeapBufferedAsyncResponseConsumer consumer = (HeapBufferedAsyncResponseConsumer) invocationOnMock.getArguments()[1];
                 FutureCallback callback = (FutureCallback) invocationOnMock.getArguments()[3];
-                assertEquals(new ByteSizeValue(100, ByteSizeUnit.MB).bytesAsInt(), consumer.getBufferLimit());
+                assertEquals(ByteSizeValue.of(100, ByteSizeUnit.MB).bytesAsInt(), consumer.getBufferLimit());
                 callback.failed(tooLong);
                 return null;
             }

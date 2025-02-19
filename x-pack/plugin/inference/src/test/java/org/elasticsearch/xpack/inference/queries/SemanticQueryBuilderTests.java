@@ -40,6 +40,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Plugin;
@@ -351,10 +352,10 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         DenseVectorFieldMapper.ElementType denseVectorElementType,
         boolean useLegacyFormat
     ) throws IOException {
-        SemanticTextField.ModelSettings modelSettings = switch (inferenceResultType) {
+        var modelSettings = switch (inferenceResultType) {
             case NONE -> null;
-            case SPARSE_EMBEDDING -> new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null, null);
-            case TEXT_EMBEDDING -> new SemanticTextField.ModelSettings(
+            case SPARSE_EMBEDDING -> new MinimalServiceSettings(TaskType.SPARSE_EMBEDDING, null, null, null);
+            case TEXT_EMBEDDING -> new MinimalServiceSettings(
                 TaskType.TEXT_EMBEDDING,
                 TEXT_EMBEDDING_DIMENSION_COUNT,
                 SimilarityMeasure.COSINE,

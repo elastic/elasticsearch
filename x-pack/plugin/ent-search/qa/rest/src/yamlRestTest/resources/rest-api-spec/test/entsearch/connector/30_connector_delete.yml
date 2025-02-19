@@ -28,6 +28,31 @@ setup:
 
 
 ---
+"Delete Connector - Hard Delete":
+  - do:
+      connector.put:
+        connector_id: test-connector-hard-delete
+        body:
+          index_name: search-2-test
+          name: my-hard-delete-connector
+          language: en
+          is_native: false
+          service_type: super-connector
+
+  - do:
+      connector.delete:
+        connector_id: test-connector-hard-delete
+        hard: true
+
+  - match: { acknowledged: true }
+
+  - do:
+      catch: "missing"
+      connector.get:
+        connector_id: test-connector-hard-delete
+        include_deleted: true
+
+---
 "Delete Connector - deletes associated sync jobs":
 
   - do:
@@ -107,12 +132,9 @@ setup:
       connector.delete:
         connector_id: test-nonexistent-connector
 
-
 ---
 "Delete Connector - Supports soft deletes":
-  - requires:
-      cluster_features: ["connector_soft_deletes"]
-      reason: Soft deletes were introduced in 9.0 release
+
 
   - do:
       connector.delete:

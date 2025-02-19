@@ -54,6 +54,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -1133,7 +1134,8 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                                "required": true,
                                "sensitive": true,
                                "updatable": true,
-                               "type": "str"
+                               "type": "str",
+                               "supported_task_types": ["text_embedding", "completion"]
                            },
                            "rate_limit.requests_per_minute": {
                                "description": "Minimize the number of rate limit errors.",
@@ -1141,7 +1143,8 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                                "required": false,
                                "sensitive": false,
                                "updatable": false,
-                               "type": "int"
+                               "type": "int",
+                               "supported_task_types": ["text_embedding", "completion"]
                            },
                            "model_id": {
                                "description": "ID of the LLM you're using.",
@@ -1149,7 +1152,8 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
                                "required": true,
                                "sensitive": false,
                                "updatable": false,
-                               "type": "str"
+                               "type": "str",
+                               "supported_task_types": ["text_embedding", "completion"]
                            }
                        }
                    }
@@ -1171,8 +1175,8 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
 
     public void testSupportsStreaming() throws IOException {
         try (var service = new GoogleAiStudioService(mock(), createWithEmptySettings(mock()))) {
-            assertTrue(service.canStream(TaskType.COMPLETION));
-            assertTrue(service.canStream(TaskType.ANY));
+            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION)));
+            assertFalse(service.canStream(TaskType.ANY));
         }
     }
 

@@ -7,10 +7,8 @@
 
 package org.elasticsearch.xpack.esql.core.util;
 
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -21,7 +19,6 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
-import static org.elasticsearch.test.ESTestCase.randomZone;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 
@@ -42,10 +39,6 @@ public final class TestUtils {
             return (Literal) value;
         }
         return new Literal(source, value, DataType.fromJava(value));
-    }
-
-    public static Range rangeOf(Expression value, Expression lower, boolean includeLower, Expression upper, boolean includeUpper) {
-        return new Range(EMPTY, value, lower, includeLower, upper, includeUpper, randomZone());
     }
 
     public static FieldAttribute fieldAttribute() {

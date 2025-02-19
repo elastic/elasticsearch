@@ -66,9 +66,7 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
         slop = in.readVInt();
         maxExpansions = in.readVInt();
         analyzer = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            this.zeroTermsQuery = ZeroTermsQueryOption.readFromStream(in);
-        }
+        zeroTermsQuery = ZeroTermsQueryOption.readFromStream(in);
     }
 
     @Override
@@ -78,9 +76,7 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
         out.writeVInt(slop);
         out.writeVInt(maxExpansions);
         out.writeOptionalString(analyzer);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
-            zeroTermsQuery.writeTo(out);
-        }
+        zeroTermsQuery.writeTo(out);
     }
 
     /** Returns the field name used in this query. */

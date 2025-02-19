@@ -240,14 +240,7 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
      *    }
      * }
      */
-    private static final class Meta {
-        private final List<Action> actions;
-        private final Map<String, Object> nonActionMetadata;
-
-        Meta(List<Action> actions, Map<String, Object> nonActionMetadata) {
-            this.actions = actions;
-            this.nonActionMetadata = nonActionMetadata;
-        }
+    private record Meta(List<Action> actions, Map<String, Object> nonActionMetadata) {
 
         private static Meta fromRemovableSettings(List<String> removableSettings) {
             List<Action> actions;
@@ -358,12 +351,7 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
     /*
      * This class a represents remove_settings action within the actions list in a meta Map.
      */
-    private static final class RemovalAction implements Action {
-        private final List<String> removableSettings;
-
-        RemovalAction(List<String> removableSettings) {
-            this.removableSettings = removableSettings;
-        }
+    private record RemovalAction(List<String> removableSettings) implements Action {
 
         @SuppressWarnings("unchecked")
         private static RemovalAction fromActionMap(Map<String, Object> actionMap) {
@@ -398,12 +386,7 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
     /*
      * This represents an action within the actions list in a meta Map that is *not* a removal_action.
      */
-    private static class UnknownAction implements Action {
-        private final Map<String, Object> actionMap;
-
-        private UnknownAction(Map<String, Object> actionMap) {
-            this.actionMap = actionMap;
-        }
+    private record UnknownAction(Map<String, Object> actionMap) implements Action {
 
         private static Action fromActionMap(Map<String, Object> actionMap) {
             return new UnknownAction(actionMap);

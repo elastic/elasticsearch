@@ -82,7 +82,6 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
             threadPool,
             actionFilters,
             CleanupRepositoryRequest::readFrom,
-            indexNameExpressionResolver,
             CleanupRepositoryResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

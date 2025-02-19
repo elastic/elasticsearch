@@ -83,7 +83,6 @@ public class TransportAddVotingConfigExclusionsAction extends TransportMasterNod
             threadPool,
             actionFilters,
             AddVotingConfigExclusionsRequest::new,
-            indexNameExpressionResolver,
             in -> ActionResponse.Empty.INSTANCE,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

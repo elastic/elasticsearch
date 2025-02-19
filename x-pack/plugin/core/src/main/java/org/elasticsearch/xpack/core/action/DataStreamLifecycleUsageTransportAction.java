@@ -44,14 +44,7 @@ public class DataStreamLifecycleUsageTransportAction extends XPackUsageFeatureTr
         IndexNameExpressionResolver indexNameExpressionResolver,
         DataStreamGlobalRetentionSettings globalRetentionSettings
     ) {
-        super(
-            XPackUsageFeatureAction.DATA_STREAM_LIFECYCLE.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.DATA_STREAM_LIFECYCLE.name(), transportService, clusterService, threadPool, actionFilters);
         this.globalRetentionSettings = globalRetentionSettings;
     }
 

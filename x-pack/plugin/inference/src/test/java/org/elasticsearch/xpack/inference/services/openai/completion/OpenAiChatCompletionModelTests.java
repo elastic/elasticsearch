@@ -24,16 +24,16 @@ import static org.hamcrest.Matchers.sameInstance;
 public class OpenAiChatCompletionModelTests extends ESTestCase {
 
     public void testOverrideWith_OverridesUser() {
-        var model = createChatCompletionModel("url", "org", "api_key", "model_name", null);
+        var model = createCompletionModel("url", "org", "api_key", "model_name", null);
         var requestTaskSettingsMap = getChatCompletionRequestTaskSettingsMap("user_override");
 
         var overriddenModel = OpenAiChatCompletionModel.of(model, requestTaskSettingsMap);
 
-        assertThat(overriddenModel, is(createChatCompletionModel("url", "org", "api_key", "model_name", "user_override")));
+        assertThat(overriddenModel, is(createCompletionModel("url", "org", "api_key", "model_name", "user_override")));
     }
 
     public void testOverrideWith_EmptyMap() {
-        var model = createChatCompletionModel("url", "org", "api_key", "model_name", null);
+        var model = createCompletionModel("url", "org", "api_key", "model_name", null);
 
         var requestTaskSettingsMap = Map.<String, Object>of();
 
@@ -42,14 +42,14 @@ public class OpenAiChatCompletionModelTests extends ESTestCase {
     }
 
     public void testOverrideWith_NullMap() {
-        var model = createChatCompletionModel("url", "org", "api_key", "model_name", null);
+        var model = createCompletionModel("url", "org", "api_key", "model_name", null);
 
         var overriddenModel = OpenAiChatCompletionModel.of(model, (Map<String, Object>) null);
         assertThat(overriddenModel, sameInstance(model));
     }
 
     public void testOverrideWith_UnifiedCompletionRequest_OverridesModelId() {
-        var model = createChatCompletionModel("url", "org", "api_key", "model_name", "user");
+        var model = createCompletionModel("url", "org", "api_key", "model_name", "user");
         var request = new UnifiedCompletionRequest(
             List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "role", null, null)),
             "different_model",
@@ -63,12 +63,12 @@ public class OpenAiChatCompletionModelTests extends ESTestCase {
 
         assertThat(
             OpenAiChatCompletionModel.of(model, request),
-            is(createChatCompletionModel("url", "org", "api_key", "different_model", "user"))
+            is(createCompletionModel("url", "org", "api_key", "different_model", "user"))
         );
     }
 
     public void testOverrideWith_UnifiedCompletionRequest_UsesModelFields_WhenRequestDoesNotOverride() {
-        var model = createChatCompletionModel("url", "org", "api_key", "model_name", "user");
+        var model = createCompletionModel("url", "org", "api_key", "model_name", "user");
         var request = new UnifiedCompletionRequest(
             List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "role", null, null)),
             null, // not overriding model
@@ -80,10 +80,17 @@ public class OpenAiChatCompletionModelTests extends ESTestCase {
             null
         );
 
-        assertThat(
-            OpenAiChatCompletionModel.of(model, request),
-            is(createChatCompletionModel("url", "org", "api_key", "model_name", "user"))
-        );
+        assertThat(OpenAiChatCompletionModel.of(model, request), is(createCompletionModel("url", "org", "api_key", "model_name", "user")));
+    }
+
+    public static OpenAiChatCompletionModel createCompletionModel(
+        String url,
+        @Nullable String org,
+        String apiKey,
+        String modelName,
+        @Nullable String user
+    ) {
+        return createModelWithTaskType(url, org, apiKey, modelName, user, TaskType.COMPLETION);
     }
 
     public static OpenAiChatCompletionModel createChatCompletionModel(
@@ -93,9 +100,20 @@ public class OpenAiChatCompletionModelTests extends ESTestCase {
         String modelName,
         @Nullable String user
     ) {
+        return createModelWithTaskType(url, org, apiKey, modelName, user, TaskType.CHAT_COMPLETION);
+    }
+
+    public static OpenAiChatCompletionModel createModelWithTaskType(
+        String url,
+        @Nullable String org,
+        String apiKey,
+        String modelName,
+        @Nullable String user,
+        TaskType taskType
+    ) {
         return new OpenAiChatCompletionModel(
             "id",
-            TaskType.COMPLETION,
+            taskType,
             "service",
             new OpenAiChatCompletionServiceSettings(modelName, url, org, null, null),
             new OpenAiChatCompletionTaskSettings(user),

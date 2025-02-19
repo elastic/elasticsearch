@@ -62,7 +62,7 @@ public class MemorySizeSettingsTests extends ESTestCase {
     public void testCircuitBreakerSettings() {
         // default is chosen based on actual heap size
         double defaultTotalPercentage;
-        if (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() < new ByteSizeValue(1, ByteSizeUnit.GB).getBytes()) {
+        if (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() < ByteSizeValue.of(1, ByteSizeUnit.GB).getBytes()) {
             defaultTotalPercentage = 0.95d;
         } else {
             defaultTotalPercentage = 0.7d;

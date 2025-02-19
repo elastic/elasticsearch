@@ -182,7 +182,8 @@ public class DataStreamIT extends ESIntegTestCase {
 
         String backingIndex = barDataStream.getIndices().get(0).getName();
         backingIndices.add(backingIndex);
-        GetIndexResponse getIndexResponse = indicesAdmin().getIndex(new GetIndexRequest().indices(backingIndex)).actionGet();
+        GetIndexResponse getIndexResponse = indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(backingIndex))
+            .actionGet();
         assertThat(getIndexResponse.getSettings().get(backingIndex), notNullValue());
         assertThat(getIndexResponse.getSettings().get(backingIndex).getAsBoolean("index.hidden", null), is(true));
         Map<?, ?> mappings = getIndexResponse.getMappings().get(backingIndex).getSourceAsMap();
@@ -190,7 +191,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
         backingIndex = fooDataStream.getIndices().get(0).getName();
         backingIndices.add(backingIndex);
-        getIndexResponse = indicesAdmin().getIndex(new GetIndexRequest().indices(backingIndex)).actionGet();
+        getIndexResponse = indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(backingIndex)).actionGet();
         assertThat(getIndexResponse.getSettings().get(backingIndex), notNullValue());
         assertThat(getIndexResponse.getSettings().get(backingIndex).getAsBoolean("index.hidden", null), is(true));
         mappings = getIndexResponse.getMappings().get(backingIndex).getSourceAsMap();
@@ -214,7 +215,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
         backingIndex = fooRolloverResponse.getNewIndex();
         backingIndices.add(backingIndex);
-        getIndexResponse = indicesAdmin().getIndex(new GetIndexRequest().indices(backingIndex)).actionGet();
+        getIndexResponse = indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(backingIndex)).actionGet();
         assertThat(getIndexResponse.getSettings().get(backingIndex), notNullValue());
         assertThat(getIndexResponse.getSettings().get(backingIndex).getAsBoolean("index.hidden", null), is(true));
         mappings = getIndexResponse.getMappings().get(backingIndex).getSourceAsMap();
@@ -222,7 +223,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
         backingIndex = barRolloverResponse.getNewIndex();
         backingIndices.add(backingIndex);
-        getIndexResponse = indicesAdmin().getIndex(new GetIndexRequest().indices(backingIndex)).actionGet();
+        getIndexResponse = indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(backingIndex)).actionGet();
         assertThat(getIndexResponse.getSettings().get(backingIndex), notNullValue());
         assertThat(getIndexResponse.getSettings().get(backingIndex).getAsBoolean("index.hidden", null), is(true));
         mappings = getIndexResponse.getMappings().get(backingIndex).getSourceAsMap();
@@ -245,7 +246,7 @@ public class DataStreamIT extends ESIntegTestCase {
             expectThrows(
                 IndexNotFoundException.class,
                 "Backing index '" + index + "' should have been deleted.",
-                () -> indicesAdmin().getIndex(new GetIndexRequest().indices(index)).actionGet()
+                () -> indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(index)).actionGet()
             );
         }
     }
@@ -479,7 +480,8 @@ public class DataStreamIT extends ESIntegTestCase {
         String backingIndex = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices().get(0).getName();
         assertThat(backingIndex, backingIndexEqualTo(dataStreamName, 1));
 
-        GetIndexResponse getIndexResponse = indicesAdmin().getIndex(new GetIndexRequest().indices(dataStreamName)).actionGet();
+        GetIndexResponse getIndexResponse = indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(dataStreamName))
+            .actionGet();
         assertThat(getIndexResponse.getSettings().get(backingIndex), notNullValue());
         assertThat(getIndexResponse.getSettings().get(backingIndex).getAsBoolean("index.hidden", null), is(true));
         assertThat(
@@ -492,7 +494,7 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(backingIndex, backingIndexEqualTo(dataStreamName, 2));
         assertTrue(rolloverResponse.isRolledOver());
 
-        getIndexResponse = indicesAdmin().getIndex(new GetIndexRequest().indices(backingIndex)).actionGet();
+        getIndexResponse = indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(backingIndex)).actionGet();
         assertThat(getIndexResponse.getSettings().get(backingIndex), notNullValue());
         assertThat(getIndexResponse.getSettings().get(backingIndex).getAsBoolean("index.hidden", null), is(true));
         assertThat(
@@ -518,7 +520,7 @@ public class DataStreamIT extends ESIntegTestCase {
             expectThrows(
                 IndexNotFoundException.class,
                 "Backing index '" + index.getName() + "' should have been deleted.",
-                () -> indicesAdmin().getIndex(new GetIndexRequest().indices(index.getName())).actionGet()
+                () -> indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(index.getName())).actionGet()
             );
         }
     }
@@ -596,17 +598,17 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(dataStreamName, indicesAdmin().prepareGetFieldMappings(dataStreamName), false);
         verifyResolvability(dataStreamName, indicesAdmin().preparePutMapping(dataStreamName).setSource("""
             {"_doc":{"properties": {"my_field":{"type":"keyword"}}}}""", XContentType.JSON), false);
-        verifyResolvability(dataStreamName, indicesAdmin().prepareGetMappings(dataStreamName), false);
+        verifyResolvability(dataStreamName, indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, dataStreamName), false);
         verifyResolvability(
             dataStreamName,
             indicesAdmin().prepareUpdateSettings(dataStreamName).setSettings(Settings.builder().put("index.number_of_replicas", 0)),
             false
         );
-        verifyResolvability(dataStreamName, indicesAdmin().prepareGetSettings(dataStreamName), false);
+        verifyResolvability(dataStreamName, indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, dataStreamName), false);
         verifyResolvability(dataStreamName, clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, dataStreamName), false);
         verifyResolvability(dataStreamName, clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setIndices(dataStreamName), false);
         verifyResolvability(dataStreamName, client().prepareFieldCaps(dataStreamName).setFields("*"), false);
-        verifyResolvability(dataStreamName, indicesAdmin().prepareGetIndex().addIndices(dataStreamName), false);
+        verifyResolvability(dataStreamName, indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(dataStreamName), false);
         verifyResolvability(dataStreamName, indicesAdmin().prepareOpen(dataStreamName), false);
         verifyResolvability(dataStreamName, indicesAdmin().prepareClose(dataStreamName), true);
         verifyResolvability(aliasToDataStream, indicesAdmin().prepareClose(aliasToDataStream), true);
@@ -643,8 +645,8 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(wildcardExpression, indicesAdmin().prepareGetFieldMappings(wildcardExpression), false);
         verifyResolvability(wildcardExpression, indicesAdmin().preparePutMapping(wildcardExpression).setSource("""
             {"_doc":{"properties": {"my_field":{"type":"keyword"}}}}""", XContentType.JSON), false);
-        verifyResolvability(wildcardExpression, indicesAdmin().prepareGetMappings(wildcardExpression), false);
-        verifyResolvability(wildcardExpression, indicesAdmin().prepareGetSettings(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, wildcardExpression), false);
+        verifyResolvability(wildcardExpression, indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, wildcardExpression), false);
         verifyResolvability(
             wildcardExpression,
             indicesAdmin().prepareUpdateSettings(wildcardExpression).setSettings(Settings.builder().put("index.number_of_replicas", 0)),
@@ -653,7 +655,7 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(wildcardExpression, clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, wildcardExpression), false);
         verifyResolvability(wildcardExpression, clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setIndices(wildcardExpression), false);
         verifyResolvability(wildcardExpression, client().prepareFieldCaps(wildcardExpression).setFields("*"), false);
-        verifyResolvability(wildcardExpression, indicesAdmin().prepareGetIndex().addIndices(wildcardExpression), false);
+        verifyResolvability(wildcardExpression, indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(wildcardExpression), false);
         verifyResolvability(wildcardExpression, indicesAdmin().prepareOpen(wildcardExpression), false);
         verifyResolvability(wildcardExpression, indicesAdmin().prepareClose(wildcardExpression), false);
         verifyResolvability(
@@ -1180,7 +1182,7 @@ public class DataStreamIT extends ESIntegTestCase {
             DataStreamTimestampFieldMapper.NAME,
             Map.of("enabled", true)
         );
-        GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings("logs-foobar").get();
+        GetMappingsResponse getMappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "logs-foobar").get();
         assertThat(getMappingsResponse.getMappings().size(), equalTo(2));
         assertThat(getMappingsResponse.getMappings().get(backingIndex1).getSourceAsMap(), equalTo(expectedMapping));
         assertThat(getMappingsResponse.getMappings().get(backingIndex2).getSourceAsMap(), equalTo(expectedMapping));
@@ -1195,7 +1197,7 @@ public class DataStreamIT extends ESIntegTestCase {
             .setSource("{\"properties\":{\"my_field\":{\"type\":\"keyword\"}}}", XContentType.JSON)
             .get();
         // The mappings of all backing indices should be updated:
-        getMappingsResponse = indicesAdmin().prepareGetMappings("logs-foobar").get();
+        getMappingsResponse = indicesAdmin().prepareGetMappings(TEST_REQUEST_TIMEOUT, "logs-foobar").get();
         assertThat(getMappingsResponse.getMappings().size(), equalTo(2));
         assertThat(getMappingsResponse.getMappings().get(backingIndex1).getSourceAsMap(), equalTo(expectedMapping));
         assertThat(getMappingsResponse.getMappings().get(backingIndex2).getSourceAsMap(), equalTo(expectedMapping));
@@ -1228,13 +1230,13 @@ public class DataStreamIT extends ESIntegTestCase {
         assertTrue(rolloverResponse.isRolledOver());
 
         // The index settings of all backing indices should be updated:
-        GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings("logs-foobar").get();
+        GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "logs-foobar").get();
         assertThat(getSettingsResponse.getIndexToSettings().size(), equalTo(2));
         assertThat(getSettingsResponse.getSetting(backingIndex1, "index.number_of_replicas"), equalTo("1"));
         assertThat(getSettingsResponse.getSetting(backingIndex2, "index.number_of_replicas"), equalTo("1"));
 
         setReplicaCount(0, "logs-foobar");
-        getSettingsResponse = indicesAdmin().prepareGetSettings("logs-foobar").get();
+        getSettingsResponse = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "logs-foobar").get();
         assertThat(getSettingsResponse.getIndexToSettings().size(), equalTo(2));
         assertThat(getSettingsResponse.getSetting(backingIndex1, "index.number_of_replicas"), equalTo("0"));
         assertThat(getSettingsResponse.getSetting(backingIndex2, "index.number_of_replicas"), equalTo("0"));
@@ -1401,7 +1403,8 @@ public class DataStreamIT extends ESIntegTestCase {
     }
 
     private static void assertBackingIndex(String backingIndex, String timestampFieldPathInMapping, Map<?, ?> expectedMapping) {
-        GetIndexResponse getIndexResponse = indicesAdmin().getIndex(new GetIndexRequest().indices(backingIndex)).actionGet();
+        GetIndexResponse getIndexResponse = indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(backingIndex))
+            .actionGet();
         assertThat(getIndexResponse.getSettings().get(backingIndex), notNullValue());
         assertThat(getIndexResponse.getSettings().get(backingIndex).getAsBoolean("index.hidden", null), is(true));
         Map<?, ?> mappings = getIndexResponse.getMappings().get(backingIndex).getSourceAsMap();
@@ -1488,7 +1491,8 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(getDataStreamsResponse.getDataStreams().get(2).getDataStream().getName(), equalTo("logs-foobaz2"));
         assertThat(getDataStreamsResponse.getDataStreams().get(3).getDataStream().getName(), equalTo("logs-foobaz3"));
 
-        GetIndexResponse getIndexResponse = indicesAdmin().getIndex(new GetIndexRequest().indices("logs-bar*")).actionGet();
+        GetIndexResponse getIndexResponse = indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices("logs-bar*"))
+            .actionGet();
         assertThat(getIndexResponse.getIndices(), arrayWithSize(4));
         assertThat(getIndexResponse.getIndices(), hasItemInArray("logs-barbaz"));
         assertThat(getIndexResponse.getIndices(), hasItemInArray("logs-barfoo"));
@@ -1521,7 +1525,8 @@ public class DataStreamIT extends ESIntegTestCase {
             .actionGet();
         assertThat(getDataStreamsResponse.getDataStreams(), hasSize(0));
 
-        GetIndexResponse getIndexResponse = indicesAdmin().getIndex(new GetIndexRequest().indices("logs-foobar")).actionGet();
+        GetIndexResponse getIndexResponse = indicesAdmin().getIndex(new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices("logs-foobar"))
+            .actionGet();
         assertThat(getIndexResponse.getIndices(), arrayWithSize(1));
         assertThat(getIndexResponse.getIndices(), hasItemInArray("logs-foobar"));
         assertThat(getIndexResponse.getSettings().get("logs-foobar").get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS), equalTo("0"));
@@ -1657,7 +1662,7 @@ public class DataStreamIT extends ESIntegTestCase {
                     .actionGet();
                 String newBackingIndexName = getDataStreamResponse.getDataStreams().get(0).getDataStream().getWriteIndex().getName();
                 assertThat(newBackingIndexName, backingIndexEqualTo("potato-biscuit", 2));
-                indicesAdmin().prepareGetIndex().addIndices(newBackingIndexName).get();
+                indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT).addIndices(newBackingIndexName).get();
             } catch (Exception e) {
                 logger.info("--> expecting second index to be created but it has not yet been created");
                 fail("expecting second index to exist");
@@ -1920,7 +1925,7 @@ public class DataStreamIT extends ESIntegTestCase {
                     DataStream original = currentState.getMetadata().dataStreams().get(dataStreamName);
                     DataStream broken = original.copy()
                         .setBackingIndices(
-                            original.getBackingIndices()
+                            original.getDataComponent()
                                 .copy()
                                 .setIndices(
                                     List.of(new Index(original.getIndices().get(0).getName(), "broken"), original.getIndices().get(1))

@@ -1,8 +1,4 @@
 setup:
-  - requires:
-      cluster_features: "mapper.vectors.bit_vectors"
-      reason: 'mapper.vectors.bit_vectors'
-
   - do:
       indices.create:
         index: test

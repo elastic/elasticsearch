@@ -8,10 +8,7 @@ setup:
         index: test-index
         body:
           settings:
-            index:
-              mapping:
-                semantic_text:
-                  use_legacy_format: true
+            index.mapping.semantic_text.use_legacy_format: true
           mappings:
             properties:
               sparse_field:
@@ -252,3 +249,61 @@ setup:
   - not_exists: fields.sparse_field
   - exists: fields.dense_field
   - match: { fields.dense_field.text.searchable: true }
+
+---
+"Can't be used as a multifield":
+
+  - do:
+      catch: /Field \[semantic\] of type \[semantic_text\] can't be used in multifields/
+      indices.create:
+        index: test-multi-index
+        body:
+          settings:
+            index.mapping.semantic_text.use_legacy_format: true
+          mappings:
+            properties:
+              text_field:
+                type: text
+                fields:
+                  semantic:
+                    type: semantic_text
+                    inference_id: sparse-inference-id
+
+---
+"Can't have multifields":
+
+  - do:
+      catch: /semantic_text field \[semantic\] does not support multi-fields/
+      indices.create:
+        index: test-multi-index
+        body:
+          settings:
+            index.mapping.semantic_text.use_legacy_format: true
+          mappings:
+            properties:
+              semantic:
+                type: semantic_text
+                inference_id: sparse-inference-id
+                fields:
+                  keyword_field:
+                    type: keyword
+
+---
+"Can't configure copy_to in semantic_text":
+
+  - do:
+      catch: /semantic_text field \[semantic\] does not support \[copy_to\]/
+      indices.create:
+        index: test-copy_to-index
+        body:
+          settings:
+            index.mapping.semantic_text.use_legacy_format: true
+          mappings:
+            properties:
+              semantic:
+                type: semantic_text
+                inference_id: sparse-inference-id
+                copy_to: another_field
+              another_field:
+                type: keyword
+

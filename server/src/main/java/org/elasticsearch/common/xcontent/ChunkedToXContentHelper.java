@@ -12,7 +12,6 @@ package org.elasticsearch.common.xcontent;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.xcontent.ToXContent;
 
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.function.Function;
@@ -52,6 +51,13 @@ public enum ChunkedToXContentHelper {
     }
 
     /**
+     * Defines an object named {@code name}, with the contents set by calling {@code toXContent} on each entry in {@code map}
+     */
+    public static <T> Iterator<ToXContent> object(String name, Map<String, T> map, Function<Map.Entry<String, T>, ToXContent> toXContent) {
+        return object(name, Iterators.map(map.entrySet().iterator(), toXContent));
+    }
+
+    /**
      * Defines an object named {@code name}, with the contents of each field created from each entry in {@code map}
      */
     public static Iterator<ToXContent> xContentObjectFields(String name, Map<String, ? extends ToXContent> map) {
@@ -63,26 +69,6 @@ public enum ChunkedToXContentHelper {
      */
     public static Iterator<ToXContent> xContentObjectFieldObjects(String name, Map<String, ? extends ToXContent> map) {
         return object(name, map, e -> (b, p) -> e.getValue().toXContent(b.startObject(e.getKey()), p).endObject());
-    }
-
-    public static Iterator<ToXContent> field(String name, boolean value) {
-        return Iterators.single((b, p) -> b.field(name, value));
-    }
-
-    public static Iterator<ToXContent> field(String name, long value) {
-        return Iterators.single((b, p) -> b.field(name, value));
-    }
-
-    public static Iterator<ToXContent> field(String name, String value) {
-        return Iterators.single((b, p) -> b.field(name, value));
-    }
-
-    public static Iterator<ToXContent> optionalField(String name, String value) {
-        if (value == null) {
-            return Collections.emptyIterator();
-        } else {
-            return field(name, value);
-        }
     }
 
     /**
@@ -97,8 +83,20 @@ public enum ChunkedToXContentHelper {
         return Iterators.concat(Iterators.single((builder, innerParam) -> builder.field(name)), value.toXContentChunked(params));
     }
 
+    public static Iterator<ToXContent> array(Iterator<? extends ToXContent> contents) {
+        return Iterators.concat(startArray(), contents, endArray());
+    }
+
     public static Iterator<ToXContent> array(String name, Iterator<? extends ToXContent> contents) {
         return Iterators.concat(startArray(name), contents, endArray());
+    }
+
+    public static <T> Iterator<ToXContent> array(Iterator<T> items, Function<T, ToXContent> toXContent) {
+        return Iterators.concat(startArray(), Iterators.map(items, toXContent), endArray());
+    }
+
+    public static <T> Iterator<ToXContent> array(String name, Iterator<T> items, Function<T, ToXContent> toXContent) {
+        return Iterators.concat(startArray(name), Iterators.map(items, toXContent), endArray());
     }
 
     /**
@@ -118,13 +116,6 @@ public enum ChunkedToXContentHelper {
      */
     public static Iterator<ToXContent> object(String name, Iterator<? extends ToXContent> iterator) {
         return Iterators.concat(startObject(name), iterator, endObject());
-    }
-
-    /**
-     * Defines an object named {@code name}, with the contents set by calling {@code toXContent} on each entry in {@code map}
-     */
-    public static <T> Iterator<ToXContent> object(String name, Map<String, T> map, Function<Map.Entry<String, T>, ToXContent> toXContent) {
-        return object(name, Iterators.map(map.entrySet().iterator(), toXContent));
     }
 
     /**

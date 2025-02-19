@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.inference.action;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
@@ -52,7 +53,7 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
             TimeValue.timeValueSeconds(10)
         );
         var exception = request.validate();
-        assertThat(exception.getMessage(), is("Validation Failed: 1: Field [taskType] must be [completion];"));
+        assertThat(exception.getMessage(), is("Validation Failed: 1: Field [taskType] must be [chat_completion];"));
     }
 
     public void testValidation_ReturnsNull_When_TaskType_IsAny() {
@@ -63,6 +64,25 @@ public class UnifiedCompletionActionRequestTests extends AbstractBWCWireSerializ
             TimeValue.timeValueSeconds(10)
         );
         assertNull(request.validate());
+    }
+
+    public void testWriteTo_WhenVersionIsBeforeAdaptiveRateLimiting_ShouldSetHasBeenReroutedToTrue() throws IOException {
+        var instance = new UnifiedCompletionAction.Request(
+            "model",
+            TaskType.ANY,
+            UnifiedCompletionRequest.of(List.of(UnifiedCompletionRequestTests.randomMessage())),
+            TimeValue.timeValueSeconds(10)
+        );
+
+        UnifiedCompletionAction.Request deserializedInstance = copyWriteable(
+            instance,
+            getNamedWriteableRegistry(),
+            instanceReader(),
+            TransportVersions.ELASTIC_INFERENCE_SERVICE_UNIFIED_CHAT_COMPLETIONS_INTEGRATION
+        );
+
+        // Verify that hasBeenRerouted is true after deserializing a request coming from an older transport version
+        assertTrue(deserializedInstance.hasBeenRerouted());
     }
 
     @Override

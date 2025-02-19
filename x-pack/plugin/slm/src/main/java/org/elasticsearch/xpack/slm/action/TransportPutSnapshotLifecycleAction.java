@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.tasks.Task;
@@ -50,7 +49,6 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
     AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutSnapshotLifecycleAction.class);
-    private final FeatureService featureService;
 
     @Inject
     public TransportPutSnapshotLifecycleAction(
@@ -58,8 +56,7 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        FeatureService featureService
+        IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
             PutSnapshotLifecycleAction.NAME,
@@ -68,11 +65,9 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
             threadPool,
             actionFilters,
             PutSnapshotLifecycleAction.Request::new,
-            indexNameExpressionResolver,
             AcknowledgedResponse::readFrom,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.featureService = featureService;
     }
 
     @Override
@@ -82,7 +77,6 @@ public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeActi
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        SnapshotLifecycleService.validateIntervalScheduleSupport(request.getLifecycle().getSchedule(), featureService, state);
         SnapshotLifecycleService.validateRepositoryExists(request.getLifecycle().getRepository(), state);
         SnapshotLifecycleService.validateMinimumInterval(request.getLifecycle(), state);
 

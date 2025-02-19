@@ -1,7 +1,5 @@
 setup:
   - requires:
-      cluster_features: ["mapper.vectors.bit_vectors"]
-      reason: "support for bit vectors added in 8.15"
       test_runner_features: headers
 
   - do:

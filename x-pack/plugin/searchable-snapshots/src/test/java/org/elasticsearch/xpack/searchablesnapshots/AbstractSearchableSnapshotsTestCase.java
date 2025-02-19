@@ -224,7 +224,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
     }
 
     protected static ByteSizeValue randomFrozenCacheRangeSize() {
-        return pageAlignedBetween(new ByteSizeValue(4, ByteSizeUnit.KB), ByteSizeValue.ofBytes(Integer.MAX_VALUE));
+        return pageAlignedBetween(ByteSizeValue.of(4, ByteSizeUnit.KB), ByteSizeValue.ofBytes(Integer.MAX_VALUE));
     }
 
     private static ByteSizeValue pageAlignedBetween(ByteSizeValue min, ByteSizeValue max) {

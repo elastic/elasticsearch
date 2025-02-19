@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -19,6 +20,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -243,8 +245,7 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         return valueAsString(Metrics.std_deviation_sampling.name());
     }
 
-    @Override
-    public String getStdDeviationBoundAsString(Bounds bound) {
+    private String getStdDeviationBoundAsString(Bounds bound) {
         return switch (bound) {
             case UPPER -> valueAsString(Metrics.std_upper.name());
             case LOWER -> valueAsString(Metrics.std_lower.name());
@@ -337,6 +338,67 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         public static final String LOWER_POPULATION = "lower_population";
         public static final String UPPER_SAMPLING = "upper_sampling";
         public static final String LOWER_SAMPLING = "lower_sampling";
+
+        static final Set<String> OUTPUT_FORMAT = Set.of(
+            Metrics.count.name(),
+            Metrics.sum.name(),
+            Metrics.min.name(),
+            Metrics.max.name(),
+            Metrics.avg.name(),
+            SUM_OF_SQRS,
+            VARIANCE,
+            VARIANCE_POPULATION,
+            VARIANCE_SAMPLING,
+            STD_DEVIATION,
+            STD_DEVIATION_POPULATION,
+            STD_DEVIATION_SAMPLING,
+            STD_DEVIATION_BOUNDS + "." + UPPER,
+            STD_DEVIATION_BOUNDS + "." + LOWER,
+            STD_DEVIATION_BOUNDS + "." + UPPER_POPULATION,
+            STD_DEVIATION_BOUNDS + "." + LOWER_POPULATION,
+            STD_DEVIATION_BOUNDS + "." + UPPER_SAMPLING,
+            STD_DEVIATION_BOUNDS + "." + LOWER_SAMPLING
+        );
+    }
+
+    public Map<String, Object> asIndexableMap() {
+        if (count != 0) {
+            // NumberFieldMapper will invalidate non-finite doubles
+            TriConsumer<Map<String, Object>, String, Double> putIfValidDouble = (map, key, value) -> {
+                if (Double.isFinite(value)) {
+                    map.put(key, value);
+                }
+            };
+            var extendedStatsMap = new HashMap<String, Object>(13);
+            extendedStatsMap.put(Metrics.count.name(), getCount());
+            putIfValidDouble.apply(extendedStatsMap, Metrics.sum.name(), getSum());
+            putIfValidDouble.apply(extendedStatsMap, Metrics.min.name(), getMin());
+            putIfValidDouble.apply(extendedStatsMap, Metrics.max.name(), getMax());
+            putIfValidDouble.apply(extendedStatsMap, Metrics.avg.name(), getAvg());
+
+            putIfValidDouble.apply(extendedStatsMap, Fields.SUM_OF_SQRS, sumOfSqrs);
+            putIfValidDouble.apply(extendedStatsMap, Fields.VARIANCE, getVariance());
+            putIfValidDouble.apply(extendedStatsMap, Fields.VARIANCE_POPULATION, getVariancePopulation());
+            putIfValidDouble.apply(extendedStatsMap, Fields.VARIANCE_SAMPLING, getVarianceSampling());
+            putIfValidDouble.apply(extendedStatsMap, Fields.STD_DEVIATION, getStdDeviation());
+            putIfValidDouble.apply(extendedStatsMap, Fields.STD_DEVIATION_POPULATION, getStdDeviationPopulation());
+            putIfValidDouble.apply(extendedStatsMap, Fields.STD_DEVIATION_SAMPLING, getStdDeviationSampling());
+
+            var stdDevBounds = new HashMap<String, Object>(6);
+            putIfValidDouble.apply(stdDevBounds, Fields.UPPER, getStdDeviationBound(Bounds.UPPER));
+            putIfValidDouble.apply(stdDevBounds, Fields.LOWER, getStdDeviationBound(Bounds.LOWER));
+            putIfValidDouble.apply(stdDevBounds, Fields.UPPER_POPULATION, getStdDeviationBound(Bounds.UPPER_POPULATION));
+            putIfValidDouble.apply(stdDevBounds, Fields.LOWER_POPULATION, getStdDeviationBound(Bounds.LOWER_POPULATION));
+            putIfValidDouble.apply(stdDevBounds, Fields.UPPER_SAMPLING, getStdDeviationBound(Bounds.UPPER_SAMPLING));
+            putIfValidDouble.apply(stdDevBounds, Fields.LOWER_SAMPLING, getStdDeviationBound(Bounds.LOWER_SAMPLING));
+            if (stdDevBounds.isEmpty() == false) {
+                extendedStatsMap.put(Fields.STD_DEVIATION_BOUNDS, stdDevBounds);
+            }
+
+            return extendedStatsMap;
+        } else {
+            return Map.of();
+        }
     }
 
     @Override

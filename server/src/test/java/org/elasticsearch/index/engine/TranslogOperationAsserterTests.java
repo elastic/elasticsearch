@@ -24,8 +24,6 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.mapper.SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING;
-
 public class TranslogOperationAsserterTests extends EngineTestCase {
 
     @Override
@@ -33,7 +31,7 @@ public class TranslogOperationAsserterTests extends EngineTestCase {
         return Settings.builder()
             .put(super.indexSettings())
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
-            .put(INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.name())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.name())
             .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
             .build();
     }
@@ -57,10 +55,10 @@ public class TranslogOperationAsserterTests extends EngineTestCase {
         EngineConfig config = engine.config();
         Settings.Builder settings = Settings.builder().put(config.getIndexSettings().getSettings());
         if (useSyntheticSource) {
-            settings.put(INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.name());
+            settings.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.name());
             settings.put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true);
         } else {
-            settings.put(INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED.name());
+            settings.put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED.name());
             settings.put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), false);
         }
         IndexMetadata imd = IndexMetadata.builder(config.getIndexSettings().getIndexMetadata()).settings(settings).build();

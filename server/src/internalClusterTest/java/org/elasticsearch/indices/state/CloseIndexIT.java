@@ -74,7 +74,7 @@ public class CloseIndexIT extends ESIntegTestCase {
             .put(super.indexSettings())
             .put(
                 IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(),
-                new ByteSizeValue(randomIntBetween(1, 4096), ByteSizeUnit.KB)
+                ByteSizeValue.of(randomIntBetween(1, 4096), ByteSizeUnit.KB)
             )
             .build();
     }

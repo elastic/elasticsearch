@@ -158,7 +158,7 @@ public class LessThanOrEqualTests extends AbstractScalarFunctionTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedData(anyNullIsNull(true, suppliers));
+        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
     }
 
     @Override

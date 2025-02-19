@@ -60,7 +60,7 @@ import static org.hamcrest.Matchers.is;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
 
-    private static final long WATERMARK_BYTES = new ByteSizeValue(10, ByteSizeUnit.KB).getBytes();
+    private static final long WATERMARK_BYTES = ByteSizeValue.of(10, ByteSizeUnit.KB).getBytes();
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {

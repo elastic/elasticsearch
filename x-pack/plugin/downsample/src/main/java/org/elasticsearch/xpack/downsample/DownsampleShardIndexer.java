@@ -81,8 +81,8 @@ class DownsampleShardIndexer {
 
     private static final Logger logger = LogManager.getLogger(DownsampleShardIndexer.class);
     public static final int DOWNSAMPLE_BULK_ACTIONS = 10000;
-    public static final ByteSizeValue DOWNSAMPLE_BULK_SIZE = new ByteSizeValue(1, ByteSizeUnit.MB);
-    public static final ByteSizeValue DOWNSAMPLE_MAX_BYTES_IN_FLIGHT = new ByteSizeValue(50, ByteSizeUnit.MB);
+    public static final ByteSizeValue DOWNSAMPLE_BULK_SIZE = ByteSizeValue.of(1, ByteSizeUnit.MB);
+    public static final ByteSizeValue DOWNSAMPLE_MAX_BYTES_IN_FLIGHT = ByteSizeValue.of(50, ByteSizeUnit.MB);
     private final IndexShard indexShard;
     private final Client client;
     private final DownsampleMetrics downsampleMetrics;

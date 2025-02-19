@@ -15,7 +15,7 @@ import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link MvSum}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code MvEvaluatorImplementer} instead.
  */
 public final class MvSumDoubleEvaluator extends AbstractMultivalueFunction.AbstractEvaluator {
   public MvSumDoubleEvaluator(EvalOperator.ExpressionEvaluator field, DriverContext driverContext) {

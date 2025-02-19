@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.equalTo;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
 
-    private static final long FLOOD_STAGE_BYTES = new ByteSizeValue(10, ByteSizeUnit.KB).getBytes();
+    private static final long FLOOD_STAGE_BYTES = ByteSizeValue.of(10, ByteSizeUnit.KB).getBytes();
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -223,7 +223,10 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
 
     // Retrieves the value of the given block on an index.
     private static String getIndexBlock(String indexName, String blockName) {
-        return indicesAdmin().prepareGetSettings(indexName).setNames(blockName).get().getSetting(indexName, blockName);
+        return indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
+            .setNames(blockName)
+            .get()
+            .getSetting(indexName, blockName);
     }
 
 }

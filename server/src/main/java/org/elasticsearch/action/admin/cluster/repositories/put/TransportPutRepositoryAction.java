@@ -54,7 +54,6 @@ public class TransportPutRepositoryAction extends AcknowledgedTransportMasterNod
             threadPool,
             actionFilters,
             PutRepositoryRequest::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.repositoriesService = repositoriesService;

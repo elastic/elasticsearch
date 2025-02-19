@@ -14,12 +14,12 @@ import org.elasticsearch.test.ESTestCase;
 public class IntervalThrottlerTests extends ESTestCase {
 
     public void testThrottling() throws Exception {
-        var throttler = new IntervalThrottler.Acceptor(10);
+        var throttler = new IntervalThrottler.Acceptor(100);
         assertTrue(throttler.accept());
         assertFalse(throttler.accept());
         assertFalse(throttler.accept());
 
-        Thread.sleep(20);
+        Thread.sleep(110);
         assertTrue(throttler.accept());
         assertFalse(throttler.accept());
         assertFalse(throttler.accept());

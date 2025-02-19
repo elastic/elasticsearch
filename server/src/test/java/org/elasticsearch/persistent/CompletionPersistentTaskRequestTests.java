@@ -17,9 +17,9 @@ public class CompletionPersistentTaskRequestTests extends AbstractWireSerializin
     @Override
     protected Request createTestInstance() {
         if (randomBoolean()) {
-            return new Request(randomAlphaOfLength(10), randomNonNegativeLong(), null, null);
+            return new Request(randomTimeValue(), randomAlphaOfLength(10), randomNonNegativeLong(), null, null);
         } else {
-            return new Request(randomAlphaOfLength(10), randomNonNegativeLong(), null, randomAlphaOfLength(20));
+            return new Request(randomTimeValue(), randomAlphaOfLength(10), randomNonNegativeLong(), null, randomAlphaOfLength(20));
         }
     }
 

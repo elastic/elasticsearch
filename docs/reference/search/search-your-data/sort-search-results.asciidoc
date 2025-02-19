@@ -5,6 +5,8 @@ Allows you to add one or more sorts on specific fields. Each sort can be
 reversed as well. The sort is defined on a per field level, with special
 field name for `_score` to sort by score, and `_doc` to sort by index order.
 
+To optimize sorting performance, avoid sorting by <<text,`text`>>fields; instead, use <<keyword, `keyword`>> or <<number, `numerical`>> fields. Additionally, you can improve performance by enabling pre-sorting at index time using <<index-modules-index-sorting, index sorting>>. While this can speed up query-time sorting, it may reduce indexing performance and increase memory usage.
+
 Assuming the following index mapping:
 
 [source,console]

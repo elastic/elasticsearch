@@ -124,7 +124,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
     }
 
     protected void waitUntilAnalyticsIsStopped(String id) throws Exception {
-        waitUntilAnalyticsIsStopped(id, TimeValue.timeValueSeconds(60));
+        waitUntilAnalyticsIsStopped(id, TimeValue.timeValueSeconds(90));
     }
 
     protected void waitUntilAnalyticsIsStopped(String id, TimeValue waitTime) throws Exception {
@@ -404,7 +404,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
     }
 
     protected static void assertMlResultsFieldMappings(String index, String predictedClassField, String expectedType) {
-        Map<String, Object> mappings = client().execute(GetIndexAction.INSTANCE, new GetIndexRequest().indices(index))
+        Map<String, Object> mappings = client().execute(GetIndexAction.INSTANCE, new GetIndexRequest(TEST_REQUEST_TIMEOUT).indices(index))
             .actionGet()
             .mappings()
             .get(index)

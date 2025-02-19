@@ -56,7 +56,7 @@ public class IndexingMemoryController implements IndexingOperationListener, Clos
      * to set a floor on the actual size in bytes (default: 48 MB). */
     public static final Setting<ByteSizeValue> MIN_INDEX_BUFFER_SIZE_SETTING = Setting.byteSizeSetting(
         "indices.memory.min_index_buffer_size",
-        new ByteSizeValue(48, ByteSizeUnit.MB),
+        ByteSizeValue.of(48, ByteSizeUnit.MB),
         ByteSizeValue.ZERO,
         ByteSizeValue.ofBytes(Long.MAX_VALUE),
         Property.NodeScope

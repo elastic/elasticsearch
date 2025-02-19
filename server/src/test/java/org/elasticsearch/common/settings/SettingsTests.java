@@ -659,7 +659,7 @@ public class SettingsTests extends ESTestCase {
             "key",
             ByteSizeValue.parseBytesSizeValue(randomIntBetween(1, 16) + "k", "key")
         );
-        final ByteSizeValue expected = new ByteSizeValue(randomNonNegativeLong(), ByteSizeUnit.BYTES);
+        final ByteSizeValue expected = ByteSizeValue.of(randomNonNegativeLong(), ByteSizeUnit.BYTES);
         final Settings settings = Settings.builder().put("key", expected).build();
         /*
          * Previously we would internally convert the byte size value to a string using a method that tries to be smart about the units
@@ -701,6 +701,12 @@ public class SettingsTests extends ESTestCase {
         builder.endObject();
         assertEquals("""
             {"ant.bee":{"cat.dog":{"ewe":"value3"},"cat":"value2"},"ant":"value1"}""", Strings.toString(builder));
+    }
+
+    public void testGlobValues() throws IOException {
+        Settings test = Settings.builder().put("foo.x.bar", "1").put("foo.y.bar", "2").build();
+        var values = test.getGlobValues("foo.*.bar").toList();
+        assertThat(values, containsInAnyOrder("1", "2"));
     }
 
 }

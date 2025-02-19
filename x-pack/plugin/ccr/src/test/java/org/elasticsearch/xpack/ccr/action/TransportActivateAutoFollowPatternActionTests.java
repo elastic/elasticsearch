@@ -120,10 +120,10 @@ public class TransportActivateAutoFollowPatternActionTests extends ESTestCase {
             randomIntBetween(1, 100),
             randomIntBetween(1, 100),
             randomIntBetween(1, 100),
-            new ByteSizeValue(randomIntBetween(1, 100), randomFrom(ByteSizeUnit.values())),
-            new ByteSizeValue(randomIntBetween(1, 100), randomFrom(ByteSizeUnit.values())),
+            ByteSizeValue.of(randomIntBetween(1, 100), randomFrom(ByteSizeUnit.values())),
+            ByteSizeValue.of(randomIntBetween(1, 100), randomFrom(ByteSizeUnit.values())),
             randomIntBetween(1, 100),
-            new ByteSizeValue(randomIntBetween(1, 100), randomFrom(ByteSizeUnit.values())),
+            ByteSizeValue.of(randomIntBetween(1, 100), randomFrom(ByteSizeUnit.values())),
             TimeValue.timeValueSeconds(randomIntBetween(30, 600)),
             TimeValue.timeValueSeconds(randomIntBetween(30, 600))
         );

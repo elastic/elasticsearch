@@ -33,7 +33,7 @@ public class URLBlobStore implements BlobStore {
 
     static final Setting<ByteSizeValue> BUFFER_SIZE_SETTING = Setting.byteSizeSetting(
         "repositories.uri.buffer_size",
-        new ByteSizeValue(100, ByteSizeUnit.KB),
+        ByteSizeValue.of(100, ByteSizeUnit.KB),
         Setting.Property.NodeScope
     );
 

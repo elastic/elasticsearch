@@ -9,16 +9,17 @@
 
 package org.elasticsearch.index.engine;
 
+import com.carrotsearch.hppc.IntArrayList;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.ArrayUtil;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
-import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.translog.Translog;
@@ -66,7 +67,7 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
     private final Deque<Translog.Operation> operationQueue = new LinkedList<>();
 
     public LuceneSyntheticSourceChangesSnapshot(
-        MappingLookup mappingLookup,
+        MapperService mapperService,
         Engine.Searcher engineSearcher,
         int searchBatchSize,
         long maxMemorySizeInBytes,
@@ -76,13 +77,13 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
         boolean accessStats,
         IndexVersion indexVersionCreated
     ) throws IOException {
-        super(engineSearcher, searchBatchSize, fromSeqNo, toSeqNo, requiredFullRange, accessStats, indexVersionCreated);
+        super(mapperService, engineSearcher, searchBatchSize, fromSeqNo, toSeqNo, requiredFullRange, accessStats, indexVersionCreated);
         // a MapperService#updateMapping(...) of empty index may not have been invoked and then mappingLookup is empty
-        assert engineSearcher.getDirectoryReader().maxDoc() == 0 || mappingLookup.isSourceSynthetic()
+        assert engineSearcher.getDirectoryReader().maxDoc() == 0 || mapperService.mappingLookup().isSourceSynthetic()
             : "either an empty index or synthetic source must be enabled for proper functionality.";
         // ensure we can buffer at least one document
         this.maxMemorySizeInBytes = maxMemorySizeInBytes > 0 ? maxMemorySizeInBytes : 1;
-        this.sourceLoader = mappingLookup.newSourceLoader(null, SourceFieldMetrics.NOOP);
+        this.sourceLoader = mapperService.mappingLookup().newSourceLoader(null, SourceFieldMetrics.NOOP);
         Set<String> storedFields = sourceLoader.requiredStoredFields();
         this.storedFieldLoader = StoredFieldLoader.create(false, storedFields);
         this.lastSeenSeqNo = fromSeqNo - 1;
@@ -192,8 +193,29 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
                     maxDoc = leafReaderContext.reader().maxDoc();
                 } while (docRecord.docID() >= docBase + maxDoc);
 
-                leafFieldLoader = storedFieldLoader.getLoader(leafReaderContext, null);
-                leafSourceLoader = sourceLoader.leaf(leafReaderContext.reader(), null);
+                // TODO: instead of building an array, consider just checking whether doc ids are dense.
+                // Note, field loaders then would lose the ability to optionally eagerly loading values.
+                IntArrayList nextDocIds = new IntArrayList();
+                for (int j = i; j < documentRecords.size(); j++) {
+                    var record = documentRecords.get(j);
+                    if (record.isTombstone()) {
+                        continue;
+                    }
+                    int docID = record.docID();
+                    if (docID >= docBase + maxDoc) {
+                        break;
+                    }
+                    int segmentDocID = docID - docBase;
+                    nextDocIds.add(segmentDocID);
+                }
+
+                // This computed doc ids arrays us used by stored field loader as a heuristic to determine whether to use a sequential
+                // stored field reader (which bulk loads stored fields and avoids decompressing the same blocks multiple times). For
+                // source loader, it is also used as a heuristic for bulk reading doc values (E.g. SingletonDocValuesLoader).
+                int[] nextDocIdArray = nextDocIds.toArray();
+                leafFieldLoader = storedFieldLoader.getLoader(leafReaderContext, nextDocIdArray);
+                leafSourceLoader = sourceLoader.leaf(leafReaderContext.reader(), nextDocIdArray);
+                setNextSourceMetadataReader(leafReaderContext);
             }
             int segmentDocID = docRecord.docID() - docBase;
             leafFieldLoader.advanceTo(segmentDocID);
@@ -229,17 +251,16 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
                     return null;
                 }
             }
-            BytesReference source = sourceLoader.source(fieldLoader, segmentDocID).internalSourceRef();
+            var sourceBytes = addSourceMetadata(sourceLoader.source(fieldLoader, segmentDocID).internalSourceRef(), segmentDocID);
             return new Translog.Index(
                 fieldLoader.id(),
                 docRecord.seqNo(),
                 docRecord.primaryTerm(),
                 docRecord.version(),
-                source,
+                sourceBytes,
                 fieldLoader.routing(),
                 -1 // autogenerated timestamp
             );
         }
     }
-
 }

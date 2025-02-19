@@ -32,14 +32,7 @@ public class VotingOnlyUsageTransportAction extends XPackUsageFeatureTransportAc
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
-        super(
-            XPackUsageFeatureAction.VOTING_ONLY.name(),
-            transportService,
-            clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
-        );
+        super(XPackUsageFeatureAction.VOTING_ONLY.name(), transportService, clusterService, threadPool, actionFilters);
     }
 
     @Override

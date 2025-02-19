@@ -84,7 +84,6 @@ public class TransportPutTrainedModelAliasAction extends AcknowledgedTransportMa
             threadPool,
             actionFilters,
             PutTrainedModelAliasAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.licenseState = licenseState;

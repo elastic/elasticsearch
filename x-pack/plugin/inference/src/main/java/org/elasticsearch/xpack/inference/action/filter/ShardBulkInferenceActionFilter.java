@@ -35,6 +35,7 @@ import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.rest.RestStatus;
@@ -438,7 +439,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     useLegacyFormat ? inputs : null,
                     new SemanticTextField.InferenceResult(
                         inferenceFieldMetadata.getInferenceId(),
-                        model != null ? new SemanticTextField.ModelSettings(model) : null,
+                        model != null ? new MinimalServiceSettings(model) : null,
                         chunkMap
                     ),
                     indexRequest.getContentType()
@@ -481,7 +482,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     isUpdateRequest = true;
                     if (updateRequest.script() != null) {
                         addInferenceResponseFailure(
-                            item.id(),
+                            itemIndex,
                             new ElasticsearchStatusException(
                                 "Cannot apply update with a script on indices that contain [{}] field(s)",
                                 RestStatus.BAD_REQUEST,
@@ -539,7 +540,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         if (valueObj == null || valueObj == EXPLICIT_NULL) {
                             if (isUpdateRequest && useLegacyFormat) {
                                 addInferenceResponseFailure(
-                                    item.id(),
+                                    itemIndex,
                                     new ElasticsearchStatusException(
                                         "Field [{}] must be specified on an update request to calculate inference for field [{}]",
                                         RestStatus.BAD_REQUEST,
@@ -556,7 +557,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         try {
                             values = SemanticTextUtils.nodeStringValues(field, valueObj);
                         } catch (Exception exc) {
-                            addInferenceResponseFailure(item.id(), exc);
+                            addInferenceResponseFailure(itemIndex, exc);
                             break;
                         }
 

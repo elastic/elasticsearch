@@ -20,6 +20,7 @@ import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.FoldNull;
@@ -38,6 +39,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -49,33 +51,6 @@ import static org.hamcrest.Matchers.sameInstance;
  * which can be automatically tested against several scenarios (null handling, concurrency, etc).
  */
 public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTestCase {
-
-    /**
-     * Converts a list of test cases into a list of parameter suppliers.
-     * Also, adds a default set of extra test cases.
-     * <p>
-     *     Use if possible, as this method may get updated with new checks in the future.
-     * </p>
-     *
-     * @param entirelyNullPreservesType See {@link #anyNullIsNull(boolean, List)}
-     * @deprecated use {@link #parameterSuppliersFromTypedDataWithDefaultChecksNoErrors}
-     *             and make a subclass of {@link ErrorsForCasesWithoutExamplesTestCase}.
-     *             It's a <strong>long</strong> faster.
-     */
-    @Deprecated
-    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
-        boolean entirelyNullPreservesType,
-        List<TestCaseSupplier> suppliers,
-        PositionalErrorMessageSupplier positionalErrorMessageSupplier
-    ) {
-        return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(
-                anyNullIsNull(entirelyNullPreservesType, randomizeBytesRefsOffset(suppliers)),
-                positionalErrorMessageSupplier
-            )
-        );
-    }
-
     /**
      * Converts a list of test cases into a list of parameter suppliers.
      * Also, adds a default set of extra test cases.
@@ -103,18 +78,12 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
      * @param nullsExpectedType See {@link #anyNullIsNull(List, ExpectedType, ExpectedEvaluatorToString)}
      * @param evaluatorToString See {@link #anyNullIsNull(List, ExpectedType, ExpectedEvaluatorToString)}
      */
-    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecks(
+    protected static Iterable<Object[]> parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(
         ExpectedType nullsExpectedType,
         ExpectedEvaluatorToString evaluatorToString,
-        List<TestCaseSupplier> suppliers,
-        PositionalErrorMessageSupplier positionalErrorMessageSupplier
+        List<TestCaseSupplier> suppliers
     ) {
-        return parameterSuppliersFromTypedData(
-            errorsForCasesWithoutExamples(
-                anyNullIsNull(randomizeBytesRefsOffset(suppliers), nullsExpectedType, evaluatorToString),
-                positionalErrorMessageSupplier
-            )
-        );
+        return parameterSuppliersFromTypedData(anyNullIsNull(randomizeBytesRefsOffset(suppliers), nullsExpectedType, evaluatorToString));
     }
 
     public final void testEvaluate() {
@@ -132,7 +101,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         if (resolution.unresolved()) {
             throw new AssertionError("expected resolved " + resolution.message());
         }
-        expression = new FoldNull().rule(expression);
+        expression = new FoldNull().rule(expression, unboundLogicalOptimizerContext());
         assertThat(expression.dataType(), equalTo(testCase.expectedType()));
         logger.info("Result type: " + expression.dataType());
 
@@ -363,14 +332,18 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
             return;
         }
         assertFalse("expected resolved", expression.typeResolved().unresolved());
-        Expression nullOptimized = new FoldNull().rule(expression);
+        Expression nullOptimized = new FoldNull().rule(expression, unboundLogicalOptimizerContext());
         assertThat(nullOptimized.dataType(), equalTo(testCase.expectedType()));
         assertTrue(nullOptimized.foldable());
         if (testCase.foldingExceptionClass() == null) {
-            Object result = nullOptimized.fold();
+            Object result = nullOptimized.fold(FoldContext.small());
             // Decode unsigned longs into BigIntegers
             if (testCase.expectedType() == DataType.UNSIGNED_LONG && result != null) {
-                result = NumericUtils.unsignedLongAsBigInteger((Long) result);
+                if (result instanceof List<?> l) {
+                    result = l.stream().map(v -> NumericUtils.unsignedLongAsBigInteger((Long) v)).toList();
+                } else {
+                    result = NumericUtils.unsignedLongAsBigInteger((Long) result);
+                }
             }
             assertThat(result, testCase.getMatcher());
             if (testCase.getExpectedBuildEvaluatorWarnings() != null) {
@@ -380,7 +353,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                 assertWarnings(testCase.getExpectedWarnings());
             }
         } else {
-            Throwable t = expectThrows(testCase.foldingExceptionClass(), nullOptimized::fold);
+            Throwable t = expectThrows(testCase.foldingExceptionClass(), () -> nullOptimized.fold(FoldContext.small()));
             assertThat(t.getMessage(), equalTo(testCase.foldingExceptionMessage()));
         }
     }
@@ -419,7 +392,7 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
         String typeNameOverflow = dataType.typeName().toLowerCase(Locale.ROOT) + " overflow";
         return new TestCaseSupplier(
             "<" + typeNameOverflow + ">",
-            List.of(dataType),
+            List.of(dataType, dataType),
             () -> new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(lhsSupplier.get(), dataType, "lhs"),
@@ -428,8 +401,8 @@ public abstract class AbstractScalarFunctionTestCase extends AbstractFunctionTes
                 evaluator + "[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 dataType,
                 is(nullValue())
-            ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                .withWarning("Line -1:-1: java.lang.ArithmeticException: " + typeNameOverflow)
+            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("Line 1:1: java.lang.ArithmeticException: " + typeNameOverflow)
         );
     }
 }

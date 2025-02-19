@@ -927,7 +927,8 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         ByteSizeValue targetFloor = DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING.get(clusterSettings);
 
         assertBusy(() -> {
-            GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(firstGenerationIndex).includeDefaults(true);
+            GetSettingsRequest getSettingsRequest = new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(firstGenerationIndex)
+                .includeDefaults(true);
             GetSettingsResponse getSettingsResponse = client().execute(GetSettingsAction.INSTANCE, getSettingsRequest).actionGet();
             assertThat(
                 getSettingsResponse.getSetting(firstGenerationIndex, MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey()),
@@ -961,7 +962,8 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         String secondGenerationIndex = getBackingIndices(dataStreamName).get(1);
         // check the 2nd generation index picked up the new setting values
         assertBusy(() -> {
-            GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(secondGenerationIndex).includeDefaults(true);
+            GetSettingsRequest getSettingsRequest = new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(secondGenerationIndex)
+                .includeDefaults(true);
             GetSettingsResponse getSettingsResponse = client().execute(GetSettingsAction.INSTANCE, getSettingsRequest).actionGet();
             assertThat(
                 getSettingsResponse.getSetting(secondGenerationIndex, MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey()),
@@ -1084,7 +1086,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
             List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
             assertThat(backingIndices.size(), equalTo(1));
-            List<Index> failureIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getFailureIndices().getIndices();
+            List<Index> failureIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getFailureIndices();
             assertThat(failureIndices.size(), equalTo(2));
         });
 
@@ -1103,7 +1105,8 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         ByteSizeValue targetFloor = DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING.get(clusterSettings);
 
         assertBusy(() -> {
-            GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(firstGenerationIndex).includeDefaults(true);
+            GetSettingsRequest getSettingsRequest = new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(firstGenerationIndex)
+                .includeDefaults(true);
             GetSettingsResponse getSettingsResponse = client().execute(GetSettingsAction.INSTANCE, getSettingsRequest).actionGet();
             assertThat(
                 getSettingsResponse.getSetting(firstGenerationIndex, MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey()),
@@ -1129,7 +1132,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
             List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
             assertThat(backingIndices.size(), equalTo(1));
-            List<Index> failureIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getFailureIndices().getIndices();
+            List<Index> failureIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getFailureIndices();
             assertThat(failureIndices.size(), equalTo(1));
             assertThat(failureIndices.get(0).getName(), equalTo(secondGenerationIndex));
         });
@@ -1156,14 +1159,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             .actionGet();
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
-        return getDataStreamResponse.getDataStreams()
-            .get(0)
-            .getDataStream()
-            .getFailureIndices()
-            .getIndices()
-            .stream()
-            .map(Index::getName)
-            .toList();
+        return getDataStreamResponse.getDataStreams().get(0).getDataStream().getFailureIndices().stream().map(Index::getName).toList();
     }
 
     static void indexDocs(String dataStream, int numDocs) {

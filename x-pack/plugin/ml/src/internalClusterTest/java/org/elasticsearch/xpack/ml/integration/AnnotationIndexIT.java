@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.SetResetModeActionRequest;
@@ -321,7 +322,7 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
     }
 
     private boolean annotationsIndexExists(String expectedName) {
-        GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex()
+        GetIndexResponse getIndexResponse = indicesAdmin().prepareGetIndex(TEST_REQUEST_TIMEOUT)
             .setIndices(AnnotationIndex.LATEST_INDEX_NAME)
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
             .get();
@@ -363,7 +364,12 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
     }
 
     private void createNotification(boolean includeNodeInfo) {
-        AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client(), getInstanceFromNode(ClusterService.class), includeNodeInfo);
+        AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(
+            client(),
+            getInstanceFromNode(ClusterService.class),
+            TestIndexNameExpressionResolver.newInstance(),
+            includeNodeInfo
+        );
         auditor.info("whatever", "blah");
     }
 }

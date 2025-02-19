@@ -56,7 +56,6 @@ public class TransportDeleteDesiredNodesAction extends TransportMasterNodeAction
             threadPool,
             actionFilters,
             AcknowledgedRequest.Plain::new,
-            indexNameExpressionResolver,
             in -> ActionResponse.Empty.INSTANCE,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

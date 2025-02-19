@@ -38,7 +38,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.vectors.ES813FlatVectorFormat;
@@ -107,10 +106,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static boolean isNotUnitVector(float magnitude) {
         return Math.abs(magnitude - 1.0f) > EPS;
     }
-
-    public static final NodeFeature INT4_QUANTIZATION = new NodeFeature("mapper.vectors.int4_quantization", true);
-    public static final NodeFeature BIT_VECTORS = new NodeFeature("mapper.vectors.bit_vectors", true);
-    public static final NodeFeature BBQ_FORMAT = new NodeFeature("mapper.vectors.bbq", true);
 
     public static final IndexVersion MAGNITUDE_STORED_INDEX_VERSION = IndexVersions.V_7_5_0;
     public static final IndexVersion INDEXED_BY_DEFAULT_INDEX_VERSION = IndexVersions.FIRST_DETACHED_INDEX_VERSION;
@@ -2377,11 +2372,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
-        var loader = fieldType().indexed
-            ? new IndexedSyntheticFieldLoader(indexCreatedVersion, fieldType().similarity)
-            : new DocValuesSyntheticFieldLoader(indexCreatedVersion);
-
-        return new SyntheticSourceSupport.Native(loader);
+        return new SyntheticSourceSupport.Native(
+            () -> fieldType().indexed
+                ? new IndexedSyntheticFieldLoader(indexCreatedVersion, fieldType().similarity)
+                : new DocValuesSyntheticFieldLoader(indexCreatedVersion)
+        );
     }
 
     private class IndexedSyntheticFieldLoader extends SourceLoader.DocValuesBasedSyntheticFieldLoader {
@@ -2409,6 +2404,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
                 KnnVectorValues.DocIndexIterator iterator = values.iterator();
                 return docId -> {
+                    if (iterator.docID() > docId) {
+                        return hasValue = false;
+                    }
+                    if (iterator.docID() == docId) {
+                        return hasValue = true;
+                    }
                     hasValue = docId == iterator.advance(docId);
                     hasMagnitude = hasValue && magnitudeReader != null && magnitudeReader.advanceExact(docId);
                     ord = iterator.index();
@@ -2419,6 +2420,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (byteVectorValues != null) {
                 KnnVectorValues.DocIndexIterator iterator = byteVectorValues.iterator();
                 return docId -> {
+                    if (iterator.docID() > docId) {
+                        return hasValue = false;
+                    }
+                    if (iterator.docID() == docId) {
+                        return hasValue = true;
+                    }
                     hasValue = docId == iterator.advance(docId);
                     ord = iterator.index();
                     return hasValue;
@@ -2481,6 +2488,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return null;
             }
             return docId -> {
+                if (values.docID() > docId) {
+                    return hasValue = false;
+                }
+                if (values.docID() == docId) {
+                    return hasValue = true;
+                }
                 hasValue = docId == values.advance(docId);
                 return hasValue;
             };

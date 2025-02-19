@@ -161,7 +161,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         IndexMetadata dataStreamFailureStore1 = DataStreamTestHelper.createFailureStore(dataStreamName, 1).build();
         IndexMetadata dataStreamFailureStore2 = DataStreamTestHelper.createFailureStore(dataStreamName, 2).build();
         IndexMetadata dataStreamIndex3 = DataStreamTestHelper.createBackingIndex(otherDataStreamName, 1).build();
-        Metadata metadata = Metadata.builder()
+        Metadata.Builder metadataBuilder = Metadata.builder()
             .put(
                 indexBuilder("foo").putAlias(AliasMetadata.builder("foofoobar"))
                     .putAlias(AliasMetadata.builder("foounauthorized"))
@@ -219,23 +219,27 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             .put(dataStreamIndex1, true)
             .put(dataStreamIndex2, true)
             .put(dataStreamIndex3, true)
-            .put(dataStreamFailureStore1, true)
-            .put(dataStreamFailureStore2, true)
-            .put(
-                newInstance(
-                    dataStreamName,
-                    List.of(dataStreamIndex1.getIndex(), dataStreamIndex2.getIndex()),
-                    List.of(dataStreamFailureStore1.getIndex(), dataStreamFailureStore2.getIndex())
-                )
-            )
             .put(newInstance(otherDataStreamName, List.of(dataStreamIndex3.getIndex())))
-            .put(indexBuilder(securityIndexName).settings(settings))
-            .build();
+            .put(indexBuilder(securityIndexName).settings(settings));
 
-        if (withAlias) {
-            metadata = SecurityTestUtils.addAliasToMetadata(metadata, securityIndexName);
+        // Only add the failure indices if the failure store flag is enabled
+        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+            metadataBuilder.put(dataStreamFailureStore1, true).put(dataStreamFailureStore2, true);
         }
-        this.metadata = metadata;
+        metadataBuilder.put(
+            newInstance(
+                dataStreamName,
+                List.of(dataStreamIndex1.getIndex(), dataStreamIndex2.getIndex()),
+                DataStream.isFailureStoreFeatureFlagEnabled()
+                    ? List.of(dataStreamFailureStore1.getIndex(), dataStreamFailureStore2.getIndex())
+                    : List.of()
+            )
+        );
+        if (withAlias) {
+            this.metadata = SecurityTestUtils.addAliasToMetadata(metadataBuilder.build(), securityIndexName);
+        } else {
+            this.metadata = metadataBuilder.build();
+        }
 
         user = new User("user", "role");
         userDashIndices = new User("dash", "dash");
@@ -457,22 +461,6 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             throwableWithMessage(
                 "the action indices:data/read/search[s] does not support wildcards;"
                     + " the provided index expression(s) [index*::data] are not allowed"
-            )
-        );
-    }
-
-    public void testWildcardSelectorsAreNotAllowedInShardLevelRequests() {
-        ShardSearchRequest request = mock(ShardSearchRequest.class);
-        when(request.indices()).thenReturn(new String[] { "index10::*" });
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> defaultIndicesResolver.resolveIndicesAndAliasesWithoutWildcards(TransportSearchAction.TYPE.name() + "[s]", request)
-        );
-        assertThat(
-            exception,
-            throwableWithMessage(
-                "the action indices:data/read/search[s] does not support wildcard selectors;"
-                    + " the provided index expression(s) [index10::*] are not allowed"
             )
         );
     }
@@ -2367,7 +2355,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testBackingIndicesAreVisibleWhenIncludedByRequestWithWildcard() {
         final User user = new User("data-stream-tester3", "data_stream_test3");
-        boolean failureStore = randomBoolean();
+        boolean failureStore = runFailureStore();
         SearchRequest request = new SearchRequest(failureStore ? ".fs-logs*" : ".ds-logs*");
         assertThat(request, instanceOf(IndicesRequest.Replaceable.class));
         assertThat(request.includeDataStreams(), is(true));
@@ -2383,7 +2371,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
                 assertThat(authorizedIndices.check(i.getName()), is(true));
             }
-            for (Index i : dataStream.getFailureIndices().getIndices()) {
+            for (Index i : dataStream.getFailureIndices()) {
                 assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
                 assertThat(authorizedIndices.check(i.getName()), is(true));
             }
@@ -2423,7 +2411,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
             assertThat(authorizedIndices.check(i.getName()), is(true));
         }
-        for (Index i : dataStream.getFailureIndices().getIndices()) {
+        for (Index i : dataStream.getFailureIndices()) {
             assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
             assertThat(authorizedIndices.check(i.getName()), is(true));
         }
@@ -2440,14 +2428,14 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         for (Index i : dataStream.getIndices()) {
             assertThat(resolvedIndices.getLocal(), hasItem(i.getName()));
         }
-        for (Index i : dataStream.getFailureIndices().getIndices()) {
+        for (Index i : dataStream.getFailureIndices()) {
             assertThat(resolvedIndices.getLocal(), hasItem(i.getName()));
         }
     }
 
     public void testDataStreamNotAuthorizedWhenBackingIndicesAreAuthorizedViaWildcardAndRequestThatIncludesDataStreams() {
         final User user = new User("data-stream-tester2", "backing_index_test_wildcards");
-        boolean failureStore = randomBoolean();
+        boolean failureStore = runFailureStore();
         String indexName = failureStore ? ".fs-logs-foobar-*" : ".ds-logs-foobar-*";
         SearchRequest request = new SearchRequest(indexName);
         assertThat(request, instanceOf(IndicesRequest.Replaceable.class));
@@ -2466,7 +2454,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
             assertThat(authorizedIndices.check(i.getName()), is(true));
         }
-        for (Index i : dataStream.getFailureIndices().getIndices()) {
+        for (Index i : dataStream.getFailureIndices()) {
             assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
             assertThat(authorizedIndices.check(i.getName()), is(true));
         }
@@ -2487,7 +2475,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testDataStreamNotAuthorizedWhenBackingIndicesAreAuthorizedViaNameAndRequestThatIncludesDataStreams() {
         final User user = new User("data-stream-tester2", "backing_index_test_name");
-        boolean failureStore = randomBoolean();
+        boolean failureStore = runFailureStore();
         String indexName = failureStore ? ".fs-logs-foobar-*" : ".ds-logs-foobar-*";
         SearchRequest request = new SearchRequest(indexName);
         assertThat(request, instanceOf(IndicesRequest.Replaceable.class));
@@ -2519,7 +2507,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testDataStreamNotAuthorizedWhenBackingIndicesAreAuthorizedViaWildcardAndRequestThatExcludesDataStreams() {
         final User user = new User("data-stream-tester2", "backing_index_test_wildcards");
-        boolean failureStore = randomBoolean();
+        boolean failureStore = runFailureStore();
         String indexName = failureStore ? ".fs-logs-foobar-*" : ".ds-logs-foobar-*";
         GetAliasesRequest request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT, indexName);
         assertThat(request, instanceOf(IndicesRequest.Replaceable.class));
@@ -2538,7 +2526,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
             assertThat(authorizedIndices.check(i.getName()), is(true));
         }
-        for (Index i : dataStream.getFailureIndices().getIndices()) {
+        for (Index i : dataStream.getFailureIndices()) {
             assertThat(authorizedIndices.all().get(), hasItem(i.getName()));
             assertThat(authorizedIndices.check(i.getName()), is(true));
         }
@@ -2559,7 +2547,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testDataStreamNotAuthorizedWhenBackingIndicesAreAuthorizedViaNameAndRequestThatExcludesDataStreams() {
         final User user = new User("data-stream-tester2", "backing_index_test_name");
-        boolean failureStore = randomBoolean();
+        boolean failureStore = runFailureStore();
         String indexName = failureStore ? ".fs-logs-foobar-*" : ".ds-logs-foobar-*";
         GetAliasesRequest request = new GetAliasesRequest(TEST_REQUEST_TIMEOUT, indexName);
         assertThat(request, instanceOf(IndicesRequest.Replaceable.class));
@@ -2673,5 +2661,9 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     private void assertSameValues(List<String> indices, String[] expectedIndices) {
         assertThat(indices.stream().distinct().count(), equalTo((long) expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
+    }
+
+    private boolean runFailureStore() {
+        return DataStream.isFailureStoreFeatureFlagEnabled() && randomBoolean();
     }
 }

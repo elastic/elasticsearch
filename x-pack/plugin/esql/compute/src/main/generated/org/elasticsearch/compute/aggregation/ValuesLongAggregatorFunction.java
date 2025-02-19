@@ -19,7 +19,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link ValuesLongAggregator}.
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code AggregatorImplementer} instead.
  */
 public final class ValuesLongAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(

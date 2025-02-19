@@ -22,7 +22,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -101,9 +100,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         this.dataPath = in.getTransportVersion().onOrAfter(DATA_PATH_NEW_KEY_VERSION)
             ? in.readImmutableMap(NodeAndShard::new, StreamInput::readString)
             : in.readImmutableMap(nested -> NodeAndShard.from(new ShardRouting(nested)), StreamInput::readString);
-        this.reservedSpace = in.getTransportVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)
-            ? in.readImmutableMap(NodeAndPath::new, ReservedSpace::new)
-            : Map.of();
+        this.reservedSpace = in.readImmutableMap(NodeAndPath::new, ReservedSpace::new);
     }
 
     @Override
@@ -119,9 +116,7 @@ public class ClusterInfo implements ChunkedToXContent, Writeable {
         } else {
             out.writeMap(this.dataPath, (o, k) -> createFakeShardRoutingFromNodeAndShard(k).writeTo(o), StreamOutput::writeString);
         }
-        if (out.getTransportVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
-            out.writeMap(this.reservedSpace);
-        }
+        out.writeMap(this.reservedSpace);
     }
 
     /**

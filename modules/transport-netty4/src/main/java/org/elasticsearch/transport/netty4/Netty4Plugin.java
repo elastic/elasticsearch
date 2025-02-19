@@ -57,7 +57,7 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
     );
     public static final Setting<ByteSizeValue> SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE = byteSizeSetting(
         "http.netty.receive_predictor_size",
-        new ByteSizeValue(64, ByteSizeUnit.KB),
+        ByteSizeValue.of(64, ByteSizeUnit.KB),
         Setting.Property.NodeScope
     );
     public static final Setting<Integer> WORKER_COUNT = new Setting<>(
@@ -68,7 +68,7 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
     );
     private static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_SIZE = byteSizeSetting(
         "transport.netty.receive_predictor_size",
-        new ByteSizeValue(64, ByteSizeUnit.KB),
+        ByteSizeValue.of(64, ByteSizeUnit.KB),
         Setting.Property.NodeScope
     );
     public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_MAX = byteSizeSetting(

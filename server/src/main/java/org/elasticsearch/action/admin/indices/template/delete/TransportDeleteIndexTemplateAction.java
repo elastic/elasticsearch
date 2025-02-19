@@ -53,7 +53,6 @@ public class TransportDeleteIndexTemplateAction extends AcknowledgedTransportMas
             threadPool,
             actionFilters,
             DeleteIndexTemplateRequest::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexTemplateService = indexTemplateService;

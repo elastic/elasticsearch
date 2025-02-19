@@ -126,6 +126,7 @@ import org.elasticsearch.xpack.core.ml.stats.ForecastStats;
 import org.elasticsearch.xpack.core.ml.stats.StatsAccumulator;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.categorization.GrokPatternCreator;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder.InfluencersQuery;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
@@ -392,7 +393,10 @@ public class JobResultsProvider {
             addTermsMapping(indexMappings, indexName, termFields, listener);
         }, listener::onFailure);
 
-        GetMappingsRequest getMappingsRequest = client.admin().indices().prepareGetMappings(indexName).request();
+        GetMappingsRequest getMappingsRequest = client.admin()
+            .indices()
+            .prepareGetMappings(MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT, indexName)
+            .request();
         executeAsyncWithOrigin(
             client.threadPool().getThreadContext(),
             ML_ORIGIN,

@@ -33,12 +33,12 @@ import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.AnyOperatorTestCase;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
-import org.elasticsearch.compute.operator.OperatorTestCase;
-import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
+import org.elasticsearch.compute.test.AnyOperatorTestCase;
+import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
@@ -174,6 +174,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         var metricField = new NumberFieldMapper.NumberFieldType("metric", NumberFieldMapper.NumberType.LONG);
         OperatorTestCase.runDriver(
             new Driver(
+                "test",
                 driverContext,
                 timeSeriesFactory.get(driverContext),
                 List.of(ValuesSourceReaderOperatorTests.factory(reader, metricField, ElementType.LONG).get(driverContext)),
@@ -248,6 +249,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
                 List<Page> results = new ArrayList<>();
                 OperatorTestCase.runDriver(
                     new Driver(
+                        "test",
                         driverContext,
                         timeSeriesFactory.get(driverContext),
                         List.of(),
@@ -306,6 +308,7 @@ public class TimeSeriesSortedSourceOperatorTests extends AnyOperatorTestCase {
         var hostnameField = new KeywordFieldMapper.KeywordFieldType("hostname");
         OperatorTestCase.runDriver(
             new Driver(
+                "test",
                 ctx,
                 timeSeriesFactory.get(ctx),
                 List.of(

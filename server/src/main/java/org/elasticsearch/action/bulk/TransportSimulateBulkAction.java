@@ -83,15 +83,6 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.fi
  * shards are not actually modified).
  */
 public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
-    public static final NodeFeature SIMULATE_MAPPING_VALIDATION = new NodeFeature("simulate.mapping.validation", true);
-    public static final NodeFeature SIMULATE_MAPPING_VALIDATION_TEMPLATES = new NodeFeature("simulate.mapping.validation.templates", true);
-    public static final NodeFeature SIMULATE_COMPONENT_TEMPLATE_SUBSTITUTIONS = new NodeFeature(
-        "simulate.component.template.substitutions",
-        true
-    );
-    public static final NodeFeature SIMULATE_INDEX_TEMPLATE_SUBSTITUTIONS = new NodeFeature("simulate.index.template.substitutions", true);
-    public static final NodeFeature SIMULATE_MAPPING_ADDITION = new NodeFeature("simulate.mapping.addition", true);
-    public static final NodeFeature SIMULATE_SUPPORT_NON_TEMPLATE_MAPPING = new NodeFeature("simulate.support.non.template.mapping", true);
     public static final NodeFeature SIMULATE_IGNORED_FIELDS = new NodeFeature("simulate.ignored.fields");
 
     private final IndicesService indicesService;
@@ -196,6 +187,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
             request.getContentType(),
             request.routing(),
             request.getDynamicTemplates(),
+            request.getIncludeSourceOnError(),
             XContentMeteringParserDecorator.NOOP
         );
 

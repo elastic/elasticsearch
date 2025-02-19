@@ -46,6 +46,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
@@ -53,7 +54,6 @@ import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -162,7 +162,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic")
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic")
             .build();
         IndexMetadata metadata = IndexMetadata.builder(shardRouting.getIndexName()).settings(settings).primaryTerm(0, primaryTerm).build();
         IndexShard shard = newShard(shardRouting, metadata, null, new InternalEngineFactory());

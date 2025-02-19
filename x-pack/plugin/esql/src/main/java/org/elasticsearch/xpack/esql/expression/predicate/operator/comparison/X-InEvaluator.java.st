@@ -42,7 +42,7 @@ import java.util.BitSet;
  * {@link EvalOperator.ExpressionEvaluator} implementation for {@link In}.
  * This class is generated. Edit {@code X-InEvaluator.java.st} instead.
  */
-public class In$Type$Evaluator implements EvalOperator.ExpressionEvaluator {
+public class In$Name$Evaluator implements EvalOperator.ExpressionEvaluator {
     private final Source source;
 
     private final EvalOperator.ExpressionEvaluator lhs;
@@ -53,7 +53,7 @@ public class In$Type$Evaluator implements EvalOperator.ExpressionEvaluator {
 
     private Warnings warnings;
 
-    public In$Type$Evaluator(
+    public In$Name$Evaluator(
         Source source,
         EvalOperator.ExpressionEvaluator lhs,
         EvalOperator.ExpressionEvaluator[] rhs,
@@ -166,6 +166,9 @@ $if(boolean)$
                 foundMatch = lhsBlock.getBoolean(lhsBlock.getFirstValueIndex(p)) ? hasTrue : hasFalse;
 $elseif(BytesRef)$
                 foundMatch = In.process(nulls, mvs, lhsBlock.getBytesRef(lhsBlock.getFirstValueIndex(p), lhsScratch), rhsValues);
+$elseif(NanosMillis)$
+                // Even though these are longs, they're in different units and need special handling
+                foundMatch = In.processNanosMilils(nulls, mvs, lhsBlock.get$Type$(lhsBlock.getFirstValueIndex(p)), rhsValues);
 $else$
                 foundMatch = In.process(nulls, mvs, lhsBlock.get$Type$(lhsBlock.getFirstValueIndex(p)), rhsValues);
 $endif$
@@ -230,6 +233,10 @@ $if(BytesRef)$
                 result.appendBoolean(In.process(null, null, lhsVector.getBytesRef(p, lhsScratch), rhsValues));
 $elseif(boolean)$
                 result.appendBoolean(lhsVector.getBoolean(p) ? hasTrue : hasFalse);
+$elseif(nanosMillis)$
+                result.appendBoolean(In.processNanosMillis(null, null, lhsVector.get$Type$(p), rhsValues));
+$elseif(millisNanos)$
+                result.appendBoolean(In.processMillisNanos(null, null, lhsVector.get$Type$(p), rhsValues));
 $else$
                 result.appendBoolean(In.process(null, null, lhsVector.get$Type$(p), rhsValues));
 $endif$
@@ -240,7 +247,7 @@ $endif$
 
     @Override
     public String toString() {
-        return "In$Type$Evaluator[" + "lhs=" + lhs + ", rhs=" + Arrays.toString(rhs) + "]";
+        return "In$Name$Evaluator[" + "lhs=" + lhs + ", rhs=" + Arrays.toString(rhs) + "]";
     }
 
     @Override
@@ -272,16 +279,16 @@ $endif$
         }
 
         @Override
-        public In$Type$Evaluator get(DriverContext context) {
+        public In$Name$Evaluator get(DriverContext context) {
             EvalOperator.ExpressionEvaluator[] rhs = Arrays.stream(this.rhs)
                 .map(a -> a.get(context))
                 .toArray(EvalOperator.ExpressionEvaluator[]::new);
-            return new In$Type$Evaluator(source, lhs.get(context), rhs, context);
+            return new In$Name$Evaluator(source, lhs.get(context), rhs, context);
         }
 
         @Override
         public String toString() {
-            return "In$Type$Evaluator[" + "lhs=" + lhs + ", rhs=" + Arrays.toString(rhs) + "]";
+            return "In$Name$Evaluator[" + "lhs=" + lhs + ", rhs=" + Arrays.toString(rhs) + "]";
         }
     }
 }

@@ -45,12 +45,7 @@ public class TermTests extends AbstractFunctionTestCase {
             }
         }
 
-        List<TestCaseSupplier> suppliersWithErrors = errorsForCasesWithoutExamples(suppliers, (v, p) -> "string");
-
-        // Don't test null, as it is not allowed but the expected message is not a type error - so we check it separately in VerifierTests
-        return parameterSuppliersFromTypedData(
-            suppliersWithErrors.stream().filter(s -> s.types().contains(DataType.NULL) == false).toList()
-        );
+        return parameterSuppliersFromTypedData(suppliers);
     }
 
     protected static List<Set<DataType>> supportedParams() {
@@ -127,6 +122,6 @@ public class TermTests extends AbstractFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Match(source, args.get(0), args.get(1));
+        return new Match(source, args.get(0), args.get(1), args.size() > 2 ? args.get(2) : null);
     }
 }

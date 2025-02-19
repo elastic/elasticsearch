@@ -342,9 +342,17 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         assertThat(recoveryStats.currentAsSource(), equalTo(0));
         assertThat(recoveryStats.currentAsTarget(), equalTo(0));
         if (isRecoveryThrottlingNode) {
-            assertThat("Throttling should be >0 for '" + nodeName + "'", recoveryStats.throttleTime().millis(), greaterThan(0L));
+            assertThat(
+                "Throttling should be >0 for '" + nodeName + "'. Node stats: " + nodesStatsResponse,
+                recoveryStats.throttleTime().millis(),
+                greaterThan(0L)
+            );
         } else {
-            assertThat("Throttling should be =0 for '" + nodeName + "'", recoveryStats.throttleTime().millis(), equalTo(0L));
+            assertThat(
+                "Throttling should be =0 for '" + nodeName + "'. Node stats: " + nodesStatsResponse,
+                recoveryStats.throttleTime().millis(),
+                equalTo(0L)
+            );
         }
     }
 
@@ -1967,7 +1975,14 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         internalCluster().startMasterOnlyNode();
         final var dataNode = internalCluster().startDataOnlyNode();
         final var indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(1, 0).put(INDEX_MERGE_ENABLED, false).build());
+        final var indexSettingsBuilder = indexSettings(1, 0).put(INDEX_MERGE_ENABLED, false);
+        if (randomBoolean()) {
+            indexSettingsBuilder.put(
+                IndexMetadata.SETTING_VERSION_CREATED,
+                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.UPGRADE_TO_LUCENE_10_0_0, IndexVersion.current())
+            );
+        }
+        createIndex(indexName, indexSettingsBuilder.build());
 
         final var initialSegmentCount = 20;
         for (int i = 0; i < initialSegmentCount; i++) {
@@ -2051,7 +2066,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                     IndexVersionUtils.randomVersionBetween(
                         random(),
                         IndexVersionUtils.getLowestWriteCompatibleVersion(),
-                        IndexVersionUtils.getPreviousVersion(IndexVersions.MERGE_ON_RECOVERY_VERSION)
+                        IndexVersionUtils.getPreviousVersion(IndexVersions.UPGRADE_TO_LUCENE_10_0_0)
                     )
                 )
                 .build()

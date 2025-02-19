@@ -1451,67 +1451,6 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         assertEquals("text_field", putConfig.getInput().getFieldNames().get(0));
     }
 
-    public void testParseRequestConfigEland_SetsDimensionsToOne() {
-        var client = mock(Client.class);
-        doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<InferModelAction.Response> listener = (ActionListener<InferModelAction.Response>) invocationOnMock
-                .getArguments()[2];
-            listener.onResponse(
-                new InferModelAction.Response(List.of(new MlTextEmbeddingResults("field", new double[] { 0.1 }, false)), "id", true)
-            );
-
-            var request = (InferModelAction.Request) invocationOnMock.getArguments()[1];
-            assertThat(request.getId(), is("custom-model"));
-            return Void.TYPE;
-        }).when(client).execute(eq(InferModelAction.INSTANCE), any(), any());
-        when(client.threadPool()).thenReturn(threadPool);
-
-        var service = createService(client);
-
-        var serviceSettings = new CustomElandInternalTextEmbeddingServiceSettings(
-            1,
-            4,
-            "custom-model",
-            null,
-            null,
-            1,
-            SimilarityMeasure.COSINE,
-            DenseVectorFieldMapper.ElementType.FLOAT
-        );
-        var taskType = TaskType.TEXT_EMBEDDING;
-        var expectedModel = new CustomElandEmbeddingModel(
-            randomInferenceEntityId,
-            taskType,
-            ElasticsearchInternalService.NAME,
-            serviceSettings,
-            null
-        );
-
-        PlainActionFuture<Model> listener = new PlainActionFuture<>();
-        service.checkModelConfig(
-            new CustomElandEmbeddingModel(
-                randomInferenceEntityId,
-                taskType,
-                ElasticsearchInternalService.NAME,
-                new CustomElandInternalTextEmbeddingServiceSettings(
-                    1,
-                    4,
-                    "custom-model",
-                    null,
-                    null,
-                    null,
-                    SimilarityMeasure.COSINE,
-                    DenseVectorFieldMapper.ElementType.FLOAT
-                ),
-                null
-            ),
-            listener
-        );
-        var model = listener.actionGet(TimeValue.THIRTY_SECONDS);
-        assertThat(model, is(expectedModel));
-    }
-
     public void testModelVariantDoesNotMatchArchitecturesAndIsNotPlatformAgnostic() {
         {
             assertFalse(

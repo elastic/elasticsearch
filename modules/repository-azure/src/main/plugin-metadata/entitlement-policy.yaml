@@ -10,4 +10,4 @@ com.azure.identity:
   - files:
     - relative_path: ""
       relative_to: home
-      mode: read
+      mode: read_write

@@ -59,6 +59,7 @@ public abstract class Rounding implements Writeable {
         WEEK_OF_WEEKYEAR((byte) 1, "week", IsoFields.WEEK_OF_WEEK_BASED_YEAR, true, TimeUnit.DAYS.toMillis(7)) {
             private final long extraLocalOffsetLookup = TimeUnit.DAYS.toMillis(7);
 
+            @Override
             long roundFloor(long utcMillis, int multiplier) {
                 return DateUtils.roundWeekIntervalOfWeekYear(utcMillis, multiplier);
             }
@@ -71,10 +72,12 @@ public abstract class Rounding implements Writeable {
         YEAR_OF_CENTURY((byte) 2, "year", ChronoField.YEAR_OF_ERA, false, 12) {
             private final long extraLocalOffsetLookup = TimeUnit.DAYS.toMillis(366);
 
+            @Override
             long roundFloor(long utcMillis, int multiplier) {
                 return DateUtils.roundYearInterval(utcMillis, multiplier);
             }
 
+            @Override
             long extraLocalOffsetLookup() {
                 return extraLocalOffsetLookup;
             }
@@ -82,12 +85,14 @@ public abstract class Rounding implements Writeable {
         QUARTER_OF_YEAR((byte) 3, "quarter", IsoFields.QUARTER_OF_YEAR, false, 3) {
             private final long extraLocalOffsetLookup = TimeUnit.DAYS.toMillis(92);
 
+            @Override
             long roundFloor(long utcMillis, int multiplier) {
                 return multiplier == 1
                     ? DateUtils.roundQuarterOfYear(utcMillis)
                     : DateUtils.roundIntervalMonthOfYear(utcMillis, multiplier * 3);
             }
 
+            @Override
             long extraLocalOffsetLookup() {
                 return extraLocalOffsetLookup;
             }
@@ -95,6 +100,7 @@ public abstract class Rounding implements Writeable {
         MONTH_OF_YEAR((byte) 4, "month", ChronoField.MONTH_OF_YEAR, false, 1) {
             private final long extraLocalOffsetLookup = TimeUnit.DAYS.toMillis(31);
 
+            @Override
             long roundFloor(long utcMillis, int multiplier) {
                 if (multiplier == 1) {
                     return DateUtils.roundMonthOfYear(utcMillis);
@@ -102,24 +108,29 @@ public abstract class Rounding implements Writeable {
                 return DateUtils.roundIntervalMonthOfYear(utcMillis, multiplier);
             }
 
+            @Override
             long extraLocalOffsetLookup() {
                 return extraLocalOffsetLookup;
             }
         },
         DAY_OF_MONTH((byte) 5, "day", ChronoField.DAY_OF_MONTH, true, ChronoField.DAY_OF_MONTH.getBaseUnit().getDuration().toMillis()) {
+            @Override
             long roundFloor(long utcMillis, int multiplier) {
                 return DateUtils.roundFloor(utcMillis, this.ratio * multiplier);
             }
 
+            @Override
             long extraLocalOffsetLookup() {
                 return ratio;
             }
         },
         HOUR_OF_DAY((byte) 6, "hour", ChronoField.HOUR_OF_DAY, true, ChronoField.HOUR_OF_DAY.getBaseUnit().getDuration().toMillis()) {
+            @Override
             long roundFloor(long utcMillis, int multiplier) {
                 return DateUtils.roundFloor(utcMillis, ratio * multiplier);
             }
 
+            @Override
             long extraLocalOffsetLookup() {
                 return ratio;
             }
@@ -131,10 +142,12 @@ public abstract class Rounding implements Writeable {
             true,
             ChronoField.MINUTE_OF_HOUR.getBaseUnit().getDuration().toMillis()
         ) {
+            @Override
             long roundFloor(long utcMillis, int multiplier) {
                 return DateUtils.roundFloor(utcMillis, ratio * multiplier);
             }
 
+            @Override
             long extraLocalOffsetLookup() {
                 return ratio;
             }
@@ -146,10 +159,12 @@ public abstract class Rounding implements Writeable {
             true,
             ChronoField.SECOND_OF_MINUTE.getBaseUnit().getDuration().toMillis()
         ) {
+            @Override
             long roundFloor(long utcMillis, int multiplier) {
                 return DateUtils.roundFloor(utcMillis, ratio * multiplier);
             }
 
+            @Override
             long extraLocalOffsetLookup() {
                 return ratio;
             }

@@ -13,10 +13,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.common.MemoryAccountingBytesRefCounted;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
@@ -291,7 +291,7 @@ public final class FetchPhase {
         RankDoc rankDoc,
         CircuitBreaker circuitBreaker,
         boolean submitToCb,
-        IntBooleanFunction memoryUsageAccumulator
+        MemoryUsageAccumulator memoryUsageAccumulator
     ) throws IOException {
         if (nestedDocuments.advance(docId - subReaderContext.docBase) == null) {
             return prepareNonNestedHitContext(
@@ -339,7 +339,7 @@ public final class FetchPhase {
         RankDoc rankDoc,
         CircuitBreaker circuitBreaker,
         boolean submitToCB,
-        IntBooleanFunction memoryUsageAccumulator
+        MemoryUsageAccumulator memoryUsageAccumulator
     ) throws IOException {
         int subDocId = docId - subReaderContext.docBase;
 
@@ -368,7 +368,7 @@ public final class FetchPhase {
                     source = sourceLoader.source(leafStoredFieldLoader, subDocId);
                     int accumulatedInLeaf = memoryUsageAccumulator.apply(source.internalSourceRef().length(), submitToCB);
                     if (submitToCB) {
-                        memAccountingRefCounted.setBytesAndAccount(accumulatedInLeaf, "fetch phase source loader");
+                        memAccountingRefCounted.account(accumulatedInLeaf, "fetch phase source loader");
                     }
                 } catch (CircuitBreakingException e) {
                     hit.decRef();
@@ -400,7 +400,7 @@ public final class FetchPhase {
         int doc,
         MemoryAccountingBytesRefCounted memAccountingRefCounted,
         boolean submitToCB,
-        IntBooleanFunction memoryUsageAccumulator
+        MemoryUsageAccumulator memoryUsageAccumulator
     ) {
         return () -> {
             StoredFieldLoader rootLoader = profiler.storedFields(StoredFieldLoader.create(true, Collections.emptySet()));
@@ -410,7 +410,7 @@ public final class FetchPhase {
                 BytesReference source = leafRootLoader.source();
                 int accumulatedInLeaf = memoryUsageAccumulator.apply(source.length(), submitToCB);
                 if (submitToCB) {
-                    memAccountingRefCounted.setBytesAndAccount(accumulatedInLeaf, "lazy fetch phase source loader");
+                    memAccountingRefCounted.account(accumulatedInLeaf, "lazy fetch phase source loader");
                 }
                 return Source.fromBytes(source);
             } catch (IOException e) {
@@ -515,7 +515,45 @@ public final class FetchPhase {
     }
 
     @FunctionalInterface
-    private interface IntBooleanFunction {
+    private interface MemoryUsageAccumulator {
         int apply(int i, boolean b);
+    }
+
+    /**
+     * A ref counted object that accounts for memory usage in bytes and releases the
+     * accounted memory from the circuit breaker when the reference count reaches zero.
+     */
+    static final class MemoryAccountingBytesRefCounted extends AbstractRefCounted {
+
+        // the bytes that we account for are not volatile because we only accumulate
+        // in the single threaded fetch phase and we release the reference after
+        // we write the response to the network (OutboundHandler). As with all other
+        // SearchHit fields this will be visible to the network thread that'll call #decRef.
+        private int bytes;
+        private final CircuitBreaker breaker;
+
+        private MemoryAccountingBytesRefCounted(CircuitBreaker breaker) {
+            this.breaker = breaker;
+        }
+
+        public static MemoryAccountingBytesRefCounted create(CircuitBreaker breaker) {
+            return new MemoryAccountingBytesRefCounted(breaker);
+        }
+
+        /**
+         * This method increments the local counter for the accounted bytes and submits
+         * the accumulated bytes to the circuit breaker.
+         * This method is not thread-safe and should only be called from the single-threaded
+         * fetch phase.
+         */
+        public void account(int bytes, String label) {
+            this.bytes += bytes;
+            breaker.addEstimateBytesAndMaybeBreak(bytes, label);
+        }
+
+        @Override
+        protected void closeInternal() {
+            breaker.addWithoutBreaking(-bytes);
+        }
     }
 }

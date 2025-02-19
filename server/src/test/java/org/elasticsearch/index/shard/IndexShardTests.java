@@ -27,6 +27,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
@@ -3340,14 +3341,13 @@ public class IndexShardTests extends IndexShardTestCase {
             { "properties": { "foo":  { "type": "text"}}}""").settings(settings).primaryTerm(0, 1).build();
         IndexShard primary = newShard(new ShardId(metadata.getIndex(), 0), true, "n1", metadata, null);
 
-        var exception = new AtomicReference<Exception>();
-        ActionListener<Long> listener = ActionListener.wrap(l -> { assert false : l; }, e -> exception.set(e));
-        primary.waitForPrimaryTermAndGeneration(0L, 0L, listener);
+        var future = new PlainActionFuture<Long>();
+        primary.waitForPrimaryTermAndGeneration(0L, 0L, future);
 
-        assertNull("waitForPrimaryTermAndGeneration should be waiting", exception.get());
+        assertFalse("waitForPrimaryTermAndGeneration should be waiting", future.isDone());
         closeShards(primary);
         // Should bail out earlier without calling the engine
-        assertThat(exception.get(), instanceOf(IndexShardClosedException.class));
+        assertNotNull(ExceptionsHelper.unwrap(expectThrows(Exception.class, future::get), IndexShardClosedException.class));
     }
 
     public void testRecoverFromLocalShard() throws IOException {

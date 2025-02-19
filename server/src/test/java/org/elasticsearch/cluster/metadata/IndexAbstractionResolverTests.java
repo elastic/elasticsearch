@@ -218,18 +218,6 @@ public class IndexAbstractionResolverTests extends ESTestCase {
         assertThat(isIndexVisible("data-stream1", "failures"), is(true));
     }
 
-    private boolean isIndexVisible(String index, String selector) {
-        return IndexAbstractionResolver.isIndexVisible(
-            "*",
-            selector,
-            index,
-            IndicesOptions.strictExpandHidden(),
-            metadata,
-            indexNameExpressionResolver,
-            true
-        );
-    }
-
     public void testIsNetNewSystemIndexVisible() {
         final Settings settings = Settings.builder()
             .put("index.number_of_replicas", 0)
@@ -305,5 +293,17 @@ public class IndexAbstractionResolverTests extends ESTestCase {
 
     private List<String> resolveAbstractions(List<String> expressions, IndicesOptions indicesOptions, Supplier<Set<String>> mask) {
         return indexAbstractionResolver.resolveIndexAbstractions(expressions, indicesOptions, metadata, mask, (idx) -> true, true);
+    }
+
+    private boolean isIndexVisible(String index, String selector) {
+        return IndexAbstractionResolver.isIndexVisible(
+            "*",
+            selector,
+            index,
+            IndicesOptions.strictExpandHidden(),
+            metadata,
+            indexNameExpressionResolver,
+            true
+        );
     }
 }

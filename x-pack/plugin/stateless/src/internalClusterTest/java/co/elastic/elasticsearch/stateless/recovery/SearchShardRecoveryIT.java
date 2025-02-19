@@ -29,7 +29,6 @@ import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
 
-import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
@@ -40,6 +39,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
@@ -330,7 +330,7 @@ public class SearchShardRecoveryIT extends AbstractStatelessIntegTestCase {
         var refreshResponse = future.get();
         assertThat("Refresh should have failed", refreshResponse.getFailedShards(), equalTo(1));
         Throwable cause = ExceptionsHelper.unwrapCause(refreshResponse.getShardFailures()[0].getCause());
-        assertThat("Cause should be engine closed", cause, instanceOf(AlreadyClosedException.class));
+        assertThat("Cause should be shard closed", cause, instanceOf(IndexShardClosedException.class));
     }
 
 }

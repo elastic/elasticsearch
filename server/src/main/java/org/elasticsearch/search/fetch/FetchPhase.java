@@ -368,7 +368,7 @@ public final class FetchPhase {
                     source = sourceLoader.source(leafStoredFieldLoader, subDocId);
                     int accumulatedInLeaf = memoryUsageAccumulator.apply(source.internalSourceRef().length(), submitToCB);
                     if (submitToCB) {
-                        memAccountingRefCounted.account(accumulatedInLeaf, "fetch phase source loader");
+                        memAccountingRefCounted.setBytesAndAccount(accumulatedInLeaf, "fetch phase source loader");
                     }
                 } catch (CircuitBreakingException e) {
                     hit.decRef();
@@ -410,7 +410,7 @@ public final class FetchPhase {
                 BytesReference source = leafRootLoader.source();
                 int accumulatedInLeaf = memoryUsageAccumulator.apply(source.length(), submitToCB);
                 if (submitToCB) {
-                    memAccountingRefCounted.account(accumulatedInLeaf, "lazy fetch phase source loader");
+                    memAccountingRefCounted.setBytesAndAccount(accumulatedInLeaf, "lazy fetch phase source loader");
                 }
                 return Source.fromBytes(source);
             } catch (IOException e) {

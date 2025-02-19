@@ -26,14 +26,14 @@ public class MemoryAccountingBytesRefCountedTests extends ESTestCase {
     public void testMemoryAccounted() {
         CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("test", ByteSizeValue.ofGb(1));
         MemoryAccountingBytesRefCounted refCounted = MemoryAccountingBytesRefCounted.create(breaker);
-        refCounted.account(10, "test");
+        refCounted.setBytesAndAccount(10, "test");
         assertEquals(10, breaker.getUsed());
     }
 
     public void testCloseInternalDecrementsBreaker() {
         CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("test", ByteSizeValue.ofGb(1));
         MemoryAccountingBytesRefCounted refCounted = MemoryAccountingBytesRefCounted.create(breaker);
-        refCounted.account(10, "test");
+        refCounted.setBytesAndAccount(10, "test");
         refCounted.decRef();
         assertEquals(0, breaker.getUsed());
     }
@@ -41,7 +41,7 @@ public class MemoryAccountingBytesRefCountedTests extends ESTestCase {
     public void testBreakerNotDecrementedIfRefsRemaining() {
         CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("test", ByteSizeValue.ofGb(1));
         MemoryAccountingBytesRefCounted refCounted = MemoryAccountingBytesRefCounted.create(breaker);
-        refCounted.account(10, "test");
+        refCounted.setBytesAndAccount(10, "test");
         refCounted.incRef(); // 2 refs
         assertEquals(10, breaker.getUsed());
         refCounted.decRef(); // 1 ref remaining so no decrementing is executed

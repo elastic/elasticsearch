@@ -217,9 +217,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/60_enrich/Enrich on keyword with fields}
   issue: https://github.com/elastic/elasticsearch/issues/116593
-- class: org.elasticsearch.search.StressSearchServiceReaperIT
-  method: testStressReaper
-  issue: https://github.com/elastic/elasticsearch/issues/115816
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNoDocValues SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/116945

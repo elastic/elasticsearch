@@ -185,6 +185,7 @@ public class TransportVersions {
     public static final TransportVersion REMOVE_DESIRED_NODE_VERSION_90 = def(9_000_0_03);
     public static final TransportVersion ESQL_DRIVER_TASK_DESCRIPTION_90 = def(9_000_0_04);
     public static final TransportVersion REMOVE_ALL_APPLICABLE_SELECTOR_9_0 = def(9_000_0_05);
+    public static final TransportVersion BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_90 = def(9_000_0_06);
     public static final TransportVersion COHERE_BIT_EMBEDDING_TYPE_SUPPORT_ADDED = def(9_001_0_00);
     public static final TransportVersion REMOVE_SNAPSHOT_FAILURES = def(9_002_0_00);
     public static final TransportVersion TRANSPORT_STATS_HANDLING_TIME_REQUIRED = def(9_003_0_00);
@@ -198,6 +199,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_SUPPORT_PARTIAL_RESULTS = def(9_011_0_00);
     public static final TransportVersion REMOVE_REPOSITORY_CONFLICT_MESSAGE = def(9_012_0_00);
     public static final TransportVersion RERANKER_FAILURES_ALLOWED = def(9_013_0_00);
+    public static final TransportVersion BYTE_SIZE_VALUE_ALWAYS_USES_BYTES = def(9_014_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

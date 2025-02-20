@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.application;
 
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.application.rules.QueryRule;
 
 import java.util.Set;

@@ -193,12 +193,15 @@ qstrWithField1
 required_capability: qstr_function
 
 FROM books 
-| WHERE QSTR("title: Hobbjt", {"fuzziness": 2})
+| WHERE QSTR("title: Hobbjt~", {"fuzziness": 2})
 | KEEP book_no, title 
 | SORT book_no 
 | LIMIT 5
 ;
 ignoreOrder: true
 
-book_no:keyword | title:text                             
+book_no:keyword | title:text                        
+4289            | Poems from the Hobbit             
+6405            | The Hobbit or There and Back Again
+7480            | The Hobbit                                     
 ;

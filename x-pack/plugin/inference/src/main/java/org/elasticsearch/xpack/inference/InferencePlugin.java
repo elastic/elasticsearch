@@ -34,6 +34,7 @@ import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -147,7 +148,8 @@ public class InferencePlugin extends Plugin
         SystemIndexPlugin,
         MapperPlugin,
         SearchPlugin,
-        InternalSearchPlugin {
+        InternalSearchPlugin,
+        ClusterPlugin {
 
     /**
      * When this setting is true the verification check that
@@ -275,7 +277,7 @@ public class InferencePlugin extends Plugin
         ElasticInferenceServiceSettings inferenceServiceSettings = new ElasticInferenceServiceSettings(settings);
         String elasticInferenceUrl = inferenceServiceSettings.getElasticInferenceServiceUrl();
 
-        var elasticInferenceServiceComponentsInstance = new ElasticInferenceServiceComponents(elasticInferenceUrl);
+        var elasticInferenceServiceComponentsInstance = ElasticInferenceServiceComponents.withDefaultRevokeDelay(elasticInferenceUrl);
         elasticInferenceServiceComponents.set(elasticInferenceServiceComponentsInstance);
 
         var authorizationHandler = new ElasticInferenceServiceAuthorizationHandler(
@@ -507,6 +509,15 @@ public class InferencePlugin extends Plugin
     @Override
     public Map<String, Highlighter> getHighlighters() {
         return Map.of(SemanticTextHighlighter.NAME, new SemanticTextHighlighter());
+    }
+
+    @Override
+    public void onNodeStarted() {
+        var registry = inferenceServiceRegistry.get();
+
+        if (registry != null) {
+            registry.onNodeStarted();
+        }
     }
 
     protected SSLService getSslService() {

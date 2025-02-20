@@ -10,5 +10,14 @@
 package org.elasticsearch.entitlement.runtime.policy;
 
 import java.nio.file.Path;
+import java.util.function.Function;
+import java.util.stream.Stream;
 
-public record PathLookup(Path configDir, Path[] dataDirs, Path tempDir) {}
+public record PathLookup(
+    Path homeDir,
+    Path configDir,
+    Path[] dataDirs,
+    Path tempDir,
+    Function<String, String> settingResolver,
+    Function<String, Stream<String>> settingGlobResolver
+) {}

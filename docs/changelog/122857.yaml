@@ -1,0 +1,5 @@
+pr: 122857
+summary: Run `TransportGetWatcherSettingsAction` on local node
+area: Watcher
+type: enhancement
+issues: []

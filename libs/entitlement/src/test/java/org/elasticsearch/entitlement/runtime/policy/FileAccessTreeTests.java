@@ -94,6 +94,8 @@ public class FileAccessTreeTests extends ESTestCase {
         assertThat(tree.canWrite(path("foo")), is(false));
         assertThat(tree.canRead(path("foo/bar")), is(true));
         assertThat(tree.canWrite(path("foo/bar")), is(true));
+        assertThat(tree.canRead(path("foo/baz")), is(true));
+        assertThat(tree.canWrite(path("foo/baz")), is(false));
     }
 
     public void testReadWithRelativePath() {

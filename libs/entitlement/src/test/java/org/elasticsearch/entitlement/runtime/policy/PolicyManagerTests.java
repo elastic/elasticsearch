@@ -376,7 +376,7 @@ public class PolicyManagerTests extends ESTestCase {
                                     FilesEntitlement.EMPTY,
                                     new CreateClassLoaderEntitlement(),
                                     new FilesEntitlement(
-                                        List.of(FilesEntitlement.FileData.ofPath(Path.of("/tmp/test"), FilesEntitlement.Mode.READ))
+                                        List.of(FilesEntitlement.FileData.ofPath(Path.of("/tmp/test"), FilesEntitlement.Mode.READ, false))
                                     )
                                 )
                             )
@@ -447,7 +447,9 @@ public class PolicyManagerTests extends ESTestCase {
                     name -> new Scope(
                         name,
                         List.of(
-                            new FilesEntitlement(List.of(FilesEntitlement.FileData.ofPath(TEST_BASE_DIR, FilesEntitlement.Mode.READ))),
+                            new FilesEntitlement(
+                                List.of(FilesEntitlement.FileData.ofPath(TEST_BASE_DIR, FilesEntitlement.Mode.READ, false))
+                            ),
                             new CreateClassLoaderEntitlement()
                         )
                     )

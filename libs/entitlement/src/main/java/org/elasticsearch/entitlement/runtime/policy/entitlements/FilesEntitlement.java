@@ -29,6 +29,7 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
     public static final FilesEntitlement EMPTY = new FilesEntitlement(List.of());
 
     public enum Mode {
+        EXCLUSIVE,
         READ,
         READ_WRITE
     }
@@ -45,20 +46,20 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
 
         Mode mode();
 
-        static FileData ofPath(Path path, Mode mode) {
-            return new AbsolutePathFileData(path, mode);
+        static FileData ofPath(Path path, Mode mode, boolean exclusive) {
+            return new AbsolutePathFileData(path, mode, exclusive);
         }
 
-        static FileData ofRelativePath(Path relativePath, BaseDir baseDir, Mode mode) {
-            return new RelativePathFileData(relativePath, baseDir, mode);
+        static FileData ofRelativePath(Path relativePath, BaseDir baseDir, Mode mode, boolean exclusive) {
+            return new RelativePathFileData(relativePath, baseDir, mode, exclusive);
         }
 
-        static FileData ofPathSetting(String setting, Mode mode) {
-            return new PathSettingFileData(setting, mode);
+        static FileData ofPathSetting(String setting, Mode mode, boolean exclusive) {
+            return new PathSettingFileData(setting, mode, exclusive);
         }
 
-        static FileData ofRelativePathSetting(String setting, BaseDir baseDir, Mode mode) {
-            return new RelativePathSettingFileData(setting, baseDir, mode);
+        static FileData ofRelativePathSetting(String setting, BaseDir baseDir, Mode mode, boolean exclusive) {
+            return new RelativePathSettingFileData(setting, baseDir, mode, exclusive);
         }
     }
 
@@ -91,28 +92,34 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         }
     }
 
-    private record AbsolutePathFileData(Path path, Mode mode) implements FileData {
+    private record AbsolutePathFileData(Path path, Mode mode, boolean exclusive) implements FileData {
         @Override
         public Stream<Path> resolvePaths(PathLookup pathLookup) {
             return Stream.of(path);
         }
     }
 
-    private record RelativePathFileData(Path relativePath, BaseDir baseDir, Mode mode) implements FileData, RelativeFileData {
+    private record RelativePathFileData(Path relativePath, BaseDir baseDir, Mode mode, boolean exclusive)
+        implements
+            FileData,
+            RelativeFileData {
         @Override
         public Stream<Path> resolveRelativePaths(PathLookup pathLookup) {
             return Stream.of(relativePath);
         }
     }
 
-    private record PathSettingFileData(String setting, Mode mode) implements FileData {
+    private record PathSettingFileData(String setting, Mode mode, boolean exclusive) implements FileData {
         @Override
         public Stream<Path> resolvePaths(PathLookup pathLookup) {
             return resolvePathSettings(pathLookup, setting);
         }
     }
 
-    private record RelativePathSettingFileData(String setting, BaseDir baseDir, Mode mode) implements FileData, RelativeFileData {
+    private record RelativePathSettingFileData(String setting, BaseDir baseDir, Mode mode, boolean exclusive)
+        implements
+            FileData,
+            RelativeFileData {
         @Override
         public Stream<Path> resolveRelativePaths(PathLookup pathLookup) {
             return resolvePathSettings(pathLookup, setting);
@@ -156,13 +163,15 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         }
         List<FileData> filesData = new ArrayList<>();
         for (Object object : paths) {
-            Map<String, String> file = new HashMap<>((Map<String, String>) object);
-            String pathAsString = file.remove("path");
-            String relativePathAsString = file.remove("relative_path");
-            String relativeTo = file.remove("relative_to");
-            String pathSetting = file.remove("path_setting");
-            String relativePathSetting = file.remove("relative_path_setting");
-            String modeAsString = file.remove("mode");
+            Map<String, Object> file = new HashMap<>((Map<String, Object>) object);
+            String pathAsString = (String) file.remove("path");
+            String relativePathAsString = (String) file.remove("relative_path");
+            String relativeTo = (String) file.remove("relative_to");
+            String pathSetting = (String) file.remove("path_setting");
+            String relativePathSetting = (String) file.remove("relative_path_setting");
+            String modeAsString = (String) file.remove("mode");
+            Boolean exclusiveBoolean = (Boolean) file.remove("exclusive");
+            boolean exclusive = exclusiveBoolean != null && exclusiveBoolean;
 
             if (file.isEmpty() == false) {
                 throw new PolicyValidationException("unknown key(s) [" + file + "] in a listed file for files entitlement");
@@ -194,20 +203,20 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
                 if (relativePath.isAbsolute()) {
                     throw new PolicyValidationException("'relative_path' [" + relativePathAsString + "] must be relative");
                 }
-                filesData.add(FileData.ofRelativePath(relativePath, baseDir, mode));
+                filesData.add(FileData.ofRelativePath(relativePath, baseDir, mode, exclusive));
             } else if (pathAsString != null) {
                 Path path = Path.of(pathAsString);
                 if (path.isAbsolute() == false) {
                     throw new PolicyValidationException("'path' [" + pathAsString + "] must be absolute");
                 }
-                filesData.add(FileData.ofPath(path, mode));
+                filesData.add(FileData.ofPath(path, mode, exclusive));
             } else if (pathSetting != null) {
-                filesData.add(FileData.ofPathSetting(pathSetting, mode));
+                filesData.add(FileData.ofPathSetting(pathSetting, mode, exclusive));
             } else if (relativePathSetting != null) {
                 if (baseDir == null) {
                     throw new PolicyValidationException("files entitlement with a 'relative_path_setting' must specify 'relative_to'");
                 }
-                filesData.add(FileData.ofRelativePathSetting(relativePathSetting, baseDir, mode));
+                filesData.add(FileData.ofRelativePathSetting(relativePathSetting, baseDir, mode, exclusive));
             } else {
                 throw new AssertionError("File entry validation error");
             }

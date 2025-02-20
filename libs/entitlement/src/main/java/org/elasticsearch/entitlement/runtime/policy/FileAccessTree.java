@@ -23,7 +23,7 @@ public final class FileAccessTree {
 
     private static final String FILE_SEPARATOR = getDefaultFileSystem().getSeparator();
 
-    private final String[] exclusivePaths;
+    // private final String[] exclusivePaths;
     private final String[] readPaths;
     private final String[] writePaths;
 

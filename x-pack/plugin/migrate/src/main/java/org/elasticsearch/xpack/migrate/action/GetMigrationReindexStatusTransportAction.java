@@ -174,7 +174,7 @@ public class GetMigrationReindexStatusTransportAction extends HandledTransportAc
                     if (sourceIndexStats == null) {
                         totalDocsInIndex = 0;
                     } else {
-                        DocsStats totalDocsStats = sourceIndexStats.getTotal().getDocs();
+                        DocsStats totalDocsStats = sourceIndexStats.getPrimaries().getDocs();
                         totalDocsInIndex = totalDocsStats == null ? 0 : totalDocsStats.getCount();
                     }
                     IndexStats migratedIndexStats = indicesStatsResponse.getIndex(
@@ -184,7 +184,7 @@ public class GetMigrationReindexStatusTransportAction extends HandledTransportAc
                     if (migratedIndexStats == null) {
                         reindexedDocsInIndex = 0;
                     } else {
-                        DocsStats reindexedDocsStats = migratedIndexStats.getTotal().getDocs();
+                        DocsStats reindexedDocsStats = migratedIndexStats.getPrimaries().getDocs();
                         reindexedDocsInIndex = reindexedDocsStats == null ? 0 : reindexedDocsStats.getCount();
                     }
                     inProgressMap.put(index, Tuple.tuple(totalDocsInIndex, reindexedDocsInIndex));

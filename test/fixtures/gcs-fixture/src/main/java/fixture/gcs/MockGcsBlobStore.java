@@ -201,7 +201,7 @@ public class MockGcsBlobStore {
         final List<BlobVersion> matchingBlobs = new ArrayList<>();
         String lastBlobPath = null;
         for (BlobVersion blob : blobs.values()) {
-            if (Strings.hasLength(previousBlob) && previousBlob.compareTo(blob.path()) > 0) {
+            if (Strings.hasLength(previousBlob) && previousBlob.compareTo(blob.path()) >= 0) {
                 continue;
             }
             if (blob.path().startsWith(prefix)) {

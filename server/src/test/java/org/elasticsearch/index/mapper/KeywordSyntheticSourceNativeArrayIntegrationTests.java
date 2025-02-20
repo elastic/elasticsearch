@@ -19,6 +19,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -33,6 +34,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -321,7 +323,11 @@ public class KeywordSyntheticSourceNativeArrayIntegrationTests extends ESSingleN
                 var document = reader.storedFields().document(i);
                 // Verify that there is no ignored source:
                 Set<String> storedFieldNames = new LinkedHashSet<>(document.getFields().stream().map(IndexableField::name).toList());
-                assertThat(storedFieldNames, contains("_id"));
+                if (IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE.isEnabled()) {
+                    assertThat(storedFieldNames, contains("_id"));
+                } else {
+                    assertThat(storedFieldNames, containsInAnyOrder("_id", "_recovery_source"));
+                }
             }
             var fieldInfo = FieldInfos.getMergedFieldInfos(reader).fieldInfo("object.field.offsets");
             assertThat(fieldInfo.getDocValuesType(), equalTo(DocValuesType.SORTED));

@@ -601,7 +601,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             p,
             visitStringOrParameter(ctx.inferenceId).fold(FoldContext.small() /* TODO remove me */).toString(),
             visitStringOrParameter(ctx.queryText).fold(FoldContext.small() /* TODO remove me */).toString(),
-            expression(ctx.input)
+            visitFields(ctx.fields())
         );
     }
 

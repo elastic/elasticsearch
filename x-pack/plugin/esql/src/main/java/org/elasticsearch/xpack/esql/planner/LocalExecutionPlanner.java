@@ -21,6 +21,7 @@ import org.elasticsearch.compute.operator.ColumnExtractOperator;
 import org.elasticsearch.compute.operator.ColumnLoadOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
@@ -698,7 +699,11 @@ public class LocalExecutionPlanner {
     private PhysicalOperation planRerank(RerankExec rerank, LocalExecutionPlannerContext context) {
         PhysicalOperation source = plan(rerank.child(), context);
 
-        var inputEvaluatorSupplier = EvalMapper.toEvaluator(context.foldCtx(), rerank.input(), source.layout);
+        Map<String, EvalOperator.ExpressionEvaluator.Factory> rerankFieldsEvaluatorSuppliers = new HashMap<>();
+
+        for (var rerankField: rerank.rerankFields()) {
+            rerankFieldsEvaluatorSuppliers.put(rerankField.name(), EvalMapper.toEvaluator(context.foldCtx(), rerankField.child(), source.layout));
+        }
 
         String inferenceId = rerank.inferenceId();
         String queryText = rerank.queryText();
@@ -714,7 +719,7 @@ public class LocalExecutionPlanner {
         logger.warn("layout {}", source.layout);
 
         return source.with(
-            new RerankOperator.Factory(inferenceService, inferenceId, queryText, inputEvaluatorSupplier, scoreChannel, 10),
+            new RerankOperator.Factory(inferenceService, inferenceId, queryText, rerankFieldsEvaluatorSuppliers, scoreChannel, 10),
             source.layout
         );
     }

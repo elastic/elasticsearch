@@ -11,7 +11,10 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -19,18 +22,21 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.esql.core.expression.Expressions.asAttributes;
 
 public class Rerank extends InferencePlan {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Rerank", Rerank::new);
     private final String queryText;
-    private final Expression input;
+    private final List<Alias> rerankFields;
 
-    public Rerank(Source source, LogicalPlan child, String inferenceId, String queryText, Expression input) {
+    public Rerank(Source source, LogicalPlan child, String inferenceId, String queryText, List<Alias> rerankFields) {
         super(source, child, inferenceId);
         this.queryText = queryText;
-        this.input = input;
+        this.rerankFields = rerankFields;
     }
 
     public Rerank(StreamInput in) throws IOException {
@@ -39,7 +45,7 @@ public class Rerank extends InferencePlan {
             in.readNamedWriteable(LogicalPlan.class),
             in.readString(),
             in.readString(),
-            in.readNamedWriteable(Expression.class)
+            in.readCollectionAsList(Alias::new)
         );
     }
 
@@ -47,15 +53,15 @@ public class Rerank extends InferencePlan {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(queryText);
-        out.writeNamedWriteable(input);
+        out.writeCollection(rerankFields());
     }
 
     public String queryText() {
         return queryText;
     }
 
-    public Expression input() {
-        return input;
+    public List<Alias> rerankFields() {
+        return rerankFields;
     }
 
     @Override
@@ -70,17 +76,28 @@ public class Rerank extends InferencePlan {
 
     @Override
     public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return new Rerank(source(), newChild, inferenceId(), queryText, input);
+        return new Rerank(source(), newChild, inferenceId(), queryText, rerankFields);
+    }
+
+
+    @Override
+    protected AttributeSet computeReferences() {
+        return computeReferences(rerankFields);
+    }
+
+    public static AttributeSet computeReferences(List<Alias> fields) {
+        AttributeSet generated = new AttributeSet(asAttributes(fields));
+        return Expressions.references(fields).subtract(generated);
     }
 
     @Override
     public boolean expressionsResolved() {
-        return input.resolved();
+        return Resolvables.resolved(rerankFields);
     }
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Rerank::new, child(), inferenceId(), queryText, input);
+        return NodeInfo.create(this, Rerank::new, child(), inferenceId(), queryText, rerankFields);
     }
 
     @Override
@@ -89,11 +106,11 @@ public class Rerank extends InferencePlan {
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
         Rerank rerank = (Rerank) o;
-        return Objects.equals(queryText, rerank.queryText) && Objects.equals(input, rerank.input);
+        return Objects.equals(queryText, rerank.queryText) && Objects.equals(rerankFields, rerank.rerankFields);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), queryText, input);
+        return Objects.hash(super.hashCode(), queryText, rerankFields);
     }
 }

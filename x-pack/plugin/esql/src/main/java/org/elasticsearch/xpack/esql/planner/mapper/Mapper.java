@@ -177,7 +177,7 @@ public class Mapper {
 
         if (unary instanceof Rerank rerank) {
             mappedChild = addExchangeForFragment(rerank, mappedChild);
-            return new RerankExec(rerank.source(), mappedChild, rerank.inferenceId(), rerank.queryText(), rerank.input());
+            return new RerankExec(rerank.source(), mappedChild, rerank.inferenceId(), rerank.queryText(), rerank.rerankFields());
         }
 
         if (unary instanceof Completion completion) {

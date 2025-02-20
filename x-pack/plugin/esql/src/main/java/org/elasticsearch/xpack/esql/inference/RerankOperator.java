@@ -9,9 +9,10 @@ package org.elasticsearch.xpack.esql.inference;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
@@ -21,10 +22,15 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 
+import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class RerankOperator extends AsyncOperator<Page> {
 
@@ -34,21 +40,37 @@ public class RerankOperator extends AsyncOperator<Page> {
         InferenceService inferenceService,
         String inferenceId,
         String queryText,
-        EvalOperator.ExpressionEvaluator.Factory inputEvaluatorFactory,
+        Map<String, EvalOperator.ExpressionEvaluator.Factory> rerankFieldsEvaluatorSuppliers,
         int scoreChannel,
         int maxOutstandingRequests
     ) implements OperatorFactory {
         @Override
         public RerankOperator get(DriverContext driverContext) {
+
+
             return new RerankOperator(
                 inferenceService,
                 inferenceId,
                 queryText,
-                inputEvaluatorFactory.get(driverContext),
+                buildRerankFieldEvaluator(rerankFieldsEvaluatorSuppliers, driverContext),
                 scoreChannel,
                 driverContext,
                 maxOutstandingRequests
             );
+        }
+
+
+        private Map<String, EvalOperator.ExpressionEvaluator> buildRerankFieldEvaluator(
+            Map<String, EvalOperator.ExpressionEvaluator.Factory> rerankFieldsEvaluatorSuppliers,
+            DriverContext driverContext
+        ) {
+            Map<String, EvalOperator.ExpressionEvaluator> rerankFieldsEvaluators = new HashMap<>();
+
+            for (var entry: rerankFieldsEvaluatorSuppliers.entrySet()) {
+                rerankFieldsEvaluators.put(entry.getKey(), entry.getValue().get(driverContext));
+            }
+
+            return rerankFieldsEvaluators;
         }
 
         @Override
@@ -61,14 +83,14 @@ public class RerankOperator extends AsyncOperator<Page> {
     private final BlockFactory blockFactory;
     private final String inferenceId;
     private final String queryText;
-    private final EvalOperator.ExpressionEvaluator inputEvaluator;
+    private final Map<String, EvalOperator.ExpressionEvaluator> rerankFieldsEvaluator;
     private final int scoreChannel;
 
     public RerankOperator(
         InferenceService inferenceService,
         String inferenceId,
         String queryText,
-        EvalOperator.ExpressionEvaluator inputEvaluator,
+        Map<String, EvalOperator.ExpressionEvaluator> rerankFieldsEvaluator,
         int scoreChannel,
         DriverContext driverContext,
         int maxOutstandingRequests
@@ -78,7 +100,7 @@ public class RerankOperator extends AsyncOperator<Page> {
         this.blockFactory = driverContext.blockFactory();
         this.inferenceId = inferenceId;
         this.queryText = queryText;
-        this.inputEvaluator = inputEvaluator;
+        this.rerankFieldsEvaluator = rerankFieldsEvaluator;
         this.scoreChannel = scoreChannel;
     }
 
@@ -100,9 +122,13 @@ public class RerankOperator extends AsyncOperator<Page> {
             queryText,
             inputPage.getPositionCount()
         );
-        inferenceService.infer(buildInferenceRequest(inputPage), ActionListener.wrap((inferenceResponse) -> {
-            listener.onResponse(buildOutput(inputPage, inferenceResponse));
-        }, listener::onFailure));
+        try {
+            inferenceService.infer(buildInferenceRequest(inputPage), ActionListener.wrap((inferenceResponse) -> {
+                listener.onResponse(buildOutput(inputPage, inferenceResponse));
+            }, listener::onFailure));
+        } catch (IOException e) {
+            listener.onFailure(e);
+        }
     }
 
     @Override
@@ -151,19 +177,40 @@ public class RerankOperator extends AsyncOperator<Page> {
         );
     }
 
-    private InferenceAction.Request buildInferenceRequest(Page inputPage) {
-        BytesRef scratch = new BytesRef();
+    private InferenceAction.Request buildInferenceRequest(Page inputPage) throws IOException {
         String[] inputs = new String[inputPage.getPositionCount()];
-        BytesRefBlock inputBlock = (BytesRefBlock) inputEvaluator.eval(inputPage);
+        Map<String, Block> inputBlocks = new HashMap<>();
+
+
+        for (var entry :rerankFieldsEvaluator.entrySet()) {
+            inputBlocks.put(entry.getKey(), entry.getValue().eval(inputPage));
+        };
 
         for (int pos = 0; pos < inputPage.getPositionCount(); pos++) {
-            if (inputBlock.isNull(pos) || inputBlock.getValueCount(pos) > 1) {
-                inputs[pos] = "";
-            } else {
-                inputs[pos] = inputBlock.getBytesRef(pos, scratch).utf8ToString();
+            try (XContentBuilder yamlBuilder = XContentFactory.yamlBuilder().startObject()) {
+                for (var blockEntry: inputBlocks.entrySet()) {
+                    String fieldName = blockEntry.getKey();
+                    Block currentBlock = blockEntry.getValue();
+                    if (currentBlock.isNull(pos)) {
+                        continue;
+                    }
+                    Object value = BlockUtils.toJavaObject(currentBlock, pos);
+                    yamlBuilder.field(fieldName, toYamlValue(value));
+                }
+                yamlBuilder.endObject();
+                inputs[pos] = Strings.toString(yamlBuilder);
             }
         }
 
+
         return InferenceAction.Request.builder(inferenceId, TaskType.RERANK).setInput(List.of(inputs)).setQuery(queryText).build();
+    }
+
+    private Object toYamlValue(Object value) {
+        return switch (value) {
+            case BytesRef b -> b.utf8ToString();
+            case List<?> l -> l.stream().map(this::toYamlValue);
+            default -> value;
+        };
     }
 }

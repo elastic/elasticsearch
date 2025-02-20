@@ -89,7 +89,7 @@ class MapperUtils {
         }
 
         if (p instanceof Rerank rerank) {
-            return new RerankExec(rerank.source(), child, rerank.inferenceId(), rerank.queryText(), rerank.input());
+            return new RerankExec(rerank.source(), child, rerank.inferenceId(), rerank.queryText(), rerank.rerankFields());
         }
 
         if (p instanceof Completion completion) {

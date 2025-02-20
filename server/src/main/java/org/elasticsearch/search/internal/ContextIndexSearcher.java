@@ -36,7 +36,13 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.SparseFixedBitSet;
+import org.apache.lucene.util.ThreadInterruptedException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.UnsafePlainActionFuture;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.lucene.util.CombinedBitSet;
 import org.elasticsearch.search.dfs.AggregatedDfs;
@@ -45,6 +51,7 @@ import org.elasticsearch.search.profile.query.ProfileWeight;
 import org.elasticsearch.search.profile.query.QueryProfileBreakdown;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.profile.query.QueryTimingType;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -54,8 +61,10 @@ import java.util.List;
 import java.util.Objects;
 import java.util.PriorityQueue;
 import java.util.Set;
-import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -77,7 +86,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private QueryProfiler profiler;
     private final MutableQueryTimeout cancellable;
 
-    private final boolean hasExecutor;
+    private final Executor executor;
     private final int maximumNumberOfSlices;
     // don't create slices with less than this number of docs
     private final int minimumDocsPerSlice;
@@ -135,7 +144,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         int minimumDocsPerSlice
     ) throws IOException {
         super(wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader, executor);
-        this.hasExecutor = executor != null;
+        this.executor = executor;
         setSimilarity(similarity);
         setQueryCache(queryCache);
         setQueryCachingPolicy(queryCachingPolicy);
@@ -150,7 +159,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * creates a {@link org.apache.lucene.search.TaskExecutor} anyways.
      */
     public boolean hasExecutor() {
-        return hasExecutor;
+        return executor != null;
     }
 
     @Override
@@ -325,6 +334,25 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public <C extends Collector, T> T search(Query query, CollectorManager<C, T> collectorManager) throws IOException {
+        final PlainActionFuture<T> res = new UnsafePlainActionFuture<>(ThreadPool.Names.SEARCH);
+        search(query, collectorManager, res);
+        try {
+            return res.get();
+        } catch (InterruptedException e) {
+            throw new ThreadInterruptedException(e);
+        } catch (ExecutionException e) {
+            var cause = e.getCause();
+            switch (cause) {
+                case IOException ioe -> throw ioe;
+                case RuntimeException rte -> throw rte;
+                case Error error -> throw error;
+                case null, default -> throw new IOException(cause);
+            }
+        }
+    }
+
+    public <C extends Collector, T> void search(Query query, CollectorManager<C, T> collectorManager, ActionListener<T> listener)
+        throws IOException {
         final C firstCollector = collectorManager.newCollector();
         // Take advantage of the few extra rewrite rules of ConstantScoreQuery when score are not needed.
         query = firstCollector.scoreMode().needsScores() ? rewrite(query) : rewrite(new ConstantScoreQuery(query));
@@ -334,43 +362,149 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         } catch (@SuppressWarnings("unused") TimeExceededException e) {
             timeExceeded = true;
             doAggregationPostCollection(firstCollector);
-            return collectorManager.reduce(Collections.singletonList(firstCollector));
+            listener.onResponse(collectorManager.reduce(Collections.singletonList(firstCollector)));
+            return;
         }
-        return search(weight, collectorManager, firstCollector);
+        search(weight, collectorManager, firstCollector, listener);
     }
 
     /**
      * Same implementation as the default one in Lucene, with an additional call to postCollection in cased there are no segments.
      * The rest is a plain copy from Lucene.
      */
-    private <C extends Collector, T> T search(Weight weight, CollectorManager<C, T> collectorManager, C firstCollector) throws IOException {
-        LeafSlice[] leafSlices = getSlices();
-        if (leafSlices.length == 0) {
-            assert leafContexts.isEmpty();
-            doAggregationPostCollection(firstCollector);
-            return collectorManager.reduce(Collections.singletonList(firstCollector));
-        } else {
-            final List<C> collectors = new ArrayList<>(leafSlices.length);
-            collectors.add(firstCollector);
-            final ScoreMode scoreMode = firstCollector.scoreMode();
-            for (int i = 1; i < leafSlices.length; ++i) {
-                final C collector = collectorManager.newCollector();
-                collectors.add(collector);
-                if (scoreMode != collector.scoreMode()) {
-                    throw new IllegalStateException("CollectorManager does not always produce collectors with the same score mode");
+    private <C extends Collector, T> void search(
+        Weight weight,
+        CollectorManager<C, T> collectorManager,
+        C firstCollector,
+        ActionListener<T> listener
+    ) throws IOException {
+        final LeafSlice[] leafSlices = getSlices();
+        final int sliceCount = leafSlices.length;
+        if (sliceCount <= 1) {
+            try {
+                if (sliceCount == 0) {
+                    assert leafContexts.isEmpty();
+                    doAggregationPostCollection(firstCollector);
+                } else {
+                    search(leafSlices[0].partitions, weight, firstCollector);
                 }
+            } catch (Exception e) {
+                listener.onFailure(e);
+                return;
             }
-            final List<Callable<C>> listTasks = new ArrayList<>(leafSlices.length);
-            for (int i = 0; i < leafSlices.length; ++i) {
-                final LeafReaderContextPartition[] leaves = leafSlices[i].partitions;
-                final C collector = collectors.get(i);
-                listTasks.add(() -> {
-                    search(leaves, weight, collector);
-                    return collector;
-                });
+            listener.onResponse(collectorManager.reduce(Collections.singletonList(firstCollector)));
+        } else {
+            final List<C> collectors = new ArrayList<>(sliceCount);
+            try {
+                collectors.add(firstCollector);
+                final ScoreMode scoreMode = firstCollector.scoreMode();
+                for (int i = 1; i < sliceCount; ++i) {
+                    final C collector = collectorManager.newCollector();
+                    collectors.add(collector);
+                    if (scoreMode != collector.scoreMode()) {
+                        throw new IllegalStateException("CollectorManager does not always produce collectors with the same score mode");
+                    }
+                }
+            } catch (Exception e) {
+                listener.onFailure(e);
+                return;
             }
-            List<C> collectedCollectors = getTaskExecutor().invokeAll(listTasks);
-            return collectorManager.reduce(collectedCollectors);
+            final ListenableFuture<Void> doneListener = new ListenableFuture<>();
+            // first 32 bit hold number of tasks that have not yet completed, next bit is 1 on failure, 0 otherwise
+            // lower 31 bits hold the next task index
+            final AtomicLong state = new AtomicLong(((long) sliceCount << 32) + 1L);
+            final AtomicReference<Exception> failure = new AtomicReference<>();
+            executor.execute(new AbstractRunnable() {
+                @Override
+                protected void doRun() {
+                    int forkedTask = nextTaskIndex(state);
+                    if (forkedTask >= sliceCount) {
+                        return; // we're done already, this task was just scheduled too late to get any work
+                    }
+                    if (forkedTask < sliceCount - 1) {
+                        // logarithmic activation: each task forks one additional task as long as there is at least one additional
+                        // task to execute
+                        executor.execute(this);
+                    }
+                    int executed = 0;
+                    try {
+                        do {
+                            executed++;
+                            search(leafSlices[forkedTask].partitions, weight, collectors.get(forkedTask));
+                            if (forkedTask == sliceCount - 1) {
+                                break; // no more tasks, no need to cas again below
+                            }
+                        } while ((forkedTask = nextTaskIndex(state)) < sliceCount);
+                    } catch (Exception e) {
+                        ContextIndexSearcher.onFailure(e, sliceCount, state, failure);
+                    } finally {
+                        onDone(state, executed, failure, doneListener);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    assert false : new AssertionError("should never fail we handle exceptions in doRun", e);
+                }
+
+                @Override
+                public void onRejection(Exception e) {
+                    // rejections are no issue, we still have at the very least the original caller thread working through the slices and
+                    // there is little value in enqueuing another task when the queue is completely filled up
+                }
+            });
+            int executed = 1;
+            try {
+                search(leafSlices[0].partitions, weight, firstCollector);
+                int taskIndex;
+                while ((taskIndex = nextTaskIndex(state)) < sliceCount) {
+                    executed++;
+                    search(leafSlices[taskIndex].partitions, weight, collectors.get(taskIndex));
+                    if (taskIndex == sliceCount - 1) {
+                        break; // this was hte last task index
+                    }
+                }
+            } catch (Exception e) {
+                onFailure(e, sliceCount, state, failure);
+            } finally {
+                onDone(state, executed, failure, doneListener);
+            }
+            if (doneListener.isSuccess()) {
+                listener.onResponse(collectorManager.reduce(collectors));
+            } else {
+                doneListener.addListener(listener.map(v -> collectorManager.reduce(collectors)));
+            }
+        }
+    }
+
+    private static final int NEXT_TASK_INDEX_MASK = (1 << (Integer.SIZE - 1)) - 1;
+
+    private static int nextTaskIndex(AtomicLong state) {
+        return (int) (state.getAndIncrement() & NEXT_TASK_INDEX_MASK);
+    }
+
+    private static void onFailure(Exception e, int sliceCount, AtomicLong state, AtomicReference<Exception> failure) {
+        Exception existing = failure.compareAndExchange(null, e);
+        if (existing != null) {
+            existing.addSuppressed(e);
+        } else {
+            state.getAndAccumulate(
+                sliceCount,
+                (v, l) -> ((v >>> 32) - Math.max((int) l - (int) (v & NEXT_TASK_INDEX_MASK), 0) << 32) + Integer.toUnsignedLong(-((int) l))
+            );
+        }
+    }
+
+    private static void onDone(AtomicLong state, int executed, AtomicReference<Exception> failure, ActionListener<Void> doneListener) {
+        long newState = state.addAndGet(-((long) executed << 32));
+        if (newState >>> 32 == 0) {
+            if ((int) newState < 0) { // highest bit of lower word set means failure
+                var f = failure.get();
+                assert f != null;
+                doneListener.onFailure(f);
+            } else {
+                doneListener.onResponse(null);
+            }
         }
     }
 

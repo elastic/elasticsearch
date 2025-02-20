@@ -214,7 +214,6 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
          *     <li>getting the hash code of the input</li>
          *     <li>converting the hash code value to a string</li>
          *     <li>converting the string to a UTF-8 encoded byte array</li>
-         *     <li>if a bit embedding is required, round byte values to 0 or 1</li>
          *     <li>repeatedly appending the byte array to the embedding until the desired number of dimensions are populated</li>
          * </ul>
          * <p>
@@ -222,8 +221,8 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
          * encoded byte array is guaranteed to only contain values in the standard ASCII table.
          * </p>
          * <p>
-         * If a bit embedding is required, the byte values are rounded to 0 or 1 based on if the value exceeds the ASCII value for "4".
-         * We do this in an attempt to make the distribution of 0s and 1s in bit embeddings relatively equal.
+         * If a bit embedding is required, the embedding length is 1/8 the dimension count because eight dimensions are encoded into each
+         * embedding byte.
          * </p>
          *
          * @param input The input string
@@ -231,28 +230,26 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
          * @return An embedding
          */
         private static List<Float> generateEmbedding(String input, int dimensions, DenseVectorFieldMapper.ElementType elementType) {
-            List<Float> embedding = new ArrayList<>(dimensions);
+            int embeddingLength = dimensions;
+            if (elementType == DenseVectorFieldMapper.ElementType.BIT) {
+                assert dimensions % Byte.SIZE == 0;
+                embeddingLength /= Byte.SIZE;
+            }
+            List<Float> embedding = new ArrayList<>(embeddingLength);
 
             byte[] byteArray = Integer.toString(input.hashCode()).getBytes(StandardCharsets.UTF_8);
             List<Float> embeddingValues = new ArrayList<>(byteArray.length);
             for (byte value : byteArray) {
-                byte convertedValue = value;
-                if (elementType == DenseVectorFieldMapper.ElementType.BIT) {
-                    // Convert byte values to bits. Since each byte value is guaranteed to be an ascii digit or "-", use "4" as the
-                    // threshold for rounding to 0 or 1.
-                    convertedValue = (byte) (value > '4' ? 1 : 0);
-                }
-
-                embeddingValues.add((float) convertedValue);
+                embeddingValues.add((float) value);
             }
 
-            int remainingDimensions = dimensions;
-            while (remainingDimensions >= embeddingValues.size()) {
+            int remainingLength = embeddingLength;
+            while (remainingLength >= embeddingValues.size()) {
                 embedding.addAll(embeddingValues);
-                remainingDimensions -= embeddingValues.size();
+                remainingLength -= embeddingValues.size();
             }
-            if (remainingDimensions > 0) {
-                embedding.addAll(embeddingValues.subList(0, remainingDimensions));
+            if (remainingLength > 0) {
+                embedding.addAll(embeddingValues.subList(0, remainingLength));
             }
 
             return embedding;

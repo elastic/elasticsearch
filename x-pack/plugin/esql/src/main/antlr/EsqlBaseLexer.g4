@@ -90,6 +90,7 @@ DEV_INLINESTATS :  {this.isDevVersion()}? 'inlinestats'   -> pushMode(EXPRESSION
 DEV_INSIST :      {this.isDevVersion()}? 'insist_🐔'      -> pushMode(PROJECT_MODE);
 DEV_LOOKUP :       {this.isDevVersion()}? 'lookup_🐔'     -> pushMode(LOOKUP_MODE);
 DEV_METRICS :      {this.isDevVersion()}? 'metrics'       -> pushMode(METRICS_MODE);
+DEV_RERANK :       {this.isDevVersion()}? 'rerank'        -> pushMode(EXPRESSION_MODE);
 // list of all JOIN commands
 DEV_JOIN_FULL :    {this.isDevVersion()}? 'full'          -> pushMode(JOIN_MODE);
 DEV_JOIN_LEFT :    {this.isDevVersion()}? 'left'          -> pushMode(JOIN_MODE);
@@ -180,6 +181,9 @@ DECIMAL_LITERAL
     ;
 
 BY : 'by';
+ON: 'on';
+WITH: 'with';
+AS: 'as';
 
 AND : 'and';
 ASC : 'asc';
@@ -359,7 +363,7 @@ RENAME_DOT: DOT -> type(DOT);
 RENAME_PARAM : PARAM -> type(PARAM);
 RENAME_NAMED_OR_POSITIONAL_PARAM : NAMED_OR_POSITIONAL_PARAM -> type(NAMED_OR_POSITIONAL_PARAM);
 
-AS : 'as';
+RENAME_AS : AS -> type(AS);
 
 RENAME_ID_PATTERN
     : ID_PATTERN -> type(ID_PATTERN)
@@ -382,8 +386,8 @@ mode ENRICH_MODE;
 ENRICH_PIPE : PIPE -> type(PIPE), popMode;
 ENRICH_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET), pushMode(SETTING_MODE);
 
-ON : 'on'     -> pushMode(ENRICH_FIELD_MODE);
-WITH : 'with' -> pushMode(ENRICH_FIELD_MODE);
+ENRICH_ON : ON -> type(ON), pushMode(ENRICH_FIELD_MODE);
+ENRICH_WITH : WITH -> type(WITH), pushMode(ENRICH_FIELD_MODE);
 
 // similar to that of an index
 // see https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html#indices-create-api-path-params

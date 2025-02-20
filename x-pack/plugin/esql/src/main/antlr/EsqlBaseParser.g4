@@ -58,6 +58,7 @@ processingCommand
     | {this.isDevVersion()}? changePointCommand
     | {this.isDevVersion()}? insistCommand
     | {this.isDevVersion()}? forkCommand
+    | {this.isDevVersion()}? rerankCommand
     ;
 
 whereCommand
@@ -223,6 +224,11 @@ identifierOrParameter
     | parameter
     ;
 
+stringOrParameter
+    : string
+    | {this.isDevVersion()}? parameter
+    ;
+
 limitCommand
     : LIMIT INTEGER_LITERAL
     ;
@@ -372,4 +378,8 @@ forkSubQueryProcessingCommand
     : whereCommand
     | sortCommand
     | limitCommand
+    ;
+
+rerankCommand
+    : DEV_RERANK queryText=stringOrParameter (ON fields)? WITH inferenceId=stringOrParameter
     ;

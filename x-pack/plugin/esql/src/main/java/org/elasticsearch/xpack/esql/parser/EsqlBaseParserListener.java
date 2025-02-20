@@ -690,6 +690,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitIdentifierOrParameter(EsqlBaseParser.IdentifierOrParameterContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#stringOrParameter}.
+   * @param ctx the parse tree
+   */
+  void enterStringOrParameter(EsqlBaseParser.StringOrParameterContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#stringOrParameter}.
+   * @param ctx the parse tree
+   */
+  void exitStringOrParameter(EsqlBaseParser.StringOrParameterContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#limitCommand}.
    * @param ctx the parse tree
    */
@@ -1065,4 +1075,14 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitForkSubQueryProcessingCommand(EsqlBaseParser.ForkSubQueryProcessingCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#rerankCommand}.
+   * @param ctx the parse tree
+   */
+  void enterRerankCommand(EsqlBaseParser.RerankCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#rerankCommand}.
+   * @param ctx the parse tree
+   */
+  void exitRerankCommand(EsqlBaseParser.RerankCommandContext ctx);
 }

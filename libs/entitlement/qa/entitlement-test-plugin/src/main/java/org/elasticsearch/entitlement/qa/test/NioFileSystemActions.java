@@ -27,6 +27,7 @@ import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAcce
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.SERVER_ONLY;
 
+@SuppressWarnings({ "unused" /* called via reflection */ })
 class NioFileSystemActions {
 
     @EntitlementTest(expectedAccess = SERVER_ONLY)

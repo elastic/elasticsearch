@@ -320,9 +320,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/122913
 - class: org.elasticsearch.xpack.search.AsyncSearchSecurityIT
   issue: https://github.com/elastic/elasticsearch/issues/122940
-- class: org.elasticsearch.action.admin.indices.create.ShrinkIndexIT
-  method: testShrinkIndexPrimaryTerm
-  issue: https://github.com/elastic/elasticsearch/issues/122974
 - class: org.elasticsearch.test.apmintegration.TracesApmIT
   method: testApmIntegration
   issue: https://github.com/elastic/elasticsearch/issues/122129

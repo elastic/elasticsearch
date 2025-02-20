@@ -193,14 +193,17 @@ public class MockGcsBlobStore {
      * @return The filtered list
      */
     private PageOfBlobs calculatePageOfBlobs(PageToken pageToken) {
-        final int page = pageToken.page();
+        final String previousBlob = pageToken.previousBlob();
         final int maxResults = pageToken.maxResults();
         final String prefix = pageToken.prefix();
         final String delimiter = pageToken.delimiter();
-        int currentPage = 0;
         final SortedSet<String> prefixes = new TreeSet<>();
         final List<BlobVersion> matchingBlobs = new ArrayList<>();
+        String lastBlobPath = null;
         for (BlobVersion blob : blobs.values()) {
+            if (Strings.hasLength(previousBlob) && previousBlob.compareTo(blob.path()) > 0) {
+                continue;
+            }
             if (blob.path().startsWith(prefix)) {
                 final String pathWithoutPrefix = stripPrefixIfPresent(prefix, blob.path());
                 if (Strings.hasLength(delimiter) && pathWithoutPrefix.contains(delimiter)) {
@@ -212,26 +215,28 @@ public class MockGcsBlobStore {
                     matchingBlobs.add(blob);
                 }
             }
+            lastBlobPath = blob.path();
             if (prefixes.size() + matchingBlobs.size() == maxResults) {
-                if (currentPage == page) {
-                    return new PageOfBlobs(
-                        new PageToken(prefix, delimiter, page, maxResults),
-                        new ArrayList<>(prefixes),
-                        matchingBlobs,
-                        false
-                    );
-                } else {
-                    prefixes.clear();
-                    matchingBlobs.clear();
-                    currentPage++;
-                }
+                return new PageOfBlobs(
+                    new PageToken(prefix, delimiter, maxResults, previousBlob),
+                    new ArrayList<>(prefixes),
+                    matchingBlobs,
+                    lastBlobPath,
+                    false
+                );
             }
         }
-        return new PageOfBlobs(new PageToken(prefix, delimiter, page, maxResults), new ArrayList<>(prefixes), matchingBlobs, true);
+        return new PageOfBlobs(
+            new PageToken(prefix, delimiter, maxResults, previousBlob),
+            new ArrayList<>(prefixes),
+            matchingBlobs,
+            lastBlobPath,
+            true
+        );
     }
 
     PageOfBlobs listBlobs(int maxResults, String delimiter, String prefix) {
-        final PageToken pageToken = new PageToken(prefix, delimiter, 0, maxResults);
+        final PageToken pageToken = new PageToken(prefix, delimiter, maxResults, "");
         return calculatePageOfBlobs(pageToken);
     }
 
@@ -242,24 +247,19 @@ public class MockGcsBlobStore {
     /**
      * We serialise this as a tuple with base64 encoded components so we don't need to escape the delimiter
      */
-    record PageToken(String prefix, String delimiter, int page, int maxResults) {
+    record PageToken(String prefix, String delimiter, int maxResults, String previousBlob) {
         public static PageToken fromString(String pageToken) {
             final String[] parts = pageToken.split("\\.");
             assert parts.length == 4;
-            return new PageToken(
-                decode(parts[0]),
-                decode(parts[1]),
-                Integer.parseInt(decode(parts[2])),
-                Integer.parseInt(decode(parts[3]))
-            );
+            return new PageToken(decode(parts[0]), decode(parts[1]), Integer.parseInt(decode(parts[2])), decode(parts[3]));
         }
 
         public String toString() {
-            return encode(prefix) + "." + encode(delimiter) + "." + encode(String.valueOf(page)) + "." + encode(String.valueOf(maxResults));
+            return encode(prefix) + "." + encode(delimiter) + "." + encode(String.valueOf(maxResults)) + "." + encode(previousBlob);
         }
 
-        public PageToken nextPageToken() {
-            return new PageToken(prefix, delimiter, page + 1, maxResults);
+        public PageToken nextPageToken(String previousBlob) {
+            return new PageToken(prefix, delimiter, maxResults, previousBlob);
         }
 
         private static String encode(String value) {
@@ -271,14 +271,14 @@ public class MockGcsBlobStore {
         }
     }
 
-    record PageOfBlobs(PageToken pageToken, List<String> prefixes, List<BlobVersion> blobs, boolean lastPage) {
+    record PageOfBlobs(PageToken pageToken, List<String> prefixes, List<BlobVersion> blobs, String lastBlobIncluded, boolean lastPage) {
 
         public boolean isLastPage() {
             return lastPage;
         }
 
         public String nextPageToken() {
-            return isLastPage() ? null : pageToken.nextPageToken().toString();
+            return isLastPage() ? null : pageToken.nextPageToken(lastBlobIncluded).toString();
         }
     }
 

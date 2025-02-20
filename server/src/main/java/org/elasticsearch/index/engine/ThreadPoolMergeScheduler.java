@@ -427,7 +427,8 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                         // ignore interruption, we will retry until all currently running merge tasks are done
                         interrupted = true;
                     }
-                };
+                }
+                ;
             }
         } finally {
             // this closes an executor that may be used by ongoing merges, so close it only after all running merges finished

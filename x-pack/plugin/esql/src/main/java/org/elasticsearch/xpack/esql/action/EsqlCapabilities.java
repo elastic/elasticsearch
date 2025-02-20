@@ -829,7 +829,12 @@ public class EsqlCapabilities {
         /**
          * Support for rendering aggregate_metric_double type
          */
-        AGGREGATE_METRIC_DOUBLE_RENDERING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG);
+        AGGREGATE_METRIC_DOUBLE_RENDERING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
+         * Support for FORK command
+         */
+        FORK(Build.current().isSnapshot());
 
         private final boolean enabled;
 

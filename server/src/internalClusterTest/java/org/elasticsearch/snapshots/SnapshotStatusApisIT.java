@@ -329,7 +329,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         final String indexName = "test-idx";
         createIndexWithRandomDocs(indexName, 10);
         final int numberOfShards = IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(
-            client.admin().indices().prepareGetSettings(indexName).get().getIndexToSettings().get(indexName)
+            client.admin().indices().prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName).get().getIndexToSettings().get(indexName)
         );
 
         for (int repoIndex = 0; repoIndex < randomIntBetween(2, 5); repoIndex++) {

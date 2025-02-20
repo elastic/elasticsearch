@@ -254,6 +254,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         var settingsOverride = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+            .putNull(IndexMetadata.LIFECYCLE_NAME)
             .build();
 
         var request = new CreateIndexFromSourceAction.Request(

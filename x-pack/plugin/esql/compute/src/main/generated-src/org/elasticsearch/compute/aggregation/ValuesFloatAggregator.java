@@ -136,6 +136,10 @@ class ValuesFloatAggregator {
             blocks[offset] = toBlock(driverContext.blockFactory(), selected);
         }
 
+        /**
+         * Builds a {@link Block} with the unique values collected for the {@code #selected}
+         * groups. This is the implementation of the final and intermediate results of the agg.
+         */
         Block toBlock(BlockFactory blockFactory, IntVector selected) {
             if (values.size() == 0) {
                 return blockFactory.newConstantNullBlock(selected.getPositionCount());

@@ -739,7 +739,7 @@ public class TransportRolloverActionTests extends ESTestCase {
             assertNotNull(transportRolloverAction.checkBlock(rolloverRequest, clusterState));
         }
         {
-            // Make sure checkBlock returns an exception when failure store non-write indices has a block
+            // Make sure checkBlock returns no exception when failure store non-write indices have a block
             ClusterState clusterState = createDataStream(dataStreamName, randomBoolean(), randomBoolean(), true, false, true);
             RolloverRequest rolloverRequest = new RolloverRequest(dataStreamName + "::failures", null);
             assertNull(transportRolloverAction.checkBlock(rolloverRequest, clusterState));

@@ -701,8 +701,11 @@ public class LocalExecutionPlanner {
 
         Map<String, EvalOperator.ExpressionEvaluator.Factory> rerankFieldsEvaluatorSuppliers = new HashMap<>();
 
-        for (var rerankField: rerank.rerankFields()) {
-            rerankFieldsEvaluatorSuppliers.put(rerankField.name(), EvalMapper.toEvaluator(context.foldCtx(), rerankField.child(), source.layout));
+        for (var rerankField : rerank.rerankFields()) {
+            rerankFieldsEvaluatorSuppliers.put(
+                rerankField.name(),
+                EvalMapper.toEvaluator(context.foldCtx(), rerankField.child(), source.layout)
+            );
         }
 
         String inferenceId = rerank.inferenceId();

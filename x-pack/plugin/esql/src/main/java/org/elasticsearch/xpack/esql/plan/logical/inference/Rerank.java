@@ -79,7 +79,6 @@ public class Rerank extends InferencePlan {
         return new Rerank(source(), newChild, inferenceId(), queryText, rerankFields);
     }
 
-
     @Override
     protected AttributeSet computeReferences() {
         return computeReferences(rerankFields);

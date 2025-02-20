@@ -30,7 +30,11 @@ import java.util.Objects;
 
 public class Completion extends InferencePlan implements GeneratingPlan<Completion> {
 
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Completion", Completion::new);
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        LogicalPlan.class,
+        "Completion",
+        Completion::new
+    );
 
     private final Expression prompt;
     private final ReferenceAttribute target;
@@ -58,13 +62,17 @@ public class Completion extends InferencePlan implements GeneratingPlan<Completi
         out.writeNamedWriteable(target);
     }
 
-
     @Override
     public Completion withGeneratedNames(List<String> newNames) {
         checkNumberOfNewNames(newNames);
-        return new Completion(source(), child(), inferenceId(), prompt, new ReferenceAttribute(Source.EMPTY, newNames.getFirst(), DataType.KEYWORD));
+        return new Completion(
+            source(),
+            child(),
+            inferenceId(),
+            prompt,
+            new ReferenceAttribute(Source.EMPTY, newNames.getFirst(), DataType.KEYWORD)
+        );
     }
-
 
     public ReferenceAttribute target() {
         return target;

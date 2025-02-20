@@ -37,7 +37,11 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
             var l2 = (int) childLimit.limit().fold(ctx.foldCtx());
             return new Limit(limit.source(), Literal.of(limitSource, Math.min(l1, l2)), childLimit.child());
         } else if (limit.child() instanceof UnaryPlan unary) {
-            if (unary instanceof Eval || unary instanceof Project || unary instanceof RegexExtract || unary instanceof Enrich || unary instanceof Completion) {
+            if (unary instanceof Eval
+                || unary instanceof Project
+                || unary instanceof RegexExtract
+                || unary instanceof Enrich
+                || unary instanceof Completion) {
                 return unary.replaceChild(limit.replaceChild(unary.child()));
             } else if (unary instanceof MvExpand mvx) {
                 // MV_EXPAND can increase the number of rows, so we cannot just push the limit down

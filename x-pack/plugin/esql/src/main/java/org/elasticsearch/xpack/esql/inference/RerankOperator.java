@@ -47,7 +47,6 @@ public class RerankOperator extends AsyncOperator<Page> {
         @Override
         public RerankOperator get(DriverContext driverContext) {
 
-
             return new RerankOperator(
                 inferenceService,
                 inferenceId,
@@ -59,14 +58,13 @@ public class RerankOperator extends AsyncOperator<Page> {
             );
         }
 
-
         private Map<String, EvalOperator.ExpressionEvaluator> buildRerankFieldEvaluator(
             Map<String, EvalOperator.ExpressionEvaluator.Factory> rerankFieldsEvaluatorSuppliers,
             DriverContext driverContext
         ) {
             Map<String, EvalOperator.ExpressionEvaluator> rerankFieldsEvaluators = new HashMap<>();
 
-            for (var entry: rerankFieldsEvaluatorSuppliers.entrySet()) {
+            for (var entry : rerankFieldsEvaluatorSuppliers.entrySet()) {
                 rerankFieldsEvaluators.put(entry.getKey(), entry.getValue().get(driverContext));
             }
 
@@ -181,14 +179,14 @@ public class RerankOperator extends AsyncOperator<Page> {
         String[] inputs = new String[inputPage.getPositionCount()];
         Map<String, Block> inputBlocks = new HashMap<>();
 
-
-        for (var entry :rerankFieldsEvaluator.entrySet()) {
+        for (var entry : rerankFieldsEvaluator.entrySet()) {
             inputBlocks.put(entry.getKey(), entry.getValue().eval(inputPage));
-        };
+        }
+        ;
 
         for (int pos = 0; pos < inputPage.getPositionCount(); pos++) {
             try (XContentBuilder yamlBuilder = XContentFactory.yamlBuilder().startObject()) {
-                for (var blockEntry: inputBlocks.entrySet()) {
+                for (var blockEntry : inputBlocks.entrySet()) {
                     String fieldName = blockEntry.getKey();
                     Block currentBlock = blockEntry.getValue();
                     if (currentBlock.isNull(pos)) {
@@ -201,7 +199,6 @@ public class RerankOperator extends AsyncOperator<Page> {
                 inputs[pos] = Strings.toString(yamlBuilder);
             }
         }
-
 
         return InferenceAction.Request.builder(inferenceId, TaskType.RERANK).setInput(List.of(inputs)).setQuery(queryText).build();
     }

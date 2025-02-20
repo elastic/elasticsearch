@@ -605,8 +605,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         );
     }
 
-
-
     @Override
     public PlanFactory visitCompletionCommand(EsqlBaseParser.CompletionCommandContext ctx) {
         Source source = source(ctx);

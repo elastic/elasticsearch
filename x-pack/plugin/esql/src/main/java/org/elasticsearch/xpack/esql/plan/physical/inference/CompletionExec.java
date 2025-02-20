@@ -112,7 +112,9 @@ public class CompletionExec extends UnaryExec implements EstimatesRowSize {
             return false;
         }
         CompletionExec other = ((CompletionExec) obj);
-        return Objects.equals(target, other.target) && Objects.equals(prompt, other.prompt) && Objects.equals(inferenceId, other.inferenceId);
+        return Objects.equals(target, other.target)
+            && Objects.equals(prompt, other.prompt)
+            && Objects.equals(inferenceId, other.inferenceId);
     }
 
     @Override

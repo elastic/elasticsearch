@@ -54,7 +54,12 @@ public class CompletionOperator extends AsyncOperator<Page> {
     private final String inferenceId;
     private final EvalOperator.ExpressionEvaluator promptEvaluator;
 
-    public CompletionOperator(DriverContext driverContext, InferenceService inferenceService, String inferenceId, EvalOperator.ExpressionEvaluator promptEvaluator) {
+    public CompletionOperator(
+        DriverContext driverContext,
+        InferenceService inferenceService,
+        String inferenceId,
+        EvalOperator.ExpressionEvaluator promptEvaluator
+    ) {
         super(driverContext, MAX_INFERENCE_WORKER);
         this.blockFactory = driverContext.blockFactory();
         this.inferenceService = inferenceService;
@@ -76,25 +81,22 @@ public class CompletionOperator extends AsyncOperator<Page> {
         CountDownLatch countDownLatch = new CountDownLatch(inputPage.getPositionCount());
         BytesRef[] inferredValues = new BytesRef[inputPage.getPositionCount()];
 
-        ActionListener<Tuple<Integer, BytesRef>> inferenceResponseListener = ActionListener.wrap(
-            response -> {
-                countDownLatch.countDown();
-                inferredValues[response.v1()] = response.v2();
-                if (countDownLatch.getCount() == 0) {
-                    BytesRefBlock.Builder inferenceBlock = blockFactory.newBytesRefBlockBuilder(inputPage.getPositionCount());
+        ActionListener<Tuple<Integer, BytesRef>> inferenceResponseListener = ActionListener.wrap(response -> {
+            countDownLatch.countDown();
+            inferredValues[response.v1()] = response.v2();
+            if (countDownLatch.getCount() == 0) {
+                BytesRefBlock.Builder inferenceBlock = blockFactory.newBytesRefBlockBuilder(inputPage.getPositionCount());
 
-                    for (BytesRef inferredValue : inferredValues) {
-                        if (inferredValue == null) {
-                            inferenceBlock.appendNull();
-                        } else {
-                            inferenceBlock.appendBytesRef(inferredValue);
-                        }
+                for (BytesRef inferredValue : inferredValues) {
+                    if (inferredValue == null) {
+                        inferenceBlock.appendNull();
+                    } else {
+                        inferenceBlock.appendBytesRef(inferredValue);
                     }
-                    listener.onResponse(inputPage.appendBlock(inferenceBlock.build()));
                 }
-            },
-            listener::onFailure
-        );
+                listener.onResponse(inputPage.appendBlock(inferenceBlock.build()));
+            }
+        }, listener::onFailure);
 
         for (int position = 0; position < inputPage.getPositionCount(); position++) {
             final int currentPosition = position;
@@ -103,10 +105,13 @@ public class CompletionOperator extends AsyncOperator<Page> {
                 continue;
             }
 
-            doCompletion(promptBlock.getBytesRef(promptBlock.getFirstValueIndex(position), promptValue).utf8ToString(), ActionListener.wrap(
-                completionResponse -> inferenceResponseListener.onResponse(Tuple.tuple(currentPosition, completionResponse)),
-                listener::onFailure
-            ));
+            doCompletion(
+                promptBlock.getBytesRef(promptBlock.getFirstValueIndex(position), promptValue).utf8ToString(),
+                ActionListener.wrap(
+                    completionResponse -> inferenceResponseListener.onResponse(Tuple.tuple(currentPosition, completionResponse)),
+                    listener::onFailure
+                )
+            );
         }
     }
 
@@ -116,21 +121,16 @@ public class CompletionOperator extends AsyncOperator<Page> {
     }
 
     private void doCompletion(String prompt, ActionListener<BytesRef> listener) {
-        inferenceService.infer(createInferenceRequest(prompt), ActionListener.wrap(
-            inferenceResponse -> {
-                if (inferenceResponse.getResults() instanceof ChatCompletionResults completionResults) {
-                    listener.onResponse(new BytesRef(completionResults.getResults().getFirst().predictedValue().toString()));
-                    return;
-                }
-                listener.onFailure(new Exception("WTF???"));
-            },
-            listener::onFailure
-        ));
+        inferenceService.infer(createInferenceRequest(prompt), ActionListener.wrap(inferenceResponse -> {
+            if (inferenceResponse.getResults() instanceof ChatCompletionResults completionResults) {
+                listener.onResponse(new BytesRef(completionResults.getResults().getFirst().predictedValue().toString()));
+                return;
+            }
+            listener.onFailure(new Exception("WTF???"));
+        }, listener::onFailure));
     }
 
     private InferenceAction.Request createInferenceRequest(String prompt) {
-        return InferenceAction.Request.builder(inferenceId, TaskType.COMPLETION)
-            .setInput(List.of(prompt))
-            .build();
+        return InferenceAction.Request.builder(inferenceId, TaskType.COMPLETION).setInput(List.of(prompt)).build();
     }
 }

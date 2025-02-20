@@ -672,7 +672,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 changed.set(true);
             }
 
-
             if (changed.get() == false) {
                 return p;
             }

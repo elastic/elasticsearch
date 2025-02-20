@@ -234,7 +234,11 @@ public class EntitlementInitialization {
             Collections.addAll(
                 serverScopes,
                 new Scope("org.bouncycastle.fips.tls", List.of(new FilesEntitlement(List.of(FileData.ofPath(trustStorePath, READ))))),
-                new Scope("org.bouncycastle.fips.core", List.of(new ManageThreadsEntitlement()))
+                new Scope(
+                    "org.bouncycastle.fips.core",
+                    // read to lib dir is required for checksum validation
+                    List.of(new FilesEntitlement(List.of(FileData.ofPath(bootstrapArgs.libDir(), READ))), new ManageThreadsEntitlement())
+                )
             );
         }
 

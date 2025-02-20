@@ -245,10 +245,13 @@ class Elasticsearch {
             EntitlementBootstrap.bootstrap(
                 pluginPolicies,
                 pluginsResolver::resolveClassToPluginName,
+                nodeEnv.settings()::get,
+                nodeEnv.settings()::getGlobValues,
+                nodeEnv::resolveRepoDir,
                 nodeEnv.dataDirs(),
                 nodeEnv.configDir(),
-                nodeEnv.tmpDir(),
-                nodeEnv.logsDir()
+                nodeEnv.logsDir(),
+                nodeEnv.tmpDir()
             );
         } else {
             assert RuntimeVersionFeature.isSecurityManagerAvailable();

@@ -102,7 +102,7 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             injected.put("scaling_factor", ESTestCase.randomFrom(10, 1000, 100000, 100.5));
 
             if (ESTestCase.randomDouble() <= 0.2) {
-                injected.put("null_value", ESTestCase.randomFloat());
+                injected.put("null_value", ESTestCase.randomDouble());
             }
 
             if (ESTestCase.randomBoolean()) {

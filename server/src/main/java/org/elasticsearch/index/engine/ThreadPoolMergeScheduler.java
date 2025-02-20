@@ -54,9 +54,9 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     // set when incoming merges should be throttled (i.e. restrict the indexing rate)
     private final AtomicBoolean shouldThrottleIncomingMerges = new AtomicBoolean();
     // how many {@link MergeTask}s have kicked off (this is used to name them).
-    private final AtomicLong mergeTaskCount = new AtomicLong();
-    private final AtomicLong mergeTaskDoneCount = new AtomicLong();
-    private final AtomicBoolean closed = new AtomicBoolean();
+    private final AtomicLong submittedMergeTaskCount = new AtomicLong();
+    private final AtomicLong doneMergeTaskCount = new AtomicLong();
+    private volatile boolean closed = false;
 
     public ThreadPoolMergeScheduler(ShardId shardId, IndexSettings indexSettings, ThreadPoolMergeQueue threadPoolMergeQueue) {
         this.shardId = shardId;
@@ -94,7 +94,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
     @Override
     public void merge(MergeSource mergeSource, MergeTrigger trigger) throws IOException {
-        if (closed.get()) {
+        if (closed) {
             // avoid pulling from the merge source when closing
             return;
         }
@@ -147,8 +147,8 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     }
 
     private void checkMergeTaskThrottling() {
-        long submittedMergesCount = mergeTaskCount.get();
-        long doneMergesCount = mergeTaskDoneCount.get();
+        long submittedMergesCount = submittedMergeTaskCount.get();
+        long doneMergesCount = doneMergeTaskCount.get();
         int executingMergesCount = currentlyRunningMergeTasks.size();
         int configuredMaxMergeCount = config.getMaxMergeCount();
         // both currently running and enqueued merge tasks are considered "active" for throttling purposes
@@ -170,7 +170,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             mergeSource,
             merge,
             isAutoThrottle && config.isAutoThrottle(),
-            "Lucene Merge Task #" + mergeTaskCount.incrementAndGet() + " for shard " + shardId
+            "Lucene Merge Task #" + submittedMergeTaskCount.incrementAndGet() + " for shard " + shardId
         );
     }
 
@@ -178,8 +178,8 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     private synchronized boolean runNowOrBacklog(MergeTask mergeTask) {
         assert mergeTask.isRunning() == false;
         assert mergeTask.isOnGoingMergeAborted() == false;
-        // if the merge scheduler is closed it will abort all merges before they start running
-        if (closed.get() || currentlyRunningMergeTasks.size() < config.getMaxThreadCount()) {
+        // if the merge scheduler is closing it will abort all merges before they start running
+        if (closed || currentlyRunningMergeTasks.size() < config.getMaxThreadCount()) {
             boolean added = currentlyRunningMergeTasks.put(mergeTask.onGoingMerge.getMerge(), mergeTask) == null;
             assert added : "starting merge task [" + mergeTask + "] registered as already running";
             return true;
@@ -190,25 +190,24 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     }
 
     private void mergeDone(MergeTask mergeTask) {
-        assert mergeTask.isRunning();
         synchronized (this) {
             boolean removed = currentlyRunningMergeTasks.remove(mergeTask.onGoingMerge.getMerge()) != null;
             assert removed : "completed merge task [" + mergeTask + "] not registered as running";
             // when one merge is done, maybe a backlogged one can now execute
             enqueueBackloggedTasks();
-            // when closing, we wait for all running merges to finish
+            // signal here, because, when closing, we wait for all running merges to finish
             if (currentlyRunningMergeTasks.isEmpty()) {
                 notifyAll();
             }
         }
-        mergeTaskDoneCount.incrementAndGet();
+        doneMergeTaskCount.incrementAndGet();
         checkMergeTaskThrottling();
     }
 
     private synchronized void enqueueBackloggedTasks() {
         int maxBackloggedTasksToEnqueue = config.getMaxThreadCount() - currentlyRunningMergeTasks.size();
-        // enqueue all backlogged tasks when closing, let the queue deal with them
-        while (closed.get() || maxBackloggedTasksToEnqueue-- > 0) {
+        // enqueue all backlogged tasks when closing, as the queue expects all backlogged tasks to always be enqueued back
+        while (closed || maxBackloggedTasksToEnqueue-- > 0) {
             MergeTask backloggedMergeTask = backloggedMergeTasks.poll();
             if (backloggedMergeTask == null) {
                 break;
@@ -293,73 +292,76 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
         @Override
         public void run() {
-            assert isOnGoingMergeAborted() == false;
-            if (ThreadPoolMergeScheduler.this.closed.get()) {
-                abortOnGoingMerge();
-                return;
-            }
-            if (mergeStartTimeNS.compareAndSet(0L, System.nanoTime()) == false) {
-                throw new IllegalStateException("Cannot run the same merge task multiple times");
-            }
+            assert ThreadPoolMergeScheduler.this.currentlyRunningMergeTasks.containsKey(onGoingMerge.getMerge());
             try {
-                beforeMerge(onGoingMerge);
-                mergeTracking.mergeStarted(onGoingMerge);
-                if (verbose()) {
-                    message(String.format(Locale.ROOT, "merge task %s start", this));
-                }
-                doMerge(mergeSource, onGoingMerge.getMerge());
-                if (verbose()) {
-                    message(
-                        String.format(
-                            Locale.ROOT,
-                            "merge task %s merge segment [%s] done estSize=%.1f MB (written=%.1f MB) "
-                                + "runTime=%.1fs (stopped=%.1fs, paused=%.1fs) rate=%s",
-                            this,
-                            getSegmentName(onGoingMerge.getMerge()),
-                            bytesToMB(onGoingMerge.getMerge().estimatedMergeBytes),
-                            bytesToMB(rateLimiter.getTotalBytesWritten()),
-                            nsToSec(System.nanoTime() - mergeStartTimeNS.get()),
-                            nsToSec(rateLimiter.getTotalStoppedNS()),
-                            nsToSec(rateLimiter.getTotalPausedNS()),
-                            rateToString(rateLimiter.getMBPerSec())
-                        )
-                    );
-                }
-            } catch (Throwable t) {
-                if (t instanceof MergePolicy.MergeAbortedException) {
-                    // OK to ignore. This is what Lucene's ConcurrentMergeScheduler does
-                } else {
-                    // sometimes this might double-abort a merge, but that's OK
+                if (isOnGoingMergeAborted()) {
+                    return;
+                } else if (ThreadPoolMergeScheduler.this.closed) {
                     abortOnGoingMerge();
-                    handleMergeException(t);
+                    return;
                 }
-            } finally {
+                beforeMerge(onGoingMerge);
                 try {
+                    if (mergeStartTimeNS.compareAndSet(0L, System.nanoTime()) == false) {
+                        throw new IllegalStateException("The merge task is already started");
+                    }
+                    mergeTracking.mergeStarted(onGoingMerge);
+                    if (verbose()) {
+                        message(String.format(Locale.ROOT, "merge task %s start", this));
+                    }
+                    try {
+                        doMerge(mergeSource, onGoingMerge.getMerge());
+                        if (verbose()) {
+                            message(
+                                    String.format(
+                                            Locale.ROOT,
+                                            "merge task %s merge segment [%s] done estSize=%.1f MB (written=%.1f MB) "
+                                                    + "runTime=%.1fs (stopped=%.1fs, paused=%.1fs) rate=%s",
+                                            this,
+                                            getSegmentName(onGoingMerge.getMerge()),
+                                            bytesToMB(onGoingMerge.getMerge().estimatedMergeBytes),
+                                            bytesToMB(rateLimiter.getTotalBytesWritten()),
+                                            nsToSec(System.nanoTime() - mergeStartTimeNS.get()),
+                                            nsToSec(rateLimiter.getTotalStoppedNS()),
+                                            nsToSec(rateLimiter.getTotalPausedNS()),
+                                            rateToString(rateLimiter.getMBPerSec())
+                                    )
+                            );
+                        }
+                    } catch (Throwable t) {
+                        if (t instanceof MergePolicy.MergeAbortedException) {
+                            // OK to ignore. This is what Lucene's ConcurrentMergeScheduler does
+                        } else {
+                            handleMergeException(t);
+                        }
+                    } finally {
+                        long tookMS = TimeValue.nsecToMSec(System.nanoTime() - mergeStartTimeNS.get());
+                        mergeTracking.mergeFinished(onGoingMerge.getMerge(), onGoingMerge, tookMS);
+                    }
+                } finally {
                     if (verbose()) {
                         message(String.format(Locale.ROOT, "merge task %s end", this));
                     }
                     afterMerge(onGoingMerge);
-                } finally {
-                    long tookMS = TimeValue.nsecToMSec(System.nanoTime() - mergeStartTimeNS.get());
+                }
+            } finally {
+                if (verbose()) {
+                    message(String.format(Locale.ROOT, "merge task %s end", this));
+                }
+                mergeDone(this);
+                if (ThreadPoolMergeScheduler.this.closed == false) {
+                    // kick-off next merge, if any
+                    MergePolicy.OneMerge nextMerge = null;
                     try {
-                        mergeTracking.mergeFinished(onGoingMerge.getMerge(), onGoingMerge, tookMS);
-                    } finally {
-                        mergeDone(this);
-                        if (ThreadPoolMergeScheduler.this.closed.get() == false) {
-                            // kick-off next merge, if any
-                            MergePolicy.OneMerge nextMerge = null;
-                            try {
-                                nextMerge = mergeSource.getNextMerge();
-                            } catch (IllegalStateException e) {
-                                if (verbose()) {
-                                    message("merge task poll failed, likely that index writer is failed");
-                                }
-                                // ignore exception, we expect the IW failure to be logged elsewhere
-                            }
-                            if (nextMerge != null) {
-                                submitNewMergeTask(mergeSource, nextMerge, MergeTrigger.MERGE_FINISHED);
-                            }
+                        nextMerge = mergeSource.getNextMerge();
+                    } catch (IllegalStateException e) {
+                        if (verbose()) {
+                            message("merge task poll failed, likely that index writer is failed");
                         }
+                        // ignore exception, we expect the IW failure to be logged elsewhere
+                    }
+                    if (nextMerge != null) {
+                        submitNewMergeTask(mergeSource, nextMerge, MergeTrigger.MERGE_FINISHED);
                     }
                 }
             }
@@ -380,7 +382,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
         @Override
         public String toString() {
-            return name;
+            return name + (isOnGoingMergeAborted() ? " (aborted)" : "");
         }
     }
 
@@ -404,14 +406,13 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
     @Override
     public void close() throws IOException {
-        super.close();
-        closed.set(true);
+        closed = true;
         boolean interrupted = false;
         try {
             synchronized (this) {
-                // enqueue all backlogged merge tasks, the merge queue assumes that backlogged tasks are always re-enqueued
+                // enqueue all backlogged merge tasks, as the merge queue assumes that backlogged tasks are always re-enqueued
                 enqueueBackloggedTasks();
-                // supercharge running merges
+                // supercharge running merges so that they finish faster
                 currentlyRunningMergeTasks.values().forEach(runningTask -> runningTask.setIORateLimit(Double.POSITIVE_INFINITY));
                 // wait until all running merges are done
                 while (currentlyRunningMergeTasks.isEmpty() == false) {
@@ -425,6 +426,8 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                 }
             }
         } finally {
+            // this closes an executor that may be used by ongoing merges, so keep it last in order to not perturb them
+            super.close();
             if (interrupted) {
                 Thread.currentThread().interrupt();
             }

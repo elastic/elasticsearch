@@ -95,14 +95,12 @@ public class ThreadPoolMergeQueue implements Closeable {
                         try {
                             // will block if there are backlogged merges until they're enqueued again
                             MergeTask smallestMergeTask = queuedMergeTasks.take();
-                            // the merge task's scheduler might backlog rather than execute the task
-                            // it's then the duty of the said merge scheduler to re-enqueue the backlogged merge task
                             if (smallestMergeTask.runNowOrBacklog()) {
                                 runMergeTask(smallestMergeTask);
-                                // one runnable one merge task
-                                return;
+                                break;
                             }
                             // the merge task is backlogged by the merge scheduler, try to get the next smallest one
+                            // it's then the duty of the said merge scheduler to re-enqueue the backlogged merge task when it can be run
                         } catch (InterruptedException e) {
                             interrupted = true;
                             // this runnable must always run exactly a single merge task
@@ -123,6 +121,7 @@ public class ThreadPoolMergeQueue implements Closeable {
 
     private void runMergeTask(MergeTask mergeTask) {
         assert mergeTask.isRunning() == false;
+        assert mergeTask.isOnGoingMergeAborted() == false;
         if (closed.get()) {
             mergeTask.abortOnGoingMerge();
             return;

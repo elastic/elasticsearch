@@ -1,6 +1,6 @@
 pr: 122960
 summary: Deprecate Behavioral Analytics CRUD apis
-area: Relevance
+area: Search
 type: deprecation
 issues: [ ]
 deprecation:

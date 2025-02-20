@@ -9,6 +9,10 @@
 
 package org.elasticsearch.entitlement.qa.test;
 
+import jdk.nio.Channels;
+
+import org.elasticsearch.core.SuppressForbidden;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -23,18 +27,41 @@ import java.net.Socket;
 import java.net.SocketAddress;
 import java.net.SocketException;
 import java.net.SocketImpl;
+import java.net.URI;
+import java.nio.ByteBuffer;
+import java.nio.MappedByteBuffer;
 import java.nio.channels.AsynchronousChannelGroup;
+import java.nio.channels.AsynchronousFileChannel;
 import java.nio.channels.AsynchronousServerSocketChannel;
 import java.nio.channels.AsynchronousSocketChannel;
+import java.nio.channels.CompletionHandler;
 import java.nio.channels.DatagramChannel;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 import java.nio.channels.Pipe;
+import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.SeekableByteChannel;
+import java.nio.channels.SelectableChannel;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.nio.channels.WritableByteChannel;
 import java.nio.channels.spi.AbstractSelector;
 import java.nio.channels.spi.AsynchronousChannelProvider;
 import java.nio.channels.spi.SelectorProvider;
 import java.nio.charset.Charset;
 import java.nio.charset.spi.CharsetProvider;
+import java.nio.file.AccessMode;
+import java.nio.file.CopyOption;
+import java.nio.file.DirectoryStream;
+import java.nio.file.FileStore;
+import java.nio.file.FileSystem;
+import java.nio.file.LinkOption;
+import java.nio.file.OpenOption;
+import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.FileAttribute;
+import java.nio.file.attribute.FileAttributeView;
+import java.nio.file.spi.FileSystemProvider;
 import java.security.cert.Certificate;
 import java.text.BreakIterator;
 import java.text.Collator;
@@ -51,7 +78,9 @@ import java.text.spi.NumberFormatProvider;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.ThreadFactory;
 import java.util.spi.CalendarDataProvider;
 import java.util.spi.CalendarNameProvider;
@@ -567,5 +596,256 @@ class DummyImplementations {
         public Charset charsetForName(String charsetName) {
             return null;
         }
+    }
+
+    static class DummyFileSystemProvider extends FileSystemProvider {
+        @Override
+        public String getScheme() {
+            return "";
+        }
+
+        @Override
+        public FileSystem newFileSystem(URI uri, Map<String, ?> env) throws IOException {
+            return null;
+        }
+
+        @Override
+        public FileSystem getFileSystem(URI uri) {
+            return null;
+        }
+
+        @Override
+        public Path getPath(URI uri) {
+            return null;
+        }
+
+        @Override
+        public SeekableByteChannel newByteChannel(Path path, Set<? extends OpenOption> options, FileAttribute<?>... attrs)
+            throws IOException {
+            return null;
+        }
+
+        @Override
+        public DirectoryStream<Path> newDirectoryStream(Path dir, DirectoryStream.Filter<? super Path> filter) throws IOException {
+            return null;
+        }
+
+        @Override
+        public void createDirectory(Path dir, FileAttribute<?>... attrs) throws IOException {
+
+        }
+
+        @Override
+        public void delete(Path path) throws IOException {
+
+        }
+
+        @Override
+        public void copy(Path source, Path target, CopyOption... options) throws IOException {
+
+        }
+
+        @Override
+        public void move(Path source, Path target, CopyOption... options) throws IOException {
+
+        }
+
+        @Override
+        public boolean isSameFile(Path path, Path path2) throws IOException {
+            return false;
+        }
+
+        @Override
+        public boolean isHidden(Path path) throws IOException {
+            return false;
+        }
+
+        @Override
+        public FileStore getFileStore(Path path) throws IOException {
+            return null;
+        }
+
+        @Override
+        public void checkAccess(Path path, AccessMode... modes) throws IOException {
+
+        }
+
+        @Override
+        public <V extends FileAttributeView> V getFileAttributeView(Path path, Class<V> type, LinkOption... options) {
+            return null;
+        }
+
+        @Override
+        public <A extends BasicFileAttributes> A readAttributes(Path path, Class<A> type, LinkOption... options) throws IOException {
+            return null;
+        }
+
+        @Override
+        public Map<String, Object> readAttributes(Path path, String attributes, LinkOption... options) throws IOException {
+            return Map.of();
+        }
+
+        @Override
+        public void setAttribute(Path path, String attribute, Object value, LinkOption... options) throws IOException {
+
+        }
+    }
+
+    static class DummyFileChannel extends FileChannel {
+        @Override
+        protected void implCloseChannel() throws IOException {
+
+        }
+
+        @Override
+        public int read(ByteBuffer dst) throws IOException {
+            return 0;
+        }
+
+        @Override
+        public long read(ByteBuffer[] dsts, int offset, int length) throws IOException {
+            return 0;
+        }
+
+        @Override
+        public int write(ByteBuffer src) throws IOException {
+            return 0;
+        }
+
+        @Override
+        public long write(ByteBuffer[] srcs, int offset, int length) throws IOException {
+            return 0;
+        }
+
+        @Override
+        public long position() throws IOException {
+            return 0;
+        }
+
+        @Override
+        public FileChannel position(long newPosition) throws IOException {
+            return null;
+        }
+
+        @Override
+        public long size() throws IOException {
+            return 0;
+        }
+
+        @Override
+        public FileChannel truncate(long size) throws IOException {
+            return null;
+        }
+
+        @Override
+        public void force(boolean metaData) throws IOException {
+
+        }
+
+        @Override
+        public long transferTo(long position, long count, WritableByteChannel target) throws IOException {
+            return 0;
+        }
+
+        @Override
+        public long transferFrom(ReadableByteChannel src, long position, long count) throws IOException {
+            return 0;
+        }
+
+        @Override
+        public int read(ByteBuffer dst, long position) throws IOException {
+            return 0;
+        }
+
+        @Override
+        public int write(ByteBuffer src, long position) throws IOException {
+            return 0;
+        }
+
+        @Override
+        public MappedByteBuffer map(MapMode mode, long position, long size) throws IOException {
+            return null;
+        }
+
+        @Override
+        public FileLock lock(long position, long size, boolean shared) throws IOException {
+            return null;
+        }
+
+        @Override
+        public FileLock tryLock(long position, long size, boolean shared) throws IOException {
+            return null;
+        }
+    }
+
+    static class DummyAsynchronousFileChannel extends AsynchronousFileChannel {
+        @Override
+        public boolean isOpen() {
+            return false;
+        }
+
+        @Override
+        public void close() throws IOException {
+
+        }
+
+        @Override
+        public long size() throws IOException {
+            return 0;
+        }
+
+        @Override
+        public AsynchronousFileChannel truncate(long size) throws IOException {
+            return null;
+        }
+
+        @Override
+        public void force(boolean metaData) throws IOException {
+
+        }
+
+        @Override
+        public <A> void lock(long position, long size, boolean shared, A attachment, CompletionHandler<FileLock, ? super A> handler) {
+
+        }
+
+        @Override
+        public Future<FileLock> lock(long position, long size, boolean shared) {
+            return null;
+        }
+
+        @Override
+        public FileLock tryLock(long position, long size, boolean shared) throws IOException {
+            return null;
+        }
+
+        @Override
+        public <A> void read(ByteBuffer dst, long position, A attachment, CompletionHandler<Integer, ? super A> handler) {
+
+        }
+
+        @Override
+        public Future<Integer> read(ByteBuffer dst, long position) {
+            return null;
+        }
+
+        @Override
+        public <A> void write(ByteBuffer src, long position, A attachment, CompletionHandler<Integer, ? super A> handler) {
+
+        }
+
+        @Override
+        public Future<Integer> write(ByteBuffer src, long position) {
+            return null;
+        }
+    }
+
+    @SuppressForbidden(reason = "specifically testing readWriteSelectableChannel")
+    static class DummySelectableChannelCloser implements Channels.SelectableChannelCloser {
+        @Override
+        public void implCloseChannel(SelectableChannel sc) throws IOException {}
+
+        @Override
+        public void implReleaseChannel(SelectableChannel sc) throws IOException {}
     }
 }

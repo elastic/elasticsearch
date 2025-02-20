@@ -207,6 +207,7 @@ public class InternalUsers {
                         TransportDeleteIndexAction.TYPE.name(),
                         "indices:admin/data_stream/index/reindex",
                         "indices:admin/index/create_from_source",
+                        "indices:admin/index/copy_lifecycle_index_metadata",
                         TransportAddIndexBlockAction.TYPE.name(),
                         OpenIndexAction.NAME,
                         TransportCloseIndexAction.NAME,

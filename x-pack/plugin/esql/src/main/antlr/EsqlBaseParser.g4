@@ -140,7 +140,7 @@ fromCommand
 
 indexPattern
     : (clusterString COLON)? indexString
-    | {this.isDevVersion()}? (clusterString COLON)? indexString (CAST_OP selectorString)?
+    | {this.isDevVersion()}? indexString (CAST_OP selectorString)?
     ;
 
 clusterString

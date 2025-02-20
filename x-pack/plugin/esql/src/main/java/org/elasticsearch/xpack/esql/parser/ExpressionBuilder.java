@@ -195,6 +195,30 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
+    public String visitStringOrParameter(EsqlBaseParser.StringOrParameterContext ctx) {
+        if (ctx.parameter() != null) {
+            if (expression(ctx.parameter()) instanceof Literal lit) {
+                if (lit.value() == null) {
+                    throw new ParsingException(
+                        source(ctx.parameter()),
+                        "Query parameter [{}] is null or undefined and cannot be used as string",
+                        ctx.parameter().getText()
+                    );
+                }
+                return lit.value().toString();
+            }
+
+            throw new ParsingException(
+                source(ctx.parameter()),
+                "Query parameter [{}], cannot be used as string",
+                ctx.parameter().getText()
+            );
+        }
+
+        return unquote(source(ctx.string()));
+    }
+
+    @Override
     public Object visitNumericArrayLiteral(EsqlBaseParser.NumericArrayLiteralContext ctx) {
         Source source = source(ctx);
         List<Literal> numbers = visitList(this, ctx.numericValue(), Literal.class);

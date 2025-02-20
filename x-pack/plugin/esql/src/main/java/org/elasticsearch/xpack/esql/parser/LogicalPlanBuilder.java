@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
@@ -685,5 +686,28 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         PlanFactory lowerPlan = ParserUtils.typedParsing(this, ctx.forkSubQueryCommand(), PlanFactory.class);
         PlanFactory makePlan = typedParsing(this, ctx.forkSubQueryProcessingCommand(), PlanFactory.class);
         return input -> makePlan.apply(lowerPlan.apply(input));
+    }
+
+    public PlanFactory visitRerankCommand(EsqlBaseParser.RerankCommandContext ctx) {
+        var source = source(ctx);
+
+        if (false == EsqlCapabilities.Cap.RERANK.isEnabled()) {
+            throw new ParsingException(source, "RERANK is in preview and only available in SNAPSHOT build");
+        }
+
+        return p -> {
+            List<Alias> rerankFields = new ArrayList<>();
+            if (ctx.fields() != null) {
+                rerankFields = visitFields(ctx.fields());
+            } else {
+                for (var attribute : p.output()) {
+                    rerankFields.add(new Alias(Source.EMPTY, attribute.name(), new UnresolvedAttribute(Source.EMPTY, attribute.name())));
+                }
+            }
+
+            System.out.println(rerankFields);
+
+            return new Rerank(source, p, visitStringOrParameter(ctx.inferenceId), visitStringOrParameter(ctx.queryText), rerankFields);
+        };
     }
 }

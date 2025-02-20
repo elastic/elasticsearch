@@ -834,7 +834,12 @@ public class EsqlCapabilities {
         /**
          * Support for FORK command
          */
-        FORK(Build.current().isSnapshot());
+        FORK(Build.current().isSnapshot()),
+
+        /**
+         * Support for RERANK command
+         */
+        RERANK(Build.current().isSnapshot());
 
         private final boolean enabled;
 

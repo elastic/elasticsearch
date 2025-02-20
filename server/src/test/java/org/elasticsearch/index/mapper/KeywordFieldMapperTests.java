@@ -770,4 +770,10 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         );
         assertScriptDocValues(mapper, "foo", equalTo(List.of("foo")));
     }
+
+    @Override
+    protected String randomSyntheticSourceKeep() {
+        // Only option all keeps array source in ignored source.
+        return randomFrom("all");
+    }
 }

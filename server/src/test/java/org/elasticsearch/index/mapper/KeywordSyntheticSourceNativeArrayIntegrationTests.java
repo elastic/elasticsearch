@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.nullValue;
 
-public class SyntheticSourceNativeArrayIntegrationTests extends ESSingleNodeTestCase {
+public class KeywordSyntheticSourceNativeArrayIntegrationTests extends ESSingleNodeTestCase {
 
     public void testSynthesizeArray() throws Exception {
         var arrayValues = new Object[][] {

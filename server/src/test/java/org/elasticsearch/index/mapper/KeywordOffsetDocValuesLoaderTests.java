@@ -22,7 +22,7 @@ import java.io.IOException;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.nullValue;
 
-public class OffsetDocValuesLoaderTests extends MapperServiceTestCase {
+public class KeywordOffsetDocValuesLoaderTests extends MapperServiceTestCase {
 
     @Override
     protected Settings getIndexSettings() {

@@ -17,7 +17,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.chunking.Chunker.ChunkOffset;
 
 import java.util.ArrayList;
@@ -148,7 +147,7 @@ public class EmbeddingRequestChunker {
                     sendFinalResponse();
                 }
             } else {
-                onFailure(unexpectedResultTypeException(inferenceServiceResults.getWriteableName(), TextEmbeddingFloatResults.NAME));
+                onFailure(unexpectedResultTypeException(inferenceServiceResults.getWriteableName()));
             }
         }
 
@@ -161,12 +160,11 @@ public class EmbeddingRequestChunker {
             );
         }
 
-        private ElasticsearchStatusException unexpectedResultTypeException(String got, String expected) {
+        private ElasticsearchStatusException unexpectedResultTypeException(String resultType) {
             return new ElasticsearchStatusException(
-                "Unexpected inference result type [{}], expected a [{}]",
+                "Unexpected inference result type [{}], expected [EmbeddingResults]",
                 RestStatus.INTERNAL_SERVER_ERROR,
-                got,
-                expected
+                resultType
             );
         }
 

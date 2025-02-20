@@ -42,7 +42,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -62,10 +61,6 @@ import static org.elasticsearch.health.HealthStatus.RED;
 public class HealthPeriodicLogger extends AbstractLifecycleComponent implements ClusterStateListener, SchedulerEngine.Listener {
     public static final String HEALTH_FIELD_PREFIX = "elasticsearch.health";
     public static final String MESSAGE_FIELD = "message";
-
-    // duplicated from SlmHealthIndicatorService since x-pack not accessible
-    private static final String SLM_HEALTH_INDICATOR_SERVICE_NAME = "slm";
-    private static final String SLM_HEALTH_INDICATOR_SERVICE_IMPACT_ID_MISSING_SNAPSHOT = "missing_snapshot";
 
     /**
      * Valid modes of output for this logger

@@ -245,7 +245,7 @@ setup:
   - match: { "test-index-options.mappings.properties.dense_field.index_options.type": "hnsw" }
   - match: { "test-index-options.mappings.properties.dense_field.index_options.m": 24 }
   - match: { "test-index-options.mappings.properties.dense_field.index_options.ef_construction": 200 }
-  - length: { "test-index.mappings.properties.dense_field": 4 }
+  - length: { "test-index-options.mappings.properties.dense_field": 4 }
 
 ---
 "Field caps with text embedding":

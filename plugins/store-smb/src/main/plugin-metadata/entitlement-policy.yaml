@@ -1,5 +1,5 @@
-org.elasticsearch.blobcache:
+ALL-UNNAMED:
   - files:
-      - relative_path: ""
+      - relative_path: "indices/"
         relative_to: data
         mode: read_write

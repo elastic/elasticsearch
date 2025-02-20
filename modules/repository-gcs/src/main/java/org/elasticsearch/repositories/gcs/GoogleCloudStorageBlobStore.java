@@ -130,7 +130,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     }
 
     private Storage client(OperationPurpose purpose) throws IOException {
-        return storageService.client(clientName, repositoryName, stats);
+        return storageService.client(clientName, repositoryName, purpose, stats);
     }
 
     @Override
@@ -140,7 +140,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
 
     @Override
     public void close() {
-        storageService.closeRepositoryClient(repositoryName);
+        storageService.closeRepositoryClients(repositoryName);
     }
 
     /**

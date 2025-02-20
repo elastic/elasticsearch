@@ -251,6 +251,11 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         client.execute(ModifyDataStreamsAction.INSTANCE, modifyDataStreamRequest, listener.map(ingored -> newIndex));
     }
 
+    /**
+     * Copy lifecycle name from the old index to the new index, so that ILM can now process the new index.
+     * If the new index has a lifecycle name before it is swapped into the data stream, ILM will try, and fail, to process
+     * the new index. For this reason, lifecycle is not set until after the new index has been added to the data stream.
+     */
     private void copySettings(String oldIndex, String newIndex, ActionListener<AcknowledgedResponse> listener, TaskId parentTaskId) {
         var getSettingsRequest = new GetSettingsRequest(TimeValue.MAX_VALUE).indices(oldIndex);
         getSettingsRequest.setParentTask(parentTaskId);

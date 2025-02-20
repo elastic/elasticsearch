@@ -1725,7 +1725,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         SyntheticSourceExample example = syntheticSourceSupportForKeepTests(shouldUseIgnoreMalformed()).example(1);
         DocumentMapper mapperAll = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
-            b.field("synthetic_source_keep", randomFrom("arrays", "all"));  // Both options keep array source.
+            b.field("synthetic_source_keep", randomSyntheticSourceKeep());
             example.mapping().accept(b);
             b.endObject();
         })).documentMapper();
@@ -1742,6 +1742,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         String expected = Strings.toString(builder);
         String actual = syntheticSource(mapperAll, buildInput);
         assertThat(actual, equalTo(expected));
+    }
+
+    protected String randomSyntheticSourceKeep() {
+        return randomFrom("all", "arrays");
     }
 
     @Override

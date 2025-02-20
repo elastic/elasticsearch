@@ -10,6 +10,7 @@
 package fixture.gcs;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -19,7 +20,10 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
 
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentSkipListMap;
@@ -168,42 +172,110 @@ public class MockGcsBlobStore {
         blobs.remove(path);
     }
 
-    PageOfBlobs listBlobs(int maxResults, @Nullable String delimiter) {
-        // TODO: implement delimiter/prefix logic?
-        return listBlobs(new PageToken(0, maxResults).toString());
+    private String stripPrefixIfPresent(@Nullable String prefix, String toStrip) {
+        if (prefix != null && toStrip.startsWith(prefix)) {
+            return toStrip.substring(prefix.length());
+        }
+        return toStrip;
     }
 
     PageOfBlobs listBlobs(String pageToken) {
         final PageToken parsedToken = PageToken.fromString(pageToken);
-        final int page = parsedToken.page();
-        final int pageSize = parsedToken.pageSize();
-        return new PageOfBlobs(page, pageSize, blobs.values().stream().skip((long) page * pageSize).limit(pageSize).toList(), blobs.size());
+        return calculatePageOfBlobs(parsedToken);
+    }
+
+    /**
+     * Calculate the requested page of blobs taking into account the request parameters
+     *
+     * @see <a href="https://cloud.google.com/storage/docs/json_api/v1/objects/list">Description of prefix/delimiter</a>
+     * @see <a href="https://cloud.google.com/storage/docs/json_api/v1/objects/list#parameters">List objects parameters</a>
+     * @param pageToken The token containing the prefix/delimiter/maxResults/pageNumber parameters
+     * @return The filtered list
+     */
+    private PageOfBlobs calculatePageOfBlobs(PageToken pageToken) {
+        final int page = pageToken.page();
+        final int maxResults = pageToken.maxResults();
+        final String prefix = pageToken.prefix();
+        final String delimiter = pageToken.delimiter();
+        int currentPage = 0;
+        final SortedSet<String> prefixes = new TreeSet<>();
+        final List<BlobVersion> matchingBlobs = new ArrayList<>();
+        for (BlobVersion blob : blobs.values()) {
+            if (blob.path().startsWith(prefix)) {
+                String pathWithoutPrefix = stripPrefixIfPresent(prefix, blob.path());
+                if (Strings.hasLength(delimiter) && pathWithoutPrefix.contains(delimiter)) {
+                    prefixes.add(pathWithoutPrefix.substring(0, pathWithoutPrefix.indexOf(delimiter) + 1));
+                } else {
+                    matchingBlobs.add(blob);
+                }
+            }
+            if (prefixes.size() + matchingBlobs.size() == maxResults) {
+                if (currentPage == page) {
+                    return new PageOfBlobs(
+                        new PageToken(prefix, delimiter, page, maxResults),
+                        new ArrayList<>(prefixes),
+                        matchingBlobs,
+                        false
+                    );
+                } else {
+                    prefixes.clear();
+                    matchingBlobs.clear();
+                    currentPage++;
+                }
+            }
+        }
+        return new PageOfBlobs(new PageToken(prefix, delimiter, page, maxResults), new ArrayList<>(prefixes), matchingBlobs, true);
+    }
+
+    PageOfBlobs listBlobs(int maxResults, String delimiter, String prefix) {
+        final PageToken pageToken = new PageToken(prefix, delimiter, 0, maxResults);
+        return calculatePageOfBlobs(pageToken);
     }
 
     List<BlobVersion> listBlobs() {
         return new ArrayList<>(blobs.values());
     }
 
-    record PageToken(int page, int pageSize) {
-
+    /**
+     * We serialise this as a tuple with base64 encoded components so we don't need to escape the delimiter
+     */
+    record PageToken(String prefix, String delimiter, int page, int maxResults) {
         public static PageToken fromString(String pageToken) {
-            String[] parts = pageToken.split("\\.");
-            return new PageToken(Integer.parseInt(parts[0]), Integer.parseInt(parts[1]));
+            final String[] parts = pageToken.split("\\.");
+            assert parts.length == 4;
+            return new PageToken(
+                decode(parts[0]),
+                decode(parts[1]),
+                Integer.parseInt(decode(parts[2])),
+                Integer.parseInt(decode(parts[3]))
+            );
         }
 
         public String toString() {
-            return page + "." + pageSize;
+            return encode(prefix) + "." + encode(delimiter) + "." + encode(String.valueOf(page)) + "." + encode(String.valueOf(maxResults));
+        }
+
+        public PageToken nextPageToken() {
+            return new PageToken(prefix, delimiter, page + 1, maxResults);
+        }
+
+        private static String encode(String value) {
+            return Base64.getEncoder().encodeToString(value.getBytes());
+        }
+
+        private static String decode(String value) {
+            return new String(Base64.getDecoder().decode(value));
         }
     }
 
-    record PageOfBlobs(int page, int pageSize, List<BlobVersion> blobs, int total) {
+    record PageOfBlobs(PageToken pageToken, List<String> prefixes, List<BlobVersion> blobs, boolean lastPage) {
 
         public boolean isLastPage() {
-            return (page * pageSize) + blobs.size() == total;
+            return lastPage;
         }
 
         public String nextPageToken() {
-            return isLastPage() ? null : new PageToken(page + 1, pageSize).toString();
+            return isLastPage() ? null : pageToken.nextPageToken().toString();
         }
     }
 

@@ -21,6 +21,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV10;
 
 import java.net.URI;
+import java.net.URLEncoder;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -40,6 +41,35 @@ public class RestUtils {
     private static final boolean DECODE_PLUS_AS_SPACE = Booleans.parseBoolean(System.getProperty("es.rest.url_plus_as_space", "false"));
 
     public static final UnaryOperator<String> REST_DECODER = RestUtils::decodeComponent;
+
+    /**
+     * Generate a query string for the given parameters
+     *
+     * @param parameters The query parameters as alternating key, value pairs
+     * @return The query string including all parameters with a non-null value (e.g.
+     */
+    public static String generateQueryString(Object... parameters) {
+        if (parameters.length % 2 != 0) {
+            String message = "Parameters must be represented as alternating key, value pairs";
+            assert false : message;
+            throw new IllegalArgumentException(message);
+        }
+        final StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < parameters.length; i += 2) {
+            String key = String.valueOf(parameters[i]);
+            Object value = parameters[i + 1];
+            if (value != null) {
+                if (builder.isEmpty() == false) {
+                    builder.append("&");
+                }
+                builder.append(key).append("=").append(URLEncoder.encode(String.valueOf(value), StandardCharsets.UTF_8));
+            }
+        }
+        if (builder.isEmpty() == false) {
+            return "?" + builder;
+        }
+        return "";
+    }
 
     public static void decodeQueryString(URI uri, Map<String, String> params) {
         final var rawQuery = uri.getRawQuery();

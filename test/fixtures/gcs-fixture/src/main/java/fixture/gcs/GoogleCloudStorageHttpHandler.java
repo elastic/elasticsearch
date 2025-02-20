@@ -33,13 +33,10 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URLDecoder;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -103,19 +100,17 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 RestUtils.decodeQueryString(exchange.getRequestURI(), params);
                 final String prefix = params.getOrDefault("prefix", "");
                 final int maxResults = Integer.parseInt(params.getOrDefault("maxResults", String.valueOf(defaultPageLimit.get())));
-                final String delimiter = params.get("delimiter");
+                final String delimiter = params.getOrDefault("delimiter", "");
                 final String pageToken = params.get("pageToken");
-
-                final Set<String> prefixes = new HashSet<>();
 
                 final MockGcsBlobStore.PageOfBlobs pageOfBlobs;
                 if (pageToken != null) {
                     pageOfBlobs = mockGcsBlobStore.listBlobs(pageToken);
                 } else {
-                    pageOfBlobs = mockGcsBlobStore.listBlobs(maxResults, delimiter);
+                    pageOfBlobs = mockGcsBlobStore.listBlobs(maxResults, delimiter, prefix);
                 }
 
-                ListBlobsResponse response = new ListBlobsResponse(bucket, pageOfBlobs.blobs(), prefixes, pageOfBlobs.nextPageToken());
+                ListBlobsResponse response = new ListBlobsResponse(bucket, pageOfBlobs);
                 try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
                     response.toXContent(builder, ToXContent.EMPTY_PARAMS);
                     BytesReference responseBytes = BytesReference.bytes(builder);
@@ -280,25 +275,21 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
         }
     }
 
-    // {"kind":"storage#objects",%s"items":[%s],"prefixes":[%s]}\
-    record ListBlobsResponse(String bucket, List<MockGcsBlobStore.BlobVersion> blobs, Set<String> prefixes, String nextPageToken)
-        implements
-            ToXContent {
+    record ListBlobsResponse(String bucket, MockGcsBlobStore.PageOfBlobs pageOfBlobs) implements ToXContent {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("kind", "storage#objects");
-            if (nextPageToken != null) {
-                builder.field("nextPageToken", nextPageToken);
+            if (pageOfBlobs.nextPageToken() != null) {
+                builder.field("nextPageToken", pageOfBlobs.nextPageToken());
             }
             builder.startArray("items");
-            // {"kind":"storage#object","bucket":"%s","name":"%s","id":"%s","size":"%s","generation":"%d"}""",
-            for (MockGcsBlobStore.BlobVersion blobVersion : blobs) {
+            for (MockGcsBlobStore.BlobVersion blobVersion : pageOfBlobs().blobs()) {
                 writeBlobAsXContent(blobVersion, builder, bucket);
             }
             builder.endArray();
-            builder.field("prefixes", prefixes);
+            builder.field("prefixes", pageOfBlobs.prefixes());
             builder.endObject();
             return builder;
         }

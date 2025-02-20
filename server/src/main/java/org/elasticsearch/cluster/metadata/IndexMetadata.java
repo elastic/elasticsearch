@@ -939,8 +939,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     public IndexMetadata withIncrementedPrimaryShards(int shardCount) {
-        if(this.primaryTerms.length == shardCount)
-            return this;
+        if (this.primaryTerms.length == shardCount) return this;
 
         if (shardCount % this.primaryTerms.length != 0) {
             throw new IllegalArgumentException(

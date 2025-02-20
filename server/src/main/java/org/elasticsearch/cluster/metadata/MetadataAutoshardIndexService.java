@@ -24,18 +24,14 @@ import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionLi
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
-
-import java.util.Map;
 
 public class MetadataAutoshardIndexService {
     private static final Logger logger = LogManager.getLogger(MetadataAutoshardIndexService.class);
@@ -148,6 +144,7 @@ public class MetadataAutoshardIndexService {
         int sourceNumShards = sourceMetadata.getNumberOfShards();
         int targetNumShards = sourceNumShards * 2;
 
+        /*
         Settings.Builder settingsBuilder = Settings.builder().put(sourceMetadata.getSettings());
         settingsBuilder.remove(IndexMetadata.SETTING_NUMBER_OF_SHARDS);
         settingsBuilder.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, targetNumShards);
@@ -155,19 +152,16 @@ public class MetadataAutoshardIndexService {
         final Map<Index, Settings> updates = Maps.newHashMapWithExpectedSize(1);
         updates.put(sourceMetadata.getIndex(), settingsBuilder.build());
         final Metadata newMetadata = currentState.metadata().withIndexSettingsUpdates(updates);
-
-        /*
-        var routingTableBuilder = RoutingTable.builder(allocationService.getShardRoutingRoleStrategy(), currentState.routingTable())
-            .remove(indexName)
-            .addAsNew(newMetadata.index(indexName));
         */
 
-        var routingTableBuilder = RoutingTable.builder().updateNumberOfShards(targetNumShards, indexName);
+        var routingTableBuilder = RoutingTable.builder(allocationService.getShardRoutingRoleStrategy(), currentState.routingTable())
+            .updateNumberOfShards(targetNumShards, indexName);
 
+        Metadata newMetadata = Metadata.builder(currentState.metadata()).updateNumberOfShards(targetNumShards, indexName).build();
         ClusterState updated = ClusterState.builder(currentState)
             .incrementVersion()
-            .metadata(newMetadata)
             .routingTable(routingTableBuilder)
+            .metadata(newMetadata)
             .build();
         updated = allocationService.reroute(updated, "index [" + indexName + "] autosharded", rerouteListener);
         return updated;

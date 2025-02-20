@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.inference.results;
 
-public interface TextEmbeddingResults<C extends EmbeddingResults.Chunk, E extends EmbeddingResults.Embedding<C>>
+public interface TextEmbeddingResults<C extends EmbeddingResults.Chunk, E extends EmbeddingResults.Embedding<C, E>>
     extends
         EmbeddingResults<C, E> {
 

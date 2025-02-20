@@ -725,7 +725,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
         if (model instanceof ElasticsearchInternalModel esModel) {
 
-            List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
+            List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
                 input,
                 EMBEDDING_MAX_BATCH_SIZE,
                 esModel.getConfigurations().getChunkingSettings()

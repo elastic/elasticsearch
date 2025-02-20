@@ -10,53 +10,75 @@
 package org.elasticsearch.repositories.gcs;
 
 import org.elasticsearch.common.blobstore.BlobStoreActionStats;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.LongAdder;
 
 final class GoogleCloudStorageOperationsStats {
 
-    private final AtomicLong getCount = new AtomicLong();
-    private final AtomicLong listCount = new AtomicLong();
-    private final AtomicLong putCount = new AtomicLong();
-    private final AtomicLong postCount = new AtomicLong();
-
+    private static final int OPERATION_PURPOSE_NUM = OperationPurpose.values().length;
+    private static final int OPERATION_NUM = Operation.values().length;
+    private final LongAdder[][] counters;
+    private final String[] counterNames;
     private final String bucketName;
 
     GoogleCloudStorageOperationsStats(String bucketName) {
         this.bucketName = bucketName;
+        counters = new LongAdder[OPERATION_PURPOSE_NUM * OPERATION_NUM][2];
+        counterNames = new String[counters.length];
+        for (int counterIndex = 0; counterIndex < counters.length; counterIndex++) {
+            counterNames[counterIndex] = counterName(counterIndex);
+            counters[counterIndex] = new LongAdder[] { new LongAdder(), new LongAdder() };
+        }
     }
 
-    void trackGetOperation() {
-        getCount.incrementAndGet();
+    private LongAdder[] operationCounters(OperationPurpose purpose, Operation operation) {
+        return counters[purpose.ordinal() * OPERATION_NUM + operation.ordinal()];
     }
 
-    void trackPutOperation() {
-        putCount.incrementAndGet();
+    void trackOperation(OperationPurpose purpose, Operation operation) {
+        operationCounters(purpose, operation)[0].add(1);
     }
 
-    void trackPostOperation() {
-        postCount.incrementAndGet();
+    void trackRequest(OperationPurpose purpose, Operation operation) {
+        operationCounters(purpose, operation)[1].add(1);
     }
 
-    void trackListOperation() {
-        listCount.incrementAndGet();
+    private static String counterName(int counterIndex) {
+        int purposeOrd = counterIndex / OPERATION_NUM;
+        String purpose = OperationPurpose.values()[purposeOrd].name();
+        int operationOrd = counterIndex - (purposeOrd * OPERATION_NUM);
+        String operation = Operation.values()[operationOrd].name();
+        return purpose + "_" + operation;
     }
 
-    String getTrackedBucket() {
+    String bucketName() {
         return bucketName;
     }
 
-    // TODO: actually track requests and operations separately (see https://elasticco.atlassian.net/browse/ES-10213)
     Map<String, BlobStoreActionStats> toMap() {
-        final Map<String, BlobStoreActionStats> results = new HashMap<>();
-        final long getOperations = getCount.get();
-        results.put("GetObject", new BlobStoreActionStats(getOperations, getOperations));
-        final long listOperations = listCount.get();
-        results.put("ListObjects", new BlobStoreActionStats(listOperations, listOperations));
-        final long insertOperations = postCount.get() + putCount.get();
-        results.put("InsertObject", new BlobStoreActionStats(insertOperations, insertOperations));
+        var results = new HashMap<String, BlobStoreActionStats>(counterNames.length);
+        for (var counterIndex = 0; counterIndex < counterNames.length; counterIndex++) {
+            var stats = counters[counterIndex];
+            var operations = stats[0].sum();
+            var requests = stats[1].sum();
+            results.put(counterNames[counterIndex], new BlobStoreActionStats(operations, requests));
+        }
         return results;
+    }
+
+    public enum Operation {
+        GET("Get"),
+        LIST("List"),
+        PUT("Put"),
+        POST("Post");
+
+        final String name;
+
+        Operation(String name) {
+            this.name = name;
+        }
     }
 }

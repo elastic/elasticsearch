@@ -30,6 +30,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreActionStats;
 import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.BlobContainerUtils;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
@@ -43,6 +44,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStats.Operation;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.ByteArrayInputStream;
@@ -377,7 +379,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                 final WritableByteChannel writeChannel = channelRef.get();
                 if (writeChannel != null) {
                     SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
-                    stats.trackPutOperation();
+                    stats.trackOperation(OperationPurpose.SNAPSHOT_DATA, Operation.PUT);
                 } else {
                     writeBlob(blobName, buffer.bytes(), failIfAlreadyExists);
                 }
@@ -438,7 +440,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                 // we do with the GET/LIST operations since this operations
                 // can trigger multiple underlying http requests but only one
                 // operation is billed.
-                stats.trackPutOperation();
+                stats.trackOperation(OperationPurpose.SNAPSHOT_DATA, Operation.PUT);
                 return;
             } catch (final StorageException se) {
                 final int errorCode = se.getCode();
@@ -483,7 +485,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             // we do with the GET/LIST operations since this operations
             // can trigger multiple underlying http requests but only one
             // operation is billed.
-            stats.trackPostOperation();
+            stats.trackOperation(OperationPurpose.SNAPSHOT_DATA, Operation.POST);
         } catch (final StorageException se) {
             if (failIfAlreadyExists && se.getCode() == HTTP_PRECON_FAILED) {
                 throw new FileAlreadyExistsException(blobInfo.getBlobId().getName(), null, se.getMessage());
@@ -710,7 +712,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                         Storage.BlobTargetOption.generationMatch()
                     )
                 );
-                stats.trackPostOperation();
+                stats.trackOperation(OperationPurpose.SNAPSHOT_DATA, Operation.POST);
                 return OptionalBytesReference.of(expected);
             } catch (Exception e) {
                 final var serviceException = unwrapServiceException(e);

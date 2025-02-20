@@ -405,15 +405,13 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         try {
             startInParallel(threadCount, i -> {
                 try {
-                    AddIndexBlockResponse response = indicesAdmin().prepareAddBlock(block, indexName).get();
-                    assertTrue(
-                        "Add block [" + block + "] to index [" + indexName + "] not acknowledged: " + response,
-                        response.isAcknowledged()
-                    );
+                    assertBusy(() -> assertAcked(indicesAdmin().prepareAddBlock(block, indexName).get()));
                     assertIndexHasBlock(block, indexName);
                 } catch (final ClusterBlockException e) {
                     assertThat(e.blocks(), hasSize(1));
                     assertTrue(e.blocks().stream().allMatch(b -> b.id() == block.getBlock().id()));
+                } catch (Exception e) {
+                    throw new RuntimeException("Unable to ack an index block request", e);
                 }
             });
             assertIndexHasBlock(block, indexName);

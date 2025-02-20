@@ -133,7 +133,8 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                 final Map<String, AliasFilter> aliasFilters = transportSearchAction.buildIndexAliasFilters(
                     clusterState,
                     indicesAndAliases,
-                    concreteIndices
+                    concreteIndices,
+                    false
                 );
                 String[] concreteIndexNames = Arrays.stream(concreteIndices).map(Index::getName).toArray(String[]::new);
                 List<SearchShardIterator> shardIts = transportSearchAction.getLocalShardsIterator(

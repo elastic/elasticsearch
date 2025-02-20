@@ -21,7 +21,6 @@ import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
@@ -33,12 +32,12 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
@@ -46,6 +45,8 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.GZIPOutputStream;
+
+import static java.util.Objects.requireNonNull;
 
 public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
 
@@ -565,7 +566,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
             "/upload/storage/v1/b/"
                 + bucket
                 + "/"
-                + RestUtils.generateQueryString("uploadType", "resumable", "name", blobName, "ifGenerationMatch", ifGenerationMatch)
+                + generateQueryString("uploadType", "resumable", "name", blobName, "ifGenerationMatch", ifGenerationMatch)
         );
         final var locationHeader = createUploadResponse.headers.getFirst("Location");
         final var sessionURI = locationHeader.substring(locationHeader.indexOf(HOST) + HOST.length());
@@ -590,10 +591,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         return handleRequest(
             handler,
             "POST",
-            "/upload/storage/v1/b/"
-                + bucket
-                + "/"
-                + RestUtils.generateQueryString("uploadType", "multipart", "ifGenerationMatch", ifGenerationMatch),
+            "/upload/storage/v1/b/" + bucket + "/" + generateQueryString("uploadType", "multipart", "ifGenerationMatch", ifGenerationMatch),
             createGzipCompressedMultipartUploadBody(bucket, blobName, bytes)
         );
     }
@@ -608,7 +606,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         return handleRequest(
             handler,
             "GET",
-            "/download/storage/v1/b/" + bucket + "/o/" + blobName + RestUtils.generateQueryString("ifGenerationMatch", ifGenerationMatch),
+            "/download/storage/v1/b/" + bucket + "/o/" + blobName + generateQueryString("ifGenerationMatch", ifGenerationMatch),
             BytesArray.EMPTY,
             range != null ? rangeHeader(range.start(), range.end()) : TestHttpExchange.EMPTY_HEADERS
         );
@@ -623,7 +621,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         return handleRequest(
             handler,
             "GET",
-            "/storage/v1/b/" + bucket + "/o/" + blobName + RestUtils.generateQueryString("ifGenerationMatch", ifGenerationMatch)
+            "/storage/v1/b/" + bucket + "/o/" + blobName + generateQueryString("ifGenerationMatch", ifGenerationMatch)
         );
     }
 
@@ -639,7 +637,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         return handleRequest(
             handler,
             "GET",
-            "/storage/v1/b/" + bucket + "/o" + RestUtils.generateQueryString("prefix", prefix, "delimiter", delimiter)
+            "/storage/v1/b/" + bucket + "/o" + generateQueryString("prefix", prefix, "delimiter", delimiter)
         );
     }
 
@@ -661,7 +659,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         }
 
         RestStatus restStatus() {
-            return Objects.requireNonNull(RestStatus.fromCode(status));
+            return requireNonNull(RestStatus.fromCode(status));
         }
 
         @Override
@@ -719,6 +717,35 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
             }
         });
         return new TestHttpResponse(httpExchange.getResponseCode(), httpExchange.getResponseBodyContents(), responseHeaders);
+    }
+
+    /**
+     * Generate a query string for the given parameters
+     *
+     * @param parameters The query parameters as alternating key, value pairs
+     * @return The query string including all parameters with a non-null value (e.g.
+     */
+    public static String generateQueryString(Object... parameters) {
+        if (parameters.length % 2 != 0) {
+            String message = "Parameters must be represented as alternating key, value pairs";
+            assert false : message;
+            throw new IllegalArgumentException(message);
+        }
+        final StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < parameters.length; i += 2) {
+            final String key = String.valueOf(requireNonNull(parameters[i], "Parameter names must be non-null strings"));
+            final Object value = parameters[i + 1];
+            if (value != null) {
+                if (builder.isEmpty() == false) {
+                    builder.append("&");
+                }
+                builder.append(key).append("=").append(URLEncoder.encode(String.valueOf(value), StandardCharsets.UTF_8));
+            }
+        }
+        if (builder.isEmpty() == false) {
+            return "?" + builder;
+        }
+        return "";
     }
 
     private static Headers contentRangeHeader(@Nullable Integer startInclusive, @Nullable Integer endInclusive, @Nullable Integer limit) {

@@ -177,8 +177,9 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
     private ContainerAndBlobStore createBlobContainer(final String repositoryName) throws Exception {
         final String clientName = randomIdentifier();
 
-        final Tuple<ServiceAccountCredentials, byte[]> serviceAccountCredentialsTuple = GoogleCloudStorageClientSettingsTests
-            .randomCredential(clientName);
+        final Tuple<ServiceAccountCredentials, byte[]> serviceAccountCredentialsTuple = GoogleCloudStorageTestUtilities.randomCredential(
+            clientName
+        );
         final GoogleCloudStorageClientSettings clientSettings = new GoogleCloudStorageClientSettings(
             serviceAccountCredentialsTuple.v1(),
             getEndpointForServer(httpServer),

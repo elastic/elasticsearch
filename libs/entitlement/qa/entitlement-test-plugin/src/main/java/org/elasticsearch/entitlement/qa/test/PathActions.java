@@ -16,7 +16,7 @@ import java.nio.file.WatchEvent;
 
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
 
-@SuppressWarnings({ "unused" /* called via reflection */ })
+@SuppressWarnings({ "unused" /* called via reflection */, "rawtypes" })
 class PathActions {
 
     @EntitlementTest(expectedAccess = PLUGINS)

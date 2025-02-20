@@ -1,0 +1,5 @@
+org.elasticsearch.analysis.common:
+  - files:
+      - relative_path: analysis
+        relative_to: config
+        mode: read

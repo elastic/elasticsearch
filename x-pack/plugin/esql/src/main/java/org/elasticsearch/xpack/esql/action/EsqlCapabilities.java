@@ -824,7 +824,12 @@ public class EsqlCapabilities {
         /**
          * Support partial_results
          */
-        SUPPORT_PARTIAL_RESULTS;
+        SUPPORT_PARTIAL_RESULTS,
+
+        /**
+         * Support for rendering aggregate_metric_double type
+         */
+        AGGREGATE_METRIC_DOUBLE_RENDERING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG);
 
         private final boolean enabled;
 

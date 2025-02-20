@@ -260,6 +260,18 @@ public class IndexAbstractionResolverTests extends ESTestCase {
 
         metadata = Metadata.builder().put(foo, true).put(barReindexed, true).put(other, true).build();
 
+        // these indices options are for the GET _data_streams case
+        final IndicesOptions noHiddenNoAliases = IndicesOptions.builder()
+            .wildcardOptions(
+                IndicesOptions.WildcardOptions.builder()
+                    .matchOpen(true)
+                    .matchClosed(true)
+                    .includeHidden(false)
+                    .resolveAliases(false)
+                    .build()
+            )
+            .build();
+
         {
             final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
             threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, "true");
@@ -270,6 +282,11 @@ public class IndexAbstractionResolverTests extends ESTestCase {
             assertThat(isIndexVisible("other", "*"), is(true));
             assertThat(isIndexVisible(".foo", "*"), is(true));
             assertThat(isIndexVisible(".bar", "*"), is(true));
+
+            // but if you don't ask for hidden and aliases, you won't see hidden indices or aliases, naturally
+            assertThat(isIndexVisible("other", "*", noHiddenNoAliases), is(true));
+            assertThat(isIndexVisible(".foo", "*", noHiddenNoAliases), is(false));
+            assertThat(isIndexVisible(".bar", "*", noHiddenNoAliases), is(false));
         }
 
         {
@@ -282,6 +299,11 @@ public class IndexAbstractionResolverTests extends ESTestCase {
             assertThat(isIndexVisible("other", "*"), is(true));
             assertThat(isIndexVisible(".foo", "*"), is(false));
             assertThat(isIndexVisible(".bar", "*"), is(false));
+
+            // no difference here in the datastream case, you can't see these then, either
+            assertThat(isIndexVisible("other", "*", noHiddenNoAliases), is(true));
+            assertThat(isIndexVisible(".foo", "*", noHiddenNoAliases), is(false));
+            assertThat(isIndexVisible(".bar", "*", noHiddenNoAliases), is(false));
         }
 
         {
@@ -295,6 +317,11 @@ public class IndexAbstractionResolverTests extends ESTestCase {
             assertThat(isIndexVisible("other", "*"), is(true));
             assertThat(isIndexVisible(".foo", "*"), is(false));
             assertThat(isIndexVisible(".bar", "*"), is(false));
+
+            // no difference here in the datastream case, you can't see these then, either
+            assertThat(isIndexVisible("other", "*", noHiddenNoAliases), is(true));
+            assertThat(isIndexVisible(".foo", "*", noHiddenNoAliases), is(false));
+            assertThat(isIndexVisible(".bar", "*", noHiddenNoAliases), is(false));
         }
     }
 

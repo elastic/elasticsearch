@@ -11,6 +11,8 @@ package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
+import org.elasticsearch.entitlement.bridge.EntitlementChecker;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoaderEntitlement;
@@ -48,6 +50,8 @@ import static java.util.Objects.requireNonNull;
 import static java.util.function.Predicate.not;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toUnmodifiableMap;
+import static java.util.zip.ZipFile.OPEN_DELETE;
+import static java.util.zip.ZipFile.OPEN_READ;
 
 public class PolicyManager {
     private static final Logger logger = LogManager.getLogger(PolicyManager.class);
@@ -70,24 +74,6 @@ public class PolicyManager {
             entitlementsByType = Map.copyOf(entitlementsByType);
         }
 
-        public static ModuleEntitlements none(String componentName) {
-            return new ModuleEntitlements(componentName, Map.of(), FileAccessTree.EMPTY);
-        }
-
-        public static ModuleEntitlements from(String componentName, List<Entitlement> entitlements) {
-            FilesEntitlement filesEntitlement = FilesEntitlement.EMPTY;
-            for (Entitlement entitlement : entitlements) {
-                if (entitlement instanceof FilesEntitlement) {
-                    filesEntitlement = (FilesEntitlement) entitlement;
-                }
-            }
-            return new ModuleEntitlements(
-                componentName,
-                entitlements.stream().collect(groupingBy(Entitlement::getClass)),
-                FileAccessTree.of(filesEntitlement)
-            );
-        }
-
         public boolean hasEntitlement(Class<? extends Entitlement> entitlementClass) {
             return entitlementsByType.containsKey(entitlementClass);
         }
@@ -101,12 +87,34 @@ public class PolicyManager {
         }
     }
 
+    // pkg private for testing
+    ModuleEntitlements defaultEntitlements(String componentName) {
+        return new ModuleEntitlements(componentName, Map.of(), defaultFileAccess);
+    }
+
+    // pkg private for testing
+    ModuleEntitlements policyEntitlements(String componentName, List<Entitlement> entitlements) {
+        FilesEntitlement filesEntitlement = FilesEntitlement.EMPTY;
+        for (Entitlement entitlement : entitlements) {
+            if (entitlement instanceof FilesEntitlement) {
+                filesEntitlement = (FilesEntitlement) entitlement;
+            }
+        }
+        return new ModuleEntitlements(
+            componentName,
+            entitlements.stream().collect(groupingBy(Entitlement::getClass)),
+            FileAccessTree.of(filesEntitlement, pathLookup)
+        );
+    }
+
     final Map<Module, ModuleEntitlements> moduleEntitlementsMap = new ConcurrentHashMap<>();
 
     private final Map<String, List<Entitlement>> serverEntitlements;
     private final List<Entitlement> apmAgentEntitlements;
     private final Map<String, Map<String, List<Entitlement>>> pluginsEntitlements;
     private final Function<Class<?>, String> pluginResolver;
+    private final PathLookup pathLookup;
+    private final FileAccessTree defaultFileAccess;
 
     public static final String ALL_UNNAMED = "ALL-UNNAMED";
 
@@ -141,7 +149,8 @@ public class PolicyManager {
         Map<String, Policy> pluginPolicies,
         Function<Class<?>, String> pluginResolver,
         String apmAgentPackageName,
-        Module entitlementsModule
+        Module entitlementsModule,
+        PathLookup pathLookup
     ) {
         this.serverEntitlements = buildScopeEntitlementsMap(requireNonNull(serverPolicy));
         this.apmAgentEntitlements = apmAgentEntitlements;
@@ -151,6 +160,8 @@ public class PolicyManager {
         this.pluginResolver = pluginResolver;
         this.apmAgentPackageName = apmAgentPackageName;
         this.entitlementsModule = entitlementsModule;
+        this.pathLookup = requireNonNull(pathLookup);
+        this.defaultFileAccess = FileAccessTree.of(FilesEntitlement.EMPTY, pathLookup);
 
         for (var e : serverEntitlements.entrySet()) {
             validateEntitlementsPerModule(SERVER_COMPONENT_NAME, e.getKey(), e.getValue());
@@ -208,7 +219,8 @@ public class PolicyManager {
                 requestingClass.getModule().getName(),
                 requestingClass,
                 operationDescription.get()
-            )
+            ),
+            callerClass
         );
     }
 
@@ -247,6 +259,13 @@ public class PolicyManager {
         checkChangeJVMGlobalState(callerClass);
     }
 
+    /**
+     * Check for operations that can modify the way file operations are handled
+     */
+    public void checkChangeFilesHandling(Class<?> callerClass) {
+        checkChangeJVMGlobalState(callerClass);
+    }
+
     @SuppressForbidden(reason = "Explicitly checking File apis")
     public void checkFileRead(Class<?> callerClass, File file) {
         checkFileRead(callerClass, file.toPath());
@@ -267,7 +286,8 @@ public class PolicyManager {
                     requestingClass.getModule().getName(),
                     requestingClass,
                     path
-                )
+                ),
+                callerClass
             );
         }
     }
@@ -292,9 +312,34 @@ public class PolicyManager {
                     requestingClass.getModule().getName(),
                     requestingClass,
                     path
-                )
+                ),
+                callerClass
             );
         }
+    }
+
+    public void checkCreateTempFile(Class<?> callerClass) {
+        checkFileWrite(callerClass, pathLookup.tempDir());
+    }
+
+    @SuppressForbidden(reason = "Explicitly checking File apis")
+    public void checkFileWithZipMode(Class<?> callerClass, File file, int zipMode) {
+        assert zipMode == OPEN_READ || zipMode == (OPEN_READ | OPEN_DELETE);
+        if ((zipMode & OPEN_DELETE) == OPEN_DELETE) {
+            // This needs both read and write, but we happen to know that checkFileWrite
+            // actually checks both.
+            checkFileWrite(callerClass, file);
+        } else {
+            checkFileRead(callerClass, file);
+        }
+    }
+
+    public void checkFileDescriptorRead(Class<?> callerClass) {
+        neverEntitled(callerClass, () -> "read file descriptor");
+    }
+
+    public void checkFileDescriptorWrite(Class<?> callerClass) {
+        neverEntitled(callerClass, () -> "write file descriptor");
     }
 
     /**
@@ -333,14 +378,15 @@ public class PolicyManager {
         }
 
         var classEntitlements = getEntitlements(requestingClass);
-        checkFlagEntitlement(classEntitlements, InboundNetworkEntitlement.class, requestingClass);
-        checkFlagEntitlement(classEntitlements, OutboundNetworkEntitlement.class, requestingClass);
+        checkFlagEntitlement(classEntitlements, InboundNetworkEntitlement.class, requestingClass, callerClass);
+        checkFlagEntitlement(classEntitlements, OutboundNetworkEntitlement.class, requestingClass, callerClass);
     }
 
     private static void checkFlagEntitlement(
         ModuleEntitlements classEntitlements,
         Class<? extends Entitlement> entitlementClass,
-        Class<?> requestingClass
+        Class<?> requestingClass,
+        Class<?> callerClass
     ) {
         if (classEntitlements.hasEntitlement(entitlementClass) == false) {
             notEntitled(
@@ -350,7 +396,8 @@ public class PolicyManager {
                     requestingClass.getModule().getName(),
                     requestingClass,
                     PolicyParser.getEntitlementTypeName(entitlementClass)
-                )
+                ),
+                callerClass
             );
         }
         logger.debug(
@@ -390,12 +437,18 @@ public class PolicyManager {
                 requestingClass.getModule().getName(),
                 requestingClass,
                 property
-            )
+            ),
+            callerClass
         );
     }
 
-    private static void notEntitled(String message) {
-        throw new NotEntitledException(message);
+    private static void notEntitled(String message, Class<?> callerClass) {
+        var exception = new NotEntitledException(message);
+        // don't log self tests in EntitlementBootstrap
+        if (EntitlementBootstrap.class.equals(callerClass) == false) {
+            logger.warn(message, exception);
+        }
+        throw exception;
     }
 
     public void checkManageThreadsEntitlement(Class<?> callerClass) {
@@ -407,7 +460,7 @@ public class PolicyManager {
         if (isTriviallyAllowed(requestingClass)) {
             return;
         }
-        checkFlagEntitlement(getEntitlements(requestingClass), entitlementClass, requestingClass);
+        checkFlagEntitlement(getEntitlements(requestingClass), entitlementClass, requestingClass, callerClass);
     }
 
     ModuleEntitlements getEntitlements(Class<?> requestingClass) {
@@ -425,7 +478,7 @@ public class PolicyManager {
         if (pluginName != null) {
             var pluginEntitlements = pluginsEntitlements.get(pluginName);
             if (pluginEntitlements == null) {
-                return ModuleEntitlements.none(pluginName);
+                return defaultEntitlements(pluginName);
             } else {
                 final String scopeName;
                 if (requestingModule.isNamed() == false) {
@@ -439,10 +492,10 @@ public class PolicyManager {
 
         if (requestingModule.isNamed() == false && requestingClass.getPackageName().startsWith(apmAgentPackageName)) {
             // The APM agent is the only thing running non-modular in the system classloader
-            return ModuleEntitlements.from(APM_AGENT_COMPONENT_NAME, apmAgentEntitlements);
+            return policyEntitlements(APM_AGENT_COMPONENT_NAME, apmAgentEntitlements);
         }
 
-        return ModuleEntitlements.none(UNKNOWN_COMPONENT_NAME);
+        return defaultEntitlements(UNKNOWN_COMPONENT_NAME);
     }
 
     private ModuleEntitlements getModuleScopeEntitlements(
@@ -452,9 +505,9 @@ public class PolicyManager {
     ) {
         var entitlements = scopeEntitlements.get(moduleName);
         if (entitlements == null) {
-            return ModuleEntitlements.none(componentName);
+            return defaultEntitlements(componentName);
         }
-        return ModuleEntitlements.from(componentName, entitlements);
+        return policyEntitlements(componentName, entitlements);
     }
 
     private static boolean isServerModule(Module requestingModule) {
@@ -505,6 +558,10 @@ public class PolicyManager {
         }
         if (systemModules.contains(requestingClass.getModule())) {
             logger.debug("Entitlement trivially allowed from system module [{}]", requestingClass.getModule().getName());
+            return true;
+        }
+        if (EntitlementChecker.class.isAssignableFrom(requestingClass)) {
+            logger.debug("Entitlement trivially allowed for EntitlementChecker class");
             return true;
         }
         logger.trace("Entitlement not trivially allowed");

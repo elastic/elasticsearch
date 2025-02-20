@@ -304,6 +304,11 @@ public class EsqlCapabilities {
         UNION_TYPES,
 
         /**
+         * Support unmapped using the INSIST keyword.
+         */
+        UNMAPPED_FIELDS(Build.current().isSnapshot()),
+
+        /**
          * Support for function {@code ST_DISTANCE}. Done in #108764.
          */
         ST_DISTANCE,
@@ -623,6 +628,11 @@ public class EsqlCapabilities {
         SORT_RETURNING_SOURCE_OK,
 
         /**
+         * _source field mapping directives: https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-source-field.html
+         */
+        SOURCE_FIELD_MAPPING,
+
+        /**
          * Allow filter per individual aggregation.
          */
         PER_AGG_FILTERING,
@@ -809,7 +819,17 @@ public class EsqlCapabilities {
          * Fixes a series of issues with inlinestats which had an incomplete implementation after lookup and inlinestats
          * were refactored.
          */
-        INLINESTATS_V3(EsqlPlugin.INLINESTATS_FEATURE_FLAG);
+        INLINESTATS_V3(EsqlPlugin.INLINESTATS_FEATURE_FLAG),
+
+        /**
+         * Support partial_results
+         */
+        SUPPORT_PARTIAL_RESULTS,
+
+        /**
+         * Support for rendering aggregate_metric_double type
+         */
+        AGGREGATE_METRIC_DOUBLE_RENDERING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG);
 
         private final boolean enabled;
 

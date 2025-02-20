@@ -141,7 +141,6 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
     private void submitNewMergeTask(MergeSource mergeSource, MergePolicy.OneMerge merge, MergeTrigger mergeTrigger) {
         MergeTask mergeTask = newMergeTask(mergeSource, merge, mergeTrigger);
-        assert mergeTask.isRunning() == false;
         threadPoolMergeQueue.submitMergeTask(mergeTask);
         checkMergeTaskThrottling();
     }
@@ -178,7 +177,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     private synchronized boolean runNowOrBacklog(MergeTask mergeTask) {
         assert mergeTask.isRunning() == false;
         assert mergeTask.isOnGoingMergeAborted() == false;
-        // if the merge scheduler is closing it will abort all merges before they start running
+        // Do not backlog tasks when closing, instead consider them as running. They will be promptly aborted before actually running.
         if (closed || currentlyRunningMergeTasks.size() < config.getMaxThreadCount()) {
             boolean added = currentlyRunningMergeTasks.put(mergeTask.onGoingMerge.getMerge(), mergeTask) == null;
             assert added : "starting merge task [" + mergeTask + "] registered as already running";
@@ -195,12 +194,13 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             assert removed : "completed merge task [" + mergeTask + "] not registered as running";
             // when one merge is done, maybe a backlogged one can now execute
             enqueueBackloggedTasks();
+            doneMergeTaskCount.incrementAndGet();
             // signal here, because, when closing, we wait for all running merges to finish
-            if (currentlyRunningMergeTasks.isEmpty()) {
+            if (submittedMergeTaskCount.get() == doneMergeTaskCount.get()) {
+                assert currentlyRunningMergeTasks.isEmpty();
                 notifyAll();
             }
         }
-        doneMergeTaskCount.incrementAndGet();
         checkMergeTaskThrottling();
     }
 
@@ -292,7 +292,8 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
         @Override
         public void run() {
-            assert ThreadPoolMergeScheduler.this.currentlyRunningMergeTasks.containsKey(onGoingMerge.getMerge());
+            assert ThreadPoolMergeScheduler.this.currentlyRunningMergeTasks.containsKey(onGoingMerge.getMerge())
+                : "runNowOrBacklog must be invoked before actually running the task";
             try {
                 if (isOnGoingMergeAborted()) {
                     return;
@@ -415,7 +416,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                 // supercharge running merges so that they finish faster
                 currentlyRunningMergeTasks.values().forEach(runningTask -> runningTask.setIORateLimit(Double.POSITIVE_INFINITY));
                 // wait until all running merges are done
-                while (currentlyRunningMergeTasks.isEmpty() == false) {
+                while (doneMergeTaskCount.get() < submittedMergeTaskCount.get()) {
                     try {
                         // wait with a timeout, just to cover for something that failed to notify
                         wait(1000);
@@ -424,6 +425,8 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                         interrupted = true;
                     }
                 }
+                assert doneMergeTaskCount.get() == submittedMergeTaskCount.get();
+                assert currentlyRunningMergeTasks.isEmpty();
             }
         } finally {
             // this closes an executor that may be used by ongoing merges, so keep it last in order to not perturb them

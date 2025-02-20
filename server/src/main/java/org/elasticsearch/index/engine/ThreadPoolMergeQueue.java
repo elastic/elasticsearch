@@ -16,17 +16,14 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler.MergeTask;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.Closeable;
-import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class ThreadPoolMergeQueue implements Closeable {
+public class ThreadPoolMergeQueue {
     /**
      * Floor for IO write rate limit of individual merge tasks (we will never go any lower than this)
      */
@@ -51,7 +48,6 @@ public class ThreadPoolMergeQueue implements Closeable {
     private final AtomicLong targetIORateBytesPerSec = new AtomicLong(START_IO_RATE.getBytes());
     private final ExecutorService executorService;
     private final int maxConcurrentMerges;
-    private final AtomicBoolean closed = new AtomicBoolean();
 
     public static @Nullable ThreadPoolMergeQueue maybeCreateThreadPoolMergeQueue(ThreadPool threadPool, Settings settings) {
         if (ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.get(settings)) {
@@ -69,8 +65,9 @@ public class ThreadPoolMergeQueue implements Closeable {
     void submitMergeTask(MergeTask mergeTask) {
         assert mergeTask.isRunning() == false;
         assert mergeTask.isOnGoingMergeAborted() == false;
-        if (closed.get() || enqueueMergeTaskExecution() == false) {
+        if (enqueueMergeTaskExecution() == false) {
             mergeTask.abortOnGoingMerge();
+            runMergeTask(mergeTask);
         } else {
             if (mergeTask.supportsIOThrottling()) {
                 // count submitted merge tasks that support IO auto throttling, and maybe adjust IO rate for all
@@ -113,23 +110,19 @@ public class ThreadPoolMergeQueue implements Closeable {
                 }
             });
             return true;
-        } catch (RejectedExecutionException e) {
+        } catch (Throwable t) {
             // cannot execute merges because the executor is shutting down
+            assert t instanceof RejectedExecutionException;
             return false;
         }
     }
 
     private void runMergeTask(MergeTask mergeTask) {
         assert mergeTask.isRunning() == false;
-        assert mergeTask.isOnGoingMergeAborted() == false;
-        if (closed.get()) {
-            mergeTask.abortOnGoingMerge();
-            return;
-        }
         boolean added = currentlyRunningMergeTasks.add(mergeTask);
         assert added : "starting merge task [" + mergeTask + "] registered as already running";
         try {
-            if (mergeTask.supportsIOThrottling()) {
+            if (mergeTask.isOnGoingMergeAborted() == false && mergeTask.supportsIOThrottling()) {
                 mergeTask.setIORateLimit(ByteSizeValue.ofBytes(targetIORateBytesPerSec.get()).getMbFrac());
             }
             mergeTask.run();
@@ -200,10 +193,5 @@ public class ThreadPoolMergeQueue implements Closeable {
         boolean isEmpty = queuedMergeTasks.isEmpty() && currentlyRunningMergeTasks.isEmpty();
         assert isEmpty == false || submittedIOThrottledMergeTasksCount.get() == 0L;
         return isEmpty;
-    }
-
-    @Override
-    public void close() throws IOException {
-        closed.set(true);
     }
 }

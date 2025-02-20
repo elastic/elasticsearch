@@ -67,7 +67,6 @@ public class ThreadPoolMergeQueue {
         assert mergeTask.isOnGoingMergeAborted() == false;
         if (enqueueMergeTaskExecution() == false) {
             mergeTask.abortOnGoingMerge();
-            runMergeTask(mergeTask);
         } else {
             if (mergeTask.supportsIOThrottling()) {
                 // count submitted merge tasks that support IO auto throttling, and maybe adjust IO rate for all
@@ -119,16 +118,22 @@ public class ThreadPoolMergeQueue {
 
     private void runMergeTask(MergeTask mergeTask) {
         assert mergeTask.isRunning() == false;
-        boolean added = currentlyRunningMergeTasks.add(mergeTask);
-        assert added : "starting merge task [" + mergeTask + "] registered as already running";
         try {
-            if (mergeTask.isOnGoingMergeAborted() == false && mergeTask.supportsIOThrottling()) {
-                mergeTask.setIORateLimit(ByteSizeValue.ofBytes(targetIORateBytesPerSec.get()).getMbFrac());
+            if (mergeTask.isOnGoingMergeAborted()) {
+                return;
             }
-            mergeTask.run();
+            boolean added = currentlyRunningMergeTasks.add(mergeTask);
+            assert added : "starting merge task [" + mergeTask + "] registered as already running";
+            try {
+                if (mergeTask.supportsIOThrottling()) {
+                    mergeTask.setIORateLimit(ByteSizeValue.ofBytes(targetIORateBytesPerSec.get()).getMbFrac());
+                }
+                mergeTask.run();
+            } finally {
+                boolean removed = currentlyRunningMergeTasks.remove(mergeTask);
+                assert removed : "completed merge task [" + mergeTask + "] not registered as running";
+            }
         } finally {
-            boolean removed = currentlyRunningMergeTasks.remove(mergeTask);
-            assert removed : "completed merge task [" + mergeTask + "] not registered as running";
             if (mergeTask.supportsIOThrottling()) {
                 submittedIOThrottledMergeTasksCount.decrementAndGet();
             }

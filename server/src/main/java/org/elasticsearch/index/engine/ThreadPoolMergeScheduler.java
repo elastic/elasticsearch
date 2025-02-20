@@ -177,8 +177,12 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     private synchronized boolean runNowOrBacklog(MergeTask mergeTask) {
         assert mergeTask.isRunning() == false;
         assert mergeTask.isOnGoingMergeAborted() == false;
-        // Do not backlog tasks when closing, instead consider them as running. They will be promptly aborted before actually running.
-        if (closed || currentlyRunningMergeTasks.size() < config.getMaxThreadCount()) {
+        if (closed) {
+            // Do not backlog tasks when closing the merge scheduler, instead abort them.
+            // They will be promptly aborted before actually running.
+            mergeTask.abortOnGoingMerge();
+            return true;
+        } else if (currentlyRunningMergeTasks.size() < config.getMaxThreadCount()) {
             boolean added = currentlyRunningMergeTasks.put(mergeTask.onGoingMerge.getMerge(), mergeTask) == null;
             assert added : "starting merge task [" + mergeTask + "] registered as already running";
             return true;
@@ -195,9 +199,8 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             // when one merge is done, maybe a backlogged one can now execute
             enqueueBackloggedTasks();
             doneMergeTaskCount.incrementAndGet();
-            // signal here, because, when closing, we wait for all running merges to finish
-            if (submittedMergeTaskCount.get() == doneMergeTaskCount.get()) {
-                assert currentlyRunningMergeTasks.isEmpty();
+            // signal here, because, when closing, we wait for all currently running merges to finish
+            if (currentlyRunningMergeTasks.isEmpty()) {
                 notifyAll();
             }
         }
@@ -292,15 +295,10 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
         @Override
         public void run() {
+            assert isOnGoingMergeAborted() == false;
             assert ThreadPoolMergeScheduler.this.currentlyRunningMergeTasks.containsKey(onGoingMerge.getMerge())
                 : "runNowOrBacklog must be invoked before actually running the task";
             try {
-                if (isOnGoingMergeAborted()) {
-                    return;
-                } else if (ThreadPoolMergeScheduler.this.closed) {
-                    abortOnGoingMerge();
-                    return;
-                }
                 beforeMerge(onGoingMerge);
                 try {
                     if (mergeStartTimeNS.compareAndSet(0L, System.nanoTime()) == false) {
@@ -375,6 +373,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             // It is fine to mark this merge as finished. Lucene will eventually produce a new merge including this segment even if
             // this merge did not actually execute.
             mergeSource.onMergeFinished(onGoingMerge.getMerge());
+            doneMergeTaskCount.incrementAndGet();
         }
 
         boolean isOnGoingMergeAborted() {

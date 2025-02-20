@@ -1,0 +1,5 @@
+pr: 122995
+title: "Improve ESQL lookup join error message for missing fields"
+type: enhancement
+area: ESQL
+issue: 120189

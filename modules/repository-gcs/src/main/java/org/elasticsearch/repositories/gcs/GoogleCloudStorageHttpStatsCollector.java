@@ -14,6 +14,9 @@ import com.google.api.client.http.HttpRequest;
 import com.google.api.client.http.HttpResponse;
 import com.google.api.client.http.HttpResponseInterceptor;
 
+import org.elasticsearch.common.blobstore.OperationPurpose;
+
+import org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStats.Operation;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
@@ -23,22 +26,25 @@ import java.util.regex.Pattern;
 import static java.lang.String.format;
 
 final class GoogleCloudStorageHttpStatsCollector implements HttpResponseInterceptor {
+
+    private final OperationPurpose purpose = OperationPurpose.SNAPSHOT_DATA;
+
     // The specification for the current API (v1) endpoints can be found at:
     // https://cloud.google.com/storage/docs/json_api/v1
-    private static final List<Function<String, HttpRequestTracker>> trackerFactories = List.of(
+    private final List<Function<String, HttpRequestTracker>> trackerFactories = List.of(
         (bucket) -> HttpRequestTracker.get(
             format(Locale.ROOT, "/download/storage/v1/b/%s/o/.+", bucket),
-            GoogleCloudStorageOperationsStats::trackGetOperation
+            (stats) -> stats.trackOperation(purpose, Operation.GET)
         ),
 
         (bucket) -> HttpRequestTracker.get(
             format(Locale.ROOT, "/storage/v1/b/%s/o/.+", bucket),
-            GoogleCloudStorageOperationsStats::trackGetOperation
+            (stats) -> stats.trackOperation(purpose, Operation.GET)
         ),
 
         (bucket) -> HttpRequestTracker.get(
             format(Locale.ROOT, "/storage/v1/b/%s/o", bucket),
-            GoogleCloudStorageOperationsStats::trackListOperation
+            (stats) -> stats.trackOperation(purpose, Operation.LIST)
         )
     );
 
@@ -48,7 +54,7 @@ final class GoogleCloudStorageHttpStatsCollector implements HttpResponseIntercep
     GoogleCloudStorageHttpStatsCollector(final GoogleCloudStorageOperationsStats gcsOperationStats) {
         this.gcsOperationStats = gcsOperationStats;
         this.trackers = trackerFactories.stream()
-            .map(trackerFactory -> trackerFactory.apply(gcsOperationStats.getTrackedBucket()))
+            .map(trackerFactory -> trackerFactory.apply(gcsOperationStats.bucketName()))
             .toList();
     }
 

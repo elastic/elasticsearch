@@ -14,9 +14,6 @@ import com.google.api.client.http.HttpRequest;
 import com.google.api.client.http.HttpResponse;
 import com.google.api.client.http.HttpResponseInterceptor;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
@@ -26,8 +23,6 @@ import java.util.regex.Pattern;
 import static java.lang.String.format;
 
 final class GoogleCloudStorageHttpStatsCollector implements HttpResponseInterceptor {
-    private static final Logger logger = LogManager.getLogger(GoogleCloudStorageHttpStatsCollector.class);
-
     // The specification for the current API (v1) endpoints can be found at:
     // https://cloud.google.com/storage/docs/json_api/v1
     private static final List<Function<String, HttpRequestTracker>> trackerFactories = List.of(
@@ -68,7 +63,6 @@ final class GoogleCloudStorageHttpStatsCollector implements HttpResponseIntercep
                 return;
             }
         }
-        logger.info("Not tracking {} {}", request.getRequestMethod(), request.getUrl().getRawPath());
     }
 
     /**

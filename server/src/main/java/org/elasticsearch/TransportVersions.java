@@ -182,6 +182,7 @@ public class TransportVersions {
     public static final TransportVersion REMOVE_DESIRED_NODE_VERSION_90 = def(9_000_0_03);
     public static final TransportVersion ESQL_DRIVER_TASK_DESCRIPTION_90 = def(9_000_0_04);
     public static final TransportVersion REMOVE_ALL_APPLICABLE_SELECTOR_9_0 = def(9_000_0_05);
+    public static final TransportVersion BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_90 = def(9_000_0_06);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -1,7 +1,7 @@
 pr: 122062
 summary: Upgrade `discovery-ec2` to AWS SDK v2
 area: Discovery-Plugins
-type: "breaking, upgrade"
+type: breaking
 issues: []
 breaking:
   title: Upgrade `discovery-ec2` to AWS SDK v2

@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.dissect.DissectParser;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
@@ -42,14 +43,18 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.predicate.fulltext.FullTextPredicate;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Merge;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.Stat;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
+import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -89,6 +94,8 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.index.EsIndexSerializationTests.randomEsIndex;
+import static org.elasticsearch.xpack.esql.index.EsIndexSerializationTests.randomIndexNameWithModes;
+import static org.elasticsearch.xpack.esql.plan.AbstractNodeSerializationTests.randomFieldAttributes;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -139,7 +146,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             .toList();
     }
 
-    private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = List.of(Concat.class, CIDRMatch.class);
+    private static final List<Class<?>> CLASSES_WITH_MIN_TWO_CHILDREN = List.of(Concat.class, CIDRMatch.class, Fork.class, Merge.class);
 
     // List of classes that are "unresolved" NamedExpression subclasses, therefore not suitable for use with logical/physical plan nodes.
     private static final List<Class<?>> UNRESOLVED_CLASSES = List.of(
@@ -441,6 +448,9 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return randomInt();
         } else if (argClass == JoinType.class) {
             return JoinTypes.LEFT;
+        } else if (List.of(Fork.class, Merge.class, MergeExec.class).contains(toBuildClass) && argType == LogicalPlan.class) {
+            // limit recursion of plans, in order to prevent stackoverflow errors
+            return randomEsRelation();
         }
 
         if (Expression.class == argClass) {
@@ -706,6 +716,16 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             randomFrom(EnumSet.allOf(Order.OrderDirection.class)),
             randomDoubleBetween(-90, 90, false),
             randomDoubleBetween(-180, 180, false)
+        );
+    }
+
+    static EsRelation randomEsRelation() {
+        return new EsRelation(
+            SourceTests.randomSource(),
+            randomIdentifier(),
+            randomFrom(IndexMode.values()),
+            randomIndexNameWithModes(),
+            randomFieldAttributes(0, 10, false)
         );
     }
 

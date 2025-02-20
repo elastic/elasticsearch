@@ -252,8 +252,6 @@ tests:
 - class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
   method: test {yaml=analysis-common/40_token_filters/stemmer_override file access}
   issue: https://github.com/elastic/elasticsearch/issues/121625
-- class: org.elasticsearch.xpack.searchablesnapshots.hdfs.SecureHdfsSearchableSnapshotsIT
-  issue: https://github.com/elastic/elasticsearch/issues/121967
 - class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
   issue: https://github.com/elastic/elasticsearch/issues/121537
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
@@ -276,8 +274,6 @@ tests:
 - class: org.elasticsearch.blocks.SimpleBlocksIT
   method: testConcurrentAddBlock
   issue: https://github.com/elastic/elasticsearch/issues/122324
-- class: org.elasticsearch.xpack.searchablesnapshots.hdfs.HdfsSearchableSnapshotsIT
-  issue: https://github.com/elastic/elasticsearch/issues/122024
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/cat/health/cat-health-example}
   issue: https://github.com/elastic/elasticsearch/issues/122335
@@ -290,10 +286,6 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/snapshot-restore/apis/get-snapshot-api/line_488}
   issue: https://github.com/elastic/elasticsearch/issues/121611
-- class: org.elasticsearch.repositories.blobstore.testkit.analyze.SecureHdfsRepositoryAnalysisRestIT
-  issue: https://github.com/elastic/elasticsearch/issues/122377
-- class: org.elasticsearch.repositories.blobstore.testkit.analyze.HdfsRepositoryAnalysisRestIT
-  issue: https://github.com/elastic/elasticsearch/issues/122378
 - class: org.elasticsearch.xpack.inference.mapper.SemanticInferenceMetadataFieldsRecoveryTests
   method: testSnapshotRecovery {p0=false p1=false}
   issue: https://github.com/elastic/elasticsearch/issues/122549
@@ -328,6 +320,12 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/122913
 - class: org.elasticsearch.xpack.search.AsyncSearchSecurityIT
   issue: https://github.com/elastic/elasticsearch/issues/122940
+- class: org.elasticsearch.action.admin.indices.create.ShrinkIndexIT
+  method: testShrinkIndexPrimaryTerm
+  issue: https://github.com/elastic/elasticsearch/issues/122974
+- class: org.elasticsearch.test.apmintegration.TracesApmIT
+  method: testApmIntegration
+  issue: https://github.com/elastic/elasticsearch/issues/122129
 
 # Examples:
 #

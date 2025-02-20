@@ -119,6 +119,13 @@ public class PutTransformAction extends ActionType<AcknowledgedResponse> {
                 }
             }
 
+            if (config.getPivotConfig().getMaxPageSearchSize() != null) {
+                validationException = addValidationError(
+                    "[max_page_search_size] can no longer be set in the [pivot]. Please move it under [settings] instead",
+                    validationException
+                );
+            }
+
             return validationException;
         }
 

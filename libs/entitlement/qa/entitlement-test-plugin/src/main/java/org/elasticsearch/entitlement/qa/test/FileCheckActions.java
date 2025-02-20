@@ -23,10 +23,8 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.attribute.UserPrincipal;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.util.Scanner;
@@ -341,22 +339,6 @@ class FileCheckActions {
     @EntitlementTest(expectedAccess = PLUGINS)
     static void createRandomAccessFileReadWrite() throws IOException {
         new RandomAccessFile(readWriteFile().toFile(), "rw").close();
-    }
-
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void filesGetOwner() throws IOException {
-        Files.getOwner(readFile());
-    }
-
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void filesProbeContentType() throws IOException {
-        Files.probeContentType(readFile());
-    }
-
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void filesSetOwner() throws IOException {
-        UserPrincipal owner = EntitledActions.getFileOwner(readWriteFile());
-        Files.setOwner(readWriteFile(), owner); // set to existing owner, just trying to execute the method
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)

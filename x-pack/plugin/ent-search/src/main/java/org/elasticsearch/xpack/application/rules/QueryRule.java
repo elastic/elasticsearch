@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.searchbusinessrules.SpecifiedDocument;
+import org.elasticsearch.features.NodeFeature;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -80,6 +81,8 @@ public class QueryRule implements Writeable, ToXContentObject {
             return name().toLowerCase(Locale.ROOT);
         }
     }
+
+    public static final NodeFeature NUMERIC_VALIDATION = new NodeFeature("query_rules.numeric_validation", true);
 
     /**
      * Public constructor.

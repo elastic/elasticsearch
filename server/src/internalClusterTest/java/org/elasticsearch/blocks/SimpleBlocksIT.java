@@ -405,7 +405,8 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         try {
             startInParallel(threadCount, i -> {
                 try {
-                    indicesAdmin().prepareAddBlock(block, indexName).get();
+                    AddIndexBlockResponse response = indicesAdmin().prepareAddBlock(block, indexName).get();
+                    assertTrue("Add block [" + block + "] to index [" + indexName + "] not acknowledged: " + response, response.isAcknowledged());
                     assertIndexHasBlock(block, indexName);
                 } catch (final ClusterBlockException e) {
                     assertThat(e.blocks(), hasSize(1));

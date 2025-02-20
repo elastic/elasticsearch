@@ -10,6 +10,7 @@ package org.elasticsearch.compute.aggregation;
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.BigArrays;
 $if(BytesRef)$
 import org.elasticsearch.common.util.BytesRefHash;
@@ -272,59 +273,121 @@ $endif$
             if (values.size() == 0) {
                 return blockFactory.newConstantNullBlock(selected.getPositionCount());
             }
-$if(BytesRef)$
-            BytesRef scratch = new BytesRef();
+
+            long selectedCountsSize = 0;
+            long idsSize = 0;
+            try {
+                /*
+                 * Get a count of all groups less than the maximum selected group. Count
+                 * *downwards* so that we can flip the sign on all of the actually selected
+                 * groups. Negative values in this array are always unselected groups.
+                 */
+                int selectedCountsLen = selected.max() + 1;
+                selectedCountsSize = RamUsageEstimator.alignObjectSize(
+                    RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + selectedCountsLen * Integer.BYTES
+                );
+                blockFactory.adjustBreaker(selectedCountsSize);
+                int[] selectedCounts = new int[selectedCountsLen];
+                for (int id = 0; id < values.size(); id++) {
+$if(long||BytesRef||double)$
+                    int group = (int) values.getKey1(id);
+$elseif(float||int)$
+                    long both = values.get(id);
+                    int group = (int) (both >>> Float.SIZE);
 $endif$
-            try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(selected.getPositionCount())) {
-                for (int s = 0; s < selected.getPositionCount(); s++) {
-                    int selectedGroup = selected.getInt(s);
-                    /*
-                     * Count can effectively be in three states - 0, 1, many. We use those
-                     * states to buffer the first value, so we can avoid calling
-                     * beginPositionEntry on single valued fields.
-                     */
-                    int count = 0;
-                    $if(BytesRef)$long$else$$type$$endif$ first = 0;
-                    for (int id = 0; id < values.size(); id++) {
-$if(long||BytesRef)$
-                        if (values.getKey1(id) == selectedGroup) {
-                            long value = values.getKey2(id);
-$elseif(double)$
-                        if (values.getKey1(id) == selectedGroup) {
-                            double value = Double.longBitsToDouble(values.getKey2(id));
-$elseif(float)$
-                        long both = values.get(id);
-                        int group = (int) (both >>> Float.SIZE);
-                        if (group == selectedGroup) {
-                            float value = Float.intBitsToFloat((int) both);
-$elseif(int)$
-                        long both = values.get(id);
-                        int group = (int) (both >>> Integer.SIZE);
-                        if (group == selectedGroup) {
-                            int value = (int) both;
-$endif$
-                            switch (count) {
-                                case 0 -> first = value;
-                                case 1 -> {
-                                    builder.beginPositionEntry();
-                                    builder.append$Type$($if(BytesRef)$bytes.get(first, scratch)$else$first$endif$);
-                                    builder.append$Type$($if(BytesRef)$bytes.get(value, scratch)$else$value$endif$);
-                                }
-                                default -> builder.append$Type$($if(BytesRef)$bytes.get(value, scratch)$else$value$endif$);
-                            }
-                            count++;
-                        }
-                    }
-                    switch (count) {
-                        case 0 -> builder.appendNull();
-                        case 1 -> builder.append$Type$($if(BytesRef)$bytes.get(first, scratch)$else$first$endif$);
-                        default -> builder.endPositionEntry();
+                    if (group < selectedCounts.length) {
+                        selectedCounts[group]--;
                     }
                 }
-                return builder.build();
+
+                /*
+                 * Total the sign selected groups and turn them into a running count.
+                 * Negative counts are still unselected.
+                 */
+                int total = 0;
+                for (int s = 0; s < selected.getPositionCount(); s++) {
+                    int group = selected.getInt(s);
+                    selectedCounts[group] = -selectedCounts[group];
+                    int count = selectedCounts[group];
+                    selectedCounts[group] = total;
+                    total += count;
+                }
+
+                /*
+                 * Build a list of ids to insert in order *and* convert the running
+                 * count in selectedCounts[group] into the end index in ids for each
+                 * group.
+                 */
+                idsSize = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + total * Integer.BYTES);
+                blockFactory.adjustBreaker(idsSize);
+                int[] ids = new int[total];
+                for (int id = 0; id < values.size(); id++) {
+$if(long||BytesRef||double)$
+                    int group = (int) values.getKey1(id);
+$elseif(float||int)$
+                    long both = values.get(id);
+                    int group = (int) (both >>> Float.SIZE);
+$endif$
+                    if (group < selectedCounts.length && selectedCounts[group] >= 0) {
+                        ids[selectedCounts[group]++] = id;
+                    }
+                }
+
+                /*
+                 * Insert the ids in order.
+                 */
+$if(BytesRef)$
+                BytesRef scratch = new BytesRef();
+$endif$
+                try ($Type$Block.Builder builder = blockFactory.new$Type$BlockBuilder(selected.getPositionCount())) {
+                    int start = 0;
+                    for (int s = 0; s < selected.getPositionCount(); s++) {
+                        int group = selected.getInt(s);
+                        int end = selectedCounts[group];
+                        int count = end - start;
+                        switch (count) {
+                            case 0 -> builder.appendNull();
+                            case 1 -> append(builder, ids[start]$if(BytesRef)$, scratch$endif$);
+                            default -> {
+                                builder.beginPositionEntry();
+                                for (int i = start; i < end; i++) {
+                                    append(builder, ids[i]$if(BytesRef)$, scratch$endif$);
+                                }
+                                builder.endPositionEntry();
+                            }
+                        }
+                        start = end;
+                    }
+                    return builder.build();
+                }
+            } finally {
+                blockFactory.adjustBreaker(-selectedCountsSize - idsSize);
             }
         }
 
+$if(BytesRef)$
+        private void append($Type$Block.Builder builder, int id, BytesRef scratch) {
+            BytesRef value = bytes.get(values.getKey2(id), scratch);
+            builder.appendBytesRef(value);
+        }
+
+$else$
+        private void append($Type$Block.Builder builder, int id) {
+$if(long)$
+            long value = values.getKey2(id);
+$elseif(double)$
+            double value = Double.longBitsToDouble(values.getKey2(id));
+$elseif(float)$
+            long both = values.get(id);
+            float value = Float.intBitsToFloat((int) both);
+$elseif(int)$
+            long both = values.get(id);
+            int value = (int) both;
+$endif$
+            builder.append$Type$(value);
+        }
+
+$endif$
         @Override
         public void enableGroupIdTracking(SeenGroupIds seen) {
             // we figure out seen values from nulls on the values block

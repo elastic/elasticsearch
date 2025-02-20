@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.compute.ann.Aggregator;
@@ -139,41 +140,91 @@ class ValuesFloatAggregator {
             if (values.size() == 0) {
                 return blockFactory.newConstantNullBlock(selected.getPositionCount());
             }
-            try (FloatBlock.Builder builder = blockFactory.newFloatBlockBuilder(selected.getPositionCount())) {
-                for (int s = 0; s < selected.getPositionCount(); s++) {
-                    int selectedGroup = selected.getInt(s);
-                    /*
-                     * Count can effectively be in three states - 0, 1, many. We use those
-                     * states to buffer the first value, so we can avoid calling
-                     * beginPositionEntry on single valued fields.
-                     */
-                    int count = 0;
-                    float first = 0;
-                    for (int id = 0; id < values.size(); id++) {
-                        long both = values.get(id);
-                        int group = (int) (both >>> Float.SIZE);
-                        if (group == selectedGroup) {
-                            float value = Float.intBitsToFloat((int) both);
-                            switch (count) {
-                                case 0 -> first = value;
-                                case 1 -> {
-                                    builder.beginPositionEntry();
-                                    builder.appendFloat(first);
-                                    builder.appendFloat(value);
-                                }
-                                default -> builder.appendFloat(value);
-                            }
-                            count++;
-                        }
-                    }
-                    switch (count) {
-                        case 0 -> builder.appendNull();
-                        case 1 -> builder.appendFloat(first);
-                        default -> builder.endPositionEntry();
+
+            long selectedCountsSize = 0;
+            long idsSize = 0;
+            try {
+                /*
+                 * Get a count of all groups less than the maximum selected group. Count
+                 * *downwards* so that we can flip the sign on all of the actually selected
+                 * groups. Negative values in this array are always unselected groups.
+                 */
+                int selectedCountsLen = selected.max() + 1;
+                selectedCountsSize = RamUsageEstimator.alignObjectSize(
+                    RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + selectedCountsLen * Integer.BYTES
+                );
+                blockFactory.adjustBreaker(selectedCountsSize);
+                int[] selectedCounts = new int[selectedCountsLen];
+                for (int id = 0; id < values.size(); id++) {
+                    long both = values.get(id);
+                    int group = (int) (both >>> Float.SIZE);
+                    if (group < selectedCounts.length) {
+                        selectedCounts[group]--;
                     }
                 }
-                return builder.build();
+
+                /*
+                 * Total the sign selected groups and turn them into a running count.
+                 * Negative counts are still unselected.
+                 */
+                int total = 0;
+                for (int s = 0; s < selected.getPositionCount(); s++) {
+                    int group = selected.getInt(s);
+                    selectedCounts[group] = -selectedCounts[group];
+                    int count = selectedCounts[group];
+                    selectedCounts[group] = total;
+                    total += count;
+                }
+
+                /*
+                 * Build a list of ids to insert in order *and* convert the running
+                 * count in selectedCounts[group] into the end index in ids for each
+                 * group.
+                 */
+                idsSize = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + total * Integer.BYTES);
+                blockFactory.adjustBreaker(idsSize);
+                int[] ids = new int[total];
+                for (int id = 0; id < values.size(); id++) {
+                    long both = values.get(id);
+                    int group = (int) (both >>> Float.SIZE);
+                    if (group < selectedCounts.length && selectedCounts[group] >= 0) {
+                        ids[selectedCounts[group]++] = id;
+                    }
+                }
+
+                /*
+                 * Insert the ids in order.
+                 */
+                try (FloatBlock.Builder builder = blockFactory.newFloatBlockBuilder(selected.getPositionCount())) {
+                    int start = 0;
+                    for (int s = 0; s < selected.getPositionCount(); s++) {
+                        int group = selected.getInt(s);
+                        int end = selectedCounts[group];
+                        int count = end - start;
+                        switch (count) {
+                            case 0 -> builder.appendNull();
+                            case 1 -> append(builder, ids[start]);
+                            default -> {
+                                builder.beginPositionEntry();
+                                for (int i = start; i < end; i++) {
+                                    append(builder, ids[i]);
+                                }
+                                builder.endPositionEntry();
+                            }
+                        }
+                        start = end;
+                    }
+                    return builder.build();
+                }
+            } finally {
+                blockFactory.adjustBreaker(-selectedCountsSize - idsSize);
             }
+        }
+
+        private void append(FloatBlock.Builder builder, int id) {
+            long both = values.get(id);
+            float value = Float.intBitsToFloat((int) both);
+            builder.appendFloat(value);
         }
 
         @Override

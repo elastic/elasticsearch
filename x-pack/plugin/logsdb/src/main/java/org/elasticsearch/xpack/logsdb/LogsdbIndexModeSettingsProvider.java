@@ -97,7 +97,9 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     ) {
         Settings.Builder settingsBuilder = null;
         boolean isLogsDB = templateIndexMode == IndexMode.LOGSDB;
-        boolean isTemplateValidation = "validate-index-name".equals(indexName);
+        // This index name is used when validating component and index templates, we should skip this check in that case.
+        // (See MetadataIndexTemplateService#validateIndexTemplateV2(...) method)
+        boolean isTemplateValidation = MetadataIndexTemplateService.VALIDATE_INDEX_NAME.equals(indexName);
 
         // Inject logsdb index mode, based on the logs pattern.
         if (isLogsdbEnabled
@@ -113,9 +115,6 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
 
         // Inject stored source mode if synthetic source if not available per licence.
         if (mappingHints.hasSyntheticSourceUsage && supportFallbackToStoredSource.get()) {
-            // This index name is used when validating component and index templates, we should skip this check in that case.
-            // (See MetadataIndexTemplateService#validateIndexTemplateV2(...) method)
-            boolean isTemplateValidation = MetadataIndexTemplateService.VALIDATE_INDEX_NAME.equals(indexName);
             boolean legacyLicensedUsageOfSyntheticSourceAllowed = isLegacyLicensedUsageOfSyntheticSourceAllowed(
                 templateIndexMode,
                 indexName,
@@ -212,7 +211,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         Settings indexTemplateAndCreateRequestSettings,
         List<CompressedXContent> combinedTemplateMappings
     ) {
-        if ("validate-index-name".equals(indexName)) {
+        if (MetadataIndexTemplateService.VALIDATE_INDEX_NAME.equals(indexName)) {
             // This index name is used when validating component and index templates, we should skip this check in that case.
             // (See MetadataIndexTemplateService#validateIndexTemplateV2(...) method)
             return MappingHints.EMPTY;

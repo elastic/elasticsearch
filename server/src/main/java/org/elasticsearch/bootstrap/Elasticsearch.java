@@ -247,6 +247,7 @@ class Elasticsearch {
                 pluginsResolver::resolveClassToPluginName,
                 nodeEnv.settings()::get,
                 nodeEnv.settings()::getGlobValues,
+                nodeEnv::resolveRepoDir,
                 nodeEnv.dataDirs(),
                 nodeEnv.configDir(),
                 nodeEnv.logsDir(),

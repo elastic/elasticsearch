@@ -9,6 +9,10 @@
 
 package org.elasticsearch.entitlement.qa.test;
 
+import jdk.nio.Channels;
+
+import org.elasticsearch.core.SuppressForbidden;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -24,14 +28,23 @@ import java.net.SocketAddress;
 import java.net.SocketException;
 import java.net.SocketImpl;
 import java.net.URI;
+import java.nio.ByteBuffer;
+import java.nio.MappedByteBuffer;
 import java.nio.channels.AsynchronousChannelGroup;
+import java.nio.channels.AsynchronousFileChannel;
 import java.nio.channels.AsynchronousServerSocketChannel;
 import java.nio.channels.AsynchronousSocketChannel;
+import java.nio.channels.CompletionHandler;
 import java.nio.channels.DatagramChannel;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 import java.nio.channels.Pipe;
+import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.SeekableByteChannel;
+import java.nio.channels.SelectableChannel;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.nio.channels.WritableByteChannel;
 import java.nio.channels.spi.AbstractSelector;
 import java.nio.channels.spi.AsynchronousChannelProvider;
 import java.nio.channels.spi.SelectorProvider;
@@ -67,6 +80,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.ThreadFactory;
 import java.util.spi.CalendarDataProvider;
 import java.util.spi.CalendarNameProvider;
@@ -675,5 +689,163 @@ class DummyImplementations {
         public void setAttribute(Path path, String attribute, Object value, LinkOption... options) throws IOException {
 
         }
+    }
+
+    static class DummyFileChannel extends FileChannel {
+        @Override
+        protected void implCloseChannel() throws IOException {
+
+        }
+
+        @Override
+        public int read(ByteBuffer dst) throws IOException {
+            return 0;
+        }
+
+        @Override
+        public long read(ByteBuffer[] dsts, int offset, int length) throws IOException {
+            return 0;
+        }
+
+        @Override
+        public int write(ByteBuffer src) throws IOException {
+            return 0;
+        }
+
+        @Override
+        public long write(ByteBuffer[] srcs, int offset, int length) throws IOException {
+            return 0;
+        }
+
+        @Override
+        public long position() throws IOException {
+            return 0;
+        }
+
+        @Override
+        public FileChannel position(long newPosition) throws IOException {
+            return null;
+        }
+
+        @Override
+        public long size() throws IOException {
+            return 0;
+        }
+
+        @Override
+        public FileChannel truncate(long size) throws IOException {
+            return null;
+        }
+
+        @Override
+        public void force(boolean metaData) throws IOException {
+
+        }
+
+        @Override
+        public long transferTo(long position, long count, WritableByteChannel target) throws IOException {
+            return 0;
+        }
+
+        @Override
+        public long transferFrom(ReadableByteChannel src, long position, long count) throws IOException {
+            return 0;
+        }
+
+        @Override
+        public int read(ByteBuffer dst, long position) throws IOException {
+            return 0;
+        }
+
+        @Override
+        public int write(ByteBuffer src, long position) throws IOException {
+            return 0;
+        }
+
+        @Override
+        public MappedByteBuffer map(MapMode mode, long position, long size) throws IOException {
+            return null;
+        }
+
+        @Override
+        public FileLock lock(long position, long size, boolean shared) throws IOException {
+            return null;
+        }
+
+        @Override
+        public FileLock tryLock(long position, long size, boolean shared) throws IOException {
+            return null;
+        }
+    }
+
+    static class DummyAsynchronousFileChannel extends AsynchronousFileChannel {
+        @Override
+        public boolean isOpen() {
+            return false;
+        }
+
+        @Override
+        public void close() throws IOException {
+
+        }
+
+        @Override
+        public long size() throws IOException {
+            return 0;
+        }
+
+        @Override
+        public AsynchronousFileChannel truncate(long size) throws IOException {
+            return null;
+        }
+
+        @Override
+        public void force(boolean metaData) throws IOException {
+
+        }
+
+        @Override
+        public <A> void lock(long position, long size, boolean shared, A attachment, CompletionHandler<FileLock, ? super A> handler) {
+
+        }
+
+        @Override
+        public Future<FileLock> lock(long position, long size, boolean shared) {
+            return null;
+        }
+
+        @Override
+        public FileLock tryLock(long position, long size, boolean shared) throws IOException {
+            return null;
+        }
+
+        @Override
+        public <A> void read(ByteBuffer dst, long position, A attachment, CompletionHandler<Integer, ? super A> handler) {
+
+        }
+
+        @Override
+        public Future<Integer> read(ByteBuffer dst, long position) {
+            return null;
+        }
+
+        @Override
+        public <A> void write(ByteBuffer src, long position, A attachment, CompletionHandler<Integer, ? super A> handler) {
+
+        }
+
+        @Override
+        public Future<Integer> write(ByteBuffer src, long position) {
+            return null;
+        }
+    }
+
+    @SuppressForbidden(reason = "specifically testing readWriteSelectableChannel")
+    static class DummySelectableChannelCloser implements Channels.SelectableChannelCloser {
+        @Override
+        public void implCloseChannel(SelectableChannel sc) throws IOException {}
+
+        @Override
+        public void implReleaseChannel(SelectableChannel sc) throws IOException {}
     }
 }

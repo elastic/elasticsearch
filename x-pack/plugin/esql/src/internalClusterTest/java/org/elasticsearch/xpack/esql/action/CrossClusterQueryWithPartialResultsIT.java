@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
@@ -32,7 +31,6 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -46,7 +44,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterTestCase {
-    private static final AtomicLong nextDocId = new AtomicLong(0);
 
     private static class ClusterSetup {
         final int okShards = randomIntBetween(1, 5);
@@ -59,13 +56,13 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
     private final ClusterSetup remote2 = new ClusterSetup();
 
     void populateIndices() throws Exception {
-        local.okIds = populateIndex(LOCAL_CLUSTER, "ok-local", local.okShards);
+        local.okIds = populateIndex(LOCAL_CLUSTER, "ok-local", local.okShards, between(1, 100));
         populateIndexWithFailingFields(LOCAL_CLUSTER, "fail-local", local.failingShards);
 
-        remote1.okIds = populateIndex(REMOTE_CLUSTER_1, "ok-cluster1", remote1.okShards);
+        remote1.okIds = populateIndex(REMOTE_CLUSTER_1, "ok-cluster1", remote1.okShards, between(1, 100));
         populateIndexWithFailingFields(REMOTE_CLUSTER_1, "fail-cluster1", remote1.failingShards);
 
-        remote2.okIds = populateIndex(REMOTE_CLUSTER_2, "ok-cluster2", remote2.okShards);
+        remote2.okIds = populateIndex(REMOTE_CLUSTER_2, "ok-cluster2", remote2.okShards, between(1, 100));
         populateIndexWithFailingFields(REMOTE_CLUSTER_2, "fail-cluster2", remote2.failingShards);
     }
 
@@ -328,27 +325,6 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
         );
     }
 
-    private Set<String> populateIndex(String clusterAlias, String indexName, int numShards) {
-        Client client = client(clusterAlias);
-        assertAcked(
-            client.admin()
-                .indices()
-                .prepareCreate(indexName)
-                .setSettings(Settings.builder().put("index.number_of_shards", numShards))
-                .setMapping("id", "type=keyword", "tag", "type=keyword", "v", "type=long", "const", "type=long")
-        );
-        Set<String> ids = new HashSet<>();
-        int numDocs = between(1, 100);
-        String tag = Strings.isEmpty(clusterAlias) ? "local" : clusterAlias;
-        for (int i = 0; i < numDocs; i++) {
-            String id = Long.toString(nextDocId.incrementAndGet());
-            client.prepareIndex(indexName).setSource("id", id, "tag", tag, "v", i).get();
-            ids.add(id);
-        }
-        client.admin().indices().prepareRefresh(indexName).get();
-        return ids;
-    }
-
     private Set<String> populateIndexWithFailingFields(String clusterAlias, String indexName, int numShards) throws IOException {
         Client client = client(clusterAlias);
         XContentBuilder mapping = JsonXContent.contentBuilder().startObject();
@@ -379,7 +355,7 @@ public class CrossClusterQueryWithPartialResultsIT extends AbstractCrossClusterT
         String tag = clusterAlias.isEmpty() ? "local" : clusterAlias;
         int numDocs = between(50, 100); // large enough to have failing documents in every shard
         for (int i = 0; i < numDocs; i++) {
-            String id = Long.toString(nextDocId.incrementAndGet());
+            String id = Long.toString(NEXT_DOC_ID.incrementAndGet());
             client.prepareIndex(indexName).setSource("id", id, "tag", tag, "v", i).get();
             ids.add(id);
         }

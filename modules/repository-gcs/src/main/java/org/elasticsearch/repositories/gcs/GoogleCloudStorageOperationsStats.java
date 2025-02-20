@@ -20,8 +20,8 @@ final class GoogleCloudStorageOperationsStats {
 
     private static final int OPERATION_PURPOSE_NUM = OperationPurpose.values().length;
     private static final int OPERATION_NUM = Operation.values().length;
-    final LongAdder[][] counters;
-    final String[] counterNames;
+    private final LongAdder[][] counters;
+    private final String[] counterNames;
     private final String bucketName;
 
     GoogleCloudStorageOperationsStats(String bucketName) {
@@ -35,7 +35,7 @@ final class GoogleCloudStorageOperationsStats {
     }
 
     private LongAdder[] operationCounters(OperationPurpose purpose, Operation operation) {
-        return counters[purpose.ordinal() * OPERATION_PURPOSE_NUM + operation.ordinal()];
+        return counters[purpose.ordinal() * OPERATION_NUM + operation.ordinal()];
     }
 
     void trackOperation(OperationPurpose purpose, Operation operation) {
@@ -46,10 +46,10 @@ final class GoogleCloudStorageOperationsStats {
         operationCounters(purpose, operation)[1].add(1);
     }
 
-    private String counterName(int counterIndex) {
-        int purposeOrd = counterIndex / OPERATION_PURPOSE_NUM;
+    private static String counterName(int counterIndex) {
+        int purposeOrd = counterIndex / OPERATION_NUM;
         String purpose = OperationPurpose.values()[purposeOrd].name();
-        int operationOrd = counterIndex - (purposeOrd * OPERATION_PURPOSE_NUM);
+        int operationOrd = counterIndex - (purposeOrd * OPERATION_NUM);
         String operation = Operation.values()[operationOrd].name();
         return purpose + "_" + operation;
     }
@@ -69,7 +69,7 @@ final class GoogleCloudStorageOperationsStats {
         return results;
     }
 
-    enum Operation {
+    public enum Operation {
         GET("Get"),
         LIST("List"),
         PUT("Put"),

@@ -938,6 +938,75 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         );
     }
 
+    public IndexMetadata withIncrementedPrimaryShards(int shardCount) {
+        if(this.primaryTerms.length == shardCount)
+            return this;
+
+        if (shardCount % this.primaryTerms.length != 0) {
+            throw new IllegalArgumentException(
+                "New shard count ["
+                    + shardCount
+                    + "] should be a multiple"
+                    + " of current shard count ["
+                    + this.primaryTerms.length
+                    + "] for ["
+                    + index
+                    + "]"
+            );
+        }
+        final long[] newPrimaryTerms = new long[shardCount];
+        System.arraycopy(this.primaryTerms, 0, newPrimaryTerms, 0, this.primaryTerms.length);
+        return new IndexMetadata(
+            this.index,
+            this.version,
+            this.mappingVersion,
+            this.settingsVersion,
+            this.aliasesVersion,
+            newPrimaryTerms,
+            this.state,
+            shardCount,
+            this.numberOfReplicas,
+            this.settings,
+            this.mapping,
+            this.inferenceFields,
+            this.aliases,
+            this.customData,
+            this.inSyncAllocationIds,
+            this.requireFilters,
+            this.initialRecoveryFilters,
+            this.includeFilters,
+            this.excludeFilters,
+            this.indexCreatedVersion,
+            this.mappingsUpdatedVersion,
+            shardCount,
+            this.routingPartitionSize,
+            this.routingPaths,
+            this.waitForActiveShards,
+            this.rolloverInfos,
+            this.isSystem,
+            this.isHidden,
+            this.timestampRange,
+            this.eventIngestedRange,
+            this.priority,
+            this.creationDate,
+            this.ignoreDiskWatermarks,
+            this.tierPreference,
+            this.shardsPerNodeLimit,
+            this.lifecyclePolicyName,
+            this.lifecycleExecutionState,
+            this.autoExpandReplicas,
+            this.isSearchableSnapshot,
+            this.isPartialSearchableSnapshot,
+            this.indexMode,
+            this.timeSeriesStart,
+            this.timeSeriesEnd,
+            this.indexCompatibilityVersion,
+            this.stats,
+            this.writeLoadForecast,
+            this.shardSizeInBytesForecast
+        );
+    }
+
     /**
      * @param timestampRange new @timestamp range
      * @param eventIngestedRange new 'event.ingested' range

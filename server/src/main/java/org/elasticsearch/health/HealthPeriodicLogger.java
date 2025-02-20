@@ -371,12 +371,13 @@ public class HealthPeriodicLogger extends AbstractLifecycleComponent implements 
                 }
                 // indicator impact
                 if (indicatorResult.impacts() != null) {
-                    indicatorResult.impacts().forEach(
-                        impact -> result.put(
-                            String.format(Locale.ROOT, "%s.%s.%s.impacted", HEALTH_FIELD_PREFIX, indicatorResult.name(), impact.id()),
-                            true
-                        )
-                    );
+                    indicatorResult.impacts()
+                        .forEach(
+                            impact -> result.put(
+                                String.format(Locale.ROOT, "%s.%s.%s.impacted", HEALTH_FIELD_PREFIX, indicatorResult.name(), impact.id()),
+                                true
+                            )
+                        );
                 }
             }
         });

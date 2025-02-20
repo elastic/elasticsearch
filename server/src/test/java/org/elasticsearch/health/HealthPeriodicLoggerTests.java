@@ -172,10 +172,14 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
 
         // test impact
         assertThat(loggerResults.get(makeHealthImpactString(DiskHealthIndicatorService.NAME, IMPACT_INGEST_UNAVAILABLE_ID)), equalTo(true));
-        assertThat(loggerResults.get(makeHealthImpactString(ShardsAvailabilityHealthIndicatorService.NAME, PRIMARY_UNASSIGNED_IMPACT_ID)),
-            equalTo(true));
-        assertThat(loggerResults.get(makeHealthImpactString(ShardsAvailabilityHealthIndicatorService.NAME, REPLICA_UNASSIGNED_IMPACT_ID)),
-            equalTo(true));
+        assertThat(
+            loggerResults.get(makeHealthImpactString(ShardsAvailabilityHealthIndicatorService.NAME, PRIMARY_UNASSIGNED_IMPACT_ID)),
+            equalTo(true)
+        );
+        assertThat(
+            loggerResults.get(makeHealthImpactString(ShardsAvailabilityHealthIndicatorService.NAME, REPLICA_UNASSIGNED_IMPACT_ID)),
+            equalTo(true)
+        );
 
         // test empty results
         {
@@ -806,8 +810,13 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
                 )
             ),
             List.of(
-                new HealthIndicatorImpact(DiskHealthIndicatorService.NAME, IMPACT_INGEST_UNAVAILABLE_ID, 2, "description",
-                    List.of(ImpactArea.INGEST))
+                new HealthIndicatorImpact(
+                    DiskHealthIndicatorService.NAME,
+                    IMPACT_INGEST_UNAVAILABLE_ID,
+                    2,
+                    "description",
+                    List.of(ImpactArea.INGEST)
+                )
             ),
             null
         );
@@ -817,10 +826,20 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
             null,
             new SimpleHealthIndicatorDetails(ShardsAvailabilityHealthIndicatorServiceTests.addDefaults(Map.of())),
             List.of(
-                new HealthIndicatorImpact(ShardsAvailabilityHealthIndicatorService.NAME, PRIMARY_UNASSIGNED_IMPACT_ID, 2, "description",
-                    List.of(ImpactArea.SEARCH)),
-                new HealthIndicatorImpact(ShardsAvailabilityHealthIndicatorService.NAME, REPLICA_UNASSIGNED_IMPACT_ID, 2, "description",
-                    List.of(ImpactArea.SEARCH))
+                new HealthIndicatorImpact(
+                    ShardsAvailabilityHealthIndicatorService.NAME,
+                    PRIMARY_UNASSIGNED_IMPACT_ID,
+                    2,
+                    "description",
+                    List.of(ImpactArea.SEARCH)
+                ),
+                new HealthIndicatorImpact(
+                    ShardsAvailabilityHealthIndicatorService.NAME,
+                    REPLICA_UNASSIGNED_IMPACT_ID,
+                    2,
+                    "description",
+                    List.of(ImpactArea.SEARCH)
+                )
             ),
             null
         );

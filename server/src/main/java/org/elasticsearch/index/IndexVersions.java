@@ -147,6 +147,8 @@ public class IndexVersions {
     public static final IndexVersion UPGRADE_TO_LUCENE_10_1_0 = def(9_009_0_00, Version.LUCENE_10_1_0);
     public static final IndexVersion USE_SYNTHETIC_SOURCE_FOR_RECOVERY_BY_DEFAULT = def(9_010_00_0, Version.LUCENE_10_1_0);
     public static final IndexVersion TIMESTAMP_DOC_VALUES_SPARSE_INDEX = def(9_011_0_00, Version.LUCENE_10_1_0);
+    public static final IndexVersion TIME_SERIES_ID_DOC_VALUES_SPARSE_INDEX = def(9_012_0_00, Version.LUCENE_10_1_0);
+    public static final IndexVersion SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD = def(9_013_0_00, Version.LUCENE_10_1_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

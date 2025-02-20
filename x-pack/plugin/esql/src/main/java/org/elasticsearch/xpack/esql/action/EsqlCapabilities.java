@@ -827,6 +827,11 @@ public class EsqlCapabilities {
         SUPPORT_PARTIAL_RESULTS,
 
         /**
+         * Support for rendering aggregate_metric_double type
+         */
+        AGGREGATE_METRIC_DOUBLE_RENDERING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
          * Support for FORK command
          */
         FORK(Build.current().isSnapshot());

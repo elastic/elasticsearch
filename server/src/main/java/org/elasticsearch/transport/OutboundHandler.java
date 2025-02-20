@@ -113,16 +113,24 @@ final class OutboundHandler {
             isHandshake,
             compressionScheme
         );
-        if (request.hasReferences() == false) {
-            assert false : "request [" + request + "] has been released already";
-            throw new AlreadyClosedException("request [" + request + "] has been released already");
+        final Releasable onAfter;
+        if (request instanceof BytesTransportRequest) {
+            request.mustIncRef();
+            onAfter = () -> {
+                try {
+                    messageListener.onRequestSent(node, requestId, action, request, options);
+                } finally {
+                    request.decRef();
+                }
+            };
+        } else {
+            if (request.hasReferences() == false) {
+                assert false : "request [" + request + "] has been released already";
+                throw new AlreadyClosedException("request [" + request + "] has been released already");
+            }
+            onAfter = () -> messageListener.onRequestSent(node, requestId, action, request, options);
         }
-        sendMessage(
-            channel,
-            message,
-            ResponseStatsConsumer.NONE,
-            () -> messageListener.onRequestSent(node, requestId, action, request, options)
-        );
+        sendMessage(channel, message, ResponseStatsConsumer.NONE, onAfter);
     }
 
     /**

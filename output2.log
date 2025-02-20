@@ -1,0 +1,134 @@
+Using gradle at '/Users/rene/dev/elastic/elasticsearch/gradlew' to run buildfile '/Users/rene/dev/elastic/elasticsearch/build.gradle':
+
+Parallel Configuration Cache is an incubating feature.
+Reusing configuration cache.
+> Task :server:generatePluginsList UP-TO-DATE
+> Task :server:generateModulesList UP-TO-DATE
+> Task :server:processTestResources UP-TO-DATE
+> Task :server:processResources UP-TO-DATE
+> Task :client:rest:processResources UP-TO-DATE
+> Task :libs:geo:compileJava UP-TO-DATE
+> Task :client:rest:compileJava UP-TO-DATE
+> Task :libs:core:processResources NO-SOURCE
+> Task :libs:plugin-api:compileJava UP-TO-DATE
+> Task :libs:cli:processResources NO-SOURCE
+> Task :client:rest:classes UP-TO-DATE
+> Task :libs:secure-sm:compileJava UP-TO-DATE
+> Task :libs:grok:compileJava UP-TO-DATE
+> Task :libs:entitlement:processResources NO-SOURCE
+> Task :libs:logging:compileJava UP-TO-DATE
+> Task :libs:entitlement:asm-provider:processResources UP-TO-DATE
+> Task :libs:entitlement:bridge:compileJava UP-TO-DATE
+> Task :libs:entitlement:bridge:processResources NO-SOURCE
+> Task :libs:geo:processResources NO-SOURCE
+> Task :libs:entitlement:processMain23Resources NO-SOURCE
+> Task :libs:geo:classes UP-TO-DATE
+> Task :libs:logging:processResources NO-SOURCE
+> Task :libs:entitlement:bridge:processMain23Resources NO-SOURCE
+> Task :libs:core:compileJava UP-TO-DATE
+> Task :libs:logging:classes UP-TO-DATE
+> Task :libs:native:processResources NO-SOURCE
+> Task :libs:plugin-analysis-api:compileJava UP-TO-DATE
+> Task :libs:entitlement:bridge:classes UP-TO-DATE
+> Task :libs:lz4:processResources NO-SOURCE
+> Task :libs:grok:processResources UP-TO-DATE
+> Task :libs:core:classes UP-TO-DATE
+> Task :libs:tdigest:compileJava UP-TO-DATE
+> Task :libs:native:compileJava UP-TO-DATE
+> Task :server:cleanTest
+> Task :libs:cli:compileJava UP-TO-DATE
+> Task :libs:lz4:compileJava UP-TO-DATE
+> Task :libs:x-content:compileJava UP-TO-DATE
+> Task :libs:ssl-config:compileJava UP-TO-DATE
+> Task :libs:lz4:classes UP-TO-DATE
+> Task :libs:entitlement:bridge:compileMain23Java UP-TO-DATE
+> Task :libs:entitlement:bridge:main23Classes UP-TO-DATE
+> Task :libs:entitlement:compileJava UP-TO-DATE
+> Task :libs:cli:classes UP-TO-DATE
+> Task :libs:grok:classes UP-TO-DATE
+> Task :libs:simdvec:compileJava UP-TO-DATE
+> Task :libs:native:processMain22Resources NO-SOURCE
+> Task :libs:plugin-analysis-api:processResources NO-SOURCE
+> Task :libs:plugin-analysis-api:classes UP-TO-DATE
+> Task :libs:native:classes UP-TO-DATE
+> Task :libs:entitlement:bridge:java23Jar UP-TO-DATE
+> Task :libs:plugin-api:processResources NO-SOURCE
+> Task :libs:plugin-api:classes UP-TO-DATE
+> Task :libs:entitlement:asm-provider:compileJava UP-TO-DATE
+> Task :libs:entitlement:asm-provider:classes UP-TO-DATE
+> Task :libs:native:compileMain22Java UP-TO-DATE
+> Task :libs:native:main22Classes UP-TO-DATE
+> Task :client:rest:jar UP-TO-DATE
+> Task :libs:secure-sm:processResources NO-SOURCE
+> Task :libs:secure-sm:classes UP-TO-DATE
+> Task :libs:logging:jar UP-TO-DATE
+> Task :libs:simdvec:processResources NO-SOURCE
+> Task :libs:simdvec:classes UP-TO-DATE
+> Task :server:compileJava UP-TO-DATE
+> Task :server:classes UP-TO-DATE
+> Task :libs:simdvec:compileMain21Java UP-TO-DATE
+> Task :libs:simdvec:processMain21Resources NO-SOURCE
+> Task :libs:simdvec:main21Classes UP-TO-DATE
+> Task :libs:simdvec:compileMain22Java UP-TO-DATE
+> Task :libs:simdvec:processMain22Resources NO-SOURCE
+> Task :libs:simdvec:main22Classes UP-TO-DATE
+> Task :modules:transport-netty4:compileJava UP-TO-DATE
+> Task :libs:geo:jar UP-TO-DATE
+> Task :libs:ssl-config:processResources NO-SOURCE
+> Task :libs:ssl-config:classes UP-TO-DATE
+> Task :test:framework:compileJava UP-TO-DATE
+> Task :libs:core:jar UP-TO-DATE
+> Task :libs:tdigest:processResources NO-SOURCE
+> Task :libs:tdigest:classes UP-TO-DATE
+> Task :libs:grok:jar UP-TO-DATE
+> Task :libs:x-content:impl:compileJava UP-TO-DATE
+> Task :server:compileTestJava UP-TO-DATE
+> Task :server:testClasses UP-TO-DATE
+> Task :libs:x-content:impl:processResources UP-TO-DATE
+> Task :libs:x-content:impl:classes UP-TO-DATE
+> Task :libs:x-content:processResources NO-SOURCE
+> Task :modules:transport-netty4:processResources NO-SOURCE
+> Task :modules:transport-netty4:classes UP-TO-DATE
+> Task :libs:lz4:jar UP-TO-DATE
+> Task :test:framework:processResources UP-TO-DATE
+> Task :test:framework:classes UP-TO-DATE
+> Task :libs:cli:jar UP-TO-DATE
+> Task :test:immutable-collections-patch:compileJava UP-TO-DATE
+> Task :test:immutable-collections-patch:processResources NO-SOURCE
+> Task :test:immutable-collections-patch:classes UP-TO-DATE
+> Task :test:immutable-collections-patch:generatePatch UP-TO-DATE
+> Task :libs:plugin-analysis-api:jar UP-TO-DATE
+> Task :libs:native:native-libraries:extractLibs UP-TO-DATE
+> Task :libs:plugin-api:jar UP-TO-DATE
+> Task :libs:entitlement:asm-provider:jar UP-TO-DATE
+> Task :libs:entitlement:generateAsm-providerProviderManifest UP-TO-DATE
+> Task :libs:entitlement:generateAsm-providerProviderImpl UP-TO-DATE
+> Task :libs:entitlement:classes UP-TO-DATE
+> Task :libs:entitlement:compileMain23Java UP-TO-DATE
+> Task :libs:entitlement:main23Classes UP-TO-DATE
+> Task :libs:native:jar UP-TO-DATE
+> Task :libs:secure-sm:jar UP-TO-DATE
+> Task :libs:simdvec:jar UP-TO-DATE
+> Task :libs:ssl-config:jar UP-TO-DATE
+> Task :libs:tdigest:jar UP-TO-DATE
+> Task :libs:x-content:impl:jar UP-TO-DATE
+> Task :libs:x-content:generateImplProviderManifest UP-TO-DATE
+> Task :libs:x-content:generateImplProviderImpl UP-TO-DATE
+> Task :libs:x-content:classes UP-TO-DATE
+> Task :modules:transport-netty4:jar UP-TO-DATE
+> Task :test:framework:jar UP-TO-DATE
+> Task :libs:entitlement:jar UP-TO-DATE
+> Task :libs:x-content:jar UP-TO-DATE
+WARNING: A terminally deprecated method in java.lang.System has been called
+WARNING: System::setSecurityManager has been called by org.gradle.api.internal.tasks.testing.worker.TestWorker (file:/Users/rene/.gradle/wrapper/dists/gradle-8.12.1-all/5akij8gnr65tdxupapyu22pqa/gradle-8.12.1/lib/plugins/gradle-testing-base-infrastructure-8.12.1.jar)
+WARNING: Please consider reporting this to the maintainers of org.gradle.api.internal.tasks.testing.worker.TestWorker
+WARNING: System::setSecurityManager will be removed in a future release
+> Task :server:test
+
+BUILD SUCCESSFUL in 11s
+67 actionable tasks: 2 executed, 65 up-to-date
+
+Publishing build scan...
+https://gradle-enterprise.elastic.co/s/xmotyynr47epw
+
+Configuration cache entry reused.

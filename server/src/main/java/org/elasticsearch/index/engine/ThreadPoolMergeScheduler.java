@@ -314,19 +314,19 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                         doMerge(mergeSource, onGoingMerge.getMerge());
                         if (verbose()) {
                             message(
-                                    String.format(
-                                            Locale.ROOT,
-                                            "merge task %s merge segment [%s] done estSize=%.1f MB (written=%.1f MB) "
-                                                    + "runTime=%.1fs (stopped=%.1fs, paused=%.1fs) rate=%s",
-                                            this,
-                                            getSegmentName(onGoingMerge.getMerge()),
-                                            bytesToMB(onGoingMerge.getMerge().estimatedMergeBytes),
-                                            bytesToMB(rateLimiter.getTotalBytesWritten()),
-                                            nsToSec(System.nanoTime() - mergeStartTimeNS.get()),
-                                            nsToSec(rateLimiter.getTotalStoppedNS()),
-                                            nsToSec(rateLimiter.getTotalPausedNS()),
-                                            rateToString(rateLimiter.getMBPerSec())
-                                    )
+                                String.format(
+                                    Locale.ROOT,
+                                    "merge task %s merge segment [%s] done estSize=%.1f MB (written=%.1f MB) "
+                                        + "runTime=%.1fs (stopped=%.1fs, paused=%.1fs) rate=%s",
+                                    this,
+                                    getSegmentName(onGoingMerge.getMerge()),
+                                    bytesToMB(onGoingMerge.getMerge().estimatedMergeBytes),
+                                    bytesToMB(rateLimiter.getTotalBytesWritten()),
+                                    nsToSec(System.nanoTime() - mergeStartTimeNS.get()),
+                                    nsToSec(rateLimiter.getTotalStoppedNS()),
+                                    nsToSec(rateLimiter.getTotalPausedNS()),
+                                    rateToString(rateLimiter.getMBPerSec())
+                                )
                             );
                         }
                     } catch (Throwable t) {

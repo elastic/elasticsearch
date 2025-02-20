@@ -4,6 +4,8 @@
 <titleabbrev>Get started</titleabbrev>
 ++++
 
+deprecated:[9.0.0]
+
 You can manage your analytics in the {kib} UI.
 Go to *Search > Behavioral Analytics* to get started.
 

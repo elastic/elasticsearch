@@ -95,6 +95,8 @@ DEV_JOIN_FULL :    {this.isDevVersion()}? 'full'          -> pushMode(JOIN_MODE)
 DEV_JOIN_LEFT :    {this.isDevVersion()}? 'left'          -> pushMode(JOIN_MODE);
 DEV_JOIN_RIGHT :   {this.isDevVersion()}? 'right'         -> pushMode(JOIN_MODE);
 
+// FORK
+DEV_FORK :        {this.isDevVersion()}? 'fork'          -> pushMode(FORK_MODE);
 
 //
 // Catch-all for unrecognized commands - don't define any beyond this line
@@ -221,6 +223,8 @@ LEFT_BRACES : '{';
 RIGHT_BRACES : '}';
 
 NESTED_WHERE : WHERE -> type(WHERE);
+NESTED_SORT : {this.isDevVersion()}? SORT -> type(SORT);
+NESTED_LIMIT : {this.isDevVersion()}? LIMIT -> type(LIMIT);
 
 NAMED_OR_POSITIONAL_PARAM
     : PARAM (LETTER | UNDERSCORE) UNQUOTED_ID_BODY*
@@ -668,3 +672,14 @@ INSIST_IDENTIFIER: UNQUOTED_IDENTIFIER -> type(UNQUOTED_IDENTIFIER);
 INSIST_WS : WS -> channel(HIDDEN);
 INSIST_LINE_COMMENT : LINE_COMMENT -> channel(HIDDEN);
 INSIST_MULTILINE_COMMENT : MULTILINE_COMMENT -> channel(HIDDEN);
+
+//
+// Fork
+//
+mode FORK_MODE;
+FORK_LP : LP -> type(LP), pushMode(DEFAULT_MODE);
+FORK_RP : RP -> type(RP), popMode;
+FORK_PIPE : PIPE -> type(PIPE), popMode;
+FORK_WS : WS -> channel(HIDDEN);
+FORK_LINE_COMMENT : LINE_COMMENT -> channel(HIDDEN);
+FORK_MULTILINE_COMMENT : MULTILINE_COMMENT -> channel(HIDDEN);

@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.application.search.SearchApplicationTemplate;
 import org.elasticsearch.xpack.application.search.TemplateParamValidator;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -85,78 +87,42 @@ public final class EnterpriseSearchModuleTestUtils {
         return randomMap(0, 10, () -> Tuple.tuple(randomIdentifier(), randomAlphaOfLengthBetween(0, 10)));
     }
 
+    public static QueryRule randomQueryRule() {
+        String ruleId = randomAlphaOfLengthBetween(3, 10);
+        QueryRule.QueryRuleType type = randomFrom(QueryRule.QueryRuleType.values());
+        List<QueryRuleCriteria> criteria = new ArrayList<>();
+        int numCriteria = randomIntBetween(1, 3);
+
+        for (int i = 0; i < numCriteria; i++) {
+            criteria.add(randomQueryRuleCriteria());
+        }
+
+        return new QueryRule(ruleId, type, criteria, randomQueryRuleActions(), randomQueryRulePriority());
+    }
+
     public static QueryRuleCriteria randomQueryRuleCriteria() {
         QueryRuleCriteriaType criteriaType = randomFrom(QueryRuleCriteriaType.values());
-        String metadata = randomAlphaOfLength(10);
+        String metadata = randomAlphaOfLengthBetween(3, 10);
         List<Object> values = new ArrayList<>();
         int numValues = randomIntBetween(1, 3);
 
-        if (criteriaType.isNumericComparison()) {
+        if (List.of(QueryRuleCriteriaType.GT, QueryRuleCriteriaType.GTE,
+                    QueryRuleCriteriaType.LT, QueryRuleCriteriaType.LTE).contains(criteriaType)) {
             for (int i = 0; i < numValues; i++) {
-                double value = Math.round(randomDoubleBetween(0, 1000, true) * 100.0) / 100.0;
-                values.add(String.valueOf(value));
+                BigDecimal value = BigDecimal.valueOf(randomDoubleBetween(0, 1000, true))
+                    .setScale(2, RoundingMode.HALF_UP);
+                values.add(value.toString());
             }
         } else if (criteriaType == QueryRuleCriteriaType.ALWAYS) {
             metadata = null;
             values = null;
         } else {
             for (int i = 0; i < numValues; i++) {
-                values.add(randomAlphaOfLength(5));
+                values.add(randomAlphaOfLengthBetween(3, 10));
             }
         }
 
         return new QueryRuleCriteria(criteriaType, metadata, values);
-    }
-
-    public static QueryRule randomQueryRule() {
-        if (randomBoolean()) {
-            return createNumericQueryRule();
-        } else {
-            return createNonNumericQueryRule();
-        }
-    }
-
-    private static QueryRule createNumericQueryRule() {
-        String ruleId = randomAlphaOfLength(10);
-        QueryRule.QueryRuleType type = randomFrom(QueryRule.QueryRuleType.values());
-        List<QueryRuleCriteria> criteria = new ArrayList<>();
-        int numCriteria = randomIntBetween(1, 3);
-
-        for (int i = 0; i < numCriteria; i++) {
-            QueryRuleCriteriaType criteriaType = randomFrom(
-                QueryRuleCriteriaType.GT,
-                QueryRuleCriteriaType.GTE,
-                QueryRuleCriteriaType.LT,
-                QueryRuleCriteriaType.LTE
-            );
-            double value = Math.round(randomDoubleBetween(0, 1000, true) * 100.0) / 100.0;
-            criteria.add(new QueryRuleCriteria(criteriaType, randomAlphaOfLength(10), List.of(String.valueOf(value))));
-        }
-
-        return new QueryRule(ruleId, type, criteria, randomQueryRuleActions(), randomQueryRulePriority());
-    }
-
-    private static QueryRule createNonNumericQueryRule() {
-        String ruleId = randomAlphaOfLength(10);
-        QueryRule.QueryRuleType type = randomFrom(QueryRule.QueryRuleType.values());
-        List<QueryRuleCriteria> criteria = new ArrayList<>();
-        int numCriteria = randomIntBetween(1, 3);
-
-        for (int i = 0; i < numCriteria; i++) {
-            QueryRuleCriteriaType criteriaType = randomFrom(
-                QueryRuleCriteriaType.EXACT,
-                QueryRuleCriteriaType.PREFIX,
-                QueryRuleCriteriaType.CONTAINS,
-                QueryRuleCriteriaType.ALWAYS
-            );
-
-            String metadata = criteriaType == QueryRuleCriteriaType.ALWAYS ? null : randomAlphaOfLength(10);
-            List<Object> values = criteriaType == QueryRuleCriteriaType.ALWAYS ? null : List.of(randomAlphaOfLength(5));
-
-            criteria.add(new QueryRuleCriteria(criteriaType, metadata, values));
-        }
-
-        return new QueryRule(ruleId, type, criteria, randomQueryRuleActions(), randomQueryRulePriority());
     }
 
     public static Integer randomQueryRulePriority() {
@@ -173,30 +139,22 @@ public final class EnterpriseSearchModuleTestUtils {
         return new QueryRuleset(id, rules);
     }
 
+    public static Map<String, Object> randomQueryRuleActions() {
+        if (randomBoolean()) {  
+            return Map.of(QueryRule.IDS_FIELD.getPreferredName(), List.of(randomAlphaOfLengthBetween(3, 10)));
+        }
+        return Map.of(
+            QueryRule.DOCS_FIELD.getPreferredName(),
+            List.of(
+                Map.of(
+                    QueryRule.INDEX_FIELD.getPreferredName(), randomAlphaOfLengthBetween(3, 10),
+                    QueryRule.ID_FIELD.getPreferredName(), randomAlphaOfLengthBetween(3, 10)
+                )
+            )
+        );
+    }
+
     public static Map<String, Object> randomMatchCriteria() {
         return randomMap(1, 3, () -> Tuple.tuple(randomIdentifier(), randomAlphaOfLengthBetween(0, 10)));
     }
-
-    public static Map<String, Object> randomQueryRuleActions() {
-        QueryRule.QueryRuleType type = randomFrom(QueryRule.QueryRuleType.values());
-        if (type == QueryRule.QueryRuleType.PINNED) {
-            // For PINNED type, we need either 'ids' or 'docs', but not both
-            if (randomBoolean()) {
-                return Map.of("ids", List.of(randomAlphaOfLength(5)));
-            } else {
-                return Map.of("docs", List.of(Map.of("_index", randomAlphaOfLength(5), "_id", randomAlphaOfLength(5))));
-            }
-        } else if (type == QueryRule.QueryRuleType.EXCLUDE) {
-            // For EXCLUDE type, similar to PINNED
-            if (randomBoolean()) {
-                return Map.of("ids", List.of(randomAlphaOfLength(5)));
-            } else {
-                return Map.of("docs", List.of(Map.of("_index", randomAlphaOfLength(5), "_id", randomAlphaOfLength(5))));
-            }
-        } else {
-            // For other types (like BOOST), use a boost value
-            return Map.of("boost", randomDoubleBetween(0.0, 5.0, true));
-        }
-    }
-
 }

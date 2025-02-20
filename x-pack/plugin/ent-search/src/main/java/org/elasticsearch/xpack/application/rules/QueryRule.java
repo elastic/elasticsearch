@@ -155,26 +155,12 @@ public class QueryRule implements Writeable, ToXContentObject {
             }
         }
 
-        for (QueryRuleCriteria criterion : criteria) {
-            QueryRuleCriteriaType criteriaType = criterion.criteriaType();
-            if (criteriaType.isNumericComparison()) {
-                List<Object> values = criterion.criteriaValues();
-                for (Object value : values) {
-                    try {
-                        Double.parseDouble(value.toString());
-                    } catch (NumberFormatException e) {
-                        throw new IllegalArgumentException(
-                            "Numeric comparison rule type "
-                                + criteriaType
-                                + " requires numeric values, but got "
-                                + value
-                                + " for criterion "
-                                + criterion
-                        );
-                    }
-                }
+        criteria.forEach(criterion -> {
+            List<Object> values = criterion.criteriaValues();
+            if (values != null) {
+                values.forEach(criterion.criteriaType()::validateInput);
             }
-        }
+        });
     }
 
     private void validateIdOrDocAction(Object action) {

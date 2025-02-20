@@ -404,36 +404,20 @@ public class QueryRuleTests extends ESTestCase {
     }
 
     public void testValidateNumericComparisonRule() {
-        // Test valid numeric value
-        QueryRuleCriteria validCriteria = new QueryRuleCriteria(LTE, "price", List.of("100"));
-        QueryRule validRule = new QueryRule(
-            "test_rule",
-            QueryRule.QueryRuleType.PINNED,
-            List.of(validCriteria),
-            Map.of("ids", List.of("1")),
-            null
-        );
-        // Should not throw exception
-        assertNotNull(validRule);
-
-        // Test invalid numeric value
-        QueryRuleCriteria invalidCriteria = new QueryRuleCriteria(LTE, "price", List.of("not_a_number"));
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new QueryRule("test_rule", QueryRule.QueryRuleType.PINNED, List.of(invalidCriteria), Map.of("ids", List.of("1")), null)
+            () -> new QueryRule(
+                "test_rule",
+                QueryRule.QueryRuleType.PINNED,
+                List.of(new QueryRuleCriteria(QueryRuleCriteriaType.LTE, "price", List.of("not_a_number"))),
+                Map.of("ids", List.of("1")),
+                null
+            )
         );
-
-        String expectedMessage = String.format(
-            "Numeric comparison rule type %s requires numeric values, but got %s for criterion %s",
-            "lte",
-            "not_a_number",
-            "{\"type\":\"lte\",\"metadata\":\"price\",\"values\":[\"not_a_number\"]}"
-        );
-        assertEquals(expectedMessage, e.getMessage());
+        assertEquals("Input [not_a_number] is not valid for CriteriaType [lte]", e.getMessage());
     }
 
     public void testParseNumericComparisonRule() throws IOException {
-        // Test parsing valid numeric rule
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         {
@@ -456,7 +440,6 @@ public class QueryRuleTests extends ESTestCase {
         }
         builder.endObject();
 
-        // Get BytesReference from the builder
         BytesReference bytesRef = BytesReference.bytes(builder);
         QueryRule rule = QueryRule.fromXContentBytes(bytesRef, builder.contentType());
         assertNotNull(rule);
@@ -471,13 +454,8 @@ public class QueryRuleTests extends ESTestCase {
         QueryRuleCriteria criteria = new QueryRuleCriteria(LTE, "price", List.of("100"));
         QueryRule rule = new QueryRule("test_rule", QueryRule.QueryRuleType.PINNED, List.of(criteria), Map.of("ids", List.of("1")), null);
 
-        // Test matching value
         assertTrue(rule.isRuleMatch(Map.of("price", "50")));
-
-        // Test non-matching value
         assertFalse(rule.isRuleMatch(Map.of("price", "150")));
-
-        // Test with non-numeric value
         assertFalse(rule.isRuleMatch(Map.of("price", "not_a_number")));
     }
 

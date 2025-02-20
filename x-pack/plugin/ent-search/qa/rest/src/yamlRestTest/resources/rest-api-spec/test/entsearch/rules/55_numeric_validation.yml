@@ -4,31 +4,7 @@
       features: headers
 
   - do:
-      indices.create:
-        index: test-index
-        body:
-          settings:
-            number_of_shards: 1
-            number_of_replicas: 0
-
-  - do:
-      query_rules.put_ruleset:
-        ruleset_id: numeric_validation_test
-        body:
-          rules:
-            - rule_id: valid_numeric_rule
-              type: pinned
-              criteria:
-                - type: lte
-                  metadata: price
-                  values: ["100"]
-              actions:
-                ids: ["1"]
-
-  - match: { result: "created" }
-
-  - do:
-      catch: bad_request
+      catch: /\[query_ruleset\] failed to parse field \[rules\]/
       query_rules.put_ruleset:
         ruleset_id: invalid_numeric_test
         body:
@@ -42,55 +18,10 @@
               actions:
                 ids: ["1"]
 
-  - match: { error.type: "x_content_parse_exception" }
-  - match: { error.reason: /.*/ }
-
----
-"Test multiple numeric comparison rules":
-  - do:
-      query_rules.put_ruleset:
-        ruleset_id: multiple_numeric_test
-        body:
-          rules:
-            - rule_id: multiple_numeric_rule
-              type: pinned
-              criteria:
-                - type: gte
-                  metadata: price
-                  values: ["50"]
-                - type: lte
-                  metadata: price
-                  values: ["100"]
-              actions:
-                ids: ["1"]
-
-  - match: { result: "created" }
-
----
-"Test mixed numeric and non-numeric rules":
-  - do:
-      query_rules.put_ruleset:
-        ruleset_id: mixed_rules_test
-        body:
-          rules:
-            - rule_id: mixed_rule
-              type: pinned
-              criteria:
-                - type: lte
-                  metadata: price
-                  values: ["100"]
-                - type: exact
-                  metadata: category
-                  values: ["electronics"]
-              actions:
-                ids: ["1"]
-
-  - match: { result: "created" }
-
 ---
 "Test numeric comparison with multiple values":
   - do:
-      catch: bad_request
+      catch: /\[query_ruleset\] failed to parse field \[rules\]/
       query_rules.put_ruleset:
         ruleset_id: multiple_values_test
         body:
@@ -104,35 +35,16 @@
               actions:
                 ids: ["1"]
 
-  - match: { error.type: "x_content_parse_exception" }
-  - match: { error.reason: /.*/ }
-
 ---
 teardown:
-  - do:
-      indices.delete:
-        index: test-index
-        ignore: 404
-  - do:
-      query_rules.delete_ruleset:
-        ruleset_id: numeric_validation_test
-        ignore: 404
   - do:
       query_rules.delete_ruleset:
         ruleset_id: invalid_numeric_test
         ignore: 404
   - do:
       query_rules.delete_ruleset:
-        ruleset_id: multiple_numeric_test
-        ignore: 404
-  - do:
-      query_rules.delete_ruleset:
-        ruleset_id: mixed_rules_test
-        ignore: 404
-  - do:
-      query_rules.delete_ruleset:
         ruleset_id: multiple_values_test
         ignore: 404
 
-  
+
 

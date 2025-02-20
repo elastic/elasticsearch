@@ -39,6 +39,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -645,6 +646,7 @@ public class ShardStateAction {
             List<ShardRouting> shardRoutingsToBeApplied = new ArrayList<>(batchExecutionContext.taskContexts().size());
             Set<ShardRouting> seenShardRoutings = new HashSet<>(); // to prevent duplicates
             final Map<Index, ClusterStateTimeRanges> updatedTimestampRanges = new HashMap<>();
+            final Map<ShardId, Long> updatedPrimaryTerms = new HashMap<>();
             final ClusterState initialState = batchExecutionContext.initialState();
             for (var taskContext : batchExecutionContext.taskContexts()) {
                 final var task = taskContext.getTask();
@@ -706,9 +708,9 @@ public class ShardStateAction {
                                 matched
                             );
                             tasksToBeApplied.add(taskContext);
-                        } else if (false) {
-                            // TODO: Actually do split validation
+                        } else if (validShardSplit(startedShardEntry, initialState) == false) {
                             logger.debug("{} failing shard started task because split validation failed", startedShardEntry.shardId);
+
                         } else {
                             logger.debug(
                                 "{} starting shard {} (shard started task: [{}])",
@@ -720,7 +722,10 @@ public class ShardStateAction {
                             shardRoutingsToBeApplied.add(matched);
                             seenShardRoutings.add(matched);
 
-                            // TODO: Perform primary term sync for split
+                            // Synchronize a split shard's primary term with the source shard
+                            if (startedShardEntry.shardSplit != null) {
+                                updatedPrimaryTerms.put(startedShardEntry.shardId, startedShardEntry.shardSplit.sourcePrimaryTerm());
+                            }
 
                             // expand the timestamp range(s) recorded in the index metadata if needed
                             final Index index = startedShardEntry.shardId.getIndex();
@@ -789,6 +794,16 @@ public class ShardStateAction {
                     }
                     maybeUpdatedState = ClusterState.builder(maybeUpdatedState).metadata(metadataBuilder).build();
                 }
+                if (updatedPrimaryTerms.isEmpty() == false) {
+                    final Metadata.Builder metadataBuilder = Metadata.builder(maybeUpdatedState.metadata());
+                    for (Map.Entry<ShardId, Long> updatedPrimaryTerm : updatedPrimaryTerms.entrySet()) {
+                        IndexMetadata indexMetadata = metadataBuilder.getSafe(updatedPrimaryTerm.getKey().getIndex())
+                            .withSetPrimaryTerm(updatedPrimaryTerm.getKey().id(), updatedPrimaryTerm.getValue());
+                        // TODO: Increment version?
+                        metadataBuilder.put(indexMetadata, true);
+                    }
+                    maybeUpdatedState = ClusterState.builder(maybeUpdatedState).metadata(metadataBuilder).build();
+                }
 
                 assert assertStartedIndicesHaveCompleteTimestampRanges(maybeUpdatedState);
 
@@ -804,6 +819,24 @@ public class ShardStateAction {
             }
 
             return maybeUpdatedState;
+        }
+
+        private static boolean validShardSplit(StartedShardEntry startedShardEntry, ClusterState clusterState) {
+            ShardSplit shardSplit = startedShardEntry.shardSplit;
+            if (shardSplit == null) {
+                return true;
+            }
+            final IndexMetadata indexMetadata = clusterState.metadata().index(startedShardEntry.shardId.getIndex());
+            assert indexMetadata != null;
+            // TODO: Fetch the actual source shard id from the IndexMetadata reshard object
+            ShardId sourceShardId = startedShardEntry.shardId;
+            final long currentPrimaryTerm = indexMetadata.primaryTerm(sourceShardId.id());
+            if (currentPrimaryTerm != shardSplit.sourcePrimaryTerm()
+                || clusterState.routingTable().shardRoutingTable(sourceShardId).primaryShard().relocating()) {
+                return false;
+            } else {
+                return true;
+            }
         }
 
         private static boolean assertStartedIndicesHaveCompleteTimestampRanges(ClusterState clusterState) {
@@ -842,10 +875,15 @@ public class ShardStateAction {
         }
     }
 
-    record ShardSplit(long sourcePrimaryTerm) {
+    record ShardSplit(long sourcePrimaryTerm) implements Writeable {
 
         ShardSplit(StreamInput in) throws IOException {
             this(in.readLong());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeLong(sourcePrimaryTerm);
         }
     }
 
@@ -914,6 +952,9 @@ public class ShardStateAction {
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 eventIngestedRange.writeTo(out);
             }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.SOURCE_PRIMARY_TERM_IN_START_SHARD)) {
+                out.writeOptionalWriteable(shardSplit);
+            }
         }
 
         @Override
@@ -929,20 +970,20 @@ public class ShardStateAction {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             StartedShardEntry that = (StartedShardEntry) o;
             return primaryTerm == that.primaryTerm
-                && shardId.equals(that.shardId)
-                && allocationId.equals(that.allocationId)
-                && message.equals(that.message)
-                && timestampRange.equals(that.timestampRange)
-                && eventIngestedRange.equals(that.eventIngestedRange);
+                && Objects.equals(shardId, that.shardId)
+                && Objects.equals(allocationId, that.allocationId)
+                && Objects.equals(message, that.message)
+                && Objects.equals(timestampRange, that.timestampRange)
+                && Objects.equals(eventIngestedRange, that.eventIngestedRange)
+                && Objects.equals(shardSplit, that.shardSplit);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(shardId, allocationId, primaryTerm, message, timestampRange, eventIngestedRange);
+            return Objects.hash(shardId, allocationId, primaryTerm, message, timestampRange, eventIngestedRange, shardSplit);
         }
     }
 

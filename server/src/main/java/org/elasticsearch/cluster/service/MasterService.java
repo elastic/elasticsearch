@@ -1563,7 +1563,8 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         @Override
-        public void submitTask(String source, T task, @Nullable TimeValue timeout) {
+        public void
+        submitTask(String source, T task, @Nullable TimeValue timeout) {
             final var taskHolder = new AtomicReference<>(task);
             final Scheduler.Cancellable timeoutCancellable;
             if (timeout != null && timeout.millis() > 0) {

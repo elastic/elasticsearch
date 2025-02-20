@@ -108,20 +108,20 @@ public final class SpatialExtent extends SpatialAggregateFunction implements ToA
         return switch (type) {
             case DataType.GEO_POINT -> switch (fieldExtractPreference) {
                 case DOC_VALUES -> new SpatialExtentGeoPointDocValuesAggregatorFunctionSupplier();
-                case NONE, EXTRACT_SPATIAL_BOUNDS -> new SpatialExtentGeoPointSourceValuesAggregatorFunctionSupplier();
+                case NONE, EXTRACT_SPATIAL_BOUNDS, PREFER_STORED -> new SpatialExtentGeoPointSourceValuesAggregatorFunctionSupplier();
             };
             case DataType.CARTESIAN_POINT -> switch (fieldExtractPreference) {
                 case DOC_VALUES -> new SpatialExtentCartesianPointDocValuesAggregatorFunctionSupplier();
-                case NONE, EXTRACT_SPATIAL_BOUNDS -> new SpatialExtentCartesianPointSourceValuesAggregatorFunctionSupplier();
+                case NONE, EXTRACT_SPATIAL_BOUNDS, PREFER_STORED -> new SpatialExtentCartesianPointSourceValuesAggregatorFunctionSupplier();
             };
             case DataType.GEO_SHAPE -> switch (fieldExtractPreference) {
                 case EXTRACT_SPATIAL_BOUNDS -> new SpatialExtentGeoShapeDocValuesAggregatorFunctionSupplier();
-                case NONE -> new SpatialExtentGeoShapeSourceValuesAggregatorFunctionSupplier();
+                case NONE, PREFER_STORED -> new SpatialExtentGeoShapeSourceValuesAggregatorFunctionSupplier();
                 case DOC_VALUES -> throw new EsqlIllegalArgumentException("Illegal field extract preference: " + fieldExtractPreference);
             };
             case DataType.CARTESIAN_SHAPE -> switch (fieldExtractPreference) {
                 case EXTRACT_SPATIAL_BOUNDS -> new SpatialExtentCartesianShapeDocValuesAggregatorFunctionSupplier();
-                case NONE -> new SpatialExtentCartesianShapeSourceValuesAggregatorFunctionSupplier();
+                case NONE, PREFER_STORED -> new SpatialExtentCartesianShapeSourceValuesAggregatorFunctionSupplier();
                 case DOC_VALUES -> throw new EsqlIllegalArgumentException("Illegal field extract preference: " + fieldExtractPreference);
             };
             default -> throw EsqlIllegalArgumentException.illegalDataType(type);

@@ -418,10 +418,11 @@ public class IndexEngine extends InternalEngine {
     }
 
     @Override
-    protected Map<String, String> getCommitExtraUserData() {
+    protected Map<String, String> getCommitExtraUserData(final long localCheckpoint) {
         var accumulatorUserData = documentSizeAccumulator.getAsCommitUserData(getLastCommittedSegmentInfos());
         long translogRecoveryStartFile = translogStartFileForNextCommit;
-        if (hollowMaxSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+        // We check the local checkpoint to ensure that only a commit that has committed all operations is marked as hollow.
+        if (hollowMaxSeqNo != SequenceNumbers.UNASSIGNED_SEQ_NO && localCheckpoint == hollowMaxSeqNo) {
             assert hollowMaxSeqNo == getMaxSeqNo()
                 : "engine has ingested after being hollowed with max seq no ["
                     + hollowMaxSeqNo

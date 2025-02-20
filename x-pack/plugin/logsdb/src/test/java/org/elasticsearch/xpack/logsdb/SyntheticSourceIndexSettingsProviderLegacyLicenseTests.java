@@ -55,8 +55,8 @@ public class SyntheticSourceIndexSettingsProviderLegacyLicenseTests extends ESTe
             syntheticSourceLicenseService,
             im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
             getLogsdbIndexModeSettingsProvider(false),
-            IndexVersion::current
-ava/org/elasticsearch/xpack/logsdb/LogsdbIndexSettingsProviderLegacyLicenseTests.java
+            IndexVersion::current,
+            () -> Version.CURRENT
         );
     }
 
@@ -118,7 +118,8 @@ ava/org/elasticsearch/xpack/logsdb/LogsdbIndexSettingsProviderLegacyLicenseTests
             syntheticSourceLicenseService,
             im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
             getLogsdbIndexModeSettingsProvider(false),
-            IndexVersion::current
+            IndexVersion::current,
+            () -> Version.CURRENT
         );
 
         Settings settings = Settings.builder().put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "SYNTHETIC").build();

@@ -34,12 +34,6 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     }
 
     @Override
-    public boolean overrulesTemplateAndRequestSettings() {
-        // Indicates that the provider value takes precedence over any user setting.
-        return true;
-    }
-
-    @Override
     public Settings getAdditionalIndexSettings(
         final String indexName,
         final String dataStreamName,

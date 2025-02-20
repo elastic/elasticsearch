@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.logsdb;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -153,7 +152,10 @@ public class LogsdbIndexModeSettingsProviderTests extends ESTestCase {
     }
 
     public void testWithLogsComponentTemplate() throws IOException {
-        final LogsdbIndexModeSettingsProvider provider = withoutMapperService(true);
+        final LogsdbIndexModeSettingsProvider provider = new LogsdbIndexModeSettingsProvider(
+            Settings.builder().put("cluster.logsdb.enabled", true).build()
+        );
+
         final Settings additionalIndexSettings = provider.getAdditionalIndexSettings(
             null,
             "logs-apache-production",

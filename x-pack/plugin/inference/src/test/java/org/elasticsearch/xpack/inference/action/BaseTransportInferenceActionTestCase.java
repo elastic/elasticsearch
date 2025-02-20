@@ -62,6 +62,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
     protected static final String serviceId = "serviceId";
     protected final TaskType taskType;
     protected static final String inferenceId = "inferenceEntityId";
+    protected static final String localNodeId = "local-node-id";
     protected InferenceServiceRegistry serviceRegistry;
     protected InferenceStats inferenceStats;
     protected InferenceServiceRateLimitCalculator inferenceServiceRateLimitCalculator;
@@ -100,6 +101,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
         );
 
         mockValidLicenseState();
+        mockNodeClient();
     }
 
     protected abstract BaseTransportInferenceAction<Request> createAction(
@@ -135,6 +137,8 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), nullValue());
             assertThat(attributes.get("error.type"), is(expectedError));
+            assertThat(attributes.get("rerouted"), nullValue());
+            assertThat(attributes.get("node_id"), nullValue());
         }));
     }
 
@@ -176,6 +180,8 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), is(RestStatus.BAD_REQUEST.getStatus()));
             assertThat(attributes.get("error.type"), is(String.valueOf(RestStatus.BAD_REQUEST.getStatus())));
+            assertThat(attributes.get("rerouted"), nullValue());
+            assertThat(attributes.get("node_id"), nullValue());
         }));
     }
 
@@ -216,6 +222,8 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), is(RestStatus.BAD_REQUEST.getStatus()));
             assertThat(attributes.get("error.type"), is(String.valueOf(RestStatus.BAD_REQUEST.getStatus())));
+            assertThat(attributes.get("rerouted"), nullValue());
+            assertThat(attributes.get("node_id"), nullValue());
         }));
     }
 
@@ -232,6 +240,8 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), nullValue());
             assertThat(attributes.get("error.type"), is(expectedError));
+            assertThat(attributes.get("rerouted"), is(Boolean.FALSE));
+            assertThat(attributes.get("node_id"), is(localNodeId));
         }));
     }
 
@@ -254,6 +264,8 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), is(expectedStatus.getStatus()));
             assertThat(attributes.get("error.type"), is(expectedError));
+            assertThat(attributes.get("rerouted"), is(Boolean.FALSE));
+            assertThat(attributes.get("node_id"), is(localNodeId));
         }));
     }
 
@@ -269,6 +281,8 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), is(200));
             assertThat(attributes.get("error.type"), nullValue());
+            assertThat(attributes.get("rerouted"), is(Boolean.FALSE));
+            assertThat(attributes.get("node_id"), is(localNodeId));
         }));
     }
 
@@ -280,6 +294,8 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), is(200));
             assertThat(attributes.get("error.type"), nullValue());
+            assertThat(attributes.get("rerouted"), is(Boolean.FALSE));
+            assertThat(attributes.get("node_id"), is(localNodeId));
         }));
     }
 
@@ -296,6 +312,8 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), nullValue());
             assertThat(attributes.get("error.type"), is(expectedError));
+            assertThat(attributes.get("rerouted"), is(Boolean.FALSE));
+            assertThat(attributes.get("node_id"), is(localNodeId));
         }));
     }
 
@@ -308,7 +326,7 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             }
 
             @Override
-            public void onNext(ChunkedToXContent item) {
+            public void onNext(InferenceServiceResults.Result item) {
 
             }
 
@@ -329,10 +347,12 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), is(200));
             assertThat(attributes.get("error.type"), nullValue());
+            assertThat(attributes.get("rerouted"), is(Boolean.FALSE));
+            assertThat(attributes.get("node_id"), is(localNodeId));
         }));
     }
 
-    protected Flow.Publisher<ChunkedToXContent> mockStreamResponse(Consumer<Flow.Processor<?, ?>> action) {
+    protected Flow.Publisher<InferenceServiceResults.Result> mockStreamResponse(Consumer<Flow.Processor<?, ?>> action) {
         mockService(true, Set.of(), listener -> {
             Flow.Processor<ChunkedToXContent, ChunkedToXContent> taskProcessor = mock();
             doAnswer(innerAns -> {
@@ -403,5 +423,9 @@ public abstract class BaseTransportInferenceActionTestCase<Request extends BaseI
 
     protected void mockValidLicenseState() {
         when(licenseState.isAllowed(InferencePlugin.INFERENCE_API_FEATURE)).thenReturn(true);
+    }
+
+    private void mockNodeClient(){
+        when(nodeClient.getLocalNodeId()).thenReturn(localNodeId);
     }
 }

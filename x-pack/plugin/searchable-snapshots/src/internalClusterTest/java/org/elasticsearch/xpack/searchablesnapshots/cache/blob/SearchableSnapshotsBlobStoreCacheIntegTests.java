@@ -199,7 +199,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
         assertThat(
             systemClient().admin()
                 .indices()
-                .prepareGetSettings(SNAPSHOT_BLOB_CACHE_INDEX)
+                .prepareGetSettings(TEST_REQUEST_TIMEOUT, SNAPSHOT_BLOB_CACHE_INDEX)
                 .get()
                 .getSetting(SNAPSHOT_BLOB_CACHE_INDEX, DataTier.TIER_PREFERENCE),
             equalTo("data_content,data_hot")

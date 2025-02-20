@@ -539,7 +539,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
     public void testGetSettings() {
         interceptTransportActions(GetSettingsAction.NAME);
 
-        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(randomIndicesOrAliases());
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(randomIndicesOrAliases());
         internalCluster().coordOnlyNodeClient().admin().indices().getSettings(getSettingsRequest).actionGet();
 
         clearInterceptedActions();

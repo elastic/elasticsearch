@@ -17,7 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 
 public class GetSettingsRequestTests extends ESTestCase {
-    private static final GetSettingsRequest TEST_700_REQUEST = new GetSettingsRequest().includeDefaults(true)
+    private static final GetSettingsRequest TEST_700_REQUEST = new GetSettingsRequest(TEST_REQUEST_TIMEOUT).includeDefaults(true)
         .humanReadable(true)
         .indices("test_index")
         .names("test_setting_key");

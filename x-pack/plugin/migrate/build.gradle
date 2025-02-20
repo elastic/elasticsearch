@@ -17,6 +17,7 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(xpackModule('ccr'))
+  testImplementation project(xpackModule('ilm'))
   testImplementation project(':modules:data-streams')
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:ingest-common')

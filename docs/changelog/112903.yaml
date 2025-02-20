@@ -13,5 +13,5 @@ breaking:
     `single-node`.
   impact: >-
     Remove any value for `discovery.type` from your `elasticsearch.yml`
-    configuration file.
+    configuration file except for `multi-node` and `single-node`.
   notable: false

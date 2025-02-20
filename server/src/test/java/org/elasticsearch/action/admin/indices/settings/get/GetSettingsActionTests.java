@@ -104,7 +104,7 @@ public class GetSettingsActionTests extends ESTestCase {
     }
 
     public void testIncludeDefaults() {
-        GetSettingsRequest noDefaultsRequest = new GetSettingsRequest().indices(indexName);
+        GetSettingsRequest noDefaultsRequest = new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(indexName);
         ActionTestUtils.execute(
             getSettingsAction,
             null,
@@ -117,7 +117,7 @@ public class GetSettingsActionTests extends ESTestCase {
             )
         );
 
-        GetSettingsRequest defaultsRequest = new GetSettingsRequest().indices(indexName).includeDefaults(true);
+        GetSettingsRequest defaultsRequest = new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(indexName).includeDefaults(true);
 
         ActionTestUtils.execute(
             getSettingsAction,
@@ -134,7 +134,7 @@ public class GetSettingsActionTests extends ESTestCase {
     }
 
     public void testIncludeDefaultsWithFiltering() {
-        GetSettingsRequest defaultsRequest = new GetSettingsRequest().indices(indexName)
+        GetSettingsRequest defaultsRequest = new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(indexName)
             .includeDefaults(true)
             .names("index.refresh_interval");
         ActionTestUtils.execute(getSettingsAction, null, defaultsRequest, ActionTestUtils.assertNoFailureListener(defaultsResponse -> {

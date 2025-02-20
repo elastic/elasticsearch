@@ -316,7 +316,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         assertThat(indexMetadata.getSettings().get("index.final"), nullValue());
 
         // Now verify via dedicated get settings api:
-        GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings("test").get();
+        GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "test").get();
         assertThat(getSettingsResponse.getSetting("test", "index.refresh_interval"), nullValue());
         assertThat(getSettingsResponse.getSetting("test", "index.fielddata.cache"), nullValue());
         assertThat(getSettingsResponse.getSetting("test", "index.final"), nullValue());
@@ -328,7 +328,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         indexMetadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().index("test");
         assertThat(indexMetadata.getSettings().get("index.refresh_interval"), equalTo("-1"));
         // Now verify via dedicated get settings api:
-        getSettingsResponse = indicesAdmin().prepareGetSettings("test").get();
+        getSettingsResponse = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "test").get();
         assertThat(getSettingsResponse.getSetting("test", "index.refresh_interval"), equalTo("-1"));
 
         // now close the index, change the non dynamic setting, and see that it applies
@@ -375,7 +375,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         assertThat(indexMetadata.getSettings().get("index.final"), nullValue());
 
         // Now verify via dedicated get settings api:
-        getSettingsResponse = indicesAdmin().prepareGetSettings("test").get();
+        getSettingsResponse = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "test").get();
         assertThat(getSettingsResponse.getSetting("test", "index.refresh_interval"), equalTo("1s"));
         assertThat(getSettingsResponse.getSetting("test", "index.final"), nullValue());
     }
@@ -491,7 +491,9 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                 .metadata()
                 .index("test")
                 .getSettingsVersion();
-            final String refreshInterval = indicesAdmin().prepareGetSettings("test").get().getSetting("test", "index.refresh_interval");
+            final String refreshInterval = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "test")
+                .get()
+                .getSetting("test", "index.refresh_interval");
             assertAcked(
                 indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.refresh_interval", refreshInterval))
             );
@@ -547,7 +549,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             .index("test")
             .getSettingsVersion();
         final int numberOfReplicas = Integer.valueOf(
-            indicesAdmin().prepareGetSettings("test").get().getSetting("test", "index.number_of_replicas")
+            indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "test").get().getSetting("test", "index.number_of_replicas")
         );
         assertAcked(
             indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.number_of_replicas", numberOfReplicas))
@@ -576,7 +578,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             .index("test")
             .getSettingsVersion();
         final int numberOfReplicas = Integer.valueOf(
-            indicesAdmin().prepareGetSettings("test").get().getSetting("test", "index.number_of_replicas")
+            indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "test").get().getSetting("test", "index.number_of_replicas")
         );
         assertAcked(
             indicesAdmin().prepareUpdateSettings("test")
@@ -624,7 +626,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().putNull(IndexMetadata.SETTING_NUMBER_OF_REPLICAS))
         );
 
-        final GetSettingsResponse response = indicesAdmin().prepareGetSettings("test").get();
+        final GetSettingsResponse response = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "test").get();
 
         // we removed the setting but it should still have an explicit value since index metadata requires this
         assertTrue(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(response.getIndexToSettings().get("test")));
@@ -742,7 +744,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         );
 
         assertThat(
-            indicesAdmin().prepareGetSettings(indexName)
+            indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
                 .get()
                 .getIndexToSettings()
                 .get(indexName)

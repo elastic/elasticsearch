@@ -150,6 +150,10 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
             + "]"
     );
 
+    /**
+     * Rebalancing may be enabled, disabled, or only allowed after all primaries have started, depending on the cluster setting
+     * {@link #CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING}.
+     */
     @SuppressWarnings("fallthrough")
     @Override
     public Decision canRebalance(RoutingAllocation allocation) {

@@ -201,7 +201,10 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
             Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user_monitor", USERS_PASSWD))
         );
 
-        final GetSettingsResponse getSettingsResponse = client.admin().indices().prepareGetSettings(randomFrom("*", "_all", "foo*")).get();
+        final GetSettingsResponse getSettingsResponse = client.admin()
+            .indices()
+            .prepareGetSettings(TEST_REQUEST_TIMEOUT, randomFrom("*", "_all", "foo*"))
+            .get();
         assertThat(getSettingsResponse.getIndexToSettings().size(), is(3));
         assertThat(getSettingsResponse.getIndexToSettings().containsKey("foo"), is(true));
         assertThat(getSettingsResponse.getIndexToSettings().containsKey("foobar"), is(true));

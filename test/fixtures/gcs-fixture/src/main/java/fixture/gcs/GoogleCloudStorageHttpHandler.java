@@ -17,29 +17,30 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URLDecoder;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.zip.GZIPInputStream;
 
 import static fixture.gcs.MockGcsBlobStore.failAndThrow;
@@ -56,12 +57,22 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
     private static final Logger logger = LogManager.getLogger(GoogleCloudStorageHttpHandler.class);
     private static final String IF_GENERATION_MATCH = "ifGenerationMatch";
 
+    private final AtomicInteger defaultPageLimit = new AtomicInteger(1_000);
     private final MockGcsBlobStore mockGcsBlobStore;
     private final String bucket;
 
     public GoogleCloudStorageHttpHandler(final String bucket) {
         this.bucket = Objects.requireNonNull(bucket);
         this.mockGcsBlobStore = new MockGcsBlobStore();
+    }
+
+    /**
+     * Set the default page limit
+     *
+     * @param limit The new limit
+     */
+    public void setDefaultPageLimit(final int limit) {
+        this.defaultPageLimit.set(limit);
     }
 
     @Override
@@ -82,40 +93,31 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 final String key = exchange.getRequestURI().getPath().replace("/storage/v1/b/" + bucket + "/o/", "");
                 final Long ifGenerationMatch = parseOptionalLongParameter(exchange, IF_GENERATION_MATCH);
                 final MockGcsBlobStore.BlobVersion blob = mockGcsBlobStore.getBlob(key, ifGenerationMatch);
-                final byte[] response = buildBlobInfoJson(blob).getBytes(UTF_8);
-                exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
-                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
-                exchange.getResponseBody().write(response);
+                writeBlobVersionAsJson(exchange, blob);
             } else if (Regex.simpleMatch("GET /storage/v1/b/" + bucket + "/o*", request)) {
                 // List Objects https://cloud.google.com/storage/docs/json_api/v1/objects/list
                 final Map<String, String> params = new HashMap<>();
                 RestUtils.decodeQueryString(exchange.getRequestURI(), params);
                 final String prefix = params.getOrDefault("prefix", "");
-                final String delimiter = params.get("delimiter");
+                final int maxResults = Integer.parseInt(params.getOrDefault("maxResults", String.valueOf(defaultPageLimit.get())));
+                final String delimiter = params.getOrDefault("delimiter", "");
+                final String pageToken = params.get("pageToken");
 
-                final Set<String> prefixes = new HashSet<>();
-                final List<String> listOfBlobs = new ArrayList<>();
-
-                for (final Map.Entry<String, MockGcsBlobStore.BlobVersion> blob : mockGcsBlobStore.listBlobs().entrySet()) {
-                    final String blobName = blob.getKey();
-                    if (prefix.isEmpty() || blobName.startsWith(prefix)) {
-                        int delimiterPos = (delimiter != null) ? blobName.substring(prefix.length()).indexOf(delimiter) : -1;
-                        if (delimiterPos > -1) {
-                            prefixes.add("\"" + blobName.substring(0, prefix.length() + delimiterPos + 1) + "\"");
-                        } else {
-                            listOfBlobs.add(buildBlobInfoJson(blob.getValue()));
-                        }
-                    }
+                final MockGcsBlobStore.PageOfBlobs pageOfBlobs;
+                if (pageToken != null) {
+                    pageOfBlobs = mockGcsBlobStore.listBlobs(pageToken);
+                } else {
+                    pageOfBlobs = mockGcsBlobStore.listBlobs(maxResults, delimiter, prefix);
                 }
 
-                byte[] response = (String.format(Locale.ROOT, """
-                    {"kind":"storage#objects","items":[%s],"prefixes":[%s]}\
-                    """, String.join(",", listOfBlobs), String.join(",", prefixes))).getBytes(UTF_8);
-
-                exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
-                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
-                exchange.getResponseBody().write(response);
-
+                ListBlobsResponse response = new ListBlobsResponse(bucket, pageOfBlobs);
+                try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+                    response.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                    BytesReference responseBytes = BytesReference.bytes(builder);
+                    exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), responseBytes.length());
+                    responseBytes.writeTo(exchange.getResponseBody());
+                }
             } else if (Regex.simpleMatch("GET /storage/v1/b/" + bucket + "*", request)) {
                 // GET Bucket https://cloud.google.com/storage/docs/json_api/v1/buckets/get
                 throw new AssertionError("Should not call get bucket API");
@@ -193,10 +195,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                         ifGenerationMatch,
                         content.get().v2()
                     );
-                    byte[] response = buildBlobInfoJson(newBlobVersion).getBytes(UTF_8);
-                    exchange.getResponseHeaders().add("Content-Type", "application/json");
-                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
-                    exchange.getResponseBody().write(response);
+                    writeBlobVersionAsJson(exchange, newBlobVersion);
                 } else {
                     throw new AssertionError(
                         "Could not read multi-part request to ["
@@ -266,6 +265,48 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
         }
     }
 
+    private void writeBlobVersionAsJson(HttpExchange exchange, MockGcsBlobStore.BlobVersion newBlobVersion) throws IOException {
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+            writeBlobAsXContent(newBlobVersion, builder, bucket);
+            BytesReference responseBytes = BytesReference.bytes(builder);
+            exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
+            exchange.sendResponseHeaders(RestStatus.OK.getStatus(), responseBytes.length());
+            responseBytes.writeTo(exchange.getResponseBody());
+        }
+    }
+
+    record ListBlobsResponse(String bucket, MockGcsBlobStore.PageOfBlobs pageOfBlobs) implements ToXContent {
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("kind", "storage#objects");
+            if (pageOfBlobs.nextPageToken() != null) {
+                builder.field("nextPageToken", pageOfBlobs.nextPageToken());
+            }
+            builder.startArray("items");
+            for (MockGcsBlobStore.BlobVersion blobVersion : pageOfBlobs().blobs()) {
+                writeBlobAsXContent(blobVersion, builder, bucket);
+            }
+            builder.endArray();
+            builder.field("prefixes", pageOfBlobs.prefixes());
+            builder.endObject();
+            return builder;
+        }
+    }
+
+    private static void writeBlobAsXContent(MockGcsBlobStore.BlobVersion blobVersion, XContentBuilder builder, String bucket)
+        throws IOException {
+        builder.startObject();
+        builder.field("kind", "storage#object");
+        builder.field("bucket", bucket);
+        builder.field("name", blobVersion.path());
+        builder.field("id", blobVersion.path());
+        builder.field("size", String.valueOf(blobVersion.contents().length()));
+        builder.field("generation", String.valueOf(blobVersion.generation()));
+        builder.endObject();
+    }
+
     private void sendError(HttpExchange exchange, MockGcsBlobStore.GcsRestException e) throws IOException {
         final String responseBody = Strings.format("""
             {
@@ -280,21 +321,10 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
         exchange.getResponseBody().write(responseBody.getBytes(UTF_8));
     }
 
-    private String buildBlobInfoJson(MockGcsBlobStore.BlobVersion blobReference) {
-        return String.format(
-            Locale.ROOT,
-            """
-                {"kind":"storage#object","bucket":"%s","name":"%s","id":"%s","size":"%s","generation":"%d"}""",
-            bucket,
-            blobReference.path(),
-            blobReference.path(),
-            blobReference.contents().length(),
-            blobReference.generation()
-        );
-    }
-
     public Map<String, BytesReference> blobs() {
-        return Maps.transformValues(mockGcsBlobStore.listBlobs(), MockGcsBlobStore.BlobVersion::contents);
+        return mockGcsBlobStore.listBlobs()
+            .stream()
+            .collect(Collectors.toMap(MockGcsBlobStore.BlobVersion::path, MockGcsBlobStore.BlobVersion::contents));
     }
 
     private static String httpServerUrl(final HttpExchange exchange) {

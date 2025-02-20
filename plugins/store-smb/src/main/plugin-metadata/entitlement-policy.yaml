@@ -1,0 +1,5 @@
+ALL-UNNAMED:
+  - files:
+      - relative_path: "indices/"
+        relative_to: data
+        mode: read_write

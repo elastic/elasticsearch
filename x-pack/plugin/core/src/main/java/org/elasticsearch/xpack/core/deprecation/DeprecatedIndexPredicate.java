@@ -49,8 +49,13 @@ public class DeprecatedIndexPredicate {
      */
     public static boolean reindexRequired(IndexMetadata indexMetadata, boolean filterToBlockedStatus) {
         return creationVersionBeforeMinimumWritableVersion(indexMetadata)
+            && isNotSystem(indexMetadata)
             && isNotSearchableSnapshot(indexMetadata)
             && matchBlockedStatus(indexMetadata, filterToBlockedStatus);
+    }
+
+    private static boolean isNotSystem(IndexMetadata indexMetadata) {
+        return indexMetadata.isSystem() == false;
     }
 
     private static boolean isNotSearchableSnapshot(IndexMetadata indexMetadata) {

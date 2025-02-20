@@ -139,19 +139,25 @@ public class AggregateMetricDoubleBlockBuilder extends AbstractBlockBuilder impl
     }
 
     public enum Metric {
-        MIN(0),
-        MAX(1),
-        SUM(2),
-        COUNT(3);
+        MIN(0, "min"),
+        MAX(1, "max"),
+        SUM(2, "sum"),
+        COUNT(3, "value_count");
 
         private final int index;
+        private final String label;
 
-        Metric(int index) {
+        Metric(int index, String label) {
             this.index = index;
+            this.label = label;
         }
 
         public int getIndex() {
             return index;
+        }
+
+        public String getLabel() {
+            return label;
         }
     }
 

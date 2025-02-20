@@ -83,9 +83,10 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
             assertFalse(authResponse.isAuthorized());
 
             var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
-            verify(logger).warn(loggerArgsCaptor.capture());
-            var message = loggerArgsCaptor.getValue();
-            assertThat(message, is("The base URL for the authorization service is not valid, rejecting authorization."));
+            verify(logger, times(2)).debug(loggerArgsCaptor.capture());
+            var messages = loggerArgsCaptor.getAllValues();
+            assertThat(messages.getFirst(), is("Retrieving authorization information from the Elastic Inference Service."));
+            assertThat(messages.get(1), is("The base URL for the authorization service is not valid, rejecting authorization."));
         }
     }
 
@@ -104,9 +105,10 @@ public class ElasticInferenceServiceAuthorizationHandlerTests extends ESTestCase
             assertFalse(authResponse.isAuthorized());
 
             var loggerArgsCaptor = ArgumentCaptor.forClass(String.class);
-            verify(logger).warn(loggerArgsCaptor.capture());
-            var message = loggerArgsCaptor.getValue();
-            assertThat(message, is("The base URL for the authorization service is not valid, rejecting authorization."));
+            verify(logger, times(2)).debug(loggerArgsCaptor.capture());
+            var messages = loggerArgsCaptor.getAllValues();
+            assertThat(messages.getFirst(), is("Retrieving authorization information from the Elastic Inference Service."));
+            assertThat(messages.get(1), is("The base URL for the authorization service is not valid, rejecting authorization."));
         }
     }
 

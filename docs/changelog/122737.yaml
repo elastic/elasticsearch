@@ -1,0 +1,5 @@
+pr: 122737
+summary: Bump json-smart and oauth2-oidc-sdk
+area: Authentication
+type: upgrade
+issues: []

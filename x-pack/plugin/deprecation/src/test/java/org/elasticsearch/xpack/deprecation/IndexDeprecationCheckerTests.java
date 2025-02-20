@@ -298,6 +298,28 @@ public class IndexDeprecationCheckerTests extends ESTestCase {
         assertEquals(List.of(expected), issuesByIndex.get("test"));
     }
 
+    public void testOldSystemIndicesIgnored() {
+        // We do not want system indices coming back in the deprecation info API
+        Settings.Builder settings = settings(OLD_VERSION).put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), true);
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .system(true)
+            .settings(settings)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .state(indexMetdataState)
+            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put(indexMetadata, true))
+            .blocks(clusterBlocksForIndices(indexMetadata))
+            .build();
+        Map<String, List<DeprecationIssue>> issuesByIndex = checker.check(
+            clusterState,
+            new DeprecationInfoAction.Request(TimeValue.THIRTY_SECONDS),
+            emptyPrecomputedData
+        );
+        assertThat(issuesByIndex, equalTo(Map.of()));
+    }
+
     private IndexMetadata readonlyIndexMetadata(String indexName, IndexVersion indexVersion) {
         Settings.Builder settings = settings(indexVersion).put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), true);
         return IndexMetadata.builder(indexName).settings(settings).numberOfShards(1).numberOfReplicas(0).state(indexMetdataState).build();

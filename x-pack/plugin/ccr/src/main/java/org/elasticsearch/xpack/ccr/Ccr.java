@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ccr;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
@@ -92,7 +91,6 @@ import org.elasticsearch.xpack.ccr.rest.RestPutAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.rest.RestPutFollowAction;
 import org.elasticsearch.xpack.ccr.rest.RestResumeAutoFollowPatternAction;
 import org.elasticsearch.xpack.ccr.rest.RestResumeFollowAction;
-import org.elasticsearch.xpack.ccr.rest.RestShardChangesAction;
 import org.elasticsearch.xpack.ccr.rest.RestUnfollowAction;
 import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
@@ -114,7 +112,6 @@ import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -143,34 +140,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
 
     public static final String REQUESTED_OPS_MISSING_METADATA_KEY = "es.requested_operations_missing";
     public static final TransportVersion TRANSPORT_VERSION_ACTION_WITH_SHARD_ID = TransportVersions.V_8_9_X;
-    private static final List<RestHandler> BASE_REST_HANDLERS = Arrays.asList(
-        // stats API
-        new RestFollowStatsAction(),
-        new RestCcrStatsAction(),
-        new RestFollowInfoAction(),
-        // follow APIs
-        new RestPutFollowAction(),
-        new RestResumeFollowAction(),
-        new RestPauseFollowAction(),
-        new RestUnfollowAction(),
-        // auto-follow APIs
-        new RestDeleteAutoFollowPatternAction(),
-        new RestPutAutoFollowPatternAction(),
-        new RestGetAutoFollowPatternAction(),
-        new RestPauseAutoFollowPatternAction(),
-        new RestResumeAutoFollowPatternAction(),
-        // forget follower API
-        new RestForgetFollowerAction()
-    );
 
-    private static final List<RestHandler> REST_HANDLERS = Collections.unmodifiableList(BASE_REST_HANDLERS);
-
-    private static final List<RestHandler> SNAPSHOT_BUILD_REST_HANDLERS;
-    static {
-        List<RestHandler> snapshotBuildHandlers = new ArrayList<>(BASE_REST_HANDLERS);
-        snapshotBuildHandlers.add(new RestShardChangesAction());
-        SNAPSHOT_BUILD_REST_HANDLERS = Collections.unmodifiableList(snapshotBuildHandlers);
-    }
     private final boolean enabled;
     private final Settings settings;
     private final CcrLicenseChecker ccrLicenseChecker;
@@ -302,7 +272,25 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
             return emptyList();
         }
 
-        return Build.current().isSnapshot() ? SNAPSHOT_BUILD_REST_HANDLERS : REST_HANDLERS;
+        return Arrays.asList(
+            // stats API
+            new RestFollowStatsAction(),
+            new RestCcrStatsAction(),
+            new RestFollowInfoAction(),
+            // follow APIs
+            new RestPutFollowAction(),
+            new RestResumeFollowAction(),
+            new RestPauseFollowAction(),
+            new RestUnfollowAction(),
+            // auto-follow APIs
+            new RestDeleteAutoFollowPatternAction(),
+            new RestPutAutoFollowPatternAction(),
+            new RestGetAutoFollowPatternAction(),
+            new RestPauseAutoFollowPatternAction(),
+            new RestResumeAutoFollowPatternAction(),
+            // forget follower API
+            new RestForgetFollowerAction()
+        );
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {

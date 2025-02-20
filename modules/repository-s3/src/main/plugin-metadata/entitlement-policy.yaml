@@ -1,3 +1,10 @@
 ALL-UNNAMED:
   - manage_threads
   - outbound_network
+  - files:
+    - relative_path: "repository-s3/aws-web-identity-token-file"
+      relative_to: "config"
+      mode: "read"
+    - relative_path: ".aws/"
+      relative_to: "home"
+      mode: "read"

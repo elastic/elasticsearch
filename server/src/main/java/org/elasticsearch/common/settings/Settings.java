@@ -291,6 +291,24 @@ public final class Settings implements ToXContentFragment, Writeable, Diffable<S
     }
 
     /**
+     * Returns the values for settings that match the given glob pattern.
+     * A single glob is supported.
+     *
+     * @param settingGlob setting name containing a glob
+     * @return zero or more values for any settings in this settings object that match the glob pattern
+     */
+    public Stream<String> getGlobValues(String settingGlob) {
+        int globIndex = settingGlob.indexOf(".*.");
+        if (globIndex == -1) {
+            throw new IllegalArgumentException("Pattern [" + settingGlob + "] does not contain a glob [*]");
+        }
+        String prefix = settingGlob.substring(0, globIndex + 1);
+        String suffix = settingGlob.substring(globIndex + 2);
+        Settings subSettings = getByPrefix(prefix);
+        return subSettings.names().stream().map(k -> k + suffix).map(subSettings::get).filter(Objects::nonNull);
+    }
+
+    /**
      * Returns the setting value (as float) associated with the setting key. If it does not exists,
      * returns the default value provided.
      */

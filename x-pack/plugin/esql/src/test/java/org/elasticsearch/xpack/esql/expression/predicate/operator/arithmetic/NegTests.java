@@ -56,8 +56,8 @@ public class NegTests extends AbstractScalarFunctionTestCase {
             Integer.MIN_VALUE,
             Integer.MIN_VALUE,
             List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.ArithmeticException: integer overflow"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.ArithmeticException: integer overflow"
             )
         );
         TestCaseSupplier.forUnaryLong(
@@ -78,8 +78,8 @@ public class NegTests extends AbstractScalarFunctionTestCase {
             Long.MIN_VALUE,
             Long.MIN_VALUE,
             List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.ArithmeticException: long overflow"
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.ArithmeticException: long overflow"
             )
         );
         TestCaseSupplier.forUnaryDouble(

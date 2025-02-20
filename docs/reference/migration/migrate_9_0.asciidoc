@@ -119,7 +119,7 @@ Remove `xpack.searchable.snapshot.allocate_on_rolling_restart` from your setting
 Earlier versions of {es} had a `discovery.type` setting which permitted values that referred to legacy discovery types. From v9.0.0 onwards, the only supported values for this setting are `multi-node` (the default) and `single-node`.
 
 *Impact* +
-Remove any value for `discovery.type` from your `elasticsearch.yml` configuration file.
+Remove any value for `discovery.type` from your `elasticsearch.yml` configuration file except for `multi-node` and `single-node`.
 ====
 
 [discrete]

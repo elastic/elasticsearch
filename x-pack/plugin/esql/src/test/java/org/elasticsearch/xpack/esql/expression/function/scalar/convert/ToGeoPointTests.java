@@ -44,8 +44,8 @@ public class ToGeoPointTests extends AbstractScalarFunctionTestCase {
         TestCaseSupplier.forUnaryStrings(suppliers, evaluatorName.apply("FromString"), DataType.GEO_POINT, bytesRef -> null, bytesRef -> {
             var exception = expectThrows(Exception.class, () -> GEO.wktToWkb(bytesRef.utf8ToString()));
             return List.of(
-                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: " + exception
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: " + exception
             );
         });
         // strings that are geo point representations

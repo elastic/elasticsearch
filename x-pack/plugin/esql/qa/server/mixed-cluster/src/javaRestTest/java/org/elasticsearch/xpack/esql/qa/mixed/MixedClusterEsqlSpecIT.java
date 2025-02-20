@@ -91,6 +91,11 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     }
 
     @Override
+    protected boolean supportsSourceFieldMapping() throws IOException {
+        return false;
+    }
+
+    @Override
     protected boolean deduplicateExactWarnings() {
         /*
          * In ESQL's main tests we shouldn't have to deduplicate but in

@@ -46,17 +46,36 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_tsid";
     public static final String CONTENT_TYPE = "_tsid";
     public static final TimeSeriesIdFieldType FIELD_TYPE = new TimeSeriesIdFieldType();
-    public static final TimeSeriesIdFieldMapper INSTANCE = new TimeSeriesIdFieldMapper();
+
+    private static final TimeSeriesIdFieldMapper INSTANCE_WITHOUT_SKIPPER = new TimeSeriesIdFieldMapper(false);
+    private static final TimeSeriesIdFieldMapper INSTANCE_WITH_SKIPPER = new TimeSeriesIdFieldMapper(true);
+
+    public static TimeSeriesIdFieldMapper getInstance(boolean useDocValuesSkipper) {
+        if (useDocValuesSkipper) {
+            return INSTANCE_WITH_SKIPPER;
+        } else {
+            return INSTANCE_WITHOUT_SKIPPER;
+        }
+    }
+
+    public static TimeSeriesIdFieldMapper getInstance(MappingParserContext context) {
+        boolean useDocValuesSkipper = context.indexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ID_DOC_VALUES_SPARSE_INDEX)
+            && context.getIndexSettings().useDocValuesSkipper();
+        return TimeSeriesIdFieldMapper.getInstance(useDocValuesSkipper);
+    }
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder().init(this);
+        return new Builder(this.useDocValuesSkipper).init(this);
     }
 
     public static class Builder extends MetadataFieldMapper.Builder {
 
-        protected Builder() {
+        private final boolean useDocValuesSkipper;
+
+        protected Builder(boolean useDocValuesSkipper) {
             super(NAME);
+            this.useDocValuesSkipper = useDocValuesSkipper;
         }
 
         @Override
@@ -66,11 +85,11 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
         @Override
         public TimeSeriesIdFieldMapper build() {
-            return INSTANCE;
+            return TimeSeriesIdFieldMapper.getInstance(useDocValuesSkipper);
         }
     }
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> c.getIndexSettings().getMode().timeSeriesIdFieldMapper());
+    public static final TypeParser PARSER = new FixedTypeParser(c -> c.getIndexSettings().getMode().timeSeriesIdFieldMapper(c));
 
     public static final class TimeSeriesIdFieldType extends MappedFieldType {
         private TimeSeriesIdFieldType() {
@@ -115,8 +134,11 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private TimeSeriesIdFieldMapper() {
+    private final boolean useDocValuesSkipper;
+
+    private TimeSeriesIdFieldMapper(boolean useDocValuesSkipper) {
         super(FIELD_TYPE);
+        this.useDocValuesSkipper = useDocValuesSkipper;
     }
 
     @Override
@@ -135,7 +157,12 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         } else {
             timeSeriesId = routingPathFields.buildHash().toBytesRef();
         }
-        context.doc().add(new SortedDocValuesField(fieldType().name(), timeSeriesId));
+
+        if (this.useDocValuesSkipper) {
+            context.doc().add(SortedDocValuesField.indexedField(fieldType().name(), timeSeriesId));
+        } else {
+            context.doc().add(new SortedDocValuesField(fieldType().name(), timeSeriesId));
+        }
 
         BytesRef uidEncoded = TsidExtractingIdFieldMapper.createField(
             context,

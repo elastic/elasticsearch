@@ -11,6 +11,7 @@
 // At build and run time, the bridge is patched into the java.base module.
 module org.elasticsearch.entitlement.bridge {
     requires java.net.http;
+    requires jdk.net;
 
     exports org.elasticsearch.entitlement.bridge;
 }

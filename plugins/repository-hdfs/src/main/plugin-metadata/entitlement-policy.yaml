@@ -5,3 +5,7 @@ ALL-UNNAMED:
   - write_system_properties:
       properties:
         - hadoop.home.dir
+  - files:
+      - relative_path: "repository-hdfs/"
+        relative_to: config
+        mode: read_write

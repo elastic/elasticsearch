@@ -425,7 +425,7 @@ public class SplitIndexIT extends ESIntegTestCase {
             flushAndRefresh();
             assertHitCount(prepareSearch("target").setSize(2 * size).setQuery(new TermsQueryBuilder("foo", "bar")), 2 * docs);
             assertHitCount(prepareSearch("source").setSize(size).setQuery(new TermsQueryBuilder("foo", "bar")), docs);
-            GetSettingsResponse target = indicesAdmin().prepareGetSettings("target").get();
+            GetSettingsResponse target = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "target").get();
             assertThat(
                 target.getIndexToSettings().get("target").getAsVersionId("index.version.created", IndexVersion::fromId),
                 equalTo(version)
@@ -483,7 +483,7 @@ public class SplitIndexIT extends ESIntegTestCase {
         );
         ensureGreen();
         flushAndRefresh();
-        GetSettingsResponse settingsResponse = indicesAdmin().prepareGetSettings("target").get();
+        GetSettingsResponse settingsResponse = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "target").get();
         assertEquals(settingsResponse.getSetting("target", "index.sort.field"), "id");
         assertEquals(settingsResponse.getSetting("target", "index.sort.order"), "desc");
         assertSortedSegments("target", expectedIndexSort);

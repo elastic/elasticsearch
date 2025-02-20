@@ -1,0 +1,5 @@
+pr: 122247
+summary: Improve jwt logging on failed auth
+area: Authentication
+type: bug
+issues: []

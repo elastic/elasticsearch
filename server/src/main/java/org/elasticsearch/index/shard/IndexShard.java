@@ -4491,14 +4491,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Registers a listener for an event when the shard advances to the provided primary term and segment generation
+     * Registers a listener for an event when the shard advances to the provided primary term and segment generation.
+     * Completes the listener with a {@link IndexShardClosedException} if the shard is closed.
      */
     public void waitForPrimaryTermAndGeneration(long primaryTerm, long segmentGeneration, ActionListener<Long> listener) {
-        waitForEngineOrClosedShard(
-            listener.delegateFailureAndWrap(
-                (l, ignored) -> getEngine().addPrimaryTermAndGenerationListener(primaryTerm, segmentGeneration, l)
-            )
-        );
+        waitForEngineOrClosedShard(listener.delegateFailureAndWrap((l, ignored) -> {
+            if (state == IndexShardState.CLOSED) {
+                l.onFailure(new IndexShardClosedException(shardId));
+            } else {
+                getEngine().addPrimaryTermAndGenerationListener(primaryTerm, segmentGeneration, l);
+            }
+        }));
     }
 
     /**

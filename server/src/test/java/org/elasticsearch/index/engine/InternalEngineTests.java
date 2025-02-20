@@ -7327,7 +7327,7 @@ public class InternalEngineTests extends EngineTestCase {
         engine.close();
         engine = new InternalEngine(engine.config()) {
             @Override
-            protected Map<String, String> getCommitExtraUserData() {
+            protected Map<String, String> getCommitExtraUserData(final long localCheckpoint) {
                 return Map.of("userkey", "userdata", ES_VERSION, IndexVersions.ZERO.toString());
             }
         };

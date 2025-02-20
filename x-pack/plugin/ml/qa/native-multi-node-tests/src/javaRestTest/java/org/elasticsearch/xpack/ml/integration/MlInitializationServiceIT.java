@@ -205,7 +205,7 @@ public class MlInitializationServiceIT extends MlNativeAutodetectIntegTestCase {
     }
 
     private static Map<String, Settings> getIndexToSettingsMap(List<String> indexNames) {
-        GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings()
+        GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT)
             .setIndices(indexNames.toArray(String[]::new))
             .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
             .get();

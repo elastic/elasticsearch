@@ -10,22 +10,30 @@
 package fixture.gcs;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
 
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.List;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class MockGcsBlobStore {
 
     private static final int RESUME_INCOMPLETE = 308;
-    private final ConcurrentMap<String, BlobVersion> blobs = new ConcurrentHashMap<>();
+    // we use skip-list map so we can do paging right
+    private final ConcurrentMap<String, BlobVersion> blobs = new ConcurrentSkipListMap<>();
     private final ConcurrentMap<String, ResumableUpload> resumableUploads = new ConcurrentHashMap<>();
 
     record BlobVersion(String path, long generation, BytesReference contents) {}
@@ -164,8 +172,114 @@ public class MockGcsBlobStore {
         blobs.remove(path);
     }
 
-    Map<String, BlobVersion> listBlobs() {
-        return Map.copyOf(blobs);
+    private String stripPrefixIfPresent(@Nullable String prefix, String toStrip) {
+        if (prefix != null && toStrip.startsWith(prefix)) {
+            return toStrip.substring(prefix.length());
+        }
+        return toStrip;
+    }
+
+    PageOfBlobs listBlobs(String pageToken) {
+        final PageToken parsedToken = PageToken.fromString(pageToken);
+        return calculatePageOfBlobs(parsedToken);
+    }
+
+    /**
+     * Calculate the requested page of blobs taking into account the request parameters
+     *
+     * @see <a href="https://cloud.google.com/storage/docs/json_api/v1/objects/list">Description of prefix/delimiter</a>
+     * @see <a href="https://cloud.google.com/storage/docs/json_api/v1/objects/list#parameters">List objects parameters</a>
+     * @param pageToken The token containing the prefix/delimiter/maxResults/pageNumber parameters
+     * @return The filtered list
+     */
+    private PageOfBlobs calculatePageOfBlobs(PageToken pageToken) {
+        final String previousBlob = pageToken.previousBlob();
+        final int maxResults = pageToken.maxResults();
+        final String prefix = pageToken.prefix();
+        final String delimiter = pageToken.delimiter();
+        final SortedSet<String> prefixes = new TreeSet<>();
+        final List<BlobVersion> matchingBlobs = new ArrayList<>();
+        String lastBlobPath = null;
+        for (BlobVersion blob : blobs.values()) {
+            if (Strings.hasLength(previousBlob) && previousBlob.compareTo(blob.path()) >= 0) {
+                continue;
+            }
+            if (blob.path().startsWith(prefix)) {
+                final String pathWithoutPrefix = stripPrefixIfPresent(prefix, blob.path());
+                if (Strings.hasLength(delimiter) && pathWithoutPrefix.contains(delimiter)) {
+                    // This seems counter to what is described in the example at the top of
+                    // https://cloud.google.com/storage/docs/json_api/v1/objects/list,
+                    // but it's required to make the third party tests pass
+                    prefixes.add(prefix + pathWithoutPrefix.substring(0, pathWithoutPrefix.indexOf(delimiter) + 1));
+                } else {
+                    matchingBlobs.add(blob);
+                }
+            }
+            lastBlobPath = blob.path();
+            if (prefixes.size() + matchingBlobs.size() == maxResults) {
+                return new PageOfBlobs(
+                    new PageToken(prefix, delimiter, maxResults, previousBlob),
+                    new ArrayList<>(prefixes),
+                    matchingBlobs,
+                    lastBlobPath,
+                    false
+                );
+            }
+        }
+        return new PageOfBlobs(
+            new PageToken(prefix, delimiter, maxResults, previousBlob),
+            new ArrayList<>(prefixes),
+            matchingBlobs,
+            lastBlobPath,
+            true
+        );
+    }
+
+    PageOfBlobs listBlobs(int maxResults, String delimiter, String prefix) {
+        final PageToken pageToken = new PageToken(prefix, delimiter, maxResults, "");
+        return calculatePageOfBlobs(pageToken);
+    }
+
+    List<BlobVersion> listBlobs() {
+        return new ArrayList<>(blobs.values());
+    }
+
+    /**
+     * We serialise this as a tuple with base64 encoded components so we don't need to escape the delimiter
+     */
+    record PageToken(String prefix, String delimiter, int maxResults, String previousBlob) {
+        public static PageToken fromString(String pageToken) {
+            final String[] parts = pageToken.split("\\.");
+            assert parts.length == 4;
+            return new PageToken(decode(parts[0]), decode(parts[1]), Integer.parseInt(decode(parts[2])), decode(parts[3]));
+        }
+
+        public String toString() {
+            return encode(prefix) + "." + encode(delimiter) + "." + encode(String.valueOf(maxResults)) + "." + encode(previousBlob);
+        }
+
+        public PageToken nextPageToken(String previousBlob) {
+            return new PageToken(prefix, delimiter, maxResults, previousBlob);
+        }
+
+        private static String encode(String value) {
+            return Base64.getEncoder().encodeToString(value.getBytes());
+        }
+
+        private static String decode(String value) {
+            return new String(Base64.getDecoder().decode(value));
+        }
+    }
+
+    record PageOfBlobs(PageToken pageToken, List<String> prefixes, List<BlobVersion> blobs, String lastBlobIncluded, boolean lastPage) {
+
+        public boolean isLastPage() {
+            return lastPage;
+        }
+
+        public String nextPageToken() {
+            return isLastPage() ? null : pageToken.nextPageToken(lastBlobIncluded).toString();
+        }
     }
 
     static class BlobNotFoundException extends GcsRestException {

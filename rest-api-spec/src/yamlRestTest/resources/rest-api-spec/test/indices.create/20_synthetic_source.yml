@@ -922,7 +922,7 @@ subobjects auto:
   - match: { hits.hits.0._source.foo: 10  }
   - match: { hits.hits.0._source.foo\.bar: 100  }
   - match: { hits.hits.0._source.regular.span.id: "1" }
-  - match: { hits.hits.0._source.regular.trace.id: [ "a", "b" ] }
+  - match: { hits.hits.0._source.regular.trace.id: ["a", "b" ] }
   - match: { hits.hits.1._source.id: 2  }
   - match: { hits.hits.1._source.foo: 20 }
   - match: { hits.hits.1._source.foo\.bar: 200 }

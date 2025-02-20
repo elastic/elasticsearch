@@ -515,11 +515,6 @@ public class DesiredBalanceReconciler {
         }
 
         private DesiredBalanceMetrics.AllocationStats balance() {
-            // Check if rebalancing is disabled.
-            if (allocation.deciders().canRebalance(allocation).type() != Decision.Type.YES) {
-                return DesiredBalanceMetrics.EMPTY_ALLOCATION_STATS;
-            }
-
             int unassignedShards = routingNodes.unassigned().size() + routingNodes.unassigned().ignored().size();
             int totalAllocations = 0;
             int undesiredAllocationsExcludingShuttingDownNodes = 0;
@@ -549,7 +544,13 @@ public class DesiredBalanceReconciler {
                 }
 
                 if (allocation.metadata().nodeShutdowns().contains(shardRouting.currentNodeId()) == false) {
+                    // shard is not on a shutting down node, nor is it on a desired node per the previous check.
                     undesiredAllocationsExcludingShuttingDownNodes++;
+                }
+
+                if (allocation.deciders().canRebalance(allocation).type() != Decision.Type.YES) {
+                    // Rebalancing is disabled, we're just here to collect the AllocationStats to return.
+                    continue;
                 }
 
                 if (allocation.deciders().canRebalance(shardRouting, allocation).type() != Decision.Type.YES) {

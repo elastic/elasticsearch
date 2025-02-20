@@ -63,20 +63,20 @@ dependencies {
   api "com.github.stephenc.jcip:jcip-annotations:1.0-1"
   api "com.nimbusds:content-type:2.3"
   api "com.nimbusds:lang-tag:1.7"
-  api("com.nimbusds:nimbus-jose-jwt:9.37.3"){
+  api("com.nimbusds:nimbus-jose-jwt:10.0.1"){
     exclude group: 'com.google.crypto.tink', module: 'tink' // it's an optional dependency on which we don't rely
   }
-  api("com.nimbusds:oauth2-oidc-sdk:11.9.1"){
+  api("com.nimbusds:oauth2-oidc-sdk:11.22.2"){
     exclude group: 'com.google.crypto.tink', module: 'tink' // it's an optional dependency on which we don't rely
   }
   api "jakarta.activation:jakarta.activation-api:1.2.1"
   api "jakarta.xml.bind:jakarta.xml.bind-api:2.3.3"
   api "net.java.dev.jna:jna-platform:${versions.jna}" // Maven says 5.14.0 but this aligns with the Elasticsearch-wide version
   api "net.java.dev.jna:jna:${versions.jna}" // Maven says 5.14.0 but this aligns with the Elasticsearch-wide version
-  api "net.minidev:accessors-smart:2.5.0"
-  api "net.minidev:json-smart:2.5.0"
+  api "net.minidev:accessors-smart:2.5.2"
+  api "net.minidev:json-smart:2.5.2"
   api "org.codehaus.woodstox:stax2-api:4.2.2"
-  api "org.ow2.asm:asm:9.3"
+  api "org.ow2.asm:asm:9.7.1"
 
   runtimeOnly "com.google.code.gson:gson:2.11.0"
   runtimeOnly "org.cryptomator:siv-mode:1.5.2"
@@ -190,11 +190,6 @@ tasks.named("thirdPartyAudit").configure {
     'org.bouncycastle.cert.X509CertificateHolder',
     'org.bouncycastle.cert.jcajce.JcaX509CertificateHolder',
     'org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder',
-    'org.bouncycastle.crypto.InvalidCipherTextException',
-    'org.bouncycastle.crypto.engines.AESEngine',
-    'org.bouncycastle.crypto.modes.GCMBlockCipher',
-    'org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider',
-    'org.bouncycastle.jce.provider.BouncyCastleProvider',
     'org.bouncycastle.openssl.PEMKeyPair',
     'org.bouncycastle.openssl.PEMParser',
     'org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter',

@@ -103,7 +103,7 @@ import static org.elasticsearch.xpack.core.ilm.DownsampleAction.DOWNSAMPLED_INDE
 /**
  * The master downsample action that coordinates
  *  -  creating the downsample index
- *  -  instantiating {@link DownsampleShardIndexer}s to index downsample documents
+ *  -  instantiating {@link org.elasticsearch.persistent.PersistentTasksExecutor} to start a persistent downsample task
  *  -  cleaning up state
  */
 public class TransportDownsampleAction extends AcknowledgedTransportMasterNodeAction<DownsampleAction.Request> {

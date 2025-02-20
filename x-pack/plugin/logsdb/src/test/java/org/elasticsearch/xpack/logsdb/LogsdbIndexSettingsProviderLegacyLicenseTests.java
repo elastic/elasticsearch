@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.logsdb;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
@@ -25,7 +26,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 
-import static org.elasticsearch.xpack.logsdb.SyntheticSourceLicenseServiceTests.createGoldOrPlatinumLicense;
+import static org.elasticsearch.xpack.logsdb.LogsdbLicenseServiceTests.createGoldOrPlatinumLicense;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -40,12 +41,12 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
         License license = createGoldOrPlatinumLicense();
         var licenseState = new XPackLicenseState(() -> time, new XPackLicenseStatus(license.operationMode(), true, null));
 
-        var licenseService = new SyntheticSourceLicenseService(Settings.EMPTY);
+        var licenseService = new LogsdbLicenseService(Settings.EMPTY);
         licenseService.setLicenseState(licenseState);
         var mockLicenseService = mock(LicenseService.class);
         when(mockLicenseService.getLicense()).thenReturn(license);
 
-        SyntheticSourceLicenseService syntheticSourceLicenseService = new SyntheticSourceLicenseService(Settings.EMPTY);
+        LogsdbLicenseService syntheticSourceLicenseService = new LogsdbLicenseService(Settings.EMPTY);
         syntheticSourceLicenseService.setLicenseState(licenseState);
         syntheticSourceLicenseService.setLicenseService(mockLicenseService);
 
@@ -53,6 +54,8 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
         provider.init(
             im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
             IndexVersion::current,
+            () -> Version.CURRENT,
+            true,
             true
         );
     }
@@ -102,12 +105,12 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
         long time = LocalDateTime.of(2024, 12, 31, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
         var licenseState = new XPackLicenseState(() -> time, new XPackLicenseStatus(license.operationMode(), true, null));
 
-        var licenseService = new SyntheticSourceLicenseService(Settings.EMPTY);
+        var licenseService = new LogsdbLicenseService(Settings.EMPTY);
         licenseService.setLicenseState(licenseState);
         var mockLicenseService = mock(LicenseService.class);
         when(mockLicenseService.getLicense()).thenReturn(license);
 
-        SyntheticSourceLicenseService syntheticSourceLicenseService = new SyntheticSourceLicenseService(Settings.EMPTY);
+        LogsdbLicenseService syntheticSourceLicenseService = new LogsdbLicenseService(Settings.EMPTY);
         syntheticSourceLicenseService.setLicenseState(licenseState);
         syntheticSourceLicenseService.setLicenseService(mockLicenseService);
 
@@ -115,6 +118,8 @@ public class LogsdbIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
         provider.init(
             im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
             IndexVersion::current,
+            () -> Version.CURRENT,
+            true,
             true
         );
 

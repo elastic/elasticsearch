@@ -26,7 +26,10 @@ import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 
 import java.util.List;
 
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.assertArg;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
@@ -84,6 +87,11 @@ public class TransportInferenceActionTests extends BaseTransportInferenceActionT
         verify(listener).onResponse(any());
         // Verify request was handled locally (not rerouted using TransportService)
         verify(transportService, never()).sendRequest(any(), any(), any(), any());
+        // Verify request metric attributes were recorded on the node performing inference
+        verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
+            assertThat(attributes.get("rerouted"), is(Boolean.FALSE));
+            assertThat(attributes.get("node_id"), is(localNodeId));
+        }));
     }
 
     public void testNoRerouting_WhenNoGroupingCalculatedYet() {
@@ -97,6 +105,11 @@ public class TransportInferenceActionTests extends BaseTransportInferenceActionT
         verify(listener).onResponse(any());
         // Verify request was handled locally (not rerouted using TransportService)
         verify(transportService, never()).sendRequest(any(), any(), any(), any());
+        // Verify request metric attributes were recorded on the node performing inference
+        verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
+            assertThat(attributes.get("rerouted"), is(Boolean.FALSE));
+            assertThat(attributes.get("node_id"), is(localNodeId));
+        }));
     }
 
     public void testNoRerouting_WhenEmptyNodeList() {
@@ -112,6 +125,11 @@ public class TransportInferenceActionTests extends BaseTransportInferenceActionT
         verify(listener).onResponse(any());
         // Verify request was handled locally (not rerouted using TransportService)
         verify(transportService, never()).sendRequest(any(), any(), any(), any());
+        // Verify request metric attributes were recorded on the node performing inference
+        verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
+            assertThat(attributes.get("rerouted"), is(Boolean.FALSE));
+            assertThat(attributes.get("node_id"), is(localNodeId));
+        }));
     }
 
     public void testRerouting_ToOtherNode() {
@@ -132,6 +150,8 @@ public class TransportInferenceActionTests extends BaseTransportInferenceActionT
         verify(transportService).sendRequest(same(otherNode), eq(InferenceAction.NAME), any(), any());
         // Verify local execution didn't happen
         verify(listener, never()).onResponse(any());
+        // Verify that request metric attributes were NOT recorded on the node rerouting the request to another node
+        verify(inferenceStats.inferenceDuration(), never()).record(anyLong(), any());
     }
 
     public void testRerouting_ToLocalNode_WithoutGoingThroughTransportLayerAgain() {
@@ -151,6 +171,11 @@ public class TransportInferenceActionTests extends BaseTransportInferenceActionT
         verify(listener).onResponse(any());
         // Verify request was handled locally (not rerouted using TransportService)
         verify(transportService, never()).sendRequest(any(), any(), any(), any());
+        // Verify request metric attributes were recorded on the node performing inference
+        verify(inferenceStats.inferenceDuration()).record(anyLong(), assertArg(attributes -> {
+            assertThat(attributes.get("rerouted"), is(Boolean.FALSE));
+            assertThat(attributes.get("node_id"), is(localNodeId));
+        }));
     }
 
     public void testRerouting_HandlesTransportException_FromOtherNode() {
@@ -179,5 +204,7 @@ public class TransportInferenceActionTests extends BaseTransportInferenceActionT
         verify(listener, never()).onResponse(any());
         // Verify exception was propagated from "other-node" to "local-node"
         verify(listener).onFailure(same(expectedException));
+        // Verify that request metric attributes were NOT recorded on the node rerouting the request to another node
+        verify(inferenceStats.inferenceDuration(), never()).record(anyLong(), any());
     }
 }

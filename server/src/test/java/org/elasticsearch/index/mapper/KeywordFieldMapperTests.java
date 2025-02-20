@@ -971,4 +971,10 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertFalse(mapper.fieldType().isIndexed());
         assertFalse(mapper.fieldType().hasDocValuesSkipper());
     }
+
+    @Override
+    protected String randomSyntheticSourceKeep() {
+        // Only option all keeps array source in ignored source.
+        return randomFrom("all");
+    }
 }

@@ -484,8 +484,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
             CharsRefBuilder spare
         ) {
             contextIndexSearcher.throwTimeExceededException();
-            assert false;
-            return new TermSuggestion(name, suggestion.getSize(), SortBy.SCORE);
+            throw new AssertionError("should have thrown TimeExceededException");
         }
 
         @Override

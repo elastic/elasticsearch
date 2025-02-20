@@ -262,7 +262,10 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         statsWatcherRunning.set(false);
         statsWatcher.join();
 
-        final Settings settings = indicesAdmin().prepareGetSettings(restoredIndexName).get().getIndexToSettings().get(restoredIndexName);
+        final Settings settings = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, restoredIndexName)
+            .get()
+            .getIndexToSettings()
+            .get(restoredIndexName);
         assertThat(SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING.get(settings), equalTo(snapshotName));
         assertThat(IndexModule.INDEX_STORE_TYPE_SETTING.get(settings), equalTo(SEARCHABLE_SNAPSHOT_STORE_TYPE));
         assertThat(IndexModule.INDEX_RECOVERY_TYPE_SETTING.get(settings), equalTo(SNAPSHOT_RECOVERY_STATE_FACTORY_KEY));
@@ -391,7 +394,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         ensureGreen(clonedIndexName);
         assertTotalHits(clonedIndexName, originalAllHits, originalBarHits);
 
-        final Settings clonedIndexSettings = indicesAdmin().prepareGetSettings(clonedIndexName)
+        final Settings clonedIndexSettings = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, clonedIndexName)
             .get()
             .getIndexToSettings()
             .get(clonedIndexName);
@@ -565,7 +568,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
 
         // we're expecting the tier preference to not be explicitly set in the settings (as we nullified it) but
         // the index to still have the default value of `data_frozen`
-        GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings(restoredIndexName).get();
+        GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, restoredIndexName).get();
         final Settings settings = getSettingsResponse.getIndexToSettings().get(restoredIndexName);
         assertThat(settings.get(DataTier.TIER_PREFERENCE), nullValue());
         assertThat(DataTier.TIER_PREFERENCE_SETTING.get(settings), is("data_frozen"));

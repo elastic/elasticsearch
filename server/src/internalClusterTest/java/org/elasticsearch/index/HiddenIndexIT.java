@@ -133,7 +133,7 @@ public class HiddenIndexIT extends ESIntegTestCase {
                 .setSettings(Settings.builder().put("index.hidden", true).build())
         );
         assertAcked(indicesAdmin().prepareCreate("my_hidden_pattern1").get());
-        GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings("my_hidden_pattern1").get();
+        GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "my_hidden_pattern1").get();
         assertThat(getSettingsResponse.getSetting("my_hidden_pattern1", "index.hidden"), is("true"));
     }
 

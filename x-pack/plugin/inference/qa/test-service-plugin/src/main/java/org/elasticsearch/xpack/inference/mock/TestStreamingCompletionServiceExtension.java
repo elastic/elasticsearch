@@ -14,7 +14,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.LazyInitializable;
-import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInference;
@@ -30,6 +29,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.inference.results.StreamingUnifiedChatComple
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -157,10 +158,31 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
             });
         }
 
-        private ChunkedToXContent completionChunk(String delta) {
-            return params -> ChunkedToXContentHelper.chunk(
-                (b, p) -> b.startObject().startArray(COMPLETION).startObject().field("delta", delta).endObject().endArray().endObject()
-            );
+        private InferenceServiceResults.Result completionChunk(String delta) {
+            return new InferenceServiceResults.Result() {
+                @Override
+                public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+                    return ChunkedToXContentHelper.chunk(
+                        (b, p) -> b.startObject()
+                            .startArray(COMPLETION)
+                            .startObject()
+                            .field("delta", delta)
+                            .endObject()
+                            .endArray()
+                            .endObject()
+                    );
+                }
+
+                @Override
+                public void writeTo(StreamOutput out) throws IOException {
+                    out.writeString(delta);
+                }
+
+                @Override
+                public String getWriteableName() {
+                    return "test_completionChunk";
+                }
+            };
         }
 
         private StreamingUnifiedChatCompletionResults makeUnifiedResults(UnifiedCompletionRequest request) {
@@ -198,22 +220,37 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
           "object": "chat.completion.chunk"
         }
          */
-        private ChunkedToXContent unifiedCompletionChunk(String delta) {
-            return params -> ChunkedToXContentHelper.chunk(
-                (b, p) -> b.startObject()
-                    .field("id", "id")
-                    .startArray("choices")
-                    .startObject()
-                    .startObject("delta")
-                    .field("content", delta)
-                    .endObject()
-                    .field("index", 0)
-                    .endObject()
-                    .endArray()
-                    .field("model", "gpt-4o-2024-08-06")
-                    .field("object", "chat.completion.chunk")
-                    .endObject()
-            );
+        private InferenceServiceResults.Result unifiedCompletionChunk(String delta) {
+            return new InferenceServiceResults.Result() {
+                @Override
+                public String getWriteableName() {
+                    return "test_unifiedCompletionChunk";
+                }
+
+                @Override
+                public void writeTo(StreamOutput out) throws IOException {
+                    out.writeString(delta);
+                }
+
+                @Override
+                public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+                    return ChunkedToXContentHelper.chunk(
+                        (b, p) -> b.startObject()
+                            .field("id", "id")
+                            .startArray("choices")
+                            .startObject()
+                            .startObject("delta")
+                            .field("content", delta)
+                            .endObject()
+                            .field("index", 0)
+                            .endObject()
+                            .endArray()
+                            .field("model", "gpt-4o-2024-08-06")
+                            .field("object", "chat.completion.chunk")
+                            .endObject()
+                    );
+                }
+            };
         }
 
         @Override

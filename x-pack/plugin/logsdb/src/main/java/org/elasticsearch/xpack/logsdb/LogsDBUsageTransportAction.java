@@ -64,7 +64,7 @@ public class LogsDBUsageTransportAction extends XPackUsageFeatureTransportAction
             }
         }
         final boolean enabled = LogsDBPlugin.CLUSTER_LOGSDB_ENABLED.get(clusterService.getSettings());
-        final boolean hasCustomCutoffDate = System.getProperty(SyntheticSourceLicenseService.CUTOFF_DATE_SYS_PROP_NAME) != null;
+        final boolean hasCustomCutoffDate = System.getProperty(LogsdbLicenseService.CUTOFF_DATE_SYS_PROP_NAME) != null;
         final DiscoveryNode[] nodes = state.nodes().getDataNodes().values().toArray(DiscoveryNode[]::new);
         final var statsRequest = new IndexModeStatsActionType.StatsRequest(nodes);
         final int finalNumIndices = numIndices;

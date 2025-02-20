@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.application.rules.QueryRule;
 
 import java.util.Set;
 
-public class EnterpriseSearchFeatures extends Plugin implements FeatureSpecification {
+public class EnterpriseSearchFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {

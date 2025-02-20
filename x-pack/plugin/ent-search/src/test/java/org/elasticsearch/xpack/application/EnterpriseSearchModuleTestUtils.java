@@ -87,7 +87,7 @@ public final class EnterpriseSearchModuleTestUtils {
     }
 
     public static QueryRule randomQueryRule() {
-        String ruleId = randomAlphaOfLengthBetween(3, 10);
+        String ruleId = randomIdentifier();
         QueryRule.QueryRuleType type = randomFrom(QueryRule.QueryRuleType.values());
         List<QueryRuleCriteria> criteria = new ArrayList<>();
         int numCriteria = randomIntBetween(1, 3);

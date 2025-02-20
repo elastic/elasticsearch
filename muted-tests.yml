@@ -450,8 +450,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.esnative.ReservedRealmElasticAutoconfigIntegTests
   method: testAutoconfigFailedPasswordPromotion
   issue: https://github.com/elastic/elasticsearch/issues/122668
-- class: org.elasticsearch.telemetry.apm.ApmAgentSettingsIT
-  issue: https://github.com/elastic/elasticsearch/issues/122546
 - class: org.elasticsearch.xpack.ml.integration.ClassificationIT
   method: testWithOnlyTrainingRowsAndTrainingPercentIsFifty_DependentVariableIsKeyword
   issue: https://github.com/elastic/elasticsearch/issues/122908

@@ -561,7 +561,6 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
 
     private static class ChunkedResultsListener implements ActionListener<List<ChunkedInference>> {
         List<ChunkedInference> results;
-
         @Override
         public void onResponse(List<ChunkedInference> chunks) {
             this.results = chunks;

@@ -39,9 +39,7 @@ public class UpdateNumberofShardsTests extends ESAllocationTestCase {
             .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(0))
             .build();
 
-        RoutingTable initialRoutingTable = RoutingTable.builder(createCustomRoleStrategy(1))
-            .addAsNew(metadata.index("test"))
-            .build();
+        RoutingTable initialRoutingTable = RoutingTable.builder(createCustomRoleStrategy(1)).addAsNew(metadata.index("test")).build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(initialRoutingTable).build();
 
@@ -51,9 +49,7 @@ public class UpdateNumberofShardsTests extends ESAllocationTestCase {
         assertThat(initialRoutingTable.index("test").shard(0).shard(0).currentNodeId(), nullValue());
 
         logger.info("Adding one node and performing rerouting");
-        clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder().add(newNode("node1")))
-            .build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
 
         clusterState = strategy.reroute(clusterState, "reroute", ActionListener.noop());
 
@@ -67,10 +63,9 @@ public class UpdateNumberofShardsTests extends ESAllocationTestCase {
 
         logger.info("Add another shard");
         final String index = "test";
-        RoutingTable updatedRoutingTable = RoutingTable.builder(
-            createCustomRoleStrategy(2),
-            clusterState.routingTable()
-        ).updateNumberOfShards(2, index).build();
+        RoutingTable updatedRoutingTable = RoutingTable.builder(createCustomRoleStrategy(2), clusterState.routingTable())
+            .updateNumberOfShards(2, index)
+            .build();
 
         /*
         final IndexMetadata sourceIndexMetadata = clusterState.metadata().index(index);

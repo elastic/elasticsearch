@@ -938,6 +938,17 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         );
     }
 
+    /**
+     * Creates a copy of this instance that has a new shard count. The new shard count
+     * must be a multiple of the original shardcount.
+     * We do not support shrinking the shard count.
+     * @param shardCount   updated shardCount
+     * @return updated instance with new shardcount
+     *
+     * Q: Should we populate the primaryTerms for the new shards here ?
+     * Q: Is it ok to set routingNumShards to shardCount ?
+     * Q: Should we increment this.version here ?
+     */
     public IndexMetadata withIncrementedPrimaryShards(int shardCount) {
         if (this.primaryTerms.length == shardCount) return this;
 

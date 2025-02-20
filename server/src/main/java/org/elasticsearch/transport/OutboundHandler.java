@@ -113,17 +113,16 @@ final class OutboundHandler {
             isHandshake,
             compressionScheme
         );
-        if (request.tryIncRef() == false) {
+        if (request.hasReferences() == false) {
             assert false : "request [" + request + "] has been released already";
             throw new AlreadyClosedException("request [" + request + "] has been released already");
         }
-        sendMessage(channel, message, ResponseStatsConsumer.NONE, () -> {
-            try {
-                messageListener.onRequestSent(node, requestId, action, request, options);
-            } finally {
-                request.decRef();
-            }
-        });
+        sendMessage(
+            channel,
+            message,
+            ResponseStatsConsumer.NONE,
+            () -> messageListener.onRequestSent(node, requestId, action, request, options)
+        );
     }
 
     /**
@@ -151,15 +150,9 @@ final class OutboundHandler {
             isHandshake,
             compressionScheme
         );
-        response.mustIncRef();
+        assert response.hasReferences();
         try {
-            sendMessage(channel, message, responseStatsConsumer, () -> {
-                try {
-                    messageListener.onResponseSent(requestId, action, response);
-                } finally {
-                    response.decRef();
-                }
-            });
+            sendMessage(channel, message, responseStatsConsumer, () -> messageListener.onResponseSent(requestId, action, response));
         } catch (Exception ex) {
             if (isHandshake) {
                 logger.error(

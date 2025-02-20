@@ -274,8 +274,6 @@ tests:
 - class: org.elasticsearch.blocks.SimpleBlocksIT
   method: testConcurrentAddBlock
   issue: https://github.com/elastic/elasticsearch/issues/122324
-- class: org.elasticsearch.xpack.searchablesnapshots.hdfs.HdfsSearchableSnapshotsIT
-  issue: https://github.com/elastic/elasticsearch/issues/122024
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/cat/health/cat-health-example}
   issue: https://github.com/elastic/elasticsearch/issues/122335
@@ -328,6 +326,9 @@ tests:
 - class: org.elasticsearch.test.apmintegration.TracesApmIT
   method: testApmIntegration
   issue: https://github.com/elastic/elasticsearch/issues/122129
+- class: org.elasticsearch.test.apmintegration.MetricsApmIT
+  method: testApmIntegration
+  issue: https://github.com/elastic/elasticsearch/issues/123022
 
 # Examples:
 #

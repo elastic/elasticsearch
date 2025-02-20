@@ -33,6 +33,9 @@ public final class FileAccessTree {
             var mode = fileData.mode();
             var paths = fileData.resolvePaths(pathLookup);
             paths.forEach(path -> {
+                if (path == null) {
+                    throw new IllegalArgumentException("resolved path is null for [" + fileData + "]");
+                }
                 var normalized = normalizePath(path);
                 if (mode == FilesEntitlement.Mode.READ_WRITE) {
                     writePaths.add(normalized);

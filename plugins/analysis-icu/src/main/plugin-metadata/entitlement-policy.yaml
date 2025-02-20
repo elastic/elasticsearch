@@ -1,6 +1,4 @@
-ALL-UNNAMED:
-  - manage_threads
-  - outbound_network
+org.elasticsearch.analysis.icu:
   - files:
       - relative_path: ""
         relative_to: config

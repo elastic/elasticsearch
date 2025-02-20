@@ -479,3 +479,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/122336
 - class: org.elasticsearch.telemetry.apm.ApmAgentSettingsIT
   issue: https://github.com/elastic/elasticsearch/issues/122546
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/troubleshooting/troubleshooting-unbalanced-cluster/line_24}
+  issue: https://github.com/elastic/elasticsearch/issues/122983

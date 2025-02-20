@@ -1107,10 +1107,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         return (KeywordFieldType) super.fieldType();
     }
 
-    public boolean supportStoringArrayOffsets(DocumentParserContext context) {
-        return offsetsFieldName != null;
-    }
-
     @Override
     public String getOffsetFieldName() {
         return offsetsFieldName;

@@ -216,12 +216,12 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
     /**
      * @return whether this mapper supports storing leaf array elements natively when synthetic source is enabled.
      */
-    public boolean supportStoringArrayOffsets(DocumentParserContext context) {
-        return false;
+    public final boolean supportStoringArrayOffsets() {
+        return getOffsetFieldName() != null;
     }
 
     /**
-     * @return the offset field name used to store offsets iff {@link #supportStoringArrayOffsets(DocumentParserContext)} returns
+     * @return the offset field name used to store offsets iff {@link #supportStoringArrayOffsets()} returns
      * <code>true</code>.
      */
     public String getOffsetFieldName() {

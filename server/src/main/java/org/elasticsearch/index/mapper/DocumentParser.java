@@ -698,7 +698,7 @@ public final class DocumentParser {
         final String lastFieldName,
         String arrayFieldName
     ) throws IOException {
-        boolean supportStoringArrayOffsets = mapper != null && mapper.supportStoringArrayOffsets(context);
+        boolean supportStoringArrayOffsets = mapper != null && mapper.supportStoringArrayOffsets();
         String fullPath = context.path().pathAsText(arrayFieldName);
 
         // Check if we need to record the array source. This only applies to synthetic source.
@@ -770,7 +770,7 @@ public final class DocumentParser {
         }
         if (mapper != null
             && context.canAddIgnoredField()
-            && mapper.supportStoringArrayOffsets(context)
+            && mapper.supportStoringArrayOffsets()
             && previousToken == XContentParser.Token.START_ARRAY
             && context.isImmediateParentAnArray()) {
             context.getOffSetContext().maybeRecordEmptyArray(mapper.getOffsetFieldName());

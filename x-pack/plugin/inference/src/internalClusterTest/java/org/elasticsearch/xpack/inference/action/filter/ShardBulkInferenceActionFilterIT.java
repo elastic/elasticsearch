@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.inference.mock.TestDenseInferenceServiceExtension
 import org.elasticsearch.xpack.inference.mock.TestSparseInferenceServiceExtension;
 import org.junit.Before;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -70,20 +69,25 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
 
     @Before
     public void setup() throws Exception {
-        Utils.storeSparseModel(client());
-        Utils.storeDenseModel(
-            client(),
-            randomIntBetween(1, 100),
+        DenseVectorFieldMapper.ElementType elementType = randomFrom(DenseVectorFieldMapper.ElementType.values());
+        SimilarityMeasure similarity;
+        int dimensions;
+        if (elementType == DenseVectorFieldMapper.ElementType.BIT) {
+            similarity = SimilarityMeasure.L2_NORM; // l2_norm similarity required for bit embeddings
+            dimensions = randomIntBetween(1, 100) * 8; // Bit embedding dimensions must be multiples of 8
+        } else {
             // dot product means that we need normalized vectors; it's not worth doing that in this test
-            randomValueOtherThan(SimilarityMeasure.DOT_PRODUCT, () -> randomFrom(SimilarityMeasure.values())),
-            // TODO: Allow element type BIT once TestDenseInferenceServiceExtension supports it
-            randomValueOtherThan(DenseVectorFieldMapper.ElementType.BIT, () -> randomFrom(DenseVectorFieldMapper.ElementType.values()))
-        );
+            similarity = randomValueOtherThan(SimilarityMeasure.DOT_PRODUCT, () -> randomFrom(SimilarityMeasure.values()));
+            dimensions = randomIntBetween(1, 100);
+        }
+
+        Utils.storeSparseModel(client());
+        Utils.storeDenseModel(client(), dimensions, similarity, elementType);
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateInferencePlugin.class);
+        return List.of(LocalStateInferencePlugin.class);
     }
 
     @Override

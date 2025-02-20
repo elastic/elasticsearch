@@ -72,12 +72,14 @@ public class DataStreamDeprecationChecker implements ResourceDeprecationChecker 
         Map<String, List<DeprecationIssue>> dataStreamIssues = new HashMap<>();
         for (String dataStreamName : dataStreamNames) {
             DataStream dataStream = clusterState.metadata().dataStreams().get(dataStreamName);
-            List<DeprecationIssue> issuesForSingleDataStream = DATA_STREAM_CHECKS.stream()
-                .map(c -> c.apply(dataStream, clusterState))
-                .filter(Objects::nonNull)
-                .toList();
-            if (issuesForSingleDataStream.isEmpty() == false) {
-                dataStreamIssues.put(dataStreamName, issuesForSingleDataStream);
+            if (dataStream.isSystem() == false) {
+                List<DeprecationIssue> issuesForSingleDataStream = DATA_STREAM_CHECKS.stream()
+                    .map(c -> c.apply(dataStream, clusterState))
+                    .filter(Objects::nonNull)
+                    .toList();
+                if (issuesForSingleDataStream.isEmpty() == false) {
+                    dataStreamIssues.put(dataStreamName, issuesForSingleDataStream);
+                }
             }
         }
         return dataStreamIssues.isEmpty() ? Map.of() : dataStreamIssues;

@@ -409,6 +409,12 @@ public class EsqlCapabilities {
         FIX_PARSING_LARGE_NEGATIVE_NUMBERS,
 
         /**
+         * Fix precision of scaled_float field values retrieved from stored source
+         * see <a href="https://github.com/elastic/elasticsearch/issues/122547"> Slight inconsistency in ESQL using scaled_float field #122547 </a>
+         */
+        FIX_PRECISION_OF_SCALED_FLOAT_FIELDS,
+
+        /**
          * Fix the status code returned when trying to run count_distinct on the _source type (which is not supported).
          * see <a href="https://github.com/elastic/elasticsearch/issues/105240">count_distinct(_source) returns a 500 response</a>
          */
@@ -825,6 +831,16 @@ public class EsqlCapabilities {
          * Support partial_results
          */
         SUPPORT_PARTIAL_RESULTS,
+
+        /**
+         * Support for rendering aggregate_metric_double type
+         */
+        AGGREGATE_METRIC_DOUBLE_RENDERING(AGGREGATE_METRIC_DOUBLE_FEATURE_FLAG),
+
+        /**
+         * Support for FORK command
+         */
+        FORK(Build.current().isSnapshot()),
 
         /**
          * Allow mixed numeric types in conditional functions - case, greatest and least

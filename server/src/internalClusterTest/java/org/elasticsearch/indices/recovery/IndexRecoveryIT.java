@@ -342,9 +342,17 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         assertThat(recoveryStats.currentAsSource(), equalTo(0));
         assertThat(recoveryStats.currentAsTarget(), equalTo(0));
         if (isRecoveryThrottlingNode) {
-            assertThat("Throttling should be >0 for '" + nodeName + "'", recoveryStats.throttleTime().millis(), greaterThan(0L));
+            assertThat(
+                "Throttling should be >0 for '" + nodeName + "'. Node stats: " + nodesStatsResponse,
+                recoveryStats.throttleTime().millis(),
+                greaterThan(0L)
+            );
         } else {
-            assertThat("Throttling should be =0 for '" + nodeName + "'", recoveryStats.throttleTime().millis(), equalTo(0L));
+            assertThat(
+                "Throttling should be =0 for '" + nodeName + "'. Node stats: " + nodesStatsResponse,
+                recoveryStats.throttleTime().millis(),
+                equalTo(0L)
+            );
         }
     }
 

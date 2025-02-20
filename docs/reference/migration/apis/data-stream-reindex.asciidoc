@@ -21,9 +21,10 @@ from the original backing indices are copied to the resulting backing indices.
 This api runs in the background because reindexing all indices in a large data stream
 is expected to take a large amount of time and resources. The endpoint will return immediately and a persistent
 task will be created to run in the background. The current status of the task can be checked with
-the <<data-stream-reindex-status-api,reindex status API>>. This status will be available for 24 hours after the task completes, whether
-it finished successfully or failed. If the status is still available for a task, the task must be cancelled before it can be re-run.
-A running or recently completed data stream reindex task can be cancelled using the <<data-stream-reindex-cancel-api,reindex cancel API>>.
+the <<data-stream-reindex-status-api,reindex status API>>. This status will be available for 24 hours after the task
+completes, whether it finished successfully or failed. However, only the last status is retained so re-running a reindex
+will overwrite the previous status for that data stream. A running or recently completed data stream reindex task can be
+cancelled using the <<data-stream-reindex-cancel-api,reindex cancel API>>.
 
 ///////////////////////////////////////////////////////////
 [source,console]

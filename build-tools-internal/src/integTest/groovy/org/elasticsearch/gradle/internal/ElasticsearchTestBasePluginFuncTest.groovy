@@ -55,6 +55,11 @@ class ElasticsearchTestBasePluginFuncTest extends AbstractGradleFuncTest {
         result.task(':test').outcome == TaskOutcome.SUCCESS
 
         when:
+        result = gradleRunner("test", "-Dtests.jvm.argline=-disableassertions").build()
+        then:
+        result.task(':test').outcome == TaskOutcome.SUCCESS
+
+        when:
         result = gradleRunner("test", "-Dtests.asserts=false", "-Dtests.jvm.argline=-da").build()
         then:
         result.task(':test').outcome == TaskOutcome.SUCCESS

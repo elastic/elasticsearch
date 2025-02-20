@@ -138,7 +138,8 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             }
 
             // Check if "tests.asserts" is false or "tests.jvm.argline" contains the "-da" flag.
-            boolean enableAssertions = Util.getBooleanProperty("tests.asserts", true) && (argline == null || !argline.contains("-da"));
+            boolean enableAssertions = Util.getBooleanProperty("tests.asserts", true)
+                && (argline == null || argline.contains("-da") == false || argline.contains("-disableassertions") == false);
 
             test.setEnableAssertions(enableAssertions);
             Map<String, String> sysprops = Map.of(

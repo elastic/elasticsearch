@@ -516,7 +516,12 @@ public final class FetchPhase {
 
     @FunctionalInterface
     private interface MemoryUsageAccumulator {
-        int apply(int i, boolean b);
+        /**
+         * Accumulates the provided bytes and returns the currently accumulated amount of bytes.
+         * When the reset parameter is true it accumulates the provided bytes, returns the
+         * accumulated amount but will also reset the local counter for the accumulated bytes.
+         */
+        int apply(int bytes, boolean reset);
     }
 
     /**

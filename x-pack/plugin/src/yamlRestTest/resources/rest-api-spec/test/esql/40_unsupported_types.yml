@@ -119,8 +119,8 @@ unsupported:
         - method: POST
           path: /_query
           parameters: [ ]
-          capabilities: [ aggregate_metric_double ]
-      reason: "support for aggregate_metric_double type"
+          capabilities: [ aggregate_metric_double_rendering ]
+      reason: "support for rendering aggregate_metric_double type"
 
   - do:
       allowed_warnings_regex:
@@ -190,7 +190,7 @@ unsupported:
   - match: { columns.28.type: integer }
 
   - length: { values: 1 }
-  - match: { values.0.0: null }
+  - match: { values.0.0: '{"min":1.0,"max":3.0,"sum":10.1,"value_count":5}' }
   - match: { values.0.1: null }
   - match: { values.0.2: null }
   - match: { values.0.3: "2015-01-01T12:10:30.123456789Z" }

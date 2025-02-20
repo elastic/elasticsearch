@@ -96,7 +96,7 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
             Objects.requireNonNull(path);
             Objects.requireNonNull(mode);
         }
-        
+
         @Override
         public Stream<Path> resolvePaths(PathLookup pathLookup) {
             return Stream.of(path);

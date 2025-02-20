@@ -58,7 +58,7 @@ class AvgAggregator extends SumAggregator {
             public void collect(int doc, long bucket) throws IOException {
                 if (values.advanceExact(doc)) {
                     maybeGrow(bucket);
-                    computeSum(bucket, values, sums, compensations);
+                    computeSum(bucket, values.doubleValue(), sums, compensations);
                     counts.increment(bucket, 1L);
                 }
             }

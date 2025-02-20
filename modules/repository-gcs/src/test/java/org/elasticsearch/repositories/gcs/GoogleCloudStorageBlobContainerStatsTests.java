@@ -141,7 +141,7 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
         final int pageSize = randomIntBetween(3, 20);
         googleCloudStorageHttpHandler.setDefaultPageLimit(pageSize);
         final int numberOfPages = randomIntBetween(1, 10);
-        final int numberOfObjects = randomIntBetween((numberOfPages - 1) * pageSize + 1, numberOfPages * pageSize);
+        final int numberOfObjects = randomIntBetween((numberOfPages - 1) * pageSize, numberOfPages * pageSize - 1);
         final BytesArray contents = new BytesArray(randomByteArrayOfLength(50));
         for (int i = 0; i < numberOfObjects; i++) {
             container.writeBlob(randomPurpose(), String.format("file_%d", i), contents, true);

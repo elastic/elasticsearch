@@ -434,8 +434,8 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         final var bucket = randomIdentifier();
         final var handler = new GoogleCloudStorageHttpHandler(bucket);
 
-        int numberOfFiles = randomIntBetween(1, 100);
-        int numberWithMatchingPrefix = randomIntBetween(0, numberOfFiles);
+        final int numberOfFiles = randomIntBetween(1, 100);
+        final int numberWithMatchingPrefix = randomIntBetween(0, numberOfFiles);
         final String prefix = randomIdentifier();
 
         // Create expected state
@@ -468,8 +468,8 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
         final var delimiter = randomFrom("/", ".", "+", "\\");
         final var prefix = randomBoolean() ? "" : randomIdentifier() + delimiter;
 
-        int numberOfFiles = randomIntBetween(1, 100);
-        int numberWithDelimiter = randomIntBetween(0, numberOfFiles);
+        final int numberOfFiles = randomIntBetween(1, 100);
+        final int numberWithDelimiter = randomIntBetween(0, numberOfFiles);
 
         // Create expected state
         final Set<String> topLevelDirectories = new HashSet<>();
@@ -488,7 +488,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
             );
         }
 
-        TestHttpResponse response = listBlobs(handler, bucket, prefix, delimiter);
+        final TestHttpResponse response = listBlobs(handler, bucket, prefix, delimiter);
         assertEquals(RestStatus.OK, response.restStatus());
 
         XContentTestUtils.JsonMapView jsonMapView = XContentTestUtils.createJsonMapView(
@@ -626,9 +626,9 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
     }
 
     private static long getCurrentGeneration(GoogleCloudStorageHttpHandler handler, String bucket, String blobName) {
-        TestHttpResponse blobMetadata = getBlobMetadata(handler, bucket, blobName, null);
+        final TestHttpResponse blobMetadata = getBlobMetadata(handler, bucket, blobName, null);
         assertEquals(RestStatus.OK, blobMetadata.restStatus());
-        Matcher matcher = GENERATION_PATTERN.matcher(blobMetadata.body.utf8ToString());
+        final Matcher matcher = GENERATION_PATTERN.matcher(blobMetadata.body.utf8ToString());
         assertTrue(matcher.find());
         return Long.parseLong(matcher.group(1));
     }
@@ -709,7 +709,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
             fail(e);
         }
         assertNotEquals(0, httpExchange.getResponseCode());
-        var responseHeaders = new Headers();
+        final var responseHeaders = new Headers();
         httpExchange.getResponseHeaders().forEach((header, values) -> {
             // com.sun.net.httpserver.Headers.Headers() normalize keys
             if ("Range".equals(header) || "Content-range".equals(header) || "Location".equals(header)) {
@@ -727,7 +727,7 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
      */
     public static String generateQueryString(Object... parameters) {
         if (parameters.length % 2 != 0) {
-            String message = "Parameters must be represented as alternating key, value pairs";
+            final String message = "Parameters must be represented as alternating key, value pairs";
             assert false : message;
             throw new IllegalArgumentException(message);
         }

@@ -417,7 +417,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                 // supercharge running merges so that they finish faster
                 currentlyRunningMergeTasks.values().forEach(runningTask -> runningTask.setIORateLimit(Double.POSITIVE_INFINITY));
                 // wait until all running merges are done
-                do {
+                while (currentlyRunningMergeTasks.isEmpty() == false) {
                     try {
                         // wait with a timeout, just to cover for something that failed to notify
                         closedWithNoCurrentlyRunningMerges.await(1, TimeUnit.SECONDS);
@@ -425,7 +425,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                         // ignore interruption, we will retry until all currently running merge tasks are done
                         interrupted = true;
                     }
-                } while (currentlyRunningMergeTasks.isEmpty() == false);
+                };
             }
         } finally {
             // this closes an executor that may be used by ongoing merges, so keep it last in order to not perturb them

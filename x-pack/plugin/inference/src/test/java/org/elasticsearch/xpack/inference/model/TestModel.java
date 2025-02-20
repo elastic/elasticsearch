@@ -31,6 +31,7 @@ import java.util.Map;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomInt;
+import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 
 public class TestModel extends Model {
 
@@ -39,9 +40,18 @@ public class TestModel extends Model {
     }
 
     public static TestModel createRandomInstance(TaskType taskType) {
-        var dimensions = taskType == TaskType.TEXT_EMBEDDING ? randomInt(64) : null;
-        var similarity = taskType == TaskType.TEXT_EMBEDDING ? randomFrom(SimilarityMeasure.values()) : null;
         var elementType = taskType == TaskType.TEXT_EMBEDDING ? randomFrom(DenseVectorFieldMapper.ElementType.values()) : null;
+
+        Integer dimensions = null;
+        SimilarityMeasure similarity = null;
+        if (elementType == DenseVectorFieldMapper.ElementType.BIT) {
+            dimensions = randomIntBetween(1, 64) * 8; // Bit embedding dimensions must be multiples of 8
+            similarity = SimilarityMeasure.L2_NORM;  // Bit embeddings must use l2_norm similarity
+        } else if (elementType != null) {
+            dimensions = randomIntBetween(1, 64);
+            similarity = randomFrom(SimilarityMeasure.values());
+        }
+
         return new TestModel(
             randomAlphaOfLength(4),
             taskType,

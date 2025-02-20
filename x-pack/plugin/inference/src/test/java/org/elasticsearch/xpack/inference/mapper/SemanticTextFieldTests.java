@@ -67,6 +67,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         assertThat(newInstance.originalValues(), equalTo(expectedInstance.originalValues()));
         assertThat(newInstance.inference().modelSettings(), equalTo(expectedInstance.inference().modelSettings()));
         assertThat(newInstance.inference().chunks().size(), equalTo(expectedInstance.inference().chunks().size()));
+
         MinimalServiceSettings modelSettings = newInstance.inference().modelSettings();
         for (var entry : newInstance.inference().chunks().entrySet()) {
             var expectedChunks = expectedInstance.inference().chunks().get(entry.getKey());
@@ -79,16 +80,16 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                 assertThat(actualChunk.endOffset(), equalTo(expectedChunks.get(i).endOffset()));
                 switch (modelSettings.taskType()) {
                     case TEXT_EMBEDDING -> {
+                        int embeddingLength = modelSettings.elementType() == DenseVectorFieldMapper.ElementType.BIT
+                            ? modelSettings.dimensions() / Byte.SIZE
+                            : modelSettings.dimensions();
+
                         double[] expectedVector = parseDenseVector(
                             expectedChunks.get(i).rawEmbeddings(),
-                            modelSettings.dimensions(),
+                            embeddingLength,
                             expectedInstance.contentType()
                         );
-                        double[] newVector = parseDenseVector(
-                            actualChunk.rawEmbeddings(),
-                            modelSettings.dimensions(),
-                            newInstance.contentType()
-                        );
+                        double[] newVector = parseDenseVector(actualChunk.rawEmbeddings(), embeddingLength, newInstance.contentType());
                         assertArrayEquals(expectedVector, newVector, 0.0000001f);
                     }
                     case SPARSE_EMBEDDING -> {
@@ -170,9 +171,18 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
     }
 
     public static ChunkedInferenceEmbeddingByte randomChunkedInferenceEmbeddingByte(Model model, List<String> inputs) {
+        DenseVectorFieldMapper.ElementType elementType = model.getServiceSettings().elementType();
+        assert elementType == DenseVectorFieldMapper.ElementType.BYTE || elementType == DenseVectorFieldMapper.ElementType.BIT;
+
+        int embeddingLength = model.getServiceSettings().dimensions();
+        if (elementType == DenseVectorFieldMapper.ElementType.BIT) {
+            assert model.getServiceSettings().dimensions() % Byte.SIZE == 0;
+            embeddingLength /= Byte.SIZE;
+        }
+
         List<ChunkedInferenceEmbeddingByte.ByteEmbeddingChunk> chunks = new ArrayList<>();
         for (String input : inputs) {
-            byte[] values = new byte[model.getServiceSettings().dimensions()];
+            byte[] values = new byte[embeddingLength];
             for (int j = 0; j < values.length; j++) {
                 values[j] = randomByte();
             }
@@ -184,6 +194,8 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
     }
 
     public static ChunkedInferenceEmbeddingFloat randomChunkedInferenceEmbeddingFloat(Model model, List<String> inputs) {
+        assert model.getServiceSettings().elementType() == DenseVectorFieldMapper.ElementType.FLOAT;
+
         List<ChunkedInferenceEmbeddingFloat.FloatEmbeddingChunk> chunks = new ArrayList<>();
         for (String input : inputs) {
             float[] values = new float[model.getServiceSettings().dimensions()];

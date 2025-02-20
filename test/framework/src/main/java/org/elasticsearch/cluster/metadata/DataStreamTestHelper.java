@@ -720,6 +720,17 @@ public final class DataStreamTestHelper {
         Map<String, Object> fieldsMapping = new HashMap<>();
         fieldsMapping.put("enabled", true);
         MappingParserContext mockedParserContext = mock(MappingParserContext.class);
+        when(mockedParserContext.getIndexSettings()).thenReturn(
+            new IndexSettings(
+                IndexMetadata.builder("_na_")
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+                    .creationDate(System.currentTimeMillis())
+                    .build(),
+                Settings.EMPTY
+            )
+        );
         return DataStreamTimestampFieldMapper.PARSER.parse("field", fieldsMapping, mockedParserContext).build();
     }
 

@@ -241,12 +241,6 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 searchRequest.getMaxConcurrentShardRequests(),
                 clusters
             ) {
-                protected String missingShardsErrorMessage(StringBuilder missingShards) {
-                    return "[open_point_in_time] action requires all shards to be available. Missing shards: ["
-                        + missingShards
-                        + "].  Consider using `allow_partial_search_results` setting to bypass this error.";
-                }
-
                 @Override
                 protected void executePhaseOnShard(
                     SearchShardIterator shardIt,

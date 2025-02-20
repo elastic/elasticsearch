@@ -27,8 +27,7 @@ public final class FileAccessTree {
     private final String[] readPaths;
     private final String[] writePaths;
 
-    private FileAccessTree(FilesEntitlement filesEntitlement, PathLookup pathLookup) {
-        List<String> exclusivePaths = new ArrayList<>();
+    private FileAccessTree(FilesEntitlement filesEntitlement, PathLookup pathLookup, List<String> exclusivePaths) {
         List<String> readPaths = new ArrayList<>();
         List<String> writePaths = new ArrayList<>();
         for (FilesEntitlement.FileData fileData : filesEntitlement.filesData()) {
@@ -36,6 +35,11 @@ public final class FileAccessTree {
             var paths = fileData.resolvePaths(pathLookup);
             paths.forEach(path -> {
                 var normalized = normalizePath(path);
+                for (String exclusivePath : exclusivePaths) {
+                    if (normalized.startsWith(exclusivePath)) {
+                        // TODO: throw
+                    }
+                }
                 if (mode == FilesEntitlement.Mode.READ_WRITE) {
                     writePaths.add(normalized);
                 }
@@ -71,8 +75,8 @@ public final class FileAccessTree {
         return prunedReadPaths;
     }
 
-    public static FileAccessTree of(FilesEntitlement filesEntitlement, PathLookup pathLookup) {
-        return new FileAccessTree(filesEntitlement, pathLookup);
+    public static FileAccessTree of(FilesEntitlement filesEntitlement, PathLookup pathLookup, List<String> exclusivePaths) {
+        return new FileAccessTree(filesEntitlement, pathLookup, exclusivePaths);
     }
 
     boolean canRead(Path path) {

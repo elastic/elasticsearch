@@ -105,7 +105,7 @@ public class PolicyManager {
         return new ModuleEntitlements(
             componentName,
             entitlements.stream().collect(groupingBy(Entitlement::getClass)),
-            FileAccessTree.of(filesEntitlement, pathLookup)
+            FileAccessTree.of(filesEntitlement, pathLookup, List.of())
         );
     }
 
@@ -170,7 +170,7 @@ public class PolicyManager {
         this.apmAgentPackageName = apmAgentPackageName;
         this.entitlementsModule = entitlementsModule;
         this.pathLookup = requireNonNull(pathLookup);
-        this.defaultFileAccess = FileAccessTree.of(FilesEntitlement.EMPTY, pathLookup);
+        this.defaultFileAccess = FileAccessTree.of(FilesEntitlement.EMPTY, pathLookup, List.of());
 
         List<ExclusivePath> exclusivePaths = new ArrayList<>();
         for (var e : serverEntitlements.entrySet()) {
@@ -208,7 +208,13 @@ public class PolicyManager {
 
     private record ExclusivePath(String componentName, String moduleName, String path) {}
 
-    private static void buildExclusivePathList(List<ExclusivePath> exclusivePaths, PathLookup pathLookup, String componentName, String moduleName, List<Entitlement> entitlements) {
+    private static void buildExclusivePathList(
+        List<ExclusivePath> exclusivePaths,
+        PathLookup pathLookup,
+        String componentName,
+        String moduleName,
+        List<Entitlement> entitlements
+    ) {
         for (var e : entitlements) {
             if (e instanceof FilesEntitlement fe) {
                 for (FilesEntitlement.FileData fd : fe.filesData()) {
@@ -230,9 +236,9 @@ public class PolicyManager {
             for (int i = 1; i < exclusivePaths.size(); ++i) {
                 ExclusivePath nextPath = exclusivePaths.get(i);
                 if (nextPath.path().equals(currentExclusivePath.path())) {
-                    
+                    // TODO: throw
                 } else if (nextPath.path().startsWith(currentExclusivePath.path())) {
-
+                    // TODO: throw
                 }
                 currentExclusivePath = nextPath;
             }

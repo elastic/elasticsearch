@@ -48,13 +48,13 @@ public class FileAccessTreeTests extends ESTestCase {
     );
 
     public void testEmpty() {
-        var tree = accessTree(FilesEntitlement.EMPTY);
+        var tree = accessTree(FilesEntitlement.EMPTY, List.of());
         assertThat(tree.canRead(path("path")), is(false));
         assertThat(tree.canWrite(path("path")), is(false));
     }
 
     public void testRead() {
-        var tree = accessTree(entitlement("foo", "read"));
+        var tree = accessTree(entitlement("foo", "read"), List.of());
         assertThat(tree.canRead(path("foo")), is(true));
         assertThat(tree.canRead(path("foo/subdir")), is(true));
         assertThat(tree.canRead(path("food")), is(false));
@@ -66,7 +66,7 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testWrite() {
-        var tree = accessTree(entitlement("foo", "read_write"));
+        var tree = accessTree(entitlement("foo", "read_write"), List.of());
         assertThat(tree.canWrite(path("foo")), is(true));
         assertThat(tree.canWrite(path("foo/subdir")), is(true));
         assertThat(tree.canWrite(path("food")), is(false));
@@ -78,7 +78,7 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testTwoPaths() {
-        var tree = accessTree(entitlement("foo", "read", "bar", "read"));
+        var tree = accessTree(entitlement("foo", "read", "bar", "read"), List.of());
         assertThat(tree.canRead(path("a")), is(false));
         assertThat(tree.canRead(path("bar")), is(true));
         assertThat(tree.canRead(path("bar/subdir")), is(true));
@@ -89,7 +89,7 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testReadWriteUnderRead() {
-        var tree = accessTree(entitlement("foo", "read", "foo/bar", "read_write"));
+        var tree = accessTree(entitlement("foo", "read", "foo/bar", "read_write"), List.of());
         assertThat(tree.canRead(path("foo")), is(true));
         assertThat(tree.canWrite(path("foo")), is(false));
         assertThat(tree.canRead(path("foo/bar")), is(true));
@@ -100,7 +100,7 @@ public class FileAccessTreeTests extends ESTestCase {
 
     public void testReadWithRelativePath() {
         for (var dir : List.of("config", "home")) {
-            var tree = accessTree(entitlement(Map.of("relative_path", "foo", "mode", "read", "relative_to", dir)));
+            var tree = accessTree(entitlement(Map.of("relative_path", "foo", "mode", "read", "relative_to", dir)), List.of());
             assertThat(tree.canRead(path("foo")), is(false));
 
             assertThat(tree.canRead(path("/" + dir + "/foo")), is(true));
@@ -117,7 +117,7 @@ public class FileAccessTreeTests extends ESTestCase {
 
     public void testWriteWithRelativePath() {
         for (var dir : List.of("config", "home")) {
-            var tree = accessTree(entitlement(Map.of("relative_path", "foo", "mode", "read_write", "relative_to", dir)));
+            var tree = accessTree(entitlement(Map.of("relative_path", "foo", "mode", "read_write", "relative_to", dir)), List.of());
             assertThat(tree.canWrite(path("/" + dir + "/foo")), is(true));
             assertThat(tree.canWrite(path("/" + dir + "/foo/subdir")), is(true));
             assertThat(tree.canWrite(path("/" + dir)), is(false));
@@ -132,7 +132,7 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testMultipleDataDirs() {
-        var tree = accessTree(entitlement(Map.of("relative_path", "foo", "mode", "read_write", "relative_to", "data")));
+        var tree = accessTree(entitlement(Map.of("relative_path", "foo", "mode", "read_write", "relative_to", "data")), List.of());
         assertThat(tree.canWrite(path("/data1/foo")), is(true));
         assertThat(tree.canWrite(path("/data2/foo")), is(true));
         assertThat(tree.canWrite(path("/data3/foo")), is(false));
@@ -150,7 +150,7 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testNormalizePath() {
-        var tree = accessTree(entitlement("foo/../bar", "read"));
+        var tree = accessTree(entitlement("foo/../bar", "read"), List.of());
         assertThat(tree.canRead(path("foo/../bar")), is(true));
         assertThat(tree.canRead(path("foo")), is(false));
         assertThat(tree.canRead(path("")), is(false));
@@ -158,7 +158,7 @@ public class FileAccessTreeTests extends ESTestCase {
 
     public void testForwardSlashes() {
         String sep = getDefaultFileSystem().getSeparator();
-        var tree = accessTree(entitlement("a/b", "read", "m" + sep + "n", "read"));
+        var tree = accessTree(entitlement("a/b", "read", "m" + sep + "n", "read"), List.of());
 
         // Native separators work
         assertThat(tree.canRead(path("a" + sep + "b")), is(true));
@@ -170,13 +170,13 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testTempDirAccess() {
-        var tree = FileAccessTree.of(FilesEntitlement.EMPTY, TEST_PATH_LOOKUP);
+        var tree = FileAccessTree.of(FilesEntitlement.EMPTY, TEST_PATH_LOOKUP, List.of());
         assertThat(tree.canRead(TEST_PATH_LOOKUP.tempDir()), is(true));
         assertThat(tree.canWrite(TEST_PATH_LOOKUP.tempDir()), is(true));
     }
 
-    FileAccessTree accessTree(FilesEntitlement entitlement) {
-        return FileAccessTree.of(entitlement, TEST_PATH_LOOKUP);
+    FileAccessTree accessTree(FilesEntitlement entitlement, List<String> exclusivePaths) {
+        return FileAccessTree.of(entitlement, TEST_PATH_LOOKUP, exclusivePaths);
     }
 
     static FilesEntitlement entitlement(String... values) {

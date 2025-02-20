@@ -17,6 +17,7 @@ import software.amazon.awssdk.endpoints.Endpoint;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.apache.ProxyConfiguration;
 import software.amazon.awssdk.services.ec2.Ec2Client;
+import software.amazon.awssdk.services.ec2.Ec2ClientBuilder;
 
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.ElasticsearchException;
@@ -41,13 +42,7 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
         new AtomicReference<>();
 
     private Ec2Client buildClient(Ec2ClientSettings clientSettings) {
-        final var credentials = buildCredentials(LOGGER, clientSettings);
-        return buildClient(credentials, clientSettings);
-    }
-
-    // proxy for testing
-    Ec2Client buildClient(AwsCredentialsProvider credentials, Ec2ClientSettings clientSettings) {
-        final var httpClientBuilder = ApacheHttpClient.builder();
+        final var httpClientBuilder = getHttpClientBuilder();
         httpClientBuilder.socketTimeout(Duration.of(clientSettings.readTimeoutMillis, ChronoUnit.MILLIS));
 
         if (Strings.hasText(clientSettings.proxyHost)) {
@@ -73,8 +68,8 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
             );
         }
 
-        final var ec2ClientBuilder = Ec2Client.builder();
-        ec2ClientBuilder.credentialsProvider(credentials);
+        final var ec2ClientBuilder = getEc2ClientBuilder();
+        ec2ClientBuilder.credentialsProvider(getAwsCredentialsProvider(clientSettings));
         ec2ClientBuilder.httpClientBuilder(httpClientBuilder);
 
         // Increase the number of retries in case of 5xx API responses
@@ -88,18 +83,27 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
         return SocketAccess.doPrivileged(ec2ClientBuilder::build);
     }
 
-    // TODO NOMERGE reinstate client settings
+    // exposed for tests
+    Ec2ClientBuilder getEc2ClientBuilder() {
+        return Ec2Client.builder();
+    }
 
-    // pkg private for tests
-    static AwsCredentialsProvider buildCredentials(Logger logger, Ec2ClientSettings clientSettings) {
+    // exposed for tests
+    ApacheHttpClient.Builder getHttpClientBuilder() {
+        return ApacheHttpClient.builder();
+    }
+
+    private static AwsCredentialsProvider getAwsCredentialsProvider(Ec2ClientSettings clientSettings) {
+        final AwsCredentialsProvider credentialsProvider;
         final AwsCredentials credentials = clientSettings.credentials;
         if (credentials == null) {
-            logger.debug("Using default provider chain");
-            return DefaultCredentialsProvider.create();
+            LOGGER.debug("Using default provider chain");
+            credentialsProvider = DefaultCredentialsProvider.create();
         } else {
-            logger.debug("Using basic key/secret credentials");
-            return StaticCredentialsProvider.create(credentials);
+            LOGGER.debug("Using basic key/secret credentials");
+            credentialsProvider = StaticCredentialsProvider.create(credentials);
         }
+        return credentialsProvider;
     }
 
     @Override

@@ -25,6 +25,9 @@ breaking:
     * AWS SDK v2 does not permit specifying a choice between HTTP and HTTPS so
       the `discovery.ec2.protocol` setting is no longer effective.
 
+    * AWS SDK v2 does not accept an access key without a secret key or vice
+      versa.
+
   impact: >-
 
     If you use the `discovery-ec2` plugin, test your upgrade thoroughly before
@@ -43,5 +46,9 @@ breaking:
     * If applicable, specify that you wish to use the insecure HTTP protocol to
       access the EC2 API by setting `discovery.ec2.endpoint` to a URL which
       starts with `http://`.
+
+    * Either supply both an access key and a secret key using the keystore
+      settings `discovery.ec2.access_key` and `discovery.ec2.secret_key`, or
+      configure neither of these settings.
 
   notable: true

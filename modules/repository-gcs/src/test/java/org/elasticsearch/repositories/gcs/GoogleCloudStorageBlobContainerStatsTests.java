@@ -18,6 +18,7 @@ import com.sun.net.httpserver.HttpServer;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStoreActionStats;
+import org.elasticsearch.common.blobstore.support.BlobContainerUtils;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Streams;
@@ -151,6 +152,30 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
         assertEquals(numberOfObjects, stringBlobMetadataMap.size());
         // There should be {numberOfPages} pages of blobs
         assertEquals(createStats(numberOfObjects, numberOfPages, 0), store.stats());
+    }
+
+    public void testCompareAndSetRegister() {
+        final GoogleCloudStorageBlobContainer container = containerAndStore.blobContainer();
+        final GoogleCloudStorageBlobStore store = containerAndStore.blobStore();
+
+        // update from empty (adds a single insert)
+        final BytesArray contents = new BytesArray(randomByteArrayOfLength(BlobContainerUtils.MAX_REGISTER_CONTENT_LENGTH));
+        final String registerName = randomIdentifier();
+        assertTrue(safeAwait(l -> container.compareAndSetRegister(randomPurpose(), registerName, BytesArray.EMPTY, contents, l)));
+        assertEquals(createStats(1, 0, 0), store.stats());
+
+        // successful update from non-null (adds two gets, one insert)
+        final BytesArray nextContents = new BytesArray(randomByteArrayOfLength(BlobContainerUtils.MAX_REGISTER_CONTENT_LENGTH));
+        assertTrue(safeAwait(l -> container.compareAndSetRegister(randomPurpose(), registerName, contents, nextContents, l)));
+        assertEquals(createStats(2, 0, 2), store.stats());
+
+        // failed update (adds two gets, zero inserts)
+        final BytesArray wrongContents = randomValueOtherThan(
+            nextContents,
+            () -> new BytesArray(randomByteArrayOfLength(BlobContainerUtils.MAX_REGISTER_CONTENT_LENGTH))
+        );
+        assertFalse(safeAwait(l -> container.compareAndSetRegister(randomPurpose(), registerName, wrongContents, contents, l)));
+        assertEquals(createStats(2, 0, 4), store.stats());
     }
 
     private Map<String, BlobStoreActionStats> createStats(int insertCount, int listCount, int getCount) {

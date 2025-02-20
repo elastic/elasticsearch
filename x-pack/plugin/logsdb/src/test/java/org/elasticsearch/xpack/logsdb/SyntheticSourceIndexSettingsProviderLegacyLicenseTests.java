@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.logsdb;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
@@ -55,6 +56,7 @@ public class SyntheticSourceIndexSettingsProviderLegacyLicenseTests extends ESTe
             im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
             getLogsdbIndexModeSettingsProvider(false),
             IndexVersion::current
+ava/org/elasticsearch/xpack/logsdb/LogsdbIndexSettingsProviderLegacyLicenseTests.java
         );
     }
 

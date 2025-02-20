@@ -52,7 +52,6 @@ import java.nio.file.WatchService;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.spi.FileSystemProvider;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -147,7 +146,18 @@ public class EntitlementInitialization {
         List<Scope> serverScopes = new ArrayList<>();
         Collections.addAll(
             serverScopes,
-            new Scope("org.elasticsearch.base", List.of(new CreateClassLoaderEntitlement())),
+            new Scope(
+                "org.elasticsearch.base",
+                List.of(
+                    new CreateClassLoaderEntitlement(),
+                    new FilesEntitlement(
+                        List.of(
+                            FileData.ofPath(bootstrapArgs.repoDirResolver().apply(""), READ_WRITE),
+                            FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE)
+                        )
+                    )
+                )
+            ),
             new Scope("org.elasticsearch.xcontent", List.of(new CreateClassLoaderEntitlement())),
             new Scope(
                 "org.elasticsearch.server",
@@ -160,31 +170,32 @@ public class EntitlementInitialization {
                     new LoadNativeLibrariesEntitlement(),
                     new ManageThreadsEntitlement(),
                     new FilesEntitlement(
-                        Stream.concat(
-                            Stream.of(
-                                FileData.ofPath(bootstrapArgs.tempDir(), READ_WRITE),
-                                FileData.ofPath(bootstrapArgs.configDir(), READ),
-                                FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
-                                // OS release on Linux
-                                FileData.ofPath(Path.of("/etc/os-release"), READ),
-                                FileData.ofPath(Path.of("/etc/system-release"), READ),
-                                FileData.ofPath(Path.of("/usr/lib/os-release"), READ),
-                                // read max virtual memory areas
-                                FileData.ofPath(Path.of("/proc/sys/vm/max_map_count"), READ),
-                                FileData.ofPath(Path.of("/proc/meminfo"), READ),
-                                // load averages on Linux
-                                FileData.ofPath(Path.of("/proc/loadavg"), READ),
-                                // control group stats on Linux. cgroup v2 stats are in an unpredicable
-                                // location under `/sys/fs/cgroup`, so unfortunately we have to allow
-                                // read access to the entire directory hierarchy.
-                                FileData.ofPath(Path.of("/proc/self/cgroup"), READ),
-                                FileData.ofPath(Path.of("/sys/fs/cgroup/"), READ),
-                                // // io stats on Linux
-                                FileData.ofPath(Path.of("/proc/self/mountinfo"), READ),
-                                FileData.ofPath(Path.of("/proc/diskstats"), READ)
-                            ),
-                            Arrays.stream(bootstrapArgs.dataDirs()).map(d -> FileData.ofPath(d, READ))
-                        ).toList()
+                        List.of(
+                            // Base ES directories
+                            FileData.ofPath(bootstrapArgs.tempDir(), READ_WRITE),
+                            FileData.ofPath(bootstrapArgs.configDir(), READ),
+                            FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
+                            FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE),
+                            FileData.ofPath(bootstrapArgs.repoDirResolver().apply(""), READ_WRITE),
+
+                            // OS release on Linux
+                            FileData.ofPath(Path.of("/etc/os-release"), READ),
+                            FileData.ofPath(Path.of("/etc/system-release"), READ),
+                            FileData.ofPath(Path.of("/usr/lib/os-release"), READ),
+                            // read max virtual memory areas
+                            FileData.ofPath(Path.of("/proc/sys/vm/max_map_count"), READ),
+                            FileData.ofPath(Path.of("/proc/meminfo"), READ),
+                            // load averages on Linux
+                            FileData.ofPath(Path.of("/proc/loadavg"), READ),
+                            // control group stats on Linux. cgroup v2 stats are in an unpredicable
+                            // location under `/sys/fs/cgroup`, so unfortunately we have to allow
+                            // read access to the entire directory hierarchy.
+                            FileData.ofPath(Path.of("/proc/self/cgroup"), READ),
+                            FileData.ofPath(Path.of("/sys/fs/cgroup/"), READ),
+                            // // io stats on Linux
+                            FileData.ofPath(Path.of("/proc/self/mountinfo"), READ),
+                            FileData.ofPath(Path.of("/proc/diskstats"), READ)
+                        )
                     )
                 )
             ),
@@ -196,12 +207,17 @@ public class EntitlementInitialization {
                     new LoadNativeLibrariesEntitlement(),
                     new ManageThreadsEntitlement(),
                     new FilesEntitlement(
-                        Stream.concat(
-                            Stream.of(FileData.ofPath(bootstrapArgs.configDir(), READ)),
-                            Arrays.stream(bootstrapArgs.dataDirs()).map(d -> FileData.ofPath(d, READ_WRITE))
-                        ).toList()
+                        List.of(
+                            FileData.ofPath(bootstrapArgs.configDir(), READ),
+                            FileData.ofPath(bootstrapArgs.tempDir(), READ),
+                            FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE)
+                        )
                     )
                 )
+            ),
+            new Scope(
+                "org.apache.lucene.misc",
+                List.of(new FilesEntitlement(List.of(FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE))))
             ),
             new Scope("org.apache.logging.log4j.core", List.of(new ManageThreadsEntitlement())),
             new Scope(
@@ -218,7 +234,11 @@ public class EntitlementInitialization {
             Collections.addAll(
                 serverScopes,
                 new Scope("org.bouncycastle.fips.tls", List.of(new FilesEntitlement(List.of(FileData.ofPath(trustStorePath, READ))))),
-                new Scope("org.bouncycastle.fips.core", List.of(new ManageThreadsEntitlement()))
+                new Scope(
+                    "org.bouncycastle.fips.core",
+                    // read to lib dir is required for checksum validation
+                    List.of(new FilesEntitlement(List.of(FileData.ofPath(bootstrapArgs.libDir(), READ))), new ManageThreadsEntitlement())
+                )
             );
         }
 
@@ -226,7 +246,16 @@ public class EntitlementInitialization {
         var serverPolicy = new Policy("server", serverScopes);
         // agents run without a module, so this is a special hack for the apm agent
         // this should be removed once https://github.com/elastic/elasticsearch/issues/109335 is completed
-        List<Entitlement> agentEntitlements = List.of(new CreateClassLoaderEntitlement(), new ManageThreadsEntitlement());
+        List<Entitlement> agentEntitlements = List.of(
+            new CreateClassLoaderEntitlement(),
+            new ManageThreadsEntitlement(),
+            new FilesEntitlement(
+                List.of(
+                    FileData.ofPath(Path.of("/co/elastic/apm/agent/"), READ),
+                    FileData.ofPath(Path.of("/agent/co/elastic/apm/agent/"), READ)
+                )
+            )
+        );
         var resolver = EntitlementBootstrap.bootstrapArgs().pluginResolver();
         return new PolicyManager(
             serverPolicy,

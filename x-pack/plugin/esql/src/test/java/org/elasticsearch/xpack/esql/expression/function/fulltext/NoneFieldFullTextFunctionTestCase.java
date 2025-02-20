@@ -31,7 +31,7 @@ public abstract class NoneFieldFullTextFunctionTestCase extends AbstractFunction
         assertFalse("expected resolved", expression.typeResolved().unresolved());
     }
 
-    protected static Iterable<Object[]> generateParameters() {
+    protected static List<TestCaseSupplier> getStringTestSupplier() {
         List<TestCaseSupplier> suppliers = new LinkedList<>();
         for (DataType strType : DataType.stringTypes()) {
             suppliers.add(
@@ -42,7 +42,11 @@ public abstract class NoneFieldFullTextFunctionTestCase extends AbstractFunction
                 )
             );
         }
-        return parameterSuppliersFromTypedData(suppliers);
+        return suppliers;
+    }
+
+    protected static Iterable<Object[]> generateParameters() {
+        return parameterSuppliersFromTypedData(getStringTestSupplier());
     }
 
     private static TestCaseSupplier.TestCase testCase(DataType strType, String str, Matcher<Boolean> matcher) {

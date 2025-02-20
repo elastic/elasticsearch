@@ -188,3 +188,17 @@ book_no:keyword
 7140
 2714
 ;
+
+qstrWithField1
+required_capability: qstr_function
+
+FROM books 
+| WHERE QSTR("title: Hobbjt", {"fuzziness": 2})
+| KEEP book_no, title 
+| SORT book_no 
+| LIMIT 5
+;
+ignoreOrder: true
+
+book_no:keyword | title:text                             
+;

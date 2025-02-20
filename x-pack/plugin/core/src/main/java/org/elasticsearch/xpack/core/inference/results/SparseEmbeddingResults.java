@@ -124,7 +124,7 @@ public record SparseEmbeddingResults(List<Embedding> embeddings)
         implements
             Writeable,
             ToXContentObject,
-            EmbeddingResults.Embedding<Chunk> {
+            EmbeddingResults.Embedding<Chunk, Embedding> {
 
         public static final String EMBEDDING = "embedding";
         public static final String IS_TRUNCATED = "is_truncated";
@@ -177,6 +177,11 @@ public record SparseEmbeddingResults(List<Embedding> embeddings)
         @Override
         public Chunk toChunk(String text, ChunkedInference.TextOffset offset) {
             return new Chunk(tokens, text, offset);
+        }
+
+        @Override
+        public Embedding merge(Embedding embedding) {
+            throw new UnsupportedOperationException();
         }
     }
 

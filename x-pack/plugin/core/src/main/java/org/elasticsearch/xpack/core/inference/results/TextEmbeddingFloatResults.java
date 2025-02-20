@@ -155,7 +155,7 @@ public record TextEmbeddingFloatResults(List<Embedding> embeddings)
         return Objects.hash(embeddings);
     }
 
-    public record Embedding(float[] values) implements Writeable, ToXContentObject, EmbeddingResults.Embedding<Chunk> {
+    public record Embedding(float[] values) implements Writeable, ToXContentObject, EmbeddingResults.Embedding<Chunk, Embedding> {
         public static final String EMBEDDING = "embedding";
 
         public Embedding(StreamInput in) throws IOException {
@@ -223,6 +223,11 @@ public record TextEmbeddingFloatResults(List<Embedding> embeddings)
         @Override
         public Chunk toChunk(String text, ChunkedInference.TextOffset offset) {
             return new Chunk(values, text, offset);
+        }
+
+        @Override
+        public Embedding merge(Embedding embedding) {
+            throw new UnsupportedOperationException();
         }
     }
 

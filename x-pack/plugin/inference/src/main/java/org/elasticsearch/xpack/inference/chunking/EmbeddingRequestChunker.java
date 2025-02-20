@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
  * processing and map the results back to the original element
  * in the input list.
  */
-public class EmbeddingRequestChunker {
+public class EmbeddingRequestChunker<C extends EmbeddingResults.Chunk, E extends EmbeddingResults.Embedding<C, E>> {
 
     // Visible for testing
     record Request(int inputIndex, int chunkIndex, ChunkOffset chunk, List<String> inputs) {
@@ -68,7 +68,7 @@ public class EmbeddingRequestChunker {
 
     private final List<List<Integer>> resultOffsetStarts;
     private final List<List<Integer>> resultOffsetEnds;
-    private final List<AtomicReferenceArray<EmbeddingResults.Embedding<?>>> resultEmbeddings;
+    private final List<AtomicReferenceArray<E>> resultEmbeddings;
     private final AtomicArray<Exception> resultsErrors;
     private ActionListener<List<ChunkedInference>> finalListener;
 
@@ -104,7 +104,7 @@ public class EmbeddingRequestChunker {
                 // If the number of chunks is larger than the maximum allowed value,
                 // scale the indices to [0, MAX) with similar number of original
                 // chunks in the final chunks.
-                int targetChunkIndex = chunks.size() <= MAX_CHUNKS ? chunkIndex : chunks.size() * MAX_CHUNKS / chunks.size();
+                int targetChunkIndex = chunks.size() <= MAX_CHUNKS ? chunkIndex : chunkIndex * MAX_CHUNKS / chunks.size();
                 if (resultOffsetStarts.getLast().size() <= targetChunkIndex) {
                     resultOffsetStarts.getLast().add(chunks.get(chunkIndex).start());
                     resultOffsetEnds.getLast().add(chunks.get(chunkIndex).end());
@@ -152,21 +152,27 @@ public class EmbeddingRequestChunker {
 
         @Override
         public void onResponse(InferenceServiceResults inferenceServiceResults) {
-            if (inferenceServiceResults instanceof EmbeddingResults<?, ?> embeddingResults) {
-                if (embeddingResults.embeddings().size() != request.requests.size()) {
-                    onFailure(numResultsDoesntMatchException(embeddingResults.embeddings().size(), request.requests.size()));
-                    return;
-                }
-                for (int i = 0; i < embeddingResults.embeddings().size(); i++) {
-                    // TODO: merge results instead of overwriting them
-                    resultEmbeddings.get(request.requests().get(i).inputIndex())
-                        .set(request.requests().get(i).chunkIndex(), embeddingResults.embeddings().get(i));
-                }
-                if (resultCount.incrementAndGet() == batchRequests.size()) {
-                    sendFinalResponse();
-                }
-            } else {
+            if (inferenceServiceResults instanceof EmbeddingResults<?, ?> == false) {
                 onFailure(unexpectedResultTypeException(inferenceServiceResults.getWriteableName()));
+                return;
+            }
+            @SuppressWarnings("unchecked")
+            EmbeddingResults<C, E> embeddingResults = (EmbeddingResults<C, E>) inferenceServiceResults;
+            if (embeddingResults.embeddings().size() != request.requests.size()) {
+                onFailure(numResultsDoesntMatchException(embeddingResults.embeddings().size(), request.requests.size()));
+                return;
+            }
+            for (int i = 0; i < embeddingResults.embeddings().size(); i++) {
+                E newEmbedding = embeddingResults.embeddings().get(i);
+                // TODO: merge results instead of overwriting them
+                resultEmbeddings.get(request.requests().get(i).inputIndex())
+                    .updateAndGet(
+                        request.requests().get(i).chunkIndex(),
+                        oldEmbedding -> oldEmbedding == null ? newEmbedding : oldEmbedding.merge(newEmbedding)
+                    );
+            }
+            if (resultCount.incrementAndGet() == batchRequests.size()) {
+                sendFinalResponse();
             }
         }
 
@@ -214,7 +220,7 @@ public class EmbeddingRequestChunker {
         String input = inputs.get(inputIndex);
         List<Integer> startOffsets = resultOffsetStarts.get(inputIndex);
         List<Integer> endOffsets = resultOffsetEnds.get(inputIndex);
-        AtomicReferenceArray<EmbeddingResults.Embedding<?>> embeddings = resultEmbeddings.get(inputIndex);
+        AtomicReferenceArray<E> embeddings = resultEmbeddings.get(inputIndex);
 
         List<EmbeddingResults.Chunk> chunks = new ArrayList<>();
         for (int i = 0; i < embeddings.length(); i++) {

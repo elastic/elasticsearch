@@ -319,7 +319,7 @@ public class OpenAiService extends SenderService {
         OpenAiModel openAiModel = (OpenAiModel) model;
         var actionCreator = new OpenAiActionCreator(getSender(), getServiceComponents());
 
-        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
+        List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
             inputs.getInputs(),
             EMBEDDING_MAX_BATCH_SIZE,
             openAiModel.getConfigurations().getChunkingSettings()

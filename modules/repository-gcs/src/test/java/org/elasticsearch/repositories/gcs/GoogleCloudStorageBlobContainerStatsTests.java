@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -58,6 +59,7 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
     private ThreadPool threadPool;
     private GoogleCloudStorageService googleCloudStorageService;
     private GoogleCloudStorageHttpHandler googleCloudStorageHttpHandler;
+    private ContainerAndBlobStore containerAndStore;
 
     @Before
     public void createStorageService() throws Exception {
@@ -68,97 +70,87 @@ public class GoogleCloudStorageBlobContainerStatsTests extends ESTestCase {
         googleCloudStorageHttpHandler = new GoogleCloudStorageHttpHandler(BUCKET);
         httpServer.createContext("/", googleCloudStorageHttpHandler);
         httpServer.createContext("/token", new FakeOAuth2HttpHandler());
+        containerAndStore = createBlobContainer(randomIdentifier());
     }
 
     @After
     public void stopHttpServer() {
+        IOUtils.closeWhileHandlingException(containerAndStore);
         httpServer.stop(0);
         ThreadPool.terminate(threadPool, 10L, TimeUnit.SECONDS);
     }
 
     @Test
     public void testSingleMultipartWrite() throws Exception {
-        final String repoName = randomIdentifier();
-        try (ContainerAndBlobStore containerAndStore = createBlobContainer(repoName)) {
-            final GoogleCloudStorageBlobContainer container = containerAndStore.blobContainer();
-            final GoogleCloudStorageBlobStore store = containerAndStore.blobStore();
+        final GoogleCloudStorageBlobContainer container = containerAndStore.blobContainer();
+        final GoogleCloudStorageBlobStore store = containerAndStore.blobStore();
 
-            final String blobName = randomIdentifier();
-            final int blobLength = randomIntBetween(1, (int) store.getLargeBlobThresholdInBytes() - 1);
-            final BytesArray blobContents = new BytesArray(randomByteArrayOfLength(blobLength));
-            container.writeBlob(randomPurpose(), blobName, blobContents, true);
-            assertEquals(createStats(1, 0, 0), store.stats());
+        final String blobName = randomIdentifier();
+        final int blobLength = randomIntBetween(1, (int) store.getLargeBlobThresholdInBytes() - 1);
+        final BytesArray blobContents = new BytesArray(randomByteArrayOfLength(blobLength));
+        container.writeBlob(randomPurpose(), blobName, blobContents, true);
+        assertEquals(createStats(1, 0, 0), store.stats());
 
-            try (InputStream is = container.readBlob(randomPurpose(), blobName)) {
-                assertEquals(blobContents, Streams.readFully(is));
-            }
-            assertEquals(createStats(1, 0, 1), store.stats());
+        try (InputStream is = container.readBlob(randomPurpose(), blobName)) {
+            assertEquals(blobContents, Streams.readFully(is));
         }
+        assertEquals(createStats(1, 0, 1), store.stats());
     }
 
     @Test
     public void testResumableWrite() throws Exception {
-        final String repoName = randomIdentifier();
-        try (ContainerAndBlobStore containerAndStore = createBlobContainer(repoName)) {
-            final GoogleCloudStorageBlobContainer container = containerAndStore.blobContainer();
-            final GoogleCloudStorageBlobStore store = containerAndStore.blobStore();
+        final GoogleCloudStorageBlobContainer container = containerAndStore.blobContainer();
+        final GoogleCloudStorageBlobStore store = containerAndStore.blobStore();
 
-            final String blobName = randomIdentifier();
-            final int size = randomIntBetween((int) store.getLargeBlobThresholdInBytes(), (int) store.getLargeBlobThresholdInBytes() * 2);
-            final BytesArray blobContents = new BytesArray(randomByteArrayOfLength(size));
-            container.writeBlob(randomPurpose(), blobName, blobContents, true);
-            assertEquals(createStats(1, 0, 0), store.stats());
+        final String blobName = randomIdentifier();
+        final int size = randomIntBetween((int) store.getLargeBlobThresholdInBytes(), (int) store.getLargeBlobThresholdInBytes() * 2);
+        final BytesArray blobContents = new BytesArray(randomByteArrayOfLength(size));
+        container.writeBlob(randomPurpose(), blobName, blobContents, true);
+        assertEquals(createStats(1, 0, 0), store.stats());
 
-            try (InputStream is = container.readBlob(randomPurpose(), blobName)) {
-                assertEquals(blobContents, Streams.readFully(is));
-            }
-            assertEquals(createStats(1, 0, 1), store.stats());
+        try (InputStream is = container.readBlob(randomPurpose(), blobName)) {
+            assertEquals(blobContents, Streams.readFully(is));
         }
+        assertEquals(createStats(1, 0, 1), store.stats());
     }
 
     @Test
     public void testDeleteDirectory() throws Exception {
-        final String repoName = randomIdentifier();
-        try (ContainerAndBlobStore containerAndStore = createBlobContainer(repoName)) {
-            final GoogleCloudStorageBlobContainer container = containerAndStore.blobContainer();
-            final GoogleCloudStorageBlobStore store = containerAndStore.blobStore();
+        final GoogleCloudStorageBlobContainer container = containerAndStore.blobContainer();
+        final GoogleCloudStorageBlobStore store = containerAndStore.blobStore();
 
-            final String directoryName = randomIdentifier();
-            final BytesArray contents = new BytesArray(randomByteArrayOfLength(50));
-            final int numberOfFiles = randomIntBetween(1, 20);
-            for (int i = 0; i < numberOfFiles; i++) {
-                container.writeBlob(randomPurpose(), String.format("%s/file_%d", directoryName, i), contents, true);
-            }
-            assertEquals(createStats(numberOfFiles, 0, 0), store.stats());
-
-            container.delete(randomPurpose());
-            // We only count the list because we can't track the bulk delete
-            assertEquals(createStats(numberOfFiles, 1, 0), store.stats());
+        final String directoryName = randomIdentifier();
+        final BytesArray contents = new BytesArray(randomByteArrayOfLength(50));
+        final int numberOfFiles = randomIntBetween(1, 20);
+        for (int i = 0; i < numberOfFiles; i++) {
+            container.writeBlob(randomPurpose(), String.format("%s/file_%d", directoryName, i), contents, true);
         }
+        assertEquals(createStats(numberOfFiles, 0, 0), store.stats());
+
+        container.delete(randomPurpose());
+        // We only count the list because we can't track the bulk delete
+        assertEquals(createStats(numberOfFiles, 1, 0), store.stats());
     }
 
     @Test
     public void testListBlobsAccountsForPaging() throws Exception {
-        final String repoName = randomIdentifier();
-        try (ContainerAndBlobStore containerAndStore = createBlobContainer(repoName)) {
-            final GoogleCloudStorageBlobContainer container = containerAndStore.blobContainer();
-            final GoogleCloudStorageBlobStore store = containerAndStore.blobStore();
+        final GoogleCloudStorageBlobContainer container = containerAndStore.blobContainer();
+        final GoogleCloudStorageBlobStore store = containerAndStore.blobStore();
 
-            final int pageSize = randomIntBetween(3, 20);
-            googleCloudStorageHttpHandler.setDefaultPageLimit(pageSize);
-            final int numberOfPages = randomIntBetween(1, 10);
-            final int numberOfObjects = randomIntBetween((numberOfPages - 1) * pageSize + 1, numberOfPages * pageSize);
-            final BytesArray contents = new BytesArray(randomByteArrayOfLength(50));
-            for (int i = 0; i < numberOfObjects; i++) {
-                container.writeBlob(randomPurpose(), String.format("file_%d", i), contents, true);
-            }
-            assertEquals(createStats(numberOfObjects, 0, 0), store.stats());
-
-            final Map<String, BlobMetadata> stringBlobMetadataMap = container.listBlobs(randomPurpose());
-            assertEquals(numberOfObjects, stringBlobMetadataMap.size());
-            // There should be {numberOfPages} pages of blobs
-            assertEquals(createStats(numberOfObjects, numberOfPages, 0), store.stats());
+        final int pageSize = randomIntBetween(3, 20);
+        googleCloudStorageHttpHandler.setDefaultPageLimit(pageSize);
+        final int numberOfPages = randomIntBetween(1, 10);
+        final int numberOfObjects = randomIntBetween((numberOfPages - 1) * pageSize + 1, numberOfPages * pageSize);
+        final BytesArray contents = new BytesArray(randomByteArrayOfLength(50));
+        for (int i = 0; i < numberOfObjects; i++) {
+            container.writeBlob(randomPurpose(), String.format("file_%d", i), contents, true);
         }
+        assertEquals(createStats(numberOfObjects, 0, 0), store.stats());
+
+        final Map<String, BlobMetadata> stringBlobMetadataMap = container.listBlobs(randomPurpose());
+        assertEquals(numberOfObjects, stringBlobMetadataMap.size());
+        // There should be {numberOfPages} pages of blobs
+        assertEquals(createStats(numberOfObjects, numberOfPages, 0), store.stats());
     }
 
     private Map<String, BlobStoreActionStats> createStats(int insertCount, int listCount, int getCount) {

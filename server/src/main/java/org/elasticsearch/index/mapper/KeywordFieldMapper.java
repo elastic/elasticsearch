@@ -95,7 +95,6 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "keyword";
     private static final String HOST_NAME = "host.name";
-    public static final String OFFSETS_FIELD_NAME_SUFFIX = ".offsets";
 
     public static class Defaults {
         public static final FieldType FIELD_TYPE;
@@ -454,7 +453,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
                 // keep track of value offsets so that we can reconstruct arrays from doc values in order as was specified during indexing
                 // (if field is stored then there is no point of doing this)
-                offsetsFieldName = context.buildFullName(leafName() + OFFSETS_FIELD_NAME_SUFFIX);
+                offsetsFieldName = context.buildFullName(leafName() + FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX);
             } else {
                 offsetsFieldName = null;
             }

@@ -439,4 +439,9 @@ public class IpFieldMapperTests extends MapperTestCase {
     protected Function<Object, Object> loadBlockExpected() {
         return v -> InetAddresses.toAddrString(InetAddressPoint.decode(BytesRef.deepCopyOf((BytesRef) v).bytes));
     }
+
+    @Override
+    protected String randomSyntheticSourceKeep() {
+        return "all";
+    }
 }

@@ -23,9 +23,10 @@ import java.util.TreeMap;
 
 public class FieldArrayContext {
 
+    public static final String OFFSETS_FIELD_NAME_SUFFIX = ".offsets";
     private final Map<String, Offsets> offsetsPerField = new HashMap<>();
 
-    void recordOffset(String field, String value) {
+    void recordOffset(String field, Comparable<?> value) {
         Offsets arrayOffsets = offsetsPerField.computeIfAbsent(field, k -> new Offsets());
         int nextOffset = arrayOffsets.currentOffset++;
         var offsets = arrayOffsets.valueToOffsets.computeIfAbsent(value, s -> new ArrayList<>(2));
@@ -85,7 +86,7 @@ public class FieldArrayContext {
         // Need to use TreeMap here, so that we maintain the order in which each value (with offset) stored inserted,
         // (which is in the same order the document gets parsed) so we store offsets in right order. This is the same
         // order in what the values get stored in SortedSetDocValues.
-        final Map<String, List<Integer>> valueToOffsets = new TreeMap<>();
+        final Map<Comparable<?>, List<Integer>> valueToOffsets = new TreeMap<>();
         final List<Integer> nullValueOffsets = new ArrayList<>(2);
 
     }

@@ -819,7 +819,7 @@ c:long |b:date
 bucketByYearInArbitraryIntervals
 FROM employees
 | STATS c = COUNT(*) BY b = BUCKET(birth_date, 4 year)
-| SORT c DESC
+| SORT c DESC, b
 | LIMIT 5
 ;
 
@@ -835,7 +835,7 @@ c:long | b:date
 bucketByMonthInArbitraryIntervals
 FROM employees
 | STATS c = COUNT(*) BY b = BUCKET(hire_date, 20 month)
-| SORT c DESC
+| SORT c DESC, b
 | LIMIT 5
 ;
 

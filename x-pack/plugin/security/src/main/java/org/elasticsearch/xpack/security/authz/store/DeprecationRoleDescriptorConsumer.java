@@ -19,6 +19,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexComponentSelectorPredicate;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
@@ -186,21 +187,27 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
             final Set<IndexPrivilege> aliasPrivileges = IndexPrivilege.splitBySelectorAccess(aliasPrivilegeNames);
             final SortedSet<String> inferiorIndexNames = new TreeSet<>();
             for (var aliasPrivilege : aliasPrivileges) {
+                // TODO implement failures handling in a follow-up
+                if (aliasPrivilege.getSelectorPredicate() == IndexComponentSelectorPredicate.FAILURES) {
+                    continue;
+                }
                 final Automaton aliasPrivilegeAutomaton = aliasPrivilege.getAutomaton();
                 // check if the alias grants superiors privileges than the indices it points to
                 for (Index index : aliasOrIndexMap.get(aliasName).getIndices()) {
                     final Set<String> indexPrivileges = privilegesByIndexMap.get(index.getName());
                     // null iff the index does not have *any* privilege
                     if (indexPrivileges != null) {
-                        // compute automaton once per index no matter how many times it is pointed to
+                        // compute privilege set once per index no matter how many times it is pointed to
                         final Set<IndexPrivilege> indexPrivilegeSet = indexPrivilegeMap.computeIfAbsent(
                             index.getName(),
                             i -> IndexPrivilege.splitBySelectorAccess(indexPrivileges)
                         );
                         for (var indexPrivilege : indexPrivilegeSet) {
-                            // TODO still not quite right
-                            if (indexPrivilege.getSelectorPredicate() == aliasPrivilege.getSelectorPredicate()
-                                && false == Automatons.subsetOf(indexPrivilege.getAutomaton(), aliasPrivilegeAutomaton)) {
+                            // TODO implement failures handling in a follow-up
+                            if (indexPrivilege.getSelectorPredicate() == IndexComponentSelectorPredicate.FAILURES) {
+                                continue;
+                            }
+                            if (false == Automatons.subsetOf(indexPrivilege.getAutomaton(), aliasPrivilegeAutomaton)) {
                                 inferiorIndexNames.add(index.getName());
                             }
                         }

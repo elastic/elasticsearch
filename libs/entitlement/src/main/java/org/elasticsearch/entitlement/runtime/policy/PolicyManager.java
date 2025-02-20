@@ -34,6 +34,7 @@ import java.lang.StackWalker.StackFrame;
 import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReference;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -142,6 +143,13 @@ public class PolicyManager {
      * Frames originating from this module are ignored in the permission logic.
      */
     private final Module entitlementsModule;
+
+    /**
+     * Paths that are only allowed for a single module. Used to generate
+     * structures to indicate other modules aren't allowed to use these
+     * files in {@link FileAccessTree}s.
+     */
+    private final List<String> exclusivePaths = new ArrayList<>();
 
     public PolicyManager(
         Policy serverPolicy,

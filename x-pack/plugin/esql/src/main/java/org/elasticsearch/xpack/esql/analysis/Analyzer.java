@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -680,33 +679,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private LogicalPlan resolveFork(Fork fork, AnalyzerContext context) {
             List<LogicalPlan> subPlans = fork.subPlans();
-            NameId firstForkNameId = null;  // stores the id of the first _fork,
 
             List<LogicalPlan> newSubPlans = new ArrayList<>();
             for (var logicalPlan : subPlans) {
-                LogicalPlan newPlan = logicalPlan.transformUp(LogicalPlan.class, p -> p.childrenResolved() == false ? p : rule(p, context));
-
-                // align _fork id across all fork branches
-                Eval eval = forkEvalOrThrow(newPlan);
-                if (firstForkNameId == null) {
-                    firstForkNameId = eval.fields().getFirst().id();
-                } else {
-                    var literal = eval.fields().getFirst().child();
-                    var alias = new Alias(eval.source(), "_fork", literal, firstForkNameId);
-                    newPlan = new Eval(eval.source(), eval.child(), List.of(alias));
-                }
-                newSubPlans.add(newPlan);
+                newSubPlans.add(logicalPlan.transformUp(LogicalPlan.class, p -> p.childrenResolved() == false ? p : rule(p, context)));
             }
             return new Fork(fork.source(), fork.child(), newSubPlans);
-        }
-
-        static Eval forkEvalOrThrow(LogicalPlan plan) {
-            if (plan instanceof Eval eval) {
-                assert eval.fields().size() == 1 && eval.fields().getFirst().name().equals("_fork");
-                return eval;
-            } else {
-                throw new IllegalStateException("expected Eval, got:" + plan);
-            }
         }
 
         private List<Attribute> resolveUsingColumns(List<Attribute> cols, List<Attribute> output, String side) {

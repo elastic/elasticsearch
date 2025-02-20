@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
@@ -645,15 +646,23 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public List<PlanFactory> visitForkSubQueries(EsqlBaseParser.ForkSubQueriesContext ctx) {
         ArrayList<PlanFactory> list = new ArrayList<>();
         int count = 1; // automatic fork branch ids start at 1
+        NameId firstForkNameId = null;  // stores the id of the first _fork
 
         for (var subQueryCtx : ctx.forkSubQuery()) {
             var subQuery = visitForkSubQuery(subQueryCtx);
-            String forkValue = "fork" + count++;
-            PlanFactory eval = p -> new Eval(
-                source(ctx),
-                subQuery.apply(p),
-                List.of(new Alias(source(ctx), "_fork", new Literal(source(ctx), forkValue, KEYWORD)))
-            );
+            var literal = new Literal(source(ctx), "fork" + count++, KEYWORD);
+
+            // align _fork id across all fork branches
+            Alias alias = null;
+            if (firstForkNameId == null) {
+                alias = new Alias(source(ctx), "_fork", literal);
+                firstForkNameId = alias.id();
+            } else {
+                alias = new Alias(source(ctx), "_fork", literal, firstForkNameId);
+            }
+
+            var finalAlias = alias;
+            PlanFactory eval = p -> new Eval(source(ctx), subQuery.apply(p), List.of(finalAlias));
             list.add(eval);
         }
         return List.copyOf(list);

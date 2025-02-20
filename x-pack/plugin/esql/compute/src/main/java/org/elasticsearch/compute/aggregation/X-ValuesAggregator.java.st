@@ -301,8 +301,8 @@ $endif$
                 }
 
                 /*
-                 * Total the sign selected groups and turn them into a running count.
-                 * Negative counts are still unselected.
+                 * Total the selected groups and turn them into a running count.
+                 * Unselected groups will still have negative counts.
                  */
                 int total = 0;
                 for (int s = 0; s < selected.getPositionCount(); s++) {
@@ -317,6 +317,8 @@ $endif$
                  * Build a list of ids to insert in order *and* convert the running
                  * count in selectedCounts[group] into the end index in ids for each
                  * group.
+                 * Here we use the negative counts to signal that a group hasn't been
+                 * selected and the id containing values for that group is ignored.
                  */
                 idsSize = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + total * Integer.BYTES);
                 blockFactory.adjustBreaker(idsSize);

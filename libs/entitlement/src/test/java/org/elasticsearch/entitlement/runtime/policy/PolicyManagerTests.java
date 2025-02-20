@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager.ModuleEntitlements;
 import org.elasticsearch.entitlement.runtime.policy.agent.TestAgent;
 import org.elasticsearch.entitlement.runtime.policy.agent.inner.TestInnerAgent;
@@ -53,17 +54,25 @@ public class PolicyManagerTests extends ESTestCase {
      */
     private static Module NO_ENTITLEMENTS_MODULE;
 
-    private static final PathLookup TEST_PATH_LOOKUP = new PathLookup(
-        Path.of("/config"),
-        new Path[] { Path.of("/data1/"), Path.of("/data2") },
-        Path.of("/temp")
-    );
+    private static Path TEST_BASE_DIR;
+
+    private static PathLookup TEST_PATH_LOOKUP;
 
     @BeforeClass
     public static void beforeClass() {
         try {
             // Any old module will do for tests using NO_ENTITLEMENTS_MODULE
             NO_ENTITLEMENTS_MODULE = makeClassInItsOwnModule().getModule();
+
+            TEST_BASE_DIR = createTempDir().toAbsolutePath();
+            TEST_PATH_LOOKUP = new PathLookup(
+                TEST_BASE_DIR.resolve("/user/home"),
+                TEST_BASE_DIR.resolve("/config"),
+                new Path[] { TEST_BASE_DIR.resolve("/data1/"), TEST_BASE_DIR.resolve("/data2") },
+                TEST_BASE_DIR.resolve("/temp"),
+                Settings.EMPTY::get,
+                Settings.EMPTY::getGlobValues
+            );
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }
@@ -228,8 +237,7 @@ public class PolicyManagerTests extends ESTestCase {
 
         var entitlements = policyManager.getEntitlements(mockPluginClass);
         assertThat(entitlements.hasEntitlement(CreateClassLoaderEntitlement.class), is(true));
-        // TODO: this can't work on Windows, we need to have the root be unknown
-        // assertThat(entitlements.fileAccess().canRead("/test/path"), is(true));
+        assertThat(entitlements.fileAccess().canRead(TEST_BASE_DIR), is(true));
     }
 
     public void testGetEntitlementsResultIsCached() {
@@ -439,9 +447,7 @@ public class PolicyManagerTests extends ESTestCase {
                     name -> new Scope(
                         name,
                         List.of(
-                            new FilesEntitlement(
-                                List.of(FilesEntitlement.FileData.ofPath(Path.of("/test/path"), FilesEntitlement.Mode.READ))
-                            ),
+                            new FilesEntitlement(List.of(FilesEntitlement.FileData.ofPath(TEST_BASE_DIR, FilesEntitlement.Mode.READ))),
                             new CreateClassLoaderEntitlement()
                         )
                     )

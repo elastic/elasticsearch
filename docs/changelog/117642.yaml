@@ -1,0 +1,5 @@
+pr: 117642
+summary: Adding endpoint creation validation to `ElasticInferenceService`
+area: Machine Learning
+type: enhancement
+issues: []

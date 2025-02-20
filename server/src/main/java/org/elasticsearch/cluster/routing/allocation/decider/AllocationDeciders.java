@@ -82,6 +82,10 @@ public class AllocationDeciders {
         );
     }
 
+    /**
+     * Returns whether rebalancing (move shards to improve relative node weights and performance) is allowed right now.
+     * Rebalancing can be disabled via cluster settings, or throttled by cluster settings (e.g. max concurrent shard moves).
+     */
     public Decision canRebalance(RoutingAllocation allocation) {
         return withDeciders(
             allocation,

@@ -9,7 +9,10 @@
 
 package org.elasticsearch.index.mapper.blockloader;
 
+import org.elasticsearch.index.mapper.NumberFieldBlockLoaderTestCase;
 import org.elasticsearch.logsdb.datageneration.FieldType;
+
+import java.util.Map;
 
 public class FloatFieldBlockLoaderTests extends NumberFieldBlockLoaderTestCase<Double> {
     public FloatFieldBlockLoaderTests() {
@@ -17,7 +20,7 @@ public class FloatFieldBlockLoaderTests extends NumberFieldBlockLoaderTestCase<D
     }
 
     @Override
-    protected Double convert(Number value) {
+    protected Double convert(Number value, Map<String, Object> fieldMapping) {
         // All float values are represented as double
         return value.doubleValue();
     }

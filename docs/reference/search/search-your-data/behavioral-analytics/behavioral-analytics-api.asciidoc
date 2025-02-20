@@ -1,11 +1,13 @@
 [[behavioral-analytics-api]]
 === Behavioral Analytics API overview
+
 ++++
 <titleabbrev>API overview</titleabbrev>
 ++++
 
 This page outlines all the APIs available for behavioral analytics and links to their documentation.
 
+[deprecated[9.0.0]
 [discrete]
 [[behavioral-analytics-api-es-rest]]
 ==== Behavioral Analytics REST APIs

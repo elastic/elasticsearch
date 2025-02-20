@@ -2,10 +2,9 @@ pr: 122960
 summary: Deprecate Behavioral Analytics CRUD apis
 area: Relevance
 type: deprecation
-issues: []
+issues: [ ]
 deprecation:
   title: Deprecate Behavioral Analytics CRUD apis
   area: Relevance
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  details: Behavioral Analytics has been deprecated as of 9.0.0 and will be removed in a future release. The APIs will still work for now, but will emit warning headers that the API has been deprecated.
+  impact: Behavioral Analytics has been deprecated as of 9.0.0 and will be removed in a future release.

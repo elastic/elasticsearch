@@ -1497,6 +1497,8 @@ null
 ;
 
 evalDateTruncYearInArbitraryIntervals
+required_capability: date_trunc_with_arbitrary_intervals
+
 ROW x = ["1963-01-01", "1973-04-11", "1983-04-12", "2000-02-12"]::DATETIME 
 | MV_EXPAND x 
 | EVAL y = DATE_TRUNC(10 years, x)
@@ -1510,6 +1512,8 @@ x:date                      | y:date
 ;
 
 evalDateTruncMonthInArbitraryIntervals
+required_capability: date_trunc_with_arbitrary_intervals
+
 ROW x = ["1969-05-01", "1969-12-31", "1970-01-12", "2000-06-08"]::DATETIME 
 | MV_EXPAND x 
 | EVAL y = DATE_TRUNC(10 months, x)

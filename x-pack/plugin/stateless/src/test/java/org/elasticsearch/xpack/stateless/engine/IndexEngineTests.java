@@ -39,6 +39,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
@@ -53,6 +54,8 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.LongStream;
 
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
@@ -546,6 +549,97 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 }
             });
             assertThat(engine.getMaxSeqNo(), equalTo(maxSeqNo));
+        }
+    }
+
+    public void testHollowEngineWithConcurrentNonHollowFlush() throws Exception {
+        // We issue a first regular flush and we make it stop at the time it tries to get the commit user data.
+        // We then issue the hollow flush. We ensure that the regular flush's commit user data is NOT hollow, since it may not have
+        // flushed all operations. Only the hollow flush should be marked as hollow.
+        final AtomicInteger flushesInitiated = new AtomicInteger(0);
+        final var firstFlushGettingUserDataLatch = new CountDownLatch(1);
+        final var firstFlushProceedToGetUserDataLatch = new CountDownLatch(1);
+        final var hollowFlushProceedToGetUserDataLatch = new CountDownLatch(1);
+
+        final var indexConfig = indexConfig();
+        final var commitService = mockCommitService(indexConfig.getIndexSettings().getNodeSettings());
+        final var objectStoreService = mock(ObjectStoreService.class);
+        try (
+            var engine = new IndexEngine(
+                indexConfig,
+                mock(TranslogReplicator.class),
+                objectStoreService::getTranslogBlobContainer,
+                mockCommitService(indexConfig.getIndexSettings().getNodeSettings()),
+                mock(HollowShardsService.class),
+                mock(SharedBlobCacheWarmingService.class),
+                RefreshThrottler.Noop::new,
+                commitService.getIndexEngineLocalReaderListenerForShard(indexConfig.getShardId()),
+                commitService.getCommitBCCResolverForShard(indexConfig.getShardId()),
+                DocumentParsingProvider.EMPTY_INSTANCE,
+                new IndexEngine.EngineMetrics(TranslogRecoveryMetrics.NOOP, MergeMetrics.NOOP)
+            ) {
+                @Override
+                public void close() throws IOException {
+                    try {
+                        super.close();
+                    } finally {
+                        indexConfig.getStore().decRef();
+                    }
+                }
+
+                @Override
+                protected void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener)
+                    throws EngineException {
+                    flushesInitiated.incrementAndGet();
+                    super.flushHoldingLock(force, waitIfOngoing, listener);
+                }
+
+                @Override
+                protected Map<String, String> getCommitExtraUserData(final long localCheckpoint) {
+                    firstFlushGettingUserDataLatch.countDown();
+                    int flushNumber = flushesInitiated.get();
+                    logger.debug("flush {} trying to get user data", flushNumber);
+                    if (flushesInitiated.get() > 1) {
+                        safeAwait(hollowFlushProceedToGetUserDataLatch);
+                    } else {
+                        safeAwait(firstFlushProceedToGetUserDataLatch);
+                    }
+                    logger.debug("flush {} proceeding to get user data", flushNumber);
+                    return super.getCommitExtraUserData(localCheckpoint);
+                }
+            }
+        ) {
+            engine.skipTranslogRecovery();
+            engine.index(randomDoc(String.valueOf(0)));
+            assertFalse(engine.isLastCommitHollow());
+
+            final PlainActionFuture<Engine.FlushResult> firstFlushFuture = new PlainActionFuture<>();
+            Thread firstFlushThread = new Thread(() -> { engine.flush(true, true, firstFlushFuture); });
+            firstFlushThread.start();
+            safeAwait(firstFlushGettingUserDataLatch);
+
+            // This operation is not included in the first flush
+            engine.index(randomDoc(String.valueOf(1)));
+            assertFalse(engine.isLastCommitHollow());
+
+            final PlainActionFuture<Engine.FlushResult> hollowFlushFuture = new PlainActionFuture<>();
+            Thread hollowFlushThread = new Thread(() -> { engine.flushHollow(hollowFlushFuture); });
+            hollowFlushThread.start();
+            assertBusy(() -> assertThat(flushesInitiated.get(), equalTo(2))); // ensures that the hollow max seqno has been marked
+
+            firstFlushProceedToGetUserDataLatch.countDown();
+            firstFlushFuture.actionGet();
+            firstFlushThread.join();
+
+            // The first flush should not be marked as hollow, as it did not include doc with ID 1.
+            assertFalse(engine.isLastCommitHollow());
+
+            hollowFlushProceedToGetUserDataLatch.countDown();
+            hollowFlushFuture.actionGet();
+            hollowFlushThread.join();
+
+            // The hollow flush should be marked as hollow, as it includes all operations.
+            assertTrue(engine.isLastCommitHollow());
         }
     }
 }

@@ -87,8 +87,10 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
             }
         }
 
-        if (randomBoolean()) {
-            internalCluster().restartNode(randomFrom(allocatedNodes));
+        for (String allocatedNode : allocatedNodes) {
+            if (randomBoolean()) {
+                internalCluster().restartNode(allocatedNode);
+            }
         }
         ensureGreen(indexName);
         allocatedNodes = internalCluster().nodesInclude(indexName);
@@ -147,7 +149,9 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
                 assertHitCount(resp, docCount);
             });
             final Set<String> allocatedNodes = internalCluster().nodesInclude(indexName);
-            internalCluster().restartNode(randomFrom(allocatedNodes));
+            for (String allocatedNode : allocatedNodes) {
+                internalCluster().restartNode(allocatedNode);
+            }
             ensureGreen(indexName);
             assertNoFailuresAndResponse(
                 prepareSearch().setQuery(new RangeQueryBuilder("created_date").gte("2011-01-01").lte("2011-12-12"))

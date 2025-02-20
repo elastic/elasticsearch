@@ -46,6 +46,8 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
 
         Mode mode();
 
+        boolean exclusive();
+
         static FileData ofPath(Path path, Mode mode, boolean exclusive) {
             return new AbsolutePathFileData(path, mode, exclusive);
         }

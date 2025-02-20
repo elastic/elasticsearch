@@ -17,14 +17,15 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.core.Assertions;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Objects;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
@@ -51,20 +52,17 @@ public class KnnScoreDocQuery extends Query {
     /**
      * Creates a query.
      *
-     * @param docs the global doc IDs of documents that match, in ascending order
-     * @param scores the scores of the matching documents
+     * @param scoreDocs an array of ScoreDocs to use for the query
      * @param reader IndexReader
      */
-    KnnScoreDocQuery(int[] docs, float[] scores, IndexReader reader) {
-        if (Assertions.ENABLED) {
-            assert docs.length == scores.length;
-            for (int i = 1; i < docs.length; i++) {
-                assert docs[i - 1] < docs[i] : "doc ids are not in order: " + Arrays.toString(docs);
-            }
+    KnnScoreDocQuery(ScoreDoc[] scoreDocs, IndexReader reader) {
+        Arrays.sort(scoreDocs, Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
+        this.docs = new int[scoreDocs.length];
+        this.scores = new float[scoreDocs.length];
+        for (int i = 0; i < scoreDocs.length; i++) {
+            docs[i] = scoreDocs[i].doc;
+            scores[i] = scoreDocs[i].score;
         }
-
-        this.docs = docs;
-        this.scores = scores;
         this.segmentStarts = findSegmentStarts(reader, docs);
         this.contextIdentity = reader.getContext().id();
     }

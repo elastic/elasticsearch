@@ -66,10 +66,11 @@ public class ThreadPoolMergeQueue {
         assert mergeTask.isRunning() == false;
         assert mergeTask.isOnGoingMergeAborted() == false;
         if (enqueueMergeTaskExecution() == false) {
+            // if the threadpool cannot run the merge, just abort it
             mergeTask.abortOnGoingMerge();
         } else {
             if (mergeTask.supportsIOThrottling()) {
-                // count submitted merge tasks that support IO auto throttling, and maybe adjust IO rate for all
+                // count enqueued merge tasks that support IO auto throttling, and maybe adjust IO rate for all
                 maybeUpdateIORateBytesPerSec(submittedIOThrottledMergeTasksCount.incrementAndGet());
             }
             enqueueMergeTask(mergeTask);
@@ -80,6 +81,10 @@ public class ThreadPoolMergeQueue {
         queuedMergeTasks.add(mergeTask);
     }
 
+    /**
+     * Enqueues a runnable that executes exactly one merge task, the smallest that is runnable at some point in time.
+     * A merge task is not runnable if its scheduler already reached the configured max-allowed concurrency level.
+     */
     private boolean enqueueMergeTaskExecution() {
         try {
             executorService.execute(() -> {
@@ -91,6 +96,7 @@ public class ThreadPoolMergeQueue {
                         try {
                             // will block if there are backlogged merges until they're enqueued again
                             MergeTask smallestMergeTask = queuedMergeTasks.take();
+                            // let the task's scheduler decide if it can actually run the merge task now
                             if (smallestMergeTask.runNowOrBacklog()) {
                                 runMergeTask(smallestMergeTask);
                                 break;

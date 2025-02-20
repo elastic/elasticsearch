@@ -23,7 +23,6 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -688,7 +687,7 @@ public class EsqlDataTypeConverter {
             builder.endObject();
             return Strings.toString(builder);
         } catch (IOException e) {
-            throw new EsqlIllegalArgumentException("error rendering aggregate metric double", e);
+            throw new IllegalStateException("error rendering aggregate metric double", e);
         }
     }
 

@@ -494,7 +494,10 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
             new ByteArrayInputStream(BytesReference.toBytes(response.body()))
         );
         assertEquals(numberOfFiles - numberWithDelimiter, ((List<?>) jsonMapView.get("items")).size());
-        assertEquals(topLevelDirectories, new HashSet<>(jsonMapView.get("prefixes")));
+        assertEquals(
+            topLevelDirectories.stream().map(d -> prefix + d).collect(Collectors.toSet()),
+            new HashSet<>(jsonMapView.get("prefixes"))
+        );
     }
 
     /**
@@ -530,7 +533,8 @@ public class GoogleCloudStorageHttpHandlerTests extends ESTestCase {
             Set.of("e/f"),
             ((List<?>) jsonMapView.get("items")).stream().map(i -> ((Map<?, ?>) i).get("name")).collect(Collectors.toSet())
         );
-        assertEquals(Set.of("g/"), new HashSet<>(jsonMapView.get("prefixes")));
+        // note this differs from the example, but third party test indicates this is what we get back
+        assertEquals(Set.of("e/g/"), new HashSet<>(jsonMapView.get("prefixes")));
     }
 
     private static TestHttpResponse executeUpload(

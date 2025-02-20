@@ -202,9 +202,12 @@ public class MockGcsBlobStore {
         final List<BlobVersion> matchingBlobs = new ArrayList<>();
         for (BlobVersion blob : blobs.values()) {
             if (blob.path().startsWith(prefix)) {
-                String pathWithoutPrefix = stripPrefixIfPresent(prefix, blob.path());
+                final String pathWithoutPrefix = stripPrefixIfPresent(prefix, blob.path());
                 if (Strings.hasLength(delimiter) && pathWithoutPrefix.contains(delimiter)) {
-                    prefixes.add(pathWithoutPrefix.substring(0, pathWithoutPrefix.indexOf(delimiter) + 1));
+                    // This seems counter to what is described in the example at the top of
+                    // https://cloud.google.com/storage/docs/json_api/v1/objects/list,
+                    // but it's required to make the third party tests pass
+                    prefixes.add(prefix + pathWithoutPrefix.substring(0, pathWithoutPrefix.indexOf(delimiter) + 1));
                 } else {
                     matchingBlobs.add(blob);
                 }

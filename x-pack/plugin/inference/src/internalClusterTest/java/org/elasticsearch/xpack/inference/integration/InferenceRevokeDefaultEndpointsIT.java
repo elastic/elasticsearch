@@ -91,7 +91,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
         try (var service = createElasticInferenceService()) {
-            service.waitForAuthorizationToComplete(TIMEOUT);
+            ensureAuthorizationCallFinished(service);
             assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.ANY)));
             assertThat(
                 service.defaultConfigIds(),
@@ -125,7 +125,8 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             try (var service = createElasticInferenceService()) {
-                service.waitForAuthorizationToComplete(TIMEOUT);
+                ensureAuthorizationCallFinished(service);
+
                 assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.ANY)));
                 assertThat(
                     service.defaultConfigIds(),
@@ -164,7 +165,8 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(noAuthorizationResponseJson));
 
             try (var service = createElasticInferenceService()) {
-                service.waitForAuthorizationToComplete(TIMEOUT);
+                ensureAuthorizationCallFinished(service);
+
                 assertThat(service.supportedStreamingTasks(), is(EnumSet.noneOf(TaskType.class)));
                 assertTrue(service.defaultConfigIds().isEmpty());
                 assertThat(service.supportedTaskTypes(), is(EnumSet.noneOf(TaskType.class)));
@@ -198,7 +200,8 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             try (var service = createElasticInferenceService()) {
-                service.waitForAuthorizationToComplete(TIMEOUT);
+                ensureAuthorizationCallFinished(service);
+
                 assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.ANY)));
                 assertThat(
                     service.defaultConfigIds(),
@@ -242,7 +245,8 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(noAuthorizationResponseJson));
 
             try (var service = createElasticInferenceService()) {
-                service.waitForAuthorizationToComplete(TIMEOUT);
+                ensureAuthorizationCallFinished(service);
+
                 assertThat(service.supportedStreamingTasks(), is(EnumSet.noneOf(TaskType.class)));
                 assertTrue(service.defaultConfigIds().isEmpty());
                 assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING)));
@@ -256,6 +260,11 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
         }
     }
 
+    private void ensureAuthorizationCallFinished(ElasticInferenceService service) {
+        service.onNodeStarted();
+        service.waitForAuthorizationToComplete(TIMEOUT);
+    }
+
     private ElasticInferenceService createElasticInferenceService() {
         var httpManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, httpManager);
@@ -263,7 +272,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
         return new ElasticInferenceService(
             senderFactory,
             createWithEmptySettings(threadPool),
-            new ElasticInferenceServiceComponents(gatewayUrl),
+            ElasticInferenceServiceComponents.withNoRevokeDelay(gatewayUrl),
             modelRegistry,
             new ElasticInferenceServiceAuthorizationHandler(gatewayUrl, threadPool)
         );

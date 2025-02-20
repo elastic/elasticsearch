@@ -275,16 +275,6 @@ tests:
 - class: org.elasticsearch.repositories.blobstore.testkit.analyze.MinioRepositoryAnalysisRestIT
   method: testRepositoryAnalysis
   issue: https://github.com/elastic/elasticsearch/issues/122670
-- class: org.elasticsearch.telemetry.apm.ApmAgentSettingsIT
-  issue: https://github.com/elastic/elasticsearch/issues/122546
-- class: org.elasticsearch.entitlement.qa.EntitlementsDeniedIT
-  issue: https://github.com/elastic/elasticsearch/issues/122566
-- class: org.elasticsearch.entitlement.qa.EntitlementsAllowedIT
-  issue: https://github.com/elastic/elasticsearch/issues/122680
-- class: org.elasticsearch.entitlement.qa.EntitlementsDeniedNonModularIT
-  issue: https://github.com/elastic/elasticsearch/issues/122569
-- class: org.elasticsearch.entitlement.qa.EntitlementsAllowedNonModularIT
-  issue: https://github.com/elastic/elasticsearch/issues/122568
 
 # Examples:
 #

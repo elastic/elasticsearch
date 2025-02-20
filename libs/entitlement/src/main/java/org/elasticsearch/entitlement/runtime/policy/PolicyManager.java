@@ -11,6 +11,8 @@ package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
+import org.elasticsearch.entitlement.bridge.EntitlementChecker;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoaderEntitlement;
@@ -217,7 +219,8 @@ public class PolicyManager {
                 requestingClass.getModule().getName(),
                 requestingClass,
                 operationDescription.get()
-            )
+            ),
+            callerClass
         );
     }
 
@@ -256,6 +259,13 @@ public class PolicyManager {
         checkChangeJVMGlobalState(callerClass);
     }
 
+    /**
+     * Check for operations that can modify the way file operations are handled
+     */
+    public void checkChangeFilesHandling(Class<?> callerClass) {
+        checkChangeJVMGlobalState(callerClass);
+    }
+
     @SuppressForbidden(reason = "Explicitly checking File apis")
     public void checkFileRead(Class<?> callerClass, File file) {
         checkFileRead(callerClass, file.toPath());
@@ -276,7 +286,8 @@ public class PolicyManager {
                     requestingClass.getModule().getName(),
                     requestingClass,
                     path
-                )
+                ),
+                callerClass
             );
         }
     }
@@ -301,9 +312,14 @@ public class PolicyManager {
                     requestingClass.getModule().getName(),
                     requestingClass,
                     path
-                )
+                ),
+                callerClass
             );
         }
+    }
+
+    public void checkCreateTempFile(Class<?> callerClass) {
+        checkFileWrite(callerClass, pathLookup.tempDir());
     }
 
     @SuppressForbidden(reason = "Explicitly checking File apis")
@@ -362,14 +378,15 @@ public class PolicyManager {
         }
 
         var classEntitlements = getEntitlements(requestingClass);
-        checkFlagEntitlement(classEntitlements, InboundNetworkEntitlement.class, requestingClass);
-        checkFlagEntitlement(classEntitlements, OutboundNetworkEntitlement.class, requestingClass);
+        checkFlagEntitlement(classEntitlements, InboundNetworkEntitlement.class, requestingClass, callerClass);
+        checkFlagEntitlement(classEntitlements, OutboundNetworkEntitlement.class, requestingClass, callerClass);
     }
 
     private static void checkFlagEntitlement(
         ModuleEntitlements classEntitlements,
         Class<? extends Entitlement> entitlementClass,
-        Class<?> requestingClass
+        Class<?> requestingClass,
+        Class<?> callerClass
     ) {
         if (classEntitlements.hasEntitlement(entitlementClass) == false) {
             notEntitled(
@@ -379,7 +396,8 @@ public class PolicyManager {
                     requestingClass.getModule().getName(),
                     requestingClass,
                     PolicyParser.getEntitlementTypeName(entitlementClass)
-                )
+                ),
+                callerClass
             );
         }
         logger.debug(
@@ -419,12 +437,18 @@ public class PolicyManager {
                 requestingClass.getModule().getName(),
                 requestingClass,
                 property
-            )
+            ),
+            callerClass
         );
     }
 
-    private static void notEntitled(String message) {
-        throw new NotEntitledException(message);
+    private static void notEntitled(String message, Class<?> callerClass) {
+        var exception = new NotEntitledException(message);
+        // don't log self tests in EntitlementBootstrap
+        if (EntitlementBootstrap.class.equals(callerClass) == false) {
+            logger.warn(message, exception);
+        }
+        throw exception;
     }
 
     public void checkManageThreadsEntitlement(Class<?> callerClass) {
@@ -436,7 +460,7 @@ public class PolicyManager {
         if (isTriviallyAllowed(requestingClass)) {
             return;
         }
-        checkFlagEntitlement(getEntitlements(requestingClass), entitlementClass, requestingClass);
+        checkFlagEntitlement(getEntitlements(requestingClass), entitlementClass, requestingClass, callerClass);
     }
 
     ModuleEntitlements getEntitlements(Class<?> requestingClass) {
@@ -534,6 +558,10 @@ public class PolicyManager {
         }
         if (systemModules.contains(requestingClass.getModule())) {
             logger.debug("Entitlement trivially allowed from system module [{}]", requestingClass.getModule().getName());
+            return true;
+        }
+        if (EntitlementChecker.class.isAssignableFrom(requestingClass)) {
+            logger.debug("Entitlement trivially allowed for EntitlementChecker class");
             return true;
         }
         logger.trace("Entitlement not trivially allowed");

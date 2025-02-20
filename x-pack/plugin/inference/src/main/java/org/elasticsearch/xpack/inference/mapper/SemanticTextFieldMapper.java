@@ -997,7 +997,11 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 }
                 denseVectorMapperBuilder.dimensions(modelSettings.dimensions());
                 denseVectorMapperBuilder.elementType(modelSettings.elementType());
-                denseVectorMapperBuilder.indexOptions(indexOptions);
+                if (indexOptions != null) {
+                    indexOptions.validateDimension(modelSettings.dimensions());
+                    indexOptions.validateElementType(modelSettings.elementType());
+                    denseVectorMapperBuilder.indexOptions(indexOptions);
+                }
 
                 yield denseVectorMapperBuilder;
             }

@@ -1191,7 +1191,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         abstract KnnVectorsFormat getVectorsFormat(ElementType elementType);
 
-        final void validateElementType(ElementType elementType) {
+        public final void validateElementType(ElementType elementType) {
             if (type.supportsElementType(elementType) == false) {
                 throw new IllegalArgumentException(
                     "[element_type] cannot be [" + elementType.toString() + "] when using index type [" + type + "]"
@@ -2322,6 +2322,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(leafName(), indexCreatedVersion).init(this);
+    }
+
+    public IndexOptions indexOptions() {
+        return indexOptions;
     }
 
     public static IndexOptions parseIndexOptions(String fieldName, Object propNode) {

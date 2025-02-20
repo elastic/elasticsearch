@@ -180,6 +180,7 @@ public class TransportVersions {
     public static final TransportVersion REMOVE_ALL_APPLICABLE_SELECTOR_BACKPORT_8_19 = def(8_841_0_02);
     public static final TransportVersion ESQL_RETRY_ON_SHARD_LEVEL_FAILURE_BACKPORT_8_19 = def(8_841_0_03);
     public static final TransportVersion ESQL_SUPPORT_PARTIAL_RESULTS_BACKPORT_8_19 = def(8_841_0_04);
+    public static final TransportVersion VOYAGE_AI_INTEGRATION_ADDED_BACKPORT_8_X = def(8_841_0_05);
     public static final TransportVersion INITIAL_ELASTICSEARCH_9_0 = def(9_000_0_00);
     public static final TransportVersion REMOVE_SNAPSHOT_FAILURES_90 = def(9_000_0_01);
     public static final TransportVersion TRANSPORT_STATS_HANDLING_TIME_REQUIRED_90 = def(9_000_0_02);
@@ -199,7 +200,8 @@ public class TransportVersions {
     public static final TransportVersion ESQL_SUPPORT_PARTIAL_RESULTS = def(9_011_0_00);
     public static final TransportVersion REMOVE_REPOSITORY_CONFLICT_MESSAGE = def(9_012_0_00);
     public static final TransportVersion RERANKER_FAILURES_ALLOWED = def(9_013_0_00);
-    public static final TransportVersion INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM = def(9_014_0_00);
+    public static final TransportVersion VOYAGE_AI_INTEGRATION_ADDED = def(9_014_0_00);
+    public static final TransportVersion INCLUDE_INDEX_MODE_IN_GET_DATA_STREAM = def(9_015_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,

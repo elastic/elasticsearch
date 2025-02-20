@@ -406,7 +406,10 @@ public class SimpleBlocksIT extends ESIntegTestCase {
             startInParallel(threadCount, i -> {
                 try {
                     AddIndexBlockResponse response = indicesAdmin().prepareAddBlock(block, indexName).get();
-                    assertTrue("Add block [" + block + "] to index [" + indexName + "] not acknowledged: " + response, response.isAcknowledged());
+                    assertTrue(
+                        "Add block [" + block + "] to index [" + indexName + "] not acknowledged: " + response,
+                        response.isAcknowledged()
+                    );
                     assertIndexHasBlock(block, indexName);
                 } catch (final ClusterBlockException e) {
                     assertThat(e.blocks(), hasSize(1));

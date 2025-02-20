@@ -73,7 +73,8 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
             () -> IndexVersion.min(
                 IndexVersion.current(),
                 parameters.clusterService().state().nodes().getMaxDataNodeCompatibleIndexVersion()
-            )
+            ),
+            () -> parameters.clusterService().state().nodes().getMinNodeVersion()
         );
         return List.of(syntheticSettingProvider, logsdbIndexModeSettingsProvider);
     }

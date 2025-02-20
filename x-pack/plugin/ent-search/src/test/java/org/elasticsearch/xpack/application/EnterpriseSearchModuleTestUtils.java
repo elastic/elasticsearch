@@ -29,7 +29,6 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.test.ESTestCase.generateRandomStringArray;
-import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomDoubleBetween;
@@ -106,11 +105,10 @@ public final class EnterpriseSearchModuleTestUtils {
         List<Object> values = new ArrayList<>();
         int numValues = randomIntBetween(1, 3);
 
-        if (List.of(QueryRuleCriteriaType.GT, QueryRuleCriteriaType.GTE,
-                    QueryRuleCriteriaType.LT, QueryRuleCriteriaType.LTE).contains(criteriaType)) {
+        if (List.of(QueryRuleCriteriaType.GT, QueryRuleCriteriaType.GTE, QueryRuleCriteriaType.LT, QueryRuleCriteriaType.LTE)
+            .contains(criteriaType)) {
             for (int i = 0; i < numValues; i++) {
-                BigDecimal value = BigDecimal.valueOf(randomDoubleBetween(0, 1000, true))
-                    .setScale(2, RoundingMode.HALF_UP);
+                BigDecimal value = BigDecimal.valueOf(randomDoubleBetween(0, 1000, true)).setScale(2, RoundingMode.HALF_UP);
                 values.add(value.toString());
             }
         } else if (criteriaType == QueryRuleCriteriaType.ALWAYS) {
@@ -140,15 +138,17 @@ public final class EnterpriseSearchModuleTestUtils {
     }
 
     public static Map<String, Object> randomQueryRuleActions() {
-        if (randomBoolean()) {  
+        if (randomBoolean()) {
             return Map.of(QueryRule.IDS_FIELD.getPreferredName(), List.of(randomAlphaOfLengthBetween(3, 10)));
         }
         return Map.of(
             QueryRule.DOCS_FIELD.getPreferredName(),
             List.of(
                 Map.of(
-                    QueryRule.INDEX_FIELD.getPreferredName(), randomAlphaOfLengthBetween(3, 10),
-                    QueryRule.ID_FIELD.getPreferredName(), randomAlphaOfLengthBetween(3, 10)
+                    QueryRule.INDEX_FIELD.getPreferredName(),
+                    randomAlphaOfLengthBetween(3, 10),
+                    QueryRule.ID_FIELD.getPreferredName(),
+                    randomAlphaOfLengthBetween(3, 10)
                 )
             )
         );

@@ -44,8 +44,8 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.repositories.gcs.GoogleCloudStorageOperationsStats.Operation;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.ByteArrayInputStream;
 import java.io.FilterOutputStream;

@@ -22,20 +22,35 @@ versions << [
   'hadoop': '3.4.1'
 ]
 
+def patched = Attribute.of('patched', Boolean)
+
 configurations {
   hdfsFixture2
   hdfsFixture3
+  compileClasspath {
+    attributes {
+      attribute(patched, true)
+    }
+  }
+  runtimeClasspath {
+    attributes {
+      attribute(patched, true)
+    }
+  }
+  testCompileClasspath {
+    attributes {
+      attribute(patched, true)
+    }
+  }
+  testRuntimeClasspath {
+    attributes {
+      attribute(patched, true)
+    }
+  }
 }
 
 dependencies {
-  api project(path: 'hadoop-client-api', configuration: 'default')
-  if (isEclipse) {
-    /*
-     * Eclipse can't pick up the shadow dependency so we point it at *something*
-     * so it can compile things.
-     */
-    api project(path: 'hadoop-client-api')
-  }
+  api("org.apache.hadoop:hadoop-client-api:${versions.hadoop}")
   runtimeOnly "org.apache.hadoop:hadoop-client-runtime:${versions.hadoop}"
   implementation "org.apache.hadoop:hadoop-hdfs:${versions.hadoop}"
   api "com.google.protobuf:protobuf-java:${versions.protobuf}"
@@ -69,6 +84,20 @@ dependencies {
 
   hdfsFixture2 project(path: ':test:fixtures:hdfs-fixture', configuration: 'shadowedHdfs2')
   hdfsFixture3 project(path: ':test:fixtures:hdfs-fixture', configuration: 'shadow')
+
+  attributesSchema {
+    attribute(patched)
+  }
+  artifactTypes.getByName("jar") {
+    attributes.attribute(patched, false)
+  }
+  registerTransform(org.elasticsearch.gradle.internal.dependencies.patches.hdfs.HdfsClassPatcher) {
+    from.attribute(patched, false)
+    to.attribute(patched, true)
+    parameters {
+      matchingArtifacts = ["hadoop-client-api"]
+    }
+  }
 }
 
 restResources {
@@ -190,6 +219,15 @@ tasks.named("thirdPartyAudit").configure {
     'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$MemoryAccessor',
     'org.apache.hadoop.thirdparty.protobuf.MessageSchema',
     'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$Android32MemoryAccessor',
-    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$Android64MemoryAccessor'
+    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$Android64MemoryAccessor',
+    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$Android64MemoryAccessor',
+    'org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm',
+    'org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm$Slot',
+    'org.apache.hadoop.io.FastByteComparisons$LexicographicalComparerHolder$UnsafeComparer',
+    'org.apache.hadoop.io.FastByteComparisons$LexicographicalComparerHolder$UnsafeComparer$1',
+    'org.apache.hadoop.io.nativeio.NativeIO',
+    'org.apache.hadoop.service.launcher.InterruptEscalator',
+    'org.apache.hadoop.service.launcher.IrqHandler',
+    'org.apache.hadoop.util.SignalLogger$Handler'
   )
 }

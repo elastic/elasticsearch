@@ -304,7 +304,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
         ).getDestIndex();
 
         // assert both static and dynamic settings set on dest index
-        var settingsResponse = safeGet(indicesAdmin().getSettings(new GetSettingsRequest().indices(destIndex)));
+        var settingsResponse = safeGet(indicesAdmin().getSettings(new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(destIndex)));
         assertEquals(numReplicas, Integer.parseInt(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_NUMBER_OF_REPLICAS)));
         assertEquals(numShards, Integer.parseInt(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_NUMBER_OF_SHARDS)));
         assertEquals(refreshInterval, settingsResponse.getSetting(destIndex, IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()));
@@ -345,7 +345,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
             client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
         ).getDestIndex();
 
-        var settingsResponse = safeGet(indicesAdmin().getSettings(new GetSettingsRequest().indices(destIndex)));
+        var settingsResponse = safeGet(indicesAdmin().getSettings(new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(destIndex)));
         assertFalse(parseBoolean(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_READ_ONLY)));
         assertFalse(parseBoolean(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE)));
         assertFalse(parseBoolean(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_BLOCKS_WRITE)));
@@ -370,7 +370,9 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
             client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
         ).getDestIndex();
 
-        var settingsResponse = safeGet(indicesAdmin().getSettings(new GetSettingsRequest().indices(sourceIndex, destIndex)));
+        var settingsResponse = safeGet(
+            indicesAdmin().getSettings(new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(sourceIndex, destIndex))
+        );
         var destSettings = settingsResponse.getIndexToSettings().get(destIndex);
 
         assertEquals(
@@ -417,7 +419,7 @@ public class ReindexDatastreamIndexTransportActionIT extends ESIntegTestCase {
 
         // verify settings from templates copied to dest index
         {
-            var settingsResponse = safeGet(indicesAdmin().getSettings(new GetSettingsRequest().indices(destIndex)));
+            var settingsResponse = safeGet(indicesAdmin().getSettings(new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(destIndex)));
             assertEquals(numReplicas, Integer.parseInt(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_NUMBER_OF_REPLICAS)));
             assertEquals(numShards, Integer.parseInt(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_NUMBER_OF_SHARDS)));
         }

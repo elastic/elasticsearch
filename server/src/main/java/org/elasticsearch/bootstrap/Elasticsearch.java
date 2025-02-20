@@ -244,6 +244,7 @@ class Elasticsearch {
                 nodeEnv::resolveRepoDir,
                 nodeEnv.dataDirs(),
                 nodeEnv.configDir(),
+                nodeEnv.libDir(),
                 nodeEnv.logsDir(),
                 nodeEnv.tmpDir()
             );

@@ -1554,23 +1554,48 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assumeTrue("requires failure store feature", DataStream.isFailureStoreFeatureFlagEnabled());
         String indexPattern = randomAlphanumericOfLength(10);
         boolean allowRestrictedIndices = randomBoolean();
-        final Role role = buildRole(
-            roleDescriptorWithIndicesPrivileges(
-                "r1",
-                new IndicesPrivileges[] {
-                    IndicesPrivileges.builder()
-                        .indices(indexPattern)
-                        .privileges("read_failure_store")
-                        .allowRestrictedIndices(allowRestrictedIndices)
-                        .build(),
-                    IndicesPrivileges.builder()
-                        .indices(indexPattern)
-                        .privileges("read_failure_store")
-                        .allowRestrictedIndices(allowRestrictedIndices)
-                        .build() }
+        final List<Role> roles = List.of(
+            buildRole(
+                roleDescriptorWithIndicesPrivileges(
+                    "r1",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read_failure_store")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build(),
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read_failure_store")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build() }
+                )
+            ),
+            buildRole(
+                roleDescriptorWithIndicesPrivileges(
+                    "r1",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read_failure_store")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build() }
+                ),
+                roleDescriptorWithIndicesPrivileges(
+                    "r2",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read_failure_store")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build() }
+                )
             )
         );
-        assertHasIndexGroups(role.indices(), indexGroup(IndexPrivilege.READ_FAILURE_STORE, allowRestrictedIndices, indexPattern));
+        // the roles are different "format" but the same so should produce the same index groups
+        for (var role : roles) {
+            assertHasIndexGroups(role.indices(), indexGroup(IndexPrivilege.READ_FAILURE_STORE, allowRestrictedIndices, indexPattern));
+        }
     }
 
     public void testBuildRoleWithReadFailureStoreAndReadPrivilegeSplit() {
@@ -1595,112 +1620,243 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
     }
 
+    public void testBuildRoleWithReadFailureStoreAndReadPrivilegeAndMultipleIndexPatternsSplit() {
+        assumeTrue("requires failure store feature", DataStream.isFailureStoreFeatureFlagEnabled());
+        String indexPattern = randomAlphanumericOfLength(10);
+        String otherIndexPattern = randomValueOtherThan(indexPattern, () -> randomAlphanumericOfLength(10));
+        boolean allowRestrictedIndices = randomBoolean();
+        List<Role> roles = List.of(
+            buildRole(
+                roleDescriptorWithIndicesPrivileges(
+                    "r1",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read", "write")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build(),
+                        IndicesPrivileges.builder()
+                            .indices(otherIndexPattern)
+                            .privileges("read", "read_failure_store")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build() }
+                )
+            ),
+            buildRole(
+                roleDescriptorWithIndicesPrivileges(
+                    "r1",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read", "write")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build() }
+                ),
+                roleDescriptorWithIndicesPrivileges(
+                    "r2",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(otherIndexPattern)
+                            .privileges("read", "read_failure_store")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build() }
+                )
+            )
+        );
+        // the roles are different "format" but the same so should produce the same index groups
+        for (var role : roles) {
+            assertHasIndexGroups(
+                role.indices(),
+                indexGroup(IndexPrivilege.getWithSingleSelectorAccess(Set.of("read", "write")), allowRestrictedIndices, indexPattern),
+                indexGroup(IndexPrivilege.READ, allowRestrictedIndices, otherIndexPattern),
+                indexGroup(IndexPrivilege.READ_FAILURE_STORE, allowRestrictedIndices, otherIndexPattern)
+            );
+        }
+    }
+
     public void testBuildRoleWithMultipleReadFailureStoreAndReadPrivilegeSplit() {
         assumeTrue("requires failure store feature", DataStream.isFailureStoreFeatureFlagEnabled());
         String indexPattern = randomAlphanumericOfLength(10);
         boolean allowRestrictedIndices = randomBoolean();
-        final Role role = buildRole(
-            roleDescriptorWithIndicesPrivileges(
-                "r1",
-                new IndicesPrivileges[] {
-                    IndicesPrivileges.builder()
-                        .indices(indexPattern)
-                        .privileges("read")
-                        .allowRestrictedIndices(allowRestrictedIndices)
-                        .build(),
-                    IndicesPrivileges.builder()
-                        .indices(indexPattern)
-                        .privileges("read_failure_store")
-                        .allowRestrictedIndices(allowRestrictedIndices)
-                        .build() }
+        final List<Role> roles = List.of(
+            buildRole(
+                roleDescriptorWithIndicesPrivileges(
+                    "r1",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build(),
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read_failure_store")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build() }
+                )
+            ),
+            buildRole(
+                roleDescriptorWithIndicesPrivileges(
+                    "r1",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build() }
+                ),
+                roleDescriptorWithIndicesPrivileges(
+                    "r2",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read_failure_store")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build() }
+                )
             )
         );
-        assertHasIndexGroups(
-            role.indices(),
-            indexGroup(IndexPrivilege.READ_FAILURE_STORE, allowRestrictedIndices, indexPattern),
-            indexGroup(IndexPrivilege.READ, allowRestrictedIndices, indexPattern)
-        );
+        // the roles are different "format" but the same so should produce the same index groups
+        for (var role : roles) {
+            assertHasIndexGroups(
+                role.indices(),
+                indexGroup(IndexPrivilege.READ_FAILURE_STORE, allowRestrictedIndices, indexPattern),
+                indexGroup(IndexPrivilege.READ, allowRestrictedIndices, indexPattern)
+            );
+        }
     }
 
     public void testBuildRoleWithAllPrivilegeIsNeverSplit() {
         assumeTrue("requires failure store feature", DataStream.isFailureStoreFeatureFlagEnabled());
         String indexPattern = randomAlphanumericOfLength(10);
         boolean allowRestrictedIndices = randomBoolean();
-        final Role role = buildRole(
-            roleDescriptorWithIndicesPrivileges(
-                "r1",
-                new IndicesPrivileges[] {
-                    IndicesPrivileges.builder()
-                        .indices(indexPattern)
-                        .privileges("read", "read_failure_store", "all")
-                        .allowRestrictedIndices(allowRestrictedIndices)
-                        .build(),
-                    IndicesPrivileges.builder()
-                        .indices(indexPattern)
-                        .privileges("read_failure_store")
-                        .allowRestrictedIndices(allowRestrictedIndices)
-                        .build() }
+        final List<Role> roles = List.of(
+            buildRole(
+                roleDescriptorWithIndicesPrivileges(
+                    "r1",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read", "read_failure_store", "all")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build(),
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read_failure_store")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build() }
+                )
+            ),
+            buildRole(
+                roleDescriptorWithIndicesPrivileges(
+                    "r1",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read", "read_failure_store", "all")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build() }
+                ),
+                roleDescriptorWithIndicesPrivileges(
+                    "r2",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read_failure_store")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build() }
+                )
             )
         );
-        assertHasIndexGroups(
-            role.indices(),
-            indexGroup(
-                IndexPrivilege.getWithSingleSelectorAccess(Set.of("read", "read_failure_store", "all")),
-                allowRestrictedIndices,
-                indexPattern
-            )
-        );
+        // the roles are different "format" but the same so should produce the same index groups
+        for (var role : roles) {
+            assertHasIndexGroups(
+                role.indices(),
+                indexGroup(
+                    IndexPrivilege.getWithSingleSelectorAccess(Set.of("read", "read_failure_store", "all")),
+                    allowRestrictedIndices,
+                    indexPattern
+                )
+            );
+        }
     }
 
     public void testBuildRoleWithFailureStorePrivilegeCollatesToRemoveDlsFlsFromAnotherGroup() {
         assumeTrue("requires failure store feature", DataStream.isFailureStoreFeatureFlagEnabled());
         String indexPattern = randomAlphanumericOfLength(10);
         boolean allowRestrictedIndices = randomBoolean();
-        final Role role = buildRole(
-            roleDescriptorWithIndicesPrivileges(
-                "r1",
-                new IndicesPrivileges[] {
-                    IndicesPrivileges.builder()
-                        .indices(indexPattern)
-                        .privileges("read_failure_store")
-                        .allowRestrictedIndices(allowRestrictedIndices)
-                        .build(),
-                    IndicesPrivileges.builder()
-                        .indices(indexPattern)
-                        .privileges("read", "view_index_metadata")
-                        .query("{\"match\":{\"field\":\"a\"}}")
-                        .grantedFields("field")
-                        .allowRestrictedIndices(allowRestrictedIndices)
-                        .build() }
-            )
-        );
-        assertHasIndexGroups(
-            role.indices(),
-            indexGroup(
-                IndexPrivilege.getWithSingleSelectorAccess(Set.of("read_failure_store")),
-                allowRestrictedIndices,
-                null,
-                new FieldPermissionsDefinition(
-                    Set.of(
-                        new FieldPermissionsDefinition.FieldGrantExcludeGroup(null, null),
-                        new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "field" }, null)
-                    )
-                ),
-                indexPattern
+        final List<Role> roles = List.of(
+            buildRole(
+                roleDescriptorWithIndicesPrivileges(
+                    "r1",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read_failure_store")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build(),
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read", "view_index_metadata")
+                            .query("{\"match\":{\"field\":\"a\"}}")
+                            .grantedFields("field")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build() }
+                )
             ),
-            indexGroup(
-                IndexPrivilege.getWithSingleSelectorAccess(Set.of("read", "view_index_metadata")),
-                allowRestrictedIndices,
-                null,
-                new FieldPermissionsDefinition(
-                    Set.of(
-                        new FieldPermissionsDefinition.FieldGrantExcludeGroup(null, null),
-                        new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "field" }, null)
-                    )
+            buildRole(
+                roleDescriptorWithIndicesPrivileges(
+                    "r1",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read_failure_store")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build() }
                 ),
-                indexPattern
+                roleDescriptorWithIndicesPrivileges(
+                    "r2",
+                    new IndicesPrivileges[] {
+                        IndicesPrivileges.builder()
+                            .indices(indexPattern)
+                            .privileges("read", "view_index_metadata")
+                            .query("{\"match\":{\"field\":\"a\"}}")
+                            .grantedFields("field")
+                            .allowRestrictedIndices(allowRestrictedIndices)
+                            .build() }
+                )
             )
         );
+        for (var role : roles) {
+            assertHasIndexGroups(
+                role.indices(),
+                indexGroup(
+                    IndexPrivilege.getWithSingleSelectorAccess(Set.of("read_failure_store")),
+                    allowRestrictedIndices,
+                    null,
+                    new FieldPermissionsDefinition(
+                        Set.of(
+                            new FieldPermissionsDefinition.FieldGrantExcludeGroup(null, null),
+                            new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "field" }, null)
+                        )
+                    ),
+                    indexPattern
+                ),
+                indexGroup(
+                    IndexPrivilege.getWithSingleSelectorAccess(Set.of("read", "view_index_metadata")),
+                    allowRestrictedIndices,
+                    null,
+                    new FieldPermissionsDefinition(
+                        Set.of(
+                            new FieldPermissionsDefinition.FieldGrantExcludeGroup(null, null),
+                            new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "field" }, null)
+                        )
+                    ),
+                    indexPattern
+                )
+            );
+
+        }
     }
 
     public void testBuildRoleWithFailureStorePrivilegeCollatesToKeepDlsFlsFromAnotherGroup() {

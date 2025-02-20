@@ -77,6 +77,8 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CR
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CROSS_CLUSTER_ACCESS_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_TYPE;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.UNIVERSAL_API_KEY_REALM_NAME;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.UNIVERSAL_API_KEY_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.RealmDomain.REALM_DOMAIN_PARSER;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.Fields.REMOTE_CLUSTER;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
@@ -117,7 +119,7 @@ public final class Authentication implements ToXContentObject {
     private final Subject authenticatingSubject;
     private final Subject effectiveSubject;
 
-    private Authentication(Subject subject, AuthenticationType type) {
+    public Authentication(Subject subject, AuthenticationType type) {
         this(subject, subject, type);
     }
 
@@ -1212,9 +1214,14 @@ public final class Authentication implements ToXContentObject {
             return new Authentication.RealmRef(ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE, nodeName, null);
         }
 
-        static RealmRef newApiKeyRealmRef(String nodeName) {
+        public static RealmRef newApiKeyRealmRef(String nodeName) {
             // no domain for API Key tokens
             return new RealmRef(API_KEY_REALM_NAME, API_KEY_REALM_TYPE, nodeName, null);
+        }
+
+        public static RealmRef newUniversalApiKeyRealmRef(String nodeName) {
+            // no domain for API Key tokens
+            return new RealmRef(UNIVERSAL_API_KEY_REALM_NAME, UNIVERSAL_API_KEY_REALM_TYPE, nodeName, null);
         }
 
         static RealmRef newCrossClusterAccessRealmRef(String nodeName) {

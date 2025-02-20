@@ -202,8 +202,9 @@ abstract class DataNodeRequestSender {
 
     private static Exception unwrapFailure(Exception e) {
         e = e instanceof TransportException te ? FailureCollector.unwrapTransportException(te) : e;
-        if (TransportActions.isShardNotAvailableException(e)) {
-            return NoShardAvailableActionException.forOnShardFailureWrapper(e.getMessage());
+        Throwable cause = ExceptionsHelper.unwrapCause(e);
+        if (TransportActions.isShardNotAvailableException(cause)) {
+            return NoShardAvailableActionException.forOnShardFailureWrapper(e, cause);
         } else {
             return e;
         }

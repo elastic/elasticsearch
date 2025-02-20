@@ -442,10 +442,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * @param e the failure reason
      */
     void onShardFailure(final int shardIndex, SearchShardTarget shardTarget, Exception e) {
-        if (TransportActions.isShardNotAvailableException(e)) {
+        Throwable cause = ExceptionsHelper.unwrapCause(e);
+        if (TransportActions.isShardNotAvailableException(cause)) {
             // Groups shard not available exceptions under a generic exception that returns a SERVICE_UNAVAILABLE(503)
             // temporary error.
-            e = NoShardAvailableActionException.forOnShardFailureWrapper(e.getMessage());
+            e = NoShardAvailableActionException.forOnShardFailureWrapper(e, cause);
         }
         // we don't aggregate shard on failures due to the internal cancellation,
         // but do keep the header counts right

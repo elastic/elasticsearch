@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
@@ -116,17 +117,22 @@ public class ShardSearchFailureTests extends ESTestCase {
     public void testToXContentForNoShardAvailable() throws IOException {
         ShardId shardId = new ShardId(new Index("indexName", "indexUuid"), 123);
         ShardSearchFailure failure = new ShardSearchFailure(
-            NoShardAvailableActionException.forOnShardFailureWrapper("shard unassigned"),
+            NoShardAvailableActionException.forOnShardFailureWrapper(new AlreadyClosedException("shard unassigned"), null),
             new SearchShardTarget("nodeId", shardId, null)
         );
         BytesReference xContent = toXContent(failure, XContentType.JSON, randomBoolean());
-        assertEquals(XContentHelper.stripWhitespace("""
-            {
-              "shard": 123,
-              "index": "indexName",
-              "node": "nodeId",
-              "reason":{"type":"no_shard_available_action_exception","reason":"shard unassigned"}
-            }"""), xContent.utf8ToString());
+        assertEquals(
+            XContentHelper.stripWhitespace(
+                """
+                    {
+                      "shard": 123,
+                      "index": "indexName",
+                      "node": "nodeId",
+                      "reason":{"type":"no_shard_available_action_exception","reason":"org.apache.lucene.store.AlreadyClosedException: shard unassigned, cause: null"}
+                    }"""
+            ),
+            xContent.utf8ToString()
+        );
     }
 
     public void testToXContentWithClusterAlias() throws IOException {
@@ -156,7 +162,10 @@ public class ShardSearchFailureTests extends ESTestCase {
                 testItem = createTestItem(randomAlphaOfLength(12));
             } else {
                 SearchShardTarget target = randomShardTarget(randomAlphaOfLength(12));
-                testItem = new ShardSearchFailure(NoShardAvailableActionException.forOnShardFailureWrapper("unavailable"), target);
+                testItem = new ShardSearchFailure(
+                    NoShardAvailableActionException.forOnShardFailureWrapper(new AlreadyClosedException("unavailable"), null),
+                    target
+                );
             }
             ShardSearchFailure deserializedInstance = copyWriteable(
                 testItem,

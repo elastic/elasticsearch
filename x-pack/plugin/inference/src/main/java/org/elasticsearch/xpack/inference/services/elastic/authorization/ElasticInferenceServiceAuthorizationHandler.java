@@ -76,7 +76,7 @@ public class ElasticInferenceServiceAuthorizationHandler {
             logger.debug("Retrieving authorization information from the Elastic Inference Service.");
 
             if (Strings.isNullOrEmpty(baseUrl)) {
-                logger.warn("The base URL for the authorization service is not valid, rejecting authorization.");
+                logger.debug("The base URL for the authorization service is not valid, rejecting authorization.");
                 listener.onResponse(ElasticInferenceServiceAuthorization.newDisabledService());
                 return;
             }

@@ -889,7 +889,6 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
         flush(indexName);
         bulkResponse = indexDocs(indexName, between(16, 128), docIdSupplier);
         Arrays.stream(bulkResponse.getItems()).forEach(item -> docsIds.add(item.getId()));
-
         var hollowShardsServiceA = internalCluster().getInstance(HollowShardsService.class, indexNodeA);
         for (int i = 0; i < numberOfShards; i++) {
             var indexShard = findIndexShard(index, i);
@@ -933,7 +932,8 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
                     // Update doc or Upsert new doc
                     case Update -> () -> {
                         try {
-                            for (int j = 0; j < 32; j++) { // need enough updates to be sure to hollow every shard
+                            for (int j = 0; j < Math.min(docsIds.size(), 128); j++) { // need enough updates to be sure to hollow every
+                                                                                      // shard
                                 final var upsertOrUpdate = randomBoolean();
                                 var docId = upsertOrUpdate ? docIdSupplier.get() : randomFrom(docsIds);
                                 var response = client().prepareUpdate(indexName, docId)
@@ -955,7 +955,8 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessIntegTestCase
                         try {
                             var client = client();
                             var bulkUpdates = client.prepareBulk();
-                            for (int j = 0; j < 32; j++) { // need enough updates to be sure to hollow every shard
+                            for (int j = 0; j < Math.min(docsIds.size(), 128); j++) { // need enough updates to be sure to hollow every
+                                                                                      // shard
                                 var docId = randomFrom(docsIds);
                                 bulkUpdates.add(client.prepareUpdate(indexName, docId).setDoc("field", randomUnicodeOfLength(10)));
                             }

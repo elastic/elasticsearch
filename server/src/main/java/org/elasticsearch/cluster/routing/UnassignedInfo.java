@@ -175,7 +175,11 @@ public record UnassignedInfo(
         /**
          * Replica is unpromotable and the primary failed.
          */
-        UNPROMOTABLE_REPLICA
+        UNPROMOTABLE_REPLICA,
+        /**
+         * New shard added as part of index re-sharding operation
+         */
+        SHARD_ADDED
     }
 
     /**
@@ -335,6 +339,8 @@ public record UnassignedInfo(
             out.writeByte((byte) Reason.NODE_LEFT.ordinal());
         } else if (reason.equals(Reason.UNPROMOTABLE_REPLICA) && out.getTransportVersion().before(VERSION_UNPROMOTABLE_REPLICA_ADDED)) {
             out.writeByte((byte) Reason.PRIMARY_FAILED.ordinal());
+        } else if (reason.equals(Reason.SHARD_ADDED) && out.getTransportVersion().before(TransportVersions.UNASSIGENEDINFO_SHARD_ADDED)) {
+            out.writeByte((byte) Reason.FORCED_EMPTY_PRIMARY.ordinal());
         } else {
             out.writeByte((byte) reason.ordinal());
         }

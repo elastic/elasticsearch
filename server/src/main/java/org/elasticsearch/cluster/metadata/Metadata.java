@@ -2169,6 +2169,20 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             return this;
         }
 
+        /* Gives the following exception:
+          java.lang.IllegalStateException: primaryTerms length is [1] but should be equal to number of shards [2]
+         */
+        public Builder updateNumberOfShards(final int numberOfShards, final String index) {
+            IndexMetadata indexMetadata = this.indices.get(index);
+            if (indexMetadata == null) {
+                throw new IndexNotFoundException(index);
+            }
+            IndexMetadata newIndexMetadata = indexMetadata.withIncrementedPrimaryShards(numberOfShards);
+            put(IndexMetadata.builder(newIndexMetadata).numberOfShards(numberOfShards));
+
+            return this;
+        }
+
         public Builder coordinationMetadata(CoordinationMetadata coordinationMetadata) {
             this.coordinationMetadata = coordinationMetadata;
             return this;

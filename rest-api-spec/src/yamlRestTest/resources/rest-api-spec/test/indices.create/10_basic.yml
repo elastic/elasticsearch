@@ -214,3 +214,20 @@
             index.mode: lookup
             index.number_of_shards: 2
 
+---
+"Create index with invalid field type":
+  - requires:
+      cluster_features: ["gte_v8.19.0"]
+      reason: "The error message updated after 8.18"
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            properties:
+              "content":
+                type: invalid
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "The mapper type [invalid] does not exist. It might have been created within a future version or requires a plugin to be installed. Check the documentation." }
+

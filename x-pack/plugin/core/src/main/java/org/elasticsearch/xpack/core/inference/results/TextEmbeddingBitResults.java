@@ -13,12 +13,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.inference.InferenceResults;
-import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -42,22 +40,27 @@ import java.util.Objects;
  *     ]
  * }
  */
-public record InferenceTextEmbeddingByteResults(List<InferenceByteEmbedding> embeddings) implements InferenceServiceResults, TextEmbedding {
-    public static final String NAME = "text_embedding_service_byte_results";
-    public static final String TEXT_EMBEDDING_BYTES = "text_embedding_bytes";
+public record TextEmbeddingBitResults(List<TextEmbeddingByteResults.Embedding> embeddings)
+    implements
+        TextEmbeddingResults<TextEmbeddingByteResults.Chunk, TextEmbeddingByteResults.Embedding> {
+    public static final String NAME = "text_embedding_service_bit_results";
+    public static final String TEXT_EMBEDDING_BITS = "text_embedding_bits";
 
-    public InferenceTextEmbeddingByteResults(StreamInput in) throws IOException {
-        this(in.readCollectionAsList(InferenceByteEmbedding::new));
+    public TextEmbeddingBitResults(StreamInput in) throws IOException {
+        this(in.readCollectionAsList(TextEmbeddingByteResults.Embedding::new));
     }
 
     @Override
     public int getFirstEmbeddingSize() {
-        return TextEmbeddingUtils.getFirstEmbeddingSize(new ArrayList<>(embeddings));
+        if (embeddings.isEmpty()) {
+            throw new IllegalStateException("Embeddings list is empty");
+        }
+        return embeddings.getFirst().values().length;
     }
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContent.builder(params).array(TEXT_EMBEDDING_BYTES, embeddings.iterator());
+        return ChunkedToXContent.builder(params).array(TEXT_EMBEDDING_BITS, embeddings.iterator());
     }
 
     @Override
@@ -73,7 +76,7 @@ public record InferenceTextEmbeddingByteResults(List<InferenceByteEmbedding> emb
     @Override
     public List<? extends InferenceResults> transformToCoordinationFormat() {
         return embeddings.stream()
-            .map(embedding -> new MlTextEmbeddingResults(TEXT_EMBEDDING_BYTES, embedding.toDoubleArray(), false))
+            .map(embedding -> new MlTextEmbeddingResults(TEXT_EMBEDDING_BITS, embedding.toDoubleArray(), false))
             .toList();
     }
 
@@ -89,7 +92,7 @@ public record InferenceTextEmbeddingByteResults(List<InferenceByteEmbedding> emb
 
     public Map<String, Object> asMap() {
         Map<String, Object> map = new LinkedHashMap<>();
-        map.put(TEXT_EMBEDDING_BYTES, embeddings);
+        map.put(TEXT_EMBEDDING_BITS, embeddings);
 
         return map;
     }
@@ -98,7 +101,7 @@ public record InferenceTextEmbeddingByteResults(List<InferenceByteEmbedding> emb
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        InferenceTextEmbeddingByteResults that = (InferenceTextEmbeddingByteResults) o;
+        TextEmbeddingBitResults that = (TextEmbeddingBitResults) o;
         return Objects.equals(embeddings, that.embeddings);
     }
 

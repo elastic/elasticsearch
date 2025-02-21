@@ -1,5 +1,5 @@
 pr: 122381
-summary: Add basic implementations of float-byte script comparisons
+summary: Adds implementations of dotProduct and cosineSimilarity painless methods to operate on float vectors for byte fields
 area: Vector Search
 type: enhancement
 issues:

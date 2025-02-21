@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 
@@ -158,7 +159,26 @@ public class IndexAbstractionResolver {
             if (indexAbstraction.isSystem()) {
                 // check if it is net new
                 if (resolver.getNetNewSystemIndexPredicate().test(indexAbstraction.getName())) {
-                    return isSystemIndexVisible(resolver, indexAbstraction);
+                    // don't give this code any particular credit for being *correct*. it's just trying to resolve a combination of
+                    // issues in a way that happens to *work*. there's probably a better way of writing things such that this won't
+                    // be necessary, but for the moment, it happens to be expedient to write things this way.
+
+                    // unwrap the alias and re-run the function on the write index of the alias -- that is, the alias is visible if
+                    // the concrete index that it refers to is visible
+                    Index writeIndex = indexAbstraction.getWriteIndex();
+                    if (writeIndex == null) {
+                        return false;
+                    } else {
+                        return isIndexVisible(
+                            expression,
+                            selectorString,
+                            writeIndex.getName(),
+                            indicesOptions,
+                            metadata,
+                            resolver,
+                            includeDataStreams
+                        );
+                    }
                 }
             }
 

@@ -23,10 +23,12 @@ public final class FileAccessTree {
 
     private static final String FILE_SEPARATOR = getDefaultFileSystem().getSeparator();
 
+    private final String[] exclusivePaths;
     private final String[] readPaths;
     private final String[] writePaths;
 
-    private FileAccessTree(FilesEntitlement filesEntitlement, PathLookup pathLookup) {
+    private FileAccessTree(FilesEntitlement filesEntitlement, PathLookup pathLookup, List<String> exclusivePaths) {
+        List<String> updatedExclusivePaths = new ArrayList<>();
         List<String> readPaths = new ArrayList<>();
         List<String> writePaths = new ArrayList<>();
         for (FilesEntitlement.FileData fileData : filesEntitlement.filesData()) {
@@ -34,6 +36,14 @@ public final class FileAccessTree {
             var paths = fileData.resolvePaths(pathLookup);
             paths.forEach(path -> {
                 var normalized = normalizePath(path);
+                for (String exclusivePath : exclusivePaths) {
+                    if (normalized.equals(exclusivePath) == false) {
+                        if (normalized.startsWith(exclusivePath)) {
+                            // TODO: throw
+                        }
+                        updatedExclusivePaths.add(exclusivePath);
+                    }
+                }
                 if (mode == FilesEntitlement.Mode.READ_WRITE) {
                     writePaths.add(normalized);
                 }
@@ -49,12 +59,29 @@ public final class FileAccessTree {
         readPaths.sort(String::compareTo);
         writePaths.sort(String::compareTo);
 
-        this.readPaths = readPaths.toArray(new String[0]);
-        this.writePaths = writePaths.toArray(new String[0]);
+        this.exclusivePaths = updatedExclusivePaths.toArray(new String[0]);
+        this.readPaths = pruneSortedPaths(readPaths).toArray(new String[0]);
+        this.writePaths = pruneSortedPaths(writePaths).toArray(new String[0]);
     }
 
-    public static FileAccessTree of(FilesEntitlement filesEntitlement, PathLookup pathLookup) {
-        return new FileAccessTree(filesEntitlement, pathLookup);
+    public static List<String> pruneSortedPaths(List<String> paths) {
+        List<String> prunedReadPaths = new ArrayList<>();
+        if (paths.isEmpty() == false) {
+            String currentPath = paths.get(0);
+            prunedReadPaths.add(currentPath);
+            for (int i = 1; i < paths.size(); ++i) {
+                String nextPath = paths.get(i);
+                if (nextPath.equals(currentPath) == false && nextPath.startsWith(currentPath) == false) {
+                    prunedReadPaths.add(nextPath);
+                    currentPath = nextPath;
+                }
+            }
+        }
+        return prunedReadPaths;
+    }
+
+    public static FileAccessTree of(FilesEntitlement filesEntitlement, PathLookup pathLookup, List<String> exclusivePaths) {
+        return new FileAccessTree(filesEntitlement, pathLookup, exclusivePaths);
     }
 
     boolean canRead(Path path) {
@@ -75,8 +102,8 @@ public final class FileAccessTree {
         return path.toAbsolutePath().normalize().toString();
     }
 
-    private static boolean checkPath(String path, String[] paths) {
-        if (paths.length == 0) {
+    private boolean checkPath(String path, String[] paths) {
+        if (paths.length == 0 || Arrays.binarySearch(exclusivePaths, path) >= 0) {
             return false;
         }
         int ndx = Arrays.binarySearch(paths, path);

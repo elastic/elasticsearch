@@ -1,5 +1,5 @@
 pr: 122860
-summary: Improved error message when index field type is unknown
-area: Relevance
+summary: Improved error message when index field type is invalid
+area: Mapping
 type: enhancement
 issues: []

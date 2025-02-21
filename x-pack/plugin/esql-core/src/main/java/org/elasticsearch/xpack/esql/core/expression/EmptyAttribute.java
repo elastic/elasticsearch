@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -21,7 +22,7 @@ import java.io.IOException;
  */
 public class EmptyAttribute extends Attribute {
     public EmptyAttribute(Source source) {
-        super(source, StringUtils.EMPTY, null);
+        super(source, null, StringUtils.EMPTY, null);
     }
 
     @Override
@@ -35,7 +36,15 @@ public class EmptyAttribute extends Attribute {
     }
 
     @Override
-    protected Attribute clone(Source source, String name, DataType type, Nullability nullability, NameId id, boolean synthetic) {
+    protected Attribute clone(
+        Source source,
+        @Nullable String qualifier,
+        String name,
+        DataType type,
+        Nullability nullability,
+        NameId id,
+        boolean synthetic
+    ) {
         return this;
     }
 

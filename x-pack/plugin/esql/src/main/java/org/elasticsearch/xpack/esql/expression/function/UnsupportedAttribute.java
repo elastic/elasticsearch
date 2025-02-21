@@ -59,27 +59,43 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
     private final String message;
     private final boolean hasCustomMessage; // TODO remove me and just use message != null?
 
-    private static String errorMessage(String name, UnsupportedEsField field) {
+    private static String errorMessage(@Nullable String qualifier, String name, UnsupportedEsField field) {
+        // TODO: use qualifier
         return "Cannot use field [" + name + "] with unsupported type [" + field.getOriginalType() + "]";
     }
 
-    public UnsupportedAttribute(Source source, String name, UnsupportedEsField field) {
-        this(source, name, field, null);
+    public UnsupportedAttribute(Source source, @Nullable String qualifier, String name, UnsupportedEsField field) {
+        this(source, qualifier, name, field, null);
     }
 
-    public UnsupportedAttribute(Source source, String name, UnsupportedEsField field, @Nullable String customMessage) {
-        this(source, name, field, customMessage, null);
+    public UnsupportedAttribute(
+        Source source,
+        @Nullable String qualifier,
+        String name,
+        UnsupportedEsField field,
+        @Nullable String customMessage
+    ) {
+        this(source, qualifier, name, field, customMessage, null);
     }
 
-    public UnsupportedAttribute(Source source, String name, UnsupportedEsField field, @Nullable String customMessage, @Nullable NameId id) {
-        super(source, null, name, field, Nullability.TRUE, id, false);
+    public UnsupportedAttribute(
+        Source source,
+        @Nullable String qualifier,
+        String name,
+        UnsupportedEsField field,
+        @Nullable String customMessage,
+        @Nullable NameId id
+    ) {
+        super(source, null, qualifier, name, field, Nullability.TRUE, id, false);
         this.hasCustomMessage = customMessage != null;
-        this.message = customMessage == null ? errorMessage(name(), field) : customMessage;
+        this.message = customMessage == null ? errorMessage(qualifier, name, field) : customMessage;
     }
 
     private UnsupportedAttribute(StreamInput in) throws IOException {
         this(
+            // TODO: new TransportVersion
             Source.readFrom((PlanStreamInput) in),
+            in.readOptionalString(),
             readCachedStringWithVersionCheck(in),
             in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_2) ? EsField.readFrom(in) : new UnsupportedEsField(in),
             in.readOptionalString(),
@@ -89,8 +105,10 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        // TODO: new TransportVersion
         if (((PlanStreamOutput) out).writeAttributeCacheHeader(this)) {
             Source.EMPTY.writeTo(out);
+            out.writeOptionalString(qualifier());
             writeCachedStringWithVersionCheck(out, name());
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_2)) {
                 field().writeTo(out);
@@ -134,8 +152,16 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
     }
 
     @Override
-    protected Attribute clone(Source source, String name, DataType type, Nullability nullability, NameId id, boolean synthetic) {
-        return new UnsupportedAttribute(source, name, field(), hasCustomMessage ? message : null, id);
+    protected Attribute clone(
+        Source source,
+        @Nullable String qualifier,
+        String name,
+        DataType type,
+        Nullability nullability,
+        NameId id,
+        boolean synthetic
+    ) {
+        return new UnsupportedAttribute(source, qualifier, name, field(), hasCustomMessage ? message : null, id);
     }
 
     protected String label() {

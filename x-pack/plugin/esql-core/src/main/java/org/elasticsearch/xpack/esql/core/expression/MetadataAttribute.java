@@ -68,7 +68,8 @@ public class MetadataAttribute extends TypedAttribute {
         boolean synthetic,
         boolean searchable
     ) {
-        super(source, name, dataType, nullability, id, synthetic);
+        // TODO: Do MetadataAttributes ever need qualifiers?
+        super(source, null, name, dataType, nullability, id, synthetic);
         this.searchable = searchable;
     }
 

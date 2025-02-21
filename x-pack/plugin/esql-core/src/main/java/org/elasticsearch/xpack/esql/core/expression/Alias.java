@@ -29,7 +29,11 @@ import static java.util.Collections.singletonList;
  *
  */
 public final class Alias extends NamedExpression {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(NamedExpression.class, "Alias", Alias::new);
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        NamedExpression.class,
+        "Alias",
+        Alias::readFrom
+    );
 
     private final Expression child;
 
@@ -39,36 +43,29 @@ public final class Alias extends NamedExpression {
      */
     private Attribute lazyAttribute;
 
-    public Alias(Source source, String name, Expression child) {
-        this(source, name, child, null);
+    public Alias(Source source, @Nullable String qualifier, String name, Expression child) {
+        this(source, qualifier, name, child, null);
     }
 
-    public Alias(Source source, String name, Expression child, @Nullable NameId id) {
-        this(source, name, child, id, false);
+    public Alias(Source source, @Nullable String qualifier, String name, Expression child, @Nullable NameId id) {
+        this(source, name, qualifier, child, id, false);
     }
 
-    public Alias(Source source, String name, Expression child, @Nullable NameId id, boolean synthetic) {
-        super(source, name, singletonList(child), id, synthetic);
+    // TODO: flip order of name and qualifier
+    public Alias(Source source, @Nullable String qualifier, String name, Expression child, @Nullable NameId id, boolean synthetic) {
+        super(source, qualifier, name, singletonList(child), id, synthetic);
         this.child = child;
     }
 
-    @Deprecated
-    /**
-     * Old constructor from when this had a qualifier string. Still needed to not break serialization.
-     */
-    private Alias(Source source, String name, String qualifier, Expression child, @Nullable NameId id, boolean synthetic) {
-        this(source, name, child, id, synthetic);
-    }
+    private static Alias readFrom(StreamInput in) throws IOException {
+        Source source = Source.readFrom((StreamInput & PlanStreamInput) in);
+        String name = in.readString();
+        String qualifier = in.readOptionalString();
+        Expression child = in.readNamedWriteable(Expression.class);
+        NameId id = NameId.readFrom((StreamInput & PlanStreamInput) in);
+        boolean synthetic = in.readBoolean();
 
-    public Alias(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((StreamInput & PlanStreamInput) in),
-            in.readString(),
-            in.readOptionalString(),
-            in.readNamedWriteable(Expression.class),
-            NameId.readFrom((StreamInput & PlanStreamInput) in),
-            in.readBoolean()
-        );
+        return new Alias(source, qualifier, name, child, id, synthetic);
     }
 
     @Override
@@ -76,7 +73,7 @@ public final class Alias extends NamedExpression {
         Source.EMPTY.writeTo(out);
         out.writeString(name());
         // We used to write the qualifier here. We can still do if needed in the future.
-        out.writeOptionalString(null);
+        out.writeOptionalString(qualifier());
         out.writeNamedWriteable(child());
         id().writeTo(out);
         out.writeBoolean(synthetic());
@@ -89,16 +86,16 @@ public final class Alias extends NamedExpression {
 
     @Override
     protected NodeInfo<Alias> info() {
-        return NodeInfo.create(this, Alias::new, name(), child, id(), synthetic());
+        return NodeInfo.create(this, Alias::new, qualifier(), name(), child, id(), synthetic());
     }
 
     public Alias replaceChild(Expression child) {
-        return new Alias(source(), name(), child, id(), synthetic());
+        return new Alias(source(), qualifier(), name(), child, id(), synthetic());
     }
 
     @Override
     public Alias replaceChildren(List<Expression> newChildren) {
-        return new Alias(source(), name(), newChildren.get(0), id(), synthetic());
+        return new Alias(source(), qualifier(), name(), newChildren.get(0), id(), synthetic());
     }
 
     public Expression child() {
@@ -124,8 +121,8 @@ public final class Alias extends NamedExpression {
     public Attribute toAttribute() {
         if (lazyAttribute == null) {
             lazyAttribute = resolved()
-                ? new ReferenceAttribute(source(), name(), dataType(), nullable(), id(), synthetic())
-                : new UnresolvedAttribute(source(), name());
+                ? new ReferenceAttribute(source(), qualifier(), name(), dataType(), nullable(), id(), synthetic())
+                : new UnresolvedAttribute(source(), qualifier(), name());
         }
         return lazyAttribute;
     }

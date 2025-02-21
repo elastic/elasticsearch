@@ -25,17 +25,24 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
     private final boolean customMessage;
     private final Object resolutionMetadata;
 
-    public UnresolvedAttribute(Source source, String name) {
-        this(source, name, null);
+    public UnresolvedAttribute(Source source, @Nullable String qualifier, String name) {
+        this(source, qualifier, name, null);
     }
 
-    public UnresolvedAttribute(Source source, String name, String unresolvedMessage) {
-        this(source, name, null, unresolvedMessage, null);
+    public UnresolvedAttribute(Source source, @Nullable String qualifier, String name, String unresolvedMessage) {
+        this(source, qualifier, name, null, unresolvedMessage, null);
     }
 
     @SuppressWarnings("this-escape")
-    public UnresolvedAttribute(Source source, String name, @Nullable NameId id, String unresolvedMessage, Object resolutionMetadata) {
-        super(source, name, id);
+    public UnresolvedAttribute(
+        Source source,
+        @Nullable String qualifier,
+        String name,
+        @Nullable NameId id,
+        String unresolvedMessage,
+        Object resolutionMetadata
+    ) {
+        super(source, qualifier, name, id);
         this.customMessage = unresolvedMessage != null;
         this.unresolvedMsg = unresolvedMessage == null ? errorMessage(name(), null) : unresolvedMessage;
         this.resolutionMetadata = resolutionMetadata;

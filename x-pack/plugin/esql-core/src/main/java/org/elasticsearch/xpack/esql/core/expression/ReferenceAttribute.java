@@ -28,19 +28,20 @@ public class ReferenceAttribute extends TypedAttribute {
         ReferenceAttribute::readFrom
     );
 
-    public ReferenceAttribute(Source source, String name, DataType dataType) {
-        this(source, name, dataType, Nullability.FALSE, null, false);
+    public ReferenceAttribute(Source source, @Nullable String qualifier, String name, DataType dataType) {
+        this(source, qualifier, name, dataType, Nullability.FALSE, null, false);
     }
 
     public ReferenceAttribute(
         Source source,
+        @Nullable String qualifier,
         String name,
         DataType dataType,
         Nullability nullability,
         @Nullable NameId id,
         boolean synthetic
     ) {
-        super(source, name, dataType, nullability, id, synthetic);
+        super(source, qualifier, name, dataType, nullability, id, synthetic);
     }
 
     @Deprecated
@@ -56,28 +57,7 @@ public class ReferenceAttribute extends TypedAttribute {
         NameId id,
         boolean synthetic
     ) {
-        this(source, name, dataType, nullability, id, synthetic);
-    }
-
-    @SuppressWarnings("unchecked")
-    private ReferenceAttribute(StreamInput in) throws IOException {
-        /*
-         * The funny casting dance with `(StreamInput & PlanStreamInput) in` is required
-         * because we're in esql-core here and the real PlanStreamInput is in
-         * esql-proper. And because NamedWriteableRegistry.Entry needs StreamInput,
-         * not a PlanStreamInput. And we need PlanStreamInput to handle Source
-         * and NameId. This should become a hard cast when we move everything out
-         * of esql-core.
-         */
-        this(
-            Source.readFrom((StreamInput & PlanStreamInput) in),
-            in.readString(),
-            DataType.readFrom(in),
-            in.readOptionalString(),
-            in.readEnum(Nullability.class),
-            NameId.readFrom((StreamInput & PlanStreamInput) in),
-            in.readBoolean()
-        );
+        this(source, qualifier, name, dataType, nullability, id, synthetic);
     }
 
     @Override
@@ -95,7 +75,27 @@ public class ReferenceAttribute extends TypedAttribute {
     }
 
     public static ReferenceAttribute readFrom(StreamInput in) throws IOException {
-        return ((PlanStreamInput) in).readAttributeWithCache(ReferenceAttribute::new);
+        return ((PlanStreamInput) in).readAttributeWithCache(ReferenceAttribute::readFromInner);
+    }
+
+    private static ReferenceAttribute readFromInner(StreamInput in) throws IOException {
+        /*
+         * The funny casting dance with `(StreamInput & PlanStreamInput) in` is required
+         * because we're in esql-core here and the real PlanStreamInput is in
+         * esql-proper. And because NamedWriteableRegistry.Entry needs StreamInput,
+         * not a PlanStreamInput. And we need PlanStreamInput to handle Source
+         * and NameId. This should become a hard cast when we move everything out
+         * of esql-core.
+         */
+        Source source = Source.readFrom((StreamInput & PlanStreamInput) in);
+        String name = in.readString();
+        DataType type = DataType.readFrom(in);
+        String qualifier = in.readOptionalString();
+        Nullability nullability = in.readEnum(Nullability.class);
+        NameId id = NameId.readFrom((StreamInput & PlanStreamInput) in);
+        boolean synthetic = in.readBoolean();
+
+        return new ReferenceAttribute(source, qualifier, name, type, nullability, id, synthetic);
     }
 
     @Override
@@ -104,13 +104,21 @@ public class ReferenceAttribute extends TypedAttribute {
     }
 
     @Override
-    protected Attribute clone(Source source, String name, DataType dataType, Nullability nullability, NameId id, boolean synthetic) {
-        return new ReferenceAttribute(source, name, dataType, null, nullability, id, synthetic);
+    protected Attribute clone(
+        Source source,
+        @Nullable String qualifier,
+        String name,
+        DataType dataType,
+        Nullability nullability,
+        NameId id,
+        boolean synthetic
+    ) {
+        return new ReferenceAttribute(source, qualifier, name, dataType, nullability, id, synthetic);
     }
 
     @Override
     protected NodeInfo<ReferenceAttribute> info() {
-        return NodeInfo.create(this, ReferenceAttribute::new, name(), dataType(), nullable(), id(), synthetic());
+        return NodeInfo.create(this, ReferenceAttribute::new, qualifier(), name(), dataType(), nullable(), id(), synthetic());
     }
 
     @Override

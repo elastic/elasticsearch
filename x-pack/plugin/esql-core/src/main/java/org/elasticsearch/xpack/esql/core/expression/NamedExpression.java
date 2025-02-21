@@ -19,21 +19,36 @@ import java.util.Objects;
  */
 public abstract class NamedExpression extends Expression implements NamedWriteable {
 
+    // TODO: when serializing, these should probably be cached
+    private final String qualifier;
     private final String name;
     private final NameId id;
     private final boolean synthetic;
 
-    public NamedExpression(Source source, String name, List<Expression> children, @Nullable NameId id) {
-        this(source, name, children, id, false);
+    public NamedExpression(Source source, @Nullable String qualifier, String name, List<Expression> children, @Nullable NameId id) {
+        this(source, qualifier, name, children, id, false);
     }
 
-    public NamedExpression(Source source, String name, List<Expression> children, @Nullable NameId id, boolean synthetic) {
+    public NamedExpression(
+        Source source,
+        @Nullable String qualifier,
+        String name,
+        List<Expression> children,
+        @Nullable NameId id,
+        boolean synthetic
+    ) {
         super(source, children);
+        this.qualifier = qualifier;
         this.name = name;
         this.id = id == null ? new NameId() : id;
         this.synthetic = synthetic;
     }
 
+    public String qualifier() {
+        return qualifier;
+    }
+
+    // TODO: Wherever this is called needs double checking, this is likely to require updating.
     public String name() {
         return name;
     }
@@ -58,7 +73,7 @@ public abstract class NamedExpression extends Expression implements NamedWriteab
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), name, synthetic);
+        return Objects.hash(super.hashCode(), qualifier, name, synthetic);
     }
 
     @Override
@@ -78,6 +93,7 @@ public abstract class NamedExpression extends Expression implements NamedWriteab
              * `name()` in ways that are not compatible with
              * equality. Specifically the `Unresolved` subclasses.
              */
+            && Objects.equals(qualifier, other.qualifier)
             && Objects.equals(name, other.name)
             && Objects.equals(children(), other.children());
     }

@@ -19,12 +19,8 @@ import static java.util.Collections.emptyList;
 
 public class UnresolvedStar extends UnresolvedNamedExpression {
 
-    // typically used for nested fields or inner/dotted fields
-    private final UnresolvedAttribute qualifier;
-
-    public UnresolvedStar(Source source, UnresolvedAttribute qualifier) {
+    public UnresolvedStar(Source source) {
         super(source, emptyList());
-        this.qualifier = qualifier;
     }
 
     @Override
@@ -50,15 +46,6 @@ public class UnresolvedStar extends UnresolvedNamedExpression {
     @Override
     public Nullability nullable() {
         throw new UnresolvedException("nullable", this);
-    }
-
-    public UnresolvedAttribute qualifier() {
-        return qualifier;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(qualifier);
     }
 
     @Override

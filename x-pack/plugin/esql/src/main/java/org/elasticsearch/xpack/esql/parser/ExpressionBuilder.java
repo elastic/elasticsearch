@@ -338,7 +338,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 }
             }
             if (unresolvedStar) {
-                return new UnresolvedStar(src, null);
+                return new UnresolvedStar(src);
             }
         }
 

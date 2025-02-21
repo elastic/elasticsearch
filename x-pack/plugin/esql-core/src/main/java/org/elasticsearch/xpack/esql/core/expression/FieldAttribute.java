@@ -44,28 +44,36 @@ public class FieldAttribute extends TypedAttribute {
     private final String parentName;
     private final EsField field;
 
-    public FieldAttribute(Source source, String name, EsField field) {
-        this(source, null, name, field);
+    public FieldAttribute(Source source, @Nullable String qualifier, String name, EsField field) {
+        this(source, null, qualifier, name, field);
     }
 
-    public FieldAttribute(Source source, @Nullable String parentName, String name, EsField field) {
-        this(source, parentName, name, field, Nullability.TRUE, null, false);
-    }
-
-    public FieldAttribute(Source source, @Nullable String parentName, String name, EsField field, boolean synthetic) {
-        this(source, parentName, name, field, Nullability.TRUE, null, synthetic);
+    public FieldAttribute(Source source, @Nullable String parentName, @Nullable String qualifier, String name, EsField field) {
+        this(source, parentName, qualifier, name, field, Nullability.TRUE, null, false);
     }
 
     public FieldAttribute(
         Source source,
         @Nullable String parentName,
+        @Nullable String qualifier,
+        String name,
+        EsField field,
+        boolean synthetic
+    ) {
+        this(source, parentName, qualifier, name, field, Nullability.TRUE, null, synthetic);
+    }
+
+    public FieldAttribute(
+        Source source,
+        @Nullable String parentName,
+        @Nullable String qualifier,
         String name,
         EsField field,
         Nullability nullability,
         @Nullable NameId id,
         boolean synthetic
     ) {
-        this(source, parentName, name, field.getDataType(), field, nullability, id, synthetic);
+        this(source, parentName, qualifier, name, field.getDataType(), field, nullability, id, synthetic);
     }
 
     /**
@@ -75,6 +83,7 @@ public class FieldAttribute extends TypedAttribute {
     FieldAttribute(
         Source source,
         @Nullable String parentName,
+        @Nullable String qualifier,
         String name,
         DataType type,
         EsField field,
@@ -82,49 +91,9 @@ public class FieldAttribute extends TypedAttribute {
         @Nullable NameId id,
         boolean synthetic
     ) {
-        super(source, name, type, nullability, id, synthetic);
+        super(source, qualifier, name, type, nullability, id, synthetic);
         this.parentName = parentName;
         this.field = field;
-    }
-
-    @Deprecated
-    /**
-     * Old constructor from when this had a qualifier string. Still needed to not break serialization.
-     */
-    private FieldAttribute(
-        Source source,
-        @Nullable String parentName,
-        String name,
-        DataType type,
-        EsField field,
-        @Nullable String qualifier,
-        Nullability nullability,
-        @Nullable NameId id,
-        boolean synthetic
-    ) {
-        this(source, parentName, name, type, field, nullability, id, synthetic);
-    }
-
-    private FieldAttribute(StreamInput in) throws IOException {
-        /*
-         * The funny casting dance with `(StreamInput & PlanStreamInput) in` is required
-         * because we're in esql-core here and the real PlanStreamInput is in
-         * esql-proper. And because NamedWriteableRegistry.Entry needs StreamInput,
-         * not a PlanStreamInput. And we need PlanStreamInput to handle Source
-         * and NameId. This should become a hard cast when we move everything out
-         * of esql-core.
-         */
-        this(
-            Source.readFrom((StreamInput & PlanStreamInput) in),
-            readParentName(in),
-            readCachedStringWithVersionCheck(in),
-            DataType.readFrom(in),
-            EsField.readFrom(in),
-            in.readOptionalString(),
-            in.readEnum(Nullability.class),
-            NameId.readFrom((StreamInput & PlanStreamInput) in),
-            in.readBoolean()
-        );
     }
 
     @Override
@@ -135,8 +104,7 @@ public class FieldAttribute extends TypedAttribute {
             writeCachedStringWithVersionCheck(out, name());
             dataType().writeTo(out);
             field.writeTo(out);
-            // We used to write the qualifier here. We can still do if needed in the future.
-            out.writeOptionalString(null);
+            out.writeOptionalString(qualifier());
             out.writeEnum(nullable());
             id().writeTo(out);
             out.writeBoolean(synthetic());
@@ -144,7 +112,29 @@ public class FieldAttribute extends TypedAttribute {
     }
 
     public static FieldAttribute readFrom(StreamInput in) throws IOException {
-        return ((PlanStreamInput) in).readAttributeWithCache(FieldAttribute::new);
+        return ((PlanStreamInput) in).readAttributeWithCache(FieldAttribute::readFromInternal);
+    }
+
+    private static FieldAttribute readFromInternal(StreamInput in) throws IOException {
+        /*
+         * The funny casting dance with `(StreamInput & PlanStreamInput) in` is required
+         * because we're in esql-core here and the real PlanStreamInput is in
+         * esql-proper. And because NamedWriteableRegistry.Entry needs StreamInput,
+         * not a PlanStreamInput. And we need PlanStreamInput to handle Source
+         * and NameId. This should become a hard cast when we move everything out
+         * of esql-core.
+         */
+        Source source = Source.readFrom((StreamInput & PlanStreamInput) in);
+        String parentName = readParentName(in);
+        String name = readCachedStringWithVersionCheck(in);
+        DataType type = DataType.readFrom(in);
+        EsField field = EsField.readFrom(in);
+        String qualifier = in.readOptionalString();
+        Nullability nullability = in.readEnum(Nullability.class);
+        NameId id = NameId.readFrom((StreamInput & PlanStreamInput) in);
+        boolean synthetic = in.readBoolean();
+
+        return new FieldAttribute(source, parentName, qualifier, name, type, field, nullability, id, synthetic);
     }
 
     private void writeParentName(StreamOutput out) throws IOException {
@@ -153,7 +143,7 @@ public class FieldAttribute extends TypedAttribute {
         } else {
             // Previous versions only used the parent field attribute to retrieve the parent's name, so we can use just any
             // fake FieldAttribute here as long as the name is correct.
-            FieldAttribute fakeParent = parentName() == null ? null : new FieldAttribute(Source.EMPTY, parentName(), field());
+            FieldAttribute fakeParent = parentName() == null ? null : new FieldAttribute(Source.EMPTY, null, parentName(), field());
             out.writeOptionalWriteable(fakeParent);
         }
     }
@@ -174,7 +164,7 @@ public class FieldAttribute extends TypedAttribute {
 
     @Override
     protected NodeInfo<FieldAttribute> info() {
-        return NodeInfo.create(this, FieldAttribute::new, parentName, name(), field, nullable(), id(), synthetic());
+        return NodeInfo.create(this, FieldAttribute::new, parentName, qualifier(), name(), field, nullable(), id(), synthetic());
     }
 
     public String parentName() {
@@ -202,19 +192,27 @@ public class FieldAttribute extends TypedAttribute {
     public FieldAttribute exactAttribute() {
         EsField exactField = field.getExactField();
         if (exactField.equals(field) == false) {
-            return innerField(exactField);
+            return innerField(qualifier(), exactField);
         }
         return this;
     }
 
-    private FieldAttribute innerField(EsField type) {
-        return new FieldAttribute(source(), name(), name() + "." + type.getName(), type, nullable(), id(), synthetic());
+    private FieldAttribute innerField(@Nullable String qualifier, EsField type) {
+        return new FieldAttribute(source(), name(), qualifier, name() + "." + type.getName(), type, nullable(), id(), synthetic());
     }
 
     @Override
-    protected Attribute clone(Source source, String name, DataType type, Nullability nullability, NameId id, boolean synthetic) {
+    protected Attribute clone(
+        Source source,
+        @Nullable String qualifier,
+        String name,
+        DataType type,
+        Nullability nullability,
+        NameId id,
+        boolean synthetic
+    ) {
         // Ignore `type`, this must be the same as the field's type.
-        return new FieldAttribute(source, parentName, name, field, nullability, id, synthetic);
+        return new FieldAttribute(source, parentName, qualifier, name, field, nullability, id, synthetic);
     }
 
     @Override

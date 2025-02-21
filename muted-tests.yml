@@ -350,6 +350,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
   method: testPartialResults
   issue: https://github.com/elastic/elasticsearch/issues/123101
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {fork.ForkWithWhereSortAndLimit SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/123103
 
 # Examples:
 #

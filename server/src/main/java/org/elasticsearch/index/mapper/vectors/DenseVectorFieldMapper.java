@@ -279,6 +279,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return this;
         }
 
+        public Builder indexOptions(IndexOptions indexOptions) {
+            this.indexOptions.setValue(indexOptions);
+            return this;
+        }
+
         @Override
         public DenseVectorFieldMapper build(MapperBuilderContext context) {
             // Validate again here because the dimensions or element type could have been set programmatically,
@@ -1177,7 +1182,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public abstract VectorSimilarityFunction vectorSimilarityFunction(IndexVersion indexVersion, ElementType elementType);
     }
 
-    abstract static class IndexOptions implements ToXContent {
+    public abstract static class IndexOptions implements ToXContent {
         final VectorIndexType type;
 
         IndexOptions(VectorIndexType type) {
@@ -1186,7 +1191,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         abstract KnnVectorsFormat getVectorsFormat(ElementType elementType);
 
-        final void validateElementType(ElementType elementType) {
+        public final void validateElementType(ElementType elementType) {
             if (type.supportsElementType(elementType) == false) {
                 throw new IllegalArgumentException(
                     "[element_type] cannot be [" + elementType.toString() + "] when using index type [" + type + "]"
@@ -2319,7 +2324,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         return new Builder(leafName(), indexCreatedVersion).init(this);
     }
 
-    private static IndexOptions parseIndexOptions(String fieldName, Object propNode) {
+    public IndexOptions indexOptions() {
+        return indexOptions;
+    }
+
+    public static IndexOptions parseIndexOptions(String fieldName, Object propNode) {
         @SuppressWarnings("unchecked")
         Map<String, ?> indexOptionsMap = (Map<String, ?>) propNode;
         Object typeNode = indexOptionsMap.remove("type");

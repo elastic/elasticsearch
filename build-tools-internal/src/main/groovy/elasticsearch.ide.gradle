@@ -163,8 +163,7 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
   tasks.register('buildDependencyArtifacts') {
     group = 'ide'
     description = 'Builds artifacts needed as dependency for IDE modules'
-    dependsOn([':plugins:repository-hdfs:hadoop-client-api:jar',
-      ':x-pack:plugin:esql:compute:ann:jar',
+    dependsOn([':x-pack:plugin:esql:compute:ann:jar',
       ':x-pack:plugin:esql:compute:gen:jar',
       ':server:generateModulesList',
       ':server:generatePluginsList',

@@ -9,11 +9,14 @@
 
 package org.elasticsearch.entitlement.bridge;
 
+import jdk.nio.Channels;
+
 import java.io.File;
 import java.io.FileDescriptor;
 import java.io.FileFilter;
 import java.io.FilenameFilter;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.lang.foreign.AddressLayout;
@@ -58,12 +61,18 @@ import java.nio.file.AccessMode;
 import java.nio.file.CopyOption;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileStore;
+import java.nio.file.FileVisitOption;
+import java.nio.file.FileVisitor;
 import java.nio.file.LinkOption;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.WatchEvent;
 import java.nio.file.WatchService;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileAttribute;
+import java.nio.file.attribute.FileAttributeView;
+import java.nio.file.attribute.FileTime;
+import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.UserPrincipal;
 import java.nio.file.spi.FileSystemProvider;
 import java.security.KeyStore;
@@ -77,6 +86,7 @@ import java.util.Set;
 import java.util.TimeZone;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
+import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 
 import javax.net.ssl.HostnameVerifier;
@@ -668,11 +678,209 @@ public interface EntitlementChecker {
     void check$java_util_zip_ZipFile$(Class<?> callerClass, File file, int mode, Charset charset);
 
     // nio
+    // channels
+    void check$java_nio_channels_FileChannel$(Class<?> callerClass);
+
+    void check$java_nio_channels_FileChannel$$open(
+        Class<?> callerClass,
+        Path path,
+        Set<? extends OpenOption> options,
+        FileAttribute<?>... attrs
+    );
+
+    void check$java_nio_channels_FileChannel$$open(Class<?> callerClass, Path path, OpenOption... options);
+
+    void check$java_nio_channels_AsynchronousFileChannel$(Class<?> callerClass);
+
+    void check$java_nio_channels_AsynchronousFileChannel$$open(
+        Class<?> callerClass,
+        Path path,
+        Set<? extends OpenOption> options,
+        ExecutorService executor,
+        FileAttribute<?>... attrs
+    );
+
+    void check$java_nio_channels_AsynchronousFileChannel$$open(Class<?> callerClass, Path path, OpenOption... options);
+
+    void check$jdk_nio_Channels$$readWriteSelectableChannel(
+        Class<?> callerClass,
+        FileDescriptor fd,
+        Channels.SelectableChannelCloser closer
+    );
+
+    // files
     void check$java_nio_file_Files$$getOwner(Class<?> callerClass, Path path, LinkOption... options);
 
     void check$java_nio_file_Files$$probeContentType(Class<?> callerClass, Path path);
 
     void check$java_nio_file_Files$$setOwner(Class<?> callerClass, Path path, UserPrincipal principal);
+
+    void check$java_nio_file_Files$$newInputStream(Class<?> callerClass, Path path, OpenOption... options);
+
+    void check$java_nio_file_Files$$newOutputStream(Class<?> callerClass, Path path, OpenOption... options);
+
+    void check$java_nio_file_Files$$newByteChannel(
+        Class<?> callerClass,
+        Path path,
+        Set<? extends OpenOption> options,
+        FileAttribute<?>... attrs
+    );
+
+    void check$java_nio_file_Files$$newByteChannel(Class<?> callerClass, Path path, OpenOption... options);
+
+    void check$java_nio_file_Files$$newDirectoryStream(Class<?> callerClass, Path dir);
+
+    void check$java_nio_file_Files$$newDirectoryStream(Class<?> callerClass, Path dir, String glob);
+
+    void check$java_nio_file_Files$$newDirectoryStream(Class<?> callerClass, Path dir, DirectoryStream.Filter<? super Path> filter);
+
+    void check$java_nio_file_Files$$createFile(Class<?> callerClass, Path path, FileAttribute<?>... attrs);
+
+    void check$java_nio_file_Files$$createDirectory(Class<?> callerClass, Path dir, FileAttribute<?>... attrs);
+
+    void check$java_nio_file_Files$$createDirectories(Class<?> callerClass, Path dir, FileAttribute<?>... attrs);
+
+    void check$java_nio_file_Files$$createTempFile(Class<?> callerClass, Path dir, String prefix, String suffix, FileAttribute<?>... attrs);
+
+    void check$java_nio_file_Files$$createTempFile(Class<?> callerClass, String prefix, String suffix, FileAttribute<?>... attrs);
+
+    void check$java_nio_file_Files$$createTempDirectory(Class<?> callerClass, Path dir, String prefix, FileAttribute<?>... attrs);
+
+    void check$java_nio_file_Files$$createTempDirectory(Class<?> callerClass, String prefix, FileAttribute<?>... attrs);
+
+    void check$java_nio_file_Files$$createSymbolicLink(Class<?> callerClass, Path link, Path target, FileAttribute<?>... attrs);
+
+    void check$java_nio_file_Files$$createLink(Class<?> callerClass, Path link, Path existing);
+
+    void check$java_nio_file_Files$$delete(Class<?> callerClass, Path path);
+
+    void check$java_nio_file_Files$$deleteIfExists(Class<?> callerClass, Path path);
+
+    void check$java_nio_file_Files$$copy(Class<?> callerClass, Path source, Path target, CopyOption... options);
+
+    void check$java_nio_file_Files$$move(Class<?> callerClass, Path source, Path target, CopyOption... options);
+
+    void check$java_nio_file_Files$$readSymbolicLink(Class<?> callerClass, Path link);
+
+    void check$java_nio_file_Files$$getFileStore(Class<?> callerClass, Path path);
+
+    void check$java_nio_file_Files$$isSameFile(Class<?> callerClass, Path path, Path path2);
+
+    void check$java_nio_file_Files$$mismatch(Class<?> callerClass, Path path, Path path2);
+
+    void check$java_nio_file_Files$$isHidden(Class<?> callerClass, Path path);
+
+    void check$java_nio_file_Files$$getFileAttributeView(
+        Class<?> callerClass,
+        Path path,
+        Class<? extends FileAttributeView> type,
+        LinkOption... options
+    );
+
+    void check$java_nio_file_Files$$readAttributes(
+        Class<?> callerClass,
+        Path path,
+        Class<? extends BasicFileAttributes> type,
+        LinkOption... options
+    );
+
+    void check$java_nio_file_Files$$setAttribute(Class<?> callerClass, Path path, String attribute, Object value, LinkOption... options);
+
+    void check$java_nio_file_Files$$getAttribute(Class<?> callerClass, Path path, String attribute, LinkOption... options);
+
+    void check$java_nio_file_Files$$readAttributes(Class<?> callerClass, Path path, String attributes, LinkOption... options);
+
+    void check$java_nio_file_Files$$getPosixFilePermissions(Class<?> callerClass, Path path, LinkOption... options);
+
+    void check$java_nio_file_Files$$setPosixFilePermissions(Class<?> callerClass, Path path, Set<PosixFilePermission> perms);
+
+    void check$java_nio_file_Files$$isSymbolicLink(Class<?> callerClass, Path path);
+
+    void check$java_nio_file_Files$$isDirectory(Class<?> callerClass, Path path, LinkOption... options);
+
+    void check$java_nio_file_Files$$isRegularFile(Class<?> callerClass, Path path, LinkOption... options);
+
+    void check$java_nio_file_Files$$getLastModifiedTime(Class<?> callerClass, Path path, LinkOption... options);
+
+    void check$java_nio_file_Files$$setLastModifiedTime(Class<?> callerClass, Path path, FileTime time);
+
+    void check$java_nio_file_Files$$size(Class<?> callerClass, Path path);
+
+    void check$java_nio_file_Files$$exists(Class<?> callerClass, Path path, LinkOption... options);
+
+    void check$java_nio_file_Files$$notExists(Class<?> callerClass, Path path, LinkOption... options);
+
+    void check$java_nio_file_Files$$isReadable(Class<?> callerClass, Path path);
+
+    void check$java_nio_file_Files$$isWritable(Class<?> callerClass, Path path);
+
+    void check$java_nio_file_Files$$isExecutable(Class<?> callerClass, Path path);
+
+    void check$java_nio_file_Files$$walkFileTree(
+        Class<?> callerClass,
+        Path start,
+        Set<FileVisitOption> options,
+        int maxDepth,
+        FileVisitor<? super Path> visitor
+    );
+
+    void check$java_nio_file_Files$$walkFileTree(Class<?> callerClass, Path start, FileVisitor<? super Path> visitor);
+
+    void check$java_nio_file_Files$$newBufferedReader(Class<?> callerClass, Path path, Charset cs);
+
+    void check$java_nio_file_Files$$newBufferedReader(Class<?> callerClass, Path path);
+
+    void check$java_nio_file_Files$$newBufferedWriter(Class<?> callerClass, Path path, Charset cs, OpenOption... options);
+
+    void check$java_nio_file_Files$$newBufferedWriter(Class<?> callerClass, Path path, OpenOption... options);
+
+    void check$java_nio_file_Files$$copy(Class<?> callerClass, InputStream in, Path target, CopyOption... options);
+
+    void check$java_nio_file_Files$$copy(Class<?> callerClass, Path source, OutputStream out);
+
+    void check$java_nio_file_Files$$readAllBytes(Class<?> callerClass, Path path);
+
+    void check$java_nio_file_Files$$readString(Class<?> callerClass, Path path);
+
+    void check$java_nio_file_Files$$readString(Class<?> callerClass, Path path, Charset cs);
+
+    void check$java_nio_file_Files$$readAllLines(Class<?> callerClass, Path path, Charset cs);
+
+    void check$java_nio_file_Files$$readAllLines(Class<?> callerClass, Path path);
+
+    void check$java_nio_file_Files$$write(Class<?> callerClass, Path path, byte[] bytes, OpenOption... options);
+
+    void check$java_nio_file_Files$$write(
+        Class<?> callerClass,
+        Path path,
+        Iterable<? extends CharSequence> lines,
+        Charset cs,
+        OpenOption... options
+    );
+
+    void check$java_nio_file_Files$$write(Class<?> callerClass, Path path, Iterable<? extends CharSequence> lines, OpenOption... options);
+
+    void check$java_nio_file_Files$$writeString(Class<?> callerClass, Path path, CharSequence csq, OpenOption... options);
+
+    void check$java_nio_file_Files$$writeString(Class<?> callerClass, Path path, CharSequence csq, Charset cs, OpenOption... options);
+
+    void check$java_nio_file_Files$$list(Class<?> callerClass, Path dir);
+
+    void check$java_nio_file_Files$$walk(Class<?> callerClass, Path start, int maxDepth, FileVisitOption... options);
+
+    void check$java_nio_file_Files$$walk(Class<?> callerClass, Path start, FileVisitOption... options);
+
+    void check$java_nio_file_Files$$find(
+        Class<?> callerClass,
+        Path start,
+        int maxDepth,
+        BiPredicate<Path, BasicFileAttributes> matcher,
+        FileVisitOption... options
+    );
+
+    void check$java_nio_file_Files$$lines(Class<?> callerClass, Path path, Charset cs);
+
+    void check$java_nio_file_Files$$lines(Class<?> callerClass, Path path);
 
     // file system providers
     void check$java_nio_file_spi_FileSystemProvider$(Class<?> callerClass);

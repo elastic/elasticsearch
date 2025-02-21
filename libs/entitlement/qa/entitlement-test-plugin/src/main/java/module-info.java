@@ -16,4 +16,5 @@ module org.elasticsearch.entitlement.qa.test {
     // Modules we'll attempt to use in order to exercise entitlements
     requires java.logging;
     requires java.net.http;
+    requires jdk.net;
 }

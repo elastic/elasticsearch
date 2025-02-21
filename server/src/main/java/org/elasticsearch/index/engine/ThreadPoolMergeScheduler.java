@@ -60,7 +60,11 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     private final CountDownLatch closedWithNoCurrentlyRunningMerges = new CountDownLatch(1);
     private volatile boolean closed = false;
 
-    public ThreadPoolMergeScheduler(ShardId shardId, IndexSettings indexSettings, ThreadPoolMergeExecutorService threadPoolMergeExecutorService) {
+    public ThreadPoolMergeScheduler(
+        ShardId shardId,
+        IndexSettings indexSettings,
+        ThreadPoolMergeExecutorService threadPoolMergeExecutorService
+    ) {
         this.shardId = shardId;
         this.config = indexSettings.getMergeSchedulerConfig();
         this.logger = Loggers.getLogger(getClass(), shardId);

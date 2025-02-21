@@ -511,7 +511,13 @@ public class FollowingEngineTests extends ESTestCase {
         IndexMetadata followerIndexMetadata = IndexMetadata.builder(index.getName()).settings(followerSettings).build();
         IndexSettings followerIndexSettings = new IndexSettings(followerIndexMetadata, Settings.EMPTY);
         try (Store followerStore = createStore(shardId, followerIndexSettings, newDirectory())) {
-            EngineConfig followerConfig = engineConfig(shardId, followerIndexSettings, threadPool, threadPoolMergeExecutorService, followerStore);
+            EngineConfig followerConfig = engineConfig(
+                shardId,
+                followerIndexSettings,
+                threadPool,
+                threadPoolMergeExecutorService,
+                followerStore
+            );
             followerStore.createEmpty();
             String translogUuid = Translog.createEmptyTranslog(
                 followerConfig.getTranslogConfig().getTranslogPath(),
@@ -638,7 +644,7 @@ public class FollowingEngineTests extends ESTestCase {
                         shardId,
                         followerIndexSettings,
                         threadPool,
-                            threadPoolMergeExecutorService,
+                        threadPoolMergeExecutorService,
                         followerStore
                     );
                     try (FollowingEngine followingEngine = createEngine(followerStore, followerConfig)) {

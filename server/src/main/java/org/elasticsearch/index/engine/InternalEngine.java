@@ -2865,7 +2865,11 @@ public class InternalEngine extends Engine {
     }
 
     private final class EngineThreadPoolMergeScheduler extends ThreadPoolMergeScheduler {
-        EngineThreadPoolMergeScheduler(ShardId shardId, IndexSettings indexSettings, ThreadPoolMergeExecutorService threadPoolMergeExecutorService) {
+        EngineThreadPoolMergeScheduler(
+            ShardId shardId,
+            IndexSettings indexSettings,
+            ThreadPoolMergeExecutorService threadPoolMergeExecutorService
+        ) {
             super(shardId, indexSettings, threadPoolMergeExecutorService);
         }
 

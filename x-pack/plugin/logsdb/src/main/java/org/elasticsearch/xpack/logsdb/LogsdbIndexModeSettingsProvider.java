@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.logsdb;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.UUIDs;
@@ -52,6 +53,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     private final LogsdbLicenseService licenseService;
     private final SetOnce<CheckedFunction<IndexMetadata, MapperService, IOException>> mapperServiceFactory = new SetOnce<>();
     private final SetOnce<Supplier<IndexVersion>> createdIndexVersion = new SetOnce<>();
+    private final SetOnce<Supplier<Version>> minNodeVersion = new SetOnce<>();
     private final SetOnce<Boolean> supportFallbackToStoredSource = new SetOnce<>();
     private final SetOnce<Boolean> supportFallbackLogsdbRouting = new SetOnce<>();
 
@@ -69,11 +71,13 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
     void init(
         CheckedFunction<IndexMetadata, MapperService, IOException> factory,
         Supplier<IndexVersion> indexVersion,
+        Supplier<Version> minNodeVersion,
         boolean supportFallbackToStoredSource,
         boolean supportFallbackLogsdbRouting
     ) {
         this.mapperServiceFactory.set(factory);
         this.createdIndexVersion.set(indexVersion);
+        this.minNodeVersion.set(minNodeVersion);
         this.supportFallbackToStoredSource.set(supportFallbackToStoredSource);
         this.supportFallbackLogsdbRouting.set(supportFallbackLogsdbRouting);
     }
@@ -111,7 +115,9 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         MappingHints mappingHints = getMappingHints(indexName, templateIndexMode, settings, combinedTemplateMappings);
 
         // Inject stored source mode if synthetic source if not available per licence.
-        if (mappingHints.hasSyntheticSourceUsage && supportFallbackToStoredSource.get()) {
+        if (mappingHints.hasSyntheticSourceUsage
+            && supportFallbackToStoredSource.get()
+            && minNodeVersion.get().get().onOrAfter(Version.V_8_17_0)) {
             // This index name is used when validating component and index templates, we should skip this check in that case.
             // (See MetadataIndexTemplateService#validateIndexTemplateV2(...) method)
             boolean legacyLicensedUsageOfSyntheticSourceAllowed = isLegacyLicensedUsageOfSyntheticSourceAllowed(
@@ -128,7 +134,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
             }
         }
 
-        if (isLogsDB) {
+        if (isLogsDB && minNodeVersion.get().get().onOrAfter(Version.V_8_18_0)) {
             // Inject sorting on [host.name], in addition to [@timestamp].
             if (mappingHints.sortOnHostName) {
                 if (mappingHints.addHostNameField) {

@@ -33,11 +33,11 @@ import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleRequest;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleResponse;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleExplainResponse;
+import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.PhaseExecutionInfo;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
-import org.elasticsearch.xpack.ilm.IndexLifecycleService;
 
 import java.io.IOException;
 import java.util.Map;
@@ -49,7 +49,6 @@ import static org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep.applyDef
 public class TransportExplainLifecycleAction extends TransportClusterInfoAction<ExplainLifecycleRequest, ExplainLifecycleResponse> {
 
     private final NamedXContentRegistry xContentRegistry;
-    private final IndexLifecycleService indexLifecycleService;
 
     @Inject
     public TransportExplainLifecycleAction(
@@ -58,8 +57,7 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        NamedXContentRegistry xContentRegistry,
-        IndexLifecycleService indexLifecycleService
+        NamedXContentRegistry xContentRegistry
     ) {
         super(
             ExplainLifecycleAction.NAME,
@@ -68,11 +66,9 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
             threadPool,
             actionFilters,
             ExplainLifecycleRequest::new,
-            indexNameExpressionResolver,
-            ExplainLifecycleResponse::new
+            indexNameExpressionResolver
         );
         this.xContentRegistry = xContentRegistry;
-        this.indexLifecycleService = indexLifecycleService;
     }
 
     @Override
@@ -95,7 +91,6 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
                     state.metadata(),
                     request.onlyErrors(),
                     request.onlyManaged(),
-                    indexLifecycleService,
                     xContentRegistry,
                     rolloverOnlyIfHasDocuments
                 );
@@ -117,7 +112,6 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
         Metadata metadata,
         boolean onlyErrors,
         boolean onlyManaged,
-        IndexLifecycleService indexLifecycleService,
         NamedXContentRegistry xContentRegistry,
         boolean rolloverOnlyIfHasDocuments
     ) throws IOException {
@@ -165,9 +159,10 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
 
         final IndexLifecycleExplainResponse indexResponse;
         if (metadata.isIndexManagedByILM(indexMetadata)) {
+            final IndexLifecycleMetadata indexLifecycleMetadata = metadata.custom(IndexLifecycleMetadata.TYPE);
+            final boolean policyExists = indexLifecycleMetadata.getPolicies().containsKey(policyName);
             // If this is requesting only errors, only include indices in the error step or which are using a nonexistent policy
-            if (onlyErrors == false
-                || (ErrorStep.NAME.equals(lifecycleState.step()) || indexLifecycleService.policyExists(policyName) == false)) {
+            if (onlyErrors == false || (ErrorStep.NAME.equals(lifecycleState.step()) || policyExists == false)) {
                 Long originationDate = idxSettings.getAsLong(LIFECYCLE_ORIGINATION_DATE, -1L);
                 indexResponse = IndexLifecycleExplainResponse.newManagedIndexResponse(
                     indexName,
@@ -177,7 +172,7 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
                     lifecycleState.phase(),
                     lifecycleState.action(),
                     // treat a missing policy as if the index is in the error step
-                    indexLifecycleService.policyExists(policyName) == false ? ErrorStep.NAME : lifecycleState.step(),
+                    policyExists == false ? ErrorStep.NAME : lifecycleState.step(),
                     lifecycleState.failedStep(),
                     lifecycleState.isAutoRetryableError(),
                     lifecycleState.failedStepRetryCount(),

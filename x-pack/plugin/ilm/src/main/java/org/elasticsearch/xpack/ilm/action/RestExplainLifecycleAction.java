@@ -12,6 +12,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleRequest;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
@@ -41,6 +42,10 @@ public class RestExplainLifecycleAction extends BaseRestHandler {
         explainLifecycleRequest.indicesOptions(IndicesOptions.fromRequest(restRequest, IndicesOptions.strictExpandOpen()));
         explainLifecycleRequest.onlyManaged(restRequest.paramAsBoolean("only_managed", false));
         explainLifecycleRequest.onlyErrors(restRequest.paramAsBoolean("only_errors", false));
-        return channel -> client.execute(ExplainLifecycleAction.INSTANCE, explainLifecycleRequest, new RestToXContentListener<>(channel));
+        return channel -> new RestCancellableNodeClient(client, restRequest.getHttpChannel()).execute(
+            ExplainLifecycleAction.INSTANCE,
+            explainLifecycleRequest,
+            new RestToXContentListener<>(channel)
+        );
     }
 }

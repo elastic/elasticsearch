@@ -107,7 +107,7 @@ public class EqlInfoTransportActionTests extends ESTestCase {
             client
         );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(mock(Task.class), null, null, future);
+        usageAction.localClusterStateOperation(mock(Task.class), null, null, future);
         EqlFeatureSetUsage eqlUsage = (EqlFeatureSetUsage) future.get().getUsage();
 
         long fooBarBaz = ObjectPath.eval("foo.bar.baz", eqlUsage.stats());

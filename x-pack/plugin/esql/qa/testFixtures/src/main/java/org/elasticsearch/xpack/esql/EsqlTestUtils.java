@@ -66,6 +66,8 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.inference.InferenceResolution;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.parser.QueryParam;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -374,7 +376,8 @@ public final class EsqlTestUtils {
         null,
         mock(ClusterService.class),
         mock(IndexNameExpressionResolver.class),
-        null
+        null,
+        mock(InferenceService.class)
     );
 
     private EsqlTestUtils() {}
@@ -452,6 +455,10 @@ public final class EsqlTestUtils {
         return new EnrichResolution();
     }
 
+    public static InferenceResolution emptyInferenceResolution() {
+        return InferenceResolution.EMPTY;
+    }
+    
     public static SearchStats statsForExistingField(String... names) {
         return fieldMatchingExistOrMissing(true, names);
     }

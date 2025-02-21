@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession.PlanRunner;
 import org.elasticsearch.xpack.esql.session.Result;
@@ -79,6 +80,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     private final AsyncTaskManagementService<EsqlQueryRequest, EsqlQueryResponse, EsqlQueryTask> asyncTaskManagementService;
     private final RemoteClusterService remoteClusterService;
     private final UsageService usageService;
+    private final InferenceService inferenceService;
     private final TransportActionServices services;
 
     @Inject
@@ -150,13 +152,16 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         this.remoteClusterService = transportService.getRemoteClusterService();
         this.usageService = usageService;
 
+        this.inferenceService = new InferenceService(client);
+
         this.services = new TransportActionServices(
             transportService,
             searchService,
             exchangeService,
             clusterService,
             indexNameExpressionResolver,
-            usageService
+            usageService,
+            inferenceService
         );
     }
 

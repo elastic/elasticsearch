@@ -8,7 +8,10 @@
 package org.elasticsearch.xpack.esql.plan.logical.inference;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.AliasTests;
 import org.elasticsearch.xpack.esql.plan.logical.AbstractLogicalPlanSerializationTests;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -16,25 +19,27 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+
 public class RerankSerializationTests extends AbstractLogicalPlanSerializationTests<Rerank> {
     @Override
     protected Rerank createTestInstance() {
         Source source = randomSource();
         LogicalPlan child = randomChild(0);
-        return new Rerank(source, child, randomIdentifier(), randomIdentifier(), randomFields());
+        return new Rerank(source, child, string(randomIdentifier()), string(randomIdentifier()), randomFields());
     }
 
     @Override
     protected Rerank mutateInstance(Rerank instance) throws IOException {
         LogicalPlan child = instance.child();
-        String inferenceId = instance.inferenceId();
-        String queryText = instance.queryText();
+        Expression inferenceId = instance.inferenceId();
+        Expression queryText = instance.queryText();
         List<Alias> fields = instance.rerankFields();
 
         switch (between(0, 3)) {
             case 0 -> child = randomValueOtherThan(child, () -> randomChild(0));
-            case 1 -> inferenceId = randomValueOtherThan(inferenceId, RerankSerializationTests::randomIdentifier);
-            case 2 -> queryText = randomValueOtherThan(queryText, RerankSerializationTests::randomIdentifier);
+            case 1 -> inferenceId = randomValueOtherThan(inferenceId, () -> string(RerankSerializationTests.randomIdentifier()));
+            case 2 -> queryText = randomValueOtherThan(queryText, () -> string(RerankSerializationTests.randomIdentifier()));
             case 3 -> fields = randomValueOtherThan(fields, this::randomFields);
         }
         return new Rerank(instance.source(), child, inferenceId, queryText, fields);
@@ -48,4 +53,9 @@ public class RerankSerializationTests extends AbstractLogicalPlanSerializationTe
     private List<Alias> randomFields() {
         return randomList(0, 10, AliasTests::randomAlias);
     }
+
+    static Literal string(String value) {
+        return new Literal(EMPTY, value, DataType.KEYWORD);
+    }
+
 }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.logical.inference;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
@@ -18,9 +19,9 @@ import java.util.Objects;
 
 public abstract class InferencePlan extends UnaryPlan {
 
-    private final String inferenceId;
+    private final Expression inferenceId;
 
-    protected InferencePlan(Source source, LogicalPlan child, String inferenceId) {
+    protected InferencePlan(Source source, LogicalPlan child, Expression inferenceId) {
         super(source, child);
         this.inferenceId = inferenceId;
     }
@@ -29,11 +30,16 @@ public abstract class InferencePlan extends UnaryPlan {
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
-        out.writeString(inferenceId());
+        out.writeNamedWriteable(inferenceId());
     }
 
-    public String inferenceId() {
+    public Expression inferenceId() {
         return inferenceId;
+    }
+
+    @Override
+    public boolean expressionsResolved() {
+        return inferenceId.resolved();
     }
 
     @Override
@@ -51,4 +57,6 @@ public abstract class InferencePlan extends UnaryPlan {
     }
 
     public abstract TaskType taskType();
+
+    public abstract LogicalPlan withInferenceResolutionError(String inferenceId, String error);
 }

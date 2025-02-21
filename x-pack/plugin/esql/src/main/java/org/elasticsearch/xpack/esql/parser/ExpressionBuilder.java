@@ -195,7 +195,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public String visitStringOrParameter(EsqlBaseParser.StringOrParameterContext ctx) {
+    public Literal visitStringOrParameter(EsqlBaseParser.StringOrParameterContext ctx) {
         if (ctx.parameter() != null) {
             if (expression(ctx.parameter()) instanceof Literal lit) {
                 if (lit.value() == null) {
@@ -205,7 +205,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                         ctx.parameter().getText()
                     );
                 }
-                return lit.value().toString();
+                return lit;
             }
 
             throw new ParsingException(
@@ -215,7 +215,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             );
         }
 
-        return unquote(source(ctx.string()));
+        return visitString(ctx.string());
     }
 
     @Override

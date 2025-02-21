@@ -3095,8 +3095,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var plan = processingCommand("RERANK \"query text\" ON title WITH \"inferenceID\"");
         var rerank = as(plan, Rerank.class);
 
-        assertThat(rerank.queryText(), equalTo("query text"));
-        assertThat(rerank.inferenceId(), equalTo("inferenceID"));
+        assertThat(rerank.queryText(), equalTo(literalString("query text")));
+        assertThat(rerank.inferenceId(), equalTo(literalString("inferenceID")));
         assertThat(rerank.rerankFields(), equalTo(List.of(alias("title", attribute("title")))));
     }
 
@@ -3106,8 +3106,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var plan = processingCommand("RERANK \"query text\" ON title, description, authors_renamed=authors WITH \"inferenceID\"");
         var rerank = as(plan, Rerank.class);
 
-        assertThat(rerank.queryText(), equalTo("query text"));
-        assertThat(rerank.inferenceId(), equalTo("inferenceID"));
+        assertThat(rerank.queryText(), equalTo(literalString("query text")));
+        assertThat(rerank.inferenceId(), equalTo(literalString("inferenceID")));
         assertThat(
             rerank.rerankFields(),
             equalTo(
@@ -3128,20 +3128,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         var rerank = as(plan, Rerank.class);
 
-        assertThat(rerank.queryText(), equalTo("query text"));
-        assertThat(rerank.inferenceId(), equalTo("inferenceID"));
+        assertThat(rerank.queryText(), equalTo(literalString("query text")));
+        assertThat(rerank.inferenceId(), equalTo(literalString("inferenceID")));
         assertThat(
             rerank.rerankFields(),
             equalTo(
                 List.of(
                     alias("title", attribute("title")),
-                    alias(
-                        "short_description",
-                        function(
-                            "SUBSTRING",
-                            List.of(attribute("description"), new Literal(EMPTY, 0, INTEGER), new Literal(EMPTY, 100, INTEGER))
-                        )
-                    )
+                    alias("short_description", function("SUBSTRING", List.of(attribute("description"), integer(0), integer(100))))
                 )
             )
         );
@@ -3153,8 +3147,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var plan = parser.createStatement("row a = 1, b = \"foo\", c=true | RERANK \"query text\" WITH \"inferenceID\"");
         var rerank = as(plan, Rerank.class);
 
-        assertThat(rerank.queryText(), equalTo("query text"));
-        assertThat(rerank.inferenceId(), equalTo("inferenceID"));
+        assertThat(rerank.queryText(), equalTo(literalString("query text")));
+        assertThat(rerank.inferenceId(), equalTo(literalString("inferenceID")));
 
         // When no field are specified, all the fields are used.
         assertThat(rerank.rerankFields(), contains(alias("a", attribute("a")), alias("b", attribute("b")), alias("c", attribute("c"))));
@@ -3166,8 +3160,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var queryParams = new QueryParams(List.of(paramAsConstant(null, "query text"), paramAsConstant(null, "reranker")));
         var rerank = as(parser.createStatement("row a = 1 | RERANK ? ON title WITH ?", queryParams), Rerank.class);
 
-        assertThat(rerank.queryText(), equalTo("query text"));
-        assertThat(rerank.inferenceId(), equalTo("reranker"));
+        assertThat(rerank.queryText(), equalTo(literalString("query text")));
+        assertThat(rerank.inferenceId(), equalTo(literalString("reranker")));
         assertThat(rerank.rerankFields(), equalTo(List.of(alias("title", attribute("title")))));
     }
 
@@ -3177,8 +3171,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var queryParams = new QueryParams(List.of(paramAsConstant("queryText", "query text"), paramAsConstant("inferenceId", "reranker")));
         var rerank = as(parser.createStatement("row a = 1 | RERANK ?queryText ON title WITH ?inferenceId", queryParams), Rerank.class);
 
-        assertThat(rerank.queryText(), equalTo("query text"));
-        assertThat(rerank.inferenceId(), equalTo("reranker"));
+        assertThat(rerank.queryText(), equalTo(literalString("query text")));
+        assertThat(rerank.inferenceId(), equalTo(literalString("reranker")));
         assertThat(rerank.rerankFields(), equalTo(List.of(alias("title", attribute("title")))));
     }
 

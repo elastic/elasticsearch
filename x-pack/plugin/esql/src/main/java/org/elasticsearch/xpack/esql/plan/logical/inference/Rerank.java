@@ -14,7 +14,9 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -30,10 +32,10 @@ import static org.elasticsearch.xpack.esql.core.expression.Expressions.asAttribu
 public class Rerank extends InferencePlan {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Rerank", Rerank::new);
-    private final String queryText;
+    private final Expression queryText;
     private final List<Alias> rerankFields;
 
-    public Rerank(Source source, LogicalPlan child, String inferenceId, String queryText, List<Alias> rerankFields) {
+    public Rerank(Source source, LogicalPlan child, Expression inferenceId, Expression queryText, List<Alias> rerankFields) {
         super(source, child, inferenceId);
         this.queryText = queryText;
         this.rerankFields = rerankFields;
@@ -43,8 +45,8 @@ public class Rerank extends InferencePlan {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(LogicalPlan.class),
-            in.readString(),
-            in.readString(),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteable(Expression.class),
             in.readCollectionAsList(Alias::new)
         );
     }
@@ -52,11 +54,11 @@ public class Rerank extends InferencePlan {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(queryText);
+        out.writeNamedWriteable(queryText);
         out.writeCollection(rerankFields());
     }
 
-    public String queryText() {
+    public Expression queryText() {
         return queryText;
     }
 
@@ -67,6 +69,12 @@ public class Rerank extends InferencePlan {
     @Override
     public TaskType taskType() {
         return TaskType.RERANK;
+    }
+
+    @Override
+    public LogicalPlan withInferenceResolutionError(String inferenceId, String error) {
+        Expression newInferenceId = new UnresolvedAttribute(inferenceId().source(), inferenceId, error);
+        return new Rerank(source(), child(), newInferenceId, queryText, rerankFields);
     }
 
     @Override
@@ -91,7 +99,7 @@ public class Rerank extends InferencePlan {
 
     @Override
     public boolean expressionsResolved() {
-        return Resolvables.resolved(rerankFields);
+        return super.expressionsResolved() && queryText.resolved() && Resolvables.resolved(rerankFields);
     }
 
     @Override

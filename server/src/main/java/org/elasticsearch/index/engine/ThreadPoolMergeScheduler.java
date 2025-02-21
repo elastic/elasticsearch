@@ -205,12 +205,16 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             // when one merge is done, maybe a backlogged one can now execute
             enqueueBackloggedTasks();
             // signal here, because, when closing, we wait for all currently running merges to finish
-            if (closed && currentlyRunningMergeTasks.isEmpty()) {
-                closedWithNoCurrentlyRunningMerges.countDown();
-            }
+            maybeSignalAllMergesDoneAfterClose();
         }
         doneMergeTaskCount.incrementAndGet();
         checkMergeTaskThrottling();
+    }
+
+    private synchronized void maybeSignalAllMergesDoneAfterClose() {
+        if (closed && currentlyRunningMergeTasks.isEmpty() && closedWithNoCurrentlyRunningMerges.getCount() > 0) {
+            closedWithNoCurrentlyRunningMerges.countDown();
+        }
     }
 
     private synchronized void enqueueBackloggedTasks() {
@@ -415,31 +419,16 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     @Override
     public void close() throws IOException {
         closed = true;
-        boolean interrupted = false;
+        // enqueue any backlogged merge tasks, because the merge queue assumes that the backlogged tasks are always re-enqueued
+        enqueueBackloggedTasks();
+        maybeSignalAllMergesDoneAfterClose();
         try {
-            synchronized (this) {
-                // enqueue any backlogged merge tasks, because the merge queue assumes that the backlogged tasks are always re-enqueued
-                enqueueBackloggedTasks();
-                // wait until all running merges are done
-                while (currentlyRunningMergeTasks.isEmpty() == false) {
-                    try {
-                        // wait with a timeout, just to cover for something that failed to notify
-                        if (closedWithNoCurrentlyRunningMerges.await(1, TimeUnit.SECONDS)) {
-                            assert currentlyRunningMergeTasks.isEmpty();
-                        }
-                    } catch (InterruptedException e) {
-                        // ignore interruption, we will retry until all currently running merge tasks are done
-                        interrupted = true;
-                    }
-                }
-                ;
-            }
+            closedWithNoCurrentlyRunningMerges.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         } finally {
-            // this closes an executor that may be used by ongoing merges, so close it only after all running merges finished
+            // this closes an executor that may be used by ongoing merges, so better close it only after all running merges finished
             super.close();
-            if (interrupted) {
-                Thread.currentThread().interrupt();
-            }
         }
     }
 

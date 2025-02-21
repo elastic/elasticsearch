@@ -121,21 +121,16 @@ public class ShardSearchFailureTests extends ESTestCase {
             new SearchShardTarget("nodeId", shardId, null)
         );
         BytesReference xContent = toXContent(failure, XContentType.JSON, randomBoolean());
-        assertEquals(
-            XContentHelper.stripWhitespace(
-            """
-                {
-                  "shard": 123,
-                  "index": "indexName",
-                  "node": "nodeId",
-                  "reason": {
-                    "type": "no_shard_available_action_exception",
-                    "reason": "org.apache.lucene.store.AlreadyClosedException: shard unassigned, cause: null"
-                  }
-                }"""
-            ),
-            xContent.utf8ToString()
-        );
+        assertEquals(XContentHelper.stripWhitespace("""
+            {
+              "shard": 123,
+              "index": "indexName",
+              "node": "nodeId",
+              "reason": {
+                "type": "no_shard_available_action_exception",
+                "reason": "org.apache.lucene.store.AlreadyClosedException: shard unassigned, cause: null"
+              }
+            }"""), xContent.utf8ToString());
     }
 
     public void testToXContentWithClusterAlias() throws IOException {

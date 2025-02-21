@@ -10,6 +10,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.Symbol;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.ql.util.StringUtils;
@@ -121,7 +122,7 @@ public final class Cursors {
     public static Tuple<Cursor, ZoneId> decodeFromStringWithZone(String base64, NamedWriteableRegistry writeableRegistry) {
         return internalDecodeFromStringWithZone(base64, new NamedWriteableRegistry(List.of()) {
             @Override
-            public <T> Map<String, Writeable.Reader<?>> getReaders(Class<T> categoryClass) {
+            public <T> Map<Symbol, Writeable.Reader<?>> getReaders(Class<T> categoryClass) {
                 if (writeableRegistry.hasReaders(categoryClass)) {
                     return writeableRegistry.getReaders(categoryClass);
                 } else {
@@ -130,7 +131,7 @@ public final class Cursors {
             }
 
             @Override
-            public <T> Writeable.Reader<? extends T> getReader(Class<T> categoryClass, String name) {
+            public <T> Writeable.Reader<? extends T> getReader(Class<T> categoryClass, Symbol name) {
                 if (writeableRegistry.hasReaders(categoryClass)) {
                     return writeableRegistry.getReader(categoryClass, name);
                 } else {

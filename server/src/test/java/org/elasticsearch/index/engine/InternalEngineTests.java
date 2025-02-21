@@ -7419,7 +7419,8 @@ public class InternalEngineTests extends EngineTestCase {
                 Store store,
                 long primaryTerm,
                 Engine.IndexCommitRef indexCommitRef,
-                Set<String> additionalFiles
+                Set<String> additionalFiles,
+                Map<String, String> extraTransientData
             ) {
                 assertNotNull(store);
                 assertTrue(store.hasReferences());

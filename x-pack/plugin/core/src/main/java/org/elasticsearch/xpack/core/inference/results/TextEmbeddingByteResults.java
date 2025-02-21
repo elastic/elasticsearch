@@ -120,15 +120,16 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings)
 
     // Note: the field "numberOfMergedEmbeddings" is not serialized, so merging
     // embeddings should happen inbetween serializations.
-    public record Embedding(byte[] values, int numberOfMergedEmbeddings)
+    public record Embedding(byte[] values, int[] sumMergedValues, int numberOfMergedEmbeddings)
         implements
             Writeable,
             ToXContentObject,
             EmbeddingResults.Embedding<Chunk, Embedding> {
+
         public static final String EMBEDDING = "embedding";
 
         public Embedding(byte[] values) {
-            this(values, 1);
+            this(values, null, 1);
         }
 
         public Embedding(StreamInput in) throws IOException {
@@ -201,18 +202,19 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings)
             return new Chunk(values, text, offset);
         }
 
-        // This merge function suffers from round-off errors. TODO: maybe do something smarter?
         @Override
         public Embedding merge(Embedding embedding) {
-            byte[] mergedValues = new byte[values.length];
+            byte[] newValues = new byte[values.length];
+            int[] newSumMergedValues = new int[values.length];
             int newNumberOfMergedEmbeddings = numberOfMergedEmbeddings + embedding.numberOfMergedEmbeddings;
             for (int i = 0; i < values.length; i++) {
+                newSumMergedValues[i] = (numberOfMergedEmbeddings == 1 ? values[i] : sumMergedValues[i])
+                    + (embedding.numberOfMergedEmbeddings == 1 ? embedding.values[i] : embedding.sumMergedValues[i]);
                 // Add (newNumberOfMergedEmbeddings / 2) in the numerator to round towards the
                 // closest byte instead of truncating.
-                mergedValues[i] = (byte) ((numberOfMergedEmbeddings * values[i] + embedding.numberOfMergedEmbeddings * embedding.values[i]
-                    + newNumberOfMergedEmbeddings / 2) / newNumberOfMergedEmbeddings);
+                newValues[i] = (byte) ((newSumMergedValues[i] + newNumberOfMergedEmbeddings / 2) / newNumberOfMergedEmbeddings);
             }
-            return new Embedding(mergedValues, newNumberOfMergedEmbeddings);
+            return new Embedding(newValues, newSumMergedValues, newNumberOfMergedEmbeddings);
         }
     }
 

@@ -31,7 +31,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.hamcrest.Matcher;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -39,7 +38,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -48,7 +46,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notANumber;
 
 public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
 
@@ -475,14 +472,9 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         }
     }
 
-    @Override
-    protected Function<Object, Object> loadBlockExpected() {
-        return v -> (Number) v;
-    }
-
-    @Override
-    protected Matcher<?> blockItemMatcher(Object expected) {
-        return "NaN".equals(expected) ? notANumber() : equalTo(expected);
+    protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
+        assumeTrue("Disabled, tested by ScaledFloatFieldBlockLoaderTests instead", false);
+        return null;
     }
 
     @Override

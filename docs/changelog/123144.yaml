@@ -1,6 +1,0 @@
-pr: 123144
-summary: Fix failed ScaledFloatFieldMapperTests
-area: ES|QL
-type: bug
-issues:
-  - 123126

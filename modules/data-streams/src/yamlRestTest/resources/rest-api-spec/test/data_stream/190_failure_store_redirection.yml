@@ -786,7 +786,7 @@ teardown:
   - is_false: items.1.create.failure_store
 
 ---
-"Test failure store status with bulk request":
+"Test failure store status with bulk request failing on mappings":
   - do:
       allowed_warnings:
         - "index template [generic_logs_template] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [generic_logs_template] will take precedence during new index creation"
@@ -865,3 +865,90 @@ teardown:
   - match: { items.3.create.status: 400 }
   - match: { items.3.create.error.type: document_parsing_exception }
   - match: { items.3.create.failure_store: not_enabled }
+
+---
+"Test failure store status with bulk request failing in ingest":
+  - do:
+      ingest.put_pipeline:
+        id: "failing_pipeline"
+        body: >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "fail": {
+                  "message" : "error_message",
+                  "tag": "foo-tag"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      allowed_warnings:
+        - "index template [generic_logs_template] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [generic_logs_template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: generic_logs_template
+        body:
+          index_patterns: logs-*
+          data_stream: {}
+          template:
+            settings:
+              number_of_shards:   1
+              number_of_replicas: 1
+              index:
+                default_pipeline: "failing_pipeline"
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+                count:
+                  type: long
+            data_stream_options:
+              failure_store:
+                enabled: true
+  - do:
+      allowed_warnings:
+        - "index template [no-fs] has index patterns [no-fs*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [no-fs] will take precedence during new index creation"
+      indices.put_index_template:
+        name: no-fs
+        body:
+          index_patterns: no-fs*
+          data_stream: {}
+          template:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+              index:
+                default_pipeline: "failing_pipeline"
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+                count:
+                  type: long
+            data_stream_options:
+              failure_store:
+                enabled: false
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "create": { "_index": "logs-foobar", "_id": "1" } }'
+          - '{ "@timestamp": "2022-01-01", "count": 1 }'
+          - '{ "create": { "_index": "no-fs", "_id": "1" } }'
+          - '{ "@timestamp": "2022-01-01", "count": 1 }'
+  - is_true: errors
+  # Successfully indexed to backing index
+  - match: { items.0.create._index: '/\.fs-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { items.0.create.status: 201 }
+  - match: { items.0.create.failure_store: used }
+
+  # Rejected, eligible to go to failure store, but failure store not enabled
+  - match: { items.1.create._index: 'no-fs' }
+  - match: { items.1.create.status: 500 }
+  - match: { items.1.create.failure_store: not_enabled }
+  - match: { items.1.create.error.type: fail_processor_exception }
+  - contains: { items.1.create.error.reason: error_message }

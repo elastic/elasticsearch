@@ -155,8 +155,18 @@ public record TextEmbeddingFloatResults(List<Embedding> embeddings)
         return Objects.hash(embeddings);
     }
 
-    public record Embedding(float[] values) implements Writeable, ToXContentObject, EmbeddingResults.Embedding<Chunk, Embedding> {
+    // Note: the field "numberOfMergedEmbeddings" is not serialized, so merging
+    // embeddings should happen inbetween serializations.
+    public record Embedding(float[] values, int numberOfMergedEmbeddings)
+        implements
+            Writeable,
+            ToXContentObject,
+            EmbeddingResults.Embedding<Chunk, Embedding> {
         public static final String EMBEDDING = "embedding";
+
+        public Embedding(float[] values) {
+            this(values, 1);
+        }
 
         public Embedding(StreamInput in) throws IOException {
             this(in.readFloatArray());
@@ -227,7 +237,12 @@ public record TextEmbeddingFloatResults(List<Embedding> embeddings)
 
         @Override
         public Embedding merge(Embedding embedding) {
-            throw new UnsupportedOperationException();
+            float[] mergedValues = new float[values.length];
+            for (int i = 0; i < values.length; i++) {
+                mergedValues[i] = (numberOfMergedEmbeddings * values[i] + embedding.numberOfMergedEmbeddings * embedding.values[i])
+                    / (numberOfMergedEmbeddings + embedding.numberOfMergedEmbeddings);
+            }
+            return new Embedding(mergedValues, numberOfMergedEmbeddings + embedding.numberOfMergedEmbeddings);
         }
     }
 

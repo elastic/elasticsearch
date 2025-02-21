@@ -10,6 +10,7 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -27,9 +28,8 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchHitsTests;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchResponseUtils;
-import org.elasticsearch.search.profile.SearchProfileResults;
+import org.elasticsearch.search.SearchResponseUtils.SearchResponseBuilder;
 import org.elasticsearch.search.profile.SearchProfileResultsTests;
-import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -45,11 +45,15 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class SearchResponseTests extends ESTestCase {
 
@@ -68,70 +72,40 @@ public class SearchResponseTests extends ESTestCase {
         return xContentRegistry;
     }
 
-    private SearchResponse createTestItem(ShardSearchFailure... shardSearchFailures) {
-        return createTestItem(false, shardSearchFailures);
+    private static SearchResponse createTestItem(ShardSearchFailure... shardSearchFailures) {
+        return createTestItem(false).shardFailures(shardSearchFailures).build();
     }
 
     /**
      * This SearchResponse doesn't include SearchHits, Aggregations, Suggestions, ShardSearchFailures, SearchProfileShardResults
      * to make it possible to only test properties of the SearchResponse itself
      */
-    private SearchResponse createMinimalTestItem() {
-        return createTestItem(true);
+    private static SearchResponse createMinimalTestItem() {
+        return createTestItem(true).build();
     }
 
     /**
      * if minimal is set, don't include search hits, aggregations, suggest etc... to make test simpler
      */
-    private SearchResponse createTestItem(boolean minimal, ShardSearchFailure... shardSearchFailures) {
-        boolean timedOut = randomBoolean();
-        Boolean terminatedEarly = randomBoolean() ? null : randomBoolean();
-        int numReducePhases = randomIntBetween(1, 10);
-        long tookInMillis = randomNonNegativeLong();
-        int totalShards = randomIntBetween(1, Integer.MAX_VALUE);
-        int successfulShards = randomIntBetween(0, totalShards);
-        int skippedShards = randomIntBetween(0, totalShards);
-        SearchResponse.Clusters clusters;
-        if (minimal) {
-            clusters = randomSimpleClusters();
-        } else {
-            clusters = randomClusters();
-        }
+    private static SearchResponseBuilder createTestItem(boolean minimal) {
+        int shards = randomIntBetween(1, Integer.MAX_VALUE);
+        SearchResponseBuilder builder = SearchResponseUtils.response()
+            .timedOut(randomBoolean())
+            .terminatedEarly(randomBoolean() ? null : randomBoolean())
+            .numReducePhases(randomIntBetween(1, 10))
+            .tookInMillis(randomNonNegativeLong())
+            .shards(shards, randomIntBetween(0, shards), randomIntBetween(0, shards))
+            .clusters(minimal ? randomSimpleClusters() : randomClusters());
+
         if (minimal == false) {
             SearchHits hits = SearchHitsTests.createTestItem(true, true);
             try {
-                Suggest suggest = SuggestTests.createTestItem();
-                SearchProfileResults profileResults = SearchProfileResultsTests.createTestItem();
-                return new SearchResponse(
-                    hits,
-                    null,
-                    suggest,
-                    timedOut,
-                    terminatedEarly,
-                    profileResults,
-                    numReducePhases,
-                    null,
-                    totalShards,
-                    successfulShards,
-                    skippedShards,
-                    tookInMillis,
-                    shardSearchFailures,
-                    SubsidiaryFailure.EMPTY_ARRAY,
-                    clusters
-                );
+                return builder.suggest(SuggestTests.createTestItem()).profileResults(SearchProfileResultsTests.createTestItem());
             } finally {
                 hits.decRef();
             }
         } else {
-            return SearchResponseUtils.emptyWithTotalHits(
-                null,
-                totalShards,
-                successfulShards,
-                skippedShards,
-                tookInMillis,
-                shardSearchFailures,
-                clusters
-            );
+            return builder.searchHits(SearchHits.EMPTY_WITH_TOTAL_HITS);
         }
     }
 
@@ -322,7 +296,7 @@ public class SearchResponseTests extends ESTestCase {
      * Because of this, in this special test case we compare the "top level" fields for equality
      * and the subsections xContent equivalence independently
      */
-    public void testFromXContentWithFailures() throws IOException {
+    public void testFromXContentWithShardFailures() throws IOException {
         int numFailures = randomIntBetween(1, 5);
         ShardSearchFailure[] failures = new ShardSearchFailure[numFailures];
         for (int i = 0; i < failures.length; i++) {
@@ -355,6 +329,56 @@ public class SearchResponseTests extends ESTestCase {
                     assertEquals(
                         parsedFailure.getCause().getCause().getMessage(),
                         "Elasticsearch exception [type=illegal_argument_exception, reason=" + nestedMsg + "]"
+                    );
+                }
+                assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+                assertNull(parser.nextToken());
+            } finally {
+                parsed.decRef();
+            }
+        }
+    }
+
+    /**
+     * Exceptions can be wrapped in XContent, which makes direct comparisons difficult.
+     * Because of this, in this special test case we compare the "top level" fields for equality
+     * and the subsections xContent equivalence independently
+     */
+    public void testFromXContentWithSubsidiaryFailures() throws IOException {
+        int numFailures = randomIntBetween(1, 5);
+        SubsidiaryFailure[] failures = new SubsidiaryFailure[numFailures];
+        for (int i = 0; i < failures.length; i++) {
+            failures[i] = new SubsidiaryFailure(
+                randomAlphaOfLengthBetween(2, 10),
+                ESTestCase.<Function<String, Exception>>randomFrom(
+                    IllegalArgumentException::new,
+                    IOException::new,
+                    ElasticsearchTimeoutException::new
+                ).apply(randomAlphaOfLength(20))
+            );
+        }
+        BytesReference originalBytes;
+        SearchResponse response = createTestItem(false).subsidiaryFailures(failures).build();
+        XContentType xcontentType = randomFrom(XContentType.values());
+        try {
+            final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
+            originalBytes = toShuffledXContent(ChunkedToXContent.wrapAsToXContent(response), xcontentType, params, randomBoolean());
+        } finally {
+            response.decRef();
+        }
+        try (XContentParser parser = createParser(xcontentType.xContent(), originalBytes)) {
+            SearchResponse parsed = SearchResponseUtils.parseSearchResponse(parser);
+            try {
+                SubsidiaryFailure[] deserFailures = parsed.getSubsidiaryFailures();
+                for (int i = 0; i < deserFailures.length; i++) {
+                    SubsidiaryFailure deserFailure = deserFailures[i];
+                    assertThat(deserFailure.phase(), equalTo(failures[i].phase()));
+                    assertThat(
+                        deserFailure.failure().getMessage(),
+                        allOf(
+                            containsString(ElasticsearchTimeoutException.getExceptionName(failures[i].failure())),
+                            containsString(failures[i].failure().getMessage())
+                        )
                     );
                 }
                 assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
@@ -659,7 +683,7 @@ public class SearchResponseTests extends ESTestCase {
     }
 
     public void testSerialization() throws IOException {
-        SearchResponse searchResponse = createTestItem(false);
+        SearchResponse searchResponse = createTestItem(false).build();
         try {
             SearchResponse deserialized = copyWriteable(
                 searchResponse,

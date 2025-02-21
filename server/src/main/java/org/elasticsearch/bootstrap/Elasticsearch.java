@@ -252,7 +252,8 @@ class Elasticsearch {
                 nodeEnv.configDir(),
                 nodeEnv.libDir(),
                 nodeEnv.logsDir(),
-                nodeEnv.tmpDir()
+                nodeEnv.tmpDir(),
+                args.pidFile()
             );
         } else {
             assert RuntimeVersionFeature.isSecurityManagerAvailable();

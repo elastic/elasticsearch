@@ -646,6 +646,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         expectError("FROM \"\"\"foo\"\"\"bar\"\"\"", ": mismatched input 'bar' expecting {<EOF>, '|', ',', 'metadata'}");
         expectError("FROM \"\"\"foo\"\"\"\"\"\"bar\"\"\"", ": mismatched input '\"bar\"' expecting {<EOF>, '|', ',', 'metadata'}");
+        expectError("FROM remote:\"foo:bar\"", "Unexpected index separator in index patter");
+        expectError("FROM \"remote:foo:bar:baz\"", "Unexpected index separator in index patter");
     }
 
     public void testInvalidQuotingAsMetricsIndexPattern() {

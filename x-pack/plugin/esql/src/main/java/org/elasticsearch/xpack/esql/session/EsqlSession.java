@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -71,6 +72,8 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
@@ -217,6 +220,22 @@ public class EsqlSession {
             });
         });
 
+        // Currently fork is limited and supported as streaming operators, similar to inlinestats
+        physicalPlan = physicalPlan.transformUp(MergeExec.class, m -> {
+            List<PhysicalPlan> newSubPlans = new ArrayList<>();
+            for (var plan : m.children()) {
+                if (plan instanceof FragmentExec fragmentExec) {
+                    LogicalPlan subplan = fragmentExec.fragment();
+                    subplan = optimizedPlan(subplan);
+                    PhysicalPlan subqueryPlan = logicalPlanToPhysicalPlan(subplan, request);
+                    subplans.add(new PlanTuple(subqueryPlan, subplan));
+                    plan = new FragmentExec(subplan);
+                }
+                newSubPlans.add(plan);
+            }
+            return new MergeExec(m.source(), newSubPlans, m.output());
+        });
+
         Iterator<PlanTuple> iterator = subplans.iterator();
 
         // TODO: merge into one method
@@ -245,7 +264,7 @@ public class EsqlSession {
                 LocalRelation resultWrapper = resultToPlan(tuple.logical, result);
 
                 // replace the original logical plan with the backing result
-                final PhysicalPlan newPlan = plan.transformUp(FragmentExec.class, f -> {
+                PhysicalPlan newPlan = plan.transformUp(FragmentExec.class, f -> {
                     LogicalPlan frag = f.fragment();
                     return f.withFragment(
                         frag.transformUp(
@@ -254,6 +273,27 @@ public class EsqlSession {
                         )
                     );
                 });
+
+                // replace the original logical plan with the backing result, in MergeExec
+                newPlan = newPlan.transformUp(MergeExec.class, m -> {
+                    boolean changed = m.children()
+                        .stream()
+                        .filter(sp -> FragmentExec.class.isAssignableFrom(sp.getClass()))
+                        .map(FragmentExec.class::cast)
+                        .anyMatch(fragmentExec -> fragmentExec.fragment() == tuple.logical);
+                    if (changed) {
+                        List<PhysicalPlan> newSubPlans = m.children().stream().map(subPlan -> {
+                            if (subPlan instanceof FragmentExec fe && fe.fragment() == tuple.logical) {
+                                return new LocalSourceExec(resultWrapper.source(), resultWrapper.output(), resultWrapper.supplier());
+                            } else {
+                                return subPlan;
+                            }
+                        }).toList();
+                        return new MergeExec(m.source(), newSubPlans, m.output());
+                    }
+                    return m;
+                });
+
                 if (subPlanIterator.hasNext() == false) {
                     runner.run(newPlan, next.delegateFailureAndWrap((finalListener, finalResult) -> {
                         profileAccumulator.addAll(finalResult.profiles());
@@ -551,6 +591,9 @@ public class EsqlSession {
     static PreAnalysisResult fieldNames(LogicalPlan parsed, Set<String> enrichPolicyMatchFields, PreAnalysisResult result) {
         if (false == parsed.anyMatch(plan -> plan instanceof Aggregate || plan instanceof Project)) {
             // no explicit columns selection, for example "from employees"
+            return result.withFieldNames(IndexResolver.ALL_FIELDS);
+        }
+        if (parsed.anyMatch(plan -> plan instanceof Fork)) {
             return result.withFieldNames(IndexResolver.ALL_FIELDS);
         }
 

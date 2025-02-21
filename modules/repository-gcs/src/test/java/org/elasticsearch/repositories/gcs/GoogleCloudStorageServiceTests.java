@@ -18,11 +18,13 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.protocol.HttpContext;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
@@ -155,26 +157,35 @@ public class GoogleCloudStorageServiceTests extends ESTestCase {
         try (GoogleCloudStoragePlugin plugin = new GoogleCloudStoragePlugin(settings)) {
             final GoogleCloudStorageService storageService = plugin.storageService;
 
+            final OperationPurpose operationPurpose = randomPurpose();
+            final OperationPurpose differentOperationPurpose = randomValueOtherThan(operationPurpose, BlobStoreTestUtil::randomPurpose);
             final Storage repo1Client = storageService.client(
                 "gcs1",
                 "repo1",
-                randomPurpose(),
+                operationPurpose,
+                new GoogleCloudStorageOperationsStats("bucket")
+            );
+            final Storage repo1ClientOtherPurpose = storageService.client(
+                "gcs1",
+                "repo1",
+                differentOperationPurpose,
                 new GoogleCloudStorageOperationsStats("bucket")
             );
             final Storage repo2Client = storageService.client(
                 "gcs1",
                 "repo2",
-                randomPurpose(),
+                operationPurpose,
                 new GoogleCloudStorageOperationsStats("bucket")
             );
             final Storage repo1ClientSecondInstance = storageService.client(
                 "gcs1",
                 "repo1",
-                randomPurpose(),
+                operationPurpose,
                 new GoogleCloudStorageOperationsStats("bucket")
             );
 
             assertNotSame(repo1Client, repo2Client);
+            assertNotSame(repo1Client, repo1ClientOtherPurpose);
             assertSame(repo1Client, repo1ClientSecondInstance);
         }
     }

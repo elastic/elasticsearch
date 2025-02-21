@@ -91,6 +91,31 @@ public abstract class DocumentParserContext {
         protected void addDoc(LuceneDocument doc) {
             in.addDoc(doc);
         }
+
+        @Override
+        public void processArrayOffsets(DocumentParserContext context) throws IOException {
+            in.processArrayOffsets(context);
+        }
+
+        @Override
+        public FieldArrayContext getOffSetContext() {
+            return in.getOffSetContext();
+        }
+
+        @Override
+        public void setImmediateXContentParent(XContentParser.Token token) {
+            in.setImmediateXContentParent(token);
+        }
+
+        @Override
+        public XContentParser.Token getImmediateXContentParent() {
+            return in.getImmediateXContentParent();
+        }
+
+        @Override
+        public boolean isImmediateParentAnArray() {
+            return in.isImmediateParentAnArray();
+        }
     }
 
     /**
@@ -140,6 +165,8 @@ public abstract class DocumentParserContext {
     private Field version;
     private final SeqNoFieldMapper.SequenceIDFields seqID;
     private final Set<String> fieldsAppliedFromTemplates;
+
+    private FieldArrayContext fieldArrayContext;
 
     /**
      * Fields that are copied from values of other fields via copy_to.
@@ -458,6 +485,33 @@ public abstract class DocumentParserContext {
 
     public boolean isCopyToDestinationField(String name) {
         return copyToFields.contains(name);
+    }
+
+    public void processArrayOffsets(DocumentParserContext context) throws IOException {
+        if (fieldArrayContext != null) {
+            fieldArrayContext.addToLuceneDocument(context);
+        }
+    }
+
+    public FieldArrayContext getOffSetContext() {
+        if (fieldArrayContext == null) {
+            fieldArrayContext = new FieldArrayContext();
+        }
+        return fieldArrayContext;
+    }
+
+    private XContentParser.Token lastSetToken;
+
+    public void setImmediateXContentParent(XContentParser.Token token) {
+        this.lastSetToken = token;
+    }
+
+    public XContentParser.Token getImmediateXContentParent() {
+        return lastSetToken;
+    }
+
+    public boolean isImmediateParentAnArray() {
+        return lastSetToken == XContentParser.Token.START_ARRAY;
     }
 
     /**

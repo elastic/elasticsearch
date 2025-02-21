@@ -200,7 +200,8 @@ public class Driver implements Releasable, Describable {
         long maxTimeNanos = maxTime.nanos();
         long startTime = nowSupplier.getAsLong();
         long nextStatus = startTime + statusNanos;
-        int iter = 0;
+        int currentIteration = 0;
+        int extraStatusIterations = 0;
         while (true) {
             IsBlockedResult isBlocked = Operator.NOT_BLOCKED;
             try {
@@ -209,29 +210,31 @@ public class Driver implements Releasable, Describable {
                 closeEarlyFinishedOperators();
                 assert isFinished() : "not finished after early termination";
             }
-            iter++;
+            currentIteration++;
+            extraStatusIterations++;
             if (isBlocked.listener().isDone() == false) {
-                updateStatus(nowSupplier.getAsLong() - startTime, iter, DriverStatus.Status.ASYNC, isBlocked.reason());
+                updateStatus(nowSupplier.getAsLong() - startTime, extraStatusIterations, DriverStatus.Status.ASYNC, isBlocked.reason());
                 return isBlocked.listener();
             }
             if (isFinished()) {
                 finishNanos = nowSupplier.getAsLong();
-                updateStatus(finishNanos - startTime, iter, DriverStatus.Status.DONE, "driver done");
+                updateStatus(finishNanos - startTime, extraStatusIterations, DriverStatus.Status.DONE, "driver done");
                 driverContext.finish();
                 Releasables.close(releasable, driverContext.getSnapshot());
                 return Operator.NOT_BLOCKED.listener();
             }
             long now = nowSupplier.getAsLong();
-            if (iter >= maxIterations) {
-                updateStatus(now - startTime, iter, DriverStatus.Status.WAITING, "driver iterations");
+            if (currentIteration >= maxIterations) {
+                updateStatus(now - startTime, extraStatusIterations, DriverStatus.Status.WAITING, "driver iterations");
                 return Operator.NOT_BLOCKED.listener();
             }
             if (now - startTime >= maxTimeNanos) {
-                updateStatus(now - startTime, iter, DriverStatus.Status.WAITING, "driver time");
+                updateStatus(now - startTime, extraStatusIterations, DriverStatus.Status.WAITING, "driver time");
                 return Operator.NOT_BLOCKED.listener();
             }
             if (now > nextStatus) {
-                updateStatus(now - startTime, iter, DriverStatus.Status.RUNNING, "driver running");
+                updateStatus(now - startTime, extraStatusIterations, DriverStatus.Status.RUNNING, "driver running");
+                extraStatusIterations = 0;
                 nextStatus = now + statusNanos;
             }
         }

@@ -182,7 +182,7 @@ public interface RuntimeField extends ToXContentFragment {
                     throw new MapperParsingException(
                         "The mapper type ["
                             + type
-                            + "] declared on field ["
+                            + "] declared on runtime field ["
                             + fieldName
                             + "] does not exist."
                             + " It might have been created within a future version or requires a plugin to be installed."

@@ -312,18 +312,21 @@ public class RoutingTableTests extends ESAllocationTestCase {
     }
 
     public void testAllShardsForMultipleIndices() {
-        assertThat(this.emptyRoutingTable.allShards(new String[0]).size(), is(0));
+        assertThat(this.emptyRoutingTable.allShards(new String[0]).getShardRoutings().size(), is(0));
 
-        assertThat(clusterState.routingTable().allShards(new String[] { TEST_INDEX_1 }).size(), is(this.shardsPerIndex));
+        assertThat(clusterState.routingTable().allShards(new String[] { TEST_INDEX_1 }).getShardRoutings().size(), is(this.shardsPerIndex));
 
         initPrimaries();
-        assertThat(clusterState.routingTable().allShards(new String[] { TEST_INDEX_1 }).size(), is(this.shardsPerIndex));
+        assertThat(clusterState.routingTable().allShards(new String[] { TEST_INDEX_1 }).getShardRoutings().size(), is(this.shardsPerIndex));
 
         startInitializingShards(TEST_INDEX_1);
-        assertThat(clusterState.routingTable().allShards(new String[] { TEST_INDEX_1 }).size(), is(this.shardsPerIndex));
+        assertThat(clusterState.routingTable().allShards(new String[] { TEST_INDEX_1 }).getShardRoutings().size(), is(this.shardsPerIndex));
 
         startInitializingShards(TEST_INDEX_2);
-        assertThat(clusterState.routingTable().allShards(new String[] { TEST_INDEX_1, TEST_INDEX_2 }).size(), is(this.totalNumberOfShards));
+        assertThat(
+            clusterState.routingTable().allShards(new String[] { TEST_INDEX_1, TEST_INDEX_2 }).getShardRoutings().size(),
+            is(this.totalNumberOfShards)
+        );
 
         try {
             clusterState.routingTable().allShards(new String[] { TEST_INDEX_1, "not_exists" });

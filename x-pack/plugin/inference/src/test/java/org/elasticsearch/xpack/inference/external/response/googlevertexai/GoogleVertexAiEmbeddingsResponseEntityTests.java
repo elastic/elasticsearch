@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.external.response.googlevertexai;
 
 import org.apache.http.HttpResponse;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
 
@@ -42,15 +42,12 @@ public class GoogleVertexAiEmbeddingsResponseEntityTests extends ESTestCase {
                  }
             """;
 
-        InferenceTextEmbeddingFloatResults parsedResults = GoogleVertexAiEmbeddingsResponseEntity.fromResponse(
+        TextEmbeddingFloatResults parsedResults = GoogleVertexAiEmbeddingsResponseEntity.fromResponse(
             mock(Request.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(
-            parsedResults.embeddings(),
-            is(List.of(InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding.of(List.of(-0.123F, 0.123F))))
-        );
+        assertThat(parsedResults.embeddings(), is(List.of(TextEmbeddingFloatResults.Embedding.of(List.of(-0.123F, 0.123F)))));
     }
 
     public void testFromResponse_CreatesResultsForMultipleItems() throws IOException {
@@ -85,7 +82,7 @@ public class GoogleVertexAiEmbeddingsResponseEntityTests extends ESTestCase {
                  }
             """;
 
-        InferenceTextEmbeddingFloatResults parsedResults = GoogleVertexAiEmbeddingsResponseEntity.fromResponse(
+        TextEmbeddingFloatResults parsedResults = GoogleVertexAiEmbeddingsResponseEntity.fromResponse(
             mock(Request.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
@@ -94,8 +91,8 @@ public class GoogleVertexAiEmbeddingsResponseEntityTests extends ESTestCase {
             parsedResults.embeddings(),
             is(
                 List.of(
-                    InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding.of(List.of(-0.123F, 0.123F)),
-                    InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding.of(List.of(-0.456F, 0.456F))
+                    TextEmbeddingFloatResults.Embedding.of(List.of(-0.123F, 0.123F)),
+                    TextEmbeddingFloatResults.Embedding.of(List.of(-0.456F, 0.456F))
                 )
             )
         );

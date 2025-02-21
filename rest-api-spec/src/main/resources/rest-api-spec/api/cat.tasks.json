@@ -70,6 +70,16 @@
         "type":"boolean",
         "description":"Verbose mode. Display column headers",
         "default":false
+      },
+      "timeout":{
+        "type":"time",
+        "default":"30s",
+        "description":"Period to wait for a response. If no response is received before the timeout expires, the request fails and returns an error."
+      },
+      "wait_for_completion":{
+        "type":"boolean",
+        "default":false,
+        "description":"If `true`, the request blocks until the task has completed."
       }
     }
   }

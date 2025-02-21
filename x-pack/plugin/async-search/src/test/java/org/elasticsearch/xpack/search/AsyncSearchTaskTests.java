@@ -23,6 +23,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -472,22 +473,10 @@ public class AsyncSearchTaskTests extends ESTestCase {
         int skippedShards,
         ShardSearchFailure... failures
     ) {
-        return new SearchResponse(
-            SearchHits.EMPTY_WITH_TOTAL_HITS,
-            InternalAggregations.EMPTY,
-            null,
-            false,
-            null,
-            null,
-            1,
-            null,
-            totalShards,
-            successfulShards,
-            skippedShards,
-            100,
-            failures,
-            SearchResponse.Clusters.EMPTY
-        );
+        return SearchResponseUtils.response(SearchHits.EMPTY_WITH_TOTAL_HITS)
+            .shards(totalShards, successfulShards, skippedShards)
+            .shardFailures(failures)
+            .build();
     }
 
     private static void assertCompletionListeners(

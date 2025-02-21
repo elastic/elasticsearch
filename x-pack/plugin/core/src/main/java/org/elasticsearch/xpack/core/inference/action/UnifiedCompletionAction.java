@@ -21,7 +21,7 @@ import java.util.Objects;
 
 public class UnifiedCompletionAction extends ActionType<InferenceAction.Response> {
     public static final UnifiedCompletionAction INSTANCE = new UnifiedCompletionAction();
-    public static final String NAME = "cluster:monitor/xpack/inference/unified";
+    public static final String NAME = "cluster:internal/xpack/inference/unified";
 
     public UnifiedCompletionAction() {
         super(NAME);

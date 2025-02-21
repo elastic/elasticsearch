@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.Build;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -22,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -29,14 +31,19 @@ import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -47,12 +54,15 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
+import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
@@ -85,10 +95,12 @@ import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.tsdbIndexR
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
@@ -1573,7 +1585,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testUnsupportedTypesWithToString() {
         // DATE_PERIOD and TIME_DURATION types have been added, but not really patched through the engine; i.e. supported.
-        final String supportedTypes = "boolean or cartesian_point or cartesian_shape or date_nanos or datetime "
+        final String supportedTypes = "aggregate_metric_double or boolean or cartesian_point or cartesian_shape or date_nanos or datetime "
             + "or geo_point or geo_shape or ip or numeric or string or version";
         verifyUnsupported(
             "row period = 1 year | eval to_string(period)",
@@ -2318,13 +2330,37 @@ public class AnalyzerTests extends ESTestCase {
         );
     }
 
-    public void testCoalesceWithMixedNumericTypes() {
+    public void testConditionalFunctionsWithMixedNumericTypes() {
         LogicalPlan plan = analyze("""
             from test
             | eval x = coalesce(salary_change, null, 0), y = coalesce(languages, null, 0), z = coalesce(languages.long, null, 0)
             , w = coalesce(salary_change, null, 0::long)
             | keep x, y, z, w
             """, "mapping-default.json");
+        validateConditionalFunctions(plan);
+
+        plan = analyze("""
+            from test
+            | eval x = case(languages == 1, salary_change, languages == 2, salary, languages == 3, salary_change.long, 0)
+                   , y = case(languages == 1, salary_change.int, languages == 2, salary, 0)
+                   , z = case(languages == 1, salary_change.long, languages == 2, salary, 0::long)
+                   , w = case(languages == 1, salary_change, languages == 2, salary, languages == 3, salary_change.long, null)
+            | keep x, y, z, w
+            """, "mapping-default.json");
+        validateConditionalFunctions(plan);
+
+        plan = analyze("""
+            from test
+            | eval x = greatest(salary_change, salary, salary_change.long)
+                   , y = least(salary_change.int, salary)
+                   , z = greatest(salary_change.long, salary, null)
+                   , w = least(null, salary_change, salary_change.long, salary, null)
+            | keep x, y, z, w
+            """, "mapping-default.json");
+        validateConditionalFunctions(plan);
+    }
+
+    private void validateConditionalFunctions(LogicalPlan plan) {
         var limit = as(plan, Limit.class);
         var esqlProject = as(limit.child(), EsqlProject.class);
         List<?> projections = esqlProject.projections();
@@ -2344,10 +2380,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testNamedParamsForIdentifiers() {
-        assumeTrue(
-            "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
-        );
         assertProjectionWithMapping(
             """
                 from test
@@ -2438,10 +2470,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testInvalidNamedParamsForIdentifiers() {
-        assumeTrue(
-            "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
-        );
         // missing field
         assertError(
             """
@@ -2511,10 +2539,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testNamedParamsForIdentifierPatterns() {
-        assumeTrue(
-            "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
-        );
         assertProjectionWithMapping(
             """
                 from test
@@ -2545,10 +2569,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testInvalidNamedParamsForIdentifierPatterns() {
-        assumeTrue(
-            "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
-        );
         // missing pattern
         assertError(
             """
@@ -2603,6 +2623,286 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(DataType.DOUBLE, ee.dataType());
     }
 
+    public void testResolveInsist_fieldExists_insistedOutputContainsNoUnmappedFields() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        LogicalPlan plan = analyze("FROM test | INSIST_🐔 emp_no");
+
+        Attribute last = plan.output().getLast();
+        assertThat(last.name(), is("emp_no"));
+        assertThat(last.dataType(), is(DataType.INTEGER));
+        assertThat(
+            plan.output()
+                .stream()
+                .filter(a -> a instanceof FieldAttribute fa && fa.field() instanceof PotentiallyUnmappedKeywordEsField)
+                .toList(),
+            is(empty())
+        );
+    }
+
+    public void testInsist_afterRowThrowsException() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> analyze("ROW x = 1 | INSIST_🐔 x", analyzer(TEST_VERIFIER))
+        );
+        assertThat(e.getMessage(), containsString("[insist] can only be used after [from] or [insist] commands, but was [ROW x = 1]"));
+    }
+
+    public void testResolveInsist_fieldDoesNotExist_createsUnmappedField() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        LogicalPlan plan = analyze("FROM test | INSIST_🐔 foo");
+
+        var limit = as(plan, Limit.class);
+        var insist = as(limit.child(), Insist.class);
+        assertThat(insist.output(), hasSize(analyze("FROM test").output().size() + 1));
+        var expectedAttribute = new FieldAttribute(Source.EMPTY, "foo", new PotentiallyUnmappedKeywordEsField("foo"));
+        assertThat(insist.insistedAttributes(), is(List.of(expectedAttribute)));
+        assertThat(insist.output().getLast(), is(expectedAttribute));
+    }
+
+    public void testResolveInsist_multiIndexFieldPartiallyMappedWithSingleKeywordType_createsUnmappedField() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            "foo, bar",
+            new FieldCapabilitiesResponse(
+                List.of(
+                    fieldCapabilitiesIndexResponse("foo", messageResponseMap("keyword")),
+                    fieldCapabilitiesIndexResponse("bar", Map.of())
+                ),
+                List.of()
+            )
+        );
+
+        String query = "FROM foo, bar | INSIST_🐔 message";
+        var plan = analyze(query, analyzer(resolution, TEST_VERIFIER, configuration(query)));
+        var limit = as(plan, Limit.class);
+        var insist = as(limit.child(), Insist.class);
+        var attribute = (FieldAttribute) EsqlTestUtils.singleValue(insist.output());
+        assertThat(attribute.name(), is("message"));
+        assertThat(attribute.field(), is(new PotentiallyUnmappedKeywordEsField("message")));
+    }
+
+    public void testResolveInsist_multiIndexFieldExistsWithSingleTypeButIsNotKeywordAndMissingCast_createsAnInvalidMappedField() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            "foo, bar",
+            new FieldCapabilitiesResponse(
+                List.of(fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")), fieldCapabilitiesIndexResponse("bar", Map.of())),
+                List.of()
+            )
+        );
+        var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
+        var limit = as(plan, Limit.class);
+        var insist = as(limit.child(), Insist.class);
+        var attribute = (UnsupportedAttribute) EsqlTestUtils.singleValue(insist.output());
+        assertThat(attribute.name(), is("message"));
+
+        String expected = "Cannot use field [message] due to ambiguities being mapped as [2] incompatible types: "
+            + "[keyword] enforced by INSIST command, and [long] in index mappings";
+        assertThat(attribute.unresolvedMessage(), is(expected));
+    }
+
+    public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypesNoKeyword_createsAnInvalidMappedField() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            "foo, bar",
+            new FieldCapabilitiesResponse(
+                List.of(
+                    fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
+                    fieldCapabilitiesIndexResponse("bar", messageResponseMap("date")),
+                    fieldCapabilitiesIndexResponse("bazz", Map.of())
+                ),
+                List.of()
+            )
+        );
+        var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
+        var limit = as(plan, Limit.class);
+        var insist = as(limit.child(), Insist.class);
+        var attr = (UnsupportedAttribute) EsqlTestUtils.singleValue(insist.output());
+
+        String expected = "Cannot use field [message] due to ambiguities being mapped as [3] incompatible types: "
+            + "[keyword] enforced by INSIST command, [datetime] in [bar], [long] in [foo]";
+        assertThat(attr.unresolvedMessage(), is(expected));
+    }
+
+    public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypesWithKeyword_createsAnInvalidMappedField() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            "foo, bar",
+            new FieldCapabilitiesResponse(
+                List.of(
+                    fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
+                    fieldCapabilitiesIndexResponse("bar", messageResponseMap("date")),
+                    fieldCapabilitiesIndexResponse("bazz", messageResponseMap("keyword")),
+                    fieldCapabilitiesIndexResponse("qux", Map.of())
+                ),
+                List.of()
+            )
+        );
+        var plan = analyze("FROM foo, bar | INSIST_🐔 message", analyzer(resolution, TEST_VERIFIER));
+        var limit = as(plan, Limit.class);
+        var insist = as(limit.child(), Insist.class);
+        var attr = (UnsupportedAttribute) EsqlTestUtils.singleValue(insist.output());
+
+        String expected = "Cannot use field [message] due to ambiguities being mapped as [3] incompatible types: "
+            + "[datetime] in [bar], [keyword] enforced by INSIST command and in [bazz], [long] in [foo]";
+        assertThat(attr.unresolvedMessage(), is(expected));
+    }
+
+    public void testResolveInsist_multiIndexFieldPartiallyExistsWithMultiTypesWithCast_castsAreNotSupported() {
+        assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
+
+        IndexResolution resolution = IndexResolver.mergedMappings(
+            "foo, bar",
+            new FieldCapabilitiesResponse(
+                List.of(
+                    fieldCapabilitiesIndexResponse("foo", messageResponseMap("long")),
+                    fieldCapabilitiesIndexResponse("bar", messageResponseMap("date")),
+                    fieldCapabilitiesIndexResponse("bazz", Map.of())
+                ),
+                List.of()
+            )
+        );
+        VerificationException e = expectThrows(
+            VerificationException.class,
+            () -> analyze("FROM multi_index | INSIST_🐔 message | EVAL message = message :: keyword", analyzer(resolution, TEST_VERIFIER))
+        );
+        // This isn't the most informative error, but it'll do for now.
+        assertThat(
+            e.getMessage(),
+            containsString("EVAL does not support type [unsupported] as the return data type of expression [message]")
+        );
+    }
+
+    public void testBasicFork() {
+        assumeTrue("requires FORK capability", EsqlCapabilities.Cap.FORK.isEnabled());
+
+        LogicalPlan plan = analyze("""
+            from test
+            | WHERE first_name == "Chris"
+            | FORK ( WHERE emp_no > 1 )
+                   ( WHERE emp_no > 2 )
+                   ( WHERE emp_no > 3 | SORT emp_no | LIMIT 7 )
+                   ( SORT emp_no )
+                   ( LIMIT 9 )
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Fork fork = as(limit.child(), Fork.class);
+        Filter filter = as(fork.child(), Filter.class);
+        assertThat(as(filter.condition(), Equals.class).right(), equalTo(string("Chris")));
+        var esRelation = as(filter.child(), EsRelation.class);
+        assertThat(esRelation.indexPattern(), equalTo("test"));
+
+        var subPlans = fork.subPlans();
+
+        // fork branch 1
+        limit = as(subPlans.get(0), Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
+        Eval eval = as(limit.child(), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork1"))));
+        filter = as(eval.child(), Filter.class);
+        assertThat(as(filter.condition(), GreaterThan.class).right(), equalTo(literal(1)));
+        var stub = as(filter.child(), StubRelation.class);
+
+        // fork branch 2
+        limit = as(subPlans.get(1), Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
+        eval = as(limit.child(), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork2"))));
+        filter = as(eval.child(), Filter.class);
+        assertThat(as(filter.condition(), GreaterThan.class).right(), equalTo(literal(2)));
+        stub = as(filter.child(), StubRelation.class);
+
+        // fork branch 3
+        limit = as(subPlans.get(2), Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
+        eval = as(limit.child(), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork3"))));
+        limit = as(eval.child(), Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(7));
+        var orderBy = as(limit.child(), OrderBy.class);
+        filter = as(orderBy.child(), Filter.class);
+        assertThat(as(filter.condition(), GreaterThan.class).right(), equalTo(literal(3)));
+        stub = as(filter.child(), StubRelation.class);
+
+        // fork branch 4
+        limit = as(subPlans.get(3), Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
+        eval = as(limit.child(), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork4"))));
+        orderBy = as(eval.child(), OrderBy.class);
+        stub = as(filter.child(), StubRelation.class);
+
+        // fork branch 5
+        limit = as(subPlans.get(4), Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
+        eval = as(limit.child(), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork5"))));
+        limit = as(eval.child(), Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(9));
+        stub = as(limit.child(), StubRelation.class);
+    }
+
+    public void testBasicForkError() {
+        assumeTrue("requires FORK capability", EsqlCapabilities.Cap.FORK.isEnabled());
+
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+            from test
+            | FORK ( WHERE emp_no > 1 )
+                   ( WHERE foo > 1 )
+            """));
+        assertThat(e.getMessage(), containsString("Unknown column [foo]"));
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            from test
+            | FORK ( WHERE bar == 1 )
+                   ( WHERE emp_no > 1 )
+            """));
+        assertThat(e.getMessage(), containsString("Unknown column [bar]"));
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            from test
+            | FORK ( WHERE emp_no > 1 )
+                   ( WHERE emp_no > 2 )
+                   ( WHERE emp_no > 3 )
+                   ( WHERE emp_no > 4 )
+                   ( WHERE emp_no > 5 )
+                   ( WHERE emp_no > 6 | SORT baz )
+            """));
+        assertThat(e.getMessage(), containsString("Unknown column [baz]"));
+
+        var pe = expectThrows(ParsingException.class, () -> analyze("""
+            from test
+            | FORK ( WHERE emp_no > 1 )
+                   ( WHERE emp_no > 2 )
+                   ( WHERE emp_no > 3 | LIMIT me)
+                   ( WHERE emp_no > 4 )
+                   ( WHERE emp_no > 5 )
+                   ( WHERE emp_no > 6 | SORT emp_no | LIMIT 5 )
+            """));
+        assertThat(pe.getMessage(), containsString("mismatched input 'me' expecting INTEGER_LITERAL"));
+    }
+
+    // TODO There's too much boilerplate involved here! We need a better way of creating FieldCapabilitiesResponses from a mapping or index.
+    private static FieldCapabilitiesIndexResponse fieldCapabilitiesIndexResponse(
+        String indexName,
+        Map<String, IndexFieldCapabilities> fields
+    ) {
+        return new FieldCapabilitiesIndexResponse(indexName, indexName, fields, false, IndexMode.STANDARD);
+    }
+
+    private static Map<String, IndexFieldCapabilities> messageResponseMap(String date) {
+        return Map.of("message", new IndexFieldCapabilities("message", date, false, true, true, false, null, null));
+    }
+
     private void verifyUnsupported(String query, String errorMessage) {
         verifyUnsupported(query, errorMessage, "mapping-multi-field-variation.json");
     }
@@ -2654,7 +2954,7 @@ public class AnalyzerTests extends ESTestCase {
             new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD)
         );
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(idxResponses, List.of());
-        IndexResolution resolution = new IndexResolver(null).mergedMappings("test*", caps);
+        IndexResolution resolution = IndexResolver.mergedMappings("test*", caps);
         var analyzer = analyzer(resolution, TEST_VERIFIER, configuration(query));
         return analyze(query, analyzer);
     }
@@ -2668,5 +2968,17 @@ public class AnalyzerTests extends ESTestCase {
     @Override
     protected IndexAnalyzers createDefaultIndexAnalyzers() {
         return super.createDefaultIndexAnalyzers();
+    }
+
+    static Alias alias(String name, Expression value) {
+        return new Alias(EMPTY, name, value);
+    }
+
+    static Literal string(String value) {
+        return new Literal(EMPTY, value, DataType.KEYWORD);
+    }
+
+    static Literal literal(int value) {
+        return new Literal(EMPTY, value, DataType.INTEGER);
     }
 }

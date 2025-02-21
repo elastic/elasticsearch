@@ -26,8 +26,26 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
 
 class EntitlementsTestRule implements TestRule {
+
+    // entitlements that test methods may use, see EntitledActions
+    private static final PolicyBuilder ENTITLED_POLICY = (builder, tempDir) -> {
+        builder.value("manage_threads");
+        builder.value(
+            Map.of(
+                "files",
+                List.of(
+                    Map.of("path", tempDir.resolve("read_dir"), "mode", "read_write"),
+                    Map.of("path", tempDir.resolve("read_write_dir"), "mode", "read_write"),
+                    Map.of("path", tempDir.resolve("read_file"), "mode", "read"),
+                    Map.of("path", tempDir.resolve("read_write_file"), "mode", "read_write")
+                )
+            )
+        );
+    };
 
     interface PolicyBuilder {
         void build(XContentBuilder builder, Path tempDir) throws IOException;
@@ -51,11 +69,13 @@ class EntitlementsTestRule implements TestRule {
             }
         };
         cluster = ElasticsearchCluster.local()
-            .module("entitled")
+            .module("entitled", spec -> buildEntitlements(spec, "org.elasticsearch.entitlement.qa.entitled", ENTITLED_POLICY))
             .module("entitlement-test-plugin", spec -> setupEntitlements(spec, modular, policyBuilder))
             .systemProperty("es.entitlements.enabled", "true")
             .systemProperty("es.entitlements.testdir", () -> testDir.getRoot().getAbsolutePath())
             .setting("xpack.security.enabled", "false")
+            // Logs in libs/entitlement/qa/build/test-results/javaRestTest/TEST-org.elasticsearch.entitlement.qa.EntitlementsXXX.xml
+            // .setting("logger.org.elasticsearch.entitlement", "DEBUG")
             .build();
         ruleChain = RuleChain.outerRule(testDir).around(tempDirSetup).around(cluster);
     }
@@ -65,29 +85,30 @@ class EntitlementsTestRule implements TestRule {
         return ruleChain.apply(statement, description);
     }
 
+    private void buildEntitlements(PluginInstallSpec spec, String moduleName, PolicyBuilder policyBuilder) {
+        spec.withEntitlementsOverride(old -> {
+            try (var builder = YamlXContent.contentBuilder()) {
+                builder.startObject();
+                builder.field(moduleName);
+                builder.startArray();
+
+                policyBuilder.build(builder, testDir.getRoot().toPath());
+                builder.endArray();
+                builder.endObject();
+
+                String policy = Strings.toString(builder);
+                System.out.println("Using entitlement policy for module " + moduleName + ":\n" + policy);
+                return Resource.fromString(policy);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
+    }
+
     private void setupEntitlements(PluginInstallSpec spec, boolean modular, PolicyBuilder policyBuilder) {
         String moduleName = modular ? "org.elasticsearch.entitlement.qa.test" : "ALL-UNNAMED";
         if (policyBuilder != null) {
-            spec.withEntitlementsOverride(old -> {
-                try {
-                    try (var builder = YamlXContent.contentBuilder()) {
-                        builder.startObject();
-                        builder.field(moduleName);
-                        builder.startArray();
-
-                        policyBuilder.build(builder, testDir.getRoot().toPath());
-                        builder.endArray();
-                        builder.endObject();
-
-                        String policy = Strings.toString(builder);
-                        System.out.println("Using entitlement policy:\n" + policy);
-                        return Resource.fromString(policy);
-                    }
-
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            });
+            buildEntitlements(spec, moduleName, policyBuilder);
         }
 
         if (modular == false) {

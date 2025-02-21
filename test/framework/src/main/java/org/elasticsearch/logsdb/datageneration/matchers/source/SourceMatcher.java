@@ -13,14 +13,13 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.logsdb.datageneration.matchers.GenericEqualsMatcher;
-import org.elasticsearch.logsdb.datageneration.matchers.ListEqualMatcher;
 import org.elasticsearch.logsdb.datageneration.matchers.MatchResult;
 import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 
 import static org.elasticsearch.logsdb.datageneration.matchers.Messages.formatErrorMessage;
 import static org.elasticsearch.logsdb.datageneration.matchers.Messages.prettyPrintCollections;
@@ -51,14 +50,52 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
             .v2();
         this.expectedNormalizedMapping = MappingTransforms.normalizeMapping(expectedMappingAsMap);
 
-        this.fieldSpecificMatchers = Map.of(
-            "half_float",
-            new FieldSpecificMatcher.HalfFloatMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings),
-            "scaled_float",
-            new FieldSpecificMatcher.ScaledFloatMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings),
-            "unsigned_long",
-            new FieldSpecificMatcher.UnsignedLongMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings)
-        );
+        this.fieldSpecificMatchers = new HashMap<>() {
+            {
+                put("keyword", new FieldSpecificMatcher.KeywordMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put("date", new FieldSpecificMatcher.DateMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings));
+                put(
+                    "long",
+                    new FieldSpecificMatcher.NumberMatcher("long", actualMappings, actualSettings, expectedMappings, expectedSettings)
+                );
+                put(
+                    "unsigned_long",
+                    new FieldSpecificMatcher.UnsignedLongMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings)
+                );
+                put(
+                    "integer",
+                    new FieldSpecificMatcher.NumberMatcher("integer", actualMappings, actualSettings, expectedMappings, expectedSettings)
+                );
+                put(
+                    "short",
+                    new FieldSpecificMatcher.NumberMatcher("short", actualMappings, actualSettings, expectedMappings, expectedSettings)
+                );
+                put(
+                    "byte",
+                    new FieldSpecificMatcher.NumberMatcher("byte", actualMappings, actualSettings, expectedMappings, expectedSettings)
+                );
+                put(
+                    "double",
+                    new FieldSpecificMatcher.NumberMatcher("double", actualMappings, actualSettings, expectedMappings, expectedSettings)
+                );
+                put(
+                    "float",
+                    new FieldSpecificMatcher.NumberMatcher("float", actualMappings, actualSettings, expectedMappings, expectedSettings)
+                );
+                put(
+                    "half_float",
+                    new FieldSpecificMatcher.HalfFloatMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings)
+                );
+                put(
+                    "scaled_float",
+                    new FieldSpecificMatcher.ScaledFloatMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings)
+                );
+                put(
+                    "counted_keyword",
+                    new FieldSpecificMatcher.CountedKeywordMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings)
+                );
+            }
+        };
         this.dynamicFieldMatcher = new DynamicFieldMatcher(actualMappings, actualSettings, expectedMappings, expectedSettings);
     }
 
@@ -100,18 +137,7 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
             var actualValues = actual.get(name);
             var expectedValues = expectedFieldEntry.getValue();
 
-            // There are cases when field values are stored in ignored source
-            // so we try to match them as is first and then apply field specific matcher.
-            // This is temporary, we should be able to tell when source is exact using mappings.
-            // See #111916.
-            var genericMatchResult = matchWithGenericMatcher(actualValues, expectedValues);
-            if (genericMatchResult.isMatch()) {
-                continue;
-            }
-
-            var matchIncludingFieldSpecificMatchers = matchWithFieldSpecificMatcher(name, actualValues, expectedValues).orElse(
-                genericMatchResult
-            );
+            var matchIncludingFieldSpecificMatchers = matchWithFieldSpecificMatcher(name, actualValues, expectedValues);
             if (matchIncludingFieldSpecificMatchers.isMatch() == false) {
                 var message = "Source documents don't match for field [" + name + "]: " + matchIncludingFieldSpecificMatchers.getMessage();
                 return MatchResult.noMatch(message);
@@ -120,7 +146,7 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
         return MatchResult.match();
     }
 
-    private Optional<MatchResult> matchWithFieldSpecificMatcher(String fieldName, List<Object> actualValues, List<Object> expectedValues) {
+    private MatchResult matchWithFieldSpecificMatcher(String fieldName, List<Object> actualValues, List<Object> expectedValues) {
         var actualFieldMapping = actualNormalizedMapping.get(fieldName);
         if (actualFieldMapping == null) {
             if (expectedNormalizedMapping.get(fieldName) != null
@@ -160,30 +186,13 @@ public class SourceMatcher extends GenericEqualsMatcher<List<Map<String, Object>
         }
 
         var fieldSpecificMatcher = fieldSpecificMatchers.get(actualFieldType);
-        if (fieldSpecificMatcher == null) {
-            return Optional.empty();
-        }
+        assert fieldSpecificMatcher != null : "Missing matcher for field type [" + actualFieldType + "]";
 
-        MatchResult matched = fieldSpecificMatcher.match(
+        return fieldSpecificMatcher.match(
             actualValues,
             expectedValues,
             actualFieldMapping.mappingParameters(),
             expectedFieldMapping.mappingParameters()
         );
-        return Optional.of(matched);
-    }
-
-    private MatchResult matchWithGenericMatcher(List<Object> actualValues, List<Object> expectedValues) {
-        var genericListMatcher = new ListEqualMatcher(
-            actualMappings,
-            actualSettings,
-            expectedMappings,
-            expectedSettings,
-            SourceTransforms.normalizeValues(actualValues),
-            SourceTransforms.normalizeValues(expectedValues),
-            true
-        );
-
-        return genericListMatcher.match();
     }
 }

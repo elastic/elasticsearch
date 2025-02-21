@@ -74,4 +74,17 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
   task.skipTest("index/91_metrics_no_subobjects/Metrics object indexing with synthetic source", "_source.mode mapping attribute is no-op since 9.0.0")
   task.skipTest("index/91_metrics_no_subobjects/Root without subobjects with synthetic source", "_source.mode mapping attribute is no-op since 9.0.0")
   task.skipTest("indices.create/20_synthetic_source/synthetic_source with copy_to inside nested object", "temporary until backported")
+  task.skipTest(
+    "cluster.desired_nodes/10_basic/Test delete desired nodes with node_version generates a warning",
+    "node_version warning is removed in 9.0"
+  )
+  task.skipTest(
+    "cluster.desired_nodes/10_basic/Test update desired nodes with node_version generates a warning",
+    "node_version warning is removed in 9.0"
+  )
+  task.skipTest("tsdb/20_mapping/nested fields", "nested field support in tsdb indices is now supported")
+  task.skipTest("logsdb/10_settings/routing path allowed in logs mode with routing on sort fields", "Unknown feature routing.logsb_route_on_sort_fields")
+  task.skipTest("indices.create/21_synthetic_source_stored/index param - field ordering", "Synthetic source keep arrays now stores leaf arrays natively")
+  task.skipTest("indices.create/21_synthetic_source_stored/field param - keep nested array", "Synthetic source keep arrays now stores leaf arrays natively")
+  task.skipTest("indices.create/21_synthetic_source_stored/field param - keep root array", "Synthetic source keep arrays now stores leaf arrays natively")
 })

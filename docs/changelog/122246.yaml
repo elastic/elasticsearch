@@ -1,0 +1,5 @@
+pr: 122246
+summary: Ensure removal of index blocks does not leave key with null value
+area: Data streams
+type: bug
+issues: []

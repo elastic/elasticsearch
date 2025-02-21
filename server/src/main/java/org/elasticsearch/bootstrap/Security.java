@@ -178,11 +178,11 @@ final class Security {
             }
         };
 
-        for (Path plugin : PluginsUtils.findPluginDirs(environment.pluginsFile())) {
-            addPolicy.accept(PolicyUtil.getPluginPolicyInfo(plugin, environment.tmpFile()));
+        for (Path plugin : PluginsUtils.findPluginDirs(environment.pluginsDir())) {
+            addPolicy.accept(PolicyUtil.getPluginPolicyInfo(plugin, environment.tmpDir()));
         }
-        for (Path plugin : PluginsUtils.findPluginDirs(environment.modulesFile())) {
-            addPolicy.accept(PolicyUtil.getModulePolicyInfo(plugin, environment.tmpFile()));
+        for (Path plugin : PluginsUtils.findPluginDirs(environment.modulesDir())) {
+            addPolicy.accept(PolicyUtil.getModulePolicyInfo(plugin, environment.tmpDir()));
         }
 
         return Collections.unmodifiableMap(map);
@@ -199,7 +199,7 @@ final class Security {
 
     private static List<FilePermission> createRecursiveDataPathPermission(Environment environment) throws IOException {
         Permissions policy = new Permissions();
-        for (Path path : environment.dataFiles()) {
+        for (Path path : environment.dataDirs()) {
             addDirectoryPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete", true);
         }
         return toFilePermissions(policy);
@@ -215,13 +215,13 @@ final class Security {
         Map<String, Set<URL>> securedSettingKeys = new HashMap<>();
 
         for (URL url : mainCodebases) {
-            for (Permission p : PolicyUtil.getPolicyPermissions(url, template, environment.tmpFile())) {
+            for (Permission p : PolicyUtil.getPolicyPermissions(url, template, environment.tmpDir())) {
                 readSecuredConfigFilePermissions(environment, url, p, securedConfigFiles, securedSettingKeys);
             }
         }
 
         for (var pp : pluginPolicies.entrySet()) {
-            for (Permission p : PolicyUtil.getPolicyPermissions(pp.getKey(), pp.getValue(), environment.tmpFile())) {
+            for (Permission p : PolicyUtil.getPolicyPermissions(pp.getKey(), pp.getValue(), environment.tmpDir())) {
                 readSecuredConfigFilePermissions(environment, pp.getKey(), p, securedConfigFiles, securedSettingKeys);
             }
         }
@@ -242,8 +242,8 @@ final class Security {
                     // If the setting shouldn't be an HTTPS URL, that'll be caught by that setting's validation later in the process.
                     // HTTP (no S) URLs are not supported.
                     if (settingValue.toLowerCase(Locale.ROOT).startsWith("https://") == false) {
-                        Path file = environment.configFile().resolve(settingValue);
-                        if (file.startsWith(environment.configFile()) == false) {
+                        Path file = environment.configDir().resolve(settingValue);
+                        if (file.startsWith(environment.configDir()) == false) {
                             throw new IllegalStateException(
                                 ps.getValue() + " tried to grant access to file outside config directory " + file
                             );
@@ -263,9 +263,9 @@ final class Security {
         // always add some config files as exclusive files that no one can access
         // there's no reason for anyone to read these once the security manager is initialized
         // so if something has tried to grant itself access, crash out with an error
-        addSpeciallySecuredConfigFile(securedConfigFiles, environment.configFile().resolve("elasticsearch.yml").toString());
-        addSpeciallySecuredConfigFile(securedConfigFiles, environment.configFile().resolve("jvm.options").toString());
-        addSpeciallySecuredConfigFile(securedConfigFiles, environment.configFile().resolve("jvm.options.d/-").toString());
+        addSpeciallySecuredConfigFile(securedConfigFiles, environment.configDir().resolve("elasticsearch.yml").toString());
+        addSpeciallySecuredConfigFile(securedConfigFiles, environment.configDir().resolve("jvm.options").toString());
+        addSpeciallySecuredConfigFile(securedConfigFiles, environment.configDir().resolve("jvm.options.d/-").toString());
 
         return Collections.unmodifiableMap(securedConfigFiles);
     }
@@ -279,8 +279,8 @@ final class Security {
     ) {
         String securedFileName = extractSecuredName(p, SecuredConfigFileAccessPermission.class);
         if (securedFileName != null) {
-            Path securedFile = environment.configFile().resolve(securedFileName);
-            if (securedFile.startsWith(environment.configFile()) == false) {
+            Path securedFile = environment.configDir().resolve(securedFileName);
+            if (securedFile.startsWith(environment.configDir()) == false) {
                 throw new IllegalStateException("[" + url + "] tried to grant access to file outside config directory " + securedFile);
             }
             logger.debug("Jar {} securing access to config file {}", url, securedFile);
@@ -336,26 +336,26 @@ final class Security {
      */
     static void addFilePermissions(Permissions policy, Environment environment, Path pidFile) throws IOException {
         // read-only dirs
-        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.binFile(), "read,readlink", false);
-        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.libFile(), "read,readlink", false);
-        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.modulesFile(), "read,readlink", false);
-        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.pluginsFile(), "read,readlink", false);
-        addDirectoryPath(policy, "path.conf", environment.configFile(), "read,readlink", false);
+        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.binDir(), "read,readlink", false);
+        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.libDir(), "read,readlink", false);
+        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.modulesDir(), "read,readlink", false);
+        addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.pluginsDir(), "read,readlink", false);
+        addDirectoryPath(policy, "path.conf", environment.configDir(), "read,readlink", false);
 
         // read-write dirs
-        addDirectoryPath(policy, "java.io.tmpdir", environment.tmpFile(), "read,readlink,write,delete", false);
-        addDirectoryPath(policy, Environment.PATH_LOGS_SETTING.getKey(), environment.logsFile(), "read,readlink,write,delete", false);
-        if (environment.sharedDataFile() != null) {
+        addDirectoryPath(policy, "java.io.tmpdir", environment.tmpDir(), "read,readlink,write,delete", false);
+        addDirectoryPath(policy, Environment.PATH_LOGS_SETTING.getKey(), environment.logsDir(), "read,readlink,write,delete", false);
+        if (environment.sharedDataDir() != null) {
             addDirectoryPath(
                 policy,
                 Environment.PATH_SHARED_DATA_SETTING.getKey(),
-                environment.sharedDataFile(),
+                environment.sharedDataDir(),
                 "read,readlink,write,delete",
                 false
             );
         }
         final Set<Path> dataFilesPaths = new HashSet<>();
-        for (Path path : environment.dataFiles()) {
+        for (Path path : environment.dataDirs()) {
             addDirectoryPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete", false);
             /*
              * We have to do this after adding the path because a side effect of that is that the directory is created; the Path#toRealPath
@@ -371,7 +371,7 @@ final class Security {
                 throw new IllegalStateException("unable to access [" + path + "]", e);
             }
         }
-        for (Path path : environment.repoFiles()) {
+        for (Path path : environment.repoDirs()) {
             addDirectoryPath(policy, Environment.PATH_REPO_SETTING.getKey(), path, "read,readlink,write,delete", false);
         }
 
@@ -380,7 +380,7 @@ final class Security {
             addSingleFilePath(policy, pidFile, "delete");
         }
         // we need to touch the operator/settings.json file when restoring from snapshots, on some OSs it needs file write permission
-        addSingleFilePath(policy, environment.configFile().resolve(OPERATOR_DIRECTORY).resolve(SETTINGS_FILE_NAME), "read,readlink,write");
+        addSingleFilePath(policy, environment.configDir().resolve(OPERATOR_DIRECTORY).resolve(SETTINGS_FILE_NAME), "read,readlink,write");
     }
 
     /**

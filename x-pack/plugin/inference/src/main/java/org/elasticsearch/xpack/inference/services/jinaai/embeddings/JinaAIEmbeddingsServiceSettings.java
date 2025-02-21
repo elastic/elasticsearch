@@ -96,7 +96,7 @@ public class JinaAIEmbeddingsServiceSettings extends FilteredXContentObject impl
         this.maxInputTokens = in.readOptionalVInt();
 
         this.embeddingType = (in.getTransportVersion().onOrAfter(TransportVersions.JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_X))
+            || in.getTransportVersion().isPatchFrom(TransportVersions.JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_19))
                 ? Objects.requireNonNullElse(in.readOptionalEnum(JinaAIEmbeddingType.class), JinaAIEmbeddingType.FLOAT)
                 : JinaAIEmbeddingType.FLOAT;
     }
@@ -182,7 +182,7 @@ public class JinaAIEmbeddingsServiceSettings extends FilteredXContentObject impl
         out.writeOptionalVInt(maxInputTokens);
 
         if (out.getTransportVersion().onOrAfter(TransportVersions.JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_X)) {
+            || out.getTransportVersion().isPatchFrom(TransportVersions.JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED_BACKPORT_8_19)) {
             out.writeOptionalEnum(JinaAIEmbeddingType.translateToVersion(embeddingType, out.getTransportVersion()));
         }
     }

@@ -34,8 +34,8 @@ public class CountDistinctIntAggregatorFunctionTests extends AggregatorFunctionT
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new CountDistinctIntAggregatorFunctionSupplier(inputChannels, 40000);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new CountDistinctIntAggregatorFunctionSupplier(40000);
     }
 
     @Override
@@ -65,6 +65,7 @@ public class CountDistinctIntAggregatorFunctionTests extends AggregatorFunctionT
         BlockFactory blockFactory = driverContext.blockFactory();
         try (
             Driver d = new Driver(
+                "test",
                 driverContext,
                 new CannedSourceOperator(Iterators.single(new Page(blockFactory.newDoubleArrayVector(new double[] { 1.0 }, 1).asBlock()))),
                 List.of(simple().get(driverContext)),

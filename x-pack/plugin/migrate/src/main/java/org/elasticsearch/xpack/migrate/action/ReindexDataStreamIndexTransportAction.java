@@ -53,6 +53,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.deprecation.DeprecatedIndexPredicate;
+import org.elasticsearch.xpack.migrate.MigrateTemplateRegistry;
 
 import java.util.Locale;
 import java.util.Map;
@@ -162,6 +163,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
             .<AcknowledgedResponse>andThen(l -> createIndex(sourceIndex, destIndexName, l, taskId))
             .<BulkByScrollResponse>andThen(l -> reindex(sourceIndexName, destIndexName, l, taskId))
             .<AcknowledgedResponse>andThen(l -> copyOldSourceSettingsToDest(settingsBefore, destIndexName, l, taskId))
+            .<AcknowledgedResponse>andThen(l -> copyIndexMetadataToDest(sourceIndexName, destIndexName, l, taskId))
             .<AcknowledgedResponse>andThen(l -> sanityCheck(sourceIndexName, destIndexName, l, taskId))
             .<CloseIndexResponse>andThen(l -> closeIndexIfWasClosed(destIndexName, wasClosed, l, taskId))
             .andThenApply(ignored -> new ReindexDataStreamIndexAction.Response(destIndexName))
@@ -252,6 +254,8 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         var settingsOverride = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
+            // remove lifecycle so that ILM does not start processing before the index is added to data stream
+            .putNull(IndexMetadata.LIFECYCLE_NAME)
             .build();
 
         var request = new CreateIndexFromSourceAction.Request(
@@ -271,6 +275,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         logger.debug("Reindex to destination index [{}] from source index [{}]", destIndexName, sourceIndexName);
         var reindexRequest = new ReindexRequest();
         reindexRequest.setSourceIndices(sourceIndexName);
+        reindexRequest.setDestPipeline(MigrateTemplateRegistry.REINDEX_DATA_STREAM_PIPELINE_NAME);
         reindexRequest.getSearchRequest().allowPartialSearchResults(false);
         reindexRequest.getSearchRequest().source().fetchSource(true);
         reindexRequest.setDestIndex(destIndexName);
@@ -330,6 +335,24 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         copySettingOrUnset(settingsBefore, settings, IndexMetadata.SETTING_NUMBER_OF_REPLICAS);
         copySettingOrUnset(settingsBefore, settings, IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey());
         updateSettings(destIndexName, settings, listener, parentTaskId);
+    }
+
+    private void copyIndexMetadataToDest(
+        String sourceIndexName,
+        String destIndexName,
+        ActionListener<AcknowledgedResponse> listener,
+        TaskId parentTaskId
+    ) {
+        logger.debug("Copying index metadata to destination index [{}] from source index [{}]", destIndexName, sourceIndexName);
+        var request = new CopyLifecycleIndexMetadataAction.Request(TimeValue.MAX_VALUE, sourceIndexName, destIndexName);
+        request.setParentTask(parentTaskId);
+        var errorMessage = String.format(
+            Locale.ROOT,
+            "Failed to acknowledge copying index metadata from source [%s] to dest [%s]",
+            sourceIndexName,
+            destIndexName
+        );
+        client.execute(CopyLifecycleIndexMetadataAction.INSTANCE, request, failIfNotAcknowledged(listener, errorMessage));
     }
 
     private static void copySettingOrUnset(Settings settingsBefore, Settings.Builder builder, String setting) {

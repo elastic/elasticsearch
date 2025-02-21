@@ -23,6 +23,7 @@ import java.util.Map;
 import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
 import static org.hamcrest.Matchers.is;
 
+@ESTestCase.WithoutSecurityManager
 public class FileAccessTreeTests extends ESTestCase {
 
     static Path root;

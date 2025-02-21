@@ -13,6 +13,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
 
@@ -71,5 +72,9 @@ public class InferenceService {
         }
 
         listener.onResponse(inferenceResolution);
+    }
+
+    public void doInference(InferenceAction.Request request, ActionListener<InferenceAction.Response> listener) {
+        client.execute(InferenceAction.INSTANCE, request, listener);
     }
 }

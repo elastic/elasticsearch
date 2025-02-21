@@ -537,8 +537,6 @@ public class LocalExecutionPlanner {
             }
         }
 
-        logger.warn("layout {}", source.layout);
-
         return source.with(
             new RerankOperator.Factory(inferenceService, inferenceId, queryText, rerankFieldsEvaluatorSuppliers, scoreChannel),
             source.layout

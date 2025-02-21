@@ -118,8 +118,18 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings)
         return Objects.hash(embeddings);
     }
 
-    public record Embedding(byte[] values) implements Writeable, ToXContentObject, EmbeddingResults.Embedding<Chunk, Embedding> {
+    // Note: the field "numberOfMergedEmbeddings" is not serialized, so merging
+    // embeddings should happen inbetween serializations.
+    public record Embedding(byte[] values, int numberOfMergedEmbeddings)
+        implements
+            Writeable,
+            ToXContentObject,
+            EmbeddingResults.Embedding<Chunk, Embedding> {
         public static final String EMBEDDING = "embedding";
+
+        public Embedding(byte[] values) {
+            this(values, 1);
+        }
 
         public Embedding(StreamInput in) throws IOException {
             this(in.readByteArray());
@@ -191,9 +201,18 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings)
             return new Chunk(values, text, offset);
         }
 
+        // This merge function suffers from round-off errors. TODO: maybe do something smarter?
         @Override
         public Embedding merge(Embedding embedding) {
-            throw new UnsupportedOperationException();
+            byte[] mergedValues = new byte[values.length];
+            int newNumberOfMergedEmbeddings = numberOfMergedEmbeddings + embedding.numberOfMergedEmbeddings;
+            for (int i = 0; i < values.length; i++) {
+                // Add (newNumberOfMergedEmbeddings / 2) in the numerator to round towards the
+                // closest byte instead of truncating.
+                mergedValues[i] = (byte) ((numberOfMergedEmbeddings * values[i] + embedding.numberOfMergedEmbeddings * embedding.values[i]
+                    + newNumberOfMergedEmbeddings / 2) / newNumberOfMergedEmbeddings);
+            }
+            return new Embedding(mergedValues, newNumberOfMergedEmbeddings);
         }
     }
 

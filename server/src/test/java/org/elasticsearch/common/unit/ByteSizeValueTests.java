@@ -538,10 +538,11 @@ public class ByteSizeValueTests extends AbstractWireSerializingTestCase<ByteSize
         }
     }
 
-    public void testTwoDigitTransportRoundTrips() throws IOException {
+    public void testTransportRoundTripsWithTwoDigitFractions() throws IOException {
         for (var tv : List.of(TransportVersion.current(), BYTE_SIZE_VALUE_ALWAYS_USES_BYTES, BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_90)) {
             for (var desiredUnit : ByteSizeUnit.values()) {
                 if (desiredUnit == ByteSizeUnit.BYTES) {
+                    // Can't have a fraction of a byte!
                     continue;
                 }
                 checkTransportRoundTrip(ByteSizeValue.parseBytesSizeValue("23" + desiredUnit.getSuffix(), "test"), tv);

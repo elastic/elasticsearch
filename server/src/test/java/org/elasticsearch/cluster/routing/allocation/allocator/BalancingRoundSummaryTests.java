@@ -18,6 +18,9 @@ import java.util.Map;
 
 public class BalancingRoundSummaryTests extends ESTestCase {
 
+    /**
+     * Tests the {@link BalancingRoundSummary.CombinedBalancingRoundSummary#combine(List)} method.
+     */
     public void testCombine() {
         final String NODE_1 = "node1";
         final String NODE_2 = "node2";
@@ -83,30 +86,30 @@ public class BalancingRoundSummaryTests extends ESTestCase {
         // The base weights for each node should match the first BalancingRoundSummary's base weight values. The diff weights will be summed
         // across all BalancingRoundSummary entries (in this case, there are two BalancingRoundSummary entries).
 
-        assertEquals(node1BaseWeights.shardCount(), combinedNode1WeightsChanges.weights().shardCount());
-        assertDoublesEqual(node1BaseWeights.diskUsageInBytes(), combinedNode1WeightsChanges.weights().diskUsageInBytes());
-        assertDoublesEqual(node1BaseWeights.writeLoad(), combinedNode1WeightsChanges.weights().writeLoad());
-        assertDoublesEqual(node1BaseWeights.nodeWeight(), combinedNode1WeightsChanges.weights().nodeWeight());
-        assertEquals(2 * commonDiff.shardCountDiff(), combinedNode1WeightsChanges.nextWeightsDiff().shardCountDiff());
-        assertDoublesEqual(2 * commonDiff.diskUsageInBytesDiff(), combinedNode1WeightsChanges.nextWeightsDiff().diskUsageInBytesDiff());
-        assertDoublesEqual(2 * commonDiff.writeLoadDiff(), combinedNode1WeightsChanges.nextWeightsDiff().writeLoadDiff());
-        assertDoublesEqual(2 * commonDiff.totalWeightDiff(), combinedNode1WeightsChanges.nextWeightsDiff().totalWeightDiff());
+        assertEquals(node1BaseWeights.shardCount(), combinedNode1WeightsChanges.baseWeights().shardCount());
+        assertDoublesEqual(node1BaseWeights.diskUsageInBytes(), combinedNode1WeightsChanges.baseWeights().diskUsageInBytes());
+        assertDoublesEqual(node1BaseWeights.writeLoad(), combinedNode1WeightsChanges.baseWeights().writeLoad());
+        assertDoublesEqual(node1BaseWeights.nodeWeight(), combinedNode1WeightsChanges.baseWeights().nodeWeight());
+        assertEquals(2 * commonDiff.shardCountDiff(), combinedNode1WeightsChanges.weightsDiff().shardCountDiff());
+        assertDoublesEqual(2 * commonDiff.diskUsageInBytesDiff(), combinedNode1WeightsChanges.weightsDiff().diskUsageInBytesDiff());
+        assertDoublesEqual(2 * commonDiff.writeLoadDiff(), combinedNode1WeightsChanges.weightsDiff().writeLoadDiff());
+        assertDoublesEqual(2 * commonDiff.totalWeightDiff(), combinedNode1WeightsChanges.weightsDiff().totalWeightDiff());
 
-        assertEquals(node2BaseWeights.shardCount(), combinedNode2WeightsChanges.weights().shardCount());
-        assertDoublesEqual(node2BaseWeights.diskUsageInBytes(), combinedNode2WeightsChanges.weights().diskUsageInBytes());
-        assertDoublesEqual(node2BaseWeights.writeLoad(), combinedNode2WeightsChanges.weights().writeLoad());
-        assertDoublesEqual(node2BaseWeights.nodeWeight(), combinedNode2WeightsChanges.weights().nodeWeight());
-        assertEquals(2 * commonDiff.shardCountDiff(), combinedNode2WeightsChanges.nextWeightsDiff().shardCountDiff());
-        assertDoublesEqual(2 * commonDiff.diskUsageInBytesDiff(), combinedNode2WeightsChanges.nextWeightsDiff().diskUsageInBytesDiff());
-        assertDoublesEqual(2 * commonDiff.writeLoadDiff(), combinedNode2WeightsChanges.nextWeightsDiff().writeLoadDiff());
-        assertDoublesEqual(2 * commonDiff.totalWeightDiff(), combinedNode2WeightsChanges.nextWeightsDiff().totalWeightDiff());
+        assertEquals(node2BaseWeights.shardCount(), combinedNode2WeightsChanges.baseWeights().shardCount());
+        assertDoublesEqual(node2BaseWeights.diskUsageInBytes(), combinedNode2WeightsChanges.baseWeights().diskUsageInBytes());
+        assertDoublesEqual(node2BaseWeights.writeLoad(), combinedNode2WeightsChanges.baseWeights().writeLoad());
+        assertDoublesEqual(node2BaseWeights.nodeWeight(), combinedNode2WeightsChanges.baseWeights().nodeWeight());
+        assertEquals(2 * commonDiff.shardCountDiff(), combinedNode2WeightsChanges.weightsDiff().shardCountDiff());
+        assertDoublesEqual(2 * commonDiff.diskUsageInBytesDiff(), combinedNode2WeightsChanges.weightsDiff().diskUsageInBytesDiff());
+        assertDoublesEqual(2 * commonDiff.writeLoadDiff(), combinedNode2WeightsChanges.weightsDiff().writeLoadDiff());
+        assertDoublesEqual(2 * commonDiff.totalWeightDiff(), combinedNode2WeightsChanges.weightsDiff().totalWeightDiff());
     }
 
     /**
      * Helper for double type inputs. assertEquals on double type inputs require a delta.
      */
     private void assertDoublesEqual(double expected, double actual) {
-        assertEquals(expected, actual, 00001);
+        assertEquals(expected, actual, 0.00001);
     }
 
 }

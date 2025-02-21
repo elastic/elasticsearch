@@ -110,25 +110,10 @@ public class AllocationBalancingRoundSummaryService {
         for (var nodeAndWeights : oldWeightsPerNode.entrySet()) {
             var discoveryNode = nodeAndWeights.getKey();
             var oldNodeWeightStats = nodeAndWeights.getValue();
-            var newNodeWeightStats = newWeightsPerNode.get(discoveryNode);
 
-            if (newNodeWeightStats == null) {
-                // The node no longer exists in the new DesiredBalance. The weight diffs will be equal to the negative of the old
-                // DesiredBalance weights to reflect a new DesiredBalance of zero for each weight.
-                nodeNameToWeightInfo.put(
-                    discoveryNode.getName(),
-                    new BalancingRoundSummary.NodesWeightsChanges(
-                        oldNodeWeightStats,
-                        new BalancingRoundSummary.NodeWeightsDiff(
-                            -oldNodeWeightStats.shardCount(),
-                            -oldNodeWeightStats.diskUsageInBytes(),
-                            -oldNodeWeightStats.writeLoad(),
-                            -oldNodeWeightStats.nodeWeight()
-                        )
-                    )
-                );
-                continue;
-            }
+            // The node may no longer exists in the new DesiredBalance. If so, the new weights for that node are effectively zero. New
+            // weights of zero will result in correctly negative weight diffs for the removed node.
+            var newNodeWeightStats = newWeightsPerNode.getOrDefault(discoveryNode, DesiredBalanceMetrics.NodeWeightStats.ZERO);
 
             nodeNameToWeightInfo.put(
                 discoveryNode.getName(),
@@ -144,15 +129,13 @@ public class AllocationBalancingRoundSummaryService {
         for (var nodeAndWeights : newWeightsPerNode.entrySet()) {
             var discoveryNode = nodeAndWeights.getKey();
             if (nodeNameToWeightInfo.containsKey(discoveryNode.getName()) == false) {
-                // This node is new in the new DesiredBalance, there is no entry in the result yet because we previously iterated the nodes
-                // in the old DesiredBalance. So we'll make a new entry with a base of zero value weights and a weights diff of the new
-                // node's weights.
-                var zeroBaseWeights = new DesiredBalanceMetrics.NodeWeightStats(0, 0, 0, 0);
+                // This node is new in the new DesiredBalance, there was no entry added during iteration of the nodes in the old
+                // DesiredBalance. So we'll make a new entry with a base of zero value weights and a weights diff of the new node's weights.
                 nodeNameToWeightInfo.put(
                     discoveryNode.getName(),
                     new BalancingRoundSummary.NodesWeightsChanges(
-                        zeroBaseWeights,
-                        BalancingRoundSummary.NodeWeightsDiff.create(zeroBaseWeights, nodeAndWeights.getValue())
+                        DesiredBalanceMetrics.NodeWeightStats.ZERO,
+                        BalancingRoundSummary.NodeWeightsDiff.create(DesiredBalanceMetrics.NodeWeightStats.ZERO, nodeAndWeights.getValue())
                     )
                 );
             }

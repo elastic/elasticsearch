@@ -341,7 +341,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         }
     }
 
-
     /**
      * Submits the desired balance to be reconciled (applies the desired changes to the routing table) and creates and publishes a new
      * cluster state. The data nodes will receive and apply the new cluster state to start/move/remove shards.

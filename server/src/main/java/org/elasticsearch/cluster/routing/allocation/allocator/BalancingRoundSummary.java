@@ -27,10 +27,10 @@ public record BalancingRoundSummary(Map<String, NodesWeightsChanges> nodeNameToW
      * Represents the change in weights for a node going from an old DesiredBalance to a new DesiredBalance
      * Saves the node weights of an old DesiredBalance, along with a diff against a newer DesiredBalance.
      *
-     * @param weights The starting {@link DesiredBalanceMetrics.NodeWeightStats} of a previous DesiredBalance.
-     * @param nextWeightsDiff The difference between a previous DesiredBalance and a new DesiredBalance.
+     * @param baseWeights The starting {@link DesiredBalanceMetrics.NodeWeightStats} of a previous DesiredBalance.
+     * @param weightsDiff The difference between the {@code baseWeights} and a new DesiredBalance.
      */
-    record NodesWeightsChanges(DesiredBalanceMetrics.NodeWeightStats weights, NodeWeightsDiff nextWeightsDiff) {}
+    record NodesWeightsChanges(DesiredBalanceMetrics.NodeWeightStats baseWeights, NodeWeightsDiff weightsDiff) {}
 
     /**
      * Represents the change of shard balance weights for a node, comparing an older DesiredBalance with the latest DesiredBalance.
@@ -41,12 +41,33 @@ public record BalancingRoundSummary(Map<String, NodesWeightsChanges> nodeNameToW
      * @param totalWeightDiff How much more, or less, the total weight is of shards assigned to the node in the latest DesiredBalance.
      */
     record NodeWeightsDiff(long shardCountDiff, double diskUsageInBytesDiff, double writeLoadDiff, double totalWeightDiff) {
+
+        /**
+         * Creates a diff where the {@code base} weights will be subtracted from the {@code next} weights, to show the changes made to reach
+         * the {@code next} weights.
+         *
+         * @param base has the original weights
+         * @param next has the new weights
+         * @return The diff of ({@code next} - {@code base})
+         */
         public static NodeWeightsDiff create(DesiredBalanceMetrics.NodeWeightStats base, DesiredBalanceMetrics.NodeWeightStats next) {
             return new NodeWeightsDiff(
                 next.shardCount() - base.shardCount(),
                 next.diskUsageInBytes() - base.diskUsageInBytes(),
                 next.writeLoad() - base.writeLoad(),
                 next.nodeWeight() - base.nodeWeight()
+            );
+        }
+
+        /**
+         * Creates a new {@link NodeWeightsDiff} summing this instance's values with {@code otherDiff}'s values.
+         */
+        public NodeWeightsDiff combine(NodeWeightsDiff otherDiff) {
+            return new NodeWeightsDiff(
+                this.shardCountDiff + otherDiff.shardCountDiff,
+                this.diskUsageInBytesDiff + otherDiff.diskUsageInBytesDiff,
+                this.writeLoadDiff + otherDiff.writeLoadDiff,
+                this.totalWeightDiff + otherDiff.totalWeightDiff
             );
         }
     }
@@ -83,45 +104,44 @@ public record BalancingRoundSummary(Map<String, NodesWeightsChanges> nodeNameToW
 
         public static final CombinedBalancingRoundSummary EMPTY_RESULTS = new CombinedBalancingRoundSummary(0, new HashMap<>(), 0);
 
+        /**
+         * Merges multiple {@link BalancingRoundSummary} summaries into a single {@link CombinedBalancingRoundSummary}.
+         */
         public static CombinedBalancingRoundSummary combine(List<BalancingRoundSummary> summaries) {
             if (summaries.isEmpty()) {
                 return EMPTY_RESULTS;
             }
 
-            // Initialize the combined weight changes with the oldest changes. We can then build the combined changes by adding the diffs of
-            // newer weight changes. If a new node gets added in a later summary, then we will initialize its weights starting there.
-            // Similarly, a node may be removed in a later summary: in this case we will keep that nodes work, up until it was removed.
-            var iterator = summaries.iterator();
-            assert iterator.hasNext();
-            var firstSummary = iterator.next();
-            Map<String, NodesWeightsChanges> combinedNodeNameToWeightChanges = new HashMap<>(firstSummary.nodeNameToWeightChanges);
+            // We will loop through the summaries and sum the weight diffs for each node entry.
+            Map<String, NodesWeightsChanges> combinedNodeNameToWeightChanges = new HashMap<>();
 
             // Number of shards moves are simply summed across summaries. Each new balancing round is built upon the last one, so it is
             // possible that a shard is reassigned back to a node before it even moves away, and that will still be counted as 2 moves here.
-            long numberOfShardMoves = firstSummary.numberOfShardsToMove;
+            long numberOfShardMoves = 0;
 
-            // Initialize with 1 because we've already begun to iterate the summaries.
-            int numSummaries = 1;
+            // Total number of summaries that are being combined.
+            int numSummaries = 0;
 
-            // Iterate any remaining summaries (after the first one).
+            var iterator = summaries.iterator();
             while (iterator.hasNext()) {
                 var summary = iterator.next();
+
+                // We'll build the weight changes by keeping the node weight base from the first summary in which a node appears and then
+                // summing the weight diffs in each summary to get total weight diffs across summaries.
                 for (var nodeNameAndWeights : summary.nodeNameToWeightChanges.entrySet()) {
                     var combined = combinedNodeNameToWeightChanges.get(nodeNameAndWeights.getKey());
                     if (combined == null) {
-                        // Encountered a new node in a later summary. Add the new node initializing it with the base weights from that
-                        // summary.
+                        // Either this is the first summary, and combinedNodeNameToWeightChanges hasn't been initialized yet for this node;
+                        // or a later balancing round had a new node. Either way, initialize the node entry with the weight changes from the
+                        // first summary in which it appears.
                         combinedNodeNameToWeightChanges.put(nodeNameAndWeights.getKey(), nodeNameAndWeights.getValue());
                     } else {
-                        var newCombinedDiff = new NodeWeightsDiff(
-                            combined.nextWeightsDiff.shardCountDiff + nodeNameAndWeights.getValue().nextWeightsDiff.shardCountDiff,
-                            combined.nextWeightsDiff.diskUsageInBytesDiff + nodeNameAndWeights
-                                .getValue().nextWeightsDiff.diskUsageInBytesDiff,
-                            combined.nextWeightsDiff.writeLoadDiff + nodeNameAndWeights.getValue().nextWeightsDiff.writeLoadDiff,
-                            combined.nextWeightsDiff.totalWeightDiff + nodeNameAndWeights.getValue().nextWeightsDiff.totalWeightDiff
+                        // We have at least two summaries containing this node, so let's combine them.
+                        var newCombinedChanges = new NodesWeightsChanges(
+                            combined.baseWeights,
+                            combined.weightsDiff.combine(nodeNameAndWeights.getValue().weightsDiff())
                         );
-                        var newCombinedChanges = new NodesWeightsChanges(combined.weights, newCombinedDiff);
-                        combinedNodeNameToWeightChanges.compute(nodeNameAndWeights.getKey(), (k, weightChanges) -> newCombinedChanges);
+                        combinedNodeNameToWeightChanges.put(nodeNameAndWeights.getKey(), newCombinedChanges);
                     }
                 }
 

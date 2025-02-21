@@ -313,26 +313,26 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
         assertEquals(2, firstSummary.numberOfShardsToMove());
         assertEquals(1, firstSummary.nodeNameToWeightChanges().size());
         var firstSummaryWeights = firstSummary.nodeNameToWeightChanges().get(DUMMY_NODE.getName());
-        assertEquals(10, firstSummaryWeights.weights().shardCount());
-        assertDoublesEqual(20, firstSummaryWeights.weights().diskUsageInBytes());
-        assertDoublesEqual(30, firstSummaryWeights.weights().writeLoad());
-        assertDoublesEqual(40, firstSummaryWeights.weights().nodeWeight());
-        assertEquals(10, firstSummaryWeights.nextWeightsDiff().shardCountDiff());
-        assertDoublesEqual(20, firstSummaryWeights.nextWeightsDiff().diskUsageInBytesDiff());
-        assertDoublesEqual(30, firstSummaryWeights.nextWeightsDiff().writeLoadDiff());
-        assertDoublesEqual(40, firstSummaryWeights.nextWeightsDiff().totalWeightDiff());
+        assertEquals(10, firstSummaryWeights.baseWeights().shardCount());
+        assertDoublesEqual(20, firstSummaryWeights.baseWeights().diskUsageInBytes());
+        assertDoublesEqual(30, firstSummaryWeights.baseWeights().writeLoad());
+        assertDoublesEqual(40, firstSummaryWeights.baseWeights().nodeWeight());
+        assertEquals(10, firstSummaryWeights.weightsDiff().shardCountDiff());
+        assertDoublesEqual(20, firstSummaryWeights.weightsDiff().diskUsageInBytesDiff());
+        assertDoublesEqual(30, firstSummaryWeights.weightsDiff().writeLoadDiff());
+        assertDoublesEqual(40, firstSummaryWeights.weightsDiff().totalWeightDiff());
 
         assertEquals(1, secondSummary.numberOfShardsToMove());
         assertEquals(1, secondSummary.nodeNameToWeightChanges().size());
         var secondSummaryWeights = secondSummary.nodeNameToWeightChanges().get(DUMMY_NODE.getName());
-        assertEquals(20, secondSummaryWeights.weights().shardCount());
-        assertDoublesEqual(40, secondSummaryWeights.weights().diskUsageInBytes());
-        assertDoublesEqual(60, secondSummaryWeights.weights().writeLoad());
-        assertDoublesEqual(80, secondSummaryWeights.weights().nodeWeight());
-        assertEquals(10, secondSummaryWeights.nextWeightsDiff().shardCountDiff());
-        assertDoublesEqual(20, secondSummaryWeights.nextWeightsDiff().diskUsageInBytesDiff());
-        assertDoublesEqual(30, secondSummaryWeights.nextWeightsDiff().writeLoadDiff());
-        assertDoublesEqual(40, secondSummaryWeights.nextWeightsDiff().totalWeightDiff());
+        assertEquals(20, secondSummaryWeights.baseWeights().shardCount());
+        assertDoublesEqual(40, secondSummaryWeights.baseWeights().diskUsageInBytes());
+        assertDoublesEqual(60, secondSummaryWeights.baseWeights().writeLoad());
+        assertDoublesEqual(80, secondSummaryWeights.baseWeights().nodeWeight());
+        assertEquals(10, secondSummaryWeights.weightsDiff().shardCountDiff());
+        assertDoublesEqual(20, secondSummaryWeights.weightsDiff().diskUsageInBytesDiff());
+        assertDoublesEqual(30, secondSummaryWeights.weightsDiff().writeLoadDiff());
+        assertDoublesEqual(40, secondSummaryWeights.weightsDiff().totalWeightDiff());
     }
 
     /**
@@ -368,24 +368,24 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
         assertEquals(2, summary.nodeNameToWeightChanges().size());
 
         var summaryDummyNodeWeights = summary.nodeNameToWeightChanges().get(DUMMY_NODE.getName());
-        assertEquals(10, summaryDummyNodeWeights.weights().shardCount());
-        assertDoublesEqual(20, summaryDummyNodeWeights.weights().diskUsageInBytes());
-        assertDoublesEqual(30, summaryDummyNodeWeights.weights().writeLoad());
-        assertDoublesEqual(40, summaryDummyNodeWeights.weights().nodeWeight());
-        assertEquals(10, summaryDummyNodeWeights.nextWeightsDiff().shardCountDiff());
-        assertDoublesEqual(20, summaryDummyNodeWeights.nextWeightsDiff().diskUsageInBytesDiff());
-        assertDoublesEqual(30, summaryDummyNodeWeights.nextWeightsDiff().writeLoadDiff());
-        assertDoublesEqual(40, summaryDummyNodeWeights.nextWeightsDiff().totalWeightDiff());
+        assertEquals(10, summaryDummyNodeWeights.baseWeights().shardCount());
+        assertDoublesEqual(20, summaryDummyNodeWeights.baseWeights().diskUsageInBytes());
+        assertDoublesEqual(30, summaryDummyNodeWeights.baseWeights().writeLoad());
+        assertDoublesEqual(40, summaryDummyNodeWeights.baseWeights().nodeWeight());
+        assertEquals(10, summaryDummyNodeWeights.weightsDiff().shardCountDiff());
+        assertDoublesEqual(20, summaryDummyNodeWeights.weightsDiff().diskUsageInBytesDiff());
+        assertDoublesEqual(30, summaryDummyNodeWeights.weightsDiff().writeLoadDiff());
+        assertDoublesEqual(40, summaryDummyNodeWeights.weightsDiff().totalWeightDiff());
 
         var summarySecondDummyNodeWeights = summary.nodeNameToWeightChanges().get(SECOND_DUMMY_NODE.getName());
-        assertEquals(5, summarySecondDummyNodeWeights.weights().shardCount());
-        assertDoublesEqual(15, summarySecondDummyNodeWeights.weights().diskUsageInBytes());
-        assertDoublesEqual(25, summarySecondDummyNodeWeights.weights().writeLoad());
-        assertDoublesEqual(35, summarySecondDummyNodeWeights.weights().nodeWeight());
-        assertEquals(-5, summarySecondDummyNodeWeights.nextWeightsDiff().shardCountDiff());
-        assertDoublesEqual(-15, summarySecondDummyNodeWeights.nextWeightsDiff().diskUsageInBytesDiff());
-        assertDoublesEqual(-25, summarySecondDummyNodeWeights.nextWeightsDiff().writeLoadDiff());
-        assertDoublesEqual(-35, summarySecondDummyNodeWeights.nextWeightsDiff().totalWeightDiff());
+        assertEquals(5, summarySecondDummyNodeWeights.baseWeights().shardCount());
+        assertDoublesEqual(15, summarySecondDummyNodeWeights.baseWeights().diskUsageInBytes());
+        assertDoublesEqual(25, summarySecondDummyNodeWeights.baseWeights().writeLoad());
+        assertDoublesEqual(35, summarySecondDummyNodeWeights.baseWeights().nodeWeight());
+        assertEquals(-5, summarySecondDummyNodeWeights.weightsDiff().shardCountDiff());
+        assertDoublesEqual(-15, summarySecondDummyNodeWeights.weightsDiff().diskUsageInBytesDiff());
+        assertDoublesEqual(-25, summarySecondDummyNodeWeights.weightsDiff().writeLoadDiff());
+        assertDoublesEqual(-35, summarySecondDummyNodeWeights.weightsDiff().totalWeightDiff());
     }
 
     /**
@@ -421,30 +421,30 @@ public class AllocationBalancingRoundSummaryServiceTests extends ESTestCase {
         assertEquals(2, summary.nodeNameToWeightChanges().size());
 
         var summaryDummyNodeWeights = summary.nodeNameToWeightChanges().get(DUMMY_NODE.getName());
-        assertEquals(10, summaryDummyNodeWeights.weights().shardCount());
-        assertDoublesEqual(20, summaryDummyNodeWeights.weights().diskUsageInBytes());
-        assertDoublesEqual(30, summaryDummyNodeWeights.weights().writeLoad());
-        assertDoublesEqual(40, summaryDummyNodeWeights.weights().nodeWeight());
-        assertEquals(10, summaryDummyNodeWeights.nextWeightsDiff().shardCountDiff());
-        assertDoublesEqual(20, summaryDummyNodeWeights.nextWeightsDiff().diskUsageInBytesDiff());
-        assertDoublesEqual(30, summaryDummyNodeWeights.nextWeightsDiff().writeLoadDiff());
-        assertDoublesEqual(40, summaryDummyNodeWeights.nextWeightsDiff().totalWeightDiff());
+        assertEquals(10, summaryDummyNodeWeights.baseWeights().shardCount());
+        assertDoublesEqual(20, summaryDummyNodeWeights.baseWeights().diskUsageInBytes());
+        assertDoublesEqual(30, summaryDummyNodeWeights.baseWeights().writeLoad());
+        assertDoublesEqual(40, summaryDummyNodeWeights.baseWeights().nodeWeight());
+        assertEquals(10, summaryDummyNodeWeights.weightsDiff().shardCountDiff());
+        assertDoublesEqual(20, summaryDummyNodeWeights.weightsDiff().diskUsageInBytesDiff());
+        assertDoublesEqual(30, summaryDummyNodeWeights.weightsDiff().writeLoadDiff());
+        assertDoublesEqual(40, summaryDummyNodeWeights.weightsDiff().totalWeightDiff());
 
         var summarySecondDummyNodeWeights = summary.nodeNameToWeightChanges().get(SECOND_DUMMY_NODE.getName());
-        assertEquals(0, summarySecondDummyNodeWeights.weights().shardCount());
-        assertDoublesEqual(0, summarySecondDummyNodeWeights.weights().diskUsageInBytes());
-        assertDoublesEqual(0, summarySecondDummyNodeWeights.weights().writeLoad());
-        assertDoublesEqual(0, summarySecondDummyNodeWeights.weights().nodeWeight());
-        assertEquals(5, summarySecondDummyNodeWeights.nextWeightsDiff().shardCountDiff());
-        assertDoublesEqual(15, summarySecondDummyNodeWeights.nextWeightsDiff().diskUsageInBytesDiff());
-        assertDoublesEqual(25, summarySecondDummyNodeWeights.nextWeightsDiff().writeLoadDiff());
-        assertDoublesEqual(35, summarySecondDummyNodeWeights.nextWeightsDiff().totalWeightDiff());
+        assertEquals(0, summarySecondDummyNodeWeights.baseWeights().shardCount());
+        assertDoublesEqual(0, summarySecondDummyNodeWeights.baseWeights().diskUsageInBytes());
+        assertDoublesEqual(0, summarySecondDummyNodeWeights.baseWeights().writeLoad());
+        assertDoublesEqual(0, summarySecondDummyNodeWeights.baseWeights().nodeWeight());
+        assertEquals(5, summarySecondDummyNodeWeights.weightsDiff().shardCountDiff());
+        assertDoublesEqual(15, summarySecondDummyNodeWeights.weightsDiff().diskUsageInBytesDiff());
+        assertDoublesEqual(25, summarySecondDummyNodeWeights.weightsDiff().writeLoadDiff());
+        assertDoublesEqual(35, summarySecondDummyNodeWeights.weightsDiff().totalWeightDiff());
     }
 
     /**
      * Helper for double type inputs. assertEquals on double type inputs require a delta.
      */
     private void assertDoublesEqual(double expected, double actual) {
-        assertEquals(expected, actual, 00001);
+        assertEquals(expected, actual, 0.00001);
     }
 }

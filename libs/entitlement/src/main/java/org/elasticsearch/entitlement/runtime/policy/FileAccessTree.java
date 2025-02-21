@@ -50,6 +50,7 @@ public final class FileAccessTree {
 
         // everything has access to the temp dir
         String tempDir = normalizePath(pathLookup.tempDir());
+        logger.info("Adding temp dir [{}] to file access tree", tempDir);
         readPaths.add(tempDir);
         writePaths.add(tempDir);
 
@@ -90,6 +91,7 @@ public final class FileAccessTree {
         if (ndx < -1) {
             logger.warn("Couldn't find path [{}] in paths:\n{}", path, Arrays.asList(paths));
             String maybeParent = paths[-ndx - 2];
+            logger.warn("Possible parent path: [{}]", maybeParent);
             return path.startsWith(maybeParent) && path.startsWith(FILE_SEPARATOR, maybeParent.length());
         }
         return ndx >= 0;

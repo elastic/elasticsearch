@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.set.Sets;
@@ -127,8 +128,24 @@ public interface Role {
         Set<String> checkForIndexPatterns,
         boolean allowRestrictedIndices,
         Set<String> checkForPrivileges,
+        @Nullable IndexComponentSelector selector,
         @Nullable ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder
     );
+
+    default boolean checkIndicesPrivileges(
+        Set<String> checkForIndexPatterns,
+        boolean allowRestrictedIndices,
+        Set<String> checkForPrivileges,
+        @Nullable ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder
+    ) {
+        return checkIndicesPrivileges(
+            checkForIndexPatterns,
+            allowRestrictedIndices,
+            checkForPrivileges,
+            null,
+            resourcePrivilegesMapBuilder
+        );
+    }
 
     /**
      * Check if cluster permissions allow for the given action in the context of given
@@ -252,10 +269,13 @@ public interface Role {
         }
 
         public Builder add(IndexPrivilege privilege, String... indices) {
-            groups.add(new IndicesPermissionGroupDefinition(privilege, FieldPermissions.DEFAULT, null, false, indices));
+            groups.add(
+                new IndicesPermissionGroupDefinition(privilege, FieldPermissions.DEFAULT, null, false, IndexComponentSelector.DATA, indices)
+            );
             return this;
         }
 
+        // TODO remove me
         public Builder add(
             FieldPermissions fieldPermissions,
             Set<BytesReference> query,
@@ -263,7 +283,18 @@ public interface Role {
             boolean allowRestrictedIndices,
             String... indices
         ) {
-            groups.add(new IndicesPermissionGroupDefinition(privilege, fieldPermissions, query, allowRestrictedIndices, indices));
+            return add(fieldPermissions, query, privilege, allowRestrictedIndices, IndexComponentSelector.DATA, indices);
+        }
+
+        public Builder add(
+            FieldPermissions fieldPermissions,
+            Set<BytesReference> query,
+            IndexPrivilege privilege,
+            boolean allowRestrictedIndices,
+            IndexComponentSelector selector,
+            String... indices
+        ) {
+            groups.add(new IndicesPermissionGroupDefinition(privilege, fieldPermissions, query, allowRestrictedIndices, selector, indices));
             return this;
         }
 
@@ -273,10 +304,20 @@ public interface Role {
             final Set<BytesReference> query,
             final IndexPrivilege privilege,
             final boolean allowRestrictedIndices,
+            IndexComponentSelector indexComponentSelector,
             final String... indices
         ) {
             remoteIndicesGroups.computeIfAbsent(remoteClusterAliases, k -> new ArrayList<>())
-                .add(new IndicesPermissionGroupDefinition(privilege, fieldPermissions, query, allowRestrictedIndices, indices));
+                .add(
+                    new IndicesPermissionGroupDefinition(
+                        privilege,
+                        fieldPermissions,
+                        query,
+                        allowRestrictedIndices,
+                        indexComponentSelector,
+                        indices
+                    )
+                );
             return this;
         }
 
@@ -316,6 +357,7 @@ public interface Role {
                         group.fieldPermissions,
                         group.query,
                         group.allowRestrictedIndices,
+                        group.selector,
                         group.indices
                     );
                 }
@@ -364,6 +406,7 @@ public interface Role {
             private final FieldPermissions fieldPermissions;
             private final @Nullable Set<BytesReference> query;
             private final boolean allowRestrictedIndices;
+            private final IndexComponentSelector selector;
             private final String[] indices;
 
             private IndicesPermissionGroupDefinition(
@@ -371,12 +414,14 @@ public interface Role {
                 FieldPermissions fieldPermissions,
                 @Nullable Set<BytesReference> query,
                 boolean allowRestrictedIndices,
+                IndexComponentSelector selector,
                 String... indices
             ) {
                 this.privilege = privilege;
                 this.fieldPermissions = fieldPermissions;
                 this.query = query;
                 this.allowRestrictedIndices = allowRestrictedIndices;
+                this.selector = selector;
                 this.indices = indices;
             }
         }
@@ -406,13 +451,31 @@ public interface Role {
         );
 
         for (RoleDescriptor.IndicesPrivileges indexPrivilege : roleDescriptor.getIndicesPrivileges()) {
+            String[] privileges = indexPrivilege.getPrivileges();
+            // TODO properly handle this
+            // flag is true if privileges contain read_failures or all
+            boolean shouldIncludeFailureAccess = Arrays.stream(privileges)
+                .anyMatch(p -> p.equalsIgnoreCase("read_failures") || p.equalsIgnoreCase("all"));
+            if (shouldIncludeFailureAccess) {
+                builder.add(
+                    fieldPermissionsCache.getFieldPermissions(
+                        new FieldPermissionsDefinition(indexPrivilege.getGrantedFields(), indexPrivilege.getDeniedFields())
+                    ),
+                    indexPrivilege.getQuery() == null ? null : Collections.singleton(indexPrivilege.getQuery()),
+                    IndexPrivilege.get(Sets.newHashSet(privileges)),
+                    indexPrivilege.allowRestrictedIndices(),
+                    IndexComponentSelector.FAILURES,
+                    indexPrivilege.getIndices()
+                );
+            }
             builder.add(
                 fieldPermissionsCache.getFieldPermissions(
                     new FieldPermissionsDefinition(indexPrivilege.getGrantedFields(), indexPrivilege.getDeniedFields())
                 ),
                 indexPrivilege.getQuery() == null ? null : Collections.singleton(indexPrivilege.getQuery()),
-                IndexPrivilege.get(Sets.newHashSet(indexPrivilege.getPrivileges())),
+                IndexPrivilege.get(Sets.newHashSet(privileges)),
                 indexPrivilege.allowRestrictedIndices(),
+                IndexComponentSelector.DATA,
                 indexPrivilege.getIndices()
             );
         }
@@ -430,6 +493,7 @@ public interface Role {
                 indicesPrivileges.getQuery() == null ? null : Collections.singleton(indicesPrivileges.getQuery()),
                 IndexPrivilege.get(Set.of(indicesPrivileges.getPrivileges())),
                 indicesPrivileges.allowRestrictedIndices(),
+                IndexComponentSelector.DATA,
                 indicesPrivileges.getIndices()
             );
         }

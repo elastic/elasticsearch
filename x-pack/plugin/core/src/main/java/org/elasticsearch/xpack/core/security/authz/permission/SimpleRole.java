@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
@@ -154,12 +155,14 @@ public class SimpleRole implements Role {
         Set<String> checkForIndexPatterns,
         boolean allowRestrictedIndices,
         Set<String> checkForPrivileges,
+        @Nullable IndexComponentSelector selector,
         @Nullable ResourcePrivilegesMap.Builder resourcePrivilegesMapBuilder
     ) {
         return indices.checkResourcePrivileges(
             checkForIndexPatterns,
             allowRestrictedIndices,
             checkForPrivileges,
+            selector,
             resourcePrivilegesMapBuilder
         );
     }

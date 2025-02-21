@@ -46,7 +46,6 @@ import org.elasticsearch.xpack.inference.services.alibabacloudsearch.rerank.Alib
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseModel;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
-import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -324,19 +323,6 @@ public class AlibabaCloudSearchService extends SenderService {
             case SPARSE_EMBEDDING -> EmbeddingRequestChunker.EmbeddingType.SPARSE;
             default -> throw new IllegalArgumentException("Unsupported task type for chunking: " + taskType);
         };
-    }
-
-    /**
-     * For text embedding models get the embedding size and
-     * update the service settings.
-     *
-     * @param model The new model
-     * @param listener The listener
-     */
-    @Override
-    public void checkModelConfig(Model model, ActionListener<Model> listener) {
-        // TODO: Remove this function once all services have been updated to use the new model validators
-        ModelValidatorBuilder.buildModelValidator(model.getTaskType()).validate(this, model, listener);
     }
 
     @Override

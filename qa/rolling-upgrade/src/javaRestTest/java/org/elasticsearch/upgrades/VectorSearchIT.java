@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
@@ -456,7 +457,11 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
                 }
                 """;
             // create index and index 10 random floating point vectors
-            createIndex(BBQ_INDEX_NAME, Settings.EMPTY, mapping);
+            createIndex(
+                BBQ_INDEX_NAME,
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build(),
+                mapping
+            );
             index64DimVectors(BBQ_INDEX_NAME);
             // force merge the index
             client().performRequest(new Request("POST", "/" + BBQ_INDEX_NAME + "/_forcemerge?max_num_segments=1"));
@@ -485,8 +490,8 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
         Map<String, Object> response = search(searchRequest);
         assertThat(extractValue(response, "hits.total.value"), equalTo(7));
         List<Map<String, Object>> hits = extractValue(response, "hits.hits");
-        assertThat(hits.get(0).get("_id"), equalTo("0"));
-        assertThat((double) hits.get(0).get("_score"), closeTo(1.9869276, 0.0001));
+        assertThat("hits: " + response, hits.get(0).get("_id"), equalTo("0"));
+        assertThat("hits: " + response, (double) hits.get(0).get("_score"), closeTo(1.9869276, 0.0001));
 
         // search with knn
         searchRequest = new Request("POST", "/" + BBQ_INDEX_NAME + "/_search");
@@ -504,8 +509,12 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
         response = search(searchRequest);
         assertThat(extractValue(response, "hits.total.value"), equalTo(2));
         hits = extractValue(response, "hits.hits");
-        assertThat(hits.get(0).get("_id"), equalTo("0"));
-        assertThat((double) hits.get(0).get("_score"), closeTo(0.9934857, 0.005));
+        assertThat("expected: 0 received" + hits.get(0).get("_id") + " hits: " + response, hits.get(0).get("_id"), equalTo("0"));
+        assertThat(
+            "expected_near: 0.99 received" + hits.get(0).get("_score") + "hits: " + response,
+            (double) hits.get(0).get("_score"),
+            closeTo(0.9934857, 0.005)
+        );
     }
 
     public void testFlatBBQVectorSearch() throws Exception {
@@ -530,7 +539,11 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
                 }
                 """;
             // create index and index 10 random floating point vectors
-            createIndex(FLAT_BBQ_INDEX_NAME, Settings.EMPTY, mapping);
+            createIndex(
+                FLAT_BBQ_INDEX_NAME,
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build(),
+                mapping
+            );
             index64DimVectors(FLAT_BBQ_INDEX_NAME);
             // force merge the index
             client().performRequest(new Request("POST", "/" + FLAT_BBQ_INDEX_NAME + "/_forcemerge?max_num_segments=1"));
@@ -559,8 +572,8 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
         Map<String, Object> response = search(searchRequest);
         assertThat(extractValue(response, "hits.total.value"), equalTo(7));
         List<Map<String, Object>> hits = extractValue(response, "hits.hits");
-        assertThat(hits.get(0).get("_id"), equalTo("0"));
-        assertThat((double) hits.get(0).get("_score"), closeTo(1.9869276, 0.0001));
+        assertThat("hits: " + response, hits.get(0).get("_id"), equalTo("0"));
+        assertThat("hits: " + response, (double) hits.get(0).get("_score"), closeTo(1.9869276, 0.0001));
 
         // search with knn
         searchRequest = new Request("POST", "/" + FLAT_BBQ_INDEX_NAME + "/_search");
@@ -578,8 +591,12 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
         response = search(searchRequest);
         assertThat(extractValue(response, "hits.total.value"), equalTo(2));
         hits = extractValue(response, "hits.hits");
-        assertThat(hits.get(0).get("_id"), equalTo("0"));
-        assertThat((double) hits.get(0).get("_score"), closeTo(0.9934857, 0.005));
+        assertThat("expected: 0 received" + hits.get(0).get("_id") + " hits: " + response, hits.get(0).get("_id"), equalTo("0"));
+        assertThat(
+            "expected_near: 0.99 received" + hits.get(0).get("_score") + "hits: " + response,
+            (double) hits.get(0).get("_score"),
+            closeTo(0.9934857, 0.005)
+        );
     }
 
     private void index64DimVectors(String indexName) throws Exception {
@@ -605,6 +622,7 @@ public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
             assertOK(client().performRequest(indexRequest));
         }
         // always refresh to ensure the data is visible
+        flush(indexName, true);
         refresh(indexName);
     }
 

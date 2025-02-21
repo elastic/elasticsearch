@@ -142,7 +142,7 @@ public class AllocationFilteringIntegTests extends BaseSearchableSnapshotsIntegT
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
         ensureGreen(mountRequest.mountedIndexName());
 
-        final Settings mountedIndexSettings = indicesAdmin().prepareGetSettings(mountRequest.mountedIndexName())
+        final Settings mountedIndexSettings = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, mountRequest.mountedIndexName())
             .get()
             .getIndexToSettings()
             .get(mountRequest.mountedIndexName());

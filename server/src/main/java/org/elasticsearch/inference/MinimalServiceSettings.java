@@ -124,6 +124,14 @@ public record MinimalServiceSettings(
         validate();
     }
 
+    public Integer embeddingLength() {
+        if (taskType != TEXT_EMBEDDING) {
+            return null;
+        }
+
+        return elementType.getEmbeddingLength(dimensions);
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -162,6 +170,7 @@ public record MinimalServiceSettings(
                 validateFieldPresent(DIMENSIONS_FIELD, dimensions);
                 validateFieldPresent(SIMILARITY_FIELD, similarity);
                 validateFieldPresent(ELEMENT_TYPE_FIELD, elementType);
+                // TODO: Validate similarity and dimensions are valid for element type here?
                 break;
 
             default:

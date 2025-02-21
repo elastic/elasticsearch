@@ -28,7 +28,7 @@ public class DenseVectorFieldMapperTestUtils {
         };
     }
 
-    public static int randomCompatibleDimensionCount(DenseVectorFieldMapper.ElementType elementType, int max) {
+    public static int randomCompatibleDimensions(DenseVectorFieldMapper.ElementType elementType, int max) {
         if (max < 1) {
             throw new IllegalArgumentException("max must be at least 1");
         }

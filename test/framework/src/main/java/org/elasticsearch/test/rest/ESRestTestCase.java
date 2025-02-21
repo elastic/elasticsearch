@@ -64,7 +64,6 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.IndexSettings;
@@ -1991,7 +1990,6 @@ public abstract class ESRestTestCase extends ESTestCase {
         Response response = client.performRequest(new Request("HEAD", "/" + index));
         return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
     }
-
 
     protected static void closeIndex(String index) throws IOException {
         final Request closeRequest = new Request(HttpPost.METHOD_NAME, "/" + index + "/_close");

@@ -149,10 +149,11 @@ class ValuesLongAggregator {
                  * groups. Negative values in this array are always unselected groups.
                  */
                 int selectedCountsLen = selected.max() + 1;
-                selectedCountsSize = RamUsageEstimator.alignObjectSize(
+                long adjust = RamUsageEstimator.alignObjectSize(
                     RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + selectedCountsLen * Integer.BYTES
                 );
-                blockFactory.adjustBreaker(selectedCountsSize);
+                blockFactory.adjustBreaker(adjust);
+                selectedCountsSize = adjust;
                 int[] selectedCounts = new int[selectedCountsLen];
                 for (int id = 0; id < values.size(); id++) {
                     int group = (int) values.getKey1(id);
@@ -168,8 +169,7 @@ class ValuesLongAggregator {
                 int total = 0;
                 for (int s = 0; s < selected.getPositionCount(); s++) {
                     int group = selected.getInt(s);
-                    selectedCounts[group] = -selectedCounts[group];
-                    int count = selectedCounts[group];
+                    int count = -selectedCounts[group];
                     selectedCounts[group] = total;
                     total += count;
                 }
@@ -181,8 +181,9 @@ class ValuesLongAggregator {
                  * Here we use the negative counts to signal that a group hasn't been
                  * selected and the id containing values for that group is ignored.
                  */
-                idsSize = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + total * Integer.BYTES);
-                blockFactory.adjustBreaker(idsSize);
+                adjust = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + total * Integer.BYTES);
+                blockFactory.adjustBreaker(adjust);
+                idsSize = adjust;
                 int[] ids = new int[total];
                 for (int id = 0; id < values.size(); id++) {
                     int group = (int) values.getKey1(id);

@@ -343,8 +343,7 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         }
         assertThat(batches.get(2000).batch().inputs(), hasSize(2));
 
-        // Produce inference results for each request, with just the token
-        // "word" and increasing weights.
+        // Produce inference results for each request, with increasing weights.
         float weight = 0f;
         for (var batch : batches) {
             var embeddings = new ArrayList<TextEmbeddingFloatResults.Embedding>();
@@ -402,6 +401,91 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         assertThat(embedding.chunks().get(0), instanceOf(TextEmbeddingFloatResults.Chunk.class));
         chunk = (TextEmbeddingFloatResults.Chunk) embedding.chunks().get(0);
         assertThat(chunk.embedding(), equalTo(new float[] { 10002 / 16384f }));
+    }
+
+    public void testVeryLongInput_Byte() {
+        int batchSize = 5;
+        int chunkSize = 20;
+        int numberOfWordsInPassage = (chunkSize * 10000);
+
+        var passageBuilder = new StringBuilder();
+        for (int i = 0; i < numberOfWordsInPassage; i++) {
+            passageBuilder.append("word").append(i).append(" "); // chunk on whitespace
+        }
+
+        List<String> inputs = List.of("1st small", passageBuilder.toString(), "2nd small");
+
+        var finalListener = testListener();
+        List<EmbeddingRequestChunker.BatchRequestAndListener> batches = new EmbeddingRequestChunker<>(inputs, batchSize, chunkSize, 0)
+            .batchRequestsWithListeners(finalListener);
+
+        // The very long passage is split into 10000 chunks for inference, so
+        // there are 10002 inference requests, resulting in 2001 batches.
+        assertThat(batches, hasSize(2001));
+        for (int i = 0; i < 2000; i++) {
+            assertThat(batches.get(i).batch().inputs(), hasSize(5));
+        }
+        assertThat(batches.get(2000).batch().inputs(), hasSize(2));
+
+        // Produce inference results for each request, with increasing weights.
+        byte weight = 0;
+        for (var batch : batches) {
+            var embeddings = new ArrayList<TextEmbeddingByteResults.Embedding>();
+            for (int i = 0; i < batch.batch().requests().size(); i++) {
+                weight += 1;
+                embeddings.add(new TextEmbeddingByteResults.Embedding(new byte[] { weight }));
+            }
+            batch.listener().onResponse(new TextEmbeddingByteResults(embeddings));
+        }
+
+        assertNotNull(finalListener.results);
+        assertThat(finalListener.results, hasSize(3));
+
+        // The first input has the embedding with weight 1.
+        ChunkedInference inference = finalListener.results.get(0);
+        assertThat(inference, instanceOf(ChunkedInferenceEmbedding.class));
+        ChunkedInferenceEmbedding embedding = (ChunkedInferenceEmbedding) inference;
+        assertThat(embedding.chunks(), hasSize(1));
+        assertThat(embedding.chunks().get(0).matchedText(), equalTo("1st small"));
+        assertThat(embedding.chunks().get(0), instanceOf(TextEmbeddingByteResults.Chunk.class));
+        TextEmbeddingByteResults.Chunk chunk = (TextEmbeddingByteResults.Chunk) embedding.chunks().get(0);
+        assertThat(chunk.embedding(), equalTo(new byte[] { 1 }));
+
+        // The very long passage "word0 word1 ... word199999" is split into 10000 chunks for
+        // inference. They get the embeddings with weights 2/1024 ... 10000/16384.
+        // Next, they are merged into 512 larger chunks, which consists of 19 or 20 smaller chunks
+        // and therefore 380 or 400 words. For each, the average weight is collected.
+        inference = finalListener.results.get(1);
+        assertThat(inference, instanceOf(ChunkedInferenceEmbedding.class));
+        embedding = (ChunkedInferenceEmbedding) inference;
+        assertThat(embedding.chunks(), hasSize(512));
+
+        // The first merged chunk consists of 20 small chunks (so 400 words) and the weight
+        // is the average of the weights 2 ... 21, with some round-off errors.
+        assertThat(embedding.chunks().get(0).matchedText(), startsWith("word0 word1 "));
+        assertThat(embedding.chunks().get(0).matchedText(), endsWith(" word398 word399"));
+        assertThat(embedding.chunks().get(0), instanceOf(TextEmbeddingByteResults.Chunk.class));
+        chunk = (TextEmbeddingByteResults.Chunk) embedding.chunks().get(0);
+        assertThat(chunk.embedding(), equalTo(new byte[] { 12 }));
+
+        // The last merged chunk consists of 19 small chunks (so 380 words) and the weight
+        // is the average of the weights 9983 ... 10001 modulo 256 (bytes overflowing), so
+        // the average of -1, 0, 1, ... , 17, with some round-off errors.
+        assertThat(embedding.chunks().get(511).matchedText(), startsWith(" word199620 word199621 "));
+        assertThat(embedding.chunks().get(511).matchedText(), endsWith(" word199998 word199999"));
+        assertThat(embedding.chunks().get(511), instanceOf(TextEmbeddingByteResults.Chunk.class));
+        chunk = (TextEmbeddingByteResults.Chunk) embedding.chunks().get(511);
+        assertThat(chunk.embedding(), equalTo(new byte[] { 8 }));
+
+        // The last input has the token with weight 10002 % 256 = 18
+        inference = finalListener.results.get(2);
+        assertThat(inference, instanceOf(ChunkedInferenceEmbedding.class));
+        embedding = (ChunkedInferenceEmbedding) inference;
+        assertThat(embedding.chunks(), hasSize(1));
+        assertThat(embedding.chunks().get(0).matchedText(), equalTo("2nd small"));
+        assertThat(embedding.chunks().get(0), instanceOf(TextEmbeddingByteResults.Chunk.class));
+        chunk = (TextEmbeddingByteResults.Chunk) embedding.chunks().get(0);
+        assertThat(chunk.embedding(), equalTo(new byte[] { 18 }));
     }
 
     public void testMergingListener_Float() {

@@ -24,9 +24,11 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -137,6 +139,17 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
         }, true, longFields());
         assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
         assertThat(result.getTopMetrics(), equalTo(singletonList(top(1, 2))));
+    }
+
+    public void testActualValueForGeoPointMetric() throws IOException {
+        InternalTopMetrics result = collect(
+            simpleBuilder(),
+            new MatchAllDocsQuery(),
+            writer -> { writer.addDocument(Arrays.asList(doubleField("s", 2.0), geoPointField("m", 0.0, 0.0))); },
+            doubleAndGeoPointField()
+        );
+        assertThat(result.getSortOrder(), equalTo(SortOrder.ASC));
+        assertThat(result.getTopMetrics(), equalTo(singletonList(top(2.0, new GeoPoint(0.0, 0.0)))));
     }
 
     private InternalTopMetrics collectFromDoubles(TopMetricsAggregationBuilder builder) throws IOException {
@@ -513,6 +526,10 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
         return new MappedFieldType[] { geoPointFieldType("s"), numberFieldType(NumberType.DOUBLE, "m") };
     }
 
+    private MappedFieldType[] doubleAndGeoPointField() {
+        return new MappedFieldType[] { numberFieldType(NumberType.DOUBLE, "s"), geoPointFieldType("m"), };
+    }
+
     private MappedFieldType numberFieldType(NumberType numberType, String name) {
         return new NumberFieldMapper.NumberFieldType(name, numberType);
     }
@@ -596,6 +613,10 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
         return new InternalTopMetrics.TopMetric(DocValueFormat.RAW, SortValue.from(sortValue), metricValues(metricValues));
     }
 
+    private InternalTopMetrics.TopMetric top(double sortValue, GeoPoint... metricValues) {
+        return new InternalTopMetrics.TopMetric(DocValueFormat.RAW, SortValue.from(sortValue), metricValues(metricValues));
+    }
+
     private List<InternalTopMetrics.MetricValue> metricValues(double... metricValues) {
         return metricValues(Arrays.stream(metricValues).mapToObj(SortValue::from).toArray(SortValue[]::new));
     }
@@ -606,6 +627,12 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
 
     private List<InternalTopMetrics.MetricValue> metricValues(SortValue... metricValues) {
         return Arrays.stream(metricValues).map(v -> new InternalTopMetrics.MetricValue(DocValueFormat.RAW, v)).collect(toList());
+    }
+
+    private List<InternalTopMetrics.MetricValue> metricValues(GeoPoint... metricValues) {
+        return Arrays.stream(metricValues)
+            .map(v -> new InternalTopMetrics.MetricValue(DocValueFormat.RAW, SortValue.from(new BytesRef(v.toString()))))
+            .collect(toList());
     }
 
     /**

@@ -44,7 +44,8 @@ public class EntitlementBootstrap {
         Path configDir,
         Path libDir,
         Path logsDir,
-        Path tempDir
+        Path tempDir,
+        Path pidFile
     ) {
         public BootstrapArgs {
             requireNonNull(pluginPolicies);
@@ -94,7 +95,8 @@ public class EntitlementBootstrap {
         Path configDir,
         Path libDir,
         Path logsDir,
-        Path tempDir
+        Path tempDir,
+        Path pidFile
     ) {
         logger.debug("Loading entitlement agent");
         if (EntitlementBootstrap.bootstrapArgs != null) {
@@ -110,7 +112,8 @@ public class EntitlementBootstrap {
             configDir,
             libDir,
             logsDir,
-            tempDir
+            tempDir,
+            pidFile
         );
         exportInitializationToAgent();
         loadAgent(findAgentJar());

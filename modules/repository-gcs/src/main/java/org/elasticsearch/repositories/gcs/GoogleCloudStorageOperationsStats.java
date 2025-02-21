@@ -21,16 +21,13 @@ final class GoogleCloudStorageOperationsStats {
     private static final int OPERATION_PURPOSE_NUM = OperationPurpose.values().length;
     private static final int OPERATION_NUM = Operation.values().length;
     private final OperationCounters[] counters;
-    private final String[] counterNames;
     private final String bucketName;
 
     GoogleCloudStorageOperationsStats(String bucketName) {
         this.bucketName = bucketName;
         counters = new OperationCounters[OPERATION_PURPOSE_NUM * OPERATION_NUM];
-        counterNames = new String[counters.length];
         for (int counterIndex = 0; counterIndex < counters.length; counterIndex++) {
-            counterNames[counterIndex] = counterName(counterIndex);
-            counters[counterIndex] = new OperationCounters(new LongAdder(), new LongAdder());
+            counters[counterIndex] = new OperationCounters(counterName(counterIndex), new LongAdder(), new LongAdder());
         }
     }
 
@@ -59,12 +56,11 @@ final class GoogleCloudStorageOperationsStats {
     }
 
     Map<String, BlobStoreActionStats> toMap() {
-        var results = new HashMap<String, BlobStoreActionStats>(counterNames.length);
-        for (var counterIndex = 0; counterIndex < counterNames.length; counterIndex++) {
-            var stats = counters[counterIndex];
+        var results = new HashMap<String, BlobStoreActionStats>(counters.length);
+        for (var stats : counters) {
             var operations = stats.operations.sum();
             var requests = stats.requests.sum();
-            results.put(counterNames[counterIndex], new BlobStoreActionStats(operations, requests));
+            results.put(stats.nane, new BlobStoreActionStats(operations, requests));
         }
         return results;
     }
@@ -82,5 +78,5 @@ final class GoogleCloudStorageOperationsStats {
         }
     }
 
-    record OperationCounters(LongAdder operations, LongAdder requests) {}
+    record OperationCounters(String nane, LongAdder operations, LongAdder requests) {}
 }

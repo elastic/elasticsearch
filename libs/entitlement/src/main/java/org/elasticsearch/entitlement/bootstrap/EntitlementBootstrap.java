@@ -39,8 +39,10 @@ public class EntitlementBootstrap {
         Function<Class<?>, String> pluginResolver,
         Function<String, String> settingResolver,
         Function<String, Stream<String>> settingGlobResolver,
+        Function<String, Path> repoDirResolver,
         Path[] dataDirs,
         Path configDir,
+        Path libDir,
         Path logsDir,
         Path tempDir
     ) {
@@ -49,11 +51,13 @@ public class EntitlementBootstrap {
             requireNonNull(pluginResolver);
             requireNonNull(settingResolver);
             requireNonNull(settingGlobResolver);
+            requireNonNull(repoDirResolver);
             requireNonNull(dataDirs);
             if (dataDirs.length == 0) {
                 throw new IllegalArgumentException("must provide at least one data directory");
             }
             requireNonNull(configDir);
+            requireNonNull(libDir);
             requireNonNull(logsDir);
             requireNonNull(tempDir);
         }
@@ -71,8 +75,12 @@ public class EntitlementBootstrap {
      *
      * @param pluginPolicies a map holding policies for plugins (and modules), by plugin (or module) name.
      * @param pluginResolver a functor to map a Java Class to the plugin it belongs to (the plugin name).
+     * @param settingResolver a functor to resolve the value of an Elasticsearch setting.
+     * @param settingGlobResolver a functor to resolve a glob expression for one or more Elasticsearch settings.
+     * @param repoDirResolver a functor to map a repository location to its Elasticsearch path.
      * @param dataDirs       data directories for Elasticsearch
      * @param configDir      the config directory for Elasticsearch
+     * @param libDir         the lib directory for Elasticsearch
      * @param tempDir        the temp directory for Elasticsearch
      * @param logsDir        the log directory for Elasticsearch
      */
@@ -81,8 +89,10 @@ public class EntitlementBootstrap {
         Function<Class<?>, String> pluginResolver,
         Function<String, String> settingResolver,
         Function<String, Stream<String>> settingGlobResolver,
+        Function<String, Path> repoDirResolver,
         Path[] dataDirs,
         Path configDir,
+        Path libDir,
         Path logsDir,
         Path tempDir
     ) {
@@ -95,8 +105,10 @@ public class EntitlementBootstrap {
             pluginResolver,
             settingResolver,
             settingGlobResolver,
+            repoDirResolver,
             dataDirs,
             configDir,
+            libDir,
             logsDir,
             tempDir
         );

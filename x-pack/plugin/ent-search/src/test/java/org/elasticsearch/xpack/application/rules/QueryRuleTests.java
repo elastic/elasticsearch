@@ -68,14 +68,7 @@ public class QueryRuleTests extends ESTestCase {
                 "ids": ["id1"]
               }
             }""");
-        QueryRule queryRule = QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON);
-        boolean humanReadable = true;
-        BytesReference originalBytes = toShuffledXContent(queryRule, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
-        QueryRule parsed;
-        try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
-            parsed = QueryRule.fromXContent(parser);
-        }
-        assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
+        testToXContentRules(content);
     }
 
     public void testNumericValidationWithInvalidValues() throws IOException {
@@ -136,15 +129,7 @@ public class QueryRuleTests extends ESTestCase {
               },
               "priority": 5
             }""");
-
-        QueryRule queryRule = QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON);
-        boolean humanReadable = true;
-        BytesReference originalBytes = toShuffledXContent(queryRule, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
-        QueryRule parsed;
-        try (XContentParser parser = createParser(XContentType.JSON.xContent(), originalBytes)) {
-            parsed = QueryRule.fromXContent(parser);
-        }
-        assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
+        testToXContentRules(content);
     }
 
     public void testToXContentEmptyCriteria() throws IOException {

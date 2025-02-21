@@ -137,13 +137,6 @@ public class License implements ToXContentObject {
      * to a specific license version
      */
     public static final String LICENSE_VERSION_MODE = "license_version";
-    /**
-     * Set for RestApiVersion#V_7 requests only
-     * XContent param name to map the "enterprise" license type to "platinum"
-     * for backwards compatibility with older clients
-     */
-    @UpdateForV9(owner = UpdateForV9.Owner.SECURITY) // v7 REST API no longer exists: eliminate ref to RestApiVersion.V_7
-    public static final String XCONTENT_HIDE_ENTERPRISE = "hide_enterprise";
 
     public static final Comparator<License> LATEST_ISSUE_DATE_FIRST = Comparator.comparing(License::issueDate).reversed();
 
@@ -497,7 +490,6 @@ public class License implements ToXContentObject {
     public XContentBuilder toInnerXContent(XContentBuilder builder, Params params) throws IOException {
         boolean licenseSpecMode = params.paramAsBoolean(LICENSE_SPEC_VIEW_MODE, false);
         boolean restViewMode = params.paramAsBoolean(REST_VIEW_MODE, false);
-        boolean hideEnterprise = params.paramAsBoolean(XCONTENT_HIDE_ENTERPRISE, false);
 
         boolean previouslyHumanReadable = builder.humanReadable();
         if (licenseSpecMode && restViewMode) {
@@ -517,7 +509,7 @@ public class License implements ToXContentObject {
             builder.field(Fields.STATUS, LicenseUtils.status(this).label());
         }
         builder.field(Fields.UID, uid);
-        final String bwcType = hideEnterprise && LicenseType.isEnterprise(type) ? LicenseType.PLATINUM.getTypeName() : type;
+        final String bwcType = LicenseType.isEnterprise(type) ? LicenseType.PLATINUM.getTypeName() : type;
         builder.field(Fields.TYPE, bwcType);
         if (licenseVersion == VERSION_START) {
             builder.field(Fields.SUBSCRIPTION_TYPE, subscriptionType);
@@ -534,7 +526,7 @@ public class License implements ToXContentObject {
         if (licenseVersion >= VERSION_ENTERPRISE) {
             builder.field(Fields.MAX_NODES, maxNodes == -1 ? null : maxNodes);
             builder.field(Fields.MAX_RESOURCE_UNITS, maxResourceUnits == -1 ? null : maxResourceUnits);
-        } else if (hideEnterprise && maxNodes == -1) {
+        } else if (maxNodes == -1) {
             builder.field(Fields.MAX_NODES, maxResourceUnits);
         } else {
             builder.field(Fields.MAX_NODES, maxNodes);

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.plugins.internal;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.plugins.Plugin;
@@ -57,20 +58,26 @@ public class ReloadAwarePluginTests extends ESTestCase {
 
         public void invokeReloadOperation() throws Exception {
             reloadablePlugin.reload(Settings.EMPTY);
+            reloadablePlugin.reload(randomUniqueProjectId(), Settings.EMPTY);
         }
     }
 
     public static class TestReloadablePlugin extends Plugin implements ReloadablePlugin {
 
-        private boolean reloaded = false;
+        private int reloadCount = 0;
 
         @Override
         public void reload(Settings settings) throws Exception {
-            reloaded = true;
+            reloadCount++;
+        }
+
+        @Override
+        public void reload(ProjectId projectId, Settings settings) throws Exception {
+            reloadCount++;
         }
 
         public boolean isReloaded() {
-            return reloaded;
+            return reloadCount >= 2;
         }
     }
 }

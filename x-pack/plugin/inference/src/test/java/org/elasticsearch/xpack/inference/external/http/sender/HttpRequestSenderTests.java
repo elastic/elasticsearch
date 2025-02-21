@@ -158,7 +158,11 @@ public class HttpRequestSenderTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            var request = new ElasticInferenceServiceAuthorizationRequest(getUrl(webServer), new TraceContext("", ""));
+            var request = new ElasticInferenceServiceAuthorizationRequest(
+                getUrl(webServer),
+                new TraceContext("", ""),
+                randomAlphaOfLength(10)
+            );
             var responseHandler = new ElasticInferenceServiceResponseHandler(
                 String.format(Locale.ROOT, "%s sparse embeddings", ELASTIC_INFERENCE_SERVICE_IDENTIFIER),
                 ElasticInferenceServiceAuthorizationResponseEntity::fromResponse

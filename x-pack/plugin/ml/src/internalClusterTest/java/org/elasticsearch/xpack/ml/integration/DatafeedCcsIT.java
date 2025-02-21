@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class DatafeedCcsIT extends AbstractMultiClustersTestCase {
@@ -119,6 +120,37 @@ public class DatafeedCcsIT extends AbstractMultiClustersTestCase {
                 assertThat(jobStats.getState(), is(JobState.CLOSED));
                 assertThat(jobStats.getDataCounts().getProcessedRecordCount(), is(numDocs));
             }, 3, TimeUnit.MINUTES);
+        } catch (AssertionError ae) {
+            // On failure close the job, because otherwise there will be masses of noise in the logs from the job fighting with the
+            // post-test cleanup which obscures the original failure. Force closing the job also stops the datafeed if necessary.
+            try {
+                client(LOCAL_CLUSTER).execute(CloseJobAction.INSTANCE, new CloseJobAction.Request(jobId).setForce(true)).actionGet();
+            } catch (Exception e) {
+                ae.addSuppressed(e);
+            }
+            throw ae;
+        } finally {
+            clearSkipUnavailable();
+        }
+    }
+
+    public void testDatafeedWithCcsPrivilegesCheck() throws Exception {
+        setSkipUnavailable(randomBoolean());
+        String jobId = "ccs-healthy-job-priv";
+        String datafeedId = jobId;
+        long numDocs = randomIntBetween(32, 2048);
+        long endTimeMs = indexRemoteDocs(numDocs);
+        setupJobAndDatafeed(jobId, datafeedId, endTimeMs);
+        try {
+            // Datafeed should complete and auto-close the job.
+            // Use a 3 minute timeout because multiple suites run in parallel in CI which slows things down a lot.
+            // (Usually the test completes within 1 minute and much faster than that if run locally with nothing major running in parallel.)
+            assertBusy(() -> {
+                JobStats jobStats = getJobStats(jobId);
+                assertThat(jobStats.getState(), is(JobState.CLOSED));
+                assertThat(jobStats.getDataCounts().getProcessedRecordCount(), is(numDocs));
+            }, 3, TimeUnit.MINUTES);
+            assertThat(numDocs, equalTo(7));
         } catch (AssertionError ae) {
             // On failure close the job, because otherwise there will be masses of noise in the logs from the job fighting with the
             // post-test cleanup which obscures the original failure. Force closing the job also stops the datafeed if necessary.

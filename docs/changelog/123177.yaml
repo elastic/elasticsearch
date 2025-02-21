@@ -1,0 +1,5 @@
+pr: 123177
+summary: Prune extraneous files entitlements paths to prevent incorrect binary search
+area: Infra/Entitlements
+type: bug
+issues: []

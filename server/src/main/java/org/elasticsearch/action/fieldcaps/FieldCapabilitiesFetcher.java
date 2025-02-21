@@ -30,6 +30,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.CancellableTask;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -214,7 +215,10 @@ class FieldCapabilitiesFetcher {
                             null,
                             Map.of()
                         );
-                        responseMap.put(parentField, fieldCap);
+
+                        if (filter == null || Arrays.asList(types).contains(type)) {
+                            responseMap.put(parentField, fieldCap);
+                        }
                     }
                     dotIndex = parentField.lastIndexOf('.');
                 }

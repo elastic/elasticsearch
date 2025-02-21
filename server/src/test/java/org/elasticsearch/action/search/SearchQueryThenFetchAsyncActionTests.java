@@ -273,16 +273,20 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
     }
 
     public void testMinimumVersionBetweenNewAndOldVersion() {
-        var oldVersion = new VersionInformation(
-            VersionUtils.getFirstVersion(),
-            IndexVersions.MINIMUM_COMPATIBLE,
-            IndexVersionUtils.randomCompatibleVersion(random())
-        );
-
         var newVersion = new VersionInformation(
             VersionUtils.maxCompatibleVersion(VersionUtils.getFirstVersion()),
             IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersion.current()
+        );
+
+        var oldVersion = new VersionInformation(
+            VersionUtils.randomVersionBetween(
+                random(),
+                Version.CURRENT.minimumCompatibilityVersion(),
+                VersionUtils.getPreviousVersion(newVersion.nodeVersion())
+            ),
+            IndexVersions.MINIMUM_COMPATIBLE,
+            IndexVersionUtils.randomCompatibleVersion(random())
         );
 
         var minVersion = VersionUtils.randomVersionBetween(

@@ -2038,7 +2038,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
          * We do not support shrinking the shard count.
          * @param shardCount   updated shardCount
          */
-        public Builder reshardAddShards (int shardCount) {
+        public Builder reshardAddShards(int shardCount) {
             // Assert routingNumShards is null ?
             // Assert numberOfShards > 0
             if (shardCount % numberOfShards() != 0) {

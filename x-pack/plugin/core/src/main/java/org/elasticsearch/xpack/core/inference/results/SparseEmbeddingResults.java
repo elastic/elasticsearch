@@ -27,9 +27,11 @@ import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Set;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -181,7 +183,28 @@ public record SparseEmbeddingResults(List<Embedding> embeddings)
 
         @Override
         public Embedding merge(Embedding embedding) {
-            throw new UnsupportedOperationException();
+            List<WeightedToken> mergedTokens = new ArrayList<>();
+            Set<String> seenTokens = new HashSet<>();
+            int i = 0;
+            int j = 0;
+            // TODO: maybe truncate tokens here when it's getting too large?
+            while (i < tokens().size() || j < embedding.tokens().size()) {
+                WeightedToken token;
+                if (i == tokens().size()) {
+                    token = embedding.tokens().get(j++);
+                } else if (j == embedding.tokens().size()) {
+                    token = tokens().get(i++);
+                } else if (tokens.get(i).weight() > embedding.tokens().get(j).weight()) {
+                    token = tokens().get(i++);
+                } else {
+                    token = embedding.tokens().get(j++);
+                }
+                if (seenTokens.add(token.token())) {
+                    mergedTokens.add(token);
+                }
+            }
+            boolean mergedIsTruncated = isTruncated || embedding.isTruncated();
+            return new Embedding(mergedTokens, mergedIsTruncated);
         }
     }
 

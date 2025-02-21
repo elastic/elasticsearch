@@ -492,4 +492,116 @@ public class TransformPivotRestSpecialCasesIT extends TransformRestTestCase {
         long count = (Integer) XContentMapValues.extractValue("hits.total.value", searchResult);
         assertThat(count, is(equalTo(expectedDestIndexCount)));
     }
+
+    public void testDateFieldCornerCase() throws IOException {
+        String indexName1 = "sample-index-1";
+        String indexName2 = "sample-index-2";
+        {
+            Request createIndexRequest = new Request("PUT", indexName1);
+            createIndexRequest.setJsonEntity("""
+                    {
+                      "mappings": {
+                        "properties": {
+                          "user_id": {
+                            "type": "keyword"
+                          },
+                          "date_field_1": {
+                            "type": "date"
+                          }
+                        }
+                      }
+                    }
+                """);
+            Map<String, Object> createIndexResponse = entityAsMap(client().performRequest(createIndexRequest));
+            assertThat(createIndexResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+        }
+        {
+            Request createIndexRequest = new Request("PUT", indexName2);
+            createIndexRequest.setJsonEntity("""
+                    {
+                      "mappings": {
+                        "properties": {
+                          "user_id": {
+                            "type": "keyword"
+                          },
+                          "date_field_2": {
+                            "type": "date"
+                          }
+                        }
+                      }
+                    }
+                """);
+            Map<String, Object> createIndexResponse = entityAsMap(client().performRequest(createIndexRequest));
+            assertThat(createIndexResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+        }
+        {
+            Request indexRequest = new Request("POST", indexName1 + "/_doc");
+            indexRequest.setJsonEntity("""
+                    {
+                      "user_id": "user_1",
+                      "date_field_1": "2021-05-01T00:00:00.000Z"
+                    }
+                """);
+            Map<String, Object> indexResponse = entityAsMap(client().performRequest(indexRequest));
+            assertThat(indexResponse.get("result"), equalTo("created"));
+        }
+        {
+            Request indexRequest = new Request("POST", indexName2 + "/_doc");
+            indexRequest.setJsonEntity("""
+                    {
+                      "user_id": "user_1",
+                      "date_field_2": "2021-05-02T00:00:00.000Z"
+                    }
+                """);
+            Map<String, Object> indexResponse = entityAsMap(client().performRequest(indexRequest));
+            assertThat(indexResponse.get("result"), equalTo("created"));
+        }
+        refreshIndex(indexName1 + "," + indexName2);
+        {
+            Request previewTransformRequest = new Request("GET", getTransformEndpoint() + "/_preview");
+            previewTransformRequest.setJsonEntity("""
+                {
+                  "settings": {
+                    "dates_as_epoch_millis": false
+                  },
+                  "source": {
+                    "index": [
+                      "sample-index-1",
+                      "sample-index-2"
+                    ]
+                  },
+                  "pivot": {
+                    "group_by": {
+                      "user_id": {
+                        "terms": {
+                          "field": "user_id"
+                        }
+                      }
+                    },
+                    "aggregations": {
+                      "date_field_1": {
+                        "max": {
+                          "field": "date_field_1"
+                        }
+                      },
+                      "date_field_2": {
+                        "max": {
+                          "field": "date_field_2"
+                        }
+                      }
+                    }
+                  }
+                }
+                """);
+            Map<String, Object> previewTransformResponse = entityAsMap(client().performRequest(previewTransformRequest));
+            assertThat(
+                previewTransformResponse.get("preview"),
+                equalTo(
+                    List.of(
+                        Map.of("user_id", "user_1", "date_field_1", "2021-05-01T00:00:00.000Z", "date_field_2", "2021-05-02T00:00:00.000Z")
+                    )
+                )
+            );
+        }
+    }
 }

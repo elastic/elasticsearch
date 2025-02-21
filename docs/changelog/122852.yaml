@@ -1,0 +1,5 @@
+pr: 122852
+summary: Run `TransportGetDataStreamsAction` on local node
+area: Data streams
+type: enhancement
+issues: []

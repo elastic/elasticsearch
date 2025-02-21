@@ -347,6 +347,24 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {fork.SimpleFork ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/123100
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
+  method: testPartialResults
+  issue: https://github.com/elastic/elasticsearch/issues/123101
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {fork.ForkWithWhereSortAndLimit SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/123103
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {fork.SimpleFork SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/123104
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {fork.ForkWithWhereSortDescAndLimit SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/123107
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {fork.ForkWithWhereSortDescAndLimit ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/123108
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {fork.ForkWithCommonPrefilter SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/123109
 
 # Examples:
 #

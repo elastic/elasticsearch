@@ -365,6 +365,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {fork.ForkWithCommonPrefilter SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/123109
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/40_tsdb/to_string aggregate_metric_double}
+  issue: https://github.com/elastic/elasticsearch/issues/123116
 
 # Examples:
 #

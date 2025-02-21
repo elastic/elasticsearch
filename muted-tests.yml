@@ -338,6 +338,9 @@ tests:
 - class: org.elasticsearch.upgrades.DataStreamsUpgradeIT
   method: testUpgradeDataStream
   issue: https://github.com/elastic/elasticsearch/issues/123189
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/snapshot-restore/restore-snapshot/line_408}
+  issue: https://github.com/elastic/elasticsearch/issues/123192
 
 # Examples:
 #

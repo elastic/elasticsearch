@@ -24,9 +24,4 @@ public class MedianAbsoluteDeviationSerializationTests extends AbstractExpressio
             randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild)
         );
     }
-
-    @Override
-    protected boolean alwaysEmptySource() {
-        return true;
-    }
 }

@@ -36,9 +36,4 @@ public class DateDiffSerializationTests extends AbstractExpressionSerializationT
         }
         return new DateDiff(source, unit, startTimestamp, endTimestamp);
     }
-
-    @Override
-    protected boolean alwaysEmptySource() {
-        return true;
-    }
 }

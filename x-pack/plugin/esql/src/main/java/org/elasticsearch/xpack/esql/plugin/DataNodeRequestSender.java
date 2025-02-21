@@ -17,6 +17,7 @@ import org.elasticsearch.action.search.SearchShardsRequest;
 import org.elasticsearch.action.search.SearchShardsResponse;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.FailureCollector;
@@ -35,9 +36,11 @@ import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
@@ -52,6 +55,13 @@ import java.util.concurrent.locks.ReentrantLock;
  * and executing these computes on the data nodes.
  */
 abstract class DataNodeRequestSender {
+
+    private static final String[] NODE_QUERY_ORDER = new String[] {
+        DiscoveryNodeRole.DATA_HOT_NODE_ROLE.roleName(),
+        DiscoveryNodeRole.DATA_WARM_NODE_ROLE.roleName(),
+        DiscoveryNodeRole.DATA_COLD_NODE_ROLE.roleName(),
+        DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName() };
+
     private final TransportService transportService;
     private final Executor esqlExecutor;
     private final CancellableTask rootTask;
@@ -97,10 +107,33 @@ abstract class DataNodeRequestSender {
                         nodePermits.putIfAbsent(node, new Semaphore(1));
                     }
                 }
-                pendingShardIds.addAll(targetShards.shards.keySet());
+                pendingShardIds.addAll(order(targetShards));
                 trySendingRequestsForPendingShards(targetShards, computeListener);
             }
         }, listener::onFailure));
+    }
+
+    private static List<ShardId> order(TargetShards targetShards) {
+        var ordered = new ArrayList<>(targetShards.shards.keySet());
+        ordered.sort(Comparator.comparingInt(shardId -> nodeOrder(targetShards.getShard(shardId).remainingNodes)));
+        return ordered;
+    }
+
+    private static int nodeOrder(List<DiscoveryNode> nodes) {
+        if (nodes.isEmpty()) {
+            return Integer.MAX_VALUE;
+        }
+        // assumes all shard nodes have same roles
+        var node = nodes.getFirst();
+        if (node.hasRole(DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE.roleName()) || node.hasRole(DiscoveryNodeRole.DATA_ROLE.roleName())) {
+            return 0;
+        }
+        for (int i = 0; i < NODE_QUERY_ORDER.length; i++) {
+            if (node.hasRole(NODE_QUERY_ORDER[i])) {
+                return i;
+            }
+        }
+        return NODE_QUERY_ORDER.length;
     }
 
     private void trySendingRequestsForPendingShards(TargetShards targetShards, ComputeListener computeListener) {
@@ -243,17 +276,11 @@ abstract class DataNodeRequestSender {
     /**
      * (Remaining) allocated nodes of a given shard id and its alias filter
      */
-    record TargetShard(ShardId shardId, List<DiscoveryNode> remainingNodes, AliasFilter aliasFilter) {
+    record TargetShard(ShardId shardId, List<DiscoveryNode> remainingNodes, AliasFilter aliasFilter) {}
 
-    }
+    record NodeRequest(DiscoveryNode node, List<ShardId> shardIds, Map<Index, AliasFilter> aliasFilters) {}
 
-    record NodeRequest(DiscoveryNode node, List<ShardId> shardIds, Map<Index, AliasFilter> aliasFilters) {
-
-    }
-
-    private record ShardFailure(boolean fatal, Exception failure) {
-
-    }
+    private record ShardFailure(boolean fatal, Exception failure) {}
 
     /**
      * Selects the next nodes to send requests to. Limits to at most one outstanding request per node.
@@ -262,7 +289,7 @@ abstract class DataNodeRequestSender {
      */
     private List<NodeRequest> selectNodeRequests(TargetShards targetShards) {
         assert sendingLock.isHeldByCurrentThread();
-        final Map<DiscoveryNode, List<ShardId>> nodeToShardIds = new HashMap<>();
+        final Map<DiscoveryNode, List<ShardId>> nodeToShardIds = new LinkedHashMap<>();
         final Iterator<ShardId> shardsIt = pendingShardIds.iterator();
         while (shardsIt.hasNext()) {
             ShardId shardId = shardsIt.next();
@@ -288,8 +315,9 @@ abstract class DataNodeRequestSender {
             }
         }
         final List<NodeRequest> nodeRequests = new ArrayList<>(nodeToShardIds.size());
-        for (var e : nodeToShardIds.entrySet()) {
-            List<ShardId> shardIds = e.getValue();
+        for (var entry : nodeToShardIds.entrySet()) {
+            var node = entry.getKey();
+            var shardIds = entry.getValue();
             Map<Index, AliasFilter> aliasFilters = new HashMap<>();
             for (ShardId shardId : shardIds) {
                 var aliasFilter = targetShards.getShard(shardId).aliasFilter;
@@ -297,7 +325,7 @@ abstract class DataNodeRequestSender {
                     aliasFilters.put(shardId.getIndex(), aliasFilter);
                 }
             }
-            nodeRequests.add(new NodeRequest(e.getKey(), shardIds, aliasFilters));
+            nodeRequests.add(new NodeRequest(node, shardIds, aliasFilters));
         }
         return nodeRequests;
     }

@@ -167,7 +167,6 @@ final class TransportHandshaker {
 
     static final TransportVersion V7_HANDSHAKE_VERSION = TransportVersion.fromId(6_08_00_99);
     static final TransportVersion V8_HANDSHAKE_VERSION = TransportVersion.fromId(7_17_00_99);
-    static final TransportVersion V8_18_HANDSHAKE_VERSION = TransportVersions.ML_INFERENCE_IBM_WATSONX_RERANK_ADDED;
     static final TransportVersion V9_HANDSHAKE_VERSION = TransportVersion.fromId(8_800_00_0);
     static final Set<TransportVersion> ALLOWED_HANDSHAKE_VERSIONS = Set.of(
         V7_HANDSHAKE_VERSION,
@@ -176,6 +175,7 @@ final class TransportHandshaker {
     );
 
     static final String HANDSHAKE_ACTION_NAME = "internal:tcp/handshake";
+    static final TransportVersion V8_18_FIRST_VERSION = TransportVersions.INDEXING_PRESSURE_THROTTLING_STATS;
     private final ConcurrentMap<Long, HandshakeResponseHandler> pendingHandshakes = new ConcurrentHashMap<>();
     private final CounterMetric numHandshakes = new CounterMetric();
 
@@ -258,21 +258,15 @@ final class TransportHandshaker {
     static void ensureCompatibleVersion(
         TransportVersion localTransportVersion,
         TransportVersion remoteTransportVersion,
-        String releaseVersion,
+        String remoteReleaseVersion,
         Object channel
     ) {
         if (TransportVersion.isCompatible(remoteTransportVersion)) {
-            if (remoteTransportVersion.before(V8_18_HANDSHAKE_VERSION)) {
+            if (remoteTransportVersion.before(V8_18_FIRST_VERSION)) {
                 deprecationLogger.warn(
                     DeprecationCategory.OTHER,
                     "handshake_version",
-                    "Performed a handshake with a remote node whose version will be incompatible after this node "
-                        + "is upgraded to 9.x. This is likely a result of a CCR/CCS request. "
-                        + "Remote version: [{}]. "
-                        + "This version: [{}]. "
-                        + "Ensure you upgrade the remote node to a version that is compatible with this node.",
-                    remoteTransportVersion.toReleaseVersion(),
-                    localTransportVersion.toReleaseVersion()
+                    getDeprecationMessage(localTransportVersion, remoteTransportVersion, remoteReleaseVersion, channel)
                 );
             }
             if (remoteTransportVersion.onOrAfter(localTransportVersion)) {
@@ -291,7 +285,7 @@ final class TransportHandshaker {
             """
                 Rejecting unreadable transport handshake from remote node with version [%s/%s] received on [%s] since this node has \
                 version [%s/%s] which has an incompatible wire format.""",
-            releaseVersion,
+            remoteReleaseVersion,
             remoteTransportVersion,
             channel,
             Build.current().version(),
@@ -300,6 +294,24 @@ final class TransportHandshaker {
         logger.warn(message);
         throw new IllegalStateException(message);
 
+    }
+
+    // Non-private for testing
+    static String getDeprecationMessage(
+        TransportVersion localTransportVersion,
+        TransportVersion remoteTransportVersion,
+        String remoteReleaseVersion,
+        Object channel
+    ) {
+        return Strings.format(
+            "Performed a handshake with a remote node with version [%s/%s] received on [%s] which "
+                + "will be incompatible after this node on version [%s/%s] is upgraded to 9.x.",
+            remoteReleaseVersion,
+            remoteTransportVersion,
+            channel,
+            Build.current().version(),
+            localTransportVersion
+        );
     }
 
     TransportResponseHandler<HandshakeResponse> removeHandlerForHandshake(long requestId) {

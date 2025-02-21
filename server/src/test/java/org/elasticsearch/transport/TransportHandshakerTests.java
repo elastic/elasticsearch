@@ -31,6 +31,8 @@ import java.util.Collections;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.transport.TransportHandshaker.V8_18_FIRST_VERSION;
+import static org.elasticsearch.transport.TransportHandshaker.getDeprecationMessage;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.doThrow;
@@ -131,9 +133,7 @@ public class TransportHandshakerTests extends ESTestCase {
                 "Rejecting unreadable transport handshake * incompatible wire format."
             )
         );
-        if (olderThanMinCompatible == false) {
-            assertDeprecationMessageIsLogged(remoteVersion);
-        }
+        assertDeprecationMessageIsLogged(remoteVersion, remoteVersion.toReleaseVersion(), channel);
     }
 
     public void testHandshakeResponseFromOlderNode() throws Exception {
@@ -145,12 +145,13 @@ public class TransportHandshakerTests extends ESTestCase {
         assertFalse(versionFuture.isDone());
 
         final var remoteVersion = TransportVersionUtils.randomCompatibleVersion(random());
-        handler.handleResponse(new TransportHandshaker.HandshakeResponse(remoteVersion, randomIdentifier()));
+        var releaseVersion = randomIdentifier();
+        handler.handleResponse(new TransportHandshaker.HandshakeResponse(remoteVersion, releaseVersion));
 
         assertTrue(versionFuture.isDone());
         assertEquals(remoteVersion, versionFuture.result());
 
-        assertDeprecationMessageIsLogged(remoteVersion);
+        assertDeprecationMessageIsLogged(remoteVersion, releaseVersion, channel);
     }
 
     @TestLogging(reason = "testing WARN logging", value = "org.elasticsearch.transport.TransportHandshaker:WARN")
@@ -164,7 +165,8 @@ public class TransportHandshakerTests extends ESTestCase {
 
         var olderThanMinCompatible = randomBoolean();
         var remoteVersion = getRandomIncompatibleTransportVersion(olderThanMinCompatible);
-        final var handshakeResponse = new TransportHandshaker.HandshakeResponse(remoteVersion, randomIdentifier());
+        var releaseVersion = randomIdentifier();
+        final var handshakeResponse = new TransportHandshaker.HandshakeResponse(remoteVersion, releaseVersion);
 
         MockLog.awaitLogger(
             () -> handler.handleResponse(handshakeResponse),
@@ -187,19 +189,13 @@ public class TransportHandshakerTests extends ESTestCase {
                 containsString("which has an incompatible wire format")
             )
         );
-        if (olderThanMinCompatible == false) {
-            assertDeprecationMessageIsLogged(remoteVersion);
-        }
+        assertDeprecationMessageIsLogged(remoteVersion, releaseVersion, channel);
     }
 
-    private void assertDeprecationMessageIsLogged(TransportVersion remoteVersion) {
-        assertWarnings(
-            "Performed a handshake with a remote node whose version will be incompatible after this node is "
-                + "upgraded to 9.x. This is likely a result of a CCR/CCS request. Remote version: ["
-                + remoteVersion.toReleaseVersion()
-                + "]. This version: [8.18.0]. Ensure you upgrade the remote node to a version that is compatible with "
-                + "this node."
-        );
+    private void assertDeprecationMessageIsLogged(TransportVersion remoteVersion, String remoteReleaseVersion, Object channel) {
+        if (remoteVersion.onOrAfter(TransportVersions.MINIMUM_COMPATIBLE) && remoteVersion.before(V8_18_FIRST_VERSION)) {
+            assertWarnings(getDeprecationMessage(TransportVersion.current(), remoteVersion, remoteReleaseVersion, channel));
+        }
     }
 
     private static TransportVersion getRandomIncompatibleTransportVersion(boolean olderThanMinCompatible) {

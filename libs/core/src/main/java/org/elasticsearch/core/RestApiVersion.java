@@ -61,15 +61,11 @@ public enum RestApiVersion {
         };
     }
 
-    public static RestApiVersion forMajor(int major) {
-        switch (major) {
-            case 8 -> {
-                return V_8;
-            }
-            case 9 -> {
-                return V_9;
-            }
-            default -> throw new IllegalArgumentException("Unknown REST API version " + major);
-        }
+    public static RestApiVersion forMajorIfKnown(int major) {
+        return switch (major) {
+            case 8 -> V_8;
+            case 9 -> V_9;
+            default -> null;
+        };
     }
 }

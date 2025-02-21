@@ -566,6 +566,9 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             if (randomBoolean()) {
                 closeIndex(oldIndexName);
             }
+            if (randomBoolean()) {
+                assertOK(client().performRequest(new Request("PUT", oldIndexName + "/_block/read_only")));
+            }
         }
         Request reindexRequest = new Request("POST", "/_migration/reindex");
         reindexRequest.setJsonEntity(Strings.format("""
@@ -641,6 +644,11 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                     assertThat(statusResponseString, ((List<Object>) statusResponseMap.get("errors")).size(), equalTo(expectedErrorCount));
                 }
             }, 60, TimeUnit.SECONDS);
+
+            // Verify it's possible to reindex again after a successful reindex
+            reindexResponse = upgradeUserClient.performRequest(reindexRequest);
+            assertOK(reindexResponse);
+
             Request cancelRequest = new Request("POST", "_migration/reindex/" + dataStreamName + "/_cancel");
             Response cancelResponse = upgradeUserClient.performRequest(cancelRequest);
             assertOK(cancelResponse);

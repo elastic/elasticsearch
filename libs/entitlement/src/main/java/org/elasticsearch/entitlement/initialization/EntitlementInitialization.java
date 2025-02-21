@@ -145,7 +145,8 @@ public class EntitlementInitialization {
 
         List<Scope> serverScopes = new ArrayList<>();
         List<FileData> serverModuleFileDatas = new ArrayList<>();
-        Collections.addAll(serverModuleFileDatas,
+        Collections.addAll(
+            serverModuleFileDatas,
             // Base ES directories
             FileData.ofPath(bootstrapArgs.tempDir(), READ_WRITE),
             FileData.ofPath(bootstrapArgs.configDir(), READ),

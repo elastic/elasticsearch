@@ -61,6 +61,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
@@ -418,7 +419,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 .collect(Collectors.toSet());
             assert semanticNodeVersions.isEmpty() == false || serverless;
 
-            testFeatureService = createTestFeatureService(getClusterStateFeatures(adminClient), semanticNodeVersions);
+            testFeatureService = createTestFeatureService(getClusterStateFeatures(adminClient, multiProjectTest()), semanticNodeVersions);
         }
 
         assert testFeatureServiceInitialized();
@@ -1818,6 +1819,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         });
     }
 
+    @FixForMultiProject // Remove when cluster state API can be called in multi project mode without the query param
+    protected boolean multiProjectTest() {
+        return false;
+    }
+
     protected static void ensureHealth(Consumer<Request> requestConsumer) throws IOException {
         ensureHealth("", requestConsumer);
     }
@@ -2374,7 +2380,11 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static Map<String, Set<String>> getClusterStateFeatures(RestClient adminClient) throws IOException {
-        final Request request = new Request("GET", "_cluster/state");
+        return getClusterStateFeatures(adminClient, false);
+    }
+
+    protected static Map<String, Set<String>> getClusterStateFeatures(RestClient adminClient, boolean multiProject) throws IOException {
+        final Request request = new Request("GET", "_cluster/state" + (multiProject ? "?multi_project=true" : ""));
         request.addParameter("filter_path", "nodes_features");
 
         final Response response = adminClient.performRequest(request);

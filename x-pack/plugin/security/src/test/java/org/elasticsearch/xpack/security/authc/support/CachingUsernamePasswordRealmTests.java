@@ -102,7 +102,7 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
                 listener.onFailure(new UnsupportedOperationException("this method should not be called"));
             }
         };
-        assertThat(realm.cacheHasher, sameInstance(Hasher.resolve(cachingHashAlgo)));
+        assertThat(realm.credentialHasher, sameInstance(Hasher.resolve(cachingHashAlgo)));
     }
 
     public void testCacheSizeWhenCacheDisabled() {

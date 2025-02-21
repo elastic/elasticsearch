@@ -148,7 +148,7 @@ public class RetrieverRewriteIT extends ESIntegTestCase {
         @Override
         public RetrieverBuilder rewrite(QueryRewriteContext ctx) throws IOException {
             assertNull(ctx.getPointInTimeBuilder());
-            assertNull(ctx.convertToInnerHitsRewriteContext());
+            assertNull(ctx.convertToPerDocumentQueryRewriteContext());
             assertNull(ctx.convertToCoordinatorRewriteContext());
             assertNull(ctx.convertToIndexMetadataContext());
             assertNull(ctx.convertToSearchExecutionContext());
@@ -212,7 +212,7 @@ public class RetrieverRewriteIT extends ESIntegTestCase {
         @Override
         public RetrieverBuilder rewrite(QueryRewriteContext ctx) throws IOException {
             assertNotNull(ctx.getPointInTimeBuilder());
-            assertNull(ctx.convertToInnerHitsRewriteContext());
+            assertNull(ctx.convertToPerDocumentQueryRewriteContext());
             assertNull(ctx.convertToCoordinatorRewriteContext());
             assertNull(ctx.convertToIndexMetadataContext());
             assertNull(ctx.convertToSearchExecutionContext());

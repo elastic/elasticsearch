@@ -1,0 +1,10 @@
+pr: 123188
+summary: Add deprecation warning to `TransportHandshaker`
+area: Infra/Core
+type: deprecation
+issues: []
+deprecation:
+  title: Add deprecation warning to `TransportHandshaker`
+  area: REST API
+  details: This PR adds a deprecation log to versions < v8.18.
+  impact: Users will now see deprecation logs during CCS/CCR requests for clusters with nodes < v8.18, warning them that they will need to upgrade remote nodes to maintain compatability.

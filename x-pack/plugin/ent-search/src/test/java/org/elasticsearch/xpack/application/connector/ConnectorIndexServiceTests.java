@@ -14,7 +14,9 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
@@ -59,7 +61,6 @@ import static org.elasticsearch.xpack.application.connector.ConnectorTemplateReg
 import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.getRandomConnectorFeatures;
 import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.getRandomCronExpression;
 import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.randomConnectorFeatureEnabled;
-import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.registerSimplifiedConnectorIndexTemplates;
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
@@ -72,7 +73,6 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
 
     @Before
     public void setup() {
-        registerSimplifiedConnectorIndexTemplates(indicesAdmin());
         this.connectorIndexService = new ConnectorIndexService(client());
     }
 
@@ -80,6 +80,7 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
     protected Collection<Class<? extends Plugin>> getPlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.getPlugins());
         plugins.add(MockPainlessScriptEngine.TestPlugin.class);
+        plugins.add(ConnectorIndexServiceTests.TestPlugin.class);
         return plugins;
     }
 
@@ -1609,6 +1610,26 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
                 return context.factoryClazz.cast(factory);
             }
             throw new IllegalArgumentException("mock painless does not know how to handle context [" + context.name + "]");
+        }
+    }
+
+    /**
+     * Test plugin to register the {@link ConnectorIndexService} system index descriptor.
+     */
+    public static class TestPlugin extends Plugin implements SystemIndexPlugin {
+        @Override
+        public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+            return List.of(ConnectorIndexService.getSystemIndexDescriptor());
+        }
+
+        @Override
+        public String getFeatureName() {
+            return this.getClass().getSimpleName();
+        }
+
+        @Override
+        public String getFeatureDescription() {
+            return this.getClass().getCanonicalName();
         }
     }
 

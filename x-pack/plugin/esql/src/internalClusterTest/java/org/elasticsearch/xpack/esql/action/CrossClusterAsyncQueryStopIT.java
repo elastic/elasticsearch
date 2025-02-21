@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionFuture;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.xpack.core.async.AsyncStopRequest;
@@ -158,7 +156,7 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
                 try (EsqlQueryResponse asyncResponse = getAsyncResponse(client(), asyncExecutionId)) {
                     EsqlExecutionInfo executionInfo = asyncResponse.getExecutionInfo();
                     assertNotNull(executionInfo);
-                    assertThat(executionInfo.isPartial(), is(true));
+                    assertThat(executionInfo.isStopped(), is(true));
                 }
             });
             // allow local query to proceed
@@ -243,9 +241,5 @@ public class CrossClusterAsyncQueryStopIT extends AbstractCrossClusterTestCase {
             SimplePauseFieldPlugin.allowEmitting.countDown();
             assertAcked(deleteAsyncId(client(), asyncExecutionId));
         }
-    }
-
-    private static List<TaskInfo> getDriverTasks(Client client) {
-        return client.admin().cluster().prepareListTasks().setActions(DriverTaskRunner.ACTION_NAME).setDetailed(true).get().getTasks();
     }
 }

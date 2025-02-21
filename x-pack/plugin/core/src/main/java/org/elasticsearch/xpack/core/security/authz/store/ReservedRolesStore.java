@@ -78,6 +78,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("all").allowRestrictedIndices(false).build(),
             RoleDescriptor.IndicesPrivileges.builder()
                 .indices("*")
+                // TODO add read_failure_store when failures authorization is implemented
                 .privileges("monitor", "read", "view_index_metadata", "read_cross_cluster")
                 .allowRestrictedIndices(true)
                 .build() },
@@ -95,6 +96,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             new RoleDescriptor.RemoteIndicesPrivileges(
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("*")
+                    // TODO add read_failure_store when failures authorization is implemented
                     .privileges("monitor", "read", "view_index_metadata", "read_cross_cluster")
                     .allowRestrictedIndices(true)
                     .build(),

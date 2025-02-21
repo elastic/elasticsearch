@@ -414,13 +414,16 @@ public final class ConfigurableClusterPrivileges {
             this.requestPredicateSupplier = (restrictedIndices) -> {
                 IndicesPermission.Builder indicesPermissionBuilder = new IndicesPermission.Builder(restrictedIndices);
                 for (ManageRolesIndexPermissionGroup indexPatternPrivilege : manageRolesIndexPermissionGroups) {
-                    indicesPermissionBuilder.addGroup(
-                        IndexPrivilege.get(Set.of(indexPatternPrivilege.privileges())),
-                        FieldPermissions.DEFAULT,
-                        null,
-                        false,
-                        indexPatternPrivilege.indexPatterns()
-                    );
+                    Set<IndexPrivilege> splitBySelector = IndexPrivilege.splitBySelectorAccess(Set.of(indexPatternPrivilege.privileges()));
+                    for (IndexPrivilege indexPrivilege : splitBySelector) {
+                        indicesPermissionBuilder.addGroup(
+                            indexPrivilege,
+                            FieldPermissions.DEFAULT,
+                            null,
+                            false,
+                            indexPatternPrivilege.indexPatterns()
+                        );
+                    }
                 }
                 final IndicesPermission indicesPermission = indicesPermissionBuilder.build();
 
@@ -555,6 +558,15 @@ public final class ConfigurableClusterPrivileges {
                 if (indexPrivilege.privileges == null || indexPrivilege.privileges.length == 0) {
                     throw new IllegalArgumentException("Indices privileges must define at least one privilege");
                 }
+                for (String privilege : indexPrivilege.privileges) {
+                    IndexPrivilege namedPrivilege = IndexPrivilege.getNamedOrNull(privilege);
+                    if (namedPrivilege != null && namedPrivilege.getSelectorPredicate() == IndexComponentSelectorPredicate.FAILURES) {
+                        throw new IllegalArgumentException(
+                            "Failure store related privileges are not supported as targets of manage roles but found [" + privilege + "]"
+                        );
+                    }
+                }
+
             }
             return new ManageRolesPrivilege(indexPrivileges);
         }

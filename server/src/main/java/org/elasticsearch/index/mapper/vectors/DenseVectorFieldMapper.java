@@ -991,6 +991,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         public abstract ByteBuffer createByteBuffer(IndexVersion indexVersion, int numBytes);
 
+        /**
+         * Checks the input {@code vector} is one of the {@code possibleTypes},
+         * and returns the first type that it matches
+         */
         public static ElementType checkValidVector(float[] vector, ElementType... possibleTypes) {
             assert possibleTypes.length != 0;
             // we're looking for one valid allowed type
@@ -998,17 +1002,19 @@ public class DenseVectorFieldMapper extends FieldMapper {
             for (int i = 0; i < possibleTypes.length; i++) {
                 StringBuilder error = possibleTypes[i].checkVectorErrors(vector);
                 if (error == null) {
-                    // this one works - all ok
+                    // this one works - use it
                     return possibleTypes[i];
                 } else {
                     errors[i] = error;
                 }
             }
 
-            // oh dear, none of the types work with this vector. Generate the error message and throw.
+            // oh dear, none of the possible types work with this vector. Generate the error message and throw.
             StringBuilder message = new StringBuilder();
             for (int i = 0; i < possibleTypes.length; i++) {
-                if (i > 0) message.append(" ");
+                if (i > 0) {
+                    message.append(" ");
+                }
                 message.append("Vector is not a ").append(possibleTypes[i]).append(" vector: ").append(errors[i]);
             }
             throw new IllegalArgumentException(appendErrorElements(message, vector).toString());

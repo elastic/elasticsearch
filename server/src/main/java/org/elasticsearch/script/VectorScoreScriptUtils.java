@@ -138,7 +138,7 @@ public class VectorScoreScriptUtils {
                 queryMagnitude += value * value;
             }
             queryMagnitude = Math.sqrt(queryMagnitude);
-            DenseVectorFieldMapper.ElementType.FLOAT.checkVectorBounds(this.queryVector);
+            field.getElementType().checkVectorBounds(this.queryVector);
 
             if (normalizeQuery) {
                 for (int dim = 0; dim < this.queryVector.length; dim++) {

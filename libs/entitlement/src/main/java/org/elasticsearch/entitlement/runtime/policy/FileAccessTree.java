@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
 
 import java.nio.file.Path;
@@ -23,11 +24,12 @@ public final class FileAccessTree {
 
     private static final String FILE_SEPARATOR = getDefaultFileSystem().getSeparator();
 
-    // private final String[] exclusivePaths;
+    private final String[] exclusivePaths;
     private final String[] readPaths;
     private final String[] writePaths;
 
     private FileAccessTree(FilesEntitlement filesEntitlement, PathLookup pathLookup, List<String> exclusivePaths) {
+        List<String> updatedExclusivePaths = new ArrayList<>();
         List<String> readPaths = new ArrayList<>();
         List<String> writePaths = new ArrayList<>();
         for (FilesEntitlement.FileData fileData : filesEntitlement.filesData()) {
@@ -36,8 +38,11 @@ public final class FileAccessTree {
             paths.forEach(path -> {
                 var normalized = normalizePath(path);
                 for (String exclusivePath : exclusivePaths) {
-                    if (normalized.startsWith(exclusivePath)) {
-                        // TODO: throw
+                    if (normalized.equals(exclusivePath) == false) {
+                        if (normalized.startsWith(exclusivePath)) {
+                            // TODO: throw
+                        }
+                        updatedExclusivePaths.add(normalized);
                     }
                 }
                 if (mode == FilesEntitlement.Mode.READ_WRITE) {
@@ -55,6 +60,7 @@ public final class FileAccessTree {
         readPaths.sort(String::compareTo);
         writePaths.sort(String::compareTo);
 
+        this.exclusivePaths = updatedExclusivePaths.toArray(new String[0]);
         this.readPaths = pruneSortedPaths(readPaths).toArray(new String[0]);
         this.writePaths = pruneSortedPaths(writePaths).toArray(new String[0]);
     }
@@ -97,9 +103,13 @@ public final class FileAccessTree {
         return path.toAbsolutePath().normalize().toString();
     }
 
-    private static boolean checkPath(String path, String[] paths) {
+    private boolean checkPath(String path, String[] paths) {
         if (paths.length == 0) {
             return false;
+        }
+        int exnx = Arrays.binarySearch(exclusivePaths, path);
+        if (exnx >= 0) {
+            throw new NotEntitledException("cannot access exclusive path [" + path + "]");
         }
         int ndx = Arrays.binarySearch(paths, path);
         if (ndx < -1) {

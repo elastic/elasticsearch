@@ -29,7 +29,6 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
     public static final FilesEntitlement EMPTY = new FilesEntitlement(List.of());
 
     public enum Mode {
-        EXCLUSIVE,
         READ,
         READ_WRITE
     }

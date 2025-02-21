@@ -559,6 +559,8 @@ public class MetadataCreateIndexService {
             assert assertHasRefreshBlock(indexMetadata, updated, updated.getMinTransportVersion());
             if (request.performReroute()) {
                 updated = allocationService.reroute(updated, "index [" + indexMetadata.getIndex().getName() + "] created", rerouteListener);
+            } else {
+                rerouteListener.onResponse(null);
             }
             return updated;
         });

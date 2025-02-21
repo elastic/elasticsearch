@@ -1,0 +1,5 @@
+pr: 123070
+summary: Summarize cause when replacing no shard available exception in search
+area: Search
+type: enhancement
+issues: []

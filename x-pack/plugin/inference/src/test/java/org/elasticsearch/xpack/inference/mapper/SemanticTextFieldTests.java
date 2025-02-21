@@ -80,9 +80,8 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                 assertThat(actualChunk.endOffset(), equalTo(expectedChunks.get(i).endOffset()));
                 switch (modelSettings.taskType()) {
                     case TEXT_EMBEDDING -> {
-                        int embeddingLength = modelSettings.elementType() == DenseVectorFieldMapper.ElementType.BIT
-                            ? modelSettings.dimensions() / Byte.SIZE
-                            : modelSettings.dimensions();
+                        Integer embeddingLength = modelSettings.embeddingLength();
+                        assert embeddingLength != null;
 
                         double[] expectedVector = parseDenseVector(
                             expectedChunks.get(i).rawEmbeddings(),
@@ -172,13 +171,9 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
 
     public static ChunkedInferenceEmbeddingByte randomChunkedInferenceEmbeddingByte(Model model, List<String> inputs) {
         DenseVectorFieldMapper.ElementType elementType = model.getServiceSettings().elementType();
+        Integer embeddingLength = model.getServiceSettings().embeddingLength();
         assert elementType == DenseVectorFieldMapper.ElementType.BYTE || elementType == DenseVectorFieldMapper.ElementType.BIT;
-
-        int embeddingLength = model.getServiceSettings().dimensions();
-        if (elementType == DenseVectorFieldMapper.ElementType.BIT) {
-            assert model.getServiceSettings().dimensions() % Byte.SIZE == 0;
-            embeddingLength /= Byte.SIZE;
-        }
+        assert embeddingLength != null;
 
         List<ChunkedInferenceEmbeddingByte.ByteEmbeddingChunk> chunks = new ArrayList<>();
         for (String input : inputs) {
@@ -194,11 +189,13 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
     }
 
     public static ChunkedInferenceEmbeddingFloat randomChunkedInferenceEmbeddingFloat(Model model, List<String> inputs) {
+        Integer embeddingLength = model.getServiceSettings().embeddingLength();
         assert model.getServiceSettings().elementType() == DenseVectorFieldMapper.ElementType.FLOAT;
+        assert embeddingLength != null;
 
         List<ChunkedInferenceEmbeddingFloat.FloatEmbeddingChunk> chunks = new ArrayList<>();
         for (String input : inputs) {
-            float[] values = new float[model.getServiceSettings().dimensions()];
+            float[] values = new float[embeddingLength];
             for (int j = 0; j < values.length; j++) {
                 values[j] = randomFloat();
             }

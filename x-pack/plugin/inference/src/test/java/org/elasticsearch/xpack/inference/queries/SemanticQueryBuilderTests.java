@@ -292,11 +292,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
     }
 
     private InferenceAction.Response generateTextEmbeddingInferenceResponse() {
-        int inferenceLength = TEXT_EMBEDDING_DIMENSION_COUNT;
-        if (denseVectorElementType == DenseVectorFieldMapper.ElementType.BIT) {
-            inferenceLength /= Byte.SIZE;
-        }
-
+        int inferenceLength = denseVectorElementType.getEmbeddingLength(TEXT_EMBEDDING_DIMENSION_COUNT);
         double[] inference = new double[inferenceLength];
         Arrays.fill(inference, 1.0);
         MlTextEmbeddingResults textEmbeddingResults = new MlTextEmbeddingResults(DEFAULT_RESULTS_FIELD, inference, false);

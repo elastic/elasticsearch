@@ -24,6 +24,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -70,16 +71,12 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
     @Before
     public void setup() throws Exception {
         DenseVectorFieldMapper.ElementType elementType = randomFrom(DenseVectorFieldMapper.ElementType.values());
-        SimilarityMeasure similarity;
-        int dimensions;
-        if (elementType == DenseVectorFieldMapper.ElementType.BIT) {
-            similarity = SimilarityMeasure.L2_NORM; // l2_norm similarity required for bit embeddings
-            dimensions = randomIntBetween(1, 100) * 8; // Bit embedding dimensions must be multiples of 8
-        } else {
-            // dot product means that we need normalized vectors; it's not worth doing that in this test
-            similarity = randomValueOtherThan(SimilarityMeasure.DOT_PRODUCT, () -> randomFrom(SimilarityMeasure.values()));
-            dimensions = randomIntBetween(1, 100);
-        }
+        // dot product means that we need normalized vectors; it's not worth doing that in this test
+        SimilarityMeasure similarity = randomValueOtherThan(
+            SimilarityMeasure.DOT_PRODUCT,
+            () -> randomFrom(DenseVectorFieldMapperTestUtils.getSupportedSimilarities(elementType))
+        );
+        int dimensions = DenseVectorFieldMapperTestUtils.randomCompatibleDimensions(elementType, 100);
 
         Utils.storeSparseModel(client());
         Utils.storeDenseModel(client(), dimensions, similarity, elementType);

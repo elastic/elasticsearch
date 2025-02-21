@@ -60,6 +60,7 @@ import java.util.concurrent.TimeUnit;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.test.InternalAggregationTestCase.emptyReduceContextBuilder;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -131,6 +132,60 @@ public class SearchResponseMergerTests extends ESTestCase {
                 assertEquals(TimeUnit.NANOSECONDS.toMillis(currentRelativeTime), searchResponse.getTook().millis());
             } finally {
                 searchResponse.decRef();
+            }
+        }
+    }
+
+    public void testMergePhaseFailures() throws InterruptedException {
+        SearchTimeProvider searchTimeProvider = new SearchTimeProvider(0, 0, () -> 0);
+        try (
+            SearchResponseMerger merger = new SearchResponseMerger(
+                0,
+                0,
+                SearchContext.TRACK_TOTAL_HITS_ACCURATE,
+                searchTimeProvider,
+                emptyReduceContextBuilder()
+            )
+        ) {
+            List<PhaseFailure> allFailures = new ArrayList<>();
+
+            for (int i = 0; i < numResponses; i++) {
+                int numFailures = randomIntBetween(0, 3);
+                PhaseFailure[] phaseFailures = new PhaseFailure[numFailures];
+                for (int j = 0; j < numFailures; j++) {
+                    phaseFailures[j] = new PhaseFailure(randomAlphaOfLength(5), new IllegalArgumentException());
+                }
+                Collections.addAll(allFailures, phaseFailures);
+                SearchResponse searchResponse = new SearchResponse(
+                    SearchHits.EMPTY_WITH_TOTAL_HITS,
+                    null,
+                    null,
+                    false,
+                    null,
+                    null,
+                    1,
+                    null,
+                    1,
+                    1,
+                    0,
+                    100L,
+                    ShardSearchFailure.EMPTY_ARRAY,
+                    phaseFailures,
+                    SearchResponse.Clusters.EMPTY
+                );
+                try {
+                    addResponse(merger, searchResponse);
+                } finally {
+                    searchResponse.decRef();
+                }
+            }
+            awaitResponsesAdded();
+            assertEquals(numResponses, merger.numResponses());
+            SearchResponse mergedResponse = merger.getMergedResponse(SearchResponse.Clusters.EMPTY);
+            try {
+                assertThat(mergedResponse.getPhaseFailures(), arrayContainingInAnyOrder(allFailures.toArray()));
+            } finally {
+                mergedResponse.decRef();
             }
         }
     }
@@ -346,6 +401,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     0,
                     100L,
                     ShardSearchFailure.EMPTY_ARRAY,
+                    PhaseFailure.EMPTY_ARRAY,
                     SearchResponse.Clusters.EMPTY
                 );
                 try {
@@ -424,6 +480,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     0,
                     randomLong(),
                     ShardSearchFailure.EMPTY_ARRAY,
+                    PhaseFailure.EMPTY_ARRAY,
                     SearchResponse.Clusters.EMPTY
                 );
                 try {
@@ -509,6 +566,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     0,
                     randomLong(),
                     ShardSearchFailure.EMPTY_ARRAY,
+                    PhaseFailure.EMPTY_ARRAY,
                     SearchResponse.Clusters.EMPTY
                 );
                 try {
@@ -590,6 +648,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     0,
                     randomLong(),
                     ShardSearchFailure.EMPTY_ARRAY,
+                    PhaseFailure.EMPTY_ARRAY,
                     SearchResponse.Clusters.EMPTY
                 );
                 try {
@@ -657,6 +716,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     0,
                     randomLong(),
                     ShardSearchFailure.EMPTY_ARRAY,
+                    PhaseFailure.EMPTY_ARRAY,
                     SearchResponse.Clusters.EMPTY
                 );
 
@@ -820,6 +880,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     skipped,
                     randomLong(),
                     ShardSearchFailure.EMPTY_ARRAY,
+                    PhaseFailure.EMPTY_ARRAY,
                     SearchResponseTests.randomClusters()
                 );
 
@@ -968,6 +1029,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     0,
                     1L,
                     ShardSearchFailure.EMPTY_ARRAY,
+                    PhaseFailure.EMPTY_ARRAY,
                     SearchResponse.Clusters.EMPTY
                 );
                 try {
@@ -992,6 +1054,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     0,
                     1L,
                     ShardSearchFailure.EMPTY_ARRAY,
+                    PhaseFailure.EMPTY_ARRAY,
                     SearchResponse.Clusters.EMPTY
                 );
                 try {
@@ -1048,6 +1111,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     0,
                     1L,
                     ShardSearchFailure.EMPTY_ARRAY,
+                    PhaseFailure.EMPTY_ARRAY,
                     SearchResponse.Clusters.EMPTY
                 );
                 try {
@@ -1149,6 +1213,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             0,
             33,
             ShardSearchFailure.EMPTY_ARRAY,
+            PhaseFailure.EMPTY_ARRAY,
             SearchResponse.Clusters.EMPTY
         );
 
@@ -1174,6 +1239,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             skipped,
             44,
             ShardSearchFailure.EMPTY_ARRAY,
+            PhaseFailure.EMPTY_ARRAY,
             SearchResponse.Clusters.EMPTY
         );
 
@@ -1199,6 +1265,7 @@ public class SearchResponseMergerTests extends ESTestCase {
             skipped,
             55,
             ShardSearchFailure.EMPTY_ARRAY,
+            PhaseFailure.EMPTY_ARRAY,
             SearchResponse.Clusters.EMPTY
         );
         try {

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.search;
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.search.PhaseFailure;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -235,6 +236,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
             1,
             took,
             ShardSearchFailure.EMPTY_ARRAY,
+            PhaseFailure.EMPTY_ARRAY,
             SearchResponse.Clusters.EMPTY
         );
 
@@ -357,6 +359,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
             1,
             took,
             ShardSearchFailure.EMPTY_ARRAY,
+            PhaseFailure.EMPTY_ARRAY,
             clusters
         );
         AsyncSearchResponse asyncSearchResponse;
@@ -590,7 +593,8 @@ public class AsyncSearchResponseTests extends ESTestCase {
             9,
             1,
             took,
-            new ShardSearchFailure[0],
+            ShardSearchFailure.EMPTY_ARRAY,
+            PhaseFailure.EMPTY_ARRAY,
             clusters
         );
 
@@ -740,6 +744,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
             1,
             took,
             ShardSearchFailure.EMPTY_ARRAY,
+            PhaseFailure.EMPTY_ARRAY,
             SearchResponse.Clusters.EMPTY
         );
         AsyncSearchResponse asyncSearchResponse;

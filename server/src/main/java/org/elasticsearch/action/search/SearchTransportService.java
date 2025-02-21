@@ -389,6 +389,8 @@ public class SearchTransportService {
         transportService.registerRequestHandler(
             FREE_CONTEXT_SCROLL_ACTION_NAME,
             freeContextExecutor,
+            true,
+            false,
             ScrollFreeContextRequest::new,
             freeContextHandler
         );
@@ -400,7 +402,7 @@ public class SearchTransportService {
         );
 
         // TODO: remove this handler once the lowest compatible version stops using it
-        transportService.registerRequestHandler(FREE_CONTEXT_ACTION_NAME, freeContextExecutor, in -> {
+        transportService.registerRequestHandler(FREE_CONTEXT_ACTION_NAME, freeContextExecutor, true, false, in -> {
             var res = new ScrollFreeContextRequest(in);
             // this handler exists for BwC purposes only, we don't need the original indices to free the context
             OriginalIndices.readOriginalIndices(in);
@@ -411,6 +413,8 @@ public class SearchTransportService {
         transportService.registerRequestHandler(
             CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
             freeContextExecutor,
+            true,
+            false,
             ClearScrollContextsRequest::new,
             (request, channel, task) -> {
                 searchService.freeAllScrollContexts();

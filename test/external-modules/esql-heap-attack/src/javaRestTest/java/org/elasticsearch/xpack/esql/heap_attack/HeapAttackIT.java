@@ -117,6 +117,7 @@ public class HeapAttackIT extends ESRestTestCase {
         initManyLongs();
         Request request = new Request("POST", "/_query/async");
         request.addParameter("error_trace", "");
+        request.addParameter("allow_partial_results", Boolean.toString(false));
         request.setJsonEntity(makeSortByManyLongs(5000).toString().replace("\n", "\\n"));
         request.setOptions(
             RequestOptions.DEFAULT.toBuilder()
@@ -517,6 +518,7 @@ public class HeapAttackIT extends ESRestTestCase {
     private Response query(String query, String filterPath) throws IOException {
         Request request = new Request("POST", "/_query");
         request.addParameter("error_trace", "");
+        request.addParameter("allow_partial_results", Boolean.toString(false));
         if (filterPath != null) {
             request.addParameter("filter_path", filterPath);
         }

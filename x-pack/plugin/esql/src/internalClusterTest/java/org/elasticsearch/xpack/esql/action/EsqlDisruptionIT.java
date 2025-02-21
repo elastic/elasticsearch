@@ -83,9 +83,7 @@ public class EsqlDisruptionIT extends EsqlActionIT {
         logger.info("--> start disruption scheme [{}]", disruptionScheme);
         disruptionScheme.startDisrupting();
         logger.info("--> executing esql query with disruption {} ", request.query());
-        if (randomBoolean()) {
-            request.allowPartialResults(randomBoolean());
-        }
+        request.allowPartialResults(randomBoolean());
         ActionFuture<EsqlQueryResponse> future = client().execute(EsqlQueryAction.INSTANCE, request);
         EsqlQueryResponse resp = null;
         try {

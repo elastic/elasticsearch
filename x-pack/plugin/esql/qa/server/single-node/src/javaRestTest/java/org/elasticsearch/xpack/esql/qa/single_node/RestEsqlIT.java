@@ -97,6 +97,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
             assertOK(client().performRequest(request));
         }
         RequestObjectBuilder builder = requestObjectBuilder().query("from test-index | limit 1 | keep f");
+        builder.allPartialResults(false);
         builder.pragmas(Settings.builder().put("data_partitioning", "invalid-option").build());
         ResponseException re = expectThrows(ResponseException.class, () -> runEsqlSync(builder));
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("No enum constant"));
@@ -107,6 +108,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
     public void testPragmaNotAllowed() throws IOException {
         assumeFalse("pragma only disabled on release builds", Build.current().isSnapshot());
         RequestObjectBuilder builder = requestObjectBuilder().query("row a = 1, b = 2");
+        builder.allPartialResults(false);
         builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
         ResponseException re = expectThrows(ResponseException.class, () -> runEsqlSync(builder));
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("[pragma] only allowed in snapshot builds"));

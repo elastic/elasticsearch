@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.threadpool.internal.BuiltInExecutorBuilders;
 
 import java.util.HashMap;
@@ -145,6 +146,12 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 false
             )
         );
+        if (ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.get(settings)) {
+            result.put(
+                ThreadPool.Names.MERGE,
+                new ScalingExecutorBuilder(ThreadPool.Names.MERGE, 1, allocatedProcessors, TimeValue.timeValueMinutes(5), true)
+            );
+        }
         result.put(
             ThreadPool.Names.FORCE_MERGE,
             new FixedExecutorBuilder(

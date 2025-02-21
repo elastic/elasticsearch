@@ -568,6 +568,8 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
     public void testHideFromConfigurationApi_ReturnsTrue_WithNoAvailableModels() throws Exception {
         try (var service = createServiceWithMockSender(ElasticInferenceServiceAuthorization.newDisabledService())) {
+            ensureAuthorizationCallFinished(service);
+
             assertTrue(service.hideFromConfigurationApi());
         }
     }
@@ -587,6 +589,8 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 )
             )
         ) {
+            ensureAuthorizationCallFinished(service);
+
             assertTrue(service.hideFromConfigurationApi());
         }
     }
@@ -606,6 +610,8 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 )
             )
         ) {
+            ensureAuthorizationCallFinished(service);
+
             assertFalse(service.hideFromConfigurationApi());
         }
     }
@@ -625,6 +631,8 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 )
             )
         ) {
+            ensureAuthorizationCallFinished(service);
+
             String content = XContentHelper.stripWhitespace("""
                 {
                        "service": "elastic",
@@ -678,6 +686,8 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
     public void testGetConfiguration_WithoutSupportedTaskTypes() throws Exception {
         try (var service = createServiceWithMockSender(ElasticInferenceServiceAuthorization.newDisabledService())) {
+            ensureAuthorizationCallFinished(service);
+
             String content = XContentHelper.stripWhitespace("""
                 {
                        "service": "elastic",
@@ -745,6 +755,8 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 )
             )
         ) {
+            ensureAuthorizationCallFinished(service);
+
             String content = XContentHelper.stripWhitespace("""
                 {
                        "service": "elastic",
@@ -812,7 +824,8 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = createServiceWithAuthHandler(senderFactory, getUrl(webServer))) {
-            service.waitForAuthorizationToComplete(TIMEOUT);
+            ensureAuthorizationCallFinished(service);
+
             assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.ANY)));
             assertTrue(service.defaultConfigIds().isEmpty());
 
@@ -842,7 +855,8 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = createServiceWithAuthHandler(senderFactory, getUrl(webServer))) {
-            service.waitForAuthorizationToComplete(TIMEOUT);
+            ensureAuthorizationCallFinished(service);
+
             assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING)));
         }
     }
@@ -867,7 +881,8 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = createServiceWithAuthHandler(senderFactory, getUrl(webServer))) {
-            service.waitForAuthorizationToComplete(TIMEOUT);
+            ensureAuthorizationCallFinished(service);
+
             assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING, TaskType.CHAT_COMPLETION)));
         }
     }
@@ -888,7 +903,8 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = createServiceWithAuthHandler(senderFactory, getUrl(webServer))) {
-            service.waitForAuthorizationToComplete(TIMEOUT);
+            ensureAuthorizationCallFinished(service);
+
             assertThat(service.supportedStreamingTasks(), is(EnumSet.noneOf(TaskType.class)));
             assertTrue(service.defaultConfigIds().isEmpty());
             assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING)));
@@ -915,7 +931,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = createServiceWithAuthHandler(senderFactory, getUrl(webServer))) {
-            service.waitForAuthorizationToComplete(TIMEOUT);
+            ensureAuthorizationCallFinished(service);
             assertThat(service.supportedStreamingTasks(), is(EnumSet.noneOf(TaskType.class)));
             assertThat(
                 service.defaultConfigIds(),
@@ -949,8 +965,9 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = createServiceWithAuthHandler(senderFactory, getUrl(webServer))) {
-            service.waitForAuthorizationToComplete(TIMEOUT);
+            ensureAuthorizationCallFinished(service);
             assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.ANY)));
+
             assertThat(
                 service.defaultConfigIds(),
                 is(
@@ -1020,7 +1037,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
                 new ElasticInferenceServiceCompletionServiceSettings("model_id", new RateLimitSettings(100)),
                 EmptyTaskSettings.INSTANCE,
                 EmptySecretSettings.INSTANCE,
-                new ElasticInferenceServiceComponents(eisGatewayUrl)
+                ElasticInferenceServiceComponents.withNoRevokeDelay(eisGatewayUrl)
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.unifiedCompletionInfer(
@@ -1053,6 +1070,11 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         }
     }
 
+    private void ensureAuthorizationCallFinished(ElasticInferenceService service) {
+        service.onNodeStarted();
+        service.waitForAuthorizationToComplete(TIMEOUT);
+    }
+
     private ElasticInferenceService createServiceWithMockSender() {
         return createServiceWithMockSender(ElasticInferenceServiceAuthorizationTests.createEnabledAuth());
     }
@@ -1068,7 +1090,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         return new ElasticInferenceService(
             mock(HttpRequestSender.Factory.class),
             createWithEmptySettings(threadPool),
-            new ElasticInferenceServiceComponents(null),
+            ElasticInferenceServiceComponents.EMPTY_INSTANCE,
             mockModelRegistry(),
             mockAuthHandler
         );
@@ -1097,7 +1119,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         return new ElasticInferenceService(
             senderFactory,
             createWithEmptySettings(threadPool),
-            new ElasticInferenceServiceComponents(gatewayUrl),
+            ElasticInferenceServiceComponents.withNoRevokeDelay(gatewayUrl),
             mockModelRegistry(),
             mockAuthHandler
         );
@@ -1107,7 +1129,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         return new ElasticInferenceService(
             senderFactory,
             createWithEmptySettings(threadPool),
-            new ElasticInferenceServiceComponents(eisGatewayUrl),
+            ElasticInferenceServiceComponents.withNoRevokeDelay(eisGatewayUrl),
             mockModelRegistry(),
             new ElasticInferenceServiceAuthorizationHandler(eisGatewayUrl, threadPool)
         );

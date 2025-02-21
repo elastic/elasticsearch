@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -178,14 +179,14 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
     }
 
     private static class StreamingInferenceServiceResults implements InferenceServiceResults {
-        private final Flow.Publisher<ChunkedToXContent> publisher;
+        private final Flow.Publisher<InferenceServiceResults.Result> publisher;
 
-        private StreamingInferenceServiceResults(Flow.Publisher<ChunkedToXContent> publisher) {
+        private StreamingInferenceServiceResults(Flow.Publisher<InferenceServiceResults.Result> publisher) {
             this.publisher = publisher;
         }
 
         @Override
-        public Flow.Publisher<ChunkedToXContent> publisher() {
+        public Flow.Publisher<InferenceServiceResults.Result> publisher() {
             return publisher;
         }
 
@@ -223,7 +224,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
         }
     }
 
-    private static class RandomPublisher implements Flow.Publisher<ChunkedToXContent> {
+    private static class RandomPublisher implements Flow.Publisher<InferenceServiceResults.Result> {
         private final int requestCount;
         private final boolean withError;
 
@@ -233,7 +234,7 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
         }
 
         @Override
-        public void subscribe(Flow.Subscriber<? super ChunkedToXContent> subscriber) {
+        public void subscribe(Flow.Subscriber<? super InferenceServiceResults.Result> subscriber) {
             var resultCount = new AtomicInteger(requestCount);
             subscriber.onSubscribe(new Flow.Subscription() {
                 @Override
@@ -255,11 +256,24 @@ public class ServerSentEventsRestActionListenerTests extends ESIntegTestCase {
         }
     }
 
-    private static class RandomString implements ChunkedToXContent {
+    private record RandomString(String randomString) implements InferenceServiceResults.Result {
+        RandomString() {
+            this(randomUnicodeOfLengthBetween(2, 20));
+        }
+
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-            var randomString = randomUnicodeOfLengthBetween(2, 20);
-            return ChunkedToXContent.builder(params).object(b -> b.field("delta", randomString));
+            return ChunkedToXContentHelper.singleChunk((b, p) -> b.startObject().field("delta", randomString).endObject());
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "test_RandomString";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(randomString);
         }
     }
 

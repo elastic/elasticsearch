@@ -461,7 +461,7 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         assertThat(embedding.chunks(), hasSize(512));
 
         // The first merged chunk consists of 20 small chunks (so 400 words) and the weight
-        // is the average of the weights 2 ... 21, with some round-off errors.
+        // is the average of the weights 2 ... 21, so 11.5, which is rounded to 12.
         assertThat(embedding.chunks().get(0).matchedText(), startsWith("word0 word1 "));
         assertThat(embedding.chunks().get(0).matchedText(), endsWith(" word398 word399"));
         assertThat(embedding.chunks().get(0), instanceOf(TextEmbeddingByteResults.Chunk.class));
@@ -470,7 +470,7 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
 
         // The last merged chunk consists of 19 small chunks (so 380 words) and the weight
         // is the average of the weights 9983 ... 10001 modulo 256 (bytes overflowing), so
-        // the average of -1, 0, 1, ... , 17, with some round-off errors.
+        // the average of -1, 0, 1, ... , 17, so 8.
         assertThat(embedding.chunks().get(511).matchedText(), startsWith(" word199620 word199621 "));
         assertThat(embedding.chunks().get(511).matchedText(), endsWith(" word199998 word199999"));
         assertThat(embedding.chunks().get(511), instanceOf(TextEmbeddingByteResults.Chunk.class));

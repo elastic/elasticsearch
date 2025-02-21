@@ -10,7 +10,6 @@
 package org.elasticsearch.index.mapper.vectors;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
-
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -24,7 +23,7 @@ public class DenseVectorFieldMapperTestUtils {
     public static List<SimilarityMeasure> getSupportedSimilarities(DenseVectorFieldMapper.ElementType elementType) {
         return switch (elementType) {
             case FLOAT, BYTE -> List.of(SimilarityMeasure.values());
-            case BIT ->  List.of(SimilarityMeasure.L2_NORM);
+            case BIT -> List.of(SimilarityMeasure.L2_NORM);
         };
     }
 
@@ -41,7 +40,7 @@ public class DenseVectorFieldMapperTestUtils {
                 }
 
                 // Generate a random dimension count that is a multiple of 8
-                int maxEmbeddingLength = max/8;
+                int maxEmbeddingLength = max / 8;
                 yield RandomNumbers.randomIntBetween(random(), 1, maxEmbeddingLength) * 8;
             }
         };

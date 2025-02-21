@@ -503,22 +503,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
             clusterAndIndexAsIndexPattern(command, "*:index*");
             clusterAndIndexAsIndexPattern(command, "*:*");
             if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled()) {
+                assertStringAsIndexPattern("foo::*", command + " foo::*");
                 assertStringAsIndexPattern("foo::data", command + " foo::data");
                 assertStringAsIndexPattern("foo::failures", command + " foo::failures");
-                assertStringAsIndexPattern("foo::*", command + " foo::*");
-                assertStringAsIndexPattern("cluster:foo::data", command + " cluster:foo::data");
-                assertStringAsIndexPattern("cluster:foo::failures", command + " cluster:foo::failures");
-                assertStringAsIndexPattern("cluster:foo::*", command + " cluster:foo::*");
-                assertStringAsIndexPattern("foo::*", command + " foo::*");
-                assertStringAsIndexPattern("cluster:foo::*", command + " cluster:\"foo\"::*");
-                assertStringAsIndexPattern("cluster:foo::*", command + " \"cluster:foo\"::*");
-                assertStringAsIndexPattern("cluster:foo::*", command + " \"cluster:foo::*\"");
-                assertStringAsIndexPattern("cluster:foo::data", command + " cluster:\"foo\"::data");
-                assertStringAsIndexPattern("cluster:foo::data", command + " \"cluster:foo\"::data");
-                assertStringAsIndexPattern("cluster:foo::data", command + " \"cluster:foo::data\"");
-                assertStringAsIndexPattern("cluster:foo::failures", command + " cluster:\"foo\"::failures");
-                assertStringAsIndexPattern("cluster:foo::failures", command + " \"cluster:foo\"::failures");
-                assertStringAsIndexPattern("cluster:foo::failures", command + " \"cluster:foo::failures\"");
+                assertStringAsIndexPattern("cluster:foo::failures", command + " cluster:\"foo::failures\"");
                 assertStringAsIndexPattern("*,-foo::*", command + " *, \"-foo\"::*");
                 assertStringAsIndexPattern("*,-foo::*", command + " *, \"-foo::*\"");
                 assertStringAsIndexPattern("*::*", command + " *::*");
@@ -526,12 +514,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     "<logstash-{now/M{yyyy.MM}}>::*,<logstash-{now/d{yyyy.MM.dd|+12:00}}>::failures",
                     command + " <logstash-{now/M{yyyy.MM}}>::*, \"<logstash-{now/d{yyyy.MM.dd|+12:00}}>\"::failures"
                 );
-                clusterAndIndexAsIndexPattern(command, "cluster:index::data");
-                clusterAndIndexAsIndexPattern(command, "cluster:*::data");
-                clusterAndIndexAsIndexPattern(command, "*:index::data");
-                clusterAndIndexAsIndexPattern(command, "*:index::*");
-                clusterAndIndexAsIndexPattern(command, "*:index*::*");
-                clusterAndIndexAsIndexPattern(command, "*:*::*");
             }
         }
     }
@@ -618,11 +600,60 @@ public class StatementParserTests extends AbstractStatementParserTests {
             if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled() && command.contains("LOOKUP_🐔") == false) {
                 expectInvalidIndexNameErrorWithLineNumber(command, "index::dat", lineNumber);
                 expectInvalidIndexNameErrorWithLineNumber(command, "index::failure", lineNumber);
-                expectError(LoggerMessageFormat.format(null, command, "\"index:::data\""), lineNumber + "Invalid index name [index:::data");
-                expectError(
-                    LoggerMessageFormat.format(null, command, "\"index::::data\""),
-                    lineNumber + "Invalid index name [index::::data"
+
+                // Cluster name cannot be combined with selector yet.
+                var parseLineNumber = command.contains("FROM") ? 6 : 9;
+                expectDoubleColonErrorWithLineNumber(command, "cluster:foo::*", parseLineNumber + 11);
+                expectDoubleColonErrorWithLineNumber(command, "cluster:foo::data", parseLineNumber + 11);
+                expectDoubleColonErrorWithLineNumber(command, "cluster:foo::failures", parseLineNumber + 11);
+
+                expectDoubleColonErrorWithLineNumber(command, "cluster:\"foo\"::*", parseLineNumber + 13);
+                expectDoubleColonErrorWithLineNumber(command, "cluster:\"foo\"::data", parseLineNumber + 13);
+                expectDoubleColonErrorWithLineNumber(command, "cluster:\"foo\"::failures", parseLineNumber + 13);
+
+                // TODO: Edge case that will be invalidated in follow up (https://github.com/elastic/elasticsearch/issues/122651)
+//                expectDoubleColonErrorWithLineNumber(command, "\"cluster:foo\"::*", parseLineNumber + 13);
+//                expectDoubleColonErrorWithLineNumber(command, "\"cluster:foo\"::data", parseLineNumber + 13);
+//                expectDoubleColonErrorWithLineNumber(command, "\"cluster:foo\"::failures", parseLineNumber + 13);
+
+                expectErrorWithLineNumber(
+                    command,
+                    "\"cluster:foo::*\"",
+                    lineNumber,
+                    "Cannot specify remote cluster and selector in same pattern"
                 );
+                expectErrorWithLineNumber(
+                    command,
+                    "\"cluster:foo::data\"",
+                    lineNumber,
+                    "Cannot specify remote cluster and selector in same pattern"
+                );
+                expectErrorWithLineNumber(
+                    command,
+                    "\"cluster:foo::failures\"",
+                    lineNumber,
+                    "Cannot specify remote cluster and selector in same pattern"
+                );
+
+                // Wildcards
+                expectDoubleColonErrorWithLineNumber(command, "cluster:*::data", parseLineNumber + 9);
+                expectDoubleColonErrorWithLineNumber(command, "*:index::data", parseLineNumber + 7);
+                expectDoubleColonErrorWithLineNumber(command, "*:index::*", parseLineNumber + 7);
+                expectDoubleColonErrorWithLineNumber(command, "*:index*::*", parseLineNumber + 8);
+                expectDoubleColonErrorWithLineNumber(command, "*:*::*", parseLineNumber + 3);
+
+                // Too many colons
+                expectInvalidIndexNameErrorWithLineNumber(command, "\"index:::data\"", lineNumber, "index:", "must not contain ':'");
+                expectInvalidIndexNameErrorWithLineNumber(
+                    command,
+                    "\"index::::data\"",
+                    lineNumber,
+                    "index::::data",
+                    "Invalid usage of :: separator"
+                );
+
+                // TODO: Edge case that will be invalidated in follow up (https://github.com/elastic/elasticsearch/issues/122651)
+                expectDoubleColonErrorWithLineNumber(command, "cluster:\"index,index2\"::failures", parseLineNumber + 22);
             }
         }
 
@@ -660,8 +691,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     command,
                     "\"indexpattern, --index::data\"",
                     commands.get(command),
-                    "-index::data",
-                    "must not contain ':'"
+                    "-index",
+                    "must not start with '_', '-', or '+'"
                 );
             }
         }
@@ -3109,7 +3140,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             joinPattern = maybeQuote(joinPattern + "::garbage");
             expectError(
                 "FROM " + randomIndexPatterns() + " | JOIN " + joinPattern + " ON " + randomIdentifier(),
-                "mismatched input ':' expecting {"
+                "mismatched input 'JOIN' expecting {"
             );
         }
     }

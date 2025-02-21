@@ -109,6 +109,14 @@ abstract class IdentifierBuilder extends AbstractBuilder {
                 }
             } else {
                 validateClusterString(clusterString, c);
+                // Do not allow selectors on remote cluster expressions until they are supported
+                if (selectorString != null) {
+                    InvalidIndexNameException ie = new InvalidIndexNameException(
+                        reassembleIndexName(clusterString, indexPattern, selectorString),
+                        "Selectors are not yet supported on remote cluster patterns"
+                    );
+                    throw new ParsingException(ie, source(c), ie.getMessage());
+                }
             }
             patterns.add(reassembleIndexName(clusterString, indexPattern, selectorString));
         });
@@ -144,11 +152,18 @@ abstract class IdentifierBuilder extends AbstractBuilder {
             // Strip spaces off first because validation checks are not written to handle them
             index = index.strip();
             if (isRemoteIndexName(index)) { // skip the validation if there is remote cluster
+                // Ensure that there are no selectors as they are not yet supported
+                if (index.contains(SELECTOR_SEPARATOR)) {
+                    IllegalArgumentException ie = new IllegalArgumentException(
+                        "Cannot specify remote cluster and selector in same pattern"
+                    );
+                    throw new ParsingException(ie, source(ctx), ie.getMessage());
+                }
                 continue;
             }
             try {
                 Tuple<String, String> splitPattern = IndexNameExpressionResolver.splitSelectorExpression(index);
-                if (splitPattern.v2() == null) {
+                if (splitPattern.v2() != null) {
                     index = splitPattern.v1();
                 }
             } catch (InvalidIndexNameException e) {

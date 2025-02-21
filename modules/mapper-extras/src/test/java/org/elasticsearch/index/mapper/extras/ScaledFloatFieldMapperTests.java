@@ -449,7 +449,7 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
             }
 
             long encoded = Math.round(d * scalingFactor);
-            return encoded * (1 / scalingFactor);
+            return encoded / scalingFactor;
         }
 
         private void mapping(XContentBuilder b) throws IOException {

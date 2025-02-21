@@ -65,7 +65,6 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
             threadPool,
             actionFilters,
             TransportGetAllocationStatsAction.Request::new,
-            indexNameExpressionResolver,
             TransportGetAllocationStatsAction.Response::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );

@@ -75,7 +75,6 @@ public class TransportPutDatabaseConfigurationAction extends TransportMasterNode
             threadPool,
             actionFilters,
             Request::new,
-            indexNameExpressionResolver,
             AcknowledgedResponse::readFrom,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

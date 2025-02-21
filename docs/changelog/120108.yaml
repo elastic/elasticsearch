@@ -1,0 +1,13 @@
+pr: 120108
+summary: Remove the ability to read frozen indices
+area: Indices APIs
+type: breaking
+issues: []
+breaking:
+  title: Remove the ability to read frozen indices
+  area: Index setting
+  details: >-
+    The ability to read frozen indices has been removed. (Frozen indices are no longer useful due to improvements in
+    heap memory usage. The ability to freeze indices was removed in 8.0.)
+  impact: Users must unfreeze any frozen indices before upgrading.
+  notable: false

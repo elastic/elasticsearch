@@ -40,6 +40,9 @@ public class SemanticInferenceMetadataFieldsMapper extends InferenceMetadataFiel
     private static final SemanticInferenceMetadataFieldsMapper INSTANCE = new SemanticInferenceMetadataFieldsMapper();
 
     public static final NodeFeature EXPLICIT_NULL_FIXES = new NodeFeature("semantic_text.inference_metadata_fields.explicit_null_fixes");
+    public static final NodeFeature INFERENCE_METADATA_FIELDS_ENABLED_BY_DEFAULT = new NodeFeature(
+        "semantic_text.inference_metadata_fields.enabled_by_default"
+    );
 
     public static final TypeParser PARSER = new FixedTypeParser(
         c -> InferenceMetadataFieldsMapper.isEnabled(c.getSettings()) ? INSTANCE : null
@@ -143,13 +146,7 @@ public class SemanticInferenceMetadataFieldsMapper extends InferenceMetadataFiel
                 // directly. We can safely split on all "." chars because semantic text fields cannot be used when subobjects == false.
                 String[] fieldNameParts = fieldName.split("\\.");
                 setPath(context.path(), fieldNameParts);
-
-                var parent = context.parent().findParentMapper(fieldName);
-                if (parent == null) {
-                    throw new IllegalArgumentException("Field [" + fieldName + "] does not have a parent mapper");
-                }
-                String suffix = parent != context.parent() ? fieldName.substring(parent.fullPath().length() + 1) : fieldName;
-                var mapper = parent.getMapper(suffix);
+                var mapper = context.mappingLookup().getMapper(fieldName);
                 if (mapper instanceof SemanticTextFieldMapper fieldMapper) {
                     XContentLocation xContentLocation = context.parser().getTokenLocation();
                     var input = fieldMapper.parseSemanticTextField(context);

@@ -44,6 +44,9 @@ dependencies {
   clusterModules project(':modules:lang-painless')
   clusterModules project(':modules:parent-join')
   clusterModules project(":modules:rest-root")
+
+  internalClusterTestImplementation project(':modules:lang-painless')
+  internalClusterTestImplementation project(':modules:lang-painless:spi')
 }
 
 restResources {
@@ -163,4 +166,8 @@ if (OS.current() == OS.WINDOWS) {
         nonInputProperties.systemProperty "es${version}.port", fixture.map(f->f.addressAndPort)
     }
   }
+}
+
+tasks.named("yamlRestCompatTestTransform").configure { task ->
+  task.skipTest("reindex/20_validation/specifying size fails", "size is rejected in 9.0")
 }

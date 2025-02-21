@@ -96,7 +96,6 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
             threadPool,
             actionFilters,
             MountSearchableSnapshotRequest::new,
-            indexNameExpressionResolver,
             RestoreSnapshotResponse::new,
             // Use SNAPSHOT_META pool since we are slow due to loading repository metadata in this action
             threadPool.executor(ThreadPool.Names.SNAPSHOT_META)

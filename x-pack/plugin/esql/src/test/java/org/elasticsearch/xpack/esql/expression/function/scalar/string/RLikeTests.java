@@ -20,7 +20,9 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.junit.AfterClass;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
@@ -149,5 +151,10 @@ public class RLikeTests extends AbstractScalarFunctionTestCase {
         return caseInsensitiveBool
             ? new RLike(source, expression, new RLikePattern(patternString), true)
             : new RLike(source, expression, new RLikePattern(patternString));
+    }
+
+    @AfterClass
+    public static void renderNotRLike() throws IOException {
+        WildcardLikeTests.renderNot(constructorWithFunctionInfo(RLike.class), "RLIKE", d -> d);
     }
 }

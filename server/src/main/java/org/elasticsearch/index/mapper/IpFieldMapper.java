@@ -608,26 +608,27 @@ public class IpFieldMapper extends FieldMapper {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (hasDocValues) {
-            var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
-            layers.add(new SortedSetDocValuesSyntheticFieldLoaderLayer(fullPath()) {
-                @Override
-                protected BytesRef convert(BytesRef value) {
-                    byte[] bytes = Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length);
-                    return new BytesRef(NetworkAddress.format(InetAddressPoint.decode(bytes)));
-                }
+            return new SyntheticSourceSupport.Native(() -> {
+                var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
+                layers.add(new SortedSetDocValuesSyntheticFieldLoaderLayer(fullPath()) {
+                    @Override
+                    protected BytesRef convert(BytesRef value) {
+                        byte[] bytes = Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length);
+                        return new BytesRef(NetworkAddress.format(InetAddressPoint.decode(bytes)));
+                    }
 
-                @Override
-                protected BytesRef preserve(BytesRef value) {
-                    // No need to copy because convert has made a deep copy
-                    return value;
+                    @Override
+                    protected BytesRef preserve(BytesRef value) {
+                        // No need to copy because convert has made a deep copy
+                        return value;
+                    }
+                });
+
+                if (ignoreMalformed) {
+                    layers.add(new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath()));
                 }
+                return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
             });
-
-            if (ignoreMalformed) {
-                layers.add(new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath()));
-            }
-
-            return new SyntheticSourceSupport.Native(new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers));
         }
 
         return super.syntheticSourceSupport();

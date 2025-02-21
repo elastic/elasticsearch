@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.logical.show;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -22,7 +23,7 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 
-public class ShowInfo extends LeafPlan {
+public class ShowInfo extends LeafPlan implements TelemetryAware {
 
     private final List<Attribute> attributes;
 
@@ -59,7 +60,7 @@ public class ShowInfo extends LeafPlan {
     }
 
     @Override
-    public String commandName() {
+    public String telemetryLabel() {
         return "SHOW";
     }
 

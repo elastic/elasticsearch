@@ -356,8 +356,9 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                     assertThat(option.getText().toString(), equalTo("suggestion" + id));
                     assertThat(option.getHit(), hasId("" + id));
                     assertThat(option.getHit(), hasScore((id)));
-                    assertNotNull(option.getHit().getSourceAsMap());
-                    Set<String> sourceFields = option.getHit().getSourceAsMap().keySet();
+                    Map<String, Object> source = option.getHit().getSourceAsMap();
+                    assertNotNull(source);
+                    Set<String> sourceFields = source.keySet();
                     assertThat(sourceFields, contains("a"));
                     assertThat(sourceFields, not(contains("b")));
                     id--;

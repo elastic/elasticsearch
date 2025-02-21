@@ -1,5 +1,0 @@
-org.elasticsearch.entitlement.qa.common:
-  - create_class_loader
-  - set_https_connection_properties
-  - inbound_network
-  - outbound_network

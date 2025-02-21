@@ -50,6 +50,7 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
     private static final Logger logger = LogManager.getLogger(TransportUpdateSettingsAction.class);
 
     private final MetadataUpdateSettingsService updateSettingsService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final SystemIndices systemIndices;
 
     @Inject
@@ -69,10 +70,10 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
             threadPool,
             actionFilters,
             UpdateSettingsRequest::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.updateSettingsService = updateSettingsService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.systemIndices = systemIndices;
     }
 

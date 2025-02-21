@@ -67,6 +67,7 @@ public class DriverTests extends ESTestCase {
 
         Driver driver = new Driver(
             "unset",
+            "test",
             startEpoch,
             startNanos,
             driverContext,
@@ -116,6 +117,7 @@ public class DriverTests extends ESTestCase {
 
         Driver driver = new Driver(
             "unset",
+            "test",
             startEpoch,
             startNanos,
             driverContext,
@@ -166,6 +168,7 @@ public class DriverTests extends ESTestCase {
 
         Driver driver = new Driver(
             "unset",
+            "test",
             startEpoch,
             startNanos,
             driverContext,
@@ -231,7 +234,7 @@ public class DriverTests extends ESTestCase {
             WarningsOperator warning1 = new WarningsOperator(threadPool);
             WarningsOperator warning2 = new WarningsOperator(threadPool);
             CyclicBarrier allPagesProcessed = new CyclicBarrier(2);
-            Driver driver = new Driver(driverContext, new CannedSourceOperator(inPages.iterator()) {
+            Driver driver = new Driver("test", driverContext, new CannedSourceOperator(inPages.iterator()) {
                 @Override
                 public Page getOutput() {
                     assertRunningWithRegularUser(threadPool);
@@ -297,7 +300,7 @@ public class DriverTests extends ESTestCase {
             final int maxAllowedRows = between(1, 100);
             final AtomicInteger processedRows = new AtomicInteger(0);
             var sinkHandler = new ExchangeSinkHandler(driverContext.blockFactory(), positions, System::currentTimeMillis);
-            var sinkOperator = new ExchangeSinkOperator(sinkHandler.createExchangeSink(), Function.identity());
+            var sinkOperator = new ExchangeSinkOperator(sinkHandler.createExchangeSink(() -> {}), Function.identity());
             final var delayOperator = new EvalOperator(driverContext.blockFactory(), new EvalOperator.ExpressionEvaluator() {
                 @Override
                 public Block eval(Page page) {
@@ -315,7 +318,7 @@ public class DriverTests extends ESTestCase {
 
                 }
             });
-            Driver driver = new Driver(driverContext, sourceOperator, List.of(delayOperator), sinkOperator, () -> {});
+            Driver driver = new Driver("test", driverContext, sourceOperator, List.of(delayOperator), sinkOperator, () -> {});
             ThreadContext threadContext = threadPool.getThreadContext();
             PlainActionFuture<Void> future = new PlainActionFuture<>();
 
@@ -331,12 +334,11 @@ public class DriverTests extends ESTestCase {
         DriverContext driverContext = driverContext();
         ThreadPool threadPool = threadPool();
         try {
-            PlainActionFuture<Void> sourceFuture = new PlainActionFuture<>();
-            var sourceHandler = new ExchangeSourceHandler(between(1, 5), threadPool.executor("esql"), sourceFuture);
+            var sourceHandler = new ExchangeSourceHandler(between(1, 5), threadPool.executor("esql"));
             var sinkHandler = new ExchangeSinkHandler(driverContext.blockFactory(), between(1, 5), System::currentTimeMillis);
             var sourceOperator = new ExchangeSourceOperator(sourceHandler.createExchangeSource());
-            var sinkOperator = new ExchangeSinkOperator(sinkHandler.createExchangeSink(), Function.identity());
-            Driver driver = new Driver(driverContext, sourceOperator, List.of(), sinkOperator, () -> {});
+            var sinkOperator = new ExchangeSinkOperator(sinkHandler.createExchangeSink(() -> {}), Function.identity());
+            Driver driver = new Driver("test", driverContext, sourceOperator, List.of(), sinkOperator, () -> {});
             PlainActionFuture<Void> future = new PlainActionFuture<>();
             Driver.start(threadPool.getThreadContext(), threadPool.executor("esql"), driver, between(1, 1000), future);
             assertBusy(
@@ -348,7 +350,6 @@ public class DriverTests extends ESTestCase {
             sinkHandler.fetchPageAsync(true, ActionListener.noop());
             future.actionGet(5, TimeUnit.SECONDS);
             assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
-            sourceFuture.actionGet(5, TimeUnit.SECONDS);
         } finally {
             terminate(threadPool);
         }
@@ -376,7 +377,7 @@ public class DriverTests extends ESTestCase {
         private final ThreadPool threadPool;
 
         SwitchContextOperator(DriverContext driverContext, ThreadPool threadPool) {
-            super(driverContext, between(1, 3));
+            super(driverContext, threadPool.getThreadContext(), between(1, 3));
             this.threadPool = threadPool;
         }
 

@@ -29,6 +29,8 @@ dependencies {
   api "joda-time:joda-time:2.10.10"
 
   javaRestTestImplementation project(':plugins:discovery-ec2')
+  javaRestTestImplementation project(':test:fixtures:aws-fixture-utils')
+  javaRestTestImplementation project(':test:fixtures:aws-ec2-fixture')
   javaRestTestImplementation project(':test:fixtures:ec2-imds-fixture')
 
   internalClusterTestImplementation project(':test:fixtures:ec2-imds-fixture')
@@ -99,25 +101,11 @@ tasks.withType(Test).configureEach {
   }
 }
 
-tasks.named("check").configure {
-  // also execute the QA tests when testing the plugin
-  dependsOn 'qa:amazon-ec2:check'
-}
-
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
           // classes are missing
           'com.amazonaws.jmespath.JmesPathExpression',
           'com.amazonaws.jmespath.ObjectMapperSingleton',
-          'software.amazon.ion.IonReader',
-          'software.amazon.ion.IonSystem',
-          'software.amazon.ion.IonType',
-          'software.amazon.ion.IonWriter',
-          'software.amazon.ion.Timestamp',
-          'software.amazon.ion.system.IonBinaryWriterBuilder',
-          'software.amazon.ion.system.IonSystemBuilder',
-          'software.amazon.ion.system.IonTextWriterBuilder',
-          'software.amazon.ion.system.IonWriterBuilder',
           'javax.servlet.ServletContextEvent',
           'javax.servlet.ServletContextListener',
           'org.apache.avalon.framework.logger.Logger',

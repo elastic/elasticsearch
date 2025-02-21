@@ -106,7 +106,6 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
             threadPool,
             actionFilters,
             ResumeFollowAction.Request::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;

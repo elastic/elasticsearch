@@ -75,7 +75,7 @@ public class TransportEsqlAsyncGetResultsAction extends AbstractTransportQlAsync
 
     /**
      * Unwraps the exception in the case of failure. This keeps the exception types
-     * the same as the sync API, namely ParsingException and ParsingException.
+     * the same as the sync API, namely ParsingException and VerificationException.
      */
     static <R> ActionListener<R> unwrapListener(ActionListener<R> listener) {
         return new ActionListener<>() {

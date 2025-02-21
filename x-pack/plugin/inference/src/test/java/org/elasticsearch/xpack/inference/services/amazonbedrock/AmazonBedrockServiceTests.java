@@ -57,6 +57,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -154,69 +155,80 @@ public class AmazonBedrockServiceTests extends ESTestCase {
     @SuppressWarnings("checkstyle:LineLength")
     public void testGetConfiguration() throws Exception {
         try (var service = createAmazonBedrockService()) {
-            String content = XContentHelper.stripWhitespace("""
-                {
-                     "service": "amazonbedrock",
-                     "name": "Amazon Bedrock",
-                     "task_types": ["text_embedding", "completion"],
-                     "configurations": {
-                         "secret_key": {
-                             "description": "A valid AWS secret key that is paired with the access_key.",
-                             "label": "Secret Key",
-                             "required": true,
-                             "sensitive": true,
-                             "updatable": true,
-                             "type": "str",
-                             "supported_task_types": ["text_embedding", "completion"]
-                         },
-                         "provider": {
-                             "description": "The model provider for your deployment.",
-                             "label": "Provider",
-                             "required": true,
-                             "sensitive": false,
-                             "updatable": false,
-                             "type": "str",
-                             "supported_task_types": ["text_embedding", "completion"]
-                         },
-                         "access_key": {
-                             "description": "A valid AWS access key that has permissions to use Amazon Bedrock.",
-                             "label": "Access Key",
-                             "required": true,
-                             "sensitive": true,
-                             "updatable": true,
-                             "type": "str",
-                             "supported_task_types": ["text_embedding", "completion"]
-                         },
-                         "model": {
-                             "description": "The base model ID or an ARN to a custom model based on a foundational model.",
-                             "label": "Model",
-                             "required": true,
-                             "sensitive": false,
-                             "updatable": false,
-                             "type": "str",
-                             "supported_task_types": ["text_embedding", "completion"]
-                         },
-                         "rate_limit.requests_per_minute": {
-                             "description": "By default, the amazonbedrock service sets the number of requests allowed per minute to 240.",
-                             "label": "Rate Limit",
-                             "required": false,
-                             "sensitive": false,
-                             "updatable": false,
-                             "type": "int",
-                             "supported_task_types": ["text_embedding", "completion"]
-                         },
-                         "region": {
-                             "description": "The region that your model or ARN is deployed in.",
-                             "label": "Region",
-                             "required": true,
-                             "sensitive": false,
-                             "updatable": false,
-                             "type": "str",
-                             "supported_task_types": ["text_embedding", "completion"]
+            String content = XContentHelper.stripWhitespace(
+                """
+                    {
+                         "service": "amazonbedrock",
+                         "name": "Amazon Bedrock",
+                         "task_types": ["text_embedding", "completion"],
+                         "configurations": {
+                              "dimensions": {
+                                 "description": "The number of dimensions the resulting embeddings should have. For more information refer to https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-titan-embed-text.html.",
+                                 "label": "Dimensions",
+                                 "required": false,
+                                 "sensitive": false,
+                                 "updatable": false,
+                                 "type": "int",
+                                 "supported_task_types": ["text_embedding"]
+                             },
+                             "secret_key": {
+                                 "description": "A valid AWS secret key that is paired with the access_key.",
+                                 "label": "Secret Key",
+                                 "required": true,
+                                 "sensitive": true,
+                                 "updatable": true,
+                                 "type": "str",
+                                 "supported_task_types": ["text_embedding", "completion"]
+                             },
+                             "provider": {
+                                 "description": "The model provider for your deployment.",
+                                 "label": "Provider",
+                                 "required": true,
+                                 "sensitive": false,
+                                 "updatable": false,
+                                 "type": "str",
+                                 "supported_task_types": ["text_embedding", "completion"]
+                             },
+                             "access_key": {
+                                 "description": "A valid AWS access key that has permissions to use Amazon Bedrock.",
+                                 "label": "Access Key",
+                                 "required": true,
+                                 "sensitive": true,
+                                 "updatable": true,
+                                 "type": "str",
+                                 "supported_task_types": ["text_embedding", "completion"]
+                             },
+                             "model": {
+                                 "description": "The base model ID or an ARN to a custom model based on a foundational model.",
+                                 "label": "Model",
+                                 "required": true,
+                                 "sensitive": false,
+                                 "updatable": false,
+                                 "type": "str",
+                                 "supported_task_types": ["text_embedding", "completion"]
+                             },
+                             "rate_limit.requests_per_minute": {
+                                 "description": "By default, the amazonbedrock service sets the number of requests allowed per minute to 240.",
+                                 "label": "Rate Limit",
+                                 "required": false,
+                                 "sensitive": false,
+                                 "updatable": false,
+                                 "type": "int",
+                                 "supported_task_types": ["text_embedding", "completion"]
+                             },
+                             "region": {
+                                 "description": "The region that your model or ARN is deployed in.",
+                                 "label": "Region",
+                                 "required": true,
+                                 "sensitive": false,
+                                 "updatable": false,
+                                 "type": "str",
+                                 "supported_task_types": ["text_embedding", "completion"]
+                             }
                          }
                      }
-                 }
-                """);
+                    """
+            );
             InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
                 new BytesArray(content),
                 XContentType.JSON
@@ -1370,8 +1382,8 @@ public class AmazonBedrockServiceTests extends ESTestCase {
 
     public void testSupportsStreaming() throws IOException {
         try (var service = new AmazonBedrockService(mock(), mock(), createWithEmptySettings(mock()))) {
-            assertTrue(service.canStream(TaskType.COMPLETION));
-            assertTrue(service.canStream(TaskType.ANY));
+            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION)));
+            assertFalse(service.canStream(TaskType.ANY));
         }
     }
 

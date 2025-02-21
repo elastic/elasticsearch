@@ -54,7 +54,6 @@ public class TransportDeleteRepositoryAction extends AcknowledgedTransportMaster
             threadPool,
             actionFilters,
             DeleteRepositoryRequest::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.repositoriesService = repositoriesService;

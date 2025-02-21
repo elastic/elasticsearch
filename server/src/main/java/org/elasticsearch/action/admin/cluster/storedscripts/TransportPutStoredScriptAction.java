@@ -47,7 +47,6 @@ public class TransportPutStoredScriptAction extends AcknowledgedTransportMasterN
             threadPool,
             actionFilters,
             PutStoredScriptRequest::new,
-            indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.scriptService = scriptService;

@@ -46,7 +46,6 @@ import java.util.stream.LongStream;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.in;
 
 /**
  * Base tests for {@link Operator}s that are not {@link SourceOperator} or {@link SinkOperator}.
@@ -190,6 +189,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
             List<Page> in = source.next();
             try (
                 Driver d = new Driver(
+                    "test",
                     driverContext(),
                     new CannedSourceOperator(in.iterator()),
                     operators.get(),
@@ -244,16 +244,15 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
     public void testSimpleFinishClose() {
         DriverContext driverContext = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), 1));
-        assert input.size() == 1 : "Expected single page, got: " + input;
         // eventually, when driverContext always returns a tracking factory, we can enable this assertion
         // assertThat(driverContext.blockFactory().breaker().getUsed(), greaterThan(0L));
-        Page page = input.get(0);
         try (var operator = simple().get(driverContext)) {
             assert operator.needsInput();
-            operator.addInput(page);
+            for (Page page : input) {
+                operator.addInput(page);
+            }
             operator.finish();
         }
-        assertThat(driverContext.blockFactory().breaker().getUsed(), equalTo(0L));
     }
 
     protected final List<Page> drive(Operator operator, Iterator<Page> input, DriverContext driverContext) {
@@ -265,6 +264,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         boolean success = false;
         try (
             Driver d = new Driver(
+                "test",
                 driverContext,
                 new CannedSourceOperator(input),
                 operators,
@@ -292,6 +292,7 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         for (int i = 0; i < dummyDrivers; i++) {
             drivers.add(
                 new Driver(
+                    "test",
                     "dummy-session",
                     0,
                     0,

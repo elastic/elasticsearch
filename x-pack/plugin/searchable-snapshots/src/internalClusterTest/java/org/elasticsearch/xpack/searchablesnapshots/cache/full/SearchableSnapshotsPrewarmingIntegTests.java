@@ -145,7 +145,7 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
             docsPerIndex.put(indexName, nbDocs);
         }
 
-        final Path repositoryPath = node().getEnvironment().resolveRepoFile(randomAlphaOfLength(10));
+        final Path repositoryPath = node().getEnvironment().resolveRepoDir(randomAlphaOfLength(10));
         final Settings.Builder repositorySettings = Settings.builder().put("location", repositoryPath);
         if (randomBoolean()) {
             repositorySettings.put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES);
@@ -240,7 +240,8 @@ public class SearchableSnapshotsPrewarmingIntegTests extends ESSingleNodeTestCas
                     assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
                     assertHitCount(client().prepareSearch(indexName).setSize(0).setTrackTotalHits(true), docsPerIndex.get(indexName));
 
-                    final GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings(indexName).get();
+                    final GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
+                        .get();
                     assertThat(getSettingsResponse.getSetting(indexName, SNAPSHOT_CACHE_ENABLED_SETTING.getKey()), equalTo("true"));
                     assertThat(getSettingsResponse.getSetting(indexName, SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.getKey()), equalTo("true"));
 

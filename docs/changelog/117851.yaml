@@ -1,5 +1,0 @@
-pr: 117851
-summary: Addition of `tier_preference`, `creation_date` and `version` fields in Elasticsearch monitoring template
-area: Monitoring
-type: enhancement
-issues: []

@@ -40,6 +40,10 @@ However, if you do not plan to use the {infer} APIs to use these models or if yo
 The stream {infer} API enables real-time responses for completion tasks by delivering answers incrementally, reducing response times during computation.
 It only works with the `completion` and `chat_completion` task types.
 
+The Chat completion {infer} API and the Stream {infer} API differ in their response structure and capabilities.
+The Chat completion {infer} API provides more comprehensive customization options through more fields and function calling support.
+If you use the `openai` service or the `elastic` service, use the Chat completion {infer} API.
+
 [NOTE]
 ====
 include::inference-shared.asciidoc[tag=chat-completion-docs]

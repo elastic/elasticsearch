@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.inference;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -28,6 +29,10 @@ public class InferenceService {
 
     public InferenceService(Client client) {
         this.client = new OriginSettingClient(client, ML_ORIGIN);
+    }
+
+    public ThreadContext getThreadContext() {
+        return client.threadPool().getThreadContext();
     }
 
     public void resolveInferences(List<InferencePlan> plans, ActionListener<InferenceResolution> listener) {

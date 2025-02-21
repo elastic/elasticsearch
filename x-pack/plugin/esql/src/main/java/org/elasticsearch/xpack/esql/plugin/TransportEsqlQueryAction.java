@@ -125,12 +125,14 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             bigArrays,
             blockFactory
         );
+        this.inferenceService = new InferenceService(client);
         this.computeService = new ComputeService(
             searchService,
             transportService,
             exchangeService,
             enrichLookupService,
             lookupFromIndexService,
+            inferenceService,
             clusterService,
             threadPool,
             bigArrays,
@@ -151,8 +153,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         );
         this.remoteClusterService = transportService.getRemoteClusterService();
         this.usageService = usageService;
-
-        this.inferenceService = new InferenceService(client);
 
         this.services = new TransportActionServices(
             transportService,

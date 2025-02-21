@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.Describable;
@@ -22,6 +23,7 @@ import org.elasticsearch.compute.operator.ColumnExtractOperator;
 import org.elasticsearch.compute.operator.ColumnLoadOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
 import org.elasticsearch.compute.operator.LimitOperator;
@@ -60,6 +62,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
@@ -73,6 +76,7 @@ import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
@@ -97,6 +101,8 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
+import org.elasticsearch.xpack.esql.plan.physical.inference.RerankOperator;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -136,6 +142,7 @@ public class LocalExecutionPlanner {
     private final Supplier<ExchangeSink> exchangeSinkSupplier;
     private final EnrichLookupService enrichLookupService;
     private final LookupFromIndexService lookupFromIndexService;
+    private final InferenceService inferenceService;
     private final PhysicalOperationProviders physicalOperationProviders;
     private final List<ShardContext> shardContexts;
 
@@ -151,6 +158,7 @@ public class LocalExecutionPlanner {
         Supplier<ExchangeSink> exchangeSinkSupplier,
         EnrichLookupService enrichLookupService,
         LookupFromIndexService lookupFromIndexService,
+        InferenceService inferenceService,
         PhysicalOperationProviders physicalOperationProviders,
         List<ShardContext> shardContexts
     ) {
@@ -165,6 +173,7 @@ public class LocalExecutionPlanner {
         this.exchangeSinkSupplier = exchangeSinkSupplier;
         this.enrichLookupService = enrichLookupService;
         this.lookupFromIndexService = lookupFromIndexService;
+        this.inferenceService = inferenceService;
         this.physicalOperationProviders = physicalOperationProviders;
         this.configuration = configuration;
         this.shardContexts = shardContexts;
@@ -225,6 +234,8 @@ public class LocalExecutionPlanner {
             return planLimit(limit, context);
         } else if (node instanceof MvExpandExec mvExpand) {
             return planMvExpand(mvExpand, context);
+        } else if (node instanceof RerankExec rerank) {
+            return planRerank(rerank, context);
         } else if (node instanceof ChangePointExec changePoint) {
             return planChangePoint(changePoint, context);
         }
@@ -500,6 +511,37 @@ public class LocalExecutionPlanner {
                 enrich.source()
             ),
             layout
+        );
+    }
+
+    private PhysicalOperation planRerank(RerankExec rerank, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(rerank.child(), context);
+
+        Map<String, EvalOperator.ExpressionEvaluator.Factory> rerankFieldsEvaluatorSuppliers = new HashMap<>();
+
+        for (var rerankField : rerank.rerankFields()) {
+            rerankFieldsEvaluatorSuppliers.put(
+                rerankField.name(),
+                EvalMapper.toEvaluator(context.foldCtx(), rerankField.child(), source.layout)
+            );
+        }
+
+        String inferenceId = BytesRefs.toString(rerank.inferenceId().fold(context.foldCtx));
+        String queryText = BytesRefs.toString(rerank.queryText().fold(context.foldCtx));
+
+        int scoreChannel = -1;
+
+        for (Attribute attr : rerank.output()) {
+            if (attr.name().equals(MetadataAttribute.SCORE)) {
+                scoreChannel = source.layout.get(attr.id()).channel();
+            }
+        }
+
+        logger.warn("layout {}", source.layout);
+
+        return source.with(
+            new RerankOperator.Factory(inferenceService, inferenceId, queryText, rerankFieldsEvaluatorSuppliers, scoreChannel),
+            source.layout
         );
     }
 

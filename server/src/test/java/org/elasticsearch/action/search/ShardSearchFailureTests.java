@@ -123,13 +123,16 @@ public class ShardSearchFailureTests extends ESTestCase {
         BytesReference xContent = toXContent(failure, XContentType.JSON, randomBoolean());
         assertEquals(
             XContentHelper.stripWhitespace(
-                """
-                    {
-                      "shard": 123,
-                      "index": "indexName",
-                      "node": "nodeId",
-                      "reason":{"type":"no_shard_available_action_exception","reason":"org.apache.lucene.store.AlreadyClosedException: shard unassigned, cause: null"}
-                    }"""
+            """
+                {
+                  "shard": 123,
+                  "index": "indexName",
+                  "node": "nodeId",
+                  "reason": {
+                    "type": "no_shard_available_action_exception",
+                    "reason": "org.apache.lucene.store.AlreadyClosedException: shard unassigned, cause: null"
+                  }
+                }"""
             ),
             xContent.utf8ToString()
         );

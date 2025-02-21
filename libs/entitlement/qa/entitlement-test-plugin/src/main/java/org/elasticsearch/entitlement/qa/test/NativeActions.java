@@ -33,6 +33,7 @@ import static java.lang.foreign.ValueLayout.JAVA_LONG;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.SERVER_ONLY;
 
+@SuppressWarnings({ "unused" /* called via reflection */ })
 class NativeActions {
 
     @EntitlementTest(expectedAccess = SERVER_ONLY)
@@ -113,7 +114,7 @@ class NativeActions {
     @EntitlementTest(expectedAccess = PLUGINS)
     static void symbolLookupWithPath() {
         try {
-            SymbolLookup.libraryLookup(Path.of("/foo/bar/libFoo.so"), Arena.ofAuto());
+            SymbolLookup.libraryLookup(FileCheckActions.readDir().resolve("libFoo.so"), Arena.ofAuto());
         } catch (IllegalArgumentException e) {
             // IllegalArgumentException is thrown if path does not point to a valid library (and it does not)
         }

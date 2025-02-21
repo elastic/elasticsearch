@@ -2430,6 +2430,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
                 KnnVectorValues.DocIndexIterator iterator = values.iterator();
                 return docId -> {
+                    if (iterator.docID() > docId) {
+                        return hasValue = false;
+                    }
+                    if (iterator.docID() == docId) {
+                        return hasValue = true;
+                    }
                     hasValue = docId == iterator.advance(docId);
                     hasMagnitude = hasValue && magnitudeReader != null && magnitudeReader.advanceExact(docId);
                     ord = iterator.index();
@@ -2440,6 +2446,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (byteVectorValues != null) {
                 KnnVectorValues.DocIndexIterator iterator = byteVectorValues.iterator();
                 return docId -> {
+                    if (iterator.docID() > docId) {
+                        return hasValue = false;
+                    }
+                    if (iterator.docID() == docId) {
+                        return hasValue = true;
+                    }
                     hasValue = docId == iterator.advance(docId);
                     ord = iterator.index();
                     return hasValue;
@@ -2502,6 +2514,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return null;
             }
             return docId -> {
+                if (values.docID() > docId) {
+                    return hasValue = false;
+                }
+                if (values.docID() == docId) {
+                    return hasValue = true;
+                }
                 hasValue = docId == values.advance(docId);
                 return hasValue;
             };

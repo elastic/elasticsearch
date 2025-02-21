@@ -42,7 +42,7 @@ public final class FileAccessTree {
                         if (normalized.startsWith(exclusivePath)) {
                             // TODO: throw
                         }
-                        updatedExclusivePaths.add(normalized);
+                        updatedExclusivePaths.add(exclusivePath);
                     }
                 }
                 if (mode == FilesEntitlement.Mode.READ_WRITE) {
@@ -104,12 +104,8 @@ public final class FileAccessTree {
     }
 
     private boolean checkPath(String path, String[] paths) {
-        if (paths.length == 0) {
+        if (paths.length == 0 || Arrays.binarySearch(exclusivePaths, path) >= 0) {
             return false;
-        }
-        int exnx = Arrays.binarySearch(exclusivePaths, path);
-        if (exnx >= 0) {
-            throw new NotEntitledException("cannot access exclusive path [" + path + "]");
         }
         int ndx = Arrays.binarySearch(paths, path);
         if (ndx < -1) {

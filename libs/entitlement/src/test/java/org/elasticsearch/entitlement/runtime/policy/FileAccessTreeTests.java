@@ -175,6 +175,22 @@ public class FileAccessTreeTests extends ESTestCase {
         assertThat(tree.canWrite(TEST_PATH_LOOKUP.tempDir()), is(true));
     }
 
+    public void testExclusiveAccess() {
+        var tree = accessTree(entitlement("foo", "read"), exclusivePaths("foo"));
+        assertThat(tree.canRead(path("foo")), is(true));
+        assertThat(tree.canWrite(path("foo")), is(false));
+        tree = accessTree(entitlement("foo", "read_write"), exclusivePaths("foo"));
+        assertThat(tree.canRead(path("foo")), is(true));
+        assertThat(tree.canWrite(path("foo")), is(true));
+        tree = accessTree(entitlement("foo", "read"), exclusivePaths("foo/bar"));
+        assertThat(tree.canRead(path("foo")), is(true));
+        assertThat(tree.canWrite(path("foo")), is(false));
+        assertThat(tree.canRead(path("foo/baz")), is(true));
+        assertThat(tree.canWrite(path("foo/baz")), is(false));
+        assertThat(tree.canRead(path("foo/bar")), is(false));
+        assertThat(tree.canWrite(path("foo/bar")), is(false));
+    }
+
     FileAccessTree accessTree(FilesEntitlement entitlement, List<String> exclusivePaths) {
         return FileAccessTree.of(entitlement, TEST_PATH_LOOKUP, exclusivePaths);
     }
@@ -192,5 +208,13 @@ public class FileAccessTreeTests extends ESTestCase {
 
     static FilesEntitlement entitlement(Map<String, String> value) {
         return FilesEntitlement.build(List.of(value));
+    }
+
+    static List<String> exclusivePaths(String... paths) {
+        List<String> exclusivePaths = new ArrayList<>();
+        for (String path : paths) {
+            exclusivePaths.add(FileAccessTree.normalizePath(path(path)));
+        }
+        return exclusivePaths;
     }
 }

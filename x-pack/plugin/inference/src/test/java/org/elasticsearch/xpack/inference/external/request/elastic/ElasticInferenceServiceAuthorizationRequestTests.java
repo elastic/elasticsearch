@@ -30,7 +30,7 @@ public class ElasticInferenceServiceAuthorizationRequestTests extends ESTestCase
 
         ElasticsearchStatusException exception = assertThrows(
             ElasticsearchStatusException.class,
-            () -> new ElasticInferenceServiceAuthorizationRequest(invalidUrl, traceContext)
+            () -> new ElasticInferenceServiceAuthorizationRequest(invalidUrl, traceContext, randomAlphaOfLength(10))
         );
 
         assertThat(exception.status(), is(RestStatus.BAD_REQUEST));

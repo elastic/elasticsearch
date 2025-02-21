@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.inference.external.request.elastic;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
-import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
@@ -24,7 +24,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-public class ElasticInferenceServiceUnifiedChatCompletionRequest implements Request {
+public class ElasticInferenceServiceUnifiedChatCompletionRequest extends ElasticInferenceServiceRequest {
 
     private final ElasticInferenceServiceCompletionModel model;
     private final UnifiedChatInput unifiedChatInput;
@@ -33,15 +33,17 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequest implements Requ
     public ElasticInferenceServiceUnifiedChatCompletionRequest(
         UnifiedChatInput unifiedChatInput,
         ElasticInferenceServiceCompletionModel model,
-        TraceContext traceContext
+        TraceContext traceContext,
+        String productOrigin
     ) {
+        super(productOrigin);
         this.unifiedChatInput = Objects.requireNonNull(unifiedChatInput);
         this.model = Objects.requireNonNull(model);
         this.traceContextHandler = new TraceContextHandler(traceContext);
     }
 
     @Override
-    public HttpRequest createHttpRequest() {
+    public HttpRequestBase createHttpRequestBase() {
         var httpPost = new HttpPost(model.uri());
         var requestEntity = Strings.toString(
             new ElasticInferenceServiceUnifiedChatCompletionRequestEntity(unifiedChatInput, model.getServiceSettings().modelId())
@@ -53,7 +55,7 @@ public class ElasticInferenceServiceUnifiedChatCompletionRequest implements Requ
         traceContextHandler.propagateTraceContext(httpPost);
         httpPost.setHeader(new BasicHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType()));
 
-        return new HttpRequest(httpPost, getInferenceEntityId());
+        return httpPost;
     }
 
     @Override

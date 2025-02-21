@@ -21,6 +21,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.SubsidiaryFailure;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.TriFunction;
@@ -468,6 +469,7 @@ public class CircuitBreakerTests extends ESTestCase {
                 0,
                 0,
                 ShardSearchFailure.EMPTY_ARRAY,
+                SubsidiaryFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY,
                 searchRequest.pointInTimeBuilder().getEncodedId()
             );
@@ -521,6 +523,7 @@ public class CircuitBreakerTests extends ESTestCase {
                         0,
                         0,
                         ShardSearchFailure.EMPTY_ARRAY,
+                        SubsidiaryFailure.EMPTY_ARRAY,
                         SearchResponse.Clusters.EMPTY,
                         searchRequest.pointInTimeBuilder().getEncodedId()
                     )
@@ -559,6 +562,7 @@ public class CircuitBreakerTests extends ESTestCase {
                             0,
                             0,
                             failures,
+                            SubsidiaryFailure.EMPTY_ARRAY,
                             SearchResponse.Clusters.EMPTY,
                             searchRequest.pointInTimeBuilder().getEncodedId()
                         )

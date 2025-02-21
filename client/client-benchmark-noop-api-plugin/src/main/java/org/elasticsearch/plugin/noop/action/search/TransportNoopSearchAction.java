@@ -12,9 +12,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.search.SubsidiaryFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.plugin.noop.NoopPlugin;
@@ -34,7 +34,7 @@ public class TransportNoopSearchAction extends HandledTransportAction<SearchRequ
             NoopPlugin.NOOP_SEARCH_ACTION.name(),
             transportService,
             actionFilters,
-            (Writeable.Reader<SearchRequest>) SearchRequest::new,
+            SearchRequest::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
     }
@@ -56,6 +56,7 @@ public class TransportNoopSearchAction extends HandledTransportAction<SearchRequ
                 0,
                 0,
                 ShardSearchFailure.EMPTY_ARRAY,
+                SubsidiaryFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY
             )
         );

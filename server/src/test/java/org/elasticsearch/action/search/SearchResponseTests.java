@@ -116,6 +116,7 @@ public class SearchResponseTests extends ESTestCase {
                     skippedShards,
                     tookInMillis,
                     shardSearchFailures,
+                    SubsidiaryFailure.EMPTY_ARRAY,
                     clusters
                 );
             } finally {
@@ -384,6 +385,7 @@ public class SearchResponseTests extends ESTestCase {
                 0,
                 0,
                 ShardSearchFailure.EMPTY_ARRAY,
+                SubsidiaryFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY
             );
             try {
@@ -426,6 +428,53 @@ public class SearchResponseTests extends ESTestCase {
                 0,
                 0,
                 ShardSearchFailure.EMPTY_ARRAY,
+                new SubsidiaryFailure[] { new SubsidiaryFailure("rescore", new IOException("io")) },
+                SearchResponse.Clusters.EMPTY
+            );
+            try {
+                String expectedString = XContentHelper.stripWhitespace("""
+                    {
+                      "took": 0,
+                      "timed_out": false,
+                      "_shards": {
+                        "total": 0,
+                        "successful": 0,
+                        "skipped": 0,
+                        "failed": 0
+                      },
+                      "subsidiaryFailures": [ { "phase": "rescore", "failure":
+                        {"type":"i_o_exception", "reason":"io"}
+                      } ],
+                      "hits": {
+                        "total": {
+                          "value": 100,
+                          "relation": "eq"
+                        },
+                        "max_score": 1.5,
+                        "hits": [ { "_id": "id1", "_score": 2.0 } ]
+                      }
+                    }""");
+                assertEquals(expectedString, Strings.toString(response));
+            } finally {
+                response.decRef();
+            }
+        }
+        {
+            SearchResponse response = new SearchResponse(
+                sHits,
+                null,
+                null,
+                false,
+                null,
+                null,
+                1,
+                null,
+                0,
+                0,
+                0,
+                0,
+                ShardSearchFailure.EMPTY_ARRAY,
+                SubsidiaryFailure.EMPTY_ARRAY,
                 new SearchResponse.Clusters(5, 3, 2)
             );
             try {
@@ -476,6 +525,7 @@ public class SearchResponseTests extends ESTestCase {
                 2,
                 0,
                 ShardSearchFailure.EMPTY_ARRAY,
+                SubsidiaryFailure.EMPTY_ARRAY,
                 createCCSClusterObject(
                     4,
                     3,

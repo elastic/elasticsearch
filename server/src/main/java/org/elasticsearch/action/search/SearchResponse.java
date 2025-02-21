@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
@@ -53,8 +54,6 @@ import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.action.search.ShardSearchFailure.readShardSearchFailure;
-
 /**
  * A response of a search request.
  */
@@ -70,6 +69,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     public static final ParseField TIMED_OUT = new ParseField("timed_out");
     public static final ParseField TERMINATED_EARLY = new ParseField("terminated_early");
     public static final ParseField NUM_REDUCE_PHASES = new ParseField("num_reduce_phases");
+    public static final ParseField SUBSIDIARY_FAILURES = new ParseField("subsidiaryFailures");
 
     private final SearchHits hits;
     private final InternalAggregations aggregations;
@@ -84,6 +84,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     private final int successfulShards;
     private final int skippedShards;
     private final ShardSearchFailure[] shardFailures;
+    private final SubsidiaryFailure[] subsidiaryFailures;
     private final Clusters clusters;
     private final long tookInMillis;
 
@@ -100,14 +101,17 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         this.numReducePhases = in.readVInt();
         totalShards = in.readVInt();
         successfulShards = in.readVInt();
-        int size = in.readVInt();
-        if (size == 0) {
-            shardFailures = ShardSearchFailure.EMPTY_ARRAY;
+        shardFailures = in.readArray(
+            ShardSearchFailure::readShardSearchFailure,
+            s -> s == 0 ? ShardSearchFailure.EMPTY_ARRAY : new ShardSearchFailure[s]
+        );
+        if (in.getTransportVersion().onOrAfter(TransportVersions.SEARCH_SUBSIDIARY_FAILURES)) {
+            subsidiaryFailures = in.readArray(
+                SubsidiaryFailure::new,
+                s -> s == 0 ? SubsidiaryFailure.EMPTY_ARRAY : new SubsidiaryFailure[s]
+            );
         } else {
-            shardFailures = new ShardSearchFailure[size];
-            for (int i = 0; i < shardFailures.length; i++) {
-                shardFailures[i] = readShardSearchFailure(in);
-            }
+            subsidiaryFailures = SubsidiaryFailure.EMPTY_ARRAY;
         }
         clusters = new Clusters(in);
         scrollId = in.readOptionalString();
@@ -130,6 +134,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         int skippedShards,
         long tookInMillis,
         ShardSearchFailure[] shardFailures,
+        SubsidiaryFailure[] subsidiaryFailures,
         Clusters clusters
     ) {
         this(
@@ -146,6 +151,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             skippedShards,
             tookInMillis,
             shardFailures,
+            subsidiaryFailures,
             clusters,
             null
         );
@@ -159,6 +165,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         int skippedShards,
         long tookInMillis,
         ShardSearchFailure[] shardFailures,
+        SubsidiaryFailure[] subsidiaryFailures,
         Clusters clusters,
         BytesReference pointInTimeId
     ) {
@@ -176,6 +183,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             skippedShards,
             tookInMillis,
             shardFailures,
+            subsidiaryFailures,
             clusters,
             pointInTimeId
         );
@@ -195,6 +203,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         int skippedShards,
         long tookInMillis,
         ShardSearchFailure[] shardFailures,
+        SubsidiaryFailure[] subsidiaryFailures,
         Clusters clusters,
         BytesReference pointInTimeId
     ) {
@@ -214,6 +223,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         this.skippedShards = skippedShards;
         this.tookInMillis = tookInMillis;
         this.shardFailures = shardFailures;
+        this.subsidiaryFailures = subsidiaryFailures;
         assert skippedShards <= totalShards : "skipped: " + skippedShards + " total: " + totalShards;
         assert scrollId == null || pointInTimeId == null
             : "SearchResponse can't have both scrollId [" + scrollId + "] and searchContextId [" + pointInTimeId + "]";
@@ -339,7 +349,14 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
      * The failures that occurred during the search.
      */
     public ShardSearchFailure[] getShardFailures() {
-        return this.shardFailures;
+        return shardFailures;
+    }
+
+    /**
+     * The failures that occurred that did not stop results from being returned.
+     */
+    public SubsidiaryFailure[] getSubsidiaryFailures() {
+        return subsidiaryFailures;
     }
 
     /**
@@ -392,6 +409,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
     public Iterator<? extends ToXContent> innerToXContentChunked(ToXContent.Params params) {
         return Iterators.concat(
             ChunkedToXContentHelper.chunk(SearchResponse.this::headerToXContent),
+            CollectionUtils.isEmpty(subsidiaryFailures)
+                ? Collections.emptyIterator()
+                : ChunkedToXContentHelper.array(SUBSIDIARY_FAILURES.getPreferredName(), Iterators.forArray(subsidiaryFailures)),
             Iterators.single(clusters),
             Iterators.concat(
                 hits.toXContentChunked(params),
@@ -444,10 +464,9 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         out.writeVInt(numReducePhases);
         out.writeVInt(totalShards);
         out.writeVInt(successfulShards);
-
-        out.writeVInt(shardFailures.length);
-        for (ShardSearchFailure shardSearchFailure : shardFailures) {
-            shardSearchFailure.writeTo(out);
+        out.writeArray(shardFailures);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SEARCH_SUBSIDIARY_FAILURES)) {
+            out.writeArray(subsidiaryFailures);
         }
         clusters.writeTo(out);
         out.writeOptionalString(scrollId);
@@ -1162,6 +1181,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             0,
             tookInMillisSupplier.get(),
             ShardSearchFailure.EMPTY_ARRAY,
+            SubsidiaryFailure.EMPTY_ARRAY,
             clusters,
             null
         );

@@ -201,6 +201,8 @@ public class TransportVersions {
     public static final TransportVersion REMOVE_REPOSITORY_CONFLICT_MESSAGE = def(9_012_0_00);
     public static final TransportVersion RERANKER_FAILURES_ALLOWED = def(9_013_0_00);
     public static final TransportVersion VOYAGE_AI_INTEGRATION_ADDED = def(9_014_0_00);
+    public static final TransportVersion SEARCH_SUBSIDIARY_FAILURES = def(9_015_0_00);
+
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

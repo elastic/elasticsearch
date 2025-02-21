@@ -135,7 +135,7 @@ public class JoinHelper {
             JoinRequest::new,
             (request, channel, task) -> joinHandler.accept(
                 request,
-                new ChannelActionListener<Empty>(channel).map(ignored -> Empty.INSTANCE)
+                ActionListener.assertOnce(new ChannelActionListener<Empty>(channel).map(ignored -> Empty.INSTANCE))
             )
         );
 

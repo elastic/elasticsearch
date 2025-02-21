@@ -256,7 +256,7 @@ public abstract class Publication {
             }
             assert state == PublicationTargetState.NOT_STARTED : state + " -> " + PublicationTargetState.SENT_PUBLISH_REQUEST;
             state = PublicationTargetState.SENT_PUBLISH_REQUEST;
-            Publication.this.sendPublishRequest(discoveryNode, publishRequest, new PublishResponseHandler());
+            Publication.this.sendPublishRequest(discoveryNode, publishRequest, ActionListener.assertOnce(new PublishResponseHandler()));
             assert publicationCompletedIffAllTargetsInactiveOrCancelled();
         }
 

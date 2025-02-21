@@ -11,12 +11,15 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -160,9 +163,11 @@ final class TransportHandshaker {
      */
 
     private static final Logger logger = LogManager.getLogger(TransportHandshaker.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
     static final TransportVersion V7_HANDSHAKE_VERSION = TransportVersion.fromId(6_08_00_99);
     static final TransportVersion V8_HANDSHAKE_VERSION = TransportVersion.fromId(7_17_00_99);
+    static final TransportVersion V8_18_HANDSHAKE_VERSION = TransportVersions.ML_INFERENCE_IBM_WATSONX_RERANK_ADDED;
     static final TransportVersion V9_HANDSHAKE_VERSION = TransportVersion.fromId(8_800_00_0);
     static final Set<TransportVersion> ALLOWED_HANDSHAKE_VERSIONS = Set.of(
         V7_HANDSHAKE_VERSION,
@@ -257,6 +262,19 @@ final class TransportHandshaker {
         Object channel
     ) {
         if (TransportVersion.isCompatible(remoteTransportVersion)) {
+            if (remoteTransportVersion.before(V8_18_HANDSHAKE_VERSION)) {
+                deprecationLogger.warn(
+                    DeprecationCategory.OTHER,
+                    "handshake_version",
+                    "Performed a handshake with a remote node whose version will be incompatible after this node "
+                        + "is upgraded to 9.x. This is likely a result of a CCR/CCS request. "
+                        + "Remote version: [{}]. "
+                        + "This version: [{}]. "
+                        + "Ensure you upgrade the remote node to a version that is compatible with this node.",
+                    remoteTransportVersion.toReleaseVersion(),
+                    localTransportVersion.toReleaseVersion()
+                );
+            }
             if (remoteTransportVersion.onOrAfter(localTransportVersion)) {
                 // Remote is newer than us, so we will be using our transport protocol and it's up to the other end to decide whether it
                 // knows how to do that.

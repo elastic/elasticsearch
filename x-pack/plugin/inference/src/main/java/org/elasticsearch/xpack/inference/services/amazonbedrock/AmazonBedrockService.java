@@ -109,7 +109,7 @@ public class AmazonBedrockService extends SenderService {
     ) {
         var actionCreator = new AmazonBedrockActionCreator(amazonBedrockSender, this.getServiceComponents(), timeout);
         if (model instanceof AmazonBedrockModel baseAmazonBedrockModel) {
-            var action = baseAmazonBedrockModel.accept(actionCreator, taskSettings);
+            var action = baseAmazonBedrockModel.accept(actionCreator, taskSettings, inputType);
             action.execute(inputs, timeout, listener);
         } else {
             listener.onFailure(createInvalidModelException(model));

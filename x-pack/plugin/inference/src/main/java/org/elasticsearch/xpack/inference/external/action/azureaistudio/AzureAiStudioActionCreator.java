@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.action.azureaistudio;
 
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.AzureAiStudioChatCompletionRequestManager;
@@ -39,8 +40,8 @@ public class AzureAiStudioActionCreator implements AzureAiStudioActionVisitor {
     }
 
     @Override
-    public ExecutableAction create(AzureAiStudioEmbeddingsModel embeddingsModel, Map<String, Object> taskSettings) {
-        var overriddenModel = AzureAiStudioEmbeddingsModel.of(embeddingsModel, taskSettings);
+    public ExecutableAction create(AzureAiStudioEmbeddingsModel embeddingsModel, Map<String, Object> taskSettings, InputType inputType) {
+        var overriddenModel = AzureAiStudioEmbeddingsModel.of(embeddingsModel, taskSettings, inputType);
         var requestManager = new AzureAiStudioEmbeddingsRequestManager(
             overriddenModel,
             serviceComponents.truncator(),

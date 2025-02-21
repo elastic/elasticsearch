@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.azureaistudio.embeddings;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
@@ -28,13 +29,9 @@ import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiSt
 
 public class AzureAiStudioEmbeddingsModel extends AzureAiStudioModel {
 
-    public static AzureAiStudioEmbeddingsModel of(AzureAiStudioEmbeddingsModel model, Map<String, Object> taskSettings) {
-        if (taskSettings == null || taskSettings.isEmpty()) {
-            return model;
-        }
-
+    public static AzureAiStudioEmbeddingsModel of(AzureAiStudioEmbeddingsModel model, Map<String, Object> taskSettings, InputType inputType) {
         var requestTaskSettings = AzureAiStudioEmbeddingsRequestTaskSettings.fromMap(taskSettings);
-        var taskSettingToUse = AzureAiStudioEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings);
+        var taskSettingToUse = AzureAiStudioEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings, inputType);
 
         return new AzureAiStudioEmbeddingsModel(model, taskSettingToUse);
     }
@@ -103,7 +100,7 @@ public class AzureAiStudioEmbeddingsModel extends AzureAiStudioModel {
     }
 
     @Override
-    public ExecutableAction accept(AzureAiStudioActionVisitor creator, Map<String, Object> taskSettings) {
-        return creator.create(this, taskSettings);
+    public ExecutableAction accept(AzureAiStudioActionVisitor creator, Map<String, Object> taskSettings, InputType inputType) {
+        return creator.create(this, taskSettings, inputType);
     }
 }

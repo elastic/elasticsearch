@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.action.amazonbedrock;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.AmazonBedrockChatCompletionRequestManager;
@@ -35,8 +36,8 @@ public class AmazonBedrockActionCreator implements AmazonBedrockActionVisitor {
     }
 
     @Override
-    public ExecutableAction create(AmazonBedrockEmbeddingsModel embeddingsModel, Map<String, Object> taskSettings) {
-        var overriddenModel = AmazonBedrockEmbeddingsModel.of(embeddingsModel, taskSettings);
+    public ExecutableAction create(AmazonBedrockEmbeddingsModel embeddingsModel, Map<String, Object> taskSettings, InputType inputType) {
+        var overriddenModel = AmazonBedrockEmbeddingsModel.of(embeddingsModel, taskSettings, inputType);
         var requestManager = new AmazonBedrockEmbeddingsRequestManager(
             overriddenModel,
             serviceComponents.truncator(),

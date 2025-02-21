@@ -67,7 +67,6 @@ public abstract class SenderService implements InferenceService {
         ActionListener<InferenceServiceResults> listener
     ) {
         init();
-        System.out.println("SenderService.infer");
         var inferenceInput = createInput(model, input, query, stream);
         doInfer(model, inferenceInput, taskSettings, inputType, timeout, listener);
     }

@@ -111,7 +111,6 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             this.inputType = inputType;
             this.inferenceTimeout = inferenceTimeout;
             this.stream = stream;
-            System.out.println("inputType + " + inputType);
         }
 
         public Request(StreamInput in) throws IOException {

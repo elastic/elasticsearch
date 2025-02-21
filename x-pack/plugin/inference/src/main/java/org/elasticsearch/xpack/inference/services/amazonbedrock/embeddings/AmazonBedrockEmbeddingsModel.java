@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -26,7 +27,7 @@ import java.util.Map;
 
 public class AmazonBedrockEmbeddingsModel extends AmazonBedrockModel {
 
-    public static AmazonBedrockEmbeddingsModel of(AmazonBedrockEmbeddingsModel embeddingsModel, Map<String, Object> taskSettings) {
+    public static AmazonBedrockEmbeddingsModel of(AmazonBedrockEmbeddingsModel embeddingsModel, Map<String, Object> taskSettings, InputType inputType) {
         if (taskSettings != null && taskSettings.isEmpty() == false) {
             // no task settings allowed
             var validationException = new ValidationException();
@@ -78,8 +79,8 @@ public class AmazonBedrockEmbeddingsModel extends AmazonBedrockModel {
     }
 
     @Override
-    public ExecutableAction accept(AmazonBedrockActionVisitor creator, Map<String, Object> taskSettings) {
-        return creator.create(this, taskSettings);
+    public ExecutableAction accept(AmazonBedrockActionVisitor creator, Map<String, Object> taskSettings, InputType inputType) {
+        return creator.create(this, taskSettings, inputType);
     }
 
     @Override

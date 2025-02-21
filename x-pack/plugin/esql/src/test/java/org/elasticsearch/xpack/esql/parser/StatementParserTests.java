@@ -3102,7 +3102,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "mv_expand",
             "rename",
             "sort",
-            "stats"};
+            "stats" };
         for (String keyword : keywords) {
             var plan = statement("FROM test | STATS avg(" + keyword + ")");
             var aggregate = as(plan, Aggregate.class);

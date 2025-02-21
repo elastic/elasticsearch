@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * Load {@code _source} fields from {@link SortedSetDocValues} and associated {@link BinaryDocValues}. The former contains the unique values
@@ -30,11 +31,17 @@ final class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Co
 
     private final String name;
     private final String offsetsFieldName;
+    private final Function<BytesRef, BytesRef> converter;
     private DocValuesWithOffsetsLoader docValues;
 
     SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer(String name, String offsetsFieldName) {
+        this(name, offsetsFieldName, Function.identity());
+    }
+
+    SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer(String name, String offsetsFieldName, Function<BytesRef, BytesRef> converter) {
         this.name = Objects.requireNonNull(name);
         this.offsetsFieldName = Objects.requireNonNull(offsetsFieldName);
+        this.converter = Objects.requireNonNull(converter);
     }
 
     @Override
@@ -47,7 +54,7 @@ final class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Co
         SortedSetDocValues valueDocValues = DocValues.getSortedSet(leafReader, name);
         SortedDocValues offsetDocValues = DocValues.getSorted(leafReader, offsetsFieldName);
 
-        return docValues = new DocValuesWithOffsetsLoader(valueDocValues, offsetDocValues);
+        return docValues = new DocValuesWithOffsetsLoader(valueDocValues, offsetDocValues, converter);
     }
 
     @Override
@@ -78,15 +85,21 @@ final class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Co
     static final class DocValuesWithOffsetsLoader implements DocValuesLoader {
         private final SortedDocValues offsetDocValues;
         private final SortedSetDocValues valueDocValues;
+        private final Function<BytesRef, BytesRef> converter;
         private final ByteArrayStreamInput scratch = new ByteArrayStreamInput();
 
         private boolean hasValue;
         private boolean hasOffset;
         private int[] offsetToOrd;
 
-        DocValuesWithOffsetsLoader(SortedSetDocValues valueDocValues, SortedDocValues offsetDocValues) {
+        DocValuesWithOffsetsLoader(
+            SortedSetDocValues valueDocValues,
+            SortedDocValues offsetDocValues,
+            Function<BytesRef, BytesRef> converter
+        ) {
             this.valueDocValues = valueDocValues;
             this.offsetDocValues = offsetDocValues;
+            this.converter = converter;
         }
 
         @Override
@@ -146,7 +159,7 @@ final class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Co
 
                     long ord = ords[offset];
                     BytesRef c = valueDocValues.lookupOrd(ord);
-                    // This is keyword specific and needs to be updated once support is added for other field types:
+                    c = converter.apply(c);
                     b.utf8Value(c.bytes, c.offset, c.length);
                 }
             } else if (offsetToOrd != null) {
@@ -158,6 +171,7 @@ final class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Co
             } else {
                 for (int i = 0; i < valueDocValues.docValueCount(); i++) {
                     BytesRef c = valueDocValues.lookupOrd(valueDocValues.nextOrd());
+                    c = converter.apply(c);
                     b.utf8Value(c.bytes, c.offset, c.length);
                 }
             }

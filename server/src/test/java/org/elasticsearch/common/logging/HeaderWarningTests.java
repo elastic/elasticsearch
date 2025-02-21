@@ -307,7 +307,7 @@ public class HeaderWarningTests extends ESTestCase {
             threadContexts,
             "legacy template [global] has index patterns [*] matching patterns from existing composable templates "
                 + "[.deprecation-indexing-template,.fleet-file-data,.fleet-files,.ml-anomalies-,.ml-notifications-000002,.ml-state,"
-                + ".ml-stats,.monitoring-beats-mb,.monitoring-es-mb,.monitoring-kibana-mb,"
+                + ".ml-stats,.monitoring-beats-mb,.monitoring-ent-search-mb,.monitoring-es-mb,.monitoring-kibana-mb,"
                 + ".monitoring-logstash-mb,.profiling-ilm-lock,.slm-history,.watch-history-16,behavioral_analytics-events-default,"
                 + "ilm-history,logs,metrics,profiling-events,profiling-executables,profiling-metrics,profiling-returnpads-private,"
                 + "profiling-costs"
@@ -315,7 +315,7 @@ public class HeaderWarningTests extends ESTestCase {
                 + "profiling-symbols,synthetics] with patterns (.deprecation-indexing-template => [.logs-deprecation.*],"
                 + ".fleet-file-data => [.fleet-file-data-*-*],.fleet-files => [.fleet-files-*-*],.ml-anomalies- => [.ml-anomalies-*],"
                 + ".ml-notifications-000002 => [.ml-notifications-000002],.ml-state => [.ml-state*],.ml-stats => [.ml-stats-*],"
-                + ".monitoring-beats-mb => [.monitoring-beats-9-*],"
+                + ".monitoring-beats-mb => [.monitoring-beats-9-*],.monitoring-ent-search-mb => [.monitoring-ent-search-8-*],"
                 + ".monitoring-es-mb => [.monitoring-es-9-*],.monitoring-kibana-mb => [.monitoring-kibana-9-*],"
                 + ".monitoring-logstash-mb => [.monitoring-logstash-9-*],.profiling-ilm-lock => [.profiling-ilm-lock*],"
                 + ".slm-history => [.slm-history-7*],.watch-history-16 => [.watcher-history-16*],"

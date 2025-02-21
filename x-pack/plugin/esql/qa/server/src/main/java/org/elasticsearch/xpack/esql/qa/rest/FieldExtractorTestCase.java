@@ -223,7 +223,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     public void testScaledFloat() throws IOException {
         double value = randomBoolean() ? randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true) : randomFloat();
         // Scale factors less than about 5.6e-309 will result in NaN (due to 1/scaleFactor being infinity)
-        double scalingFactor = randomDoubleBetween(1e-308, Double.MAX_VALUE, false);
+        double scalingFactor = randomDoubleBetween(1e-308, Float.MAX_VALUE, false);
         new Test("scaled_float").expectedType("double")
             .randomIgnoreMalformedUnlessSynthetic()
             .randomDocValuesUnlessSynthetic()

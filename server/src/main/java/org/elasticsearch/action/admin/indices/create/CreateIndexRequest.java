@@ -286,12 +286,8 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     }
 
     private CreateIndexRequest mapping(String type, Map<String, ?> source) {
-        if (source.isEmpty()) {
-            // If no source is provided we return empty mappings
-            return mapping(EMPTY_MAPPINGS);
-        } else if (source.size() == 1 && source.containsKey("properties") && ((Map) source.get("properties")).isEmpty()) {
-            // TODO-MP change if clause
-            // return empty mapping if source is only "empty" properties
+        if (isSourceEffectivelyEmpty(source)) {
+            // If no source is provided of it's effectively empty we return empty mappings
             return mapping(EMPTY_MAPPINGS);
         } else if (source.size() != 1 || source.containsKey(type) == false) {
             // wrap it in a type map if its not
@@ -307,6 +303,22 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
+    }
+
+    /**
+     * Checks if the source map is effectively empty.
+     *
+     * @param source the source map to check
+     * @return true if the source map is empty or contains only an empty "properties" key, false otherwise
+     */
+    private boolean isSourceEffectivelyEmpty(Map<String, ?> source) {
+        if (source.isEmpty()) {
+            return true;
+        }
+        if (source.size() == 1 && source.containsKey("properties")) {
+            return ((Map<?, ?>) source.get("properties")).isEmpty();
+        }
+        return false;
     }
 
     /**

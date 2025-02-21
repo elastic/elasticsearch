@@ -822,7 +822,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             ".fleet-file-tohost-data-ilm-policy",
             ".fleet-file-tohost-meta-ilm-policy",
             ".deprecation-indexing-ilm-policy",
-            ".monitoring-8-ilm-policy",
+            ".monitoring-9-ilm-policy",
             "behavioral_analytics-events-default_policy",
             "logs-apm.app_logs-default_policy",
             "logs-apm.error_logs-default_policy",

@@ -1030,9 +1030,10 @@ public final class DateFieldMapper extends FieldMapper {
      * Determines whether the doc values skipper (sparse index) should be used for the {@code @timestamp} field.
      * <p>
      * The doc values skipper is enabled only if {@code index.mapping.use_doc_values_skipper} is set to {@code true},
-     * the index was created on or after {@link IndexVersions#TIMESTAMP_DOC_VALUES_SPARSE_INDEX}, and the
-     * field has doc values enabled. Additionally, the index mode must be {@link IndexMode#LOGSDB}, and
-     * the index sorting configuration must include the {@code @timestamp} field.
+     * the index was created on or after {@link IndexVersions#TIMESTAMP_DOC_VALUES_SPARSE_INDEX}
+     * ({@link IndexVersions#TSDB_TIMESTAMP_DOC_VALUES_SPARSE_INDEX} for time-series indices), and the
+     * field has doc values enabled. Additionally, the index mode must be {@link IndexMode#LOGSDB} or {@link IndexMode#TIME_SERIES}, and for
+     * logsdb indices the index sorting configuration must include the {@code @timestamp} field.
      *
      * @param indexCreatedVersion  The version of the index when it was created.
      * @param useDocValuesSkipper  Whether the doc values skipper feature is enabled via the {@code index.mapping.use_doc_values_skipper}
@@ -1052,13 +1053,21 @@ public final class DateFieldMapper extends FieldMapper {
         final IndexSortConfig indexSortConfig,
         final String fullFieldName
     ) {
-        return indexCreatedVersion.onOrAfter(IndexVersions.TIMESTAMP_DOC_VALUES_SPARSE_INDEX)
-            && useDocValuesSkipper
-            && hasDocValues
-            && IndexMode.LOGSDB.equals(indexMode)
-            && indexSortConfig != null
-            && indexSortConfig.hasSortOnField(fullFieldName)
-            && DataStreamTimestampFieldMapper.DEFAULT_PATH.equals(fullFieldName);
+        if (IndexMode.LOGSDB.equals(indexMode)) {
+            return indexCreatedVersion.onOrAfter(IndexVersions.TIMESTAMP_DOC_VALUES_SPARSE_INDEX)
+                && useDocValuesSkipper
+                && hasDocValues
+                && indexSortConfig != null
+                && indexSortConfig.hasSortOnField(fullFieldName)
+                && DataStreamTimestampFieldMapper.DEFAULT_PATH.equals(fullFieldName);
+        } else if (IndexMode.TIME_SERIES.equals(indexMode)) {
+            return indexCreatedVersion.onOrAfter(IndexVersions.TSDB_TIMESTAMP_DOC_VALUES_SPARSE_INDEX)
+                && useDocValuesSkipper
+                && hasDocValues
+                && DataStreamTimestampFieldMapper.DEFAULT_PATH.equals(fullFieldName);
+        } else {
+            return false;
+        }
     }
 
     @Override

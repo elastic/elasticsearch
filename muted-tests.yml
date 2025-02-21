@@ -323,6 +323,9 @@ tests:
 - class: org.elasticsearch.test.apmintegration.MetricsApmIT
   method: testApmIntegration
   issue: https://github.com/elastic/elasticsearch/issues/123022
+- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageServiceTests
+  method: testClientsAreNotSharedAcrossRepositories
+  issue: https://github.com/elastic/elasticsearch/issues/123090
 
 # Examples:
 #

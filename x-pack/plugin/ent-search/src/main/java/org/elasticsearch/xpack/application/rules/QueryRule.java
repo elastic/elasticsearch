@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -81,6 +82,8 @@ public class QueryRule implements Writeable, ToXContentObject {
         }
     }
 
+    public static final NodeFeature NUMERIC_VALIDATION = new NodeFeature("query_rules.numeric_validation", true);
+
     /**
      * Public constructor.
      *
@@ -140,7 +143,6 @@ public class QueryRule implements Writeable, ToXContentObject {
     }
 
     private void validate() {
-
         if (priority != null && (priority < MIN_PRIORITY || priority > MAX_PRIORITY)) {
             throw new IllegalArgumentException("Priority was " + priority + ", must be between " + MIN_PRIORITY + " and " + MAX_PRIORITY);
         }
@@ -155,6 +157,13 @@ public class QueryRule implements Writeable, ToXContentObject {
                 throw new ElasticsearchParseException(type.toString() + " query rule actions must contain only one of either ids or docs");
             }
         }
+
+        criteria.forEach(criterion -> {
+            List<Object> values = criterion.criteriaValues();
+            if (values != null) {
+                values.forEach(criterion.criteriaType()::validateInput);
+            }
+        });
     }
 
     private void validateIdOrDocAction(Object action) {

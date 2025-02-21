@@ -15,6 +15,16 @@ teardown:
         ruleset_id: test-query-ruleset-recreating
         ignore: 404
 
+  - do:
+      query_rules.delete_ruleset:
+        ruleset_id: invalid_numeric_test
+        ignore: 404
+
+  - do:
+      query_rules.delete_ruleset:
+        ruleset_id: multiple_values_test
+        ignore: 404
+
 ---
 'Create Query Ruleset':
   - do:
@@ -160,3 +170,51 @@ teardown:
                 - 'id2'
 
   - match: { error.type: 'security_exception' }
+
+---
+"Test numeric comparison rule validation":
+  - skip:
+      features: headers
+
+  - requires:
+      cluster_features: "query_rules.numeric_validation"
+      reason: "Fixed bug to enforce numeric rule validation starting with 8.19"
+
+  - do:
+      catch: /Input \[not_a_number\] is not valid for CriteriaType \[lte\]/
+      query_rules.put_ruleset:
+        ruleset_id: invalid_numeric_test
+        body:
+          rules:
+            - rule_id: invalid_numeric_rule
+              type: pinned
+              criteria:
+                - type: lte
+                  metadata: price
+                  values: ["not_a_number"]
+              actions:
+                ids: ["1"]
+
+---
+"Test numeric comparison with multiple values":
+  - skip:
+      features: headers
+
+  - requires:
+      cluster_features: "query_rules.numeric_validation"
+      reason: "Fixed bug to enforce numeric rule validation starting with 8.19"
+
+  - do:
+      catch: /Input \[not_a_number\] is not valid for CriteriaType \[lte\]/
+      query_rules.put_ruleset:
+        ruleset_id: multiple_values_test
+        body:
+          rules:
+            - rule_id: multiple_values_rule
+              type: pinned
+              criteria:
+                - type: lte
+                  metadata: price
+                  values: ["100", "not_a_number"]
+              actions:
+                ids: ["1"]

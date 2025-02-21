@@ -373,8 +373,6 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
 
         private static final ParseField HIDDEN = new ParseField("hidden");
         private static final ParseField ALLOW_CUSTOM_ROUTING = new ParseField("allow_custom_routing");
-        // Remove this after this PR gets backported
-        @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
         private static final ParseField FAILURE_STORE = new ParseField("failure_store");
 
         public static final ConstructingObjectParser<DataStreamTemplate, Void> PARSER = new ConstructingObjectParser<>(

@@ -25,7 +25,7 @@ public class ElasticInferenceServiceRequestTests extends ESTestCase {
         var httpRequest = elasticInferenceServiceRequestWrapper.createHttpRequest();
         var productOriginHeader = httpRequest.httpRequestBase().getFirstHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
 
-        // Make sure this header only exists one time
+        // Make sure this header only exists once
         assertThat(httpRequest.httpRequestBase().getHeaders(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER).length, equalTo(1));
         assertThat(productOriginHeader.getValue(), equalTo(productOrigin));
     }

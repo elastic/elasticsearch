@@ -33,9 +33,8 @@ import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 /**
  * A query that matches the provided docs with their scores.
  *
- * Note: this query was adapted from Lucene's DocAndScoreQuery from the class
+ * Note: this query was originally adapted from Lucene's DocAndScoreQuery from the class
  * {@link org.apache.lucene.search.KnnFloatVectorQuery}, which is package-private.
- * There are no changes to the behavior, just some renames.
  */
 public class KnnScoreDocQuery extends Query {
     private final int[] docs;
@@ -56,6 +55,7 @@ public class KnnScoreDocQuery extends Query {
      * @param reader IndexReader
      */
     KnnScoreDocQuery(ScoreDoc[] scoreDocs, IndexReader reader) {
+        // Ensure that the docs are sorted by docId, as they are later searched using binary search
         Arrays.sort(scoreDocs, Comparator.comparingInt(scoreDoc -> scoreDoc.doc));
         this.docs = new int[scoreDocs.length];
         this.scores = new float[scoreDocs.length];

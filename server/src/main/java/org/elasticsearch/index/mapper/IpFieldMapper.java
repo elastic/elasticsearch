@@ -55,6 +55,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
+import static org.elasticsearch.index.mapper.FieldArrayContext.getOffsetsFieldName;
 import static org.elasticsearch.index.mapper.IpPrefixAutomatonUtil.buildIpPrefixAutomaton;
 
 /**
@@ -193,26 +194,14 @@ public class IpFieldMapper extends FieldMapper {
             hasScript = script.get() != null;
             onScriptError = onScriptErrorParam.getValue();
 
-            var sourceKeepMode = this.sourceKeepMode.orElse(indexSourceKeepMode);
-            String offsetsFieldName;
-            if (context.isSourceSynthetic()
-                && sourceKeepMode == SourceKeepMode.ARRAYS
-                && hasDocValues.get()
-                && stored.get() == false
-                && copyTo.copyToFields().isEmpty()
-                && multiFieldsBuilder.hasMultiFields() == false
-                && indexCreatedVersion.onOrAfter(IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD)) {
-                // Skip stored, we will be synthesizing from stored fields, no point to keep track of the offsets
-                // Skip copy_to and multi fields, supporting that requires more work. However, copy_to usage is rare in metrics and
-                // logging use cases
-
-                // keep track of value offsets so that we can reconstruct arrays from doc values in order as was specified during indexing
-                // (if field is stored then there is no point of doing this)
-                offsetsFieldName = context.buildFullName(leafName() + FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX);
-            } else {
-                offsetsFieldName = null;
-            }
-
+            String offsetsFieldName = getOffsetsFieldName(
+                context,
+                indexSourceKeepMode,
+                hasDocValues.getValue(),
+                stored.getValue(),
+                indexCreatedVersion,
+                this
+            );
             return new IpFieldMapper(
                 leafName(),
                 new IpFieldType(

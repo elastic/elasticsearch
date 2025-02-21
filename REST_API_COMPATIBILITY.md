@@ -185,7 +185,7 @@ tasks.named("yamlRestCompatTestTransform").configure({task ->
 })
 ```
 
-Minimally once this skip test is in place, the correct `skip` and `requires` checks will need to be backported to say 8.latest. Once backported the yaml compatibility tests should now work without the skip in the `build.gradle` file in 9.0.0, and it should be removed.  Consideration for whether tests should be cleaned up and changed based on how the breaking changes were backported is at the discretion of the team making the changes.  As an example in 9.0.0 a `requires` should be added for new tests to validate the changed api or output and `skip` added for the old tests which break in 9.0.0.  Then in backport say to 8.latest the `requires` check should be added to the existing tests with the old behavior so they no longer break when running bwc or upgrade tests from 9.0.0 to 8.latest.
+Minimally once this skip test is in place, the correct `skip` and `requires` checks will need to be backported to say 8.latest. Once backported, the test can be re-enabled in 9.0.0 by removing the `skipTest`. Consideration for whether tests should be cleaned up and changed based on how the breaking changes were backported is at the discretion of the team making the changes.  As an example in 9.0.0 a `requires` should be added for new tests to validate the changed api or output and `skip` added for the old tests which break in 9.0.0.  Then in backport say to 8.latest the `requires` check should be added to the existing tests with the old behavior so they no longer break when running bwc or upgrade tests from 9.0.0 to 8.latest.
 
 #### Test Features
 

@@ -54,7 +54,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngineFactory;
-import org.elasticsearch.index.engine.ThreadPoolMergeQueue;
+import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -153,7 +153,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     };
 
     protected ThreadPool threadPool;
-    protected ThreadPoolMergeQueue threadPoolMergeQueue;
+    protected ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
     protected Executor writeExecutor;
     protected long primaryTerm;
 
@@ -169,7 +169,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         threadPool = setUpThreadPool();
-        threadPoolMergeQueue = ThreadPoolMergeQueue.maybeCreateThreadPoolMergeQueue(threadPool, threadPoolSettings());
+        threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeQueue(threadPool, threadPoolSettings());
         writeExecutor = threadPool.executor(ThreadPool.Names.WRITE);
         primaryTerm = randomIntBetween(1, 100); // use random but fixed term for creating shards
         failOnShardFailures();
@@ -540,7 +540,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 indexEventListener,
                 indexReaderWrapper,
                 threadPool,
-                threadPoolMergeQueue,
+                threadPoolMergeExecutorService,
                 BigArrays.NON_RECYCLING_INSTANCE,
                 warmer,
                 Collections.emptyList(),

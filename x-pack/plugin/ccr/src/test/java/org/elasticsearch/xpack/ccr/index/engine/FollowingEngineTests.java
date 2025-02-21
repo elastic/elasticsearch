@@ -34,7 +34,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
-import org.elasticsearch.index.engine.ThreadPoolMergeQueue;
+import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.engine.TranslogHandler;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -83,7 +83,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class FollowingEngineTests extends ESTestCase {
 
     private ThreadPool threadPool;
-    private ThreadPoolMergeQueue threadPoolMergeQueue;
+    private ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
     private Index index;
     private ShardId shardId;
     private AtomicLong primaryTerm = new AtomicLong();
@@ -94,7 +94,7 @@ public class FollowingEngineTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool("following-engine-tests");
-        threadPoolMergeQueue = ThreadPoolMergeQueue.maybeCreateThreadPoolMergeQueue(threadPool, Settings.EMPTY);
+        threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeQueue(threadPool, Settings.EMPTY);
         index = new Index("index", "uuid");
         shardId = new ShardId(index, 0);
         primaryTerm.set(randomLongBetween(1, Long.MAX_VALUE));
@@ -116,7 +116,7 @@ public class FollowingEngineTests extends ESTestCase {
         final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
-            final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, threadPoolMergeQueue, store);
+            final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, threadPoolMergeExecutorService, store);
             final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new FollowingEngine(engineConfig));
             assertThat(e, hasToString(containsString("a following engine can not be constructed for a non-following index")));
         }
@@ -140,7 +140,7 @@ public class FollowingEngineTests extends ESTestCase {
         final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
-            final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, threadPoolMergeQueue, store);
+            final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, threadPoolMergeExecutorService, store);
             try (FollowingEngine followingEngine = createEngine(store, engineConfig)) {
                 final VersionType versionType = randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL, VersionType.EXTERNAL_GTE);
                 final List<Engine.Operation> ops = EngineTestCase.generateSingleDocHistory(true, versionType, 2, 2, 20, "id");
@@ -159,7 +159,7 @@ public class FollowingEngineTests extends ESTestCase {
         final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
-            final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, threadPoolMergeQueue, store);
+            final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, threadPoolMergeExecutorService, store);
             try (FollowingEngine followingEngine = createEngine(store, engineConfig)) {
                 final Engine.Index indexToTest = indexForFollowing("id", seqNo, origin);
                 consumer.accept(followingEngine, indexToTest);
@@ -185,7 +185,7 @@ public class FollowingEngineTests extends ESTestCase {
         final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
-            final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, threadPoolMergeQueue, store);
+            final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, threadPoolMergeExecutorService, store);
             try (FollowingEngine followingEngine = createEngine(store, engineConfig)) {
                 final String id = "id";
                 final Engine.Delete delete = new Engine.Delete(
@@ -211,7 +211,7 @@ public class FollowingEngineTests extends ESTestCase {
         final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
-            final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, threadPoolMergeQueue, store);
+            final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, threadPoolMergeExecutorService, store);
             try (FollowingEngine followingEngine = createEngine(store, engineConfig)) {
                 followingEngine.index(indexForFollowing("id", 128, Engine.Operation.Origin.PRIMARY));
                 int addedNoops = followingEngine.fillSeqNoGaps(primaryTerm.get());
@@ -224,7 +224,7 @@ public class FollowingEngineTests extends ESTestCase {
         final ShardId shardIdValue,
         final IndexSettings indexSettings,
         final ThreadPool threadPool,
-        final ThreadPoolMergeQueue threadPoolMergeQueue,
+        final ThreadPoolMergeExecutorService threadPoolMergeExecutorService,
         final Store store
     ) throws IOException {
         final IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
@@ -239,7 +239,7 @@ public class FollowingEngineTests extends ESTestCase {
         return new EngineConfig(
             shardIdValue,
             threadPool,
-            threadPoolMergeQueue,
+            threadPoolMergeExecutorService,
             indexSettings,
             null,
             store,
@@ -511,7 +511,7 @@ public class FollowingEngineTests extends ESTestCase {
         IndexMetadata followerIndexMetadata = IndexMetadata.builder(index.getName()).settings(followerSettings).build();
         IndexSettings followerIndexSettings = new IndexSettings(followerIndexMetadata, Settings.EMPTY);
         try (Store followerStore = createStore(shardId, followerIndexSettings, newDirectory())) {
-            EngineConfig followerConfig = engineConfig(shardId, followerIndexSettings, threadPool, threadPoolMergeQueue, followerStore);
+            EngineConfig followerConfig = engineConfig(shardId, followerIndexSettings, threadPool, threadPoolMergeExecutorService, followerStore);
             followerStore.createEmpty();
             String translogUuid = Translog.createEmptyTranslog(
                 followerConfig.getTranslogConfig().getTranslogPath(),
@@ -618,7 +618,7 @@ public class FollowingEngineTests extends ESTestCase {
         IndexSettings leaderIndexSettings = new IndexSettings(leaderIndexMetadata, leaderSettings);
         try (Store leaderStore = createStore(shardId, leaderIndexSettings, newDirectory())) {
             leaderStore.createEmpty();
-            EngineConfig leaderConfig = engineConfig(shardId, leaderIndexSettings, threadPool, threadPoolMergeQueue, leaderStore);
+            EngineConfig leaderConfig = engineConfig(shardId, leaderIndexSettings, threadPool, threadPoolMergeExecutorService, leaderStore);
             leaderStore.associateIndexWithNewTranslog(
                 Translog.createEmptyTranslog(
                     leaderConfig.getTranslogConfig().getTranslogPath(),
@@ -638,7 +638,7 @@ public class FollowingEngineTests extends ESTestCase {
                         shardId,
                         followerIndexSettings,
                         threadPool,
-                        threadPoolMergeQueue,
+                            threadPoolMergeExecutorService,
                         followerStore
                     );
                     try (FollowingEngine followingEngine = createEngine(followerStore, followerConfig)) {
@@ -820,7 +820,7 @@ public class FollowingEngineTests extends ESTestCase {
         final long oldTerm = randomLongBetween(1, Integer.MAX_VALUE);
         primaryTerm.set(oldTerm);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
-            final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, threadPoolMergeQueue, store);
+            final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, threadPoolMergeExecutorService, store);
             try (FollowingEngine followingEngine = createEngine(store, engineConfig)) {
                 followingEngine.advanceMaxSeqNoOfUpdatesOrDeletes(operations.size() - 1L);
                 final Map<Long, Long> operationWithTerms = new HashMap<>();
@@ -893,7 +893,7 @@ public class FollowingEngineTests extends ESTestCase {
         final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         try (Store store = createStore(shardId, indexSettings, newDirectory())) {
-            final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, threadPoolMergeQueue, store);
+            final EngineConfig engineConfig = engineConfig(shardId, indexSettings, threadPool, threadPoolMergeExecutorService, store);
             try (FollowingEngine engine = createEngine(store, engineConfig)) {
                 AtomicBoolean running = new AtomicBoolean(true);
                 Thread rollTranslog = new Thread(() -> {

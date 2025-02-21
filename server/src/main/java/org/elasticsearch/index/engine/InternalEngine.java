@@ -2855,18 +2855,18 @@ public class InternalEngine extends Engine {
     protected ElasticsearchMergeScheduler createMergeScheduler(
         ShardId shardId,
         IndexSettings indexSettings,
-        @Nullable ThreadPoolMergeQueue threadPoolMergeQueue
+        @Nullable ThreadPoolMergeExecutorService threadPoolMergeExecutorService
     ) {
-        if (threadPoolMergeQueue != null) {
-            return new EngineThreadPoolMergeScheduler(shardId, indexSettings, threadPoolMergeQueue);
+        if (threadPoolMergeExecutorService != null) {
+            return new EngineThreadPoolMergeScheduler(shardId, indexSettings, threadPoolMergeExecutorService);
         } else {
             return new EngineConcurrentMergeScheduler(shardId, indexSettings);
         }
     }
 
     private final class EngineThreadPoolMergeScheduler extends ThreadPoolMergeScheduler {
-        EngineThreadPoolMergeScheduler(ShardId shardId, IndexSettings indexSettings, ThreadPoolMergeQueue threadPoolMergeQueue) {
-            super(shardId, indexSettings, threadPoolMergeQueue);
+        EngineThreadPoolMergeScheduler(ShardId shardId, IndexSettings indexSettings, ThreadPoolMergeExecutorService threadPoolMergeExecutorService) {
+            super(shardId, indexSettings, threadPoolMergeExecutorService);
         }
 
         @Override

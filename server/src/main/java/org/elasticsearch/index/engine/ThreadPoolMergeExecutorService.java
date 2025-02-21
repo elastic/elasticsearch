@@ -23,7 +23,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class ThreadPoolMergeQueue {
+public class ThreadPoolMergeExecutorService {
     /**
      * Floor for IO write rate limit of individual merge tasks (we will never go any lower than this)
      */
@@ -49,15 +49,15 @@ public class ThreadPoolMergeQueue {
     private final ExecutorService executorService;
     private final int maxConcurrentMerges;
 
-    public static @Nullable ThreadPoolMergeQueue maybeCreateThreadPoolMergeQueue(ThreadPool threadPool, Settings settings) {
+    public static @Nullable ThreadPoolMergeExecutorService maybeCreateThreadPoolMergeQueue(ThreadPool threadPool, Settings settings) {
         if (ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.get(settings)) {
-            return new ThreadPoolMergeQueue(threadPool);
+            return new ThreadPoolMergeExecutorService(threadPool);
         } else {
             return null;
         }
     }
 
-    private ThreadPoolMergeQueue(ThreadPool threadPool) {
+    private ThreadPoolMergeExecutorService(ThreadPool threadPool) {
         this.executorService = threadPool.executor(ThreadPool.Names.MERGE);
         this.maxConcurrentMerges = threadPool.info(ThreadPool.Names.MERGE).getMax();
     }

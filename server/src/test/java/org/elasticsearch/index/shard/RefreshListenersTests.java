@@ -41,7 +41,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
-import org.elasticsearch.index.engine.ThreadPoolMergeQueue;
+import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.engine.ThreadPoolMergeScheduler;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -91,7 +91,7 @@ public class RefreshListenersTests extends ESTestCase {
     private Engine engine;
     private volatile int maxListeners;
     private ThreadPool threadPool;
-    private ThreadPoolMergeQueue threadPoolMergeQueue;
+    private ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
     private Store store;
 
     @Before
@@ -104,7 +104,7 @@ public class RefreshListenersTests extends ESTestCase {
             .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), randomBoolean())
             .build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        threadPoolMergeQueue = ThreadPoolMergeQueue.maybeCreateThreadPoolMergeQueue(threadPool, settings);
+        threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeQueue(threadPool, settings);
         listeners = new RefreshListeners(
             () -> maxListeners,
             () -> engine.refresh("too-many-listeners"),
@@ -141,7 +141,7 @@ public class RefreshListenersTests extends ESTestCase {
         EngineConfig config = new EngineConfig(
             shardId,
             threadPool,
-            threadPoolMergeQueue,
+            threadPoolMergeExecutorService,
             indexSettings,
             null,
             store,

@@ -49,7 +49,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     private final MergeSchedulerConfig config;
     private final Logger logger;
     private final MergeTracking mergeTracking;
-    private final ThreadPoolMergeQueue threadPoolMergeQueue;
+    private final ThreadPoolMergeExecutorService threadPoolMergeExecutorService;
     private final PriorityQueue<MergeTask> backloggedMergeTasks = new PriorityQueue<>();
     private final Map<MergePolicy.OneMerge, MergeTask> currentlyRunningMergeTasks = new HashMap<>();
     // set when incoming merges should be throttled (i.e. restrict the indexing rate)
@@ -60,15 +60,15 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     private final CountDownLatch closedWithNoCurrentlyRunningMerges = new CountDownLatch(1);
     private volatile boolean closed = false;
 
-    public ThreadPoolMergeScheduler(ShardId shardId, IndexSettings indexSettings, ThreadPoolMergeQueue threadPoolMergeQueue) {
+    public ThreadPoolMergeScheduler(ShardId shardId, IndexSettings indexSettings, ThreadPoolMergeExecutorService threadPoolMergeExecutorService) {
         this.shardId = shardId;
         this.config = indexSettings.getMergeSchedulerConfig();
         this.logger = Loggers.getLogger(getClass(), shardId);
         this.mergeTracking = new MergeTracking(
             logger,
-            () -> this.config.isAutoThrottle() ? threadPoolMergeQueue.getTargetMBPerSec() : Double.POSITIVE_INFINITY
+            () -> this.config.isAutoThrottle() ? threadPoolMergeExecutorService.getTargetMBPerSec() : Double.POSITIVE_INFINITY
         );
-        this.threadPoolMergeQueue = threadPoolMergeQueue;
+        this.threadPoolMergeExecutorService = threadPoolMergeExecutorService;
     }
 
     @Override
@@ -143,7 +143,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
     private void submitNewMergeTask(MergeSource mergeSource, MergePolicy.OneMerge merge, MergeTrigger mergeTrigger) {
         MergeTask mergeTask = newMergeTask(mergeSource, merge, mergeTrigger);
-        threadPoolMergeQueue.submitMergeTask(mergeTask);
+        threadPoolMergeExecutorService.submitMergeTask(mergeTask);
         checkMergeTaskThrottling();
     }
 
@@ -218,7 +218,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                 break;
             }
             // no need to abort merge tasks now, they will be aborted when the scheduler tries to run them
-            threadPoolMergeQueue.enqueueMergeTask(backloggedMergeTask);
+            threadPoolMergeExecutorService.enqueueMergeTask(backloggedMergeTask);
         }
     }
 

@@ -377,6 +377,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {fork.FiveFork}
   issue: https://github.com/elastic/elasticsearch/issues/123119
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {fork.ForkWithWhereSortDescAndLimit}
+  issue: https://github.com/elastic/elasticsearch/issues/123120
 
 # Examples:
 #

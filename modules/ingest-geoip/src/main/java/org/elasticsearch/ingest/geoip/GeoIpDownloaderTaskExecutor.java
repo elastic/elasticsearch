@@ -396,21 +396,22 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             GEOIP_DOWNLOADER,
             MasterNodeRequest.INFINITE_MASTER_NODE_TIMEOUT,
             ActionListener.runAfter(listener, () -> {
-                IndexAbstraction databasesAbstraction = clusterService.state()
-                    .metadata()
-                    .getProject()
-                    .getIndicesLookup()
-                    .get(DATABASES_INDEX);
-                if (databasesAbstraction != null) {
-                    // regardless of whether DATABASES_INDEX is an alias, resolve it to a concrete index
-                    Index databasesIndex = databasesAbstraction.getWriteIndex();
-                    client.admin().indices().prepareDelete(databasesIndex.getName()).execute(ActionListener.wrap(rr -> {}, e -> {
-                        Throwable t = e instanceof RemoteTransportException ? ExceptionsHelper.unwrapCause(e) : e;
-                        if (t instanceof ResourceNotFoundException == false) {
-                            logger.warn("failed to remove " + databasesIndex, e);
-                        }
-                    }));
-                }
+                // TODO FOR TESTING ONLY!
+                // IndexAbstraction databasesAbstraction = clusterService.state()
+                // .metadata()
+                // .getProject()
+                // .getIndicesLookup()
+                // .get(DATABASES_INDEX);
+                // if (databasesAbstraction != null) {
+                // // regardless of whether DATABASES_INDEX is an alias, resolve it to a concrete index
+                // Index databasesIndex = databasesAbstraction.getWriteIndex();
+                // client.admin().indices().prepareDelete(databasesIndex.getName()).execute(ActionListener.wrap(rr -> {}, e -> {
+                // Throwable t = e instanceof RemoteTransportException ? ExceptionsHelper.unwrapCause(e) : e;
+                // if (t instanceof ResourceNotFoundException == false) {
+                // logger.warn("failed to remove " + databasesIndex, e);
+                // }
+                // }));
+                // }
             })
         );
     }

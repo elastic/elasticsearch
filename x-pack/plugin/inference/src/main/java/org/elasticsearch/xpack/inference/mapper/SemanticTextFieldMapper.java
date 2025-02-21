@@ -714,7 +714,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                             : inference.length;
                         if (inferenceLength != modelSettings.dimensions()) {
                             throw new IllegalArgumentException(
-                                generateDimensionCountMismatchMessage(inference.length, modelSettings.dimensions())
+                                generateDimensionCountMismatchMessage(inferenceLength, modelSettings.dimensions())
                             );
                         }
 

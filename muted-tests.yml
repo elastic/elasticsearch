@@ -392,6 +392,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/40_tsdb/render aggregate_metric_double when missing value}
   issue: https://github.com/elastic/elasticsearch/issues/123130
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {fork.ForkWithWhereSortAndLimit}
+  issue: https://github.com/elastic/elasticsearch/issues/123131
 
 # Examples:
 #

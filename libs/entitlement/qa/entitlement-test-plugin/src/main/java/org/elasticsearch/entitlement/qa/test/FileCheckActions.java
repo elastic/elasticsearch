@@ -45,7 +45,7 @@ import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAcce
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
 
 @SuppressForbidden(reason = "Explicitly checking APIs that are forbidden")
-@SuppressWarnings("unused") // Called via reflection
+@SuppressWarnings({ "unused" /* called via reflection */, "ResultOfMethodCallIgnored" })
 class FileCheckActions {
 
     static Path testRootDir = Paths.get(System.getProperty("es.entitlements.testdir"));
@@ -67,17 +67,17 @@ class FileCheckActions {
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileCanExecute() throws IOException {
+    static void fileCanExecute() {
         readFile().toFile().canExecute();
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileCanRead() throws IOException {
+    static void fileCanRead() {
         readFile().toFile().canRead();
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileCanWrite() throws IOException {
+    static void fileCanWrite() {
         readFile().toFile().canWrite();
     }
 
@@ -106,68 +106,68 @@ class FileCheckActions {
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileExists() throws IOException {
+    static void fileExists() {
         readFile().toFile().exists();
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileIsDirectory() throws IOException {
+    static void fileIsDirectory() {
         readFile().toFile().isDirectory();
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileIsFile() throws IOException {
+    static void fileIsFile() {
         readFile().toFile().isFile();
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileIsHidden() throws IOException {
+    static void fileIsHidden() {
         readFile().toFile().isHidden();
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileLastModified() throws IOException {
+    static void fileLastModified() {
         readFile().toFile().lastModified();
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileLength() throws IOException {
+    static void fileLength() {
         readFile().toFile().length();
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileList() throws IOException {
+    static void fileList() {
         readDir().toFile().list();
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileListWithFilter() throws IOException {
+    static void fileListWithFilter() {
         readDir().toFile().list((dir, name) -> true);
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileListFiles() throws IOException {
+    static void fileListFiles() {
         readDir().toFile().listFiles();
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileListFilesWithFileFilter() throws IOException {
+    static void fileListFilesWithFileFilter() {
         readDir().toFile().listFiles(pathname -> true);
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileListFilesWithFilenameFilter() throws IOException {
+    static void fileListFilesWithFilenameFilter() {
         readDir().toFile().listFiles((dir, name) -> true);
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileMkdir() throws IOException {
+    static void fileMkdir() {
         Path mkdir = readWriteDir().resolve("mkdir");
         mkdir.toFile().mkdir();
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileMkdirs() throws IOException {
+    static void fileMkdirs() {
         Path mkdir = readWriteDir().resolve("mkdirs");
         mkdir.toFile().mkdirs();
     }
@@ -180,27 +180,27 @@ class FileCheckActions {
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileSetExecutable() throws IOException {
+    static void fileSetExecutable() {
         readWriteFile().toFile().setExecutable(false);
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileSetExecutableOwner() throws IOException {
+    static void fileSetExecutableOwner() {
         readWriteFile().toFile().setExecutable(false, false);
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileSetLastModified() throws IOException {
+    static void fileSetLastModified() {
         readWriteFile().toFile().setLastModified(System.currentTimeMillis());
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileSetReadable() throws IOException {
+    static void fileSetReadable() {
         readWriteFile().toFile().setReadable(true);
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileSetReadableOwner() throws IOException {
+    static void fileSetReadableOwner() {
         readWriteFile().toFile().setReadable(true, false);
     }
 
@@ -212,12 +212,12 @@ class FileCheckActions {
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileSetWritable() throws IOException {
+    static void fileSetWritable() {
         readWriteFile().toFile().setWritable(true);
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
-    static void fileSetWritableOwner() throws IOException {
+    static void fileSetWritableOwner() {
         readWriteFile().toFile().setWritable(true, false);
     }
 
@@ -368,6 +368,7 @@ class FileCheckActions {
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
+    @SuppressWarnings("DataFlowIssue") // Passing null to a @NotNull parameter
     static void keystoreBuilderNewInstance() {
         try {
             KeyStore.Builder.newInstance("", null, readFile().toFile(), null);

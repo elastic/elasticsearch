@@ -93,7 +93,7 @@ public class InTests extends AbstractFunctionTestCase {
     }
 
     private static void booleans(List<TestCaseSupplier> suppliers, int items) {
-        suppliers.add(new TestCaseSupplier("boolean", makeTypes(DataType.BOOLEAN, DataType.BOOLEAN, items), () -> {
+        suppliers.add(new TestCaseSupplier("boolean", typesList(DataType.BOOLEAN, DataType.BOOLEAN, items), () -> {
             List<Boolean> inlist = randomList(items, items, () -> randomBoolean());
             boolean field = randomBoolean();
             List<TestCaseSupplier.TypedData> args = new ArrayList<>(inlist.size() + 1);
@@ -111,7 +111,7 @@ public class InTests extends AbstractFunctionTestCase {
     }
 
     private static void numerics(List<TestCaseSupplier> suppliers, int items) {
-        suppliers.add(new TestCaseSupplier("integer", makeTypes(DataType.INTEGER, DataType.INTEGER, items), () -> {
+        suppliers.add(new TestCaseSupplier("integer", typesList(DataType.INTEGER, DataType.INTEGER, items), () -> {
             List<Integer> inlist = randomList(items, items, () -> randomInt());
             int field = inlist.get(inlist.size() - 1);
             List<TestCaseSupplier.TypedData> args = new ArrayList<>(inlist.size() + 1);
@@ -127,7 +127,7 @@ public class InTests extends AbstractFunctionTestCase {
             );
         }));
 
-        suppliers.add(new TestCaseSupplier("long", makeTypes(DataType.LONG, DataType.LONG, items), () -> {
+        suppliers.add(new TestCaseSupplier("long", typesList(DataType.LONG, DataType.LONG, items), () -> {
             List<Long> inlist = randomList(items, items, () -> randomLong());
             long field = randomLong();
             List<TestCaseSupplier.TypedData> args = new ArrayList<>(inlist.size() + 1);
@@ -143,7 +143,7 @@ public class InTests extends AbstractFunctionTestCase {
             );
         }));
 
-        suppliers.add(new TestCaseSupplier("double", makeTypes(DataType.DOUBLE, DataType.DOUBLE, items), () -> {
+        suppliers.add(new TestCaseSupplier("double", typesList(DataType.DOUBLE, DataType.DOUBLE, items), () -> {
             List<Double> inlist = randomList(items, items, () -> randomDouble());
             double field = inlist.get(0);
             List<TestCaseSupplier.TypedData> args = new ArrayList<>(inlist.size() + 1);
@@ -164,7 +164,7 @@ public class InTests extends AbstractFunctionTestCase {
         for (DataType type1 : DataType.stringTypes()) {
             for (DataType type2 : DataType.stringTypes()) {
                 String name = type1 == type2 ? type1.toString() : type1 + " " + type2;
-                suppliers.add(new TestCaseSupplier(name.toLowerCase(Locale.ROOT), makeTypes(type1, type2, items), () -> {
+                suppliers.add(new TestCaseSupplier(name.toLowerCase(Locale.ROOT), typesList(type1, type2, items), () -> {
                     List<Object> inlist = randomList(items, items, () -> randomLiteral(type1).value());
                     Object field = randomLiteral(type2).value();
                     List<TestCaseSupplier.TypedData> args = new ArrayList<>(inlist.size() + 1);
@@ -181,7 +181,7 @@ public class InTests extends AbstractFunctionTestCase {
                 }));
             }
         }
-        suppliers.add(new TestCaseSupplier("ip", makeTypes(DataType.IP, DataType.IP, items), () -> {
+        suppliers.add(new TestCaseSupplier("ip", typesList(DataType.IP, DataType.IP, items), () -> {
             List<Object> inlist = randomList(items, items, () -> randomLiteral(DataType.IP).value());
             Object field = randomLiteral(DataType.IP).value();
             List<TestCaseSupplier.TypedData> args = new ArrayList<>(inlist.size() + 1);
@@ -197,7 +197,7 @@ public class InTests extends AbstractFunctionTestCase {
             );
         }));
 
-        suppliers.add(new TestCaseSupplier("version", makeTypes(DataType.VERSION, DataType.VERSION, items), () -> {
+        suppliers.add(new TestCaseSupplier("version", typesList(DataType.VERSION, DataType.VERSION, items), () -> {
             List<Object> inlist = randomList(items, items, () -> randomLiteral(DataType.VERSION).value());
             Object field = randomLiteral(DataType.VERSION).value();
             List<TestCaseSupplier.TypedData> args = new ArrayList<>(inlist.size() + 1);
@@ -213,7 +213,7 @@ public class InTests extends AbstractFunctionTestCase {
             );
         }));
 
-        suppliers.add(new TestCaseSupplier("geo_point", makeTypes(GEO_POINT, GEO_POINT, items), () -> {
+        suppliers.add(new TestCaseSupplier("geo_point", typesList(GEO_POINT, GEO_POINT, items), () -> {
             List<Object> inlist = randomList(items, items, () -> new BytesRef(GEO.asWkt(GeometryTestUtils.randomPoint())));
             Object field = inlist.get(0);
             List<TestCaseSupplier.TypedData> args = new ArrayList<>(inlist.size() + 1);
@@ -229,7 +229,7 @@ public class InTests extends AbstractFunctionTestCase {
             );
         }));
 
-        suppliers.add(new TestCaseSupplier("geo_shape", makeTypes(GEO_SHAPE, GEO_SHAPE, items), () -> {
+        suppliers.add(new TestCaseSupplier("geo_shape", typesList(GEO_SHAPE, GEO_SHAPE, items), () -> {
             List<Object> inlist = randomList(
                 items,
                 items,
@@ -249,7 +249,7 @@ public class InTests extends AbstractFunctionTestCase {
             );
         }));
 
-        suppliers.add(new TestCaseSupplier("cartesian_point", makeTypes(CARTESIAN_POINT, CARTESIAN_POINT, items), () -> {
+        suppliers.add(new TestCaseSupplier("cartesian_point", typesList(CARTESIAN_POINT, CARTESIAN_POINT, items), () -> {
             List<Object> inlist = randomList(items, items, () -> new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomPoint())));
             Object field = new BytesRef(CARTESIAN.asWkt(ShapeTestUtils.randomPoint()));
             List<TestCaseSupplier.TypedData> args = new ArrayList<>(inlist.size() + 1);
@@ -265,7 +265,7 @@ public class InTests extends AbstractFunctionTestCase {
             );
         }));
 
-        suppliers.add(new TestCaseSupplier("cartesian_shape", makeTypes(CARTESIAN_SHAPE, CARTESIAN_SHAPE, items), () -> {
+        suppliers.add(new TestCaseSupplier("cartesian_shape", typesList(CARTESIAN_SHAPE, CARTESIAN_SHAPE, items), () -> {
             List<Object> inlist = randomList(
                 items,
                 items,
@@ -289,10 +289,10 @@ public class InTests extends AbstractFunctionTestCase {
     /**
      * Returns a list with N dataType1, followed by 1 dataType2.
      */
-    private static List<DataType> makeTypes(DataType dataType1, DataType dataType2, int n) {
+    private static List<DataType> typesList(DataType inListType, DataType fieldType, int n) {
         List<DataType> types = new ArrayList<>(n + 1);
-        IntStream.range(0, n).forEach(i -> types.add(dataType1));
-        types.add(dataType2);
+        IntStream.range(0, n).forEach(i -> types.add(inListType));
+        types.add(fieldType);
         return types;
     }
 

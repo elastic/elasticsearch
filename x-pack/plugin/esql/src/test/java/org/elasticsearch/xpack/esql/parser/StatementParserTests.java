@@ -3176,17 +3176,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assertThat(rerank.rerankFields(), equalTo(List.of(alias("title", attribute("title")))));
     }
 
-   public void testInvalidRerank() {
+    public void testInvalidRerank() {
         assumeTrue("RERANK requires corresponding capability", EsqlCapabilities.Cap.RERANK.isEnabled());
         expectError(
             "FROM foo* | RERANK ON title WITH inferenceId",
             "line 1:20: mismatched input 'ON' expecting {QUOTED_STRING, '?', NAMED_OR_POSITIONAL_PARAM}"
         );
 
-       expectError(
-           "FROM foo* | RERANK \"query text\"  ON title",
-           "line 1:42: mismatched input '<EOF>' expecting {'with', 'and', '::', ',', '.', 'or', '+', '-', '*', '/', '%'}"
-       );
+        expectError(
+            "FROM foo* | RERANK \"query text\"  ON title",
+            "line 1:42: mismatched input '<EOF>' expecting {'with', 'and', '::', ',', '.', 'or', '+', '-', '*', '/', '%'}"
+        );
     }
 
     static Alias alias(String name, Expression value) {

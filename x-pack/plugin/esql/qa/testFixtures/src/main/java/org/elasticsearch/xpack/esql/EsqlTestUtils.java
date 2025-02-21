@@ -458,7 +458,7 @@ public final class EsqlTestUtils {
     public static InferenceResolution emptyInferenceResolution() {
         return InferenceResolution.EMPTY;
     }
-    
+
     public static SearchStats statsForExistingField(String... names) {
         return fieldMatchingExistOrMissing(true, names);
     }

@@ -268,18 +268,12 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestMonitoringWithSecurityIT
   method: testHTTPExporterWithSSL
   issue: https://github.com/elastic/elasticsearch/issues/122220
-- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
-  method: testStopQueryLocal
-  issue: https://github.com/elastic/elasticsearch/issues/121672
 - class: org.elasticsearch.blocks.SimpleBlocksIT
   method: testConcurrentAddBlock
   issue: https://github.com/elastic/elasticsearch/issues/122324
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/cat/health/cat-health-example}
   issue: https://github.com/elastic/elasticsearch/issues/122335
-- class: org.elasticsearch.xpack.esql.action.CrossClusterCancellationIT
-  method: testCloseSkipUnavailable
-  issue: https://github.com/elastic/elasticsearch/issues/122336
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/alias/line_260}
   issue: https://github.com/elastic/elasticsearch/issues/122343
@@ -320,12 +314,93 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/122913
 - class: org.elasticsearch.xpack.search.AsyncSearchSecurityIT
   issue: https://github.com/elastic/elasticsearch/issues/122940
-- class: org.elasticsearch.action.admin.indices.create.ShrinkIndexIT
-  method: testShrinkIndexPrimaryTerm
-  issue: https://github.com/elastic/elasticsearch/issues/122974
 - class: org.elasticsearch.test.apmintegration.TracesApmIT
   method: testApmIntegration
   issue: https://github.com/elastic/elasticsearch/issues/122129
+- class: org.elasticsearch.test.apmintegration.MetricsApmIT
+  method: testApmIntegration
+  issue: https://github.com/elastic/elasticsearch/issues/123022
+- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageServiceTests
+  method: testClientsAreNotSharedAcrossRepositories
+  issue: https://github.com/elastic/elasticsearch/issues/123090
+- class: org.elasticsearch.xpack.esql.action.EnrichIT
+  method: testAvgDurationByArtist
+  issue: https://github.com/elastic/elasticsearch/issues/123093
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/troubleshooting/common-issues/disk-usage-exceeded/line_65}
+  issue: https://github.com/elastic/elasticsearch/issues/123094
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {fork.ForkWithWhereSortAndLimit ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/123096
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {fork.ForkWithCommonPrefilter ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/123097
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {fork.FiveFork SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/123098
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {fork.FiveFork ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/123099
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {fork.SimpleFork ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/123100
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
+  method: testPartialResults
+  issue: https://github.com/elastic/elasticsearch/issues/123101
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {fork.ForkWithWhereSortAndLimit SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/123103
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {fork.SimpleFork SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/123104
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {fork.ForkWithWhereSortDescAndLimit SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/123107
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {fork.ForkWithWhereSortDescAndLimit ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/123108
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {fork.ForkWithCommonPrefilter SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/123109
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/40_tsdb/to_string aggregate_metric_double}
+  issue: https://github.com/elastic/elasticsearch/issues/123116
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {fork.ForkWithCommonPrefilter}
+  issue: https://github.com/elastic/elasticsearch/issues/123117
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {fork.SimpleFork}
+  issue: https://github.com/elastic/elasticsearch/issues/123118
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {fork.FiveFork}
+  issue: https://github.com/elastic/elasticsearch/issues/123119
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {fork.ForkWithWhereSortDescAndLimit}
+  issue: https://github.com/elastic/elasticsearch/issues/123120
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/46_downsample/Render stats from downsampled index}
+  issue: https://github.com/elastic/elasticsearch/issues/123122
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/40_unsupported_types/unsupported}
+  issue: https://github.com/elastic/elasticsearch/issues/123123
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/40_tsdb/render aggregate_metric_double when missing min and max}
+  issue: https://github.com/elastic/elasticsearch/issues/123124
+- class: org.elasticsearch.index.mapper.extras.ScaledFloatFieldMapperTests
+  method: testBlockLoaderFromRowStrideReader
+  issue: https://github.com/elastic/elasticsearch/issues/123126
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/40_tsdb/render aggregate_metric_double when missing value}
+  issue: https://github.com/elastic/elasticsearch/issues/123130
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {fork.ForkWithWhereSortAndLimit}
+  issue: https://github.com/elastic/elasticsearch/issues/123131
+- class: org.elasticsearch.index.mapper.extras.ScaledFloatFieldMapperTests
+  method: testBlockLoaderFromRowStrideReaderWithSyntheticSource
+  issue: https://github.com/elastic/elasticsearch/issues/123145
+- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
+  method: testStopQueryLocal
+  issue: https://github.com/elastic/elasticsearch/issues/121672
 
 # Examples:
 #

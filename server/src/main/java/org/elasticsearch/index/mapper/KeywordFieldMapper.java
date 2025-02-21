@@ -447,7 +447,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 && fieldtype.stored() == false
                 && copyTo.copyToFields().isEmpty()
                 && multiFieldsBuilder.hasMultiFields() == false
-                && indexCreatedVersion.onOrAfter(IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD)) {
+                && indexVersionSupportStoringArraysNatively()) {
                 // Skip stored, we will be synthesizing from stored fields, no point to keep track of the offsets
                 // Skip copy_to and multi fields, supporting that requires more work. However, copy_to usage is rare in metrics and
                 // logging use cases
@@ -470,6 +470,14 @@ public final class KeywordFieldMapper extends FieldMapper {
                 offsetsFieldName,
                 indexSourceKeepMode
             );
+        }
+
+        private boolean indexVersionSupportStoringArraysNatively() {
+            return indexCreatedVersion.onOrAfter(IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD)
+                || indexCreatedVersion.between(
+                    IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD_BACKPORT_8_X,
+                    IndexVersions.UPGRADE_TO_LUCENE_10_0_0
+                );
         }
 
         private FieldType resolveFieldType(

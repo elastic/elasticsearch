@@ -308,7 +308,6 @@ public class AlibabaCloudSearchService extends SenderService {
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
             inputs.getInputs(),
             EMBEDDING_MAX_BATCH_SIZE,
-            getEmbeddingTypeFromTaskType(alibabaCloudSearchModel.getTaskType()),
             alibabaCloudSearchModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 
@@ -316,14 +315,6 @@ public class AlibabaCloudSearchService extends SenderService {
             var action = alibabaCloudSearchModel.accept(actionCreator, taskSettings, inputType);
             action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());
         }
-    }
-
-    private EmbeddingRequestChunker.EmbeddingType getEmbeddingTypeFromTaskType(TaskType taskType) {
-        return switch (taskType) {
-            case TEXT_EMBEDDING -> EmbeddingRequestChunker.EmbeddingType.FLOAT;
-            case SPARSE_EMBEDDING -> EmbeddingRequestChunker.EmbeddingType.SPARSE;
-            default -> throw new IllegalArgumentException("Unsupported task type for chunking: " + taskType);
-        };
     }
 
     /**

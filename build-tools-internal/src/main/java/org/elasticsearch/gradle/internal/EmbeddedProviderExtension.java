@@ -39,8 +39,7 @@ public class EmbeddedProviderExtension {
         String capitalName = capitalize(projectName);
 
         Dependency implDependency = project.getDependencies().create(implProject);
-        Configuration implConfig = project.getConfigurations().detachedConfiguration();
-        implConfig.getDependencies().add(implDependency);
+        Configuration implConfig = project.getConfigurations().detachedConfiguration(implDependency);
         implConfig.attributes(attrs -> {
             attrs.attribute(ARTIFACT_TYPE_ATTRIBUTE, DIRECTORY_TYPE);
             attrs.attribute(EmbeddedProviderPlugin.IMPL_ATTR, true);

@@ -281,3 +281,111 @@ languages:integer| emp_no:integer|eval:keyword
 null             |10020          |languages is null
 null             |10021          |languages is null
 ;
+
+caseWithMixedNumericValue
+required_capability: mixed_numeric_types_in_case_greatest_least
+FROM employees
+| WHERE emp_no >= 10005 AND emp_no <= 10010
+| EVAL g = case(gender == "F", 1.0, gender == "M", 2, 3.0)
+| KEEP emp_no, gender, g
+| SORT emp_no
+;
+
+emp_no:integer | gender:keyword | g:double
+10005          | M              | 2.0
+10006          | F              | 1.0
+10007          | F              | 1.0
+10008          | M              | 2.0
+10009          | F              | 1.0
+10010          | null           | 3.0
+;
+
+caseWithMixedNumericValueWithNull
+required_capability: mixed_numeric_types_in_case_greatest_least
+FROM employees
+| WHERE emp_no >= 10005 AND emp_no <= 10010
+| EVAL g = case(gender == "F", 1.0, gender == "M", 2, null)
+| KEEP emp_no, gender, g
+| SORT emp_no
+;
+
+emp_no:integer | gender:keyword | g:double
+10005          | M              | 2.0
+10006          | F              | 1.0
+10007          | F              | 1.0
+10008          | M              | 2.0
+10009          | F              | 1.0
+10010          | null           | null
+;
+
+caseWithMixedNumericField
+required_capability: mixed_numeric_types_in_case_greatest_least
+FROM employees
+| WHERE emp_no >= 10005 AND emp_no <= 10010
+| EVAL g = case(gender == "F", height, gender == "M", salary, languages)
+| KEEP emp_no, gender, g
+| SORT emp_no
+;
+
+emp_no:integer | gender:keyword | g:double
+10005          | M              | 63528.0
+10006          | F              | 1.56
+10007          | F              | 1.7
+10008          | M              | 43906.0
+10009          | F              | 1.85
+10010          | null           | 4.0
+;
+
+caseWithMixedNumericFieldWithNull
+required_capability: mixed_numeric_types_in_case_greatest_least
+FROM employees
+| WHERE emp_no >= 10005 AND emp_no <= 10010
+| EVAL g = case(gender == "F", height, gender == "M", salary, null)
+| KEEP emp_no, gender, g
+| SORT emp_no
+;
+
+emp_no:integer | gender:keyword | g:double
+10005          | M              | 63528.0
+10006          | F              | 1.56
+10007          | F              | 1.7
+10008          | M              | 43906.0
+10009          | F              | 1.85
+10010          | null           | null
+;
+
+caseWithMixedNumericFieldWithMV
+required_capability: mixed_numeric_types_in_case_greatest_least
+FROM employees
+| WHERE emp_no >= 10005 AND emp_no <= 10010
+| EVAL g = case(gender == "F", salary_change, gender == "M", salary, languages)
+| KEEP emp_no, gender, g
+| SORT emp_no
+;
+
+emp_no:integer | gender:keyword | g:double
+10005          | M              | 63528.0
+10006          | F              | -3.9
+10007          | F              | [-7.06, 0.57, 1.99]
+10008          | M              | 43906.0
+10009          | F              | null
+10010          | null           | 4.0
+;
+
+caseWithMixedNumericFieldWithNullWithMV
+required_capability: mixed_numeric_types_in_case_greatest_least
+FROM employees
+| WHERE emp_no >= 10005 AND emp_no <= 10010
+| EVAL g = case(gender == "F", salary_change, gender == "M", salary, null)
+| KEEP emp_no, gender, g
+| SORT emp_no
+;
+
+emp_no:integer | gender:keyword | g:double
+10005          | M              | 63528.0
+10006          | F              | -3.9
+10007          | F              | [-7.06, 0.57, 1.99]
+10008          | M              | 43906.0
+10009          | F              | null
+10010          | null           | null
+;

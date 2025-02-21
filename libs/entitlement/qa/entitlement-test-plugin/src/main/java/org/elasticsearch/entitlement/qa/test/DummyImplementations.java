@@ -9,7 +9,10 @@
 
 package org.elasticsearch.entitlement.qa.test;
 
-import java.io.IOException;
+import jdk.nio.Channels;
+
+import org.elasticsearch.core.SuppressForbidden;
+
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.DatagramPacket;
@@ -24,14 +27,23 @@ import java.net.SocketAddress;
 import java.net.SocketException;
 import java.net.SocketImpl;
 import java.net.URI;
+import java.nio.ByteBuffer;
+import java.nio.MappedByteBuffer;
 import java.nio.channels.AsynchronousChannelGroup;
+import java.nio.channels.AsynchronousFileChannel;
 import java.nio.channels.AsynchronousServerSocketChannel;
 import java.nio.channels.AsynchronousSocketChannel;
+import java.nio.channels.CompletionHandler;
 import java.nio.channels.DatagramChannel;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 import java.nio.channels.Pipe;
+import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.SeekableByteChannel;
+import java.nio.channels.SelectableChannel;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.nio.channels.WritableByteChannel;
 import java.nio.channels.spi.AbstractSelector;
 import java.nio.channels.spi.AsynchronousChannelProvider;
 import java.nio.channels.spi.SelectorProvider;
@@ -67,6 +79,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.ThreadFactory;
 import java.util.spi.CalendarDataProvider;
 import java.util.spi.CalendarNameProvider;
@@ -445,71 +458,71 @@ class DummyImplementations {
     }
 
     static class DummyDatagramSocket extends DatagramSocket {
-        DummyDatagramSocket() throws SocketException {
+        DummyDatagramSocket() {
             super(new DatagramSocketImpl() {
                 @Override
-                protected void create() throws SocketException {}
+                protected void create() {}
 
                 @Override
-                protected void bind(int lport, InetAddress laddr) throws SocketException {}
+                protected void bind(int lport, InetAddress laddr) {}
 
                 @Override
-                protected void send(DatagramPacket p) throws IOException {}
+                protected void send(DatagramPacket p) {}
 
                 @Override
-                protected int peek(InetAddress i) throws IOException {
+                protected int peek(InetAddress i) {
                     return 0;
                 }
 
                 @Override
-                protected int peekData(DatagramPacket p) throws IOException {
+                protected int peekData(DatagramPacket p) {
                     return 0;
                 }
 
                 @Override
-                protected void receive(DatagramPacket p) throws IOException {}
+                protected void receive(DatagramPacket p) {}
 
                 @Override
-                protected void setTTL(byte ttl) throws IOException {}
+                protected void setTTL(byte ttl) {}
 
                 @Override
-                protected byte getTTL() throws IOException {
+                protected byte getTTL() {
                     return 0;
                 }
 
                 @Override
-                protected void setTimeToLive(int ttl) throws IOException {}
+                protected void setTimeToLive(int ttl) {}
 
                 @Override
-                protected int getTimeToLive() throws IOException {
+                protected int getTimeToLive() {
                     return 0;
                 }
 
                 @Override
-                protected void join(InetAddress inetaddr) throws IOException {}
+                protected void join(InetAddress inetaddr) {}
 
                 @Override
-                protected void leave(InetAddress inetaddr) throws IOException {}
+                protected void leave(InetAddress inetaddr) {}
 
                 @Override
-                protected void joinGroup(SocketAddress mcastaddr, NetworkInterface netIf) throws IOException {}
+                protected void joinGroup(SocketAddress mcastaddr, NetworkInterface netIf) {}
 
                 @Override
-                protected void leaveGroup(SocketAddress mcastaddr, NetworkInterface netIf) throws IOException {}
+                protected void leaveGroup(SocketAddress mcastaddr, NetworkInterface netIf) {}
 
                 @Override
                 protected void close() {}
 
                 @Override
-                public void setOption(int optID, Object value) throws SocketException {}
+                public void setOption(int optID, Object value) {}
 
                 @Override
-                public Object getOption(int optID) throws SocketException {
+                public Object getOption(int optID) {
                     return null;
                 }
 
                 @Override
-                protected void connect(InetAddress address, int port) throws SocketException {}
+                protected void connect(InetAddress address, int port) {}
             });
         }
     }
@@ -520,54 +533,54 @@ class DummyImplementations {
 
     static class DummySelectorProvider extends SelectorProvider {
         @Override
-        public DatagramChannel openDatagramChannel() throws IOException {
+        public DatagramChannel openDatagramChannel() {
             return null;
         }
 
         @Override
-        public DatagramChannel openDatagramChannel(ProtocolFamily family) throws IOException {
+        public DatagramChannel openDatagramChannel(ProtocolFamily family) {
             return null;
         }
 
         @Override
-        public Pipe openPipe() throws IOException {
+        public Pipe openPipe() {
             return null;
         }
 
         @Override
-        public AbstractSelector openSelector() throws IOException {
+        public AbstractSelector openSelector() {
             return null;
         }
 
         @Override
-        public ServerSocketChannel openServerSocketChannel() throws IOException {
+        public ServerSocketChannel openServerSocketChannel() {
             return null;
         }
 
         @Override
-        public SocketChannel openSocketChannel() throws IOException {
+        public SocketChannel openSocketChannel() {
             return null;
         }
     }
 
     static class DummyAsynchronousChannelProvider extends AsynchronousChannelProvider {
         @Override
-        public AsynchronousChannelGroup openAsynchronousChannelGroup(int nThreads, ThreadFactory threadFactory) throws IOException {
+        public AsynchronousChannelGroup openAsynchronousChannelGroup(int nThreads, ThreadFactory threadFactory) {
             return null;
         }
 
         @Override
-        public AsynchronousChannelGroup openAsynchronousChannelGroup(ExecutorService executor, int initialSize) throws IOException {
+        public AsynchronousChannelGroup openAsynchronousChannelGroup(ExecutorService executor, int initialSize) {
             return null;
         }
 
         @Override
-        public AsynchronousServerSocketChannel openAsynchronousServerSocketChannel(AsynchronousChannelGroup group) throws IOException {
+        public AsynchronousServerSocketChannel openAsynchronousServerSocketChannel(AsynchronousChannelGroup group) {
             return null;
         }
 
         @Override
-        public AsynchronousSocketChannel openAsynchronousSocketChannel(AsynchronousChannelGroup group) throws IOException {
+        public AsynchronousSocketChannel openAsynchronousSocketChannel(AsynchronousChannelGroup group) {
             return null;
         }
     }
@@ -591,7 +604,7 @@ class DummyImplementations {
         }
 
         @Override
-        public FileSystem newFileSystem(URI uri, Map<String, ?> env) throws IOException {
+        public FileSystem newFileSystem(URI uri, Map<String, ?> env) {
             return null;
         }
 
@@ -606,53 +619,52 @@ class DummyImplementations {
         }
 
         @Override
-        public SeekableByteChannel newByteChannel(Path path, Set<? extends OpenOption> options, FileAttribute<?>... attrs)
-            throws IOException {
+        public SeekableByteChannel newByteChannel(Path path, Set<? extends OpenOption> options, FileAttribute<?>... attrs) {
             return null;
         }
 
         @Override
-        public DirectoryStream<Path> newDirectoryStream(Path dir, DirectoryStream.Filter<? super Path> filter) throws IOException {
+        public DirectoryStream<Path> newDirectoryStream(Path dir, DirectoryStream.Filter<? super Path> filter) {
             return null;
         }
 
         @Override
-        public void createDirectory(Path dir, FileAttribute<?>... attrs) throws IOException {
+        public void createDirectory(Path dir, FileAttribute<?>... attrs) {
 
         }
 
         @Override
-        public void delete(Path path) throws IOException {
+        public void delete(Path path) {
 
         }
 
         @Override
-        public void copy(Path source, Path target, CopyOption... options) throws IOException {
+        public void copy(Path source, Path target, CopyOption... options) {
 
         }
 
         @Override
-        public void move(Path source, Path target, CopyOption... options) throws IOException {
+        public void move(Path source, Path target, CopyOption... options) {
 
         }
 
         @Override
-        public boolean isSameFile(Path path, Path path2) throws IOException {
+        public boolean isSameFile(Path path, Path path2) {
             return false;
         }
 
         @Override
-        public boolean isHidden(Path path) throws IOException {
+        public boolean isHidden(Path path) {
             return false;
         }
 
         @Override
-        public FileStore getFileStore(Path path) throws IOException {
+        public FileStore getFileStore(Path path) {
             return null;
         }
 
         @Override
-        public void checkAccess(Path path, AccessMode... modes) throws IOException {
+        public void checkAccess(Path path, AccessMode... modes) {
 
         }
 
@@ -662,18 +674,176 @@ class DummyImplementations {
         }
 
         @Override
-        public <A extends BasicFileAttributes> A readAttributes(Path path, Class<A> type, LinkOption... options) throws IOException {
+        public <A extends BasicFileAttributes> A readAttributes(Path path, Class<A> type, LinkOption... options) {
             return null;
         }
 
         @Override
-        public Map<String, Object> readAttributes(Path path, String attributes, LinkOption... options) throws IOException {
+        public Map<String, Object> readAttributes(Path path, String attributes, LinkOption... options) {
             return Map.of();
         }
 
         @Override
-        public void setAttribute(Path path, String attribute, Object value, LinkOption... options) throws IOException {
+        public void setAttribute(Path path, String attribute, Object value, LinkOption... options) {
 
         }
+    }
+
+    static class DummyFileChannel extends FileChannel {
+        @Override
+        protected void implCloseChannel() {
+
+        }
+
+        @Override
+        public int read(ByteBuffer dst) {
+            return 0;
+        }
+
+        @Override
+        public long read(ByteBuffer[] dsts, int offset, int length) {
+            return 0;
+        }
+
+        @Override
+        public int write(ByteBuffer src) {
+            return 0;
+        }
+
+        @Override
+        public long write(ByteBuffer[] srcs, int offset, int length) {
+            return 0;
+        }
+
+        @Override
+        public long position() {
+            return 0;
+        }
+
+        @Override
+        public FileChannel position(long newPosition) {
+            return null;
+        }
+
+        @Override
+        public long size() {
+            return 0;
+        }
+
+        @Override
+        public FileChannel truncate(long size) {
+            return null;
+        }
+
+        @Override
+        public void force(boolean metaData) {
+
+        }
+
+        @Override
+        public long transferTo(long position, long count, WritableByteChannel target) {
+            return 0;
+        }
+
+        @Override
+        public long transferFrom(ReadableByteChannel src, long position, long count) {
+            return 0;
+        }
+
+        @Override
+        public int read(ByteBuffer dst, long position) {
+            return 0;
+        }
+
+        @Override
+        public int write(ByteBuffer src, long position) {
+            return 0;
+        }
+
+        @Override
+        public MappedByteBuffer map(MapMode mode, long position, long size) {
+            return null;
+        }
+
+        @Override
+        public FileLock lock(long position, long size, boolean shared) {
+            return null;
+        }
+
+        @Override
+        public FileLock tryLock(long position, long size, boolean shared) {
+            return null;
+        }
+    }
+
+    static class DummyAsynchronousFileChannel extends AsynchronousFileChannel {
+        @Override
+        public boolean isOpen() {
+            return false;
+        }
+
+        @Override
+        public void close() {
+
+        }
+
+        @Override
+        public long size() {
+            return 0;
+        }
+
+        @Override
+        public AsynchronousFileChannel truncate(long size) {
+            return null;
+        }
+
+        @Override
+        public void force(boolean metaData) {
+
+        }
+
+        @Override
+        public <A> void lock(long position, long size, boolean shared, A attachment, CompletionHandler<FileLock, ? super A> handler) {
+
+        }
+
+        @Override
+        public Future<FileLock> lock(long position, long size, boolean shared) {
+            return null;
+        }
+
+        @Override
+        public FileLock tryLock(long position, long size, boolean shared) {
+            return null;
+        }
+
+        @Override
+        public <A> void read(ByteBuffer dst, long position, A attachment, CompletionHandler<Integer, ? super A> handler) {
+
+        }
+
+        @Override
+        public Future<Integer> read(ByteBuffer dst, long position) {
+            return null;
+        }
+
+        @Override
+        public <A> void write(ByteBuffer src, long position, A attachment, CompletionHandler<Integer, ? super A> handler) {
+
+        }
+
+        @Override
+        public Future<Integer> write(ByteBuffer src, long position) {
+            return null;
+        }
+    }
+
+    @SuppressForbidden(reason = "specifically testing readWriteSelectableChannel")
+    static class DummySelectableChannelCloser implements Channels.SelectableChannelCloser {
+        @Override
+        public void implCloseChannel(SelectableChannel sc) {}
+
+        @Override
+        public void implReleaseChannel(SelectableChannel sc) {}
     }
 }

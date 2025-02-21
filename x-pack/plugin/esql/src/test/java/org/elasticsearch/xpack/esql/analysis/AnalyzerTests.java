@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EntryExpression;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -41,6 +42,8 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -51,6 +54,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -58,6 +62,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
@@ -1580,7 +1585,7 @@ public class AnalyzerTests extends ESTestCase {
 
     public void testUnsupportedTypesWithToString() {
         // DATE_PERIOD and TIME_DURATION types have been added, but not really patched through the engine; i.e. supported.
-        final String supportedTypes = "boolean or cartesian_point or cartesian_shape or date_nanos or datetime "
+        final String supportedTypes = "aggregate_metric_double or boolean or cartesian_point or cartesian_shape or date_nanos or datetime "
             + "or geo_point or geo_shape or ip or numeric or string or version";
         verifyUnsupported(
             "row period = 1 year | eval to_string(period)",
@@ -2325,13 +2330,37 @@ public class AnalyzerTests extends ESTestCase {
         );
     }
 
-    public void testCoalesceWithMixedNumericTypes() {
+    public void testConditionalFunctionsWithMixedNumericTypes() {
         LogicalPlan plan = analyze("""
             from test
             | eval x = coalesce(salary_change, null, 0), y = coalesce(languages, null, 0), z = coalesce(languages.long, null, 0)
             , w = coalesce(salary_change, null, 0::long)
             | keep x, y, z, w
             """, "mapping-default.json");
+        validateConditionalFunctions(plan);
+
+        plan = analyze("""
+            from test
+            | eval x = case(languages == 1, salary_change, languages == 2, salary, languages == 3, salary_change.long, 0)
+                   , y = case(languages == 1, salary_change.int, languages == 2, salary, 0)
+                   , z = case(languages == 1, salary_change.long, languages == 2, salary, 0::long)
+                   , w = case(languages == 1, salary_change, languages == 2, salary, languages == 3, salary_change.long, null)
+            | keep x, y, z, w
+            """, "mapping-default.json");
+        validateConditionalFunctions(plan);
+
+        plan = analyze("""
+            from test
+            | eval x = greatest(salary_change, salary, salary_change.long)
+                   , y = least(salary_change.int, salary)
+                   , z = greatest(salary_change.long, salary, null)
+                   , w = least(null, salary_change, salary_change.long, salary, null)
+            | keep x, y, z, w
+            """, "mapping-default.json");
+        validateConditionalFunctions(plan);
+    }
+
+    private void validateConditionalFunctions(LogicalPlan plan) {
         var limit = as(plan, Limit.class);
         var esqlProject = as(limit.child(), EsqlProject.class);
         List<?> projections = esqlProject.projections();
@@ -2752,6 +2781,116 @@ public class AnalyzerTests extends ESTestCase {
         );
     }
 
+    public void testBasicFork() {
+        assumeTrue("requires FORK capability", EsqlCapabilities.Cap.FORK.isEnabled());
+
+        LogicalPlan plan = analyze("""
+            from test
+            | WHERE first_name == "Chris"
+            | FORK ( WHERE emp_no > 1 )
+                   ( WHERE emp_no > 2 )
+                   ( WHERE emp_no > 3 | SORT emp_no | LIMIT 7 )
+                   ( SORT emp_no )
+                   ( LIMIT 9 )
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Fork fork = as(limit.child(), Fork.class);
+        Filter filter = as(fork.child(), Filter.class);
+        assertThat(as(filter.condition(), Equals.class).right(), equalTo(string("Chris")));
+        var esRelation = as(filter.child(), EsRelation.class);
+        assertThat(esRelation.indexPattern(), equalTo("test"));
+
+        var subPlans = fork.subPlans();
+
+        // fork branch 1
+        limit = as(subPlans.get(0), Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
+        Eval eval = as(limit.child(), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork1"))));
+        filter = as(eval.child(), Filter.class);
+        assertThat(as(filter.condition(), GreaterThan.class).right(), equalTo(literal(1)));
+        var stub = as(filter.child(), StubRelation.class);
+
+        // fork branch 2
+        limit = as(subPlans.get(1), Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
+        eval = as(limit.child(), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork2"))));
+        filter = as(eval.child(), Filter.class);
+        assertThat(as(filter.condition(), GreaterThan.class).right(), equalTo(literal(2)));
+        stub = as(filter.child(), StubRelation.class);
+
+        // fork branch 3
+        limit = as(subPlans.get(2), Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
+        eval = as(limit.child(), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork3"))));
+        limit = as(eval.child(), Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(7));
+        var orderBy = as(limit.child(), OrderBy.class);
+        filter = as(orderBy.child(), Filter.class);
+        assertThat(as(filter.condition(), GreaterThan.class).right(), equalTo(literal(3)));
+        stub = as(filter.child(), StubRelation.class);
+
+        // fork branch 4
+        limit = as(subPlans.get(3), Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(DEFAULT_LIMIT));
+        eval = as(limit.child(), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork4"))));
+        orderBy = as(eval.child(), OrderBy.class);
+        stub = as(filter.child(), StubRelation.class);
+
+        // fork branch 5
+        limit = as(subPlans.get(4), Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(MAX_LIMIT));
+        eval = as(limit.child(), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", string("fork5"))));
+        limit = as(eval.child(), Limit.class);
+        assertThat(as(limit.limit(), Literal.class).value(), equalTo(9));
+        stub = as(limit.child(), StubRelation.class);
+    }
+
+    public void testBasicForkError() {
+        assumeTrue("requires FORK capability", EsqlCapabilities.Cap.FORK.isEnabled());
+
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+            from test
+            | FORK ( WHERE emp_no > 1 )
+                   ( WHERE foo > 1 )
+            """));
+        assertThat(e.getMessage(), containsString("Unknown column [foo]"));
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            from test
+            | FORK ( WHERE bar == 1 )
+                   ( WHERE emp_no > 1 )
+            """));
+        assertThat(e.getMessage(), containsString("Unknown column [bar]"));
+
+        e = expectThrows(VerificationException.class, () -> analyze("""
+            from test
+            | FORK ( WHERE emp_no > 1 )
+                   ( WHERE emp_no > 2 )
+                   ( WHERE emp_no > 3 )
+                   ( WHERE emp_no > 4 )
+                   ( WHERE emp_no > 5 )
+                   ( WHERE emp_no > 6 | SORT baz )
+            """));
+        assertThat(e.getMessage(), containsString("Unknown column [baz]"));
+
+        var pe = expectThrows(ParsingException.class, () -> analyze("""
+            from test
+            | FORK ( WHERE emp_no > 1 )
+                   ( WHERE emp_no > 2 )
+                   ( WHERE emp_no > 3 | LIMIT me)
+                   ( WHERE emp_no > 4 )
+                   ( WHERE emp_no > 5 )
+                   ( WHERE emp_no > 6 | SORT emp_no | LIMIT 5 )
+            """));
+        assertThat(pe.getMessage(), containsString("mismatched input 'me' expecting INTEGER_LITERAL"));
+    }
+
     // TODO There's too much boilerplate involved here! We need a better way of creating FieldCapabilitiesResponses from a mapping or index.
     private static FieldCapabilitiesIndexResponse fieldCapabilitiesIndexResponse(
         String indexName,
@@ -2829,5 +2968,17 @@ public class AnalyzerTests extends ESTestCase {
     @Override
     protected IndexAnalyzers createDefaultIndexAnalyzers() {
         return super.createDefaultIndexAnalyzers();
+    }
+
+    static Alias alias(String name, Expression value) {
+        return new Alias(EMPTY, name, value);
+    }
+
+    static Literal string(String value) {
+        return new Literal(EMPTY, value, DataType.KEYWORD);
+    }
+
+    static Literal literal(int value) {
+        return new Literal(EMPTY, value, DataType.INTEGER);
     }
 }

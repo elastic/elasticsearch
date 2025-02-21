@@ -10,6 +10,8 @@
 package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -21,6 +23,7 @@ import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
 
 public final class FileAccessTree {
 
+    private static final Logger logger = LogManager.getLogger(FileAccessTree.class);
     private static final String FILE_SEPARATOR = getDefaultFileSystem().getSeparator();
 
     private final String[] readPaths;
@@ -85,6 +88,7 @@ public final class FileAccessTree {
         }
         int ndx = Arrays.binarySearch(paths, path);
         if (ndx < -1) {
+            logger.warn("Couldn't find path [{}] in paths:\n{}", path, Arrays.asList(paths));
             String maybeParent = paths[-ndx - 2];
             return path.startsWith(maybeParent) && path.startsWith(FILE_SEPARATOR, maybeParent.length());
         }

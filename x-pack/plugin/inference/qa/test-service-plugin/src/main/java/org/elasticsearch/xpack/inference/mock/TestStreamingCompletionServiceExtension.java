@@ -157,6 +157,7 @@ public class TestStreamingCompletionServiceExtension implements InferenceService
                 });
             });
         }
+
         private InferenceServiceResults.Result completionChunk(String delta) {
             return new InferenceServiceResults.Result() {
                 @Override

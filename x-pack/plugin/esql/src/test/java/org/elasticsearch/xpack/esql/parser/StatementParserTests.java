@@ -505,16 +505,15 @@ public class StatementParserTests extends AbstractStatementParserTests {
             clusterAndIndexAsIndexPattern(command, "*:index*");
             clusterAndIndexAsIndexPattern(command, "*:*");
             if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled()) {
-                assertStringAsIndexPattern("foo::*", command + " foo::*");
                 assertStringAsIndexPattern("foo::data", command + " foo::data");
                 assertStringAsIndexPattern("foo::failures", command + " foo::failures");
                 assertStringAsIndexPattern("cluster:foo::failures", command + " cluster:\"foo::failures\"");
-                assertStringAsIndexPattern("*,-foo::*", command + " *, \"-foo\"::*");
-                assertStringAsIndexPattern("*,-foo::*", command + " *, \"-foo::*\"");
-                assertStringAsIndexPattern("*::*", command + " *::*");
+                assertStringAsIndexPattern("*,-foo::data", command + " *, \"-foo\"::data");
+                assertStringAsIndexPattern("*,-foo::data", command + " *, \"-foo::data\"");
+                assertStringAsIndexPattern("*::data", command + " *::data");
                 assertStringAsIndexPattern(
-                    "<logstash-{now/M{yyyy.MM}}>::*,<logstash-{now/d{yyyy.MM.dd|+12:00}}>::failures",
-                    command + " <logstash-{now/M{yyyy.MM}}>::*, \"<logstash-{now/d{yyyy.MM.dd|+12:00}}>\"::failures"
+                    "<logstash-{now/M{yyyy.MM}}>::data,<logstash-{now/d{yyyy.MM.dd|+12:00}}>::failures",
+                    command + " <logstash-{now/M{yyyy.MM}}>::data, \"<logstash-{now/d{yyyy.MM.dd|+12:00}}>\"::failures"
                 );
             }
         }
@@ -605,25 +604,16 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
                 // Cluster name cannot be combined with selector yet.
                 var parseLineNumber = command.contains("FROM") ? 6 : 9;
-                expectDoubleColonErrorWithLineNumber(command, "cluster:foo::*", parseLineNumber + 11);
                 expectDoubleColonErrorWithLineNumber(command, "cluster:foo::data", parseLineNumber + 11);
                 expectDoubleColonErrorWithLineNumber(command, "cluster:foo::failures", parseLineNumber + 11);
 
-                expectDoubleColonErrorWithLineNumber(command, "cluster:\"foo\"::*", parseLineNumber + 13);
                 expectDoubleColonErrorWithLineNumber(command, "cluster:\"foo\"::data", parseLineNumber + 13);
                 expectDoubleColonErrorWithLineNumber(command, "cluster:\"foo\"::failures", parseLineNumber + 13);
 
                 // TODO: Edge case that will be invalidated in follow up (https://github.com/elastic/elasticsearch/issues/122651)
-//                expectDoubleColonErrorWithLineNumber(command, "\"cluster:foo\"::*", parseLineNumber + 13);
 //                expectDoubleColonErrorWithLineNumber(command, "\"cluster:foo\"::data", parseLineNumber + 13);
 //                expectDoubleColonErrorWithLineNumber(command, "\"cluster:foo\"::failures", parseLineNumber + 13);
 
-                expectErrorWithLineNumber(
-                    command,
-                    "\"cluster:foo::*\"",
-                    lineNumber,
-                    "Cannot specify remote cluster and selector in same pattern"
-                );
                 expectErrorWithLineNumber(
                     command,
                     "\"cluster:foo::data\"",
@@ -639,10 +629,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
                 // Wildcards
                 expectDoubleColonErrorWithLineNumber(command, "cluster:*::data", parseLineNumber + 9);
+                expectDoubleColonErrorWithLineNumber(command, "cluster:*::failures", parseLineNumber + 9);
                 expectDoubleColonErrorWithLineNumber(command, "*:index::data", parseLineNumber + 7);
-                expectDoubleColonErrorWithLineNumber(command, "*:index::*", parseLineNumber + 7);
-                expectDoubleColonErrorWithLineNumber(command, "*:index*::*", parseLineNumber + 8);
-                expectDoubleColonErrorWithLineNumber(command, "*:*::*", parseLineNumber + 3);
+                expectDoubleColonErrorWithLineNumber(command, "*:index::failures", parseLineNumber + 7);
+                expectDoubleColonErrorWithLineNumber(command, "*:index*::data", parseLineNumber + 8);
+                expectDoubleColonErrorWithLineNumber(command, "*:index*::failures", parseLineNumber + 8);
+                expectDoubleColonErrorWithLineNumber(command, "*:*::data", parseLineNumber + 3);
+                expectDoubleColonErrorWithLineNumber(command, "*:*::failures", parseLineNumber + 3);
 
                 // Too many colons
                 expectInvalidIndexNameErrorWithLineNumber(command, "\"index:::data\"", lineNumber, "index:", "must not contain ':'");
@@ -730,28 +723,28 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     "*, -index::garbage",
                     lineNumber,
                     "-index::garbage",
-                    "Invalid usage of :: separator, [garbage] is not a recognized selector"
+                    "invalid usage of :: separator, [garbage] is not a recognized selector"
                 );
                 expectInvalidIndexNameErrorWithLineNumber(
                     command,
                     "index*, -index::garbage",
                     indexStarLineNumber,
                     "-index::garbage",
-                    "Invalid usage of :: separator, [garbage] is not a recognized selector"
+                    "invalid usage of :: separator, [garbage] is not a recognized selector"
                 );
                 expectInvalidIndexNameErrorWithLineNumber(
                     command,
                     "*, -<logstash-{now/M{yyyy.MM}}>::garbage",
                     lineNumber,
                     "-<logstash-{now/M{yyyy.MM}}>::garbage",
-                    "Invalid usage of :: separator, [garbage] is not a recognized selector"
+                    "invalid usage of :: separator, [garbage] is not a recognized selector"
                 );
                 expectInvalidIndexNameErrorWithLineNumber(
                     command,
                     "index*, -<logstash-{now/M{yyyy.MM}}>::garbage",
                     indexStarLineNumber,
                     "-<logstash-{now/M{yyyy.MM}}>::garbage",
-                    "Invalid usage of :: separator, [garbage] is not a recognized selector"
+                    "invalid usage of :: separator, [garbage] is not a recognized selector"
                 );
                 // Invalid selectors will throw validation errors before invalid date math
                 expectInvalidIndexNameErrorWithLineNumber(
@@ -759,14 +752,14 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     "\"*, -<-logstash-{now/D}>::d\"",
                     commands.get(command),
                     "-<-logstash-{now/D}>::d",
-                    "Invalid usage of :: separator, [d] is not a recognized selector"
+                    "invalid usage of :: separator, [d] is not a recognized selector"
                 );
                 expectInvalidIndexNameErrorWithLineNumber(
                     command,
                     "\"*, -<-logstash-{now/D}>::\"",
                     commands.get(command),
                     "-<-logstash-{now/D}>::",
-                    "Invalid usage of :: separator, [] is not a recognized selector"
+                    "invalid usage of :: separator, [] is not a recognized selector"
                 );
             }
         }

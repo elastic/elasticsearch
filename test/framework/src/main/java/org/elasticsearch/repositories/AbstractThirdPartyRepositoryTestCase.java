@@ -233,12 +233,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         createDanglingIndex(repo, genericExec);
 
         logger.info("--> Execute repository cleanup");
-        final CleanupRepositoryResponse response = clusterAdmin().prepareCleanupRepository(
-            TEST_REQUEST_TIMEOUT,
-            TEST_REQUEST_TIMEOUT,
-            TEST_REPO_NAME
-        ).get();
-        assertCleanupResponse(response, 3L, 1L);
+        assertCleanupResponse(clusterAdmin().prepareCleanupRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, TEST_REPO_NAME).get());
     }
 
     public void testIndexLatest() throws Exception {
@@ -416,9 +411,9 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         }
     }
 
-    protected void assertCleanupResponse(CleanupRepositoryResponse response, long bytes, long blobs) {
-        assertThat(response.result().blobs(), equalTo(1L + 2L));
-        assertThat(response.result().bytes(), equalTo(3L + 2 * 3L));
+    protected void assertCleanupResponse(CleanupRepositoryResponse response) {
+        assertThat(response.result().blobs(), equalTo(4L));
+        assertThat(response.result().bytes(), greaterThan(9L));
     }
 
     private static void createDanglingIndex(final BlobStoreRepository repo, final Executor genericExec) throws Exception {

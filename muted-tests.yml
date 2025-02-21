@@ -365,6 +365,30 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {fork.ForkWithCommonPrefilter SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/123109
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/40_tsdb/to_string aggregate_metric_double}
+  issue: https://github.com/elastic/elasticsearch/issues/123116
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {fork.ForkWithCommonPrefilter}
+  issue: https://github.com/elastic/elasticsearch/issues/123117
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {fork.SimpleFork}
+  issue: https://github.com/elastic/elasticsearch/issues/123118
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {fork.FiveFork}
+  issue: https://github.com/elastic/elasticsearch/issues/123119
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {fork.ForkWithWhereSortDescAndLimit}
+  issue: https://github.com/elastic/elasticsearch/issues/123120
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/46_downsample/Render stats from downsampled index}
+  issue: https://github.com/elastic/elasticsearch/issues/123122
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/40_unsupported_types/unsupported}
+  issue: https://github.com/elastic/elasticsearch/issues/123123
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/40_tsdb/render aggregate_metric_double when missing min and max}
+  issue: https://github.com/elastic/elasticsearch/issues/123124
 
 # Examples:
 #

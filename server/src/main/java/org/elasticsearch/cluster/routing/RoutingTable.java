@@ -482,7 +482,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                     shardId,
                     true,
                     RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-                    new UnassignedInfo(UnassignedInfo.Reason.SHARD_ADDED, null), // A new Reason needed in UnassignedInfo
+                    new UnassignedInfo(UnassignedInfo.Reason.RESHARD_ADDED, null), // A new Reason needed in UnassignedInfo
                     ShardRouting.Role.INDEX_ONLY
                 ); // A new role API similar to newReplicaRole() needed in shardRoutingRoleStrategy ?
                 IndexShardRoutingTable.Builder indexShardRoutingBuilder = IndexShardRoutingTable.builder(shardId);

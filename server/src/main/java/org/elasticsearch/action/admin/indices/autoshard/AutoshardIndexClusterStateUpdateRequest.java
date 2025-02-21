@@ -12,7 +12,7 @@ package org.elasticsearch.action.admin.indices.autoshard;
 import org.elasticsearch.action.support.ActiveShardCount;
 
 /**
- * Cluster state update request that allows to re-shard an index
+ * Cluster state update request that allows re-sharding an index
  * At the moment, we only have the ability to increment the number of shards
  * of an index (by a multiplicative factor).
  * We do not support removing shards from an index.

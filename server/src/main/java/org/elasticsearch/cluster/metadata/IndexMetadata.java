@@ -949,6 +949,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * Q: Is it ok to set routingNumShards to shardCount ?
      * Q: Should we increment this.version here ?
      */
+    /*
     public IndexMetadata withIncrementedPrimaryShards(int shardCount) {
         if (this.primaryTerms.length == shardCount) return this;
 
@@ -1016,6 +1017,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.shardSizeInBytesForecast
         );
     }
+    */
 
     /**
      * @param timestampRange new @timestamp range
@@ -2028,6 +2030,34 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
         public Builder numberOfShards(int numberOfShards) {
             settings = Settings.builder().put(settings).put(SETTING_NUMBER_OF_SHARDS, numberOfShards).build();
+            return this;
+        }
+
+        /** Builder to create IndexMetadata that has an increased shard count (used for re-shard).
+         * The new shard count must be a multiple of the original shardcount.
+         * We do not support shrinking the shard count.
+         * @param shardCount   updated shardCount
+         */
+        public Builder reshardAddShards (int shardCount) {
+            // Assert routingNumShards is null ?
+            // Assert numberOfShards > 0
+            if (shardCount % numberOfShards() != 0) {
+                throw new IllegalArgumentException(
+                    "New shard count ["
+                        + shardCount
+                        + "] should be a multiple"
+                        + " of current shard count ["
+                        + numberOfShards()
+                        + "] for ["
+                        + index
+                        + "]"
+                );
+            }
+            settings = Settings.builder().put(settings).put(SETTING_NUMBER_OF_SHARDS, shardCount).build();
+            var newPrimaryTerms = new long[shardCount];
+            System.arraycopy(primaryTerms, 0, newPrimaryTerms, 0, this.primaryTerms.length);
+            primaryTerms = newPrimaryTerms;
+            routingNumShards = shardCount;
             return this;
         }
 

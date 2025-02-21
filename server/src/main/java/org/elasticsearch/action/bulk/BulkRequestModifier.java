@@ -179,7 +179,7 @@ final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
      * @param slot the slot in the bulk request to mark as failed.
      * @param e the failure encountered.
      */
-    synchronized void markItemAsFailed(int slot, Exception e) {
+    synchronized void markItemAsFailed(int slot, Exception e, IndexDocFailureStoreStatus failureStoreStatus) {
         final DocWriteRequest<?> docWriteRequest = bulkRequest.requests().get(slot);
         final String id = Objects.requireNonNullElse(docWriteRequest.id(), DROPPED_OR_FAILED_ITEM_WITH_AUTO_GENERATED_ID);
         // We hit a error during preprocessing a request, so we:
@@ -187,7 +187,7 @@ final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
         // 2) Add a bulk item failure for this request
         // 3) Continue with the next request in the bulk.
         failedSlots.set(slot);
-        BulkItemResponse.Failure failure = new BulkItemResponse.Failure(docWriteRequest.index(), id, e);
+        BulkItemResponse.Failure failure = new BulkItemResponse.Failure(docWriteRequest.index(), id, e, failureStoreStatus);
         itemResponses.add(BulkItemResponse.failure(slot, docWriteRequest.opType(), failure));
     }
 
@@ -223,7 +223,7 @@ final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
             assert false
                 : "Attempting to route a failed write request type to a failure store but the failure store is not enabled! "
                     + "This should be guarded against in TransportBulkAction#shouldStoreFailure()";
-            markItemAsFailed(slot, e);
+            markItemAsFailed(slot, e, IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN);
         } else {
             // We get the index write request to find the source of the failed document
             IndexRequest indexRequest = TransportBulkAction.getIndexWriteRequest(bulkRequest.requests().get(slot));
@@ -238,7 +238,7 @@ final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
                         + "], index: ["
                         + targetIndexName
                         + "]";
-                markItemAsFailed(slot, e);
+                markItemAsFailed(slot, e, IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN);
                 logger.debug(
                     () -> "Attempted to redirect an invalid write operation after ingest failure - type: ["
                         + bulkRequest.requests().get(slot).getClass().getName()
@@ -267,7 +267,7 @@ final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
                             + "]",
                         ioException
                     );
-                    markItemAsFailed(slot, e);
+                    markItemAsFailed(slot, e, IndexDocFailureStoreStatus.FAILED);
                 }
             }
         }

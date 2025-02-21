@@ -395,7 +395,14 @@ public class InternalEngine extends Engine {
                     final IndexCommitRef indexCommitRef = acquireIndexCommitRef(() -> commit);
                     var primaryTerm = config().getPrimaryTermSupplier().getAsLong();
                     assert indexCommitRef.getIndexCommit() == commit;
-                    wrappedListener.onNewCommit(shardId, store, primaryTerm, indexCommitRef, additionalFiles);
+                    wrappedListener.onNewCommit(
+                        shardId,
+                        store,
+                        primaryTerm,
+                        indexCommitRef,
+                        additionalFiles,
+                        getCommitExtraTransientData()
+                    );
                 }
 
                 @Override
@@ -416,7 +423,8 @@ public class InternalEngine extends Engine {
                 Store store,
                 long primaryTerm,
                 IndexCommitRef indexCommitRef,
-                Set<String> additionalFiles
+                Set<String> additionalFiles,
+                Map<String, String> extraTransientData
             ) {
                 final long nextGen = indexCommitRef.getIndexCommit().getGeneration();
                 final long prevGen = generation.getAndSet(nextGen);
@@ -427,7 +435,7 @@ public class InternalEngine extends Engine {
                         + prevGen
                         + " for shard "
                         + shardId;
-                listener.onNewCommit(shardId, store, primaryTerm, indexCommitRef, additionalFiles);
+                listener.onNewCommit(shardId, store, primaryTerm, indexCommitRef, additionalFiles, extraTransientData);
             }
 
             @Override
@@ -2977,6 +2985,14 @@ public class InternalEngine extends Engine {
      * @param localCheckpoint the local checkpoint of the commit
      */
     protected Map<String, String> getCommitExtraUserData(final long localCheckpoint) {
+        return Collections.emptyMap();
+    }
+
+    /**
+     * Allows InternalEngine extenders to return custom key-value pairs for transient information, that is not stored in the commit, to be
+     * included in the {@link org.elasticsearch.index.engine.Engine.IndexCommitListener}'s new commit invocation.
+     */
+    protected Map<String, String> getCommitExtraTransientData() {
         return Collections.emptyMap();
     }
 

@@ -18,7 +18,7 @@ import static java.lang.Thread.currentThread;
 import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAccess.PLUGINS;
 
 @SuppressForbidden(reason = "testing entitlements")
-@SuppressWarnings("unused") // used via reflection
+@SuppressWarnings({ "unused" /* called via reflaction */, "removal" })
 class ManageThreadsActions {
     private ManageThreadsActions() {}
 

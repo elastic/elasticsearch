@@ -10,14 +10,20 @@
 package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
 
@@ -32,6 +38,13 @@ public final class FileAccessTree {
     private FileAccessTree(FilesEntitlement filesEntitlement, PathLookup pathLookup) {
         List<String> readPaths = new ArrayList<>();
         List<String> writePaths = new ArrayList<>();
+        BiConsumer<Path, Mode> addPath = (path, mode) -> {
+            var normalized = normalizePath(path);
+            if (mode == Mode.READ_WRITE) {
+                writePaths.add(normalized);
+            }
+            readPaths.add(normalized);
+        };
         for (FilesEntitlement.FileData fileData : filesEntitlement.filesData()) {
             var mode = fileData.mode();
             var paths = fileData.resolvePaths(pathLookup);
@@ -40,11 +53,18 @@ public final class FileAccessTree {
                     // TODO: null paths shouldn't be allowed, but they can occur due to repo paths
                     return;
                 }
-                var normalized = normalizePath(path);
-                if (mode == FilesEntitlement.Mode.READ_WRITE) {
-                    writePaths.add(normalized);
+                addPath.accept(path, mode);
+                // also try to follow symlinks. Lucene does this and writes to the target path.
+                if (Files.exists(path)) {
+                    try {
+                        Path realPath = path.toRealPath();
+                        if (realPath.equals(path) == false) {
+                            addPath.accept(realPath, mode);
+                        }
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
                 }
-                readPaths.add(normalized);
             });
         }
 

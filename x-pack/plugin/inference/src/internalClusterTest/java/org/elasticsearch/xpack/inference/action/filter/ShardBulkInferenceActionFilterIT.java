@@ -25,6 +25,7 @@ import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -44,6 +45,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticTextInput;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
@@ -78,6 +80,11 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
             // TODO: Allow element type BIT once TestDenseInferenceServiceExtension supports it
             randomValueOtherThan(DenseVectorFieldMapper.ElementType.BIT, () -> randomFrom(DenseVectorFieldMapper.ElementType.values()))
         );
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder().put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial").build();
     }
 
     @Override
@@ -181,6 +188,50 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
             assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) ids.size()));
         } finally {
             searchResponse.decRef();
+        }
+    }
+
+    public void testItemFailures() {
+        prepareCreate(INDEX_NAME).setMapping(
+            String.format(
+                Locale.ROOT,
+                """
+                    {
+                        "properties": {
+                            "sparse_field": {
+                                "type": "semantic_text",
+                                "inference_id": "%s"
+                            },
+                            "dense_field": {
+                                "type": "semantic_text",
+                                "inference_id": "%s"
+                            }
+                        }
+                    }
+                    """,
+                TestSparseInferenceServiceExtension.TestInferenceService.NAME,
+                TestDenseInferenceServiceExtension.TestInferenceService.NAME
+            )
+        ).get();
+
+        BulkRequestBuilder bulkReqBuilder = client().prepareBulk();
+        int totalBulkSize = randomIntBetween(100, 200);  // Use a bulk request size large enough to require batching
+        for (int bulkSize = 0; bulkSize < totalBulkSize; bulkSize++) {
+            String id = Integer.toString(bulkSize);
+
+            // Set field values that will cause errors when generating inference requests
+            Map<String, Object> source = new HashMap<>();
+            source.put("sparse_field", List.of(Map.of("foo", "bar"), Map.of("baz", "bar")));
+            source.put("dense_field", List.of(Map.of("foo", "bar"), Map.of("baz", "bar")));
+
+            bulkReqBuilder.add(new IndexRequestBuilder(client()).setIndex(INDEX_NAME).setId(id).setSource(source));
+        }
+
+        BulkResponse bulkResponse = bulkReqBuilder.get();
+        assertThat(bulkResponse.hasFailures(), equalTo(true));
+        for (BulkItemResponse bulkItemResponse : bulkResponse.getItems()) {
+            assertThat(bulkItemResponse.isFailed(), equalTo(true));
+            assertThat(bulkItemResponse.getFailureMessage(), containsString("expected [String|Number|Boolean]"));
         }
     }
 }

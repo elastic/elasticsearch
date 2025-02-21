@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
@@ -27,6 +28,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
 
 public class AmazonBedrockEmbeddingsRequestManager extends AmazonBedrockRequestManager {
@@ -69,5 +71,10 @@ public class AmazonBedrockEmbeddingsRequestManager extends AmazonBedrockRequestM
             logger.warn(errorMessage, e);
             listener.onFailure(new ElasticsearchException(errorMessage, e));
         }
+    }
+
+    @Override
+    public TaskType taskType() {
+        return TEXT_EMBEDDING;
     }
 }

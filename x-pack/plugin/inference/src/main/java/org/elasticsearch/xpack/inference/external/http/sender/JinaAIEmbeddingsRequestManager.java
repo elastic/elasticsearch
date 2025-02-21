@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
@@ -22,6 +23,8 @@ import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbedd
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 
 public class JinaAIEmbeddingsRequestManager extends JinaAIRequestManager {
     private static final Logger logger = LogManager.getLogger(JinaAIEmbeddingsRequestManager.class);
@@ -53,5 +56,10 @@ public class JinaAIEmbeddingsRequestManager extends JinaAIRequestManager {
         JinaAIEmbeddingsRequest request = new JinaAIEmbeddingsRequest(docsInput, model);
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
+    }
+
+    @Override
+    public TaskType taskType() {
+        return TEXT_EMBEDDING;
     }
 }

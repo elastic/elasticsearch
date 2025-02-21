@@ -268,20 +268,12 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestMonitoringWithSecurityIT
   method: testHTTPExporterWithSSL
   issue: https://github.com/elastic/elasticsearch/issues/122220
-- class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
-  method: testStopQueryLocal
-  issue: https://github.com/elastic/elasticsearch/issues/121672
 - class: org.elasticsearch.blocks.SimpleBlocksIT
   method: testConcurrentAddBlock
   issue: https://github.com/elastic/elasticsearch/issues/122324
-- class: org.elasticsearch.xpack.searchablesnapshots.hdfs.HdfsSearchableSnapshotsIT
-  issue: https://github.com/elastic/elasticsearch/issues/122024
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/cat/health/cat-health-example}
   issue: https://github.com/elastic/elasticsearch/issues/122335
-- class: org.elasticsearch.xpack.esql.action.CrossClusterCancellationIT
-  method: testCloseSkipUnavailable
-  issue: https://github.com/elastic/elasticsearch/issues/122336
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/alias/line_260}
   issue: https://github.com/elastic/elasticsearch/issues/122343
@@ -328,6 +320,36 @@ tests:
 - class: org.elasticsearch.test.apmintegration.TracesApmIT
   method: testApmIntegration
   issue: https://github.com/elastic/elasticsearch/issues/122129
+- class: org.elasticsearch.test.apmintegration.MetricsApmIT
+  method: testApmIntegration
+  issue: https://github.com/elastic/elasticsearch/issues/123022
+- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageServiceTests
+  method: testClientsAreNotSharedAcrossRepositories
+  issue: https://github.com/elastic/elasticsearch/issues/123090
+- class: org.elasticsearch.xpack.esql.action.EnrichIT
+  method: testAvgDurationByArtist
+  issue: https://github.com/elastic/elasticsearch/issues/123093
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/troubleshooting/common-issues/disk-usage-exceeded/line_65}
+  issue: https://github.com/elastic/elasticsearch/issues/123094
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {fork.ForkWithWhereSortAndLimit ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/123096
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {fork.ForkWithCommonPrefilter ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/123097
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {fork.FiveFork SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/123098
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {fork.FiveFork ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/123099
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {fork.SimpleFork ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/123100
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
+  method: testPartialResults
+  issue: https://github.com/elastic/elasticsearch/issues/123101
 
 # Examples:
 #

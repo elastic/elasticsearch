@@ -9,9 +9,9 @@ or change the number of shards and replicas. The steps to change these
 settings depend on the monitoring method:
 
 * <<config-monitoring-data-streams-elastic-agent>>
-* <<config-monitoring-data-streams-metricbeat-8>> (the default for version 8 
+* <<config-monitoring-data-streams-metricbeat-8>> (the default for version 8+
 {ess} deployments on {ecloud})
-* <<config-monitoring-indices-metricbeat-7-internal-collection>> 
+* <<config-monitoring-indices-metricbeat-7-internal-collection>>
 
 IMPORTANT: Changing mappings or settings can cause your monitoring dashboards to
 stop working correctly.
@@ -22,11 +22,11 @@ stop working correctly.
 When <<configuring-elastic-agent,monitoring using {agent}>>, data is stored in a
 set of data streams named
 `metrics-{product}.stack_monitoring.{dataset}-{namespace}`. For example:
-`metrics-elasticsearch.stack_monitoring.shard-default`. 
+`metrics-elasticsearch.stack_monitoring.shard-default`.
 
 The settings and mappings for these data streams are determined by an index
 template named `metrics-{product}.stack_monitoring.{dataset}`. For example:
-`metrics-elasticsearch.stack_monitoring.shard`. 
+`metrics-elasticsearch.stack_monitoring.shard`.
 
 To change the settings of each data stream, edit the
 `metrics-{product}.stack_monitoring.{dataset}@custom` component template that
@@ -38,7 +38,7 @@ already exists. You can do this in {kib}:
 
 You can also use the {es} API:
 
-* Retrieve the component template using the <<getting-component-templates,get 
+* Retrieve the component template using the <<getting-component-templates,get
 component template API>>.
 * Edit the component template.
 * Store the updated component template using the <<indices-component-template,
@@ -50,16 +50,16 @@ to the data stream's new backing indices.
 apply the updated settings to the data stream’s write index.
 
 [[config-monitoring-data-streams-metricbeat-8]]
-=== Configuring data streams created by {metricbeat} 8
+=== Configuring data streams created by {metricbeat} 8+
 
-When <<configuring-metricbeat,monitoring using {metricbeat} 8>>, data is stored
-in a set of data streams called `.monitoring-{product}-8-mb`. For example:
-`.monitoring-es-8-mb`. 
+When <<configuring-metricbeat,monitoring using {metricbeat} 8+>>, data is stored
+in a set of data streams called `.monitoring-{product}-{version}-mb`. For example:
+`.monitoring-es-9-mb`.
 
 The settings and mappings for these data streams are determined by an index
 template named `.monitoring-{product}-mb`. For example: `.monitoring-es-mb`. You
 can alter the settings of each data stream by cloning this index template and
-editing it. 
+editing it.
 
 WARNING: You need to repeat this procedure when upgrading the {stack} to get the
 latest updates to the default monitoring index templates.
@@ -77,15 +77,15 @@ You can clone index templates in {kib}:
 
 You can also use the {es} API:
 
-* Retrieve the index template using the <<indices-get-template,get index 
+* Retrieve the index template using the <<indices-get-template,get index
 template API>>.
-* Edit the index template: set the template `priority` to `500`, and specify the 
+* Edit the index template: set the template `priority` to `500`, and specify the
 settings you want to change in the `settings` section.
-* Store the updated index template under a different name, for example 
-`custom_monitoring`, using the 
+* Store the updated index template under a different name, for example
+`custom_monitoring`, using the
 <<indices-put-template,create index template API>>.
 
-NOTE: {metricbeat} 8 uses <<index-templates,composable templates>>, rather than
+NOTE: {metricbeat} 8+ uses <<index-templates,composable templates>>, rather than
 legacy templates.
 
 After changing the index template, the updated settings are only applied to the
@@ -113,7 +113,7 @@ You can retrieve these templates in {kib} by navigating to *Stack Management* >
 GET /_template/.monitoring-*
 ----
 
-To change the settings of the indices, add a custom index template. You can do 
+To change the settings of the indices, add a custom index template. You can do
 that in {kib}, or using the {es} API:
 
 * Set `index_patterns` to match the `.monitoring-{product}-7-*` indices.

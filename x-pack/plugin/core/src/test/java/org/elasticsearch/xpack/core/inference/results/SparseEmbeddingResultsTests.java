@@ -5,12 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.results;
+package org.elasticsearch.xpack.core.inference.results;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 
@@ -182,17 +181,22 @@ public class SparseEmbeddingResultsTests extends AbstractWireSerializingTestCase
             ),
             false
         );
-        assertThat(embedding1.merge(embedding2), equalTo(new SparseEmbeddingResults.Embedding(
-            List.of(
-                new WeightedToken("this", 1.0f),
-                new WeightedToken("is", 0.85f),
-                new WeightedToken("another", 0.65f),
-                new WeightedToken("the", 0.6f),
-                new WeightedToken("first", 0.4f),
-                new WeightedToken("embedding", 0.2f)
-            ),
-            true
-        )));
+        assertThat(
+            embedding1.merge(embedding2),
+            equalTo(
+                new SparseEmbeddingResults.Embedding(
+                    List.of(
+                        new WeightedToken("this", 1.0f),
+                        new WeightedToken("is", 0.85f),
+                        new WeightedToken("another", 0.65f),
+                        new WeightedToken("the", 0.6f),
+                        new WeightedToken("first", 0.4f),
+                        new WeightedToken("embedding", 0.2f)
+                    ),
+                    true
+                )
+            )
+        );
     }
 
     public record EmbeddingExpectation(Map<String, Float> tokens, boolean isTruncated) {}

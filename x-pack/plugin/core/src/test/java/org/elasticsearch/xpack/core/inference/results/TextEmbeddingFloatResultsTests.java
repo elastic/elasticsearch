@@ -5,13 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.results;
+package org.elasticsearch.xpack.core.inference.results;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 
 import java.io.IOException;
@@ -21,7 +19,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 
-public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<TextEmbeddingFloatResults> {
+public class TextEmbeddingFloatResultsTests extends AbstractWireSerializingTestCase<TextEmbeddingFloatResults> {
     public static TextEmbeddingFloatResults createRandomResults() {
         int embeddings = randomIntBetween(1, 10);
         List<TextEmbeddingFloatResults.Embedding> embeddingResults = new ArrayList<>(embeddings);

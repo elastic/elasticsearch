@@ -367,6 +367,11 @@ public class AggConstructionContentionBenchmark {
         }
 
         @Override
+        public long memoryAccountingBufferSize() {
+            return 1024 * 1024;
+        }
+
+        @Override
         public void close() {
             List<Releasable> releaseMe = new ArrayList<>(this.releaseMe);
             releaseMe.add(preallocated);

@@ -309,6 +309,11 @@ public abstract class AggregationContext implements Releasable {
     public abstract Set<String> sourcePath(String fullName);
 
     /**
+     * Return the amount of memory to buffer locally before accounting for it in the breaker.
+     */
+    public abstract long memoryAccountingBufferSize();
+
+    /**
      * Does this index have a {@code _doc_count} field in any segment?
      */
     public final boolean hasDocCountField() throws IOException {
@@ -355,6 +360,7 @@ public abstract class AggregationContext implements Releasable {
         private final AnalysisRegistry analysisRegistry;
 
         private final List<Aggregator> releaseMe = new ArrayList<>();
+        private final long memoryAccountingBufferSize;
 
         public ProductionAggregationContext(
             AnalysisRegistry analysisRegistry,
@@ -372,7 +378,8 @@ public abstract class AggregationContext implements Releasable {
             Supplier<Boolean> isCancelled,
             Function<Query, Query> filterQuery,
             boolean enableRewriteToFilterByFilter,
-            boolean inSortOrderExecutionRequired
+            boolean inSortOrderExecutionRequired,
+            long memoryAccountingBufferSize
         ) {
             this.analysisRegistry = analysisRegistry;
             this.context = context;
@@ -407,6 +414,7 @@ public abstract class AggregationContext implements Releasable {
             this.filterQuery = filterQuery;
             this.enableRewriteToFilterByFilter = enableRewriteToFilterByFilter;
             this.inSortOrderExecutionRequired = inSortOrderExecutionRequired;
+            this.memoryAccountingBufferSize = memoryAccountingBufferSize;
         }
 
         @Override
@@ -610,6 +618,11 @@ public abstract class AggregationContext implements Releasable {
         @Override
         public Set<String> sourcePath(String fullName) {
             return context.sourcePath(fullName);
+        }
+
+        @Override
+        public long memoryAccountingBufferSize() {
+            return memoryAccountingBufferSize;
         }
 
         @Override

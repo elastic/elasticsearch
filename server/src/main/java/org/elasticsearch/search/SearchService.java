@@ -274,6 +274,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
+    /**
+     * The size of the buffer used for memory accounting.
+     * This buffer is used to locally track the memory accummulate during the executiong of
+     * a search request before submitting the accumulated value to the circuit breaker.
+     */
+    public static final Setting<ByteSizeValue> MEMORY_ACCOUNTING_BUFFER_SIZE = Setting.byteSizeSetting(
+        "search.memory_accounting_buffer_size",
+        ByteSizeValue.of(1, ByteSizeUnit.MB),
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     public static final int DEFAULT_SIZE = 10;
     public static final int DEFAULT_FROM = 0;
     private static final StackTraceElement[] EMPTY_STACK_TRACE_ARRAY = new StackTraceElement[0];
@@ -291,6 +303,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final BigArrays bigArrays;
 
     private final FetchPhase fetchPhase;
+    private final CircuitBreaker circuitBreaker;
     private volatile Executor searchExecutor;
     private volatile boolean enableQueryPhaseParallelCollection;
 
@@ -309,6 +322,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private volatile int maxOpenScrollContext;
 
     private volatile boolean enableRewriteAggsToFilterByFilter;
+
+    private volatile long memoryAccountingBufferSize;
 
     private final Cancellable keepAliveReaper;
 
@@ -341,11 +356,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.scriptService = scriptService;
         this.bigArrays = bigArrays;
         this.fetchPhase = fetchPhase;
-        this.multiBucketConsumerService = new MultiBucketConsumerService(
-            clusterService,
-            settings,
-            circuitBreakerService.getBreaker(CircuitBreaker.REQUEST)
-        );
+        circuitBreaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
+        this.multiBucketConsumerService = new MultiBucketConsumerService(clusterService, settings, circuitBreaker);
         this.executorSelector = executorSelector;
         this.tracer = tracer;
 
@@ -390,6 +402,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         enableQueryPhaseParallelCollection = QUERY_PHASE_PARALLEL_COLLECTION_ENABLED.get(settings);
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(QUERY_PHASE_PARALLEL_COLLECTION_ENABLED, this::setEnableQueryPhaseParallelCollection);
+
+        memoryAccountingBufferSize = MEMORY_ACCOUNTING_BUFFER_SIZE.get(settings).getBytes();
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(MEMORY_ACCOUNTING_BUFFER_SIZE, newValue -> this.memoryAccountingBufferSize = newValue.getBytes());
     }
 
     private void setEnableSearchWorkerThreads(boolean enableSearchWorkerThreads) {
@@ -792,7 +808,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     return searchContext.rankFeatureResult();
                 }
                 RankFeatureShardPhase.prepareForFetch(searchContext, request);
-                fetchPhase.execute(searchContext, docIds, null);
+                fetchPhase.execute(searchContext, docIds, null, circuitBreaker, memoryAccountingBufferSize);
                 RankFeatureShardPhase.processFetch(searchContext);
                 var rankFeatureResult = searchContext.rankFeatureResult();
                 rankFeatureResult.incRef();
@@ -810,7 +826,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             Releasable scope = tracer.withScope(context.getTask());
             SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context, true, afterQueryTime)
         ) {
-            fetchPhase.execute(context, shortcutDocIdsToLoad(context), null);
+            fetchPhase.execute(context, shortcutDocIdsToLoad(context), null, circuitBreaker, memoryAccountingBufferSize);
             if (reader.singleSession()) {
                 freeReaderContext(reader.id());
             }
@@ -976,7 +992,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                             System.nanoTime()
                         )
                     ) {
-                        fetchPhase.execute(searchContext, request.docIds(), request.getRankDocks());
+                        fetchPhase.execute(
+                            searchContext,
+                            request.docIds(),
+                            request.getRankDocks(),
+                            circuitBreaker,
+                            memoryAccountingBufferSize
+                        );
                         if (readerContext.singleSession()) {
                             freeReaderContext(request.contextId());
                         }
@@ -1419,7 +1441,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 context::isCancelled,
                 context::buildFilteredQuery,
                 enableRewriteAggsToFilterByFilter,
-                source.aggregations().isInSortOrderExecutionRequired()
+                source.aggregations().isInSortOrderExecutionRequired(),
+                memoryAccountingBufferSize
             );
             context.addQuerySearchResultReleasable(aggContext);
             try {

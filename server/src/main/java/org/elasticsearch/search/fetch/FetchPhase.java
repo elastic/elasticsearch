@@ -13,6 +13,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.mapper.IdLoader;
@@ -35,6 +40,7 @@ import org.elasticsearch.search.profile.Timer;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankDocShardInfo;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -59,7 +65,13 @@ public final class FetchPhase {
         this.fetchSubPhases[fetchSubPhases.size()] = new InnerHitsPhase(this);
     }
 
-    public void execute(SearchContext context, int[] docIdsToLoad, RankDocShardInfo rankDocs) {
+    public void execute(
+        SearchContext context,
+        int[] docIdsToLoad,
+        RankDocShardInfo rankDocs,
+        CircuitBreaker circuitBreaker,
+        long memAccountingBufferSize
+    ) {
         if (LOGGER.isTraceEnabled()) {
             LOGGER.trace("{}", new SearchContextSourcePrinter(context));
         }
@@ -81,7 +93,7 @@ public final class FetchPhase {
                 : Profilers.startProfilingFetchPhase();
         SearchHits hits = null;
         try {
-            hits = buildSearchHits(context, docIdsToLoad, profiler, rankDocs);
+            hits = buildSearchHits(context, docIdsToLoad, profiler, rankDocs, circuitBreaker, memAccountingBufferSize);
         } finally {
             // Always finish profiling
             ProfileResult profileResult = profiler.finish();
@@ -103,7 +115,14 @@ public final class FetchPhase {
         }
     }
 
-    private SearchHits buildSearchHits(SearchContext context, int[] docIdsToLoad, Profiler profiler, RankDocShardInfo rankDocs) {
+    private SearchHits buildSearchHits(
+        SearchContext context,
+        int[] docIdsToLoad,
+        Profiler profiler,
+        RankDocShardInfo rankDocs,
+        CircuitBreaker circuitBreaker,
+        long memAccountingBufferSize
+    ) {
 
         FetchContext fetchContext = new FetchContext(context);
         SourceLoader sourceLoader = context.newSourceLoader();
@@ -139,11 +158,17 @@ public final class FetchPhase {
             LeafStoredFieldLoader leafStoredFieldLoader;
             SourceLoader.Leaf leafSourceLoader;
             IdLoader.Leaf leafIdLoader;
+            int accumulatedBytesInLeaf;
+            int docsInLeaf;
+            int processedDocs;
 
             @Override
             protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) throws IOException {
                 Timer timer = profiler.startNextReader();
                 this.ctx = ctx;
+                this.accumulatedBytesInLeaf = 0;
+                this.docsInLeaf = docsInLeaf.length;
+                this.processedDocs = 0;
                 this.leafNestedDocuments = nestedDocuments.getLeafNestedDocuments(ctx);
                 this.leafStoredFieldLoader = storedFieldLoader.getLoader(ctx, docsInLeaf);
                 this.leafSourceLoader = sourceLoader.leaf(ctx.reader(), docsInLeaf);
@@ -162,6 +187,12 @@ public final class FetchPhase {
                 if (context.isCancelled()) {
                     throw new TaskCancelledException("cancelled");
                 }
+                ++processedDocs;
+                // indicates if we should submit the accounted memory to the circuit breaker.
+                // we do so whenever one of the following is true:
+                // 1. we have accumulated at least the size of the memory accounting buffer
+                // 2. we have reached the last document in the leaf
+                boolean enoughBytesOrLastDocInLeaf = (accumulatedBytesInLeaf >= memAccountingBufferSize) || (processedDocs == docsInLeaf);
                 HitContext hit = prepareHitContext(
                     context,
                     requiresSource,
@@ -172,7 +203,10 @@ public final class FetchPhase {
                     ctx,
                     leafSourceLoader,
                     leafIdLoader,
-                    rankDocs == null ? null : rankDocs.get(doc)
+                    rankDocs == null ? null : rankDocs.get(doc),
+                    circuitBreaker,
+                    enoughBytesOrLastDocInLeaf,
+                    this::accumulateLocally
                 );
                 boolean success = false;
                 try {
@@ -187,6 +221,24 @@ public final class FetchPhase {
                     if (success == false) {
                         hit.hit().decRef();
                     }
+                }
+            }
+
+            /**
+             * Accumulates the given bytes in the leaf and returns the accumulated bytes in the leaf.
+             * @param bytes the amount of bytes to accumulate locally
+             * @param resetLocallyAccumulatedBytes if the local counter for the accumulated bytes should be reset. Normally this will be
+             *                                     true when submitting the accumulated bytes to the circuit breaker.
+             * @return the currently accumulated bytes in the leaf, including the provided bytes
+             */
+            private int accumulateLocally(int bytes, boolean resetLocallyAccumulatedBytes) {
+                this.accumulatedBytesInLeaf += bytes;
+                if (resetLocallyAccumulatedBytes) {
+                    int bytesToSubmit = this.accumulatedBytesInLeaf;
+                    this.accumulatedBytesInLeaf = 0;
+                    return bytesToSubmit;
+                } else {
+                    return this.accumulatedBytesInLeaf;
                 }
             }
         };
@@ -226,7 +278,7 @@ public final class FetchPhase {
         }
     }
 
-    private static HitContext prepareHitContext(
+    private HitContext prepareHitContext(
         SearchContext context,
         boolean requiresSource,
         Profiler profiler,
@@ -236,7 +288,10 @@ public final class FetchPhase {
         LeafReaderContext subReaderContext,
         SourceLoader.Leaf sourceLoader,
         IdLoader.Leaf idLoader,
-        RankDoc rankDoc
+        RankDoc rankDoc,
+        CircuitBreaker circuitBreaker,
+        boolean submitToCb,
+        MemoryUsageAccumulator memoryUsageAccumulator
     ) throws IOException {
         if (nestedDocuments.advance(docId - subReaderContext.docBase) == null) {
             return prepareNonNestedHitContext(
@@ -247,7 +302,10 @@ public final class FetchPhase {
                 subReaderContext,
                 sourceLoader,
                 idLoader,
-                rankDoc
+                rankDoc,
+                circuitBreaker,
+                submitToCb,
+                memoryUsageAccumulator
             );
         } else {
             return prepareNestedHitContext(
@@ -278,44 +336,83 @@ public final class FetchPhase {
         LeafReaderContext subReaderContext,
         SourceLoader.Leaf sourceLoader,
         IdLoader.Leaf idLoader,
-        RankDoc rankDoc
+        RankDoc rankDoc,
+        CircuitBreaker circuitBreaker,
+        boolean submitToCB,
+        MemoryUsageAccumulator memoryUsageAccumulator
     ) throws IOException {
         int subDocId = docId - subReaderContext.docBase;
 
         leafStoredFieldLoader.advanceTo(subDocId);
 
+        MemoryAccountingBytesRefCounted memAccountingRefCounted = null;
+        RefCounted refCountedHit = null;
+        if (submitToCB) {
+            memAccountingRefCounted = MemoryAccountingBytesRefCounted.create(circuitBreaker);
+            refCountedHit = LeakTracker.wrap(memAccountingRefCounted);
+        }
         String id = idLoader.getId(subDocId);
         if (id == null) {
-            SearchHit hit = new SearchHit(docId);
+            SearchHit hit = new SearchHit(docId, null, null, refCountedHit);
             // TODO: can we use real pooled buffers here as well?
-            Source source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId));
+            Source source = Source.lazy(
+                lazyStoredSourceLoader(profiler, subReaderContext, subDocId, memAccountingRefCounted, submitToCB, memoryUsageAccumulator)
+            );
             return new HitContext(hit, subReaderContext, subDocId, Map.of(), source, rankDoc);
         } else {
-            SearchHit hit = new SearchHit(docId, id);
+            SearchHit hit = new SearchHit(docId, id, null, refCountedHit);
             Source source;
             if (requiresSource) {
                 Timer timer = profiler.startLoadingSource();
                 try {
                     source = sourceLoader.source(leafStoredFieldLoader, subDocId);
+                    int accumulatedInLeaf = memoryUsageAccumulator.apply(source.internalSourceRef().length(), submitToCB);
+                    if (submitToCB) {
+                        memAccountingRefCounted.account(accumulatedInLeaf, "fetch phase source loader");
+                    }
+                } catch (CircuitBreakingException e) {
+                    hit.decRef();
+                    throw e;
                 } finally {
                     if (timer != null) {
                         timer.stop();
                     }
                 }
             } else {
-                source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId));
+                source = Source.lazy(
+                    lazyStoredSourceLoader(
+                        profiler,
+                        subReaderContext,
+                        subDocId,
+                        memAccountingRefCounted,
+                        submitToCB,
+                        memoryUsageAccumulator
+                    )
+                );
             }
             return new HitContext(hit, subReaderContext, subDocId, leafStoredFieldLoader.storedFields(), source, rankDoc);
         }
     }
 
-    private static Supplier<Source> lazyStoredSourceLoader(Profiler profiler, LeafReaderContext ctx, int doc) {
+    private static Supplier<Source> lazyStoredSourceLoader(
+        Profiler profiler,
+        LeafReaderContext ctx,
+        int doc,
+        MemoryAccountingBytesRefCounted memAccountingRefCounted,
+        boolean submitToCB,
+        MemoryUsageAccumulator memoryUsageAccumulator
+    ) {
         return () -> {
             StoredFieldLoader rootLoader = profiler.storedFields(StoredFieldLoader.create(true, Collections.emptySet()));
             try {
                 LeafStoredFieldLoader leafRootLoader = rootLoader.getLoader(ctx, null);
                 leafRootLoader.advanceTo(doc);
-                return Source.fromBytes(leafRootLoader.source());
+                BytesReference source = leafRootLoader.source();
+                int accumulatedInLeaf = memoryUsageAccumulator.apply(source.length(), submitToCB);
+                if (submitToCB) {
+                    memAccountingRefCounted.account(accumulatedInLeaf, "lazy fetch phase source loader");
+                }
+                return Source.fromBytes(source);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -369,8 +466,8 @@ public final class FetchPhase {
         assert nestedIdentity != null;
         Source nestedSource = nestedIdentity.extractSource(rootSource);
 
-        SearchHit hit = new SearchHit(topDocId, rootId, nestedIdentity);
-        return new HitContext(hit, subReaderContext, nestedInfo.doc(), childFieldLoader.storedFields(), nestedSource, rankDoc);
+        SearchHit nestedHit = new SearchHit(topDocId, rootId, nestedIdentity);
+        return new HitContext(nestedHit, subReaderContext, nestedInfo.doc(), childFieldLoader.storedFields(), nestedSource, rankDoc);
     }
 
     interface Profiler {
@@ -415,5 +512,53 @@ public final class FetchPhase {
                 return "noop";
             }
         };
+    }
+
+    @FunctionalInterface
+    private interface MemoryUsageAccumulator {
+        /**
+         * Accumulates the provided bytes and returns the currently accumulated amount of bytes.
+         * When the reset parameter is true it accumulates the provided bytes, returns the
+         * accumulated amount but will also reset the local counter for the accumulated bytes.
+         */
+        int apply(int bytes, boolean reset);
+    }
+
+    /**
+     * A ref counted object that accounts for memory usage in bytes and releases the
+     * accounted memory from the circuit breaker when the reference count reaches zero.
+     */
+    static final class MemoryAccountingBytesRefCounted extends AbstractRefCounted {
+
+        // the bytes that we account for are not volatile because we only accumulate
+        // in the single threaded fetch phase and we release the reference after
+        // we write the response to the network (OutboundHandler). As with all other
+        // SearchHit fields this will be visible to the network thread that'll call #decRef.
+        private int bytes;
+        private final CircuitBreaker breaker;
+
+        private MemoryAccountingBytesRefCounted(CircuitBreaker breaker) {
+            this.breaker = breaker;
+        }
+
+        public static MemoryAccountingBytesRefCounted create(CircuitBreaker breaker) {
+            return new MemoryAccountingBytesRefCounted(breaker);
+        }
+
+        /**
+         * This method increments the local counter for the accounted bytes and submits
+         * the accumulated bytes to the circuit breaker.
+         * This method is not thread-safe and should only be called from the single-threaded
+         * fetch phase.
+         */
+        public void account(int bytes, String label) {
+            this.bytes += bytes;
+            breaker.addEstimateBytesAndMaybeBreak(bytes, label);
+        }
+
+        @Override
+        protected void closeInternal() {
+            breaker.addWithoutBreaking(-bytes);
+        }
     }
 }

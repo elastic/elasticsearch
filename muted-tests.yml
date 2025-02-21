@@ -323,6 +323,30 @@ tests:
 - class: org.elasticsearch.test.apmintegration.MetricsApmIT
   method: testApmIntegration
   issue: https://github.com/elastic/elasticsearch/issues/123022
+- class: org.elasticsearch.repositories.gcs.GoogleCloudStorageServiceTests
+  method: testClientsAreNotSharedAcrossRepositories
+  issue: https://github.com/elastic/elasticsearch/issues/123090
+- class: org.elasticsearch.xpack.esql.action.EnrichIT
+  method: testAvgDurationByArtist
+  issue: https://github.com/elastic/elasticsearch/issues/123093
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/troubleshooting/common-issues/disk-usage-exceeded/line_65}
+  issue: https://github.com/elastic/elasticsearch/issues/123094
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {fork.ForkWithWhereSortAndLimit ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/123096
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {fork.ForkWithCommonPrefilter ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/123097
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {fork.FiveFork SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/123098
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {fork.FiveFork ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/123099
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {fork.SimpleFork ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/123100
 
 # Examples:
 #

@@ -393,8 +393,7 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         List<String> inputs = List.of("1st small", passageBuilder.toString(), "2nd small", "3rd small");
 
         var finalListener = testListener();
-        var batches = new EmbeddingRequestChunker(inputs, batchSize, chunkSize, overlap)
-            .batchRequestsWithListeners(finalListener);
+        var batches = new EmbeddingRequestChunker(inputs, batchSize, chunkSize, overlap).batchRequestsWithListeners(finalListener);
         assertThat(batches, hasSize(2));
 
         // 4 inputs in 2 batches

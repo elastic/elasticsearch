@@ -65,6 +65,7 @@ public class ThreadPoolMergeExecutorService {
     void submitMergeTask(MergeTask mergeTask) {
         assert mergeTask.isRunning() == false;
         assert mergeTask.isOnGoingMergeAborted() == false;
+        // first enqueue the runnable that runs exactly one merge task (the smallest it can find)
         if (enqueueMergeTaskExecution() == false) {
             // if the threadpool cannot run the merge, just abort it
             mergeTask.abortOnGoingMerge();
@@ -73,6 +74,7 @@ public class ThreadPoolMergeExecutorService {
                 // count enqueued merge tasks that support IO auto throttling, and maybe adjust IO rate for all
                 maybeUpdateIORateBytesPerSec(submittedIOThrottledMergeTasksCount.incrementAndGet());
             }
+            // then enqueue the merge task proper
             enqueueMergeTask(mergeTask);
         }
     }

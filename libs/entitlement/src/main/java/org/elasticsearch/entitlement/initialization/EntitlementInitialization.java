@@ -144,6 +144,37 @@ public class EntitlementInitialization {
         );
 
         List<Scope> serverScopes = new ArrayList<>();
+        List<FileData> serverModuleFileDatas = new ArrayList<>();
+        Collections.addAll(serverModuleFileDatas,
+            // Base ES directories
+            FileData.ofPath(bootstrapArgs.tempDir(), READ_WRITE),
+            FileData.ofPath(bootstrapArgs.configDir(), READ),
+            FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
+            FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE),
+            FileData.ofPath(bootstrapArgs.repoDirResolver().apply(""), READ_WRITE),
+
+            // OS release on Linux
+            FileData.ofPath(Path.of("/etc/os-release"), READ),
+            FileData.ofPath(Path.of("/etc/system-release"), READ),
+            FileData.ofPath(Path.of("/usr/lib/os-release"), READ),
+            // read max virtual memory areas
+            FileData.ofPath(Path.of("/proc/sys/vm/max_map_count"), READ),
+            FileData.ofPath(Path.of("/proc/meminfo"), READ),
+            // load averages on Linux
+            FileData.ofPath(Path.of("/proc/loadavg"), READ),
+            // control group stats on Linux. cgroup v2 stats are in an unpredicable
+            // location under `/sys/fs/cgroup`, so unfortunately we have to allow
+            // read access to the entire directory hierarchy.
+            FileData.ofPath(Path.of("/proc/self/cgroup"), READ),
+            FileData.ofPath(Path.of("/sys/fs/cgroup/"), READ),
+            // // io stats on Linux
+            FileData.ofPath(Path.of("/proc/self/mountinfo"), READ),
+            FileData.ofPath(Path.of("/proc/diskstats"), READ)
+        );
+        if (bootstrapArgs.pidFile() != null) {
+            serverModuleFileDatas.add(FileData.ofPath(bootstrapArgs.pidFile(), READ_WRITE));
+        }
+
         Collections.addAll(
             serverScopes,
             new Scope(
@@ -169,34 +200,7 @@ public class EntitlementInitialization {
                     new OutboundNetworkEntitlement(),
                     new LoadNativeLibrariesEntitlement(),
                     new ManageThreadsEntitlement(),
-                    new FilesEntitlement(
-                        List.of(
-                            // Base ES directories
-                            FileData.ofPath(bootstrapArgs.tempDir(), READ_WRITE),
-                            FileData.ofPath(bootstrapArgs.configDir(), READ),
-                            FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
-                            FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE),
-                            FileData.ofPath(bootstrapArgs.repoDirResolver().apply(""), READ_WRITE),
-
-                            // OS release on Linux
-                            FileData.ofPath(Path.of("/etc/os-release"), READ),
-                            FileData.ofPath(Path.of("/etc/system-release"), READ),
-                            FileData.ofPath(Path.of("/usr/lib/os-release"), READ),
-                            // read max virtual memory areas
-                            FileData.ofPath(Path.of("/proc/sys/vm/max_map_count"), READ),
-                            FileData.ofPath(Path.of("/proc/meminfo"), READ),
-                            // load averages on Linux
-                            FileData.ofPath(Path.of("/proc/loadavg"), READ),
-                            // control group stats on Linux. cgroup v2 stats are in an unpredicable
-                            // location under `/sys/fs/cgroup`, so unfortunately we have to allow
-                            // read access to the entire directory hierarchy.
-                            FileData.ofPath(Path.of("/proc/self/cgroup"), READ),
-                            FileData.ofPath(Path.of("/sys/fs/cgroup/"), READ),
-                            // // io stats on Linux
-                            FileData.ofPath(Path.of("/proc/self/mountinfo"), READ),
-                            FileData.ofPath(Path.of("/proc/diskstats"), READ)
-                        )
-                    )
+                    new FilesEntitlement(serverModuleFileDatas)
                 )
             ),
             new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),

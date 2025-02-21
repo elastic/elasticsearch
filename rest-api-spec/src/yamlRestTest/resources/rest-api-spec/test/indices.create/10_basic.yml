@@ -231,7 +231,7 @@
                 type: invalid
 
   - match: { error.type: "mapper_parsing_exception" }
-  - match: { error.reason: "The mapper type [invalid] declared on field [content] does not exist. It might have been created within a future version or requires a plugin to be installed. Check the documentation." }
+  - match: { error.reason: "Failed to parse mapping: The mapper type [invalid] declared on field [content] does not exist. It might have been created within a future version or requires a plugin to be installed. Check the documentation." }
 
 ---
 "Create index with invalid runtime field type":
@@ -250,7 +250,7 @@
                 type: invalid
 
   - match: { error.type: "mapper_parsing_exception" }
-  - match: { error.reason: "The mapper type [invalid] declared on runtime field [content] does not exist. It might have been created within a future version or requires a plugin to be installed. Check the documentation." }
+  - match: { error.reason: "Failed to parse mapping: The mapper type [invalid] declared on runtime field [content] does not exist. It might have been created within a future version or requires a plugin to be installed. Check the documentation." }
 
 ---
 "Create index with invalid multi-field type":
@@ -272,4 +272,4 @@
                     type: invalid
 
   - match: { error.type: "mapper_parsing_exception" }
-  - match: { error.reason: "The mapper type [invalid] declared on field [city] does not exist. It might have been created within a future version or requires a plugin to be installed. Check the documentation." }
+  - match: { error.reason: "Failed to parse mapping: The mapper type [invalid] declared on field [raw] does not exist. It might have been created within a future version or requires a plugin to be installed. Check the documentation." }

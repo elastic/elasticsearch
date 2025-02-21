@@ -201,7 +201,7 @@ public class RankFeaturePhase extends SearchPhase {
                     if (rankFeaturePhaseRankCoordinatorContext.failuresAllowed()) {
                         // don't want to log the entire stack trace, it's not helpful here
                         logger.warn("Exception computing updated ranks, continuing with existing ranks: {}", e.toString());
-                        context.addSubsidiaryFailure("reranking", e);
+                        context.addPhaseFailure("reranking", e);
 
                         // use the existing score docs as-is
                         // downstream things expect every doc to have a score, so we need to infer a score here

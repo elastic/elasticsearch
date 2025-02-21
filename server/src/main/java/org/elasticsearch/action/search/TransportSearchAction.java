@@ -691,7 +691,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             searchResponse.getSkippedShards(),
                             timeProvider.buildTookInMillis(),
                             searchResponse.getShardFailures(),
-                            searchResponse.getSubsidiaryFailures(),
+                            searchResponse.getPhaseFailures(),
                             clusters,
                             searchResponse.pointInTimeId()
                         )

@@ -55,7 +55,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
     protected final SearchTransportService searchTransportService;
     private final long startTime;
     private final List<ShardSearchFailure> shardFailures = new ArrayList<>();
-    private final List<SubsidiaryFailure> subsidiaryFailures = new ArrayList<>();
+    private final List<PhaseFailure> phaseFailures = new ArrayList<>();
     private final AtomicInteger successfulOps;
 
     protected SearchScrollAsyncAction(
@@ -214,8 +214,8 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
         return shardFailures.toArray(ShardSearchFailure.EMPTY_ARRAY);
     }
 
-    synchronized SubsidiaryFailure[] buildSubsidiaryFailures() {
-        return subsidiaryFailures.toArray(SubsidiaryFailure.EMPTY_ARRAY);
+    synchronized PhaseFailure[] buildPhaseFailures() {
+        return phaseFailures.toArray(PhaseFailure.EMPTY_ARRAY);
     }
 
     // we do our best to return the shard failures, but its ok if its not fully concurrently safe
@@ -268,7 +268,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
                         0,
                         buildTookInMillis(),
                         buildShardFailures(),
-                        buildSubsidiaryFailures(),
+                        buildPhaseFailures(),
                         SearchResponse.Clusters.EMPTY,
                         null
                     )

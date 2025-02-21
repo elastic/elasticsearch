@@ -165,7 +165,7 @@ public class RestVectorTileAction extends BaseRestHandler {
                         searchResponse.getSkippedShards(),
                         searchResponse.getTook().millis(),
                         searchResponse.getShardFailures(),
-                        searchResponse.getSubsidiaryFailures(),
+                        searchResponse.getPhaseFailures(),
                         searchResponse.getClusters()
                     );
                     try {

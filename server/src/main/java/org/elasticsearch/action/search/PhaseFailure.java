@@ -18,13 +18,13 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public record SubsidiaryFailure(String phase, Exception failure) implements ToXContentObject, Writeable {
+public record PhaseFailure(String phase, Exception failure) implements ToXContentObject, Writeable {
     public static final String PHASE_FIELD = "phase";
     public static final String FAILURE_FIELD = "failure";
 
-    public static final SubsidiaryFailure[] EMPTY_ARRAY = new SubsidiaryFailure[0];
+    public static final PhaseFailure[] EMPTY_ARRAY = new PhaseFailure[0];
 
-    public SubsidiaryFailure(StreamInput in) throws IOException {
+    public PhaseFailure(StreamInput in) throws IOException {
         this(in.readString(), in.readException());
     }
 

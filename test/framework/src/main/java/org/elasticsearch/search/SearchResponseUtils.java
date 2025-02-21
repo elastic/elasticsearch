@@ -17,7 +17,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.action.search.SubsidiaryFailure;
+import org.elasticsearch.action.search.PhaseFailure;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.ParsingException;
@@ -114,7 +114,7 @@ public enum SearchResponseUtils {
             skippedShards,
             tookInMillis,
             shardFailures,
-            SubsidiaryFailure.EMPTY_ARRAY,
+            PhaseFailure.EMPTY_ARRAY,
             clusters
         );
     }
@@ -133,7 +133,7 @@ public enum SearchResponseUtils {
         private int skippedShards;
         private long tookInMillis;
         private List<ShardSearchFailure> shardFailures;
-        private List<SubsidiaryFailure> subsidiaryFailures;
+        private List<PhaseFailure> phaseFailures;
         private Clusters clusters = Clusters.EMPTY;
         private BytesReference pointInTimeId;
 
@@ -201,13 +201,13 @@ public enum SearchResponseUtils {
             return this;
         }
 
-        public SearchResponseBuilder subsidiaryFailures(SubsidiaryFailure... failures) {
-            subsidiaryFailures = List.of(failures);
+        public SearchResponseBuilder phaseFailures(PhaseFailure... failures) {
+            phaseFailures = List.of(failures);
             return this;
         }
 
-        public SearchResponseBuilder subsidiaryFailures(List<SubsidiaryFailure> failures) {
-            subsidiaryFailures = List.copyOf(failures);
+        public SearchResponseBuilder phaseFailures(List<PhaseFailure> failures) {
+            phaseFailures = List.copyOf(failures);
             return this;
         }
 
@@ -236,7 +236,7 @@ public enum SearchResponseUtils {
                 skippedShards,
                 tookInMillis,
                 shardFailures == null ? ShardSearchFailure.EMPTY_ARRAY : shardFailures.toArray(ShardSearchFailure[]::new),
-                subsidiaryFailures == null ? SubsidiaryFailure.EMPTY_ARRAY : subsidiaryFailures.toArray(SubsidiaryFailure[]::new),
+                phaseFailures == null ? PhaseFailure.EMPTY_ARRAY : phaseFailures.toArray(PhaseFailure[]::new),
                 clusters,
                 pointInTimeId
             );
@@ -352,7 +352,7 @@ public enum SearchResponseUtils {
         String scrollId = null;
         BytesReference searchContextId = null;
         List<ShardSearchFailure> failures = new ArrayList<>();
-        List<SubsidiaryFailure> subFailures = new ArrayList<>();
+        List<PhaseFailure> phaseFailures = new ArrayList<>();
         SearchResponse.Clusters clusters = SearchResponse.Clusters.EMPTY;
         for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -416,9 +416,9 @@ public enum SearchResponseUtils {
                     parser.skipChildren();
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (SearchResponse.SUBSIDIARY_FAILURES.match(currentFieldName, parser.getDeprecationHandler())) {
+                if (SearchResponse.PHASE_FAILURES.match(currentFieldName, parser.getDeprecationHandler())) {
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                        subFailures.add(parseSubsidiaryFailure(parser));
+                        phaseFailures.add(parsePhaseFailure(parser));
                     }
                 } else {
                     parser.skipChildren();
@@ -440,7 +440,7 @@ public enum SearchResponseUtils {
             skippedShards,
             tookInMillis,
             failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
-            subFailures.toArray(SubsidiaryFailure.EMPTY_ARRAY),
+            phaseFailures.toArray(PhaseFailure.EMPTY_ARRAY),
             clusters,
             searchContextId
         );
@@ -1216,7 +1216,7 @@ public enum SearchResponseUtils {
         return new ShardSearchFailure(exception, searchShardTarget);
     }
 
-    public static SubsidiaryFailure parseSubsidiaryFailure(XContentParser parser) throws IOException {
+    public static PhaseFailure parsePhaseFailure(XContentParser parser) throws IOException {
         XContentParser.Token token;
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         String currentFieldName = null;
@@ -1226,13 +1226,13 @@ public enum SearchResponseUtils {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (SubsidiaryFailure.PHASE_FIELD.equals(currentFieldName)) {
+                if (PhaseFailure.PHASE_FIELD.equals(currentFieldName)) {
                     phase = parser.text();
                 } else {
                     parser.skipChildren();
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (SubsidiaryFailure.FAILURE_FIELD.equals(currentFieldName)) {
+                if (PhaseFailure.FAILURE_FIELD.equals(currentFieldName)) {
                     exception = ElasticsearchException.fromXContent(parser);
                 } else {
                     parser.skipChildren();
@@ -1241,6 +1241,6 @@ public enum SearchResponseUtils {
                 parser.skipChildren();
             }
         }
-        return new SubsidiaryFailure(phase, exception);
+        return new PhaseFailure(phase, exception);
     }
 }

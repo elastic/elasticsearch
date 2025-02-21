@@ -13,7 +13,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.SearchResponseMerger;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.action.search.SubsidiaryFailure;
+import org.elasticsearch.action.search.PhaseFailure;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -223,7 +223,7 @@ class MutableSearchResponse implements Releasable {
             skippedShards,
             tookInMillis,
             buildQueryFailures(),
-            SubsidiaryFailure.EMPTY_ARRAY,
+            PhaseFailure.EMPTY_ARRAY,
             clusters
         );
     }

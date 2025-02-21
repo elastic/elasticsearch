@@ -129,7 +129,7 @@ public final class SearchResponseMerger implements Releasable {
         // the current reduce phase counts as one
         int numReducePhases = 1;
         List<ShardSearchFailure> failures = new ArrayList<>();
-        List<SubsidiaryFailure> subsidiaryFailures = new ArrayList<>();
+        List<PhaseFailure> phaseFailures = new ArrayList<>();
         Map<String, SearchProfileShardResult> profileResults = new HashMap<>();
         List<InternalAggregations> aggs = new ArrayList<>();
         Map<ShardIdAndClusterAlias, Integer> shards = new TreeMap<>();
@@ -146,7 +146,7 @@ public final class SearchResponseMerger implements Releasable {
             numReducePhases += searchResponse.getNumReducePhases();
 
             Collections.addAll(failures, searchResponse.getShardFailures());
-            Collections.addAll(subsidiaryFailures, searchResponse.getSubsidiaryFailures());
+            Collections.addAll(phaseFailures, searchResponse.getPhaseFailures());
 
             profileResults.putAll(searchResponse.getProfileResults());
 
@@ -215,7 +215,7 @@ public final class SearchResponseMerger implements Releasable {
                 ? InternalAggregations.EMPTY
                 : InternalAggregations.topLevelReduce(aggs, aggReduceContextBuilder.forFinalReduction());
             ShardSearchFailure[] shardFailures = failures.toArray(ShardSearchFailure.EMPTY_ARRAY);
-            SubsidiaryFailure[] subFailures = subsidiaryFailures.toArray(SubsidiaryFailure.EMPTY_ARRAY);
+            PhaseFailure[] subFailures = phaseFailures.toArray(PhaseFailure.EMPTY_ARRAY);
             SearchProfileResults profileShardResults = profileResults.isEmpty() ? null : new SearchProfileResults(profileResults);
             // make failures ordering consistent between ordinary search and CCS by looking at the shard they come from
             Arrays.sort(shardFailures, FAILURES_COMPARATOR);

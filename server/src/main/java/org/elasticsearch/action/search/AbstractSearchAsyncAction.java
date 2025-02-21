@@ -92,7 +92,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final AtomicInteger successfulOps = new AtomicInteger();
     private final SearchTimeProvider timeProvider;
     private final SearchResponse.Clusters clusters;
-    private final List<SubsidiaryFailure> subsidiaryFailures = Collections.synchronizedList(new ArrayList<>());
+    private final List<PhaseFailure> phaseFailures = Collections.synchronizedList(new ArrayList<>());
 
     protected final List<SearchShardIterator> toSkipShardsIts;
     protected final List<SearchShardIterator> shardsIts;
@@ -575,7 +575,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private SearchResponse buildSearchResponse(
         SearchResponseSections internalSearchResponse,
         ShardSearchFailure[] failures,
-        SubsidiaryFailure[] subsidiaryFailures,
+        PhaseFailure[] phaseFailures,
         String scrollId,
         BytesReference searchContextId
     ) {
@@ -591,7 +591,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             toSkipShardsIts.size(),
             buildTookInMillis(),
             failures,
-            subsidiaryFailures,
+            phaseFailures,
             clusters,
             searchContextId
         );
@@ -628,7 +628,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 }
             }
 
-            SubsidiaryFailure[] subFailures = subsidiaryFailures.toArray(SubsidiaryFailure.EMPTY_ARRAY);
+            PhaseFailure[] subFailures = phaseFailures.toArray(PhaseFailure.EMPTY_ARRAY);
 
             ActionListener.respondAndRelease(
                 listener,
@@ -671,8 +671,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         listener.onFailure(exception);
     }
 
-    public void addSubsidiaryFailure(String description, Exception exception) {
-        subsidiaryFailures.add(new SubsidiaryFailure(description, exception));
+    public void addPhaseFailure(String phase, Exception exception) {
+        phaseFailures.add(new PhaseFailure(phase, exception));
     }
 
     /**

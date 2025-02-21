@@ -344,11 +344,11 @@ public class SearchResponseTests extends ESTestCase {
      * Because of this, in this special test case we compare the "top level" fields for equality
      * and the subsections xContent equivalence independently
      */
-    public void testFromXContentWithSubsidiaryFailures() throws IOException {
+    public void testFromXContentWithPhaseFailures() throws IOException {
         int numFailures = randomIntBetween(1, 5);
-        SubsidiaryFailure[] failures = new SubsidiaryFailure[numFailures];
+        PhaseFailure[] failures = new PhaseFailure[numFailures];
         for (int i = 0; i < failures.length; i++) {
-            failures[i] = new SubsidiaryFailure(
+            failures[i] = new PhaseFailure(
                 randomAlphaOfLengthBetween(2, 10),
                 ESTestCase.<Function<String, Exception>>randomFrom(
                     IllegalArgumentException::new,
@@ -358,7 +358,7 @@ public class SearchResponseTests extends ESTestCase {
             );
         }
         BytesReference originalBytes;
-        SearchResponse response = createTestItem(false).subsidiaryFailures(failures).build();
+        SearchResponse response = createTestItem(false).phaseFailures(failures).build();
         XContentType xcontentType = randomFrom(XContentType.values());
         try {
             final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
@@ -369,9 +369,9 @@ public class SearchResponseTests extends ESTestCase {
         try (XContentParser parser = createParser(xcontentType.xContent(), originalBytes)) {
             SearchResponse parsed = SearchResponseUtils.parseSearchResponse(parser);
             try {
-                SubsidiaryFailure[] deserFailures = parsed.getSubsidiaryFailures();
+                PhaseFailure[] deserFailures = parsed.getPhaseFailures();
                 for (int i = 0; i < deserFailures.length; i++) {
-                    SubsidiaryFailure deserFailure = deserFailures[i];
+                    PhaseFailure deserFailure = deserFailures[i];
                     assertThat(deserFailure.phase(), equalTo(failures[i].phase()));
                     assertThat(
                         deserFailure.failure().getMessage(),
@@ -409,7 +409,7 @@ public class SearchResponseTests extends ESTestCase {
                 0,
                 0,
                 ShardSearchFailure.EMPTY_ARRAY,
-                SubsidiaryFailure.EMPTY_ARRAY,
+                PhaseFailure.EMPTY_ARRAY,
                 SearchResponse.Clusters.EMPTY
             );
             try {
@@ -452,7 +452,7 @@ public class SearchResponseTests extends ESTestCase {
                 0,
                 0,
                 ShardSearchFailure.EMPTY_ARRAY,
-                new SubsidiaryFailure[] { new SubsidiaryFailure("rescore", new IOException("io")) },
+                new PhaseFailure[] { new PhaseFailure("rescore", new IOException("io")) },
                 SearchResponse.Clusters.EMPTY
             );
             try {
@@ -466,8 +466,8 @@ public class SearchResponseTests extends ESTestCase {
                         "skipped": 0,
                         "failed": 0
                       },
-                      "subsidiaryFailures": [ { "phase": "rescore", "failure":
-                        {"type":"i_o_exception", "reason":"io"}
+                      "phase_failures": [ {
+                       "phase": "rescore", "failure": {"type":"i_o_exception", "reason":"io"}
                       } ],
                       "hits": {
                         "total": {
@@ -498,7 +498,7 @@ public class SearchResponseTests extends ESTestCase {
                 0,
                 0,
                 ShardSearchFailure.EMPTY_ARRAY,
-                SubsidiaryFailure.EMPTY_ARRAY,
+                PhaseFailure.EMPTY_ARRAY,
                 new SearchResponse.Clusters(5, 3, 2)
             );
             try {
@@ -549,7 +549,7 @@ public class SearchResponseTests extends ESTestCase {
                 2,
                 0,
                 ShardSearchFailure.EMPTY_ARRAY,
-                SubsidiaryFailure.EMPTY_ARRAY,
+                PhaseFailure.EMPTY_ARRAY,
                 createCCSClusterObject(
                     4,
                     3,

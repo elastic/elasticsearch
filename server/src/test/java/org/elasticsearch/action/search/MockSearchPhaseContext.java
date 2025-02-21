@@ -45,7 +45,7 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
     final int numShards;
     final AtomicInteger numSuccess;
     public final List<ShardSearchFailure> failures = Collections.synchronizedList(new ArrayList<>());
-    public final List<SubsidiaryFailure> subsidiaryFailures = Collections.synchronizedList(new ArrayList<>());
+    public final List<PhaseFailure> phaseFailures = Collections.synchronizedList(new ArrayList<>());
     SearchTransportService searchTransport;
     final Set<ShardSearchContextId> releasedSearchContexts = new HashSet<>();
     public final AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
@@ -101,7 +101,7 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
                 0,
                 0,
                 failures.toArray(ShardSearchFailure.EMPTY_ARRAY),
-                subsidiaryFailures.toArray(SubsidiaryFailure.EMPTY_ARRAY),
+                phaseFailures.toArray(PhaseFailure.EMPTY_ARRAY),
                 SearchResponse.Clusters.EMPTY,
                 searchContextId
             )
@@ -125,8 +125,8 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
     }
 
     @Override
-    public void addSubsidiaryFailure(String description, Exception exception) {
-        subsidiaryFailures.add(new SubsidiaryFailure(description, exception));
+    public void addPhaseFailure(String phase, Exception exception) {
+        phaseFailures.add(new PhaseFailure(phase, exception));
     }
 
     @Override

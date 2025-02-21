@@ -1,5 +1,5 @@
 pr: 122788
-summary: Add subsidiary failures to search responses
+summary: Add phase failures to search responses
 area: Ranking
 type: enhancement
 issues:

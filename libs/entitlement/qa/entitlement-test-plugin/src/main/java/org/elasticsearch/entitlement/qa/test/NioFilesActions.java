@@ -39,6 +39,7 @@ import static org.elasticsearch.entitlement.qa.test.FileCheckActions.readFile;
 import static org.elasticsearch.entitlement.qa.test.FileCheckActions.readWriteDir;
 import static org.elasticsearch.entitlement.qa.test.FileCheckActions.readWriteFile;
 
+@SuppressWarnings({ "unused" /* called via reflection */ })
 class NioFilesActions {
 
     @EntitlementTest(expectedAccess = PLUGINS)
@@ -313,52 +314,36 @@ class NioFilesActions {
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void checkFilesWalkFileTree() throws IOException {
-        Files.walkFileTree(readDir(), new FileVisitor<>() {
-            @Override
-            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                return FileVisitResult.SKIP_SUBTREE;
-            }
-
-            @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                return FileVisitResult.SKIP_SUBTREE;
-            }
-
-            @Override
-            public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
-                return FileVisitResult.SKIP_SUBTREE;
-            }
-
-            @Override
-            public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
-                return FileVisitResult.SKIP_SUBTREE;
-            }
-        });
+        Files.walkFileTree(readDir(), dummyVisitor());
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
     static void checkFilesWalkFileTreeWithOptions() throws IOException {
-        Files.walkFileTree(readDir(), Set.of(FileVisitOption.FOLLOW_LINKS), 2, new FileVisitor<>() {
+        Files.walkFileTree(readDir(), Set.of(FileVisitOption.FOLLOW_LINKS), 2, dummyVisitor());
+    }
+
+    private static FileVisitor<Path> dummyVisitor() {
+        return new FileVisitor<>() {
             @Override
-            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
                 return FileVisitResult.SKIP_SUBTREE;
             }
 
             @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
                 return FileVisitResult.SKIP_SUBTREE;
             }
 
             @Override
-            public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
+            public FileVisitResult visitFileFailed(Path file, IOException exc) {
                 return FileVisitResult.SKIP_SUBTREE;
             }
 
             @Override
-            public FileVisitResult postVisitDirectory(Path dir, IOException exc) throws IOException {
+            public FileVisitResult postVisitDirectory(Path dir, IOException exc) {
                 return FileVisitResult.SKIP_SUBTREE;
             }
-        });
+        };
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)

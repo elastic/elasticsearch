@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.core.Tuple;
 import org.hamcrest.Matcher;
 
@@ -28,7 +29,7 @@ import java.util.stream.LongStream;
 
 import static java.util.stream.IntStream.range;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
     @Override
@@ -80,20 +81,26 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
 
     @Override
     protected void assertSimpleOutput(List<Page> input, List<Page> results) {
-        assertThat(results, hasSize(1));
-        assertThat(results.get(0).getBlockCount(), equalTo(3));
-        assertThat(results.get(0).getPositionCount(), equalTo(5));
+        assertThat(results.size(), greaterThanOrEqualTo(0));
+        BlockFactory blockFactory = results.getFirst().getBlock(0).blockFactory();
+        Page output = BlockTestUtils.mergePages(blockFactory, results);
+        try {
+            assertThat(output.getBlockCount(), equalTo(3));
+            assertThat(output.getPositionCount(), equalTo(5));
 
-        SumLongGroupingAggregatorFunctionTests sum = new SumLongGroupingAggregatorFunctionTests();
-        MaxLongGroupingAggregatorFunctionTests max = new MaxLongGroupingAggregatorFunctionTests();
+            SumLongGroupingAggregatorFunctionTests sum = new SumLongGroupingAggregatorFunctionTests();
+            MaxLongGroupingAggregatorFunctionTests max = new MaxLongGroupingAggregatorFunctionTests();
 
-        LongBlock groups = results.get(0).getBlock(0);
-        Block sums = results.get(0).getBlock(1);
-        Block maxs = results.get(0).getBlock(2);
-        for (int i = 0; i < 5; i++) {
-            long group = groups.getLong(i);
-            sum.assertSimpleGroup(input, sums, i, group);
-            max.assertSimpleGroup(input, maxs, i, group);
+            LongBlock groups = output.getBlock(0);
+            Block sums = output.getBlock(1);
+            Block maxs = output.getBlock(2);
+            for (int i = 0; i < 5; i++) {
+                long group = groups.getLong(i);
+                sum.assertSimpleGroup(input, sums, i, group);
+                max.assertSimpleGroup(input, maxs, i, group);
+            }
+        } finally {
+            output.releaseBlocks();
         }
     }
 }

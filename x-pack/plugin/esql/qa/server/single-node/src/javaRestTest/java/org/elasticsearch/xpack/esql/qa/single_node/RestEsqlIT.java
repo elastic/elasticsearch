@@ -497,33 +497,60 @@ public class RestEsqlIT extends RestEsqlTestCase {
             assertMap(p, commonProfile());
             @SuppressWarnings("unchecked")
             Map<String, Object> sleeps = (Map<String, Object>) p.get("sleeps");
-            String operators = p.get("operators").toString();
-            MapMatcher sleepMatcher = matchesMap().entry("reason", "exchange empty")
+            MapMatcher exchangeEmptyMatcher = matchesMap().entry("reason", "exchange empty")
+                .entry("sleep_millis", greaterThan(0L))
+                .entry("wake_millis", greaterThan(0L));
+            MapMatcher exchangeFullMatcher = matchesMap().entry("reason", "exchange full")
+                .entry("sleep_millis", greaterThan(0L))
+                .entry("wake_millis", greaterThan(0L));
+            MapMatcher exchangeEmptyOrFullMatcher = matchesMap().entry("reason", "exchange empty OR exchange full")
                 .entry("sleep_millis", greaterThan(0L))
                 .entry("wake_millis", greaterThan(0L));
             String taskDescription = p.get("task_description").toString();
             switch (taskDescription) {
-                case "data" -> assertMap(sleeps, matchesMap().entry("counts", Map.of()).entry("first", List.of()).entry("last", List.of()));
+                case "data" -> {
+                    if (sleeps.isEmpty() == false) {
+                        assertMap(sleeps, matchesMap().entry("counts", matchesMap().entry("exchange full", greaterThan(0))).extraOk());
+                        @SuppressWarnings("unchecked")
+                        List<Map<String, Object>> first = (List<Map<String, Object>>) sleeps.get("first");
+                        for (Map<String, Object> s : first) {
+                            assertMap(s, exchangeFullMatcher);
+                        }
+                        @SuppressWarnings("unchecked")
+                        List<Map<String, Object>> last = (List<Map<String, Object>>) sleeps.get("last");
+                        for (Map<String, Object> s : last) {
+                            assertMap(s, exchangeFullMatcher);
+                        }
+                    }
+                }
                 case "node_reduce" -> {
-                    assertMap(sleeps, matchesMap().entry("counts", matchesMap().entry("exchange empty", greaterThan(0))).extraOk());
+                    assertMap(
+                        sleeps,
+                        matchesMap().entry("counts", matchesMap().entry("exchange empty", greaterThan(0)).extraOk()).extraOk()
+                    );
                     @SuppressWarnings("unchecked")
                     List<Map<String, Object>> first = (List<Map<String, Object>>) sleeps.get("first");
                     for (Map<String, Object> s : first) {
-                        assertMap(s, sleepMatcher);
+                        assertMap(s, either(exchangeEmptyMatcher).or(exchangeFullMatcher).or(exchangeEmptyOrFullMatcher));
                     }
                     @SuppressWarnings("unchecked")
                     List<Map<String, Object>> last = (List<Map<String, Object>>) sleeps.get("last");
                     for (Map<String, Object> s : last) {
-                        assertMap(s, sleepMatcher);
+                        assertMap(s, either(exchangeEmptyMatcher).or(exchangeFullMatcher).or(exchangeEmptyOrFullMatcher));
                     }
                 }
                 case "final" -> {
-                    assertMap(
-                        sleeps,
-                        matchesMap().entry("counts", matchesMap().entry("exchange empty", 1))
-                            .entry("first", List.of(sleepMatcher))
-                            .entry("last", List.of(sleepMatcher))
-                    );
+                    assertMap(sleeps, matchesMap().entry("counts", matchesMap().entry("exchange empty", greaterThan(0))).extraOk());
+                    @SuppressWarnings("unchecked")
+                    List<Map<String, Object>> first = (List<Map<String, Object>>) sleeps.get("first");
+                    for (Map<String, Object> s : first) {
+                        assertMap(s, exchangeEmptyMatcher);
+                    }
+                    @SuppressWarnings("unchecked")
+                    List<Map<String, Object>> last = (List<Map<String, Object>>) sleeps.get("last");
+                    for (Map<String, Object> s : last) {
+                        assertMap(s, exchangeEmptyMatcher);
+                    }
                 }
                 default -> throw new IllegalArgumentException("unknown task: " + taskDescription);
             }

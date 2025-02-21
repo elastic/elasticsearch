@@ -367,9 +367,10 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             List<GroupingAggregator.Factory> aggregators,
             Supplier<BlockHash> blockHash,
             Attribute attribute,
+            int maxPageSize,
             DriverContext driverContext
         ) {
-            super(aggregators, blockHash, driverContext);
+            super(aggregators, blockHash, maxPageSize, driverContext);
             this.attribute = attribute;
         }
 
@@ -417,6 +418,7 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                     false
                 ),
                 attribute,
+                pageSize,
                 driverContext
             );
         }

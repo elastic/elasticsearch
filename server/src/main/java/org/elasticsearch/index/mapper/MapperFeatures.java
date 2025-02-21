@@ -27,10 +27,12 @@ public class MapperFeatures implements FeatureSpecification {
         "mapper.counted_keyword.synthetic_source_native_support"
     );
 
+    public static final NodeFeature TSDB_NESTED_FIELD_SUPPORT = new NodeFeature("mapper.tsdb_nested_field_support");
     public static final NodeFeature META_FETCH_FIELDS_ERROR_CODE_CHANGED = new NodeFeature("meta_fetch_fields_error_code_changed");
     public static final NodeFeature SPARSE_VECTOR_STORE_SUPPORT = new NodeFeature("mapper.sparse_vector.store_support");
     public static final NodeFeature SORT_FIELDS_CHECK_FOR_NESTED_OBJECT_FIX = new NodeFeature("mapper.nested.sorting_fields_check_fix");
     public static final NodeFeature DYNAMIC_HANDLING_IN_COPY_TO = new NodeFeature("mapper.copy_to.dynamic_handling");
+    public static final NodeFeature DOC_VALUES_SKIPPER = new NodeFeature("mapper.doc_values_skipper");
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
@@ -49,8 +51,10 @@ public class MapperFeatures implements FeatureSpecification {
             COUNTED_KEYWORD_SYNTHETIC_SOURCE_NATIVE_SUPPORT,
             SORT_FIELDS_CHECK_FOR_NESTED_OBJECT_FIX,
             DYNAMIC_HANDLING_IN_COPY_TO,
+            TSDB_NESTED_FIELD_SUPPORT,
             SourceFieldMapper.SYNTHETIC_RECOVERY_SOURCE,
-            ObjectMapper.SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX
+            ObjectMapper.SUBOBJECTS_FALSE_MAPPING_UPDATE_FIX,
+            DOC_VALUES_SKIPPER
         );
     }
 }

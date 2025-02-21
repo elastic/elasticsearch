@@ -27,6 +27,7 @@ import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Scorable;
@@ -38,14 +39,29 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.CharsRefBuilder;
+import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchShardTask;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.search.suggest.SuggestBuilder;
+import org.elasticsearch.search.suggest.Suggester;
+import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.test.TestSearchContext;
+import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -273,6 +289,119 @@ public class QueryPhaseTimeoutTests extends IndexShardTestCase {
         context.parsedQuery(new ParsedQuery(query));
         context.setSize(size);
         return context;
+    }
+
+    public void testSuggestOnlyWithTimeout() throws Exception {
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().suggest(new SuggestBuilder());
+        try (SearchContext context = createSearchContextWithSuggestTimeout(searchSourceBuilder)) {
+            assertTrue(context.hasOnlySuggest());
+            QueryPhase.execute(context);
+            assertTrue(context.queryResult().searchTimedOut());
+            assertEquals(1, context.queryResult().suggest().size());
+            assertEquals(0, context.queryResult().suggest().getSuggestion("suggestion").getEntries().size());
+            assertNotNull(context.queryResult().topDocs());
+            assertEquals(0, context.queryResult().topDocs().topDocs.totalHits.value());
+        }
+    }
+
+    public void testSuggestAndQueryWithSuggestTimeout() throws Exception {
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().suggest(new SuggestBuilder()).query(new MatchAllQueryBuilder());
+        try (SearchContext context = createSearchContextWithSuggestTimeout(searchSourceBuilder)) {
+            context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+            assertFalse(context.hasOnlySuggest());
+            QueryPhase.execute(context);
+            assertThat(context.queryResult().topDocs().topDocs.totalHits.value(), Matchers.greaterThan(0L));
+            assertTrue(context.queryResult().searchTimedOut());
+            assertEquals(1, context.queryResult().suggest().size());
+            assertEquals(0, context.queryResult().suggest().getSuggestion("suggestion").getEntries().size());
+        }
+    }
+
+    private TestSearchContext createSearchContextWithSuggestTimeout(SearchSourceBuilder searchSourceBuilder) throws IOException {
+        ContextIndexSearcher contextIndexSearcher = newContextSearcher(reader);
+        SuggestionSearchContext suggestionSearchContext = new SuggestionSearchContext();
+        suggestionSearchContext.addSuggestion("suggestion", new TestSuggestionContext(new TestSuggester(contextIndexSearcher), null));
+        TestSearchContext context = new TestSearchContext(null, indexShard, contextIndexSearcher) {
+            @Override
+            public SuggestionSearchContext suggest() {
+                return suggestionSearchContext;
+            }
+
+            @Override
+            public ShardSearchRequest request() {
+                SearchRequest searchRequest = new SearchRequest();
+                searchRequest.allowPartialSearchResults(true);
+                searchRequest.source(searchSourceBuilder);
+                return new ShardSearchRequest(
+                    OriginalIndices.NONE,
+                    searchRequest,
+                    indexShard.shardId(),
+                    0,
+                    1,
+                    AliasFilter.EMPTY,
+                    1F,
+                    0,
+                    null
+                );
+            }
+        };
+        context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
+        return context;
+    }
+
+    private static final class TestSuggester extends Suggester<TestSuggestionContext> {
+        private final ContextIndexSearcher contextIndexSearcher;
+
+        TestSuggester(ContextIndexSearcher contextIndexSearcher) {
+            this.contextIndexSearcher = contextIndexSearcher;
+        }
+
+        @Override
+        protected TestSuggestion innerExecute(
+            String name,
+            TestSuggestionContext suggestion,
+            IndexSearcher searcher,
+            CharsRefBuilder spare
+        ) {
+            contextIndexSearcher.throwTimeExceededException();
+            throw new AssertionError("should have thrown TimeExceededException");
+        }
+
+        @Override
+        protected TestSuggestion emptySuggestion(String name, TestSuggestionContext suggestion, CharsRefBuilder spare) {
+            return new TestSuggestion();
+        }
+    }
+
+    private static final class TestSuggestionContext extends SuggestionSearchContext.SuggestionContext {
+        TestSuggestionContext(Suggester<?> suggester, SearchExecutionContext searchExecutionContext) {
+            super(suggester, searchExecutionContext);
+        }
+    }
+
+    private static final class TestSuggestion extends Suggest.Suggestion<
+        Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> {
+        TestSuggestion() {
+            super("suggestion", 10);
+        }
+
+        @Override
+        protected Entry<? extends Entry.Option> newEntry(StreamInput in) {
+            return new TestSuggestionEntry();
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "suggestion";
+        }
+    }
+
+    private static final class TestSuggestionEntry extends Suggest.Suggestion.Entry<Suggest.Suggestion.Entry.Option> {
+        @Override
+        protected Option newOption(StreamInput in) {
+            return new Option(new Text("text"), 1f) {
+            };
+        }
     }
 
     private static class Score extends Scorable {

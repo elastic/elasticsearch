@@ -344,7 +344,9 @@ public class IndicesPermissionTests extends ESTestCase {
                 indices.toArray(Strings.EMPTY_ARRAY)
             )
         );
-        assertThat(e.getMessage(), containsString(indices.get(0)));
+        // trailing wildcards will be converted to regular expressions to avoid matching ::failure indices so this assert needs to
+        // convert `*` to `.`*`
+        assertThat(e.getMessage(), containsString(indices.get(0).replace("*", ".*")));
         assertThat(e.getMessage(), containsString("too complex to evaluate"));
     }
 

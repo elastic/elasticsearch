@@ -34,7 +34,8 @@ public final class FileAccessTree {
             var paths = fileData.resolvePaths(pathLookup);
             paths.forEach(path -> {
                 if (path == null) {
-                    throw new IllegalArgumentException("resolved path is null for [" + fileData + "]");
+                    // TODO: null paths shouldn't be allowed, but they can occur due to repo paths
+                    return;
                 }
                 var normalized = normalizePath(path);
                 if (mode == FilesEntitlement.Mode.READ_WRITE) {

@@ -92,11 +92,6 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
     }
 
     private record AbsolutePathFileData(Path path, Mode mode) implements FileData {
-        AbsolutePathFileData {
-            Objects.requireNonNull(path);
-            Objects.requireNonNull(mode);
-        }
-
         @Override
         public Stream<Path> resolvePaths(PathLookup pathLookup) {
             return Stream.of(path);

@@ -100,15 +100,11 @@ public class PolicyManager {
                 filesEntitlement = (FilesEntitlement) entitlement;
             }
         }
-        try {
-            return new ModuleEntitlements(
-                componentName,
-                entitlements.stream().collect(groupingBy(Entitlement::getClass)),
-                FileAccessTree.of(filesEntitlement, pathLookup)
-            );
-        } catch (IllegalArgumentException e) {
-            throw new RuntimeException("Failed to create file access tree for module " + componentName, e);
-        }
+        return new ModuleEntitlements(
+            componentName,
+            entitlements.stream().collect(groupingBy(Entitlement::getClass)),
+            FileAccessTree.of(filesEntitlement, pathLookup)
+        );
     }
 
     final Map<Module, ModuleEntitlements> moduleEntitlementsMap = new ConcurrentHashMap<>();

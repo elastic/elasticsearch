@@ -43,9 +43,10 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingFloat;
-import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingSparse;
+import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
@@ -67,7 +68,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConf
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
-import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.hamcrest.Matchers;
@@ -100,7 +100,6 @@ import static org.elasticsearch.xpack.inference.services.elasticsearch.Elasticse
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.NAME;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.OLD_ELSER_SERVICE_NAME;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -894,21 +893,23 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         var gotResults = new AtomicBoolean();
         var resultsListener = ActionListener.<List<ChunkedInference>>wrap(chunkedResponse -> {
             assertThat(chunkedResponse, hasSize(2));
-            assertThat(chunkedResponse.get(0), instanceOf(ChunkedInferenceEmbeddingFloat.class));
-            var result1 = (ChunkedInferenceEmbeddingFloat) chunkedResponse.get(0);
+            assertThat(chunkedResponse.get(0), instanceOf(ChunkedInferenceEmbedding.class));
+            var result1 = (ChunkedInferenceEmbedding) chunkedResponse.get(0);
             assertThat(result1.chunks(), hasSize(1));
+            assertThat(result1.chunks().get(0), instanceOf(TextEmbeddingFloatResults.Chunk.class));
             assertArrayEquals(
                 ((MlTextEmbeddingResults) mlTrainedModelResults.get(0)).getInferenceAsFloat(),
-                result1.chunks().get(0).embedding(),
+                ((TextEmbeddingFloatResults.Chunk) result1.chunks().get(0)).embedding(),
                 0.0001f
             );
             assertEquals("foo", result1.chunks().get(0).matchedText());
-            assertThat(chunkedResponse.get(1), instanceOf(ChunkedInferenceEmbeddingFloat.class));
-            var result2 = (ChunkedInferenceEmbeddingFloat) chunkedResponse.get(1);
+            assertThat(chunkedResponse.get(1), instanceOf(ChunkedInferenceEmbedding.class));
+            var result2 = (ChunkedInferenceEmbedding) chunkedResponse.get(1);
             assertThat(result2.chunks(), hasSize(1));
+            assertThat(result2.chunks().get(0), instanceOf(TextEmbeddingFloatResults.Chunk.class));
             assertArrayEquals(
                 ((MlTextEmbeddingResults) mlTrainedModelResults.get(1)).getInferenceAsFloat(),
-                result2.chunks().get(0).embedding(),
+                ((TextEmbeddingFloatResults.Chunk) result2.chunks().get(0)).embedding(),
                 0.0001f
             );
             assertEquals("bar", result2.chunks().get(0).matchedText());
@@ -969,18 +970,20 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
 
         var resultsListener = ActionListener.<List<ChunkedInference>>wrap(chunkedResponse -> {
             assertThat(chunkedResponse, hasSize(2));
-            assertThat(chunkedResponse.get(0), instanceOf(ChunkedInferenceEmbeddingSparse.class));
-            var result1 = (ChunkedInferenceEmbeddingSparse) chunkedResponse.get(0);
+            assertThat(chunkedResponse.get(0), instanceOf(ChunkedInferenceEmbedding.class));
+            var result1 = (ChunkedInferenceEmbedding) chunkedResponse.get(0);
+            assertThat(result1.chunks().get(0), instanceOf(SparseEmbeddingResults.Chunk.class));
             assertEquals(
                 ((TextExpansionResults) mlTrainedModelResults.get(0)).getWeightedTokens(),
-                result1.chunks().get(0).weightedTokens()
+                ((SparseEmbeddingResults.Chunk) result1.chunks().get(0)).weightedTokens()
             );
             assertEquals("foo", result1.chunks().get(0).matchedText());
-            assertThat(chunkedResponse.get(1), instanceOf(ChunkedInferenceEmbeddingSparse.class));
-            var result2 = (ChunkedInferenceEmbeddingSparse) chunkedResponse.get(1);
+            assertThat(chunkedResponse.get(1), instanceOf(ChunkedInferenceEmbedding.class));
+            var result2 = (ChunkedInferenceEmbedding) chunkedResponse.get(1);
+            assertThat(result2.chunks().get(0), instanceOf(SparseEmbeddingResults.Chunk.class));
             assertEquals(
                 ((TextExpansionResults) mlTrainedModelResults.get(1)).getWeightedTokens(),
-                result2.chunks().get(0).weightedTokens()
+                ((SparseEmbeddingResults.Chunk) result2.chunks().get(0)).weightedTokens()
             );
             assertEquals("bar", result2.chunks().get(0).matchedText());
             gotResults.set(true);
@@ -1039,18 +1042,20 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         var gotResults = new AtomicBoolean();
         var resultsListener = ActionListener.<List<ChunkedInference>>wrap(chunkedResponse -> {
             assertThat(chunkedResponse, hasSize(2));
-            assertThat(chunkedResponse.get(0), instanceOf(ChunkedInferenceEmbeddingSparse.class));
-            var result1 = (ChunkedInferenceEmbeddingSparse) chunkedResponse.get(0);
+            assertThat(chunkedResponse.get(0), instanceOf(ChunkedInferenceEmbedding.class));
+            var result1 = (ChunkedInferenceEmbedding) chunkedResponse.get(0);
+            assertThat(result1.chunks().get(0), instanceOf(SparseEmbeddingResults.Chunk.class));
             assertEquals(
                 ((TextExpansionResults) mlTrainedModelResults.get(0)).getWeightedTokens(),
-                result1.chunks().get(0).weightedTokens()
+                ((SparseEmbeddingResults.Chunk) result1.chunks().get(0)).weightedTokens()
             );
             assertEquals("foo", result1.chunks().get(0).matchedText());
-            assertThat(chunkedResponse.get(1), instanceOf(ChunkedInferenceEmbeddingSparse.class));
-            var result2 = (ChunkedInferenceEmbeddingSparse) chunkedResponse.get(1);
+            assertThat(chunkedResponse.get(1), instanceOf(ChunkedInferenceEmbedding.class));
+            var result2 = (ChunkedInferenceEmbedding) chunkedResponse.get(1);
+            assertThat(result2.chunks().get(0), instanceOf(SparseEmbeddingResults.Chunk.class));
             assertEquals(
                 ((TextExpansionResults) mlTrainedModelResults.get(1)).getWeightedTokens(),
-                result2.chunks().get(0).weightedTokens()
+                ((SparseEmbeddingResults.Chunk) result2.chunks().get(0)).weightedTokens()
             );
             assertEquals("bar", result2.chunks().get(0).matchedText());
             gotResults.set(true);
@@ -1219,8 +1224,8 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         var gotResults = new AtomicBoolean();
         var resultsListener = ActionListener.<List<ChunkedInference>>wrap(chunkedResponse -> {
             assertThat(chunkedResponse, hasSize(1));
-            assertThat(chunkedResponse.get(0), instanceOf(ChunkedInferenceEmbeddingFloat.class));
-            var sparseResults = (ChunkedInferenceEmbeddingFloat) chunkedResponse.get(0);
+            assertThat(chunkedResponse.get(0), instanceOf(ChunkedInferenceEmbedding.class));
+            var sparseResults = (ChunkedInferenceEmbedding) chunkedResponse.get(0);
             assertThat(sparseResults.chunks(), hasSize(numChunks));
 
             gotResults.set(true);
@@ -1542,41 +1547,6 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
                 )
             );
         }
-    }
-
-    public void testEmbeddingTypeFromTaskTypeAndSettings() {
-        assertEquals(
-            EmbeddingRequestChunker.EmbeddingType.SPARSE,
-            ElasticsearchInternalService.embeddingTypeFromTaskTypeAndSettings(
-                TaskType.SPARSE_EMBEDDING,
-                new ElasticsearchInternalServiceSettings(1, 1, "foo", null, null)
-            )
-        );
-        assertEquals(
-            EmbeddingRequestChunker.EmbeddingType.FLOAT,
-            ElasticsearchInternalService.embeddingTypeFromTaskTypeAndSettings(
-                TaskType.TEXT_EMBEDDING,
-                new MultilingualE5SmallInternalServiceSettings(1, 1, "foo", null)
-            )
-        );
-
-        var e1 = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> ElasticsearchInternalService.embeddingTypeFromTaskTypeAndSettings(
-                TaskType.COMPLETION,
-                new ElasticsearchInternalServiceSettings(1, 1, "foo", null, null)
-            )
-        );
-        assertThat(e1.getMessage(), containsString("Chunking is not supported for task type [completion]"));
-
-        var e2 = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> ElasticsearchInternalService.embeddingTypeFromTaskTypeAndSettings(
-                TaskType.RERANK,
-                new ElasticsearchInternalServiceSettings(1, 1, "foo", null, null)
-            )
-        );
-        assertThat(e2.getMessage(), containsString("Chunking is not supported for task type [rerank]"));
     }
 
     public void testIsDefaultId() {

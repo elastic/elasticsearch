@@ -12,9 +12,10 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.geo.GeometryNormalizer;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.geo.GeometryTestUtils;
@@ -39,14 +40,14 @@ import java.util.stream.IntStream;
 import static org.apache.lucene.geo.GeoEncodingUtils.decodeLongitude;
 import static org.elasticsearch.common.geo.Orientation.RIGHT;
 
-public class ShapeGeometryFieldMapperTests extends ESTestCase {
+public class AbstractShapeGeometryFieldMapperTests extends ESTestCase {
     public void testCartesianBoundsBlockLoader() throws IOException {
         testBoundsBlockLoader(
             CoordinateEncoder.CARTESIAN,
             () -> ShapeTestUtils.randomGeometryWithoutCircle(0, false),
             CartesianShapeIndexer::new,
             SpatialEnvelopeVisitor::visitCartesian,
-            ShapeGeometryFieldMapperTests::makeCartesianRectangle
+            AbstractShapeGeometryFieldMapperTests::makeCartesianRectangle
         );
     }
 
@@ -58,7 +59,7 @@ public class ShapeGeometryFieldMapperTests extends ESTestCase {
             () -> normalize(GeometryTestUtils.randomGeometryWithoutCircle(0, false)),
             field -> new GeoShapeIndexer(RIGHT, field),
             g -> SpatialEnvelopeVisitor.visitGeo(g, SpatialEnvelopeVisitor.WrapLongitude.WRAP),
-            ShapeGeometryFieldMapperTests::makeGeoRectangle
+            AbstractShapeGeometryFieldMapperTests::makeGeoRectangle
         );
     }
 
@@ -72,7 +73,7 @@ public class ShapeGeometryFieldMapperTests extends ESTestCase {
             geometries,
             field -> new GeoShapeIndexer(RIGHT, field),
             g -> SpatialEnvelopeVisitor.visitGeo(g, SpatialEnvelopeVisitor.WrapLongitude.WRAP),
-            ShapeGeometryFieldMapperTests::makeGeoRectangle
+            AbstractShapeGeometryFieldMapperTests::makeGeoRectangle
         );
     }
 
@@ -100,7 +101,9 @@ public class ShapeGeometryFieldMapperTests extends ESTestCase {
     ) throws IOException {
         var loader = new AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType.BoundsBlockLoader("field");
         try (Directory directory = newDirectory()) {
-            try (var iw = new RandomIndexWriter(random(), directory)) {
+            // Since we also test that the documents are loaded in the correct order, we need to write them in order, so we can't use
+            // RandomIndexWriter here.
+            try (var iw = new IndexWriter(directory, new IndexWriterConfig(null /* analyzer */))) {
                 for (Geometry geometry : geometries) {
                     var shape = new BinaryShapeDocValuesField("field", encoder);
                     shape.add(indexerFactory.apply("field").indexShape(geometry), geometry);

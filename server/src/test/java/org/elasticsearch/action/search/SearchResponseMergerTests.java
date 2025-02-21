@@ -170,7 +170,7 @@ public class SearchResponseMergerTests extends ESTestCase {
                     0,
                     100L,
                     ShardSearchFailure.EMPTY_ARRAY,
-                        phaseFailures,
+                    phaseFailures,
                     SearchResponse.Clusters.EMPTY
                 );
                 try {

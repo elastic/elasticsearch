@@ -106,10 +106,7 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
             s -> s == 0 ? ShardSearchFailure.EMPTY_ARRAY : new ShardSearchFailure[s]
         );
         if (in.getTransportVersion().onOrAfter(TransportVersions.SEARCH_SUBSIDIARY_FAILURES)) {
-            phaseFailures = in.readArray(
-                PhaseFailure::new,
-                s -> s == 0 ? PhaseFailure.EMPTY_ARRAY : new PhaseFailure[s]
-            );
+            phaseFailures = in.readArray(PhaseFailure::new, s -> s == 0 ? PhaseFailure.EMPTY_ARRAY : new PhaseFailure[s]);
         } else {
             phaseFailures = PhaseFailure.EMPTY_ARRAY;
         }

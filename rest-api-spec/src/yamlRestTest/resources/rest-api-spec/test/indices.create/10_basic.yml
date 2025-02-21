@@ -221,7 +221,7 @@
       reason: "Update error message for unknown field type"
 
   - do:
-      catch: /bad_request/
+      catch: bad_request
       indices.create:
         index: test_index
         body:
@@ -240,7 +240,7 @@
       reason: "Update error message for unknown field type"
 
   - do:
-      catch: /bad_request/
+      catch: bad_request
       indices.create:
         index: test_index
         body:
@@ -250,7 +250,7 @@
                 type: invalid
 
   - match: { error.type: "mapper_parsing_exception" }
-  - match: { error.reason: "The mapper type [invalid] declared on field [content] does not exist. It might have been created within a future version or requires a plugin to be installed. Check the documentation." }
+  - match: { error.reason: "The mapper type [invalid] declared on runtime field [content] does not exist. It might have been created within a future version or requires a plugin to be installed. Check the documentation." }
 
 ---
 "Create index with invalid multi-field type":
@@ -259,7 +259,7 @@
       reason: "Update error message for unknown field type"
 
   - do:
-      catch: /bad_request/
+      catch: bad_request
       indices.create:
         index: test_index
         body:

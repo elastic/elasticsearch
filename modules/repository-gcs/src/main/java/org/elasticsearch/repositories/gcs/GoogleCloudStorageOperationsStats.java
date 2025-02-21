@@ -20,30 +20,18 @@ final class GoogleCloudStorageOperationsStats {
 
     private static final int OPERATION_PURPOSE_NUM = OperationPurpose.values().length;
     private static final int OPERATION_NUM = Operation.values().length;
-    private final LongAdder[][] counters;
+    private final OperationCounters[] counters;
     private final String[] counterNames;
     private final String bucketName;
 
     GoogleCloudStorageOperationsStats(String bucketName) {
         this.bucketName = bucketName;
-        counters = new LongAdder[OPERATION_PURPOSE_NUM * OPERATION_NUM][2];
+        counters = new OperationCounters[OPERATION_PURPOSE_NUM * OPERATION_NUM];
         counterNames = new String[counters.length];
         for (int counterIndex = 0; counterIndex < counters.length; counterIndex++) {
             counterNames[counterIndex] = counterName(counterIndex);
-            counters[counterIndex] = new LongAdder[] { new LongAdder(), new LongAdder() };
+            counters[counterIndex] = new OperationCounters(new LongAdder(), new LongAdder());
         }
-    }
-
-    private LongAdder[] operationCounters(OperationPurpose purpose, Operation operation) {
-        return counters[purpose.ordinal() * OPERATION_NUM + operation.ordinal()];
-    }
-
-    void trackOperation(OperationPurpose purpose, Operation operation) {
-        operationCounters(purpose, operation)[0].add(1);
-    }
-
-    void trackRequest(OperationPurpose purpose, Operation operation) {
-        operationCounters(purpose, operation)[1].add(1);
     }
 
     private static String counterName(int counterIndex) {
@@ -54,6 +42,18 @@ final class GoogleCloudStorageOperationsStats {
         return purpose + "_" + operation;
     }
 
+    private OperationCounters operationCounters(OperationPurpose purpose, Operation operation) {
+        return counters[purpose.ordinal() * OPERATION_NUM + operation.ordinal()];
+    }
+
+    void trackOperation(OperationPurpose purpose, Operation operation) {
+        operationCounters(purpose, operation).operations.add(1);
+    }
+
+    void trackRequest(OperationPurpose purpose, Operation operation) {
+        operationCounters(purpose, operation).requests.add(1);
+    }
+
     String bucketName() {
         return bucketName;
     }
@@ -62,8 +62,8 @@ final class GoogleCloudStorageOperationsStats {
         var results = new HashMap<String, BlobStoreActionStats>(counterNames.length);
         for (var counterIndex = 0; counterIndex < counterNames.length; counterIndex++) {
             var stats = counters[counterIndex];
-            var operations = stats[0].sum();
-            var requests = stats[1].sum();
+            var operations = stats.operations.sum();
+            var requests = stats.requests.sum();
             results.put(counterNames[counterIndex], new BlobStoreActionStats(operations, requests));
         }
         return results;
@@ -81,4 +81,6 @@ final class GoogleCloudStorageOperationsStats {
             this.name = name;
         }
     }
+
+    record OperationCounters(LongAdder operations, LongAdder requests) {}
 }

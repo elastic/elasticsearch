@@ -379,7 +379,7 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
             if (randomBoolean()) {
                 Value v = generateValue();
                 if (v.malformedOutput == null) {
-                    return new SyntheticSourceExample(v.input, v.output, roundDocValues(v.output), this::mapping);
+                    return new SyntheticSourceExample(v.input, v.output, this::mapping);
                 }
                 return new SyntheticSourceExample(v.input, v.malformedOutput, null, this::mapping);
             }
@@ -393,9 +393,7 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
             List<Object> outList = Stream.concat(outputFromDocValues.stream(), malformedOutput).toList();
             Object out = outList.size() == 1 ? outList.get(0) : outList;
 
-            List<Double> outBlockList = outputFromDocValues.stream().map(this::roundDocValues).sorted().toList();
-            Object outBlock = outBlockList.size() == 1 ? outBlockList.get(0) : outBlockList;
-            return new SyntheticSourceExample(in, out, outBlock, this::mapping);
+            return new SyntheticSourceExample(in, out, this::mapping);
         }
 
         private record Value(Object input, Double output, Object malformedOutput) {}
@@ -437,16 +435,6 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
                 return decoded - Math.ulp(decoded);
             }
             return decoded;
-        }
-
-        private double roundDocValues(double d) {
-            // Special case due to rounding, see implementation.
-            if (Math.abs(d) == Double.MAX_VALUE) {
-                return d;
-            }
-
-            long encoded = Math.round(d * scalingFactor);
-            return encoded / scalingFactor;
         }
 
         private void mapping(XContentBuilder b) throws IOException {

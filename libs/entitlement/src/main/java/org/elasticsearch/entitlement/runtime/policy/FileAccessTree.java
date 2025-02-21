@@ -44,6 +44,19 @@ public final class FileAccessTree {
             }
             readPaths.add(normalized);
         };
+        BiConsumer<Path, Mode> maybeAddLinkPath = (path, mode) -> {
+            // also try to follow symlinks. Lucene does this and writes to the target path.
+            if (Files.exists(path)) {
+                try {
+                    Path realPath = path.toRealPath();
+                    if (realPath.equals(path) == false) {
+                        addPath.accept(realPath, mode);
+                    }
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+        };
         for (FilesEntitlement.FileData fileData : filesEntitlement.filesData()) {
             var mode = fileData.mode();
             var paths = fileData.resolvePaths(pathLookup);
@@ -53,25 +66,13 @@ public final class FileAccessTree {
                     return;
                 }
                 addPath.accept(path, mode);
-                // also try to follow symlinks. Lucene does this and writes to the target path.
-                if (Files.exists(path)) {
-                    try {
-                        Path realPath = path.toRealPath();
-                        if (realPath.equals(path) == false) {
-                            addPath.accept(realPath, mode);
-                        }
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                }
+                maybeAddLinkPath.accept(path, mode);
             });
         }
 
         // everything has access to the temp dir
-        String tempDir = normalizePath(pathLookup.tempDir());
-        logger.info("Adding temp dir [{}] to file access tree", tempDir);
-        readPaths.add(tempDir);
-        writePaths.add(tempDir);
+        addPath.accept(pathLookup.tempDir(), Mode.READ_WRITE);
+        maybeAddLinkPath.accept(pathLookup.tempDir(), Mode.READ_WRITE);
 
         readPaths.sort(String::compareTo);
         writePaths.sort(String::compareTo);

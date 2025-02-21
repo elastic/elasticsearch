@@ -102,6 +102,8 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("esql/190_lookup_join/alias-pattern-multiple", "LOOKUP JOIN does not support index aliases for now")
   task.skipTest("esql/190_lookup_join/alias-pattern-single", "LOOKUP JOIN does not support index aliases for now")
   task.skipTest("esql/180_match_operator/match with disjunctions", "Disjunctions in full text functions work now")
+  task.skipTest("esql/130_spatial/values unsupported for geo_point", "Spatial types are now supported in VALUES aggregation")
+  task.skipTest("esql/130_spatial/values unsupported for geo_point status code", "Spatial types are now supported in VALUES aggregation")
   // Expected deprecation warning to compat yaml tests:
   task.addAllowedWarningRegex(".*rollup functionality will be removed in Elasticsearch.*")
   task.skipTest("esql/40_tsdb/from doc with aggregate_metric_double", "TODO: support for subset of metric fields")

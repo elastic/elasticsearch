@@ -3088,6 +3088,27 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("FROM foo* | FORK ( LIMIT 10 ) ( y+2 )", "line 1:33: mismatched input 'y' expecting {'limit', 'sort', 'where'}");
     }
 
+    public void testFieldNamesAsCommands() throws Exception {
+        String[] keywords = new String[] {
+            "dissect",
+            "drop",
+            "enrich",
+            "eval",
+            "explain",
+            "from",
+            "grok",
+            "keep",
+            "limit",
+            "mv_expand",
+            "rename",
+            "sort",
+            "stats"};
+        for (String keyword : keywords) {
+            var plan = statement("FROM test | STATS avg(" + keyword + ")");
+            var aggregate = as(plan, Aggregate.class);
+        }
+    }
+
     static Alias alias(String name, Expression value) {
         return new Alias(EMPTY, name, value);
     }

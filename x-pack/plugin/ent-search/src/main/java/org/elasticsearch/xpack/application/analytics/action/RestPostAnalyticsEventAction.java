@@ -29,6 +29,10 @@ import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
+/**
+ * @deprecated in 9.0
+ */
+@Deprecated
 @ServerlessScope(Scope.PUBLIC)
 public class RestPostAnalyticsEventAction extends EnterpriseSearchBaseRestHandler {
     public RestPostAnalyticsEventAction(XPackLicenseState licenseState) {

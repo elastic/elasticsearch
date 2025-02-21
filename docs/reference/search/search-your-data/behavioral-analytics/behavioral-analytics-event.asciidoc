@@ -4,6 +4,8 @@
 <titleabbrev>View events</titleabbrev>
 ++++
 
+deprecated:[9.0.0]
+
 [TIP]
 ====
 Refer to <<behavioral-analytics-event-reference>> for a complete list of the fields logged by events.

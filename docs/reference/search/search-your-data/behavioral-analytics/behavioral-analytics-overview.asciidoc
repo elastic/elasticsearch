@@ -1,4 +1,7 @@
 [[behavioral-analytics-overview]]
+
+deprecated:[9.0.0]
+
 == Search analytics
 
 Behavioral Analytics is an analytics event collection platform.

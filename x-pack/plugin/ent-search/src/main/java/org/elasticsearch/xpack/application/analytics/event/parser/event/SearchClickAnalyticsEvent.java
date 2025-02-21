@@ -24,6 +24,10 @@ import static org.elasticsearch.xpack.application.analytics.event.parser.field.S
 import static org.elasticsearch.xpack.application.analytics.event.parser.field.SessionAnalyticsEventField.SESSION_FIELD;
 import static org.elasticsearch.xpack.application.analytics.event.parser.field.UserAnalyticsEventField.USER_FIELD;
 
+/**
+ * @deprecated in 9.0
+ */
+@Deprecated
 public class SearchClickAnalyticsEvent {
 
     private static final ObjectParser<AnalyticsEvent.Builder, AnalyticsEvent.Context> PARSER = ObjectParser.fromBuilder(

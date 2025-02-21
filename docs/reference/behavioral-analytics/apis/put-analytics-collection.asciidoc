@@ -2,6 +2,7 @@
 [[put-analytics-collection]]
 === Put Analytics Collection
 
+deprecated:[9.0.0]
 beta::[]
 
 ++++
@@ -13,14 +14,6 @@ beta::[]
 --
 For the most up-to-date API details, refer to {api-es}/group/endpoint-analytics[Behavioral analytics APIs].
 --
-
-////
-[source,console]
-----
-DELETE _application/analytics/my_analytics_collection
-----
-// TEARDOWN
-////
 
 Creates a <<behavioral-analytics-overview,Behavioral Analytics>> Collection.
 
@@ -55,3 +48,4 @@ The following example creates a new Analytics Collection called `my_analytics_co
 ----
 PUT _application/analytics/my_analytics_collection
 ----
+// TEST[skip:Behavioral Analytics APIs emit deprecation warnings and will not be updated]

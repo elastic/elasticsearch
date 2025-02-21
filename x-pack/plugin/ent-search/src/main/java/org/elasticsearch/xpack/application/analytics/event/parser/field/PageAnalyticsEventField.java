@@ -16,6 +16,10 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * @deprecated in 9.0
+ */
+@Deprecated
 public class PageAnalyticsEventField {
     public static final ParseField PAGE_FIELD = new ParseField("page");
 

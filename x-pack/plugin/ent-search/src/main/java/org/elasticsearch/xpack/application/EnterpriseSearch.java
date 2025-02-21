@@ -233,6 +233,10 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
 
     private final boolean enabled;
 
+    // NOTE: Behavioral Analytics is deprecated in 9.0 but not 8.x.
+    public static final String BEHAVIORAL_ANALYTICS_DEPRECATION_MESSAGE =
+        "Behavioral Analytics is deprecated and will be removed in a future release.";
+
     public EnterpriseSearch(Settings settings) {
         this.enabled = XPackSettings.ENTERPRISE_SEARCH_ENABLED.get(settings);
     }

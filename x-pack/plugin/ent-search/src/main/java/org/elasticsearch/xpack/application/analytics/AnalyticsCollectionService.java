@@ -33,7 +33,9 @@ import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
  * Until we have more specific need the {@link AnalyticsCollection} is just another representation
  * of a {@link org.elasticsearch.cluster.metadata.DataStream}.
  * As a consequence, this service is mostly a facade for the data stream API.
+ * @deprecated in 9.0
  */
+@Deprecated
 public class AnalyticsCollectionService {
 
     private static final Logger logger = LogManager.getLogger(AnalyticsCollectionService.class);

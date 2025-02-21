@@ -19,6 +19,10 @@ import java.util.Map;
 
 import static org.elasticsearch.common.Strings.requireNonBlank;
 
+/**
+ * @deprecated in 9.0
+ */
+@Deprecated
 public class UserAnalyticsEventField {
     public static final ParseField USER_FIELD = new ParseField("user");
 

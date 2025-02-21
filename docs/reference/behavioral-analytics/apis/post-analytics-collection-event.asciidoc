@@ -2,6 +2,7 @@
 [[post-analytics-collection-event]]
 === Post Event to an Analytics Collection
 
+deprecated:[9.0.0]
 beta::[]
 
 ++++
@@ -13,20 +14,6 @@ beta::[]
 --
 For the most up-to-date API details, refer to {api-es}/group/endpoint-analytics[Behavioral analytics APIs].
 --
-
-////
-[source,console]
-----
-PUT _application/analytics/my_analytics_collection
-----
-// TESTSETUP
-
-[source,console]
-----
-DELETE _application/analytics/my_analytics_collection
-----
-// TEARDOWN
-////
 
 Post an event to a <<behavioral-analytics-overview,Behavioral Analytics>> Collection.
 
@@ -105,3 +92,4 @@ POST _application/analytics/my_analytics_collection/event/search_click
   }
 }
 ----
+// TEST[skip:Behavioral Analytics APIs emit deprecation warnings and will not be updated]

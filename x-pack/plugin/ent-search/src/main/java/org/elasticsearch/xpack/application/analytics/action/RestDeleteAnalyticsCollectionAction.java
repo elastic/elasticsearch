@@ -23,6 +23,10 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
+/**
+ * @deprecated in 9.0
+ */
+@Deprecated
 @ServerlessScope(Scope.PUBLIC)
 public class RestDeleteAnalyticsCollectionAction extends EnterpriseSearchBaseRestHandler {
     public RestDeleteAnalyticsCollectionAction(XPackLicenseState licenseState) {

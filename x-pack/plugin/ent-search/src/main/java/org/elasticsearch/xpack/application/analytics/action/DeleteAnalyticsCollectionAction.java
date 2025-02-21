@@ -24,6 +24,10 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
+/**
+ * @deprecated in 9.0
+ */
+@Deprecated
 public class DeleteAnalyticsCollectionAction {
 
     public static final String NAME = "cluster:admin/xpack/application/analytics/delete";

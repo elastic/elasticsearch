@@ -7,6 +7,10 @@
 
 package org.elasticsearch.xpack.application.analytics;
 
+/**
+ * @deprecated in 9.0
+ */
+@Deprecated
 public class AnalyticsConstants {
 
     private AnalyticsConstants() {}

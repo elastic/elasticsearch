@@ -18,6 +18,10 @@ import java.util.Map;
 
 import static org.elasticsearch.common.Strings.requireNonBlank;
 
+/**
+ * @deprecated in 9.0
+ */
+@Deprecated
 public class DocumentAnalyticsEventField {
 
     public static final ParseField DOCUMENT_FIELD = new ParseField("document");

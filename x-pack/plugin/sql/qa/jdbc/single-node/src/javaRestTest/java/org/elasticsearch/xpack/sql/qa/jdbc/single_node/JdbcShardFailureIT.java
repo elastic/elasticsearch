@@ -76,7 +76,7 @@ public class JdbcShardFailureIT extends JdbcIntegrationTestCase {
     public void testPartialResponseHandling() throws SQLException {
         try (Connection c = esJdbc(); Statement s = c.createStatement()) {
             SQLException exception = expectThrows(SQLException.class, () -> s.executeQuery("SELECT * FROM test ORDER BY test_field ASC"));
-            assertThat(exception.getMessage(), containsString("[open_point_in_time] action requires all shards to be available"));
+            assertThat(exception.getMessage(), containsString("Search rejected due to missing shards"));
         }
     }
 }

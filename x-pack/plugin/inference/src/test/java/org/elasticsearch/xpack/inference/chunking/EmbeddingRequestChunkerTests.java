@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -231,6 +232,93 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         assertThat(request.inputIndex(), equalTo(3));
         assertThat(request.chunkIndex(), equalTo(0));
         assertThat(request.chunkText(), equalTo("3rd small"));
+    }
+
+    public void testVeryLongInput_Sparse() {
+        int batchSize = 5;
+        int chunkSize = 20;
+        int numberOfWordsInPassage = (chunkSize * 10000);
+
+        var passageBuilder = new StringBuilder();
+        for (int i = 0; i < numberOfWordsInPassage; i++) {
+            passageBuilder.append("word").append(i).append(" "); // chunk on whitespace
+        }
+
+        List<String> inputs = List.of("1st small", passageBuilder.toString(), "2nd small");
+
+        var finalListener = testListener();
+        List<EmbeddingRequestChunker.BatchRequestAndListener> batches =
+            new EmbeddingRequestChunker<>(inputs, batchSize, chunkSize, 0).batchRequestsWithListeners(finalListener);
+
+        // The very long passage is split into 10000 chunks for inference, so
+        // there are 10002 inference requests, resulting in 2001 batches.
+        assertThat(batches, hasSize(2001));
+        for (int i =0; i < 2000; i++) {
+            assertThat(batches.get(i).batch().inputs(), hasSize(5));
+        }
+        assertThat(batches.get(2000).batch().inputs(), hasSize(2));
+
+        // Produce inference results for each request, with just the token
+        // "word" and increasing weights.
+        float weight = 0f;
+        for (var batch : batches) {
+            var embeddings = new ArrayList<SparseEmbeddingResults.Embedding>();
+            for (int i = 0; i < batch.batch().requests().size(); i++) {
+                weight += 1 / 16384f;
+                embeddings.add(new SparseEmbeddingResults.Embedding(
+                    List.of(new WeightedToken("word", weight)), false)
+                );
+            }
+            batch.listener().onResponse(new SparseEmbeddingResults(embeddings));
+        }
+
+        assertNotNull(finalListener.results);
+        assertThat(finalListener.results, hasSize(3));
+
+        // The first input has the token with weight 1/16384f.
+        ChunkedInference inference = finalListener.results.get(0);
+        assertThat(inference, instanceOf(ChunkedInferenceEmbedding.class));
+        ChunkedInferenceEmbedding embedding = (ChunkedInferenceEmbedding) inference;
+        assertThat(embedding.chunks(), hasSize(1));
+        assertThat(embedding.chunks().get(0).matchedText(), equalTo("1st small"));
+        assertThat(embedding.chunks().get(0), instanceOf(SparseEmbeddingResults.Chunk.class));
+        SparseEmbeddingResults.Chunk chunk = (SparseEmbeddingResults.Chunk) embedding.chunks().get(0);
+        assertThat(chunk.weightedTokens(), contains(new WeightedToken("word", 1/16384f)));
+
+        // The very long passage "word0 word1 ... word199999" is split into 10000 chunks for
+        // inference. They get the embeddings with token "word" and weights 2/1024 ... 10000/16384.
+        // Next, they are merged into 512 larger chunks, which consists of 19 or 20 smaller chunks
+        // and therefore 380 or 400 words. For each, the max token weights are collected.
+        inference = finalListener.results.get(1);
+        assertThat(inference, instanceOf(ChunkedInferenceEmbedding.class));
+        embedding = (ChunkedInferenceEmbedding) inference;
+        assertThat(embedding.chunks(), hasSize(512));
+
+        // The first merged chunk consists of 20 small chunks (so 400 words) and the max
+        // weight is the weight of the 20th small chunk (so 21/16364).
+        assertThat(embedding.chunks().get(0).matchedText(), startsWith("word0 word1 "));
+        assertThat(embedding.chunks().get(0).matchedText(), endsWith(" word398 word399"));
+        assertThat(embedding.chunks().get(0), instanceOf(SparseEmbeddingResults.Chunk.class));
+        chunk = (SparseEmbeddingResults.Chunk) embedding.chunks().get(0);
+        assertThat(chunk.weightedTokens(), contains(new WeightedToken("word", 21/16384f)));
+
+        // The last merged chunk consists of 19 small chunks (so 380 words) and the max
+        // weight is the weight of the 10000th small chunk (so 10001/16364).
+        assertThat(embedding.chunks().get(511).matchedText(), startsWith(" word199620 word199621 "));
+        assertThat(embedding.chunks().get(511).matchedText(), endsWith(" word199998 word199999"));
+        assertThat(embedding.chunks().get(511), instanceOf(SparseEmbeddingResults.Chunk.class));
+        chunk = (SparseEmbeddingResults.Chunk) embedding.chunks().get(511);
+        assertThat(chunk.weightedTokens(), contains(new WeightedToken("word", 10001/16384f)));
+
+        // The last input has the token with weight 10002/16384f.
+        inference = finalListener.results.get(2);
+        assertThat(inference, instanceOf(ChunkedInferenceEmbedding.class));
+        embedding = (ChunkedInferenceEmbedding) inference;
+        assertThat(embedding.chunks(), hasSize(1));
+        assertThat(embedding.chunks().get(0).matchedText(), equalTo("2nd small"));
+        assertThat(embedding.chunks().get(0), instanceOf(SparseEmbeddingResults.Chunk.class));
+        chunk = (SparseEmbeddingResults.Chunk) embedding.chunks().get(0);
+        assertThat(chunk.weightedTokens(), contains(new WeightedToken("word", 10002/16384f)));
     }
 
     public void testMergingListener_Float() {

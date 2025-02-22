@@ -341,6 +341,9 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/snapshot-restore/restore-snapshot/line_408}
   issue: https://github.com/elastic/elasticsearch/issues/123192
+- class: org.elasticsearch.xpack.ilm.actions.SearchableSnapshotActionIT
+  method: testRestoredIndexManagedByLocalPolicySkipsIllegalActions
+  issue: https://github.com/elastic/elasticsearch/issues/123202
 
 # Examples:
 #

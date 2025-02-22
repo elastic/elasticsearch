@@ -88,6 +88,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
+import java.util.logging.FileHandler;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
@@ -882,8 +883,33 @@ public interface EntitlementChecker {
 
     void check$java_nio_file_Files$$lines(Class<?> callerClass, Path path);
 
-    // file system providers
     void check$java_nio_file_spi_FileSystemProvider$(Class<?> callerClass);
+
+    void check$java_util_logging_FileHandler$(Class<?> callerClass);
+
+    void check$java_util_logging_FileHandler$(Class<?> callerClass, String pattern);
+
+    void check$java_util_logging_FileHandler$(Class<?> callerClass, String pattern, boolean append);
+
+    void check$java_util_logging_FileHandler$(Class<?> callerClass, String pattern, int limit, int count);
+
+    void check$java_util_logging_FileHandler$(Class<?> callerClass, String pattern, int limit, int count, boolean append);
+
+    void check$java_util_logging_FileHandler$(Class<?> callerClass, String pattern, long limit, int count, boolean append);
+
+    void check$java_util_logging_FileHandler$close(Class<?> callerClass, FileHandler that);
+
+    void check$java_net_http_HttpRequest$BodyPublishers$$ofFile(Class<?> callerClass, Path path);
+
+    void check$java_net_http_HttpResponse$BodyHandlers$$ofFile(Class<?> callerClass, Path path);
+
+    void check$java_net_http_HttpResponse$BodyHandlers$$ofFile(Class<?> callerClass, Path path, OpenOption... options);
+
+    void check$java_net_http_HttpResponse$BodyHandlers$$ofFileDownload(Class<?> callerClass, Path directory, OpenOption... openOptions);
+
+    void check$java_net_http_HttpResponse$BodySubscribers$$ofFile(Class<?> callerClass, Path directory);
+
+    void check$java_net_http_HttpResponse$BodySubscribers$$ofFile(Class<?> callerClass, Path directory, OpenOption... openOptions);
 
     void checkNewFileSystem(Class<?> callerClass, FileSystemProvider that, URI uri, Map<String, ?> env);
 

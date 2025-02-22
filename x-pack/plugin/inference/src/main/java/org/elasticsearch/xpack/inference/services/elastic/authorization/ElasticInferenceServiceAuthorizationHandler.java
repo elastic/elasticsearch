@@ -39,6 +39,7 @@ public class ElasticInferenceServiceAuthorizationHandler {
 
     private static final String FAILED_TO_RETRIEVE_MESSAGE =
         "Failed to retrieve the authorization information from the Elastic Inference Service.";
+    private static final TimeValue DEFAULT_AUTH_TIMEOUT = TimeValue.timeValueMinutes(1);
     private static final ResponseHandler AUTH_RESPONSE_HANDLER = createAuthResponseHandler();
 
     private static ResponseHandler createAuthResponseHandler() {
@@ -110,7 +111,7 @@ public class ElasticInferenceServiceAuthorizationHandler {
 
             var request = new ElasticInferenceServiceAuthorizationRequest(baseUrl, getCurrentTraceInfo());
 
-            sender.sendWithoutQueuing(logger, request, AUTH_RESPONSE_HANDLER, DEFAULT_TIMEOUT, newListener);
+            sender.sendWithoutQueuing(logger, request, AUTH_RESPONSE_HANDLER, DEFAULT_AUTH_TIMEOUT, newListener);
         } catch (Exception e) {
             logger.warn(Strings.format("Retrieving the authorization information encountered an exception: %s", e));
             requestCompleteLatch.countDown();

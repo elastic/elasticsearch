@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.http;
 
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.config.Registry;
 import org.apache.http.config.RegistryBuilder;
 import org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager;
@@ -74,6 +75,7 @@ public class HttpClientManager implements Closeable {
     );
 
     private static final TimeValue DEFAULT_CONNECTION_MAX_IDLE_TIME_SETTING = DEFAULT_CONNECTION_EVICTION_THREAD_INTERVAL_TIME;
+    private static final TimeValue DEFAULT_CONNECT_TIMEOUT = TimeValue.timeValueSeconds(5);
     /**
      * The max duration of time for a connection to be marked as idle and ready to be closed. This defines the amount of time
      * a connection can be unused in the connection pool before being closed the next time the eviction thread runs.
@@ -87,6 +89,12 @@ public class HttpClientManager implements Closeable {
         DEFAULT_CONNECTION_MAX_IDLE_TIME_SETTING,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
+    );
+
+    public static final Setting<TimeValue> CONNECTION_TIMEOUT = Setting.timeSetting(
+        "xpack.inference.http.connect_timeout",
+        DEFAULT_CONNECT_TIMEOUT,
+        Setting.Property.NodeScope
     );
 
     private final ThreadPool threadPool;
@@ -137,7 +145,15 @@ public class HttpClientManager implements Closeable {
         setMaxConnections(MAX_TOTAL_CONNECTIONS.get(settings));
         setMaxRouteConnections(MAX_ROUTE_CONNECTIONS.get(settings));
 
-        this.httpClient = HttpClient.create(new HttpSettings(settings, clusterService), threadPool, connectionManager, throttlerManager);
+        var requestConfig = RequestConfig.custom().setConnectTimeout(Math.toIntExact(CONNECTION_TIMEOUT.get(settings).getMillis())).build();
+
+        this.httpClient = HttpClient.create(
+            new HttpSettings(settings, clusterService),
+            threadPool,
+            connectionManager,
+            throttlerManager,
+            requestConfig
+        );
 
         this.evictionInterval = CONNECTION_EVICTION_THREAD_INTERVAL_SETTING.get(settings);
         this.connectionMaxIdle = CONNECTION_MAX_IDLE_TIME_SETTING.get(settings);

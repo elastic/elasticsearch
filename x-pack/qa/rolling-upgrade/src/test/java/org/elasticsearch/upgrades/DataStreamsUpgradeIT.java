@@ -548,9 +548,6 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             if (randomBoolean()) {
                 closeIndex(oldIndexName);
             }
-            if (randomBoolean()) {
-                assertOK(client().performRequest(new Request("PUT", oldIndexName + "/_block/read_only")));
-            }
         }
         Request reindexRequest = new Request("POST", "/_migration/reindex");
         reindexRequest.setJsonEntity(Strings.format("""

@@ -58,6 +58,10 @@ public final class FileAccessTree {
             }
         };
         for (FilesEntitlement.FileData fileData : filesEntitlement.filesData()) {
+            var platform = fileData.platform();
+            if (platform != null && platform.isCurrent() == false) {
+                continue;
+            }
             var mode = fileData.mode();
             var paths = fileData.resolvePaths(pathLookup);
             paths.forEach(path -> {

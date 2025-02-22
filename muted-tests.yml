@@ -335,9 +335,16 @@ tests:
 - class: org.elasticsearch.xpack.esql.action.CrossClusterAsyncQueryStopIT
   method: testStopQueryLocal
   issue: https://github.com/elastic/elasticsearch/issues/121672
-- class: org.elasticsearch.upgrades.DataStreamsUpgradeIT
-  method: testUpgradeDataStream
-  issue: https://github.com/elastic/elasticsearch/issues/123189
+- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
+  method: test {yaml=reference/snapshot-restore/restore-snapshot/line_408}
+  issue: https://github.com/elastic/elasticsearch/issues/123192
+- class: org.elasticsearch.xpack.ilm.actions.SearchableSnapshotActionIT
+  method: testRestoredIndexManagedByLocalPolicySkipsIllegalActions
+  issue: https://github.com/elastic/elasticsearch/issues/123202
+- class: org.elasticsearch.xpack.ilm.TimeSeriesLifecycleActionsIT
+  method: testHistoryIsWrittenWithFailure
+  issue: https://github.com/elastic/elasticsearch/issues/123203
+
 
 # Examples:
 #

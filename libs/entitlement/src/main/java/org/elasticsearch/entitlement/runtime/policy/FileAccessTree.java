@@ -125,9 +125,9 @@ public final class FileAccessTree {
         }
         int ndx = Arrays.binarySearch(paths, path);
         if (ndx < -1) {
-            logger.warn("Couldn't find path [{}] in paths:\n{}", path, Arrays.asList(paths));
+            //logger.warn("Couldn't find path [{}] in paths:\n{}", path, Arrays.asList(paths));
             String maybeParent = paths[-ndx - 2];
-            logger.warn("Possible parent path: [{}]", maybeParent);
+            //logger.warn("Possible parent path: [{}]", maybeParent);
             return path.startsWith(maybeParent) && path.startsWith(FILE_SEPARATOR, maybeParent.length());
         }
         return ndx >= 0;

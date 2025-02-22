@@ -53,7 +53,7 @@ public final class FileAccessTree {
         this.writePaths = pruneSortedPaths(writePaths).toArray(new String[0]);
     }
 
-    public static List<String> pruneSortedPaths(List<String> paths) {
+    private static List<String> pruneSortedPaths(List<String> paths) {
         List<String> prunedReadPaths = new ArrayList<>();
         if (paths.isEmpty() == false) {
             String currentPath = paths.get(0);

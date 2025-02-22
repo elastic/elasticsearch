@@ -104,6 +104,9 @@ public class FileAccessTreeTests extends ESTestCase {
         assertThat(tree.canWrite(path("foo/bar")), is(false));
         assertThat(tree.canRead(path("foo/baz")), is(true));
         assertThat(tree.canWrite(path("foo/baz")), is(false));
+        // also test a non-existent subpath
+        assertThat(tree.canRead(path("foo/barf")), is(true));
+        assertThat(tree.canWrite(path("foo/barf")), is(false));
 
         tree = accessTree(entitlement("foo", "read", "foo/bar", "read_write"));
         assertThat(tree.canRead(path("foo")), is(true));

@@ -213,7 +213,7 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
     public static final IndexTemplateConfig ENTERPRISE_SEARCH_STACK_INDEX_TEMPLATE = new IndexTemplateConfig(
         ENTERPRISE_SEARCH_STACK_INDEX_TEMPLATE_NAME,
         "/monitoring-ent-search-mb.json",
-        8_00_00_99 + 21,
+        STACK_MONITORING_REGISTRY_VERSION,
         STACK_MONITORING_REGISTRY_VERSION_VARIABLE,
         STACK_TEMPLATE_VARIABLES
     );

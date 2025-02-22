@@ -49,7 +49,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -77,7 +76,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.settings.InternalOrPrivateSettingsPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -157,8 +155,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -166,7 +162,6 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
-import static org.elasticsearch.search.SearchService.MEMORY_ACCOUNTING_BUFFER_SIZE;
 import static org.elasticsearch.search.SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED;
 import static org.elasticsearch.search.SearchService.SEARCH_WORKER_THREADS_ENABLED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -180,8 +175,6 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 
@@ -2930,99 +2923,6 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
                         );
                     }
                 }
-            }
-        }
-    }
-
-    public void testFetchPhaseAccountsForSourceMemoryUsage() throws Exception {
-        createIndex("index");
-        for (int i = 0; i < 48; i++) {
-            prepareIndex("index").setId(String.valueOf(i)).setSource("field", randomAlphaOfLength(1000)).setRefreshPolicy(IMMEDIATE).get();
-        }
-        if (randomBoolean()) {
-            // 1 segment test is also useful so we enable the batching branch of the memory accounting
-
-            indicesAdmin().prepareForceMerge("index").setMaxNumSegments(1).get();
-
-            // let's do local accounting up to 32kb before submitting to cb
-            ClusterUpdateSettingsResponse response = client().admin()
-                .cluster()
-                .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-                .setPersistentSettings(Settings.builder().put(MEMORY_ACCOUNTING_BUFFER_SIZE.getKey(), "32k").build())
-                .get();
-            assertTrue(response.isAcknowledged());
-        }
-
-        SearchService service = getInstanceFromNode(SearchService.class);
-        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
-        IndexShard indexShard = indexService.getShard(0);
-        CircuitBreakerService circuitBreakerService = getInstanceFromNode(CircuitBreakerService.class);
-        CircuitBreaker breaker = circuitBreakerService.getBreaker(CircuitBreaker.REQUEST);
-
-        SearchRequest scrollSearchRequest = new SearchRequest().allowPartialSearchResults(true).scroll(TimeValue.timeValueMinutes(1));
-        FetchSearchResult fetchSearchResult = null;
-        ReaderContext readerContext = null;
-        try {
-            readerContext = service.createAndPutReaderContext(
-                new ShardSearchRequest(
-                    OriginalIndices.NONE,
-                    scrollSearchRequest,
-                    indexShard.shardId(),
-                    0,
-                    1,
-                    AliasFilter.EMPTY,
-                    1.0f,
-                    -1,
-                    null
-                ),
-                indexService,
-                indexShard,
-                indexShard.acquireSearcherSupplier(),
-                0
-            );
-            ShardFetchRequest req = new ShardFetchRequest(
-                readerContext.id(),
-                IntStream.range(0, 48).boxed().collect(Collectors.toList()),
-                null
-            );
-            PlainActionFuture<FetchSearchResult> listener = new PlainActionFuture<>();
-            long usedBeforeFetch = breaker.getUsed();
-            service.executeFetchPhase(req, new SearchShardTask(123L, "", "", "", null, emptyMap()), listener.delegateFailure((l, r) -> {
-                r.incRef();
-                l.onResponse(r);
-            }));
-            fetchSearchResult = listener.get();
-            long usedAfterFetch = breaker.getUsed();
-            assertThat(usedAfterFetch, greaterThan(usedBeforeFetch));
-            logger.info("--> usedBeforeFetch: [{}], usedAfterFetch: [{}]", usedBeforeFetch, usedAfterFetch);
-            // 48 docs with at least 1000 bytes in the source
-            assertThat((usedAfterFetch - usedBeforeFetch), greaterThanOrEqualTo(48_000L));
-        } finally {
-            if (readerContext != null) {
-                service.freeReaderContext(readerContext.id());
-            }
-            // reset original default setting
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-                .setPersistentSettings(Settings.builder().putNull(SearchService.MEMORY_ACCOUNTING_BUFFER_SIZE.getKey()).build())
-                .get();
-            if (fetchSearchResult != null) {
-                long usedBeforeResultDecRef = breaker.getUsed();
-                fetchSearchResult.decRef();
-                assertBusy(() -> {
-                    long usedAfterResultDecRef = breaker.getUsed();
-                    logger.info(
-                        "--> usedBeforeResultDecRef: [{}], usedAfterResultDecRef: [{}]",
-                        usedBeforeResultDecRef,
-                        usedAfterResultDecRef
-                    );
-                    assertThat(usedBeforeResultDecRef, greaterThanOrEqualTo(48_000L));
-                    // when releasing the result references we should clear at least 48_000 bytes (48 hits with sources of at least 1000
-                    // bytes)
-                    assertThat(usedBeforeResultDecRef - usedAfterResultDecRef, greaterThanOrEqualTo(48_000L));
-                });
             }
         }
     }

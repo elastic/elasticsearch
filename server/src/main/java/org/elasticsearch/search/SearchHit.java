@@ -123,7 +123,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         this(nestedTopDocId, id, nestedIdentity, null);
     }
 
-    public SearchHit(int nestedTopDocId, String id, NestedIdentity nestedIdentity, @Nullable RefCounted refCounted) {
+    private SearchHit(int nestedTopDocId, String id, NestedIdentity nestedIdentity, @Nullable RefCounted refCounted) {
         this(
             nestedTopDocId,
             DEFAULT_SCORE,

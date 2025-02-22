@@ -68,8 +68,6 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
@@ -446,8 +444,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             isCancelled,
             q -> q,
             true,
-            isInSortOrderExecutionRequired,
-            ByteSizeValue.of(1, ByteSizeUnit.MB).getBytes()
+            isInSortOrderExecutionRequired
         );
         return context;
     }

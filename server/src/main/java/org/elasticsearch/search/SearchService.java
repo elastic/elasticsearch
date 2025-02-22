@@ -808,7 +808,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     return searchContext.rankFeatureResult();
                 }
                 RankFeatureShardPhase.prepareForFetch(searchContext, request);
-                fetchPhase.execute(searchContext, docIds, null, circuitBreaker, memoryAccountingBufferSize);
+                fetchPhase.execute(searchContext, docIds, null);
                 RankFeatureShardPhase.processFetch(searchContext);
                 var rankFeatureResult = searchContext.rankFeatureResult();
                 rankFeatureResult.incRef();
@@ -826,7 +826,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             Releasable scope = tracer.withScope(context.getTask());
             SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context, true, afterQueryTime)
         ) {
-            fetchPhase.execute(context, shortcutDocIdsToLoad(context), null, circuitBreaker, memoryAccountingBufferSize);
+            fetchPhase.execute(context, shortcutDocIdsToLoad(context), null);
             if (reader.singleSession()) {
                 freeReaderContext(reader.id());
             }
@@ -992,13 +992,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                             System.nanoTime()
                         )
                     ) {
-                        fetchPhase.execute(
-                            searchContext,
-                            request.docIds(),
-                            request.getRankDocks(),
-                            circuitBreaker,
-                            memoryAccountingBufferSize
-                        );
+                        fetchPhase.execute(searchContext, request.docIds(), request.getRankDocks());
                         if (readerContext.singleSession()) {
                             freeReaderContext(request.contextId());
                         }
@@ -1217,7 +1211,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 searchExecutor,
                 resultsType,
                 enableQueryPhaseParallelCollection,
-                minimumDocsPerSlice
+                minimumDocsPerSlice,
+                memoryAccountingBufferSize
             );
             // we clone the query shard context here just for rewriting otherwise we
             // might end up with incorrect state since we are using now() or script services
@@ -1441,8 +1436,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 context::isCancelled,
                 context::buildFilteredQuery,
                 enableRewriteAggsToFilterByFilter,
-                source.aggregations().isInSortOrderExecutionRequired(),
-                memoryAccountingBufferSize
+                source.aggregations().isInSortOrderExecutionRequired()
             );
             context.addQuerySearchResultReleasable(aggContext);
             try {

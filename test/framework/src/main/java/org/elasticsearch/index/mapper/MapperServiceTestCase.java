@@ -676,11 +676,6 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             }
 
             @Override
-            public long memoryAccountingBufferSize() {
-                return 1024 * 1024;
-            }
-
-            @Override
             public void close() {
                 throw new UnsupportedOperationException();
             }

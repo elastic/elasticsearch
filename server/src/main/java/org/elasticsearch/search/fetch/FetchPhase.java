@@ -251,7 +251,7 @@ public final class FetchPhase {
         }
     }
 
-    private HitContext prepareHitContext(
+    private static HitContext prepareHitContext(
         SearchContext context,
         boolean requiresSource,
         Profiler profiler,

@@ -175,9 +175,7 @@ public final class FetchPhase {
                 // we do so whenever one of the following is true:
                 // 1. we have accumulated at least the size of the memory accounting buffer
                 // 2. we have reached the last document in the leaf
-                boolean enoughBytesOrLastDocInLeaf = (accumulatedBytesInLeaf >= context.memAccountingBufferSize())
-                    || (processedDocs == docsInLeaf);
-                if (enoughBytesOrLastDocInLeaf) {
+                if (accumulatedBytesInLeaf >= context.memAccountingBufferSize() || processedDocs == docsInLeaf) {
                     context.circuitBreaker().addEstimateBytesAndMaybeBreak(0, "fetch source");
                     accumulatedBytesInLeaf = 0;
                 }

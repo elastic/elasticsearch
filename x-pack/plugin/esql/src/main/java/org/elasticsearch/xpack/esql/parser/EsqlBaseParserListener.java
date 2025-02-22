@@ -1001,4 +1001,68 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitInsistCommand(EsqlBaseParser.InsistCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#forkCommand}.
+   * @param ctx the parse tree
+   */
+  void enterForkCommand(EsqlBaseParser.ForkCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#forkCommand}.
+   * @param ctx the parse tree
+   */
+  void exitForkCommand(EsqlBaseParser.ForkCommandContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#forkSubQueries}.
+   * @param ctx the parse tree
+   */
+  void enterForkSubQueries(EsqlBaseParser.ForkSubQueriesContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#forkSubQueries}.
+   * @param ctx the parse tree
+   */
+  void exitForkSubQueries(EsqlBaseParser.ForkSubQueriesContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#forkSubQuery}.
+   * @param ctx the parse tree
+   */
+  void enterForkSubQuery(EsqlBaseParser.ForkSubQueryContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#forkSubQuery}.
+   * @param ctx the parse tree
+   */
+  void exitForkSubQuery(EsqlBaseParser.ForkSubQueryContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code singleForkSubQueryCommand}
+   * labeled alternative in {@link EsqlBaseParser#forkSubQueryCommand}.
+   * @param ctx the parse tree
+   */
+  void enterSingleForkSubQueryCommand(EsqlBaseParser.SingleForkSubQueryCommandContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code singleForkSubQueryCommand}
+   * labeled alternative in {@link EsqlBaseParser#forkSubQueryCommand}.
+   * @param ctx the parse tree
+   */
+  void exitSingleForkSubQueryCommand(EsqlBaseParser.SingleForkSubQueryCommandContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code compositeForkSubQuery}
+   * labeled alternative in {@link EsqlBaseParser#forkSubQueryCommand}.
+   * @param ctx the parse tree
+   */
+  void enterCompositeForkSubQuery(EsqlBaseParser.CompositeForkSubQueryContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code compositeForkSubQuery}
+   * labeled alternative in {@link EsqlBaseParser#forkSubQueryCommand}.
+   * @param ctx the parse tree
+   */
+  void exitCompositeForkSubQuery(EsqlBaseParser.CompositeForkSubQueryContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#forkSubQueryProcessingCommand}.
+   * @param ctx the parse tree
+   */
+  void enterForkSubQueryProcessingCommand(EsqlBaseParser.ForkSubQueryProcessingCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#forkSubQueryProcessingCommand}.
+   * @param ctx the parse tree
+   */
+  void exitForkSubQueryProcessingCommand(EsqlBaseParser.ForkSubQueryProcessingCommandContext ctx);
 }

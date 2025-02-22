@@ -42,6 +42,7 @@ public class EntitlementBootstrap {
         Function<String, Path> repoDirResolver,
         Path[] dataDirs,
         Path configDir,
+        Path libDir,
         Path logsDir,
         Path tempDir
     ) {
@@ -56,6 +57,7 @@ public class EntitlementBootstrap {
                 throw new IllegalArgumentException("must provide at least one data directory");
             }
             requireNonNull(configDir);
+            requireNonNull(libDir);
             requireNonNull(logsDir);
             requireNonNull(tempDir);
         }
@@ -78,6 +80,7 @@ public class EntitlementBootstrap {
      * @param repoDirResolver a functor to map a repository location to its Elasticsearch path.
      * @param dataDirs       data directories for Elasticsearch
      * @param configDir      the config directory for Elasticsearch
+     * @param libDir         the lib directory for Elasticsearch
      * @param tempDir        the temp directory for Elasticsearch
      * @param logsDir        the log directory for Elasticsearch
      */
@@ -89,6 +92,7 @@ public class EntitlementBootstrap {
         Function<String, Path> repoDirResolver,
         Path[] dataDirs,
         Path configDir,
+        Path libDir,
         Path logsDir,
         Path tempDir
     ) {
@@ -104,6 +108,7 @@ public class EntitlementBootstrap {
             repoDirResolver,
             dataDirs,
             configDir,
+            libDir,
             logsDir,
             tempDir
         );

@@ -15,6 +15,10 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.support.CountDownActionListener;
@@ -23,8 +27,10 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -215,9 +221,8 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         SubscribableListener.<ReindexDataStreamIndexAction.Response>newForked(
             l -> client.execute(ReindexDataStreamIndexAction.INSTANCE, reindexDataStreamIndexRequest, l)
         )
-            .<AcknowledgedResponse>andThen(
-                (l, result) -> updateDataStream(sourceDataStream, index.getName(), result.getDestIndex(), l, parentTaskId)
-            )
+            .<String>andThen((l, result) -> updateDataStream(sourceDataStream, index.getName(), result.getDestIndex(), l, parentTaskId))
+            .<AcknowledgedResponse>andThen((l, newIndex) -> copySettings(index.getName(), newIndex, l, parentTaskId))
             .<AcknowledgedResponse>andThen(l -> deleteIndex(index.getName(), parentTaskId, l))
             .addListener(ActionListener.wrap(unused -> {
                 reindexDataStreamTask.reindexSucceeded(index.getName());
@@ -234,7 +239,7 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         String dataStream,
         String oldIndex,
         String newIndex,
-        ActionListener<AcknowledgedResponse> listener,
+        ActionListener<String> listener,
         TaskId parentTaskId
     ) {
         ModifyDataStreamsAction.Request modifyDataStreamRequest = new ModifyDataStreamsAction.Request(
@@ -243,7 +248,28 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
             List.of(DataStreamAction.removeBackingIndex(dataStream, oldIndex), DataStreamAction.addBackingIndex(dataStream, newIndex))
         );
         modifyDataStreamRequest.setParentTask(parentTaskId);
-        client.execute(ModifyDataStreamsAction.INSTANCE, modifyDataStreamRequest, listener);
+        client.execute(ModifyDataStreamsAction.INSTANCE, modifyDataStreamRequest, listener.map(ingored -> newIndex));
+    }
+
+    /**
+     * Copy lifecycle name from the old index to the new index, so that ILM can now process the new index.
+     * If the new index has a lifecycle name before it is swapped into the data stream, ILM will try, and fail, to process
+     * the new index. For this reason, lifecycle is not set until after the new index has been added to the data stream.
+     */
+    private void copySettings(String oldIndex, String newIndex, ActionListener<AcknowledgedResponse> listener, TaskId parentTaskId) {
+        var getSettingsRequest = new GetSettingsRequest(TimeValue.MAX_VALUE).indices(oldIndex);
+        getSettingsRequest.setParentTask(parentTaskId);
+        client.execute(GetSettingsAction.INSTANCE, getSettingsRequest, listener.delegateFailure((delegate, response) -> {
+            String lifecycleName = response.getSetting(oldIndex, IndexMetadata.LIFECYCLE_NAME);
+            if (lifecycleName != null) {
+                var settings = Settings.builder().put(IndexMetadata.LIFECYCLE_NAME, lifecycleName).build();
+                var updateSettingsRequest = new UpdateSettingsRequest(settings, newIndex);
+                updateSettingsRequest.setParentTask(parentTaskId);
+                client.execute(TransportUpdateSettingsAction.TYPE, updateSettingsRequest, delegate);
+            } else {
+                delegate.onResponse(null);
+            }
+        }));
     }
 
     private void deleteIndex(String indexName, TaskId parentTaskId, ActionListener<AcknowledgedResponse> listener) {

@@ -64,6 +64,23 @@ public final class FileAccessTree {
         this.writePaths = pruneSortedPaths(writePaths).toArray(new String[0]);
     }
 
+    private static List<String> pruneSortedPaths(List<String> paths) {
+        List<String> prunedReadPaths = new ArrayList<>();
+        if (paths.isEmpty() == false) {
+            String currentPath = paths.get(0);
+            prunedReadPaths.add(currentPath);
+            for (int i = 1; i < paths.size(); ++i) {
+                String nextPath = paths.get(i);
+                if (nextPath.startsWith(currentPath) == false) {
+                    prunedReadPaths.add(nextPath);
+                    currentPath = nextPath;
+                }
+            }
+        }
+        return prunedReadPaths;
+
+    }
+
     public static FileAccessTree of(FilesEntitlement filesEntitlement, PathLookup pathLookup, List<String> exclusivePaths) {
         return new FileAccessTree(filesEntitlement, pathLookup, exclusivePaths);
     }

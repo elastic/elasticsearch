@@ -33,6 +33,8 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -58,6 +60,7 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.aggregations.bucket.range.DateRangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -972,6 +975,25 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
         assertEquals(-1, DefaultSearchContext.getFieldCardinality("field", indexService, null));
     }
 
+    public void testCheckRealMemoryCB() throws Exception {
+        IndexShard indexShard = null;
+        try (DefaultSearchContext context = createDefaultSearchContext(Settings.EMPTY)) {
+            indexShard = context.indexShard();
+            // allocated more than the 1MiB buffer, local accounting not finished
+            assertThat(context.checkRealMemoryCB(1024 * 1800, false, "test"), is(true));
+            // allocated more than the 1MiB buffer, local accounting finished
+            assertThat(context.checkRealMemoryCB(1024 * 1800, true, "test"), is(true));
+            // allocated less than the 1MiB buffer, local accounting not finished
+            assertThat(context.checkRealMemoryCB(1024 * 5, false, "test"), is(false));
+            // allocated less than the 1MiB buffer, local accounting finished
+            assertThat(context.checkRealMemoryCB(1024 * 5, true, "test"), is(true));
+        } finally {
+            if (indexShard != null) {
+                indexShard.getThreadPool().shutdown();
+            }
+        }
+    }
+
     private DefaultSearchContext createDefaultSearchContext(Settings providedIndexSettings) throws IOException {
         return createDefaultSearchContext(providedIndexSettings, null);
     }
@@ -999,7 +1021,9 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
         when(indexService.newSearchExecutionContext(eq(shardId.id()), eq(shardId.id()), any(), any(), nullable(String.class), any()))
             .thenReturn(searchExecutionContext);
-
+        CircuitBreakerService breakerService = mock(CircuitBreakerService.class);
+        when(indexService.breakerService()).thenReturn(breakerService);
+        when(breakerService.getBreaker(anyString())).thenReturn(new NoopCircuitBreaker(CircuitBreaker.REQUEST));
         IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(settings).build();
         IndexSettings indexSettings;
         MapperService mapperService;

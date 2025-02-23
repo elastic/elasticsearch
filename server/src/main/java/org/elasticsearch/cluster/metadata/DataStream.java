@@ -301,6 +301,13 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return failureIndices.containsIndex(indexName);
     }
 
+    /**
+     * Returns true if the index name provided belongs to this data stream.
+     */
+    public boolean containsIndex(String indexName) {
+        return backingIndices.containsIndex(indexName) || failureIndices.containsIndex(indexName);
+    }
+
     public DataStreamOptions getDataStreamOptions() {
         return dataStreamOptions;
     }
@@ -782,8 +789,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         // ensure that no aliases reference index
         ensureNoAliasesOnIndex(clusterMetadata, index);
 
-        List<Index> backingIndices = new ArrayList<>(this.backingIndices.indices);
-        backingIndices.add(0, index);
+        List<Index> backingIndices = new ArrayList<>(this.backingIndices.indices.size() + 1);
+        backingIndices.add(index);
+        backingIndices.addAll(this.backingIndices.indices);
         assert backingIndices.size() == this.backingIndices.indices.size() + 1;
         return copy().setBackingIndices(this.backingIndices.copy().setIndices(backingIndices).build())
             .setGeneration(generation + 1)
@@ -808,8 +816,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
         ensureNoAliasesOnIndex(clusterMetadata, index);
 
-        List<Index> updatedFailureIndices = new ArrayList<>(failureIndices.indices);
-        updatedFailureIndices.add(0, index);
+        List<Index> updatedFailureIndices = new ArrayList<>(failureIndices.indices.size() + 1);
+        updatedFailureIndices.add(index);
+        updatedFailureIndices.addAll(failureIndices.indices);
         assert updatedFailureIndices.size() == failureIndices.indices.size() + 1;
         return copy().setFailureIndices(failureIndices.copy().setIndices(updatedFailureIndices).build())
             .setGeneration(generation + 1)
@@ -1039,7 +1048,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * we return false.
      */
     public boolean isIndexManagedByDataStreamLifecycle(Index index, Function<String, IndexMetadata> indexMetadataSupplier) {
-        if (backingIndices.containsIndex(index.getName()) == false && failureIndices.containsIndex(index.getName()) == false) {
+        if (containsIndex(index.getName()) == false) {
             return false;
         }
         IndexMetadata indexMetadata = indexMetadataSupplier.apply(index.getName());

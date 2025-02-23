@@ -453,3 +453,6 @@ tests:
 - class: org.elasticsearch.upgrades.DataStreamsUpgradeIT
   method: testUpgradeDataStream
   issue: https://github.com/elastic/elasticsearch/issues/123189
+- class: org.elasticsearch.xpack.core.common.notifications.AbstractAuditorTests
+  method: testRecreateTemplateWhenDeleted
+  issue: https://github.com/elastic/elasticsearch/issues/123232

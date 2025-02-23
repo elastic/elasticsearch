@@ -165,6 +165,10 @@ abstract class AbstractStatementParserTests extends ESTestCase {
         expectInvalidIndexNameErrorWithLineNumber(query, "\"" + indexString + "\"", lineNumber, indexString);
     }
 
+    void expectErrorWithLineNumber(String query, String indexString, String lineNumber, String error) {
+        expectError(LoggerMessageFormat.format(null, query, indexString), lineNumber + error);
+    }
+
     void expectInvalidIndexNameErrorWithLineNumber(String query, String indexString, String lineNumber, String name) {
         expectError(LoggerMessageFormat.format(null, query, indexString), lineNumber + "Invalid index name [" + name);
     }
@@ -175,5 +179,9 @@ abstract class AbstractStatementParserTests extends ESTestCase {
 
     void expectDateMathErrorWithLineNumber(String query, String arg, String lineNumber, String error) {
         expectError(LoggerMessageFormat.format(null, query, arg), lineNumber + error);
+    }
+
+    void expectDoubleColonErrorWithLineNumber(String query, String indexString, int lineNumber) {
+        expectError(LoggerMessageFormat.format(null, query, indexString), "line 1:" + lineNumber + ": mismatched input '::'");
     }
 }

@@ -286,6 +286,7 @@ FROM_COLON : COLON -> type(COLON);
 FROM_COMMA : COMMA -> type(COMMA);
 FROM_ASSIGN : ASSIGN -> type(ASSIGN);
 METADATA : 'metadata';
+FROM_SELECTOR : {this.isDevVersion()}? CAST_OP -> type(CAST_OP);
 
 // in 8.14 ` were not allowed
 // this has been relaxed in 8.15 since " is used for quoting
@@ -643,6 +644,10 @@ CLOSING_METRICS_BY
 
 CLOSING_METRICS_PIPE
     : PIPE -> type(PIPE), popMode
+    ;
+
+CLOSING_METRICS_SELECTOR
+    : {this.isDevVersion()}? CAST_OP -> type(CAST_OP), popMode, pushMode(METRICS_MODE)
     ;
 
 ///

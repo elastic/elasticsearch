@@ -13,6 +13,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric;
 import org.elasticsearch.action.support.ActionFilters;
@@ -21,13 +22,13 @@ import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.allocation.AllocationStatsService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStats;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
@@ -55,7 +56,6 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         AllocationStatsService allocationStatsService
     ) {
         super(
@@ -66,7 +66,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
             actionFilters,
             TransportGetAllocationStatsAction.Request::new,
             TransportGetAllocationStatsAction.Response::new,
-            threadPool.executor(ThreadPool.Names.MANAGEMENT)
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.allocationStatsService = allocationStatsService;
         this.diskThresholdSettings = new DiskThresholdSettings(clusterService.getSettings(), clusterService.getClusterSettings());
@@ -84,12 +84,19 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-        listener.onResponse(
-            new Response(
-                request.metrics().contains(Metric.ALLOCATIONS) ? allocationStatsService.stats() : Map.of(),
-                request.metrics().contains(Metric.FS) ? diskThresholdSettings : null
-            )
-        );
+        var metrics = request.metrics;
+        if (metrics.contains(Metric.ALLOCATIONS)) {
+            // calculating allocation stats is a heavyweight operation, fork it to the management pool
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
+                .execute(
+                    ActionRunnable.supply(
+                        listener.map(stats -> new Response(stats, metrics.contains(Metric.FS) ? diskThresholdSettings : null)),
+                        allocationStatsService::stats
+                    )
+                );
+        } else {
+            listener.onResponse(new Response(Map.of(), metrics.contains(Metric.FS) ? diskThresholdSettings : null));
+        }
     }
 
     @Override

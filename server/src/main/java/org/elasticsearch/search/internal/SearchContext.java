@@ -381,6 +381,23 @@ public abstract class SearchContext implements Releasable {
     public abstract long memAccountingBufferSize();
 
     /**
+     * Checks if the accumulated bytes are greater than the buffer size and if so, checks the available memory in the parent breaker
+     * (the real memory breaker).
+     * It also checks the available memory if the caller indicates that the local accounting is finished.
+     * @param locallyAccumulatedBytes the number of bytes accumulated locally
+     * @param localAccountingFinished if the local accounting is finished
+     * @param label the label to use in the breaker
+     * @return true if the real memory breaker is called and false otherwise
+     */
+    public final boolean checkRealMemoryCB(int locallyAccumulatedBytes, boolean localAccountingFinished, String label) {
+        if (locallyAccumulatedBytes >= memAccountingBufferSize() || localAccountingFinished) {
+            circuitBreaker().addEstimateBytesAndMaybeBreak(0, label);
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * Adds a releasable that will be freed when this context is closed.
      */
     public void addReleasable(Releasable releasable) {   // TODO most Releasables are managed by their callers. We probably don't need this.

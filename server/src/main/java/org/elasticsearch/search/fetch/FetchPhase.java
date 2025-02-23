@@ -170,15 +170,11 @@ public final class FetchPhase {
                     throw new TaskCancelledException("cancelled");
                 }
                 ++processedDocs;
-                // indicates if we should check with the parent circuit breaker (the real memory breaker) if we have enough memory to
-                // continue the fetch phase.
-                // we do so whenever one of the following is true:
-                // 1. we have accumulated at least the size of the memory accounting buffer
-                // 2. we have reached the last document in the leaf
-                if (accumulatedBytesInLeaf >= context.memAccountingBufferSize() || processedDocs == docsInLeaf) {
-                    context.circuitBreaker().addEstimateBytesAndMaybeBreak(0, "fetch source");
+                if (context.checkRealMemoryCB(accumulatedBytesInLeaf, processedDocs == docsInLeaf, "fetch source")) {
+                    // if we checked the real memory breaker, we restart our local accounting
                     accumulatedBytesInLeaf = 0;
                 }
+
                 HitContext hit = prepareHitContext(
                     context,
                     requiresSource,

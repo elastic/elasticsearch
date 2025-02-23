@@ -826,7 +826,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return threadPool;
     }
 
-    public @Nullable ThreadPoolMergeExecutorService getThreadPoolMergeQueue() {
+    public @Nullable ThreadPoolMergeExecutorService getThreadPoolMergeExecutorService() {
         return threadPoolMergeExecutorService;
     }
 

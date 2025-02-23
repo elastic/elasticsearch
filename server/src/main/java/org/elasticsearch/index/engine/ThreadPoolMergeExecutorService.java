@@ -36,7 +36,7 @@ public class ThreadPoolMergeExecutorService {
      * Initial value for IO write rate limit of individual merge tasks when doAutoIOThrottle is true
      */
     private static final ByteSizeValue START_IO_RATE = ByteSizeValue.ofMb(20L);
-    private final AtomicInteger submittedIOThrottledMergeTasksCount = new AtomicInteger();
+    private final AtomicInteger currentlySubmittedIOThrottledMergeTasksCount = new AtomicInteger();
     private final PriorityBlockingQueue<MergeTask> queuedMergeTasks = new PriorityBlockingQueue<>();
     // the set of all merge tasks currently being executed by merge threads from the pool,
     // in order to be able to update the IO throttle rate of merge tasks also after they have started (while executing)
@@ -49,7 +49,10 @@ public class ThreadPoolMergeExecutorService {
     private final ExecutorService executorService;
     private final int maxConcurrentMerges;
 
-    public static @Nullable ThreadPoolMergeExecutorService maybeCreateThreadPoolMergeQueue(ThreadPool threadPool, Settings settings) {
+    public static @Nullable ThreadPoolMergeExecutorService maybeCreateThreadPoolMergeExecutorService(
+        ThreadPool threadPool,
+        Settings settings
+    ) {
         if (ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.get(settings)) {
             return new ThreadPoolMergeExecutorService(threadPool);
         } else {
@@ -72,7 +75,7 @@ public class ThreadPoolMergeExecutorService {
         } else {
             if (mergeTask.supportsIOThrottling()) {
                 // count enqueued merge tasks that support IO auto throttling, and maybe adjust IO rate for all
-                maybeUpdateIORateBytesPerSec(submittedIOThrottledMergeTasksCount.incrementAndGet());
+                maybeUpdateIORateBytesPerSec(currentlySubmittedIOThrottledMergeTasksCount.incrementAndGet());
             }
             // then enqueue the merge task proper
             enqueueMergeTask(mergeTask);
@@ -115,7 +118,7 @@ public class ThreadPoolMergeExecutorService {
                     }
                 } finally {
                     if (smallestMergeTask != null && smallestMergeTask.supportsIOThrottling()) {
-                        submittedIOThrottledMergeTasksCount.decrementAndGet();
+                        currentlySubmittedIOThrottledMergeTasksCount.decrementAndGet();
                     }
                     if (interrupted) {
                         Thread.currentThread().interrupt();
@@ -199,9 +202,9 @@ public class ThreadPoolMergeExecutorService {
         return ByteSizeValue.ofBytes(targetIORateBytesPerSec.get()).getMbFrac();
     }
 
-    public boolean isEmpty() {
-        boolean isEmpty = queuedMergeTasks.isEmpty() && currentlyRunningMergeTasks.isEmpty();
-        assert isEmpty == false || submittedIOThrottledMergeTasksCount.get() == 0L;
-        return isEmpty;
+    public boolean allDone() {
+        return queuedMergeTasks.isEmpty()
+            && currentlyRunningMergeTasks.isEmpty()
+            && currentlySubmittedIOThrottledMergeTasksCount.get() == 0L;
     }
 }

@@ -287,7 +287,7 @@ public class IndicesService extends AbstractLifecycleComponent
     IndicesService(IndicesServiceBuilder builder) {
         this.settings = builder.settings;
         this.threadPool = builder.threadPool;
-        this.threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeQueue(threadPool, settings);
+        this.threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(threadPool, settings);
         this.pluginsService = builder.pluginsService;
         this.nodeEnv = builder.nodeEnv;
         this.parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE)
@@ -1910,7 +1910,7 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     @Nullable
-    public ThreadPoolMergeExecutorService getThreadPoolMergeQueue() {
+    public ThreadPoolMergeExecutorService getThreadPoolMergeExecutorService() {
         return threadPoolMergeExecutorService;
     }
 }

@@ -291,7 +291,7 @@ public final class EngineConfig {
         return threadPool;
     }
 
-    public @Nullable ThreadPoolMergeExecutorService getThreadPoolMergeQueue() {
+    public @Nullable ThreadPoolMergeExecutorService getThreadPoolMergeExecutorService() {
         return threadPoolMergeExecutorService;
     }
 

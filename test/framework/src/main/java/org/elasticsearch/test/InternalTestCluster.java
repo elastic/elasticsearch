@@ -13,7 +13,6 @@ import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -1418,12 +1417,15 @@ public final class InternalTestCluster extends TestCluster {
         }
     }
 
-    public void assertMergeQueueIsEmpty() throws Exception {
+    public void assertMergeExecutorIsDone() throws Exception {
         assertBusy(() -> {
             for (String nodeName : getNodeNames()) {
                 IndicesService indicesService = getInstance(IndicesService.class, nodeName);
-                if (indicesService.getThreadPoolMergeQueue() != null) {
-                    assertTrue("thread pool merge queue is not empty after test", indicesService.getThreadPoolMergeQueue().isEmpty());
+                if (indicesService.getThreadPoolMergeExecutorService() != null) {
+                    assertTrue(
+                        "thread pool merge executor is not done after test",
+                        indicesService.getThreadPoolMergeExecutorService().allDone()
+                    );
                 }
             }
         });
@@ -2537,7 +2539,7 @@ public final class InternalTestCluster extends TestCluster {
         assertRequestsFinished();
         assertSearchContextsReleased();
         assertNoInFlightDocsInEngine();
-        assertMergeQueueIsEmpty();
+        assertMergeExecutorIsDone();
         awaitIndexShardCloseAsyncTasks();
         for (NodeAndClient nodeAndClient : nodes.values()) {
             NodeEnvironment env = nodeAndClient.node().getNodeEnvironment();

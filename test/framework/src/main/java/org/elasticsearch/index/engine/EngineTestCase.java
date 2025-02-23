@@ -242,7 +242,7 @@ public abstract class EngineTestCase extends ESTestCase {
         }
         defaultSettings = IndexSettingsModule.newIndexSettings("index", indexSettings());
         threadPool = new TestThreadPool(getClass().getName());
-        threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeQueue(
+        threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
             threadPool,
             defaultSettings.getNodeSettings()
         );
@@ -278,7 +278,7 @@ public abstract class EngineTestCase extends ESTestCase {
         return new EngineConfig(
             config.getShardId(),
             config.getThreadPool(),
-            config.getThreadPoolMergeQueue(),
+            config.getThreadPoolMergeExecutorService(),
             config.getIndexSettings(),
             config.getWarmer(),
             config.getStore(),
@@ -311,7 +311,7 @@ public abstract class EngineTestCase extends ESTestCase {
         return new EngineConfig(
             config.getShardId(),
             config.getThreadPool(),
-            config.getThreadPoolMergeQueue(),
+            config.getThreadPoolMergeExecutorService(),
             config.getIndexSettings(),
             config.getWarmer(),
             config.getStore(),
@@ -344,7 +344,7 @@ public abstract class EngineTestCase extends ESTestCase {
         return new EngineConfig(
             config.getShardId(),
             config.getThreadPool(),
-            config.getThreadPoolMergeQueue(),
+            config.getThreadPoolMergeExecutorService(),
             config.getIndexSettings(),
             config.getWarmer(),
             config.getStore(),
@@ -890,7 +890,7 @@ public abstract class EngineTestCase extends ESTestCase {
         return new EngineConfig(
             config.getShardId(),
             config.getThreadPool(),
-            config.getThreadPoolMergeQueue(),
+            config.getThreadPoolMergeExecutorService(),
             indexSettings,
             config.getWarmer(),
             store,

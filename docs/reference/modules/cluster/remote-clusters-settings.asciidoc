@@ -131,7 +131,7 @@ settings.
 
 `cluster.remote.<cluster_alias>.proxy_address`::
 
-  The address used for all remote connections.
+  The address used for all remote connections. A single address value, either an ip address or a fully qualified domain name (FQDN).
 
 `cluster.remote.<cluster_alias>.proxy_socket_connections`::
 

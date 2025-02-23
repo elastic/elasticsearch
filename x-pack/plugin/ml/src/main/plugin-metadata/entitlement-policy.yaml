@@ -7,3 +7,5 @@ org.elasticsearch.ml:
       - relative_path: "ml-local-data/"
         relative_to: data
         mode: read_write
+      - path: \\.\pipe\
+        mode: read_write

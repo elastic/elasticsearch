@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -44,7 +45,8 @@ public final class FileAccessTree {
             }
             readPaths.add(normalized);
         };
-        BiConsumer<Path, Mode> maybeAddLinkPath = (path, mode) -> {
+        BiConsumer<Path, Mode> addPathAndMaybeLink = (path, mode) -> {
+            addPath.accept(path, mode);
             // also try to follow symlinks. Lucene does this and writes to the target path.
             if (Files.exists(path)) {
                 try {
@@ -69,14 +71,16 @@ public final class FileAccessTree {
                     // TODO: null paths shouldn't be allowed, but they can occur due to repo paths
                     return;
                 }
-                addPath.accept(path, mode);
-                maybeAddLinkPath.accept(path, mode);
+                addPathAndMaybeLink.accept(path, mode);
             });
         }
 
-        // everything has access to the temp dir
-        addPath.accept(pathLookup.tempDir(), Mode.READ_WRITE);
-        maybeAddLinkPath.accept(pathLookup.tempDir(), Mode.READ_WRITE);
+        // everything has access to the temp dir and the jdk
+        addPathAndMaybeLink.accept(pathLookup.tempDir(), Mode.READ_WRITE);
+
+        // TODO: watcher uses javax.activation which looks for known mime types configuration, should this be global or explicit in watcher?
+        Path jdk = Paths.get(System.getProperty("java.home"));
+        addPathAndMaybeLink.accept(jdk.resolve("conf"), Mode.READ);
 
         readPaths.sort(String::compareTo);
         writePaths.sort(String::compareTo);

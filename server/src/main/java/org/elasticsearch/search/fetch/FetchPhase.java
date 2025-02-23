@@ -197,8 +197,7 @@ public final class FetchPhase {
 
                     BytesReference sourceRef = hit.hit().getSourceRef();
                     if (sourceRef != null) {
-                        int sourceLength = sourceRef.length();
-                        this.accumulatedBytesInLeaf += sourceLength;
+                        this.accumulatedBytesInLeaf += sourceRef.length();
                     }
                     success = true;
                     return hit.hit();

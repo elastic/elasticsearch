@@ -111,10 +111,7 @@ public class RegisteredPolicySnapshots implements Metadata.Custom {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
-        return Iterators.concat(Iterators.single((builder, params) -> {
-            builder.field(SNAPSHOTS.getPreferredName(), snapshots);
-            return builder;
-        }));
+        return Iterators.single((builder, params) -> builder.field(SNAPSHOTS.getPreferredName(), snapshots));
     }
 
     public static RegisteredPolicySnapshots parse(XContentParser parser) throws IOException {

@@ -917,7 +917,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
     }
 
     private static SearchContext createSearchContext(ContextIndexSearcher contextIndexSearcher, boolean allowPartialResults) {
-       return createSearchContext(contextIndexSearcher, allowPartialResults, null);
+        return createSearchContext(contextIndexSearcher, allowPartialResults, null);
     }
 
     private static SearchContext createSearchContext(

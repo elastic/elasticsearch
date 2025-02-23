@@ -411,10 +411,13 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
     @Override
     public void close() throws IOException {
-        closed = true;
-        // enqueue any backlogged merge tasks, because the merge queue assumes that the backlogged tasks are always re-enqueued
-        enqueueBackloggedTasks();
-        maybeSignalAllMergesDoneAfterClose();
+        synchronized (this) {
+            closed = true;
+            // enqueue any backlogged merge tasks, because the merge queue assumes that the backlogged tasks are always re-enqueued
+            enqueueBackloggedTasks();
+            // signal if there aren't any currently running merges
+            maybeSignalAllMergesDoneAfterClose();
+        }
         try {
             closedWithNoCurrentlyRunningMerges.await();
         } catch (InterruptedException e) {

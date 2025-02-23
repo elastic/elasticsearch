@@ -1591,14 +1591,21 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Waits for all relocations and force merge all indices in the cluster to 1 segment.
      */
     protected BroadcastResponse forceMerge() {
+        return forceMerge(randomBoolean());
+    }
+
+    /**
+     * Waits for all relocations and force merge all indices in the cluster to 1 segment.
+     */
+    protected BroadcastResponse forceMerge(boolean assertOneSegment) {
         waitForRelocation();
         BroadcastResponse actionGet = indicesAdmin().prepareForceMerge().setMaxNumSegments(1).get();
         assertNoFailures(actionGet);
-        if (randomBoolean()) {
+        if (assertOneSegment) {
             // after a force merge there should only be 1 segment per shard
             var shardsWithMultipleSegments = getShardSegments().stream()
-                .filter(shardSegments -> shardSegments.getSegments().size() > 1)
-                .toList();
+               .filter(shardSegments -> shardSegments.getSegments().size() > 1)
+               .toList();
             assertTrue("there are shards with multiple segments " + shardsWithMultipleSegments, shardsWithMultipleSegments.isEmpty());
         }
         return actionGet;

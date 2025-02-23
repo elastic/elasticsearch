@@ -19,6 +19,7 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimitedIndexOutput;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
@@ -99,12 +100,20 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     }
 
     @Override
-    public void merge(MergeSource mergeSource, MergeTrigger trigger) throws IOException {
+    public void merge(MergeSource mergeSource, MergeTrigger trigger) {
         if (closed) {
             // avoid pulling from the merge source when closing
             return;
         }
-        MergePolicy.OneMerge merge = mergeSource.getNextMerge();
+        MergePolicy.OneMerge merge = null;
+        try {
+            merge = mergeSource.getNextMerge();
+        } catch (IllegalStateException e) {
+            if (verbose()) {
+                message("merge task poll failed, likely that index writer is failed");
+            }
+            // ignore exception, we expect the IW failure to be logged elsewhere
+        }
         if (merge != null) {
             submitNewMergeTask(mergeSource, merge, trigger);
         }
@@ -145,10 +154,13 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         throw new MergePolicy.MergeException(t);
     }
 
-    private void submitNewMergeTask(MergeSource mergeSource, MergePolicy.OneMerge merge, MergeTrigger mergeTrigger) {
-        MergeTask mergeTask = newMergeTask(mergeSource, merge, mergeTrigger);
-        threadPoolMergeExecutorService.submitMergeTask(mergeTask);
-        checkMergeTaskThrottling();
+    private boolean submitNewMergeTask(MergeSource mergeSource, MergePolicy.OneMerge merge, MergeTrigger mergeTrigger) {
+        try {
+            MergeTask mergeTask = newMergeTask(mergeSource, merge, mergeTrigger);
+            return threadPoolMergeExecutorService.submitMergeTask(mergeTask);
+        } finally {
+            checkMergeTaskThrottling();
+        }
     }
 
     private void checkMergeTaskThrottling() {
@@ -179,16 +191,15 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         );
     }
 
-    // synchronized so that {@code #currentlyRunningMergeTasks} and {@code #backloggedMergeTasks} are modified atomically
+    // synchronized so that {@code #closed}, {@code #currentlyRunningMergeTasks} and {@code #backloggedMergeTasks} are modified atomically
     private synchronized boolean runNowOrBacklog(MergeTask mergeTask) {
         assert mergeTask.isRunning() == false;
-        assert mergeTask.isOnGoingMergeAborted() == false;
         if (closed) {
-            // Do not backlog tasks when closing the merge scheduler, instead abort them.
-            // Aborted task are not actually executed.
+            // Do not backlog or execute tasks when closing the merge scheduler, instead abort them.
             mergeTask.abortOnGoingMerge();
-            return true;
-        } else if (currentlyRunningMergeTasks.size() < config.getMaxThreadCount()) {
+            throw new ElasticsearchException("merge task aborted because scheduler is shutting down");
+        }
+        if (currentlyRunningMergeTasks.size() < config.getMaxThreadCount()) {
             boolean added = currentlyRunningMergeTasks.put(mergeTask.onGoingMerge.getMerge(), mergeTask) == null;
             assert added : "starting merge task [" + mergeTask + "] registered as already running";
             return true;
@@ -225,7 +236,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             if (backloggedMergeTask == null) {
                 break;
             }
-            // no need to abort merge tasks now, they will be aborted when the scheduler tries to run them
+            // no need to abort merge tasks now, they will be aborted on the spot when the scheduler gets to run them
             threadPoolMergeExecutorService.enqueueMergeTask(backloggedMergeTask);
         }
     }
@@ -307,7 +318,6 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         @Override
         public void run() {
             assert isRunning() == false;
-            assert isOnGoingMergeAborted() == false;
             assert ThreadPoolMergeScheduler.this.currentlyRunningMergeTasks.containsKey(onGoingMerge.getMerge())
                 : "runNowOrBacklog must be invoked before actually running the merge task";
             try {
@@ -360,21 +370,8 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                     message(String.format(Locale.ROOT, "merge task %s end", this));
                 }
                 mergeDone(this);
-                if (ThreadPoolMergeScheduler.this.closed == false) {
-                    // kick-off next merge, if any
-                    MergePolicy.OneMerge nextMerge = null;
-                    try {
-                        nextMerge = mergeSource.getNextMerge();
-                    } catch (IllegalStateException e) {
-                        if (verbose()) {
-                            message("merge task poll failed, likely that index writer is failed");
-                        }
-                        // ignore exception, we expect the IW failure to be logged elsewhere
-                    }
-                    if (nextMerge != null) {
-                        submitNewMergeTask(mergeSource, nextMerge, MergeTrigger.MERGE_FINISHED);
-                    }
-                }
+                // kick-off next merge, if any
+                merge(mergeSource, MergeTrigger.MERGE_FINISHED);
             }
         }
 
@@ -388,13 +385,9 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             doneMergeTaskCount.incrementAndGet();
         }
 
-        boolean isOnGoingMergeAborted() {
-            return onGoingMerge.getMerge().isAborted();
-        }
-
         @Override
         public String toString() {
-            return name + (isOnGoingMergeAborted() ? " (aborted)" : "");
+            return name + (onGoingMerge.getMerge().isAborted() ? " (aborted)" : "");
         }
     }
 

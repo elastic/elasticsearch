@@ -62,13 +62,13 @@ public class ThreadPoolMergeExecutorService {
         this.maxConcurrentMerges = threadPool.info(ThreadPool.Names.MERGE).getMax();
     }
 
-    void submitMergeTask(MergeTask mergeTask) {
+    boolean submitMergeTask(MergeTask mergeTask) {
         assert mergeTask.isRunning() == false;
-        assert mergeTask.isOnGoingMergeAborted() == false;
         // first enqueue the runnable that runs exactly one merge task (the smallest it can find)
         if (enqueueMergeTaskExecution() == false) {
-            // if the threadpool cannot run the merge, just abort it
+            // if the thread pool cannot run the merge, just abort it
             mergeTask.abortOnGoingMerge();
+            return false;
         } else {
             if (mergeTask.supportsIOThrottling()) {
                 // count enqueued merge tasks that support IO auto throttling, and maybe adjust IO rate for all
@@ -76,6 +76,7 @@ public class ThreadPoolMergeExecutorService {
             }
             // then enqueue the merge task proper
             enqueueMergeTask(mergeTask);
+            return true;
         }
     }
 
@@ -92,17 +93,19 @@ public class ThreadPoolMergeExecutorService {
             executorService.execute(() -> {
                 boolean interrupted = false;
                 // one such runnable always executes a SINGLE merge task from the queue
-                // this is important for merge queue statistics, i.e. the executor's queue size equals the merge tasks' queue size
+                // this is important for merge queue statistics, i.e. the executor's queue size represents the current amount of merges
+                MergeTask smallestMergeTask = null;
                 try {
                     while (true) {
                         try {
                             // will block if there are backlogged merges until they're enqueued again
-                            MergeTask smallestMergeTask = queuedMergeTasks.take();
+                            smallestMergeTask = queuedMergeTasks.take();
                             // let the task's scheduler decide if it can actually run the merge task now
                             if (smallestMergeTask.runNowOrBacklog()) {
                                 runMergeTask(smallestMergeTask);
                                 break;
                             }
+                            smallestMergeTask = null;
                             // the merge task is backlogged by the merge scheduler, try to get the next smallest one
                             // it's then the duty of the said merge scheduler to re-enqueue the backlogged merge task when it can be run
                         } catch (InterruptedException e) {
@@ -111,6 +114,9 @@ public class ThreadPoolMergeExecutorService {
                         }
                     }
                 } finally {
+                    if (smallestMergeTask != null && smallestMergeTask.supportsIOThrottling()) {
+                        submittedIOThrottledMergeTasksCount.decrementAndGet();
+                    }
                     if (interrupted) {
                         Thread.currentThread().interrupt();
                     }
@@ -126,25 +132,16 @@ public class ThreadPoolMergeExecutorService {
 
     private void runMergeTask(MergeTask mergeTask) {
         assert mergeTask.isRunning() == false;
+        boolean added = currentlyRunningMergeTasks.add(mergeTask);
+        assert added : "starting merge task [" + mergeTask + "] registered as already running";
         try {
-            if (mergeTask.isOnGoingMergeAborted()) {
-                return;
-            }
-            boolean added = currentlyRunningMergeTasks.add(mergeTask);
-            assert added : "starting merge task [" + mergeTask + "] registered as already running";
-            try {
-                if (mergeTask.supportsIOThrottling()) {
-                    mergeTask.setIORateLimit(ByteSizeValue.ofBytes(targetIORateBytesPerSec.get()).getMbFrac());
-                }
-                mergeTask.run();
-            } finally {
-                boolean removed = currentlyRunningMergeTasks.remove(mergeTask);
-                assert removed : "completed merge task [" + mergeTask + "] not registered as running";
-            }
-        } finally {
             if (mergeTask.supportsIOThrottling()) {
-                submittedIOThrottledMergeTasksCount.decrementAndGet();
+                mergeTask.setIORateLimit(ByteSizeValue.ofBytes(targetIORateBytesPerSec.get()).getMbFrac());
             }
+            mergeTask.run();
+        } finally {
+            boolean removed = currentlyRunningMergeTasks.remove(mergeTask);
+            assert removed : "completed merge task [" + mergeTask + "] not registered as running";
         }
     }
 

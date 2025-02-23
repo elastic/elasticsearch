@@ -78,12 +78,12 @@ public class ThreadPoolMergeExecutorService {
                 maybeUpdateIORateBytesPerSec(currentlySubmittedIOThrottledMergeTasksCount.incrementAndGet());
             }
             // then enqueue the merge task proper
-            enqueueMergeTask(mergeTask);
+            queuedMergeTasks.add(mergeTask);
             return true;
         }
     }
 
-    void enqueueMergeTask(MergeTask mergeTask) {
+    void reEnqueueBackloggedMergeTask(MergeTask mergeTask) {
         queuedMergeTasks.add(mergeTask);
     }
 

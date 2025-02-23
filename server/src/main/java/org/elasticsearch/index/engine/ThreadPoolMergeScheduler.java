@@ -237,7 +237,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                 break;
             }
             // no need to abort merge tasks now, they will be aborted on the spot when the scheduler gets to run them
-            threadPoolMergeExecutorService.enqueueMergeTask(backloggedMergeTask);
+            threadPoolMergeExecutorService.reEnqueueBackloggedMergeTask(backloggedMergeTask);
         }
     }
 

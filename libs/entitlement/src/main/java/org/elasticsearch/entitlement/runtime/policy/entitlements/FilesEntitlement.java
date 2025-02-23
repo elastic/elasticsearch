@@ -242,7 +242,7 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
             String pathSetting = file.remove("path_setting");
             String relativePathSetting = file.remove("relative_path_setting");
             String modeAsString = file.remove("mode");
-            String platformAsString = file.remove("mode");
+            String platformAsString = file.remove("platform");
 
             if (file.isEmpty() == false) {
                 throw new PolicyValidationException("unknown key(s) [" + file + "] in a listed file for files entitlement");

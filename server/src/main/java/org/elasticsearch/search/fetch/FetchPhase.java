@@ -170,7 +170,8 @@ public final class FetchPhase {
                     throw new TaskCancelledException("cancelled");
                 }
                 ++processedDocs;
-                if (context.checkRealMemoryCB(accumulatedBytesInLeaf, processedDocs == docsInLeaf, "fetch source")) {
+                // note that we only check the real memory breaker if we have a source to load
+                if (context.checkRealMemoryCB(accumulatedBytesInLeaf, (requiresSource && processedDocs == docsInLeaf), "fetch source")) {
                     // if we checked the real memory breaker, we restart our local accounting
                     accumulatedBytesInLeaf = 0;
                 }

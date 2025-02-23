@@ -169,8 +169,21 @@ class ValuesIntAggregator {
                 }
 
                 /*
-                 * Total the selected groups and turn them into a running count.
-                 * Unselected groups will still have negative counts.
+                 * Total the selected groups and turn the counts into the start index into a sort-of
+                 * off-by-one running count. It's really the number of values that have been inserted
+                 * into the results before starting on this group. Unselected groups will still
+                 * have negative counts.
+                 *
+                 * For example, if
+                 * | Group | Value Count | Selected |
+                 * |-------|-------------|----------|
+                 * |     0 | 3           | <-       |
+                 * |     1 | 1           | <-       |
+                 * |     2 | 2           |          |
+                 * |     3 | 1           | <-       |
+                 * |     4 | 4           | <-       |
+                 *
+                 * Then the total is 9 and the counts array will contain 0, 3, -2, 4, 5
                  */
                 int total = 0;
                 for (int s = 0; s < selected.getPositionCount(); s++) {
@@ -182,10 +195,22 @@ class ValuesIntAggregator {
 
                 /*
                  * Build a list of ids to insert in order *and* convert the running
-                 * count in selectedCounts[group] into the end index in ids for each
-                 * group.
+                 * count in selectedCounts[group] into the end index (exclusive) in
+                 * ids for each group.
                  * Here we use the negative counts to signal that a group hasn't been
                  * selected and the id containing values for that group is ignored.
+                 *
+                 * For example, if
+                 * | Group | Value Count | Selected |
+                 * |-------|-------------|----------|
+                 * |     0 | 3           | <-       |
+                 * |     1 | 1           | <-       |
+                 * |     2 | 2           |          |
+                 * |     3 | 1           | <-       |
+                 * |     4 | 4           | <-       |
+                 *
+                 * Then the total is 9 and the counts array will start with 0, 3, -2, 4, 5.
+                 * The counts will end with 3, 4, -2, 5, 9.
                  */
                 adjust = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + total * Integer.BYTES);
                 blockFactory.adjustBreaker(adjust);

@@ -268,7 +268,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         final Map<String, ExecutorHolder> executors = new HashMap<>();
         for (final Map.Entry<String, ExecutorBuilder> entry : builders.entrySet()) {
             final ExecutorBuilder.ExecutorSettings executorSettings = entry.getValue().getSettings(settings);
-            final ExecutorHolder executorHolder = entry.getValue().build(executorSettings, threadContext);
+            final ExecutorHolder executorHolder = entry.getValue().build(executorSettings, threadContext, meterRegistry);
             if (executors.containsKey(executorHolder.info.getName())) {
                 throw new IllegalStateException("duplicate executors with name [" + executorHolder.info.getName() + "] registered");
             }

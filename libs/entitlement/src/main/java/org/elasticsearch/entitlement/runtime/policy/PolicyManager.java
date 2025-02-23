@@ -95,7 +95,7 @@ public class PolicyManager {
     }
 
     // pkg private for testing
-    ModuleEntitlements policyEntitlements(String componentName, List<Entitlement> entitlements) {
+    ModuleEntitlements policyEntitlements(String componentName, String moduleName, List<Entitlement> entitlements) {
         FilesEntitlement filesEntitlement = FilesEntitlement.EMPTY;
         for (Entitlement entitlement : entitlements) {
             if (entitlement instanceof FilesEntitlement) {
@@ -105,7 +105,7 @@ public class PolicyManager {
         return new ModuleEntitlements(
             componentName,
             entitlements.stream().collect(groupingBy(Entitlement::getClass)),
-            FileAccessTree.of(filesEntitlement, pathLookup, List.of())
+            FileAccessTree.of(componentName, moduleName, filesEntitlement, pathLookup, exclusivePaths)
         );
     }
 
@@ -150,7 +150,7 @@ public class PolicyManager {
      * structures to indicate other modules aren't allowed to use these
      * files in {@link FileAccessTree}s.
      */
-    private final List<String> exclusivePaths;
+    private final List<ExclusivePath> exclusivePaths;
 
     public PolicyManager(
         Policy serverPolicy,
@@ -170,15 +170,15 @@ public class PolicyManager {
         this.apmAgentPackageName = apmAgentPackageName;
         this.entitlementsModule = entitlementsModule;
         this.pathLookup = requireNonNull(pathLookup);
-        this.defaultFileAccess = FileAccessTree.of(FilesEntitlement.EMPTY, pathLookup, List.of());
+        this.defaultFileAccess = FileAccessTree.of("", "", FilesEntitlement.EMPTY, pathLookup, List.of());
 
         List<ExclusivePath> exclusivePaths = new ArrayList<>();
         for (var e : serverEntitlements.entrySet()) {
             validateEntitlementsPerModule(SERVER_COMPONENT_NAME, e.getKey(), e.getValue());
             buildExclusivePathList(exclusivePaths, pathLookup, SERVER_COMPONENT_NAME, e.getKey(), e.getValue());
         }
-        validateEntitlementsPerModule(APM_AGENT_COMPONENT_NAME, "unnamed", apmAgentEntitlements);
-        buildExclusivePathList(exclusivePaths, pathLookup, APM_AGENT_COMPONENT_NAME, "unnamed", apmAgentEntitlements);
+        validateEntitlementsPerModule(APM_AGENT_COMPONENT_NAME, ALL_UNNAMED, apmAgentEntitlements);
+        buildExclusivePathList(exclusivePaths, pathLookup, APM_AGENT_COMPONENT_NAME, ALL_UNNAMED, apmAgentEntitlements);
         for (var p : pluginsEntitlements.entrySet()) {
             for (var m : p.getValue().entrySet()) {
                 validateEntitlementsPerModule(p.getKey(), m.getKey(), m.getValue());
@@ -187,7 +187,7 @@ public class PolicyManager {
         }
         exclusivePaths.sort(Comparator.comparing(ExclusivePath::path));
         validateExclusivePaths(exclusivePaths);
-        this.exclusivePaths = exclusivePaths.stream().map(ExclusivePath::path).toList();
+        this.exclusivePaths = exclusivePaths;
     }
 
     private static Map<String, List<Entitlement>> buildScopeEntitlementsMap(Policy policy) {
@@ -206,7 +206,7 @@ public class PolicyManager {
         }
     }
 
-    private record ExclusivePath(String componentName, String moduleName, String path) {}
+    record ExclusivePath(String componentName, String moduleName, Path path) {}
 
     private static void buildExclusivePathList(
         List<ExclusivePath> exclusivePaths,
@@ -221,8 +221,7 @@ public class PolicyManager {
                     if (fd.exclusive()) {
                         List<Path> paths = fd.resolvePaths(pathLookup).toList();
                         for (Path path : paths) {
-                            String pathStr = FileAccessTree.normalizePath(path);
-                            exclusivePaths.add(new ExclusivePath(componentName, moduleName, pathStr));
+                            exclusivePaths.add(new ExclusivePath(componentName, moduleName, path));
                         }
                     }
                 }
@@ -551,7 +550,7 @@ public class PolicyManager {
 
         if (requestingModule.isNamed() == false && requestingClass.getPackageName().startsWith(apmAgentPackageName)) {
             // The APM agent is the only thing running non-modular in the system classloader
-            return policyEntitlements(APM_AGENT_COMPONENT_NAME, apmAgentEntitlements);
+            return policyEntitlements(APM_AGENT_COMPONENT_NAME, ALL_UNNAMED, apmAgentEntitlements);
         }
 
         return defaultEntitlements(UNKNOWN_COMPONENT_NAME);
@@ -566,7 +565,7 @@ public class PolicyManager {
         if (entitlements == null) {
             return defaultEntitlements(componentName);
         }
-        return policyEntitlements(componentName, entitlements);
+        return policyEntitlements(componentName, moduleName, entitlements);
     }
 
     private static boolean isServerModule(Module requestingModule) {

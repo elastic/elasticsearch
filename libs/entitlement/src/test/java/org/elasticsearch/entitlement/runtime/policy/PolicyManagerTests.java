@@ -356,7 +356,10 @@ public class PolicyManagerTests extends ESTestCase {
             )
         );
         assertEquals(
-            "[(APM agent)] using module [unnamed] found duplicate entitlement " + "[" + CreateClassLoaderEntitlement.class.getName() + "]",
+            "[(APM agent)] using module [ALL-UNNAMED] found duplicate entitlement "
+                + "["
+                + CreateClassLoaderEntitlement.class.getName()
+                + "]",
             iae.getMessage()
         );
 

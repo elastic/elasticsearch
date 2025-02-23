@@ -10,6 +10,7 @@
 package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.entitlement.runtime.policy.PolicyManager.ExclusivePath;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
@@ -191,19 +192,19 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testTempDirAccess() {
-        var tree = FileAccessTree.of(FilesEntitlement.EMPTY, TEST_PATH_LOOKUP, List.of());
+        var tree = FileAccessTree.of("test-component", "test-module", FilesEntitlement.EMPTY, TEST_PATH_LOOKUP, List.of());
         assertThat(tree.canRead(TEST_PATH_LOOKUP.tempDir()), is(true));
         assertThat(tree.canWrite(TEST_PATH_LOOKUP.tempDir()), is(true));
     }
 
     public void testExclusiveAccess() {
-        var tree = accessTree(entitlement("foo", "read"), exclusivePaths("foo"));
+        var tree = accessTree(entitlement("foo", "read"), exclusivePaths("test-component", "test-module", "foo"));
         assertThat(tree.canRead(path("foo")), is(true));
         assertThat(tree.canWrite(path("foo")), is(false));
-        tree = accessTree(entitlement("foo", "read_write"), exclusivePaths("foo"));
+        tree = accessTree(entitlement("foo", "read_write"), exclusivePaths("test-component", "test-module", "foo"));
         assertThat(tree.canRead(path("foo")), is(true));
         assertThat(tree.canWrite(path("foo")), is(true));
-        tree = accessTree(entitlement("foo", "read"), exclusivePaths("foo/bar"));
+        tree = accessTree(entitlement("foo", "read"), exclusivePaths("test-component", "diff-module", "foo/bar"));
         assertThat(tree.canRead(path("foo")), is(true));
         assertThat(tree.canWrite(path("foo")), is(false));
         assertThat(tree.canRead(path("foo/baz")), is(true));
@@ -212,8 +213,8 @@ public class FileAccessTreeTests extends ESTestCase {
         assertThat(tree.canWrite(path("foo/bar")), is(false));
     }
 
-    FileAccessTree accessTree(FilesEntitlement entitlement, List<String> exclusivePaths) {
-        return FileAccessTree.of(entitlement, TEST_PATH_LOOKUP, exclusivePaths);
+    FileAccessTree accessTree(FilesEntitlement entitlement, List<ExclusivePath> exclusivePaths) {
+        return FileAccessTree.of("test-component", "test-module", entitlement, TEST_PATH_LOOKUP, exclusivePaths);
     }
 
     static FilesEntitlement entitlement(String... values) {
@@ -231,10 +232,10 @@ public class FileAccessTreeTests extends ESTestCase {
         return FilesEntitlement.build(List.of(value));
     }
 
-    static List<String> exclusivePaths(String... paths) {
-        List<String> exclusivePaths = new ArrayList<>();
+    static List<ExclusivePath> exclusivePaths(String componentName, String moduleName, String... paths) {
+        List<ExclusivePath> exclusivePaths = new ArrayList<>();
         for (String path : paths) {
-            exclusivePaths.add(FileAccessTree.normalizePath(path(path)));
+            exclusivePaths.add(new ExclusivePath(componentName, moduleName, path(path)));
         }
         return exclusivePaths;
     }

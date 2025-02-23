@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import org.elasticsearch.entitlement.runtime.policy.PolicyManager.ExclusivePath;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
 
 import java.nio.file.Path;
@@ -27,7 +28,13 @@ public final class FileAccessTree {
     private final String[] readPaths;
     private final String[] writePaths;
 
-    private FileAccessTree(FilesEntitlement filesEntitlement, PathLookup pathLookup, List<String> exclusivePaths) {
+    private FileAccessTree(
+        String componentName,
+        String moduleName,
+        FilesEntitlement filesEntitlement,
+        PathLookup pathLookup,
+        List<ExclusivePath> exclusivePaths
+    ) {
         List<String> updatedExclusivePaths = new ArrayList<>();
         List<String> readPaths = new ArrayList<>();
         List<String> writePaths = new ArrayList<>();
@@ -36,12 +43,13 @@ public final class FileAccessTree {
             var paths = fileData.resolvePaths(pathLookup);
             paths.forEach(path -> {
                 var normalized = normalizePath(path);
-                for (String exclusivePath : exclusivePaths) {
-                    if (normalized.equals(exclusivePath) == false) {
-                        if (normalized.startsWith(exclusivePath)) {
+                for (ExclusivePath exclusivePath : exclusivePaths) {
+                    if (exclusivePath.componentName().equals(componentName) == false
+                        || exclusivePath.moduleName().equals(moduleName) == false) {
+                        if (path.startsWith(exclusivePath.path())) {
                             // TODO: throw
                         }
-                        updatedExclusivePaths.add(exclusivePath);
+                        updatedExclusivePaths.add(normalizePath(exclusivePath.path()));
                     }
                 }
                 if (mode == FilesEntitlement.Mode.READ_WRITE) {
@@ -62,6 +70,8 @@ public final class FileAccessTree {
         this.exclusivePaths = updatedExclusivePaths.toArray(new String[0]);
         this.readPaths = pruneSortedPaths(readPaths).toArray(new String[0]);
         this.writePaths = pruneSortedPaths(writePaths).toArray(new String[0]);
+        // if (true) throw new IllegalStateException("EXCLUSIVE: " + Arrays.toString(this.exclusivePaths) +
+        // "\n READ: " + Arrays.toString(this.readPaths) + "\n WRITE: " + Arrays.toString(this.writePaths));
     }
 
     private static List<String> pruneSortedPaths(List<String> paths) {
@@ -81,8 +91,14 @@ public final class FileAccessTree {
 
     }
 
-    public static FileAccessTree of(FilesEntitlement filesEntitlement, PathLookup pathLookup, List<String> exclusivePaths) {
-        return new FileAccessTree(filesEntitlement, pathLookup, exclusivePaths);
+    public static FileAccessTree of(
+        String componentName,
+        String moduleName,
+        FilesEntitlement filesEntitlement,
+        PathLookup pathLookup,
+        List<ExclusivePath> exclusivePaths
+    ) {
+        return new FileAccessTree(componentName, moduleName, filesEntitlement, pathLookup, exclusivePaths);
     }
 
     boolean canRead(Path path) {

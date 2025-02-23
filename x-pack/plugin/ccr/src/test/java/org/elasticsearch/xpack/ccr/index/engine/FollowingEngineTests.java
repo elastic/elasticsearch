@@ -94,7 +94,10 @@ public class FollowingEngineTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool("following-engine-tests");
-        threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(threadPool, Settings.EMPTY);
+        threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
+            threadPool,
+            Settings.EMPTY
+        );
         index = new Index("index", "uuid");
         shardId = new ShardId(index, 0);
         primaryTerm.set(randomLongBetween(1, Long.MAX_VALUE));

@@ -78,7 +78,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TransportSearchIT extends ESIntegTestCase {
@@ -488,10 +487,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                     Exception.class,
                     client.prepareSearch("test").addAggregation(new TestAggregationBuilder("test"))
                 );
-                assertThat(
-                    exc.getCause().getMessage(),
-                    either(containsString("<reduce_aggs>")).or(containsString("fetch phase source loader"))
-                );
+                assertThat(exc.getCause().getMessage(), containsString("<reduce_aggs>"));
             });
 
             final AtomicArray<Exception> exceptions = new AtomicArray<>(10);
@@ -518,10 +514,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             latch.await();
             assertThat(exceptions.asList().size(), equalTo(10));
             for (Exception exc : exceptions.asList()) {
-                assertThat(
-                    exc.getCause().getMessage(),
-                    either(containsString("<reduce_aggs>")).or(containsString("fetch phase source loader"))
-                );
+                assertThat(exc.getCause().getMessage(), containsString("<reduce_aggs>"));
             }
             assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
         } finally {

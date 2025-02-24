@@ -143,7 +143,6 @@ public final class FetchPhase {
             SourceLoader.Leaf leafSourceLoader;
             IdLoader.Leaf leafIdLoader;
 
-
             @Override
             protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) throws IOException {
                 Timer timer = profiler.startNextReader();

@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingType;
 import org.elasticsearch.xpack.inference.services.jinaai.embeddings.JinaAIEmbeddingsTaskSettings;
 import org.hamcrest.MatcherAssert;
 
@@ -23,25 +24,67 @@ import static org.hamcrest.CoreMatchers.is;
 
 public class JinaAIEmbeddingsRequestEntityTests extends ESTestCase {
     public void testXContent_WritesAllFields_WhenTheyAreDefined() throws IOException {
-        var entity = new JinaAIEmbeddingsRequestEntity(List.of("abc"), new JinaAIEmbeddingsTaskSettings(InputType.INGEST), "model");
+        var entity = new JinaAIEmbeddingsRequestEntity(
+            List.of("abc"),
+            new JinaAIEmbeddingsTaskSettings(InputType.INGEST),
+            "model",
+            JinaAIEmbeddingType.FLOAT
+        );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
         MatcherAssert.assertThat(xContentResult, is("""
-            {"input":["abc"],"model":"model","task":"retrieval.passage"}"""));
+            {"input":["abc"],"model":"model","embedding_type":"float","task":"retrieval.passage"}"""));
     }
 
     public void testXContent_WritesNoOptionalFields_WhenTheyAreNotDefined() throws IOException {
-        var entity = new JinaAIEmbeddingsRequestEntity(List.of("abc"), JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS, "model");
+        var entity = new JinaAIEmbeddingsRequestEntity(
+            List.of("abc"),
+            JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
+            "model",
+            JinaAIEmbeddingType.FLOAT
+        );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
         MatcherAssert.assertThat(xContentResult, is("""
-            {"input":["abc"],"model":"model"}"""));
+            {"input":["abc"],"model":"model","embedding_type":"float"}"""));
+    }
+
+    public void testXContent_EmbeddingTypesBit() throws IOException {
+        var entity = new JinaAIEmbeddingsRequestEntity(
+            List.of("abc"),
+            JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
+            "model",
+            JinaAIEmbeddingType.BIT
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        MatcherAssert.assertThat(xContentResult, is("""
+            {"input":["abc"],"model":"model","embedding_type":"binary"}"""));
+    }
+
+    public void testXContent_EmbeddingTypesBinary() throws IOException {
+        var entity = new JinaAIEmbeddingsRequestEntity(
+            List.of("abc"),
+            JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
+            "model",
+            JinaAIEmbeddingType.BINARY
+        );
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        entity.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        MatcherAssert.assertThat(xContentResult, is("""
+            {"input":["abc"],"model":"model","embedding_type":"binary"}"""));
     }
 
     public void testConvertToString_ThrowsAssertionFailure_WhenInputTypeIsUnspecified() {

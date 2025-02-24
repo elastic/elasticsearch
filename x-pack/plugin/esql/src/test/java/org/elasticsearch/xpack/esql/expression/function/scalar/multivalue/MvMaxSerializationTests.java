@@ -21,9 +21,4 @@ public class MvMaxSerializationTests extends AbstractExpressionSerializationTest
     protected MvMax mutateInstance(MvMax instance) throws IOException {
         return new MvMax(instance.source(), randomValueOtherThan(instance.field(), AbstractExpressionSerializationTests::randomChild));
     }
-
-    @Override
-    protected boolean alwaysEmptySource() {
-        return true;
-    }
 }

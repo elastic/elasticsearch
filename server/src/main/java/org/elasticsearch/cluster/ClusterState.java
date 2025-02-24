@@ -747,10 +747,9 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 metrics.contains(Metric.ROUTING_NODES),
                 (builder, params) -> builder.startObject("nodes"),
                 getRoutingNodes().iterator(),
-                routingNode -> Iterators.concat(
-                    ChunkedToXContentHelper.startArray(routingNode.nodeId() == null ? "null" : routingNode.nodeId()),
-                    routingNode.iterator(),
-                    ChunkedToXContentHelper.endArray()
+                routingNode -> ChunkedToXContentHelper.array(
+                    routingNode.nodeId() == null ? "null" : routingNode.nodeId(),
+                    routingNode.iterator()
                 ),
                 (builder, params) -> builder.endObject().endObject()
             ),

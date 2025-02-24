@@ -354,6 +354,64 @@ public class FieldCapabilitiesFilterTests extends MapperServiceTestCase {
         assertNotNull(response.get("_index"));
     }
 
+    public void testNotIncludeParentEventWhenItsTypeIsListed() throws IOException {
+        MapperService mapperService = createMapperService("""
+            { "_doc" : {
+              "properties" : {
+                "field1" : {
+                  "type" : "object",
+                  "properties" : {
+                    "field2" : { "type" : "keyword" }
+                  }
+                }
+              }
+            } }
+            """);
+        SearchExecutionContext sec = createSearchExecutionContext(mapperService);
+
+        Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
+            sec,
+            s -> true,
+            new String[] { "-parent" },
+            new String[] { "keyword", "object" },
+            FieldPredicate.ACCEPT_ALL,
+            getMockIndexShard(),
+            true
+        );
+        assertNull(response.get("field1"));
+        assertNotNull(response.get("field1.field2"));
+        assertNull(response.get("_index"));
+    }
+
+    public void testIncludeParentEventWhenItsTypeIsNotListed() throws IOException {
+        MapperService mapperService = createMapperService("""
+            { "_doc" : {
+              "properties" : {
+                "field1" : {
+                  "type" : "object",
+                  "properties" : {
+                    "field2" : { "type" : "keyword" }
+                  }
+                }
+              }
+            } }
+            """);
+        SearchExecutionContext sec = createSearchExecutionContext(mapperService);
+
+        Map<String, IndexFieldCapabilities> response = FieldCapabilitiesFetcher.retrieveFieldCaps(
+            sec,
+            s -> true,
+            new String[] { "parent" },
+            new String[] { "keyword" },
+            FieldPredicate.ACCEPT_ALL,
+            getMockIndexShard(),
+            true
+        );
+        assertNotNull(response.get("field1"));
+        assertNotNull(response.get("field1.field2"));
+        assertNull(response.get("_index"));
+    }
+
     private IndexShard getMockIndexShard() {
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.getFieldInfos()).thenReturn(FieldInfos.EMPTY);

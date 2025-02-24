@@ -400,7 +400,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             super.doRun(shardIndexMap);
             return;
         }
-        AbstractSearchAsyncAction.doCheckNoMissingShards(getName(), request, shardsIts, AbstractSearchAsyncAction::makeMissingShardsError);
+        AbstractSearchAsyncAction.doCheckNoMissingShards(getName(), request, shardsIts);
         final Map<CanMatchPreFilterSearchPhase.SendingTarget, NodeQueryRequest> perNodeQueries = new HashMap<>();
         final String localNodeId = searchTransportService.transportService().getLocalNode().getId();
         final int numberOfShardsTotal = shardsIts.size();

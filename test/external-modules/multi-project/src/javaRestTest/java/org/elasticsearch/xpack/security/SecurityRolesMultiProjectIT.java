@@ -41,7 +41,7 @@ public class SecurityRolesMultiProjectIT extends MultiProjectRestTestCase {
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .nodes(1)
         .distribution(DistributionType.DEFAULT)
-        .module("multi-project")
+        .module("test-multi-project")
         .setting("multi_project.enabled", "true")
         .setting("xpack.security.enabled", "true")
         .user("admin", PASSWORD)

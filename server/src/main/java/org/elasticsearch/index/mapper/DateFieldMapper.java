@@ -1061,6 +1061,7 @@ public final class DateFieldMapper extends FieldMapper {
                 && indexSortConfig.hasSortOnField(fullFieldName)
                 && DataStreamTimestampFieldMapper.DEFAULT_PATH.equals(fullFieldName);
         } else if (IndexMode.TIME_SERIES.equals(indexMode)) {
+            // We don't need to check the sort config because TSDB indices are always sorted by _tsid and @timestamp
             return indexCreatedVersion.onOrAfter(IndexVersions.TSDB_TIMESTAMP_DOC_VALUES_SPARSE_INDEX)
                 && useDocValuesSkipper
                 && hasDocValues

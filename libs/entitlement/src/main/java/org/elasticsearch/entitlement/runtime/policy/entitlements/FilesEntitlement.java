@@ -42,26 +42,55 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         HOME
     }
 
+    public enum Platform {
+        LINUX,
+        MACOS,
+        WINDOWS;
+
+        private static final Platform current = findCurrent();
+
+        private static Platform findCurrent() {
+            String os = System.getProperty("os.name");
+            if (os.startsWith("Linux")) {
+                return LINUX;
+            } else if (os.startsWith("Mac OS")) {
+                return MACOS;
+            } else if (os.startsWith("Windows")) {
+                return WINDOWS;
+            } else {
+                throw new AssertionError("Unsupported platform [" + os + "]");
+            }
+        }
+
+        public boolean isCurrent() {
+            return this == current;
+        }
+    }
+
     public sealed interface FileData {
 
         Stream<Path> resolvePaths(PathLookup pathLookup);
 
         Mode mode();
 
+        Platform platform();
+
+        FileData withPlatform(Platform platform);
+
         static FileData ofPath(Path path, Mode mode) {
-            return new AbsolutePathFileData(path, mode);
+            return new AbsolutePathFileData(path, mode, null);
         }
 
         static FileData ofRelativePath(Path relativePath, BaseDir baseDir, Mode mode) {
-            return new RelativePathFileData(relativePath, baseDir, mode);
+            return new RelativePathFileData(relativePath, baseDir, mode, null);
         }
 
         static FileData ofPathSetting(String setting, Mode mode) {
-            return new PathSettingFileData(setting, mode);
+            return new PathSettingFileData(setting, mode, null);
         }
 
         static FileData ofRelativePathSetting(String setting, BaseDir baseDir, Mode mode) {
-            return new RelativePathSettingFileData(setting, baseDir, mode);
+            return new RelativePathSettingFileData(setting, baseDir, mode, null);
         }
 
         /**
@@ -145,31 +174,69 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         return paths.stream();
     }
 
-    private record AbsolutePathFileData(Path path, Mode mode) implements FileData {
+    private record AbsolutePathFileData(Path path, Mode mode, Platform platform) implements FileData {
         @Override
         public Stream<Path> resolvePaths(PathLookup pathLookup) {
             return Stream.of(path);
         }
+
+        @Override
+        public FileData withPlatform(Platform platform) {
+            if (platform == platform()) {
+                return this;
+            }
+            return new AbsolutePathFileData(path, mode, platform);
+        }
     }
 
-    private record RelativePathFileData(Path relativePath, BaseDir baseDir, Mode mode) implements FileData, RelativeFileData {
+    private record RelativePathFileData(Path relativePath, BaseDir baseDir, Mode mode, Platform platform)
+        implements
+            FileData,
+            RelativeFileData {
         @Override
         public Stream<Path> resolveRelativePaths(PathLookup pathLookup) {
             return Stream.of(relativePath);
         }
+
+        @Override
+        public FileData withPlatform(Platform platform) {
+            if (platform == platform()) {
+                return this;
+            }
+            return new RelativePathFileData(relativePath, baseDir, mode, platform);
+        }
     }
 
-    private record PathSettingFileData(String setting, Mode mode) implements FileData {
+    private record PathSettingFileData(String setting, Mode mode, Platform platform) implements FileData {
         @Override
         public Stream<Path> resolvePaths(PathLookup pathLookup) {
             return resolvePathSettings(pathLookup, setting);
         }
+
+        @Override
+        public FileData withPlatform(Platform platform) {
+            if (platform == platform()) {
+                return this;
+            }
+            return new PathSettingFileData(setting, mode, platform);
+        }
     }
 
-    private record RelativePathSettingFileData(String setting, BaseDir baseDir, Mode mode) implements FileData, RelativeFileData {
+    private record RelativePathSettingFileData(String setting, BaseDir baseDir, Mode mode, Platform platform)
+        implements
+            FileData,
+            RelativeFileData {
         @Override
         public Stream<Path> resolveRelativePaths(PathLookup pathLookup) {
             return resolvePathSettings(pathLookup, setting);
+        }
+
+        @Override
+        public FileData withPlatform(Platform platform) {
+            if (platform == platform()) {
+                return this;
+            }
+            return new RelativePathSettingFileData(setting, baseDir, mode, platform);
         }
     }
 
@@ -188,6 +255,18 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
             return Mode.READ_WRITE;
         } else {
             throw new PolicyValidationException("invalid mode: " + mode + ", valid values: [read, read_write]");
+        }
+    }
+
+    private static Platform parsePlatform(String platform) {
+        if (platform.equals("linux")) {
+            return Platform.LINUX;
+        } else if (platform.equals("macos")) {
+            return Platform.MACOS;
+        } else if (platform.equals("windows")) {
+            return Platform.WINDOWS;
+        } else {
+            throw new PolicyValidationException("invalid platform: " + platform + ", valid values: [linux, macos, windows]");
         }
     }
 
@@ -218,6 +297,7 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
             String pathSetting = file.remove("path_setting");
             String relativePathSetting = file.remove("relative_path_setting");
             String modeAsString = file.remove("mode");
+            String platformAsString = file.remove("platform");
 
             if (file.isEmpty() == false) {
                 throw new PolicyValidationException("unknown key(s) [" + file + "] in a listed file for files entitlement");
@@ -234,36 +314,45 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
                 throw new PolicyValidationException("files entitlement must contain 'mode' for every listed file");
             }
             Mode mode = parseMode(modeAsString);
+            Platform platform = null;
+            if (platformAsString != null) {
+                platform = parsePlatform(platformAsString);
+            }
 
             BaseDir baseDir = null;
             if (relativeTo != null) {
                 baseDir = parseBaseDir(relativeTo);
             }
 
+            final FileData fileData;
             if (relativePathAsString != null) {
                 if (baseDir == null) {
                     throw new PolicyValidationException("files entitlement with a 'relative_path' must specify 'relative_to'");
                 }
 
+                Path relativePath = Path.of(relativePathAsString);
                 if (FileData.isAbsolutePath(relativePathAsString)) {
                     throw new PolicyValidationException("'relative_path' [" + relativePathAsString + "] must be relative");
                 }
-                filesData.add(FileData.ofRelativePath(Path.of(relativePathAsString), baseDir, mode));
+                fileData = FileData.ofRelativePath(relativePath, baseDir, mode);
             } else if (pathAsString != null) {
+                Path path = Path.of(pathAsString);
                 if (FileData.isAbsolutePath(pathAsString) == false) {
                     throw new PolicyValidationException("'path' [" + pathAsString + "] must be absolute");
                 }
-                filesData.add(FileData.ofPath(Path.of(pathAsString), mode));
+                fileData = FileData.ofPath(path, mode);
             } else if (pathSetting != null) {
-                filesData.add(FileData.ofPathSetting(pathSetting, mode));
+                fileData = FileData.ofPathSetting(pathSetting, mode);
             } else if (relativePathSetting != null) {
                 if (baseDir == null) {
                     throw new PolicyValidationException("files entitlement with a 'relative_path_setting' must specify 'relative_to'");
                 }
-                filesData.add(FileData.ofRelativePathSetting(relativePathSetting, baseDir, mode));
+                fileData = FileData.ofRelativePathSetting(relativePathSetting, baseDir, mode);
             } else {
                 throw new AssertionError("File entry validation error");
             }
+
+            filesData.add(fileData.withPlatform(platform));
         }
         return new FilesEntitlement(filesData);
     }

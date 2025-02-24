@@ -25,8 +25,6 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
@@ -161,33 +159,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
             return;
         }
 
-        Collection<NameValue> ignoredValuesToWrite = context.getIgnoredFieldValues();
-        if (context.getCopyToFields().isEmpty() == false && indexSettings.getSkipIgnoredSourceWrite() == false) {
-            /*
-            Mark fields as containing copied data meaning they should not be present
-            in synthetic _source (to be consistent with stored _source).
-            Ignored source values take precedence over standard synthetic source implementation
-            so by adding the `XContentDataHelper.voidValue()` entry we disable the field in synthetic source.
-            Otherwise, it would be constructed f.e. from doc_values which leads to duplicate values
-            in copied field after reindexing.
-            */
-            var mutableList = new ArrayList<>(ignoredValuesToWrite);
-            for (String copyToField : context.getCopyToFields()) {
-                ObjectMapper parent = context.parent().findParentMapper(copyToField);
-                if (parent == null) {
-                    // There are scenarios when this can happen:
-                    // 1. all values of the field that is the source of copy_to are null
-                    // 2. copy_to points at a field inside a disabled object
-                    // 3. copy_to points at dynamic field which is not yet applied to mapping, we will process it properly on re-parse.
-                    continue;
-                }
-                int offset = parent.isRoot() ? 0 : parent.fullPath().length() + 1;
-                mutableList.add(new IgnoredSourceFieldMapper.NameValue(copyToField, offset, XContentDataHelper.voidValue(), context.doc()));
-            }
-            ignoredValuesToWrite = mutableList;
-        }
-
-        for (NameValue nameValue : ignoredValuesToWrite) {
+        for (NameValue nameValue : context.getIgnoredFieldValues()) {
             nameValue.doc().add(new StoredField(NAME, encode(nameValue)));
         }
     }

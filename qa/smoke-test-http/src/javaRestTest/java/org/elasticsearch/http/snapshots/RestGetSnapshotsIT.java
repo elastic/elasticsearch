@@ -10,7 +10,6 @@
 package org.elasticsearch.http.snapshots;
 
 import org.apache.http.client.methods.HttpGet;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
@@ -37,7 +36,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -516,10 +514,9 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         true,
         (args) -> new GetSnapshotsResponse(
             (List<SnapshotInfo>) args[0],
-            (Map<String, ElasticsearchException>) args[1],
-            (String) args[2],
-            args[3] == null ? UNKNOWN_COUNT : (int) args[3],
-            args[4] == null ? UNKNOWN_COUNT : (int) args[4]
+            (String) args[1],
+            args[2] == null ? UNKNOWN_COUNT : (int) args[2],
+            args[3] == null ? UNKNOWN_COUNT : (int) args[3]
         )
     );
 
@@ -528,11 +525,6 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
             ConstructingObjectParser.constructorArg(),
             (p, c) -> SnapshotInfoUtils.snapshotInfoFromXContent(p),
             new ParseField("snapshots")
-        );
-        GET_SNAPSHOT_PARSER.declareObject(
-            ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> p.map(HashMap::new, ElasticsearchException::fromXContent),
-            new ParseField("failures")
         );
         GET_SNAPSHOT_PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField("next"));
         GET_SNAPSHOT_PARSER.declareIntOrNull(ConstructingObjectParser.optionalConstructorArg(), UNKNOWN_COUNT, new ParseField("total"));

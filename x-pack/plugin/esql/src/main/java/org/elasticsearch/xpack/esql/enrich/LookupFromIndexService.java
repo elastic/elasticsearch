@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -33,6 +34,8 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+
+import static java.lang.System.in;
 
 /**
  * {@link LookupFromIndexService} performs lookup against a Lookup index for
@@ -76,8 +79,17 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     }
 
     @Override
-    protected QueryList queryList(TransportRequest request, SearchExecutionContext context, Block inputBlock, DataType inputDataType) {
-        return termQueryList(context.getFieldType(request.matchField), context, inputBlock, inputDataType).onlySingleValues();
+    protected QueryList queryList(
+        TransportRequest request,
+        SearchExecutionContext context,
+        Block inputBlock,
+        DataType inputDataType,
+        Warnings warnings
+    ) {
+        return termQueryList(context.getFieldType(request.matchField), context, inputBlock, inputDataType).onlySingleValues(
+            warnings,
+            "LOOKUP JOIN encountered multi-value"
+        );
     }
 
     @Override
@@ -140,6 +152,12 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENRICH_RUNTIME_WARNINGS)) {
                 source = Source.readFrom(planIn);
             }
+            // Source.readFrom() requires the query from the Configuration passed to PlanStreamInput.
+            // As we don't have the Configuration here, and it may be heavy to serialize, we directly pass the Source text.
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_SOURCE_TEXT)) {
+                String sourceText = in.readString();
+                source = new Source(source.source(), sourceText);
+            }
             TransportRequest result = new TransportRequest(
                 sessionId,
                 shardId,
@@ -166,6 +184,9 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             out.writeString(matchField);
             if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENRICH_RUNTIME_WARNINGS)) {
                 source.writeTo(planOut);
+            }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_LOOKUP_JOIN_SOURCE_TEXT)) {
+                out.writeString(source.text());
             }
         }
 

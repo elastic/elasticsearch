@@ -51,10 +51,13 @@ processingCommand
     | grokCommand
     | enrichCommand
     | mvExpandCommand
+    | joinCommand
     // in development
     | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
-    | {this.isDevVersion()}? joinCommand
+    | {this.isDevVersion()}? changePointCommand
+    | {this.isDevVersion()}? insistCommand
+    | {this.isDevVersion()}? forkCommand
     ;
 
 whereCommand
@@ -143,6 +146,7 @@ indexPattern
 
 clusterString
     : UNQUOTED_SOURCE
+    | QUOTED_STRING
     ;
 
 indexString
@@ -193,7 +197,7 @@ identifier
 
 identifierPattern
     : ID_PATTERN
-    | {this.isDevVersion()}? parameter
+    | parameter
     ;
 
 constant
@@ -216,7 +220,7 @@ parameter
 
 identifierOrParameter
     : identifier
-    | {this.isDevVersion()}? parameter
+    | parameter
     ;
 
 limitCommand
@@ -324,11 +328,11 @@ inlinestatsCommand
     ;
 
 joinCommand
-    : type=(DEV_JOIN_LOOKUP | DEV_JOIN_LEFT | DEV_JOIN_RIGHT)? DEV_JOIN joinTarget joinCondition
+    : type=(JOIN_LOOKUP | DEV_JOIN_LEFT | DEV_JOIN_RIGHT) JOIN joinTarget joinCondition
     ;
 
 joinTarget
-    : index=indexPattern (AS alias=identifier)?
+    : index=indexPattern
     ;
 
 joinCondition
@@ -337,4 +341,35 @@ joinCondition
 
 joinPredicate
     : valueExpression
+    ;
+
+changePointCommand
+    : DEV_CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)?
+    ;
+
+insistCommand
+    : DEV_INSIST qualifiedNamePatterns
+    ;
+
+forkCommand
+    : DEV_FORK forkSubQueries
+    ;
+
+forkSubQueries
+    : (forkSubQuery)+
+    ;
+
+forkSubQuery
+    : LP forkSubQueryCommand RP
+    ;
+
+forkSubQueryCommand
+    : forkSubQueryProcessingCommand                             #singleForkSubQueryCommand
+    | forkSubQueryCommand PIPE forkSubQueryProcessingCommand    #compositeForkSubQuery
+    ;
+
+forkSubQueryProcessingCommand
+    : whereCommand
+    | sortCommand
+    | limitCommand
     ;

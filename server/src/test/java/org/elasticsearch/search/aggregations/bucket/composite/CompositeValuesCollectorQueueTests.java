@@ -343,10 +343,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                     final SortedDocsProducer docsProducer = sources[0].createSortedDocsProducerOrNull(reader, new MatchAllDocsQuery());
                     for (LeafReaderContext leafReaderContext : reader.leaves()) {
                         if (docsProducer != null && withProducer) {
-                            assertEquals(
-                                DocIdSet.EMPTY,
-                                docsProducer.processLeaf(new MatchAllDocsQuery(), queue, leafReaderContext, false)
-                            );
+                            assertEquals(DocIdSet.EMPTY, docsProducer.processLeaf(queue, leafReaderContext, false));
                         } else {
                             final LeafBucketCollector leafCollector = new LeafBucketCollector() {
                                 @Override

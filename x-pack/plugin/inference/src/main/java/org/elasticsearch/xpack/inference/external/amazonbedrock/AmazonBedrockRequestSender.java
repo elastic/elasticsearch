@@ -89,6 +89,11 @@ public class AmazonBedrockRequestSender implements Sender {
     }
 
     @Override
+    public void updateRateLimitDivisor(int rateLimitDivisor) {
+        executorService.updateRateLimitDivisor(rateLimitDivisor);
+    }
+
+    @Override
     public void start() {
         if (started.compareAndSet(false, true)) {
             // The manager must be started before the executor service. That way we guarantee that the http client

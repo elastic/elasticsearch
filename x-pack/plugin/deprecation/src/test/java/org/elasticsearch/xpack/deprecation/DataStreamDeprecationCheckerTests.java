@@ -69,7 +69,7 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
         );
 
         // We know that the data stream checks ignore the request.
-        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState, null);
+        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState);
         assertThat(issuesByDataStream.size(), equalTo(1));
         assertThat(issuesByDataStream.containsKey(dataStream.getName()), equalTo(true));
         assertThat(issuesByDataStream.get(dataStream.getName()), equalTo(List.of(expected)));
@@ -91,7 +91,7 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
 
-        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState, null);
+        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState);
         assertThat(issuesByDataStream.size(), equalTo(0));
     }
 
@@ -137,7 +137,7 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
             )
         );
 
-        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState, null);
+        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState);
         assertThat(issuesByDataStream.containsKey(dataStream.getName()), equalTo(true));
         assertThat(issuesByDataStream.get(dataStream.getName()), equalTo(List.of(expected)));
     }
@@ -290,16 +290,64 @@ public class DataStreamDeprecationCheckerTests extends ESTestCase {
                 + "OK to remain read-only after upgrade",
             false,
             ofEntries(
-                entry("reindex_required", true),
+                entry("reindex_required", false),
                 entry("total_backing_indices", oldIndexCount + newIndexCount),
                 entry("ignored_indices_requiring_upgrade_count", expectedIndices.size()),
                 entry("ignored_indices_requiring_upgrade", expectedIndices)
             )
         );
 
-        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState, null);
+        Map<String, List<DeprecationIssue>> issuesByDataStream = checker.check(clusterState);
         assertThat(issuesByDataStream.containsKey(dataStream.getName()), equalTo(true));
         assertThat(issuesByDataStream.get(dataStream.getName()), equalTo(List.of(expected)));
+    }
+
+    public void testOldSystemDataStreamIgnored() {
+        // We do not want system data streams coming back in the deprecation info API
+        int oldIndexCount = randomIntBetween(1, 100);
+        int newIndexCount = randomIntBetween(1, 100);
+        List<Index> allIndices = new ArrayList<>();
+        Map<String, IndexMetadata> nameToIndexMetadata = new HashMap<>();
+        for (int i = 0; i < oldIndexCount; i++) {
+            Settings.Builder settings = settings(IndexVersion.fromId(7170099));
+
+            String indexName = "old-data-stream-index-" + i;
+            settings.put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), true);
+
+            IndexMetadata oldIndexMetadata = IndexMetadata.builder(indexName)
+                .settings(settings)
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .build();
+            allIndices.add(oldIndexMetadata.getIndex());
+            nameToIndexMetadata.put(oldIndexMetadata.getIndex().getName(), oldIndexMetadata);
+        }
+        for (int i = 0; i < newIndexCount; i++) {
+            Index newIndex = createNewIndex(i, false, nameToIndexMetadata);
+            allIndices.add(newIndex);
+        }
+        DataStream dataStream = new DataStream(
+            randomAlphaOfLength(10),
+            allIndices,
+            randomNegativeLong(),
+            Map.of(),
+            true,
+            false,
+            true,
+            randomBoolean(),
+            randomFrom(IndexMode.values()),
+            null,
+            randomFrom(DataStreamOptions.EMPTY, DataStreamOptions.FAILURE_STORE_DISABLED, DataStreamOptions.FAILURE_STORE_ENABLED, null),
+            List.of(),
+            randomBoolean(),
+            null
+        );
+        Metadata metadata = Metadata.builder()
+            .indices(nameToIndexMetadata)
+            .dataStreams(Map.of(dataStream.getName(), dataStream), Map.of())
+            .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
+        assertThat(checker.check(clusterState), equalTo(Map.of()));
     }
 
 }

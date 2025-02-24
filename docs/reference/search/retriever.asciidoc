@@ -456,10 +456,13 @@ GET movies/_search
   "retriever": {
     "rescorer": { <2>
       "rescore": {
-        "query": { <3>
-          "window_size": 50, <4>
+        "window_size": 50, <3>
+        "query": { <4>
           "rescore_query": {
             "script_score": {
+              "query": {
+                "match_all": {}
+              },
               "script": {
                 "source": "cosineSimilarity(params.queryVector, 'product-vector_final_stage') + 1.0",
                 "params": {
@@ -516,8 +519,8 @@ GET movies/_search
 // TEST[skip:uses ELSER]
 <1> Specifies the number of top documents to return in the final response.
 <2> A `rescorer` retriever applied as the final step.
-<3> The definition of the `query` rescorer.
-<4> Defines the number of documents to rescore from the child retriever.
+<3> Defines the number of documents to rescore from the child retriever.
+<4> The definition of the `query` rescorer.
 <5> Specifies the child retriever definition.
 <6> Defines the number of documents returned by the `rrf` retriever, which limits the available documents to
 

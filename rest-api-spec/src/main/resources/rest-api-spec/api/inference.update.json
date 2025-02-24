@@ -14,7 +14,7 @@
       "paths": [
         {
           "path": "/_inference/{inference_id}/_update",
-          "methods": ["POST"],
+          "methods": ["PUT"],
           "parts": {
             "inference_id": {
               "type": "string",
@@ -24,7 +24,7 @@
         },
         {
           "path": "/_inference/{task_type}/{inference_id}/_update",
-          "methods": ["POST"],
+          "methods": ["PUT"],
           "parts": {
             "task_type": {
               "type": "string",

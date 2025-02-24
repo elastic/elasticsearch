@@ -1,0 +1,5 @@
+pr: 121556
+summary: Enable New Semantic Text Format Only On Newly Created Indices
+area: Mapping
+type: bug
+issues: []

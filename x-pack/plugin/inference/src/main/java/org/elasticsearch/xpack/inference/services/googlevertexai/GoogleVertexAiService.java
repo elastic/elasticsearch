@@ -231,7 +231,6 @@ public class GoogleVertexAiService extends SenderService {
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
             inputs.getInputs(),
             EMBEDDING_MAX_BATCH_SIZE,
-            EmbeddingRequestChunker.EmbeddingType.FLOAT,
             googleVertexAiModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 
@@ -327,6 +326,8 @@ public class GoogleVertexAiService extends SenderService {
             () -> {
                 var configurationMap = new HashMap<String, SettingsConfiguration>();
 
+                // TODO whether the model ID is required or not depends on the task type
+                // For rerank it is optional, for text_embedding it is required
                 configurationMap.put(
                     MODEL_ID,
                     new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("ID of the LLM you're using.")

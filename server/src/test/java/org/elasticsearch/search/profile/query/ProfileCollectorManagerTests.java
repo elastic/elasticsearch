@@ -135,7 +135,7 @@ public class ProfileCollectorManagerTests extends ESTestCase {
             assertEquals(numDocs, topDocs.totalHits.value());
             CollectorResult result = profileCollectorManager.getCollectorTree();
             assertEquals("profiler_reason", result.getReason());
-            assertEquals("SimpleTopScoreDocCollector", result.getName());
+            assertEquals("TopScoreDocCollector", result.getName());
             assertTrue(result.getTime() > 0);
         }
     }

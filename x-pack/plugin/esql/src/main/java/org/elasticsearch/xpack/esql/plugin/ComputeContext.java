@@ -19,6 +19,7 @@ import java.util.function.Supplier;
 
 record ComputeContext(
     String sessionId,
+    String taskDescription,
     String clusterAlias,
     List<SearchContext> searchContexts,
     Configuration configuration,

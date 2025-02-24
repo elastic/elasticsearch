@@ -59,7 +59,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
             DataType.NULL
         ).collect(Collectors.toList());
         if (Build.current().isSnapshot()) {
-            t.addAll(DataType.UNDER_CONSTRUCTION.keySet());
+            t.addAll(DataType.UNDER_CONSTRUCTION.keySet().stream().filter(type -> type != DataType.AGGREGATE_METRIC_DOUBLE).toList());
         }
         TYPES = unmodifiableList(t);
     }
@@ -532,7 +532,7 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
                 suppliers.add(
                     new TestCaseSupplier(
                         "partial foldable 1 " + TestCaseSupplier.nameFrom(Arrays.asList(cond1, type, cond2, type)),
-                        List.of(DataType.BOOLEAN, type, DataType.BOOLEAN, type),
+                        List.of(DataType.BOOLEAN, type, DataType.BOOLEAN, type, type),
                         () -> {
                             Object r1 = randomLiteral(type).value();
                             Object r2 = randomLiteral(type).value();

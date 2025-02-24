@@ -113,7 +113,7 @@ public final class PersistentTasksClusterService implements ClusterStateListener
         Params taskParams,
         ActionListener<PersistentTask<?>> listener
     ) {
-        submitUnbatchedTask("create persistent task", new ClusterStateUpdateTask() {
+        submitUnbatchedTask("create persistent task " + taskName + " [" + taskId + "]", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 PersistentTasksCustomMetadata.Builder builder = builder(currentState);
@@ -166,9 +166,9 @@ public final class PersistentTasksClusterService implements ClusterStateListener
         final String source;
         if (failure != null) {
             logger.warn("persistent task " + id + " failed", failure);
-            source = "finish persistent task (failed)";
+            source = "finish persistent task [" + id + "] (failed)";
         } else {
-            source = "finish persistent task (success)";
+            source = "finish persistent task [" + id + "] (success)";
         }
         submitUnbatchedTask(source, new ClusterStateUpdateTask() {
             @Override
@@ -212,7 +212,7 @@ public final class PersistentTasksClusterService implements ClusterStateListener
      * @param listener the listener that will be called when task is removed
      */
     public void removePersistentTask(String id, ActionListener<PersistentTask<?>> listener) {
-        submitUnbatchedTask("remove persistent task", new ClusterStateUpdateTask() {
+        submitUnbatchedTask("remove persistent task [" + id + "]", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 PersistentTasksCustomMetadata.Builder tasksInProgress = builder(currentState);
@@ -295,7 +295,7 @@ public final class PersistentTasksClusterService implements ClusterStateListener
         final String reason,
         final ActionListener<PersistentTask<?>> listener
     ) {
-        submitUnbatchedTask("unassign persistent task from any node", new ClusterStateUpdateTask() {
+        submitUnbatchedTask("unassign persistent task [" + taskId + "] from any node", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 PersistentTasksCustomMetadata.Builder tasksInProgress = builder(currentState);

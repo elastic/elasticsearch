@@ -19,8 +19,6 @@ import java.util.concurrent.atomic.LongAdder;
 
 public class AggregationUsageService implements ReportingService<AggregationInfo> {
     private static final String ES_SEARCH_QUERY_AGGREGATIONS_TOTAL_COUNT = "es.search.query.aggregations.total";
-    private final String AGGREGATION_NAME_KEY = "aggregation_name";
-    private final String VALUES_SOURCE_KEY = "values_source";
     private final LongCounter aggregationsUsageCounter;
     private final Map<String, Map<String, LongAdder>> aggs;
     private final AggregationInfo info;
@@ -83,6 +81,8 @@ public class AggregationUsageService implements ReportingService<AggregationInfo
         }
         assert valuesSourceMap != null : "Unknown aggregation [" + aggregationName + "][" + valuesSourceType + "]";
         // tests will have a no-op implementation here
+        String VALUES_SOURCE_KEY = "values_source";
+        String AGGREGATION_NAME_KEY = "aggregation_name";
         aggregationsUsageCounter.incrementBy(1, Map.of(AGGREGATION_NAME_KEY, aggregationName, VALUES_SOURCE_KEY, valuesSourceType));
     }
 

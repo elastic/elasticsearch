@@ -314,7 +314,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         XContentBuilder mapping = runtimeFieldMapping(builder -> builder.field("type", "unknown"));
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
         assertEquals(
-            "Failed to parse mapping: The mapper type [unknown] declared on field [field] does not exist."
+            "Failed to parse mapping: The mapper type [unknown] declared on runtime field [field] does not exist."
                 + " It might have been created within a future version or requires a plugin to be installed. Check the documentation.",
             e.getMessage()
         );
@@ -324,7 +324,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         XContentBuilder mapping = runtimeFieldMapping(builder -> builder.field("type", "unknown"));
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
         assertEquals(
-            "Failed to parse mapping: The mapper type [unknown] declared on field [field] does not exist."
+            "Failed to parse mapping: The mapper type [unknown] declared on runtime field [field] does not exist."
                 + " It might have been created within a future version or requires a plugin to be installed. Check the documentation.",
             e.getMessage()
         );

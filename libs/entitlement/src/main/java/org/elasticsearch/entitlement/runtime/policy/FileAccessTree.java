@@ -42,14 +42,31 @@ public final class FileAccessTree {
         }
 
         // everything has access to the temp dir
-        readPaths.add(pathLookup.tempDir().toString());
-        writePaths.add(pathLookup.tempDir().toString());
+        String tempDir = normalizePath(pathLookup.tempDir());
+        readPaths.add(tempDir);
+        writePaths.add(tempDir);
 
         readPaths.sort(String::compareTo);
         writePaths.sort(String::compareTo);
 
-        this.readPaths = readPaths.toArray(new String[0]);
-        this.writePaths = writePaths.toArray(new String[0]);
+        this.readPaths = pruneSortedPaths(readPaths).toArray(new String[0]);
+        this.writePaths = pruneSortedPaths(writePaths).toArray(new String[0]);
+    }
+
+    private static List<String> pruneSortedPaths(List<String> paths) {
+        List<String> prunedReadPaths = new ArrayList<>();
+        if (paths.isEmpty() == false) {
+            String currentPath = paths.get(0);
+            prunedReadPaths.add(currentPath);
+            for (int i = 1; i < paths.size(); ++i) {
+                String nextPath = paths.get(i);
+                if (nextPath.startsWith(currentPath) == false) {
+                    prunedReadPaths.add(nextPath);
+                    currentPath = nextPath;
+                }
+            }
+        }
+        return prunedReadPaths;
     }
 
     public static FileAccessTree of(FilesEntitlement filesEntitlement, PathLookup pathLookup) {

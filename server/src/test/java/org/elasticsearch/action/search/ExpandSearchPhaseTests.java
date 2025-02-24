@@ -23,6 +23,7 @@ import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
@@ -170,22 +171,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
             @Override
             void sendExecuteMultiSearch(MultiSearchRequest request, SearchTask task, ActionListener<MultiSearchResponse> listener) {
                 assertTrue(executedMultiSearch.compareAndSet(false, true));
-                SearchResponse searchResponse = new SearchResponse(
-                    collapsedHits,
-                    null,
-                    null,
-                    false,
-                    null,
-                    null,
-                    1,
-                    null,
-                    1,
-                    1,
-                    0,
-                    0,
-                    ShardSearchFailure.EMPTY_ARRAY,
-                    SearchResponse.Clusters.EMPTY
-                );
+                SearchResponse searchResponse = SearchResponseUtils.successfulResponse(collapsedHits);
                 ActionListener.respondAndRelease(
                     listener,
                     new MultiSearchResponse(

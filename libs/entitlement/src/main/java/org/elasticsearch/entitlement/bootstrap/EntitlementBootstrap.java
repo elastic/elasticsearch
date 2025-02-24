@@ -160,50 +160,5 @@ public class EntitlementBootstrap {
         }
     }
 
-    /**
-     * Attempt a few sensitive operations to ensure that some are permitted and some are forbidden.
-     * <p>
-     *
-     * This serves two purposes:
-     *
-     * <ol>
-     *     <li>
-     *         a smoke test to make sure the entitlements system is not completely broken, and
-     *     </li>
-     *     <li>
-     *         an early test of certain important operations so they don't fail later on at an awkward time.
-     *     </li>
-     * </ol>
-     *
-     * @throws IllegalStateException if the entitlements system can't prevent an unauthorized action of our choosing
-     */
-    private static void selfTest() {
-        ensureCannotStartProcess(ProcessBuilder::start);
-        // Try again with reflection
-        ensureCannotStartProcess(EntitlementBootstrap::reflectiveStartProcess);
-    }
-
-    private static void ensureCannotStartProcess(CheckedConsumer<ProcessBuilder, ?> startProcess) {
-        try {
-            // The command doesn't matter; it doesn't even need to exist
-            startProcess.accept(new ProcessBuilder(""));
-        } catch (NotEntitledException e) {
-            logger.debug("Success: Entitlement protection correctly prevented process creation");
-            return;
-        } catch (Exception e) {
-            throw new IllegalStateException("Failed entitlement protection self-test", e);
-        }
-        throw new IllegalStateException("Entitlement protection self-test was incorrectly permitted");
-    }
-
-    private static void reflectiveStartProcess(ProcessBuilder pb) throws Exception {
-        try {
-            var start = ProcessBuilder.class.getMethod("start");
-            start.invoke(pb);
-        } catch (InvocationTargetException e) {
-            throw (Exception) e.getCause();
-        }
-    }
-
     private static final Logger logger = LogManager.getLogger(EntitlementBootstrap.class);
 }

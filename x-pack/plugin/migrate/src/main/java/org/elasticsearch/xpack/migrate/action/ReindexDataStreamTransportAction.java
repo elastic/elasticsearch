@@ -83,11 +83,7 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
             ClientHelper.getPersistableSafeSecurityHeaders(transportService.getThreadPool().getThreadContext(), clusterService.state())
         );
         String persistentTaskId = getPersistentTaskId(sourceDataStreamName);
-
-        PersistentTasksCustomMetadata persistentTasksCustomMetadata = clusterService.state()
-            .getMetadata()
-            .custom(PersistentTasksCustomMetadata.TYPE);
-        PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = persistentTasksCustomMetadata.getTask(persistentTaskId);
+        final var persistentTask = PersistentTasksCustomMetadata.getTaskWithId(clusterService.state(), persistentTaskId);
 
         if (persistentTask == null) {
             startTask(listener, persistentTaskId, params);

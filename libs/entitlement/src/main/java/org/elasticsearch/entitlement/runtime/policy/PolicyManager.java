@@ -240,6 +240,10 @@ public class PolicyManager {
         neverEntitled(callerClass, () -> walkStackForCheckMethodName().orElse("change JVM global state"));
     }
 
+    public void checkLoggingFileHandler(Class<?> callerClass) {
+        neverEntitled(callerClass, () -> walkStackForCheckMethodName().orElse("create logging file handler"));
+    }
+
     private Optional<String> walkStackForCheckMethodName() {
         // Look up the check$ method to compose an informative error message.
         // This way, we don't need to painstakingly describe every individual global-state change.

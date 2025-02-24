@@ -4,9 +4,9 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
+lexer grammar UnknownCommand;
 
-package org.elasticsearch.xpack.core.inference.results;
-
-public interface EmbeddingInt {
-    int getSize();
-}
+//
+// Catch-all for unrecognized commands
+//
+UNKNOWN_CMD : ~[ \r\n\t[\]/]+ -> pushMode(EXPRESSION_MODE) ;

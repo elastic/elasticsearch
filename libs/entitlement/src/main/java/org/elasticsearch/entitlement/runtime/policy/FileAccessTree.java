@@ -136,7 +136,9 @@ public final class FileAccessTree {
             // logger.warn("Couldn't find path [{}] in paths:\n{}", path, Arrays.asList(paths));
             String maybeParent = paths[-ndx - 2];
             // logger.warn("Possible parent path: [{}]", maybeParent);
-            return path.startsWith(maybeParent) && path.startsWith(FILE_SEPARATOR, maybeParent.length());
+            // Normalization on Windows does not allways remove trailing backslashes, we need to check both patterns
+            return path.startsWith(maybeParent)
+                && (maybeParent.endsWith(FILE_SEPARATOR) || path.startsWith(FILE_SEPARATOR, maybeParent.length()));
         }
         return ndx >= 0;
     }

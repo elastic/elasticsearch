@@ -21,6 +21,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
 
+import static java.lang.Character.isLetter;
+
 /**
  * Describes a file entitlement with a path and mode.
  */
@@ -59,6 +61,49 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
 
         static FileData ofRelativePathSetting(String setting, BaseDir baseDir, Mode mode) {
             return new RelativePathSettingFileData(setting, baseDir, mode);
+        }
+
+        /**
+         * Tests if a path is absolute or relative, taking into consideration both Unix and Windows conventions
+         */
+        static boolean isAbsolutePath(String path) {
+            if (path.isEmpty()) {
+                return false;
+            }
+            if (path.charAt(0) == '/') {
+                // Unix/BSD absolute
+                return true;
+            }
+
+            return isWindowsAbsolutePath(path);
+        }
+
+        private static boolean isSlash(char c) {
+            return (c == '\\') || (c == '/');
+        }
+
+        private static boolean isWindowsAbsolutePath(String input) {
+            // if a prefix is present, we expected (long) UNC or (long) absolute
+            if (input.startsWith("\\\\?\\")) {
+                return true;
+            }
+
+            if (input.length() > 1) {
+                char c0 = input.charAt(0);
+                char c1 = input.charAt(1);
+                char c = 0;
+                int next = 2;
+                if (isSlash(c0) && isSlash(c1)) {
+                    // Two slashes or more: UNC
+                    return true;
+                }
+                if (isLetter(c0) && c1 == ':') {
+                    // A drive: absolute
+                    return true;
+                }
+            }
+            // Otherwise relative
+            return false;
         }
     }
 

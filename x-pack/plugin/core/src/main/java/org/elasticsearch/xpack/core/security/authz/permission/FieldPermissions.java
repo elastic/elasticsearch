@@ -18,8 +18,24 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
+import org.elasticsearch.index.mapper.DocCountFieldMapper;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
+import org.elasticsearch.index.mapper.IndexFieldMapper;
+import org.elasticsearch.index.mapper.IndexModeFieldMapper;
+import org.elasticsearch.index.mapper.NestedPathFieldMapper;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
+import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.lucene.util.automaton.MinimizationOperations;
 import org.elasticsearch.plugins.FieldPredicate;
+import org.elasticsearch.xpack.cluster.routing.allocation.mapper.DataTierFieldMapper;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.FieldSubsetReader;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition.FieldGrantExcludeGroup;
 import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplateEvaluator.DlsQueryEvaluationContext;
@@ -27,12 +43,12 @@ import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.support.CacheKey;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Stores patterns to fields which access is granted or denied to and maintains an automaton that can be used to check if permission is
@@ -43,8 +59,68 @@ import java.util.stream.Collectors;
  * 2. it must not match the patterns in deniedFieldsArray
  */
 public final class FieldPermissions implements Accountable, CacheKey {
-
     public static final FieldPermissions DEFAULT = new FieldPermissions();
+    // public for testing
+    public static final Set<String> METADATA_FIELDS_ALLOWLIST = Set.of(
+        // built-in
+        IgnoredFieldMapper.NAME,
+        IdFieldMapper.NAME,
+        RoutingFieldMapper.NAME,
+        TimeSeriesIdFieldMapper.NAME,
+        TimeSeriesRoutingHashFieldMapper.NAME,
+        IndexFieldMapper.NAME,
+        IndexModeFieldMapper.NAME,
+        SourceFieldMapper.NAME,
+        IgnoredSourceFieldMapper.NAME,
+        NestedPathFieldMapper.NAME,
+        NestedPathFieldMapper.NAME_PRE_V8,
+        VersionFieldMapper.NAME,
+        SeqNoFieldMapper.NAME,
+        SeqNoFieldMapper.PRIMARY_TERM_NAME,
+        DocCountFieldMapper.NAME,
+        DataStreamTimestampFieldMapper.NAME,
+        FieldNamesFieldMapper.NAME,
+        // plugins
+        // MapperSizePlugin
+        "_size",
+        // MapperExtrasPlugin
+        "_feature",
+        // XPackPlugin
+        DataTierFieldMapper.NAME
+    );
+    public static final FieldPredicate PREDICATE = new FieldPredicate() {
+        @Override
+        public boolean test(String field) {
+            return METADATA_FIELDS_ALLOWLIST.contains(field) || (field.startsWith("_") && isMetadataSubField(field));
+        }
+
+        /**
+         * Matches metadata sub-fields, i.e., {metadata_field}.*
+         */
+        private boolean isMetadataSubField(String field) {
+            for (String f : METADATA_FIELDS_ALLOWLIST) {
+                if (field.startsWith(f + ".")) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        @Override
+        public String modifyHash(String hash) {
+            return hash + ":metadata_fields_allowlist";
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return 0; // shared
+        }
+
+        @Override
+        public String toString() {
+            return "metadata fields allowlist";
+        }
+    };
 
     private static final long BASE_FIELD_PERM_DEF_BYTES = RamUsageEstimator.shallowSizeOf(new FieldPermissionsDefinition(null, null));
     private static final long BASE_FIELD_GROUP_BYTES = RamUsageEstimator.shallowSizeOf(new FieldGrantExcludeGroup(null, null));
@@ -69,10 +145,11 @@ public final class FieldPermissions implements Accountable, CacheKey {
     private final FieldPredicate fieldPredicate;
 
     private final long ramBytesUsed;
+    private final boolean hasLegacyExceptFields;
 
     /** Constructor that does not enable field-level security: all fields are accepted. */
     private FieldPermissions() {
-        this(new FieldPermissionsDefinition(null, null), Automatons.MATCH_ALL);
+        this(new FieldPermissionsDefinition(null, null), new AutomatonWithLegacyExceptFieldsFlag(Automatons.MATCH_ALL, false));
     }
 
     /** Constructor that enables field-level security based on include/exclude rules. Exclude rules
@@ -83,16 +160,23 @@ public final class FieldPermissions implements Accountable, CacheKey {
 
     /** Constructor that enables field-level security based on include/exclude rules. Exclude rules
      *  have precedence over include rules. */
-    FieldPermissions(FieldPermissionsDefinition fieldPermissionsDefinition, Automaton permittedFieldsAutomaton) {
+    FieldPermissions(
+        FieldPermissionsDefinition fieldPermissionsDefinition,
+        AutomatonWithLegacyExceptFieldsFlag permittedFieldsAutomatonWithFlag
+    ) {
         this(
             List.of(Objects.requireNonNull(fieldPermissionsDefinition, "field permission definition cannot be null")),
-            permittedFieldsAutomaton
+            permittedFieldsAutomatonWithFlag
         );
     }
 
     /** Constructor that enables field-level security based on include/exclude rules. Exclude rules
      *  have precedence over include rules. */
-    private FieldPermissions(List<FieldPermissionsDefinition> fieldPermissionsDefinitions, Automaton permittedFieldsAutomaton) {
+    private FieldPermissions(
+        List<FieldPermissionsDefinition> fieldPermissionsDefinitions,
+        AutomatonWithLegacyExceptFieldsFlag permittedFieldsAutomatonWithFlag
+    ) {
+        var permittedFieldsAutomaton = permittedFieldsAutomatonWithFlag.automaton();
         if (permittedFieldsAutomaton.isDeterministic() == false && permittedFieldsAutomaton.getNumStates() > 1) {
             // we only accept deterministic automata so that the CharacterRunAutomaton constructor
             // directly wraps the provided automaton
@@ -108,7 +192,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
         this.permittedFieldsAutomatonIsTotal = Operations.isTotal(permittedFieldsAutomaton);
         this.fieldPredicate = permittedFieldsAutomatonIsTotal
             ? FieldPredicate.ACCEPT_ALL
-            : new AutomatonFieldPredicate(originalAutomaton, this.permittedFieldsAutomaton);
+            : new FieldPredicate.Or(PREDICATE, new AutomatonFieldPredicate(originalAutomaton, this.permittedFieldsAutomaton));
 
         long ramBytesUsed = BASE_FIELD_PERM_DEF_BYTES;
         ramBytesUsed += this.fieldPermissionsDefinitions.stream()
@@ -117,7 +201,9 @@ public final class FieldPermissions implements Accountable, CacheKey {
         ramBytesUsed += permittedFieldsAutomaton.ramBytesUsed();
         ramBytesUsed += runAutomatonRamBytesUsed(permittedFieldsAutomaton);
         ramBytesUsed += fieldPredicate.ramBytesUsed();
+        ramBytesUsed += 1; // for the `hasLegacyExceptionFields` boolean flag
         this.ramBytesUsed = ramBytesUsed;
+        this.hasLegacyExceptFields = permittedFieldsAutomatonWithFlag.hasLegacyExceptFields();
     }
 
     private static long ramBytesUsedForFieldPermissionsDefinition(FieldPermissionsDefinition fpd) {
@@ -142,28 +228,35 @@ public final class FieldPermissions implements Accountable, CacheKey {
         return a.getNumStates() * 5; // wild guess, better than 0
     }
 
-    public static Automaton initializePermittedFieldsAutomaton(FieldPermissionsDefinition fieldPermissionsDefinition) {
-        Set<FieldGrantExcludeGroup> groups = fieldPermissionsDefinition.getFieldGrantExcludeGroups();
-        assert groups.size() > 0 : "there must always be a single group for field inclusion/exclusion";
-        List<Automaton> automatonList = groups.stream()
-            .map(g -> FieldPermissions.buildPermittedFieldsAutomaton(g.getGrantedFields(), g.getExcludedFields()))
-            .collect(Collectors.toList());
-        return Automatons.unionAndMinimize(automatonList);
-    }
-
     /**
      * Construct a single automaton to represent the set of {@code grantedFields} except for the {@code deniedFields}.
      * @throws ElasticsearchSecurityException If {@code deniedFields} is not a subset of {@code grantedFields}.
      */
-    public static Automaton buildPermittedFieldsAutomaton(final String[] grantedFields, final String[] deniedFields) {
+    static AutomatonWithLegacyExceptFieldsFlag initializePermittedFieldsAutomaton(FieldPermissionsDefinition fieldPermissionsDefinition) {
+        Set<FieldGrantExcludeGroup> groups = fieldPermissionsDefinition.getFieldGrantExcludeGroups();
+        assert false == groups.isEmpty() : "there must always be a single group for field inclusion/exclusion";
+        boolean hasLegacyExceptionFields = false;
+        List<Automaton> automatonList = new ArrayList<>();
+        for (FieldGrantExcludeGroup g : groups) {
+            AutomatonWithLegacyExceptFieldsFlag automatonWithFlag = FieldPermissions.buildPermittedFieldsAutomaton(
+                g.getGrantedFields(),
+                g.getExcludedFields()
+            );
+            automatonList.add(automatonWithFlag.automaton());
+            hasLegacyExceptionFields = hasLegacyExceptionFields || automatonWithFlag.hasLegacyExceptFields();
+        }
+        return new AutomatonWithLegacyExceptFieldsFlag(Automatons.unionAndMinimize(automatonList), hasLegacyExceptionFields);
+    }
+
+    private static AutomatonWithLegacyExceptFieldsFlag buildPermittedFieldsAutomaton(
+        final String[] grantedFields,
+        final String[] deniedFields
+    ) {
         Automaton grantedFieldsAutomaton;
         if (grantedFields == null || Arrays.stream(grantedFields).anyMatch(Regex::isMatchAllPattern)) {
             grantedFieldsAutomaton = Automatons.MATCH_ALL;
         } else {
-            // an automaton that includes metadata fields, including join fields created by the _parent field such
-            // as _parent#type
-            Automaton metaFieldsAutomaton = Operations.concatenate(Automata.makeChar('_'), Automata.makeAnyString());
-            grantedFieldsAutomaton = Operations.union(Automatons.patterns(grantedFields), metaFieldsAutomaton);
+            grantedFieldsAutomaton = Automatons.patterns(grantedFields);
         }
 
         Automaton deniedFieldsAutomaton;
@@ -173,22 +266,48 @@ public final class FieldPermissions implements Accountable, CacheKey {
             deniedFieldsAutomaton = Automatons.patterns(deniedFields);
         }
 
+        // short-circuit if all fields are allowed
+        if (grantedFieldsAutomaton == Automatons.MATCH_ALL && deniedFieldsAutomaton == Automatons.EMPTY) {
+            return new AutomatonWithLegacyExceptFieldsFlag(Automatons.MATCH_ALL, false);
+        }
+
         grantedFieldsAutomaton = MinimizationOperations.minimize(grantedFieldsAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         deniedFieldsAutomaton = MinimizationOperations.minimize(deniedFieldsAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
 
+        boolean hasLegacyExceptionFields = false;
         if (Automatons.subsetOf(deniedFieldsAutomaton, grantedFieldsAutomaton) == false) {
-            throw new ElasticsearchSecurityException(
-                "Exceptions for field permissions must be a subset of the "
-                    + "granted fields but "
-                    + Strings.arrayToCommaDelimitedString(deniedFields)
-                    + " is not a subset of "
-                    + Strings.arrayToCommaDelimitedString(grantedFields)
-            );
+            if (false == deniedFieldsSubsetOfGrantedWithLegacyMetadataFields(grantedFieldsAutomaton, deniedFieldsAutomaton)) {
+                throw new ElasticsearchSecurityException(
+                    "Exceptions for field permissions must be a subset of the "
+                        + "granted fields but ["
+                        + Strings.arrayToCommaDelimitedString(deniedFields)
+                        + "] is not a subset of ["
+                        + Strings.arrayToCommaDelimitedString(grantedFields)
+                        + "]"
+                );
+            }
+            hasLegacyExceptionFields = true;
         }
 
-        grantedFieldsAutomaton = Automatons.minusAndMinimize(grantedFieldsAutomaton, deniedFieldsAutomaton);
-        return grantedFieldsAutomaton;
+        return new AutomatonWithLegacyExceptFieldsFlag(
+            Automatons.minusAndMinimize(grantedFieldsAutomaton, deniedFieldsAutomaton),
+            hasLegacyExceptionFields
+        );
     }
+
+    private static boolean deniedFieldsSubsetOfGrantedWithLegacyMetadataFields(
+        Automaton grantedFieldsAutomaton,
+        Automaton deniedFieldsAutomaton
+    ) {
+        final Automaton legacyMetadataFieldsAutomaton = Operations.concatenate(Automata.makeChar('_'), Automata.makeAnyString());
+        final Automaton grantedFieldsWithLegacyMetadataFieldsAutomaton = Automatons.unionAndMinimize(
+            grantedFieldsAutomaton,
+            legacyMetadataFieldsAutomaton
+        );
+        return Automatons.subsetOf(deniedFieldsAutomaton, grantedFieldsWithLegacyMetadataFieldsAutomaton);
+    }
+
+    record AutomatonWithLegacyExceptFieldsFlag(Automaton automaton, boolean hasLegacyExceptFields) {}
 
     /**
      * Returns a field permissions instance where it is limited by the given field permissions.<br>
@@ -206,12 +325,18 @@ public final class FieldPermissions implements Accountable, CacheKey {
             Automaton _permittedFieldsAutomaton = Automatons.intersectAndMinimize(getIncludeAutomaton(), limitedBy.getIncludeAutomaton());
             return new FieldPermissions(
                 CollectionUtils.concatLists(fieldPermissionsDefinitions, limitedBy.fieldPermissionsDefinitions),
-                _permittedFieldsAutomaton
+                new AutomatonWithLegacyExceptFieldsFlag(_permittedFieldsAutomaton, limitedBy.hasLegacyExceptFields || hasLegacyExceptFields)
             );
         } else if (limitedBy != null && limitedBy.hasFieldLevelSecurity()) {
-            return new FieldPermissions(limitedBy.fieldPermissionsDefinitions, limitedBy.getIncludeAutomaton());
+            return new FieldPermissions(
+                limitedBy.fieldPermissionsDefinitions,
+                new AutomatonWithLegacyExceptFieldsFlag(limitedBy.getIncludeAutomaton(), limitedBy.hasLegacyExceptFields)
+            );
         } else if (hasFieldLevelSecurity()) {
-            return new FieldPermissions(fieldPermissionsDefinitions, getIncludeAutomaton());
+            return new FieldPermissions(
+                fieldPermissionsDefinitions,
+                new AutomatonWithLegacyExceptFieldsFlag(getIncludeAutomaton(), hasLegacyExceptFields)
+            );
         }
         return FieldPermissions.DEFAULT;
     }
@@ -221,7 +346,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
      * fieldName can be a wildcard.
      */
     public boolean grantsAccessTo(String fieldName) {
-        return permittedFieldsAutomatonIsTotal || permittedFieldsAutomaton.run(fieldName);
+        return permittedFieldsAutomatonIsTotal || fieldPredicate.test(fieldName);
     }
 
     public FieldPredicate fieldPredicate() {
@@ -230,6 +355,11 @@ public final class FieldPermissions implements Accountable, CacheKey {
 
     public List<FieldPermissionsDefinition> getFieldPermissionsDefinitions() {
         return fieldPermissionsDefinitions;
+    }
+
+    // public for testing
+    public CharacterRunAutomaton getPermittedFieldsAutomaton() {
+        return permittedFieldsAutomaton;
     }
 
     @Override
@@ -254,22 +384,31 @@ public final class FieldPermissions implements Accountable, CacheKey {
         return originalAutomaton;
     }
 
+    public static boolean isAllowlistedMetadataField(String fieldName) {
+        return PREDICATE.test(fieldName);
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         FieldPermissions that = (FieldPermissions) o;
         return permittedFieldsAutomatonIsTotal == that.permittedFieldsAutomatonIsTotal
+            && hasLegacyExceptFields == that.hasLegacyExceptFields
             && fieldPermissionsDefinitions.equals(that.fieldPermissionsDefinitions);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(fieldPermissionsDefinitions, permittedFieldsAutomatonIsTotal);
+        return Objects.hash(fieldPermissionsDefinitions, permittedFieldsAutomatonIsTotal, hasLegacyExceptFields);
     }
 
     @Override
     public long ramBytesUsed() {
         return ramBytesUsed;
+    }
+
+    public boolean hasLegacyExceptFields() {
+        return hasLegacyExceptFields;
     }
 }

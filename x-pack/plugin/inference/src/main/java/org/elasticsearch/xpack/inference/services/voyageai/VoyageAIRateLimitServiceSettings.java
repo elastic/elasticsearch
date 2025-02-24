@@ -5,8 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.inference.results;
+package org.elasticsearch.xpack.inference.services.voyageai;
 
-public interface EmbeddingInt {
-    int getSize();
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+
+public interface VoyageAIRateLimitServiceSettings {
+    RateLimitSettings rateLimitSettings();
+
 }

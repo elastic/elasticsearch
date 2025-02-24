@@ -337,7 +337,7 @@ public class Environment {
      */
     public static void assertEquivalent(Environment actual, Environment expected) {
         assertEquals(actual.dataDirs(), expected.dataDirs(), "dataDirs");
-        assertEquals(actual.repoDirs(), expected.repoDirs(), "repoDirs");
+        assertEquals(actual.repoDirs(), expected.repoDirs(), "sharedRepoDirs");
         assertEquals(actual.configDir(), expected.configDir(), "configDir");
         assertEquals(actual.pluginsDir(), expected.pluginsDir(), "pluginsDir");
         assertEquals(actual.binDir(), expected.binDir(), "binDir");

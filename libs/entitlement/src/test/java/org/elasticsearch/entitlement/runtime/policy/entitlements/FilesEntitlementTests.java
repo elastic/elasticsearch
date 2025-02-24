@@ -61,7 +61,7 @@ public class FilesEntitlementTests extends ESTestCase {
     }
 
     public void testFileDataRelativeWithEmptyDirectory() {
-        var fileData = FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE, false);
+        var fileData = FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE);
         var dataDirs = fileData.resolvePaths(TEST_PATH_LOOKUP);
         assertThat(dataDirs.toList(), contains(Path.of("/data1/"), Path.of("/data2")));
     }
@@ -69,21 +69,21 @@ public class FilesEntitlementTests extends ESTestCase {
     public void testPathSettingResolve() {
         var entitlement = FilesEntitlement.build(List.of(Map.of("path_setting", "foo.bar", "mode", "read")));
         var filesData = entitlement.filesData();
-        assertThat(filesData, contains(FileData.ofPathSetting("foo.bar", READ, false)));
+        assertThat(filesData, contains(FileData.ofPathSetting("foo.bar", READ)));
 
-        var fileData = FileData.ofPathSetting("foo.bar", READ, false);
+        var fileData = FileData.ofPathSetting("foo.bar", READ);
         // empty settings
         assertThat(fileData.resolvePaths(TEST_PATH_LOOKUP).toList(), empty());
 
-        fileData = FileData.ofPathSetting("foo.bar", READ, false);
+        fileData = FileData.ofPathSetting("foo.bar", READ);
         settings = Settings.builder().put("foo.bar", "/setting/path").build();
         assertThat(fileData.resolvePaths(TEST_PATH_LOOKUP).toList(), contains(Path.of("/setting/path")));
 
-        fileData = FileData.ofPathSetting("foo.*.bar", READ, false);
+        fileData = FileData.ofPathSetting("foo.*.bar", READ);
         settings = Settings.builder().put("foo.baz.bar", "/setting/path").build();
         assertThat(fileData.resolvePaths(TEST_PATH_LOOKUP).toList(), contains(Path.of("/setting/path")));
 
-        fileData = FileData.ofPathSetting("foo.*.bar", READ, false);
+        fileData = FileData.ofPathSetting("foo.*.bar", READ);
         settings = Settings.builder().put("foo.baz.bar", "/setting/path").put("foo.baz2.bar", "/other/path").build();
         assertThat(fileData.resolvePaths(TEST_PATH_LOOKUP).toList(), containsInAnyOrder(Path.of("/setting/path"), Path.of("/other/path")));
     }

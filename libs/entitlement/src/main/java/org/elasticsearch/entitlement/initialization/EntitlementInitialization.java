@@ -152,8 +152,8 @@ public class EntitlementInitialization {
                     new CreateClassLoaderEntitlement(),
                     new FilesEntitlement(
                         List.of(
-                            FileData.ofPath(bootstrapArgs.repoDirResolver().apply(""), READ_WRITE, false),
-                            FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE, false)
+                            FileData.ofPath(bootstrapArgs.repoDirResolver().apply(""), READ_WRITE),
+                            FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE)
                         )
                     )
                 )
@@ -172,29 +172,29 @@ public class EntitlementInitialization {
                     new FilesEntitlement(
                         List.of(
                             // Base ES directories
-                            FileData.ofPath(bootstrapArgs.tempDir(), READ_WRITE, false),
-                            FileData.ofPath(bootstrapArgs.configDir(), READ, false),
-                            FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE, false),
-                            FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE, false),
-                            FileData.ofPath(bootstrapArgs.repoDirResolver().apply(""), READ_WRITE, false),
+                            FileData.ofPath(bootstrapArgs.tempDir(), READ_WRITE),
+                            FileData.ofPath(bootstrapArgs.configDir(), READ),
+                            FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
+                            FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE),
+                            FileData.ofPath(bootstrapArgs.repoDirResolver().apply(""), READ_WRITE),
 
                             // OS release on Linux
-                            FileData.ofPath(Path.of("/etc/os-release"), READ, false),
-                            FileData.ofPath(Path.of("/etc/system-release"), READ, false),
-                            FileData.ofPath(Path.of("/usr/lib/os-release"), READ, false),
+                            FileData.ofPath(Path.of("/etc/os-release"), READ),
+                            FileData.ofPath(Path.of("/etc/system-release"), READ),
+                            FileData.ofPath(Path.of("/usr/lib/os-release"), READ),
                             // read max virtual memory areas
-                            FileData.ofPath(Path.of("/proc/sys/vm/max_map_count"), READ, false),
-                            FileData.ofPath(Path.of("/proc/meminfo"), READ, false),
+                            FileData.ofPath(Path.of("/proc/sys/vm/max_map_count"), READ),
+                            FileData.ofPath(Path.of("/proc/meminfo"), READ),
                             // load averages on Linux
-                            FileData.ofPath(Path.of("/proc/loadavg"), READ, false),
+                            FileData.ofPath(Path.of("/proc/loadavg"), READ),
                             // control group stats on Linux. cgroup v2 stats are in an unpredicable
                             // location under `/sys/fs/cgroup`, so unfortunately we have to allow
                             // read access to the entire directory hierarchy.
-                            FileData.ofPath(Path.of("/proc/self/cgroup"), READ, false),
-                            FileData.ofPath(Path.of("/sys/fs/cgroup/"), READ, false),
+                            FileData.ofPath(Path.of("/proc/self/cgroup"), READ),
+                            FileData.ofPath(Path.of("/sys/fs/cgroup/"), READ),
                             // // io stats on Linux
-                            FileData.ofPath(Path.of("/proc/self/mountinfo"), READ, false),
-                            FileData.ofPath(Path.of("/proc/diskstats"), READ, false)
+                            FileData.ofPath(Path.of("/proc/self/mountinfo"), READ),
+                            FileData.ofPath(Path.of("/proc/diskstats"), READ)
                         )
                     )
                 )
@@ -208,25 +208,23 @@ public class EntitlementInitialization {
                     new ManageThreadsEntitlement(),
                     new FilesEntitlement(
                         List.of(
-                            FileData.ofPath(bootstrapArgs.configDir(), READ, false),
-                            FileData.ofPath(bootstrapArgs.tempDir(), READ, false),
-                            FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE, false)
+                            FileData.ofPath(bootstrapArgs.configDir(), READ),
+                            FileData.ofPath(bootstrapArgs.tempDir(), READ),
+                            FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE)
                         )
                     )
                 )
             ),
             new Scope(
                 "org.apache.lucene.misc",
-                List.of(
-                    new FilesEntitlement(List.of(FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE, false)))
-                )
+                List.of(new FilesEntitlement(List.of(FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE))))
             ),
             new Scope("org.apache.logging.log4j.core", List.of(new ManageThreadsEntitlement())),
             new Scope(
                 "org.elasticsearch.nativeaccess",
                 List.of(
                     new LoadNativeLibrariesEntitlement(),
-                    new FilesEntitlement(List.of(FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE, false)))
+                    new FilesEntitlement(List.of(FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE)))
                 )
             )
         );
@@ -235,17 +233,11 @@ public class EntitlementInitialization {
         if (trustStorePath != null) {
             Collections.addAll(
                 serverScopes,
-                new Scope(
-                    "org.bouncycastle.fips.tls",
-                    List.of(new FilesEntitlement(List.of(FileData.ofPath(trustStorePath, READ, false))))
-                ),
+                new Scope("org.bouncycastle.fips.tls", List.of(new FilesEntitlement(List.of(FileData.ofPath(trustStorePath, READ))))),
                 new Scope(
                     "org.bouncycastle.fips.core",
                     // read to lib dir is required for checksum validation
-                    List.of(
-                        new FilesEntitlement(List.of(FileData.ofPath(bootstrapArgs.libDir(), READ, false))),
-                        new ManageThreadsEntitlement()
-                    )
+                    List.of(new FilesEntitlement(List.of(FileData.ofPath(bootstrapArgs.libDir(), READ))), new ManageThreadsEntitlement())
                 )
             );
         }
@@ -259,8 +251,8 @@ public class EntitlementInitialization {
             new ManageThreadsEntitlement(),
             new FilesEntitlement(
                 List.of(
-                    FileData.ofPath(Path.of("/co/elastic/apm/agent/"), READ, false),
-                    FileData.ofPath(Path.of("/agent/co/elastic/apm/agent/"), READ, false)
+                    FileData.ofPath(Path.of("/co/elastic/apm/agent/"), READ),
+                    FileData.ofPath(Path.of("/agent/co/elastic/apm/agent/"), READ)
                 )
             )
         );

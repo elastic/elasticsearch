@@ -276,13 +276,13 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
                 }
 
                 Path relativePath = Path.of(relativePathAsString);
-                if ((platform == null || platform.isCurrent()) && relativePath.isAbsolute()) {
+                if (platform != null && platform.isCurrent() && relativePath.isAbsolute()) {
                     throw new PolicyValidationException("'relative_path' [" + relativePathAsString + "] must be relative");
                 }
                 fileData = FileData.ofRelativePath(relativePath, baseDir, mode);
             } else if (pathAsString != null) {
                 Path path = Path.of(pathAsString);
-                if ((platform == null || platform.isCurrent()) && path.isAbsolute() == false) {
+                if (platform != null && platform.isCurrent() && path.isAbsolute() == false) {
                     throw new PolicyValidationException("'path' [" + pathAsString + "] must be absolute");
                 }
                 fileData = FileData.ofPath(path, mode);

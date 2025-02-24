@@ -4,13 +4,10 @@ io.netty.common:
   - files:
     - path: "/etc/os-release"
       mode: "read"
-      platform: linux
     - path: "/usr/lib/os-release"
       mode: "read"
-      platform: linux
     - path: "/proc/sys/net/core/somaxconn"
       mode: read
-      platform: linux
 com.azure.identity:
   - files:
     - relative_path: "storage-azure/" #/config/storage-azure/azure-federated-token

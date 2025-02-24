@@ -15,13 +15,10 @@ io.netty.common:
   - files:
     - path: "/etc/os-release"
       mode: "read"
-      platform: linux
     - path: "/usr/lib/os-release"
       mode: "read"
-      platform: linux
     - path: "/proc/sys/net/core/somaxconn"
       mode: read
-      platform: linux
 org.opensaml.xmlsec.impl:
   - write_system_properties:
       properties:

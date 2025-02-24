@@ -45,6 +45,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         .nodes(2)
         .setting("ingest.geoip.downloader.endpoint", () -> fixture.getAddress(), s -> useFixture)
         .setting("xpack.security.enabled", "false")
+        // .setting("logger.org.elasticsearch.ingest.geoip", "TRACE")
         .feature(FeatureFlag.TIME_SERIES_MODE)
         .build();
 

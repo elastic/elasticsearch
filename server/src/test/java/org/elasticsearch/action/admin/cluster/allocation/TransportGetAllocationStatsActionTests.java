@@ -36,6 +36,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
@@ -123,6 +124,7 @@ public class TransportGetAllocationStatsActionTests extends ESTestCase {
         when(allocationStatsService.stats()).thenAnswer(invocation -> {
             try {
                 assertTrue(isExecuting.compareAndSet(false, true));
+                assertThat(Thread.currentThread().getName(), containsString("[management]"));
                 return Map.of(Integer.toString(requestCounter.incrementAndGet()), NodeAllocationStatsTests.randomNodeAllocationStats());
             } finally {
                 Thread.yield();

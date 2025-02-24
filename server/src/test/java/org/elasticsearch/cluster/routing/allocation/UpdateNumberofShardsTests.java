@@ -67,8 +67,7 @@ public class UpdateNumberofShardsTests extends ESAllocationTestCase {
             .updateNumberOfShards(2, index)
             .build();
 
-
-        //Metadata newMetadata = Metadata.builder(clusterState.metadata()).updateNumberOfShards(2, index).build();
+        // Metadata newMetadata = Metadata.builder(clusterState.metadata()).updateNumberOfShards(2, index).build();
         Metadata newMetadata = MetadataAutoshardIndexService.incrementNumberOfShards(clusterState, 2, index).build();
         clusterState = ClusterState.builder(clusterState).routingTable(updatedRoutingTable).metadata(newMetadata).build();
 

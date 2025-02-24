@@ -2169,7 +2169,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, Ch
             return this;
         }
 
-
         /*
          * Builder to update numberOfShards of an Index.
          * The new shard count must be a multiple of the original shardcount.

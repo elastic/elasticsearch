@@ -43,7 +43,6 @@ import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
-import org.elasticsearch.xpack.esql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.SubqueryExec;
@@ -71,8 +70,8 @@ public class PlanWritables {
             Eval.ENTRY,
             Filter.ENTRY,
             Grok.ENTRY,
-            InlineStats.ENTRY,
             InlineJoin.ENTRY,
+            InlineStats.ENTRY,
             Join.ENTRY,
             LocalRelation.ENTRY,
             Limit.ENTRY,
@@ -103,7 +102,6 @@ public class PlanWritables {
             LimitExec.ENTRY,
             LocalSourceExec.ENTRY,
             MvExpandExec.ENTRY,
-            OrderExec.ENTRY,
             ProjectExec.ENTRY,
             ShowExec.ENTRY,
             SubqueryExec.ENTRY,

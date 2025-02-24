@@ -91,7 +91,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
         try (var service = createElasticInferenceService()) {
-            service.waitForAuthorizationToComplete(TIMEOUT);
+            ensureAuthorizationCallFinished(service);
             assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION)));
             assertThat(
                 service.defaultConfigIds(),
@@ -125,7 +125,8 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             try (var service = createElasticInferenceService()) {
-                service.waitForAuthorizationToComplete(TIMEOUT);
+                ensureAuthorizationCallFinished(service);
+
                 assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION)));
                 assertThat(
                     service.defaultConfigIds(),
@@ -164,7 +165,8 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(noAuthorizationResponseJson));
 
             try (var service = createElasticInferenceService()) {
-                service.waitForAuthorizationToComplete(TIMEOUT);
+                ensureAuthorizationCallFinished(service);
+
                 assertThat(service.supportedStreamingTasks(), is(EnumSet.noneOf(TaskType.class)));
                 assertTrue(service.defaultConfigIds().isEmpty());
                 assertThat(service.supportedTaskTypes(), is(EnumSet.noneOf(TaskType.class)));
@@ -198,12 +200,14 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             try (var service = createElasticInferenceService()) {
-                service.waitForAuthorizationToComplete(TIMEOUT);
+                ensureAuthorizationCallFinished(service);
+
                 assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.CHAT_COMPLETION)));
                 assertThat(
                     service.defaultConfigIds(),
                     is(
                         List.of(
+                            new InferenceService.DefaultConfigId(".elser-v2-elastic", MinimalServiceSettings.sparseEmbedding(), service),
                             new InferenceService.DefaultConfigId(
                                 ".rainbow-sprinkles-elastic",
                                 MinimalServiceSettings.chatCompletion(),
@@ -216,7 +220,8 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
 
                 PlainActionFuture<List<Model>> listener = new PlainActionFuture<>();
                 service.defaultConfigs(listener);
-                assertThat(listener.actionGet(TIMEOUT).get(0).getConfigurations().getInferenceEntityId(), is(".rainbow-sprinkles-elastic"));
+                assertThat(listener.actionGet(TIMEOUT).get(0).getConfigurations().getInferenceEntityId(), is(".elser-v2-elastic"));
+                assertThat(listener.actionGet(TIMEOUT).get(1).getConfigurations().getInferenceEntityId(), is(".rainbow-sprinkles-elastic"));
 
                 var getModelListener = new PlainActionFuture<UnparsedModel>();
                 // persists the default endpoints
@@ -242,18 +247,30 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(noAuthorizationResponseJson));
 
             try (var service = createElasticInferenceService()) {
-                service.waitForAuthorizationToComplete(TIMEOUT);
+                ensureAuthorizationCallFinished(service);
+
                 assertThat(service.supportedStreamingTasks(), is(EnumSet.noneOf(TaskType.class)));
-                assertTrue(service.defaultConfigIds().isEmpty());
+                assertThat(
+                    service.defaultConfigIds(),
+                    is(
+                        List.of(
+                            new InferenceService.DefaultConfigId(".elser-v2-elastic", MinimalServiceSettings.sparseEmbedding(), service)
+                        )
+                    )
+                );
                 assertThat(service.supportedTaskTypes(), is(EnumSet.of(TaskType.SPARSE_EMBEDDING)));
 
                 var getModelListener = new PlainActionFuture<UnparsedModel>();
                 modelRegistry.getModel(".rainbow-sprinkles-elastic", getModelListener);
-
                 var exception = expectThrows(ResourceNotFoundException.class, () -> getModelListener.actionGet(TIMEOUT));
                 assertThat(exception.getMessage(), is("Inference endpoint not found [.rainbow-sprinkles-elastic]"));
             }
         }
+    }
+
+    private void ensureAuthorizationCallFinished(ElasticInferenceService service) {
+        service.onNodeStarted();
+        service.waitForAuthorizationToComplete(TIMEOUT);
     }
 
     private ElasticInferenceService createElasticInferenceService() {
@@ -263,7 +280,7 @@ public class InferenceRevokeDefaultEndpointsIT extends ESSingleNodeTestCase {
         return new ElasticInferenceService(
             senderFactory,
             createWithEmptySettings(threadPool),
-            new ElasticInferenceServiceComponents(gatewayUrl),
+            ElasticInferenceServiceComponents.withNoRevokeDelay(gatewayUrl),
             modelRegistry,
             new ElasticInferenceServiceAuthorizationHandler(gatewayUrl, threadPool)
         );

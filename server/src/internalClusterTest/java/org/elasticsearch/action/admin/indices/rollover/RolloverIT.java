@@ -415,7 +415,11 @@ public class RolloverIT extends ESIntegTestCase {
         assertThat(response.isRolledOver(), equalTo(true));
         assertThat(response.getConditionStatus().size(), equalTo(0));
 
-        GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings(response.getOldIndex(), response.getNewIndex()).get();
+        GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings(
+            TEST_REQUEST_TIMEOUT,
+            response.getOldIndex(),
+            response.getNewIndex()
+        ).get();
         assertEquals(
             "<test-{now/M{yyyy.MM}}-000002>",
             getSettingsResponse.getSetting(response.getOldIndex(), IndexMetadata.SETTING_INDEX_PROVIDED_NAME)

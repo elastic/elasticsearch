@@ -10,11 +10,11 @@
 package org.elasticsearch.entitlement.runtime.policy.entitlements;
 
 import org.elasticsearch.test.ESTestCase;
-import static org.hamcrest.Matchers.is;
 
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.FileData.isAbsolutePath;
+import static org.hamcrest.Matchers.is;
 
-public class FileDataTests  extends ESTestCase {
+public class FileDataTests extends ESTestCase {
 
     public void testPathIsAbsolute() {
         var windowsNamedPipe = "\\\\.\\pipe";

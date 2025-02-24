@@ -833,8 +833,10 @@ public class FetchSearchPhaseTests extends ESTestCase {
         Directory dir = newDirectory();
         RandomIndexWriter w = new RandomIndexWriter(random(), dir);
 
-        // we're indexing 100 documents with a field that is 48KB long so the fetch phase should check the memory breaker 5 times
-        // (every 22 documents that accumulate 1MiB in source sizes, and then a final time when we finished processing the one segment)
+        // we're indexing 100 documents with a field that is 48KB long so the fetch phase should check the memory breaker 4 times
+        // (every 22 documents that accumulate 1MiB in source sizes, so we'll have 4 checks at roughly 4.1MiB and the last 12 documents will
+        // not
+        // accumulate 1MiB anymore so won't check the breaker anymore)
 
         String body = "{ \"thefield\": \" " + randomAlphaOfLength(48_000) + "\" }";
         for (int i = 0; i < 100; i++) {
@@ -876,7 +878,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 }
             }));
             fetchPhase.execute(searchContext, IntStream.range(0, 100).toArray(), null);
-            assertThat(breakerCalledCount.get(), is(5));
+            assertThat(breakerCalledCount.get(), is(4));
         } finally {
             r.close();
             dir.close();

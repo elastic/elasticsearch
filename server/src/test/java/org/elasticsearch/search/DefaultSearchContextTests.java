@@ -979,14 +979,10 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
         IndexShard indexShard = null;
         try (DefaultSearchContext context = createDefaultSearchContext(Settings.EMPTY)) {
             indexShard = context.indexShard();
-            // allocated more than the 1MiB buffer, local accounting not finished
-            assertThat(context.checkRealMemoryCB(1024 * 1800, false, "test"), is(true));
-            // allocated more than the 1MiB buffer, local accounting finished
-            assertThat(context.checkRealMemoryCB(1024 * 1800, true, "test"), is(true));
-            // allocated less than the 1MiB buffer, local accounting not finished
-            assertThat(context.checkRealMemoryCB(1024 * 5, false, "test"), is(false));
-            // allocated less than the 1MiB buffer, local accounting finished
-            assertThat(context.checkRealMemoryCB(1024 * 5, true, "test"), is(true));
+            // allocated more than the 1MiB buffer
+            assertThat(context.checkRealMemoryCB(1024 * 1800, "test"), is(true));
+            // allocated less than the 1MiB buffer
+            assertThat(context.checkRealMemoryCB(1024 * 5, "test"), is(false));
         } finally {
             if (indexShard != null) {
                 indexShard.getThreadPool().shutdown();

@@ -83,8 +83,6 @@ public final class FetchPhase {
         SearchHits hits = null;
         try {
             hits = buildSearchHits(context, docIdsToLoad, profiler, rankDocs);
-            // check the real memory breaker after finishing the fetch phase
-            context.checkRealMemoryCB(0, true, "fetch source");
         } finally {
             // Always finish profiling
             ProfileResult profileResult = profiler.finish();
@@ -165,7 +163,7 @@ public final class FetchPhase {
                 if (context.isCancelled()) {
                     throw new TaskCancelledException("cancelled");
                 }
-                if (context.checkRealMemoryCB(accumulatedBytesInLeaf[0], false, "fetch source")) {
+                if (context.checkRealMemoryCB(accumulatedBytesInLeaf[0], "fetch source")) {
                     // if we checked the real memory breaker, we restart our local accounting
                     accumulatedBytesInLeaf[0] = 0;
                 }

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -50,6 +51,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
@@ -2987,5 +2989,127 @@ public class StatementParserTests extends AbstractStatementParserTests {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
         expectError("FROM text | EVAL x = 4 | INSIST_🐔 *", "INSIST doesn't support wildcards, found [*]");
         expectError("FROM text | EVAL x = 4 | INSIST_🐔 foo*", "INSIST doesn't support wildcards, found [foo*]");
+    }
+
+    public void testValidFork() {
+        assumeTrue("FORK requires corresponding capability", EsqlCapabilities.Cap.FORK.isEnabled());
+
+        var plan = statement("""
+            FROM foo*
+            | FORK ( WHERE a:"baz" | LIMIT 11 )
+                   ( WHERE b:"bar" | SORT b )
+                   ( WHERE c:"bat" )
+                   ( SORT c )
+                   ( LIMIT 5 )
+            """);
+        var fork = as(plan, Fork.class);
+        var subPlans = fork.subPlans();
+
+        // first subplan
+        var eval = as(subPlans.get(0), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", literalString("fork1"))));
+        var limit = as(eval.child(), Limit.class);
+        assertThat(limit.limit(), instanceOf(Literal.class));
+        assertThat(((Literal) limit.limit()).value(), equalTo(11));
+        var filter = as(limit.child(), Filter.class);
+        var match = (MatchOperator) filter.condition();
+        var matchField = (UnresolvedAttribute) match.field();
+        assertThat(matchField.name(), equalTo("a"));
+        assertThat(match.query().fold(FoldContext.small()), equalTo("baz"));
+
+        // second subplan
+        eval = as(subPlans.get(1), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", literalString("fork2"))));
+        var orderBy = as(eval.child(), OrderBy.class);
+        assertThat(orderBy.order().size(), equalTo(1));
+        Order order = orderBy.order().get(0);
+        assertThat(order.child(), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) order.child()).name(), equalTo("b"));
+        filter = as(orderBy.child(), Filter.class);
+        match = (MatchOperator) filter.condition();
+        matchField = (UnresolvedAttribute) match.field();
+        assertThat(matchField.name(), equalTo("b"));
+        assertThat(match.query().fold(FoldContext.small()), equalTo("bar"));
+
+        // third subplan
+        eval = as(subPlans.get(2), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", literalString("fork3"))));
+        filter = as(eval.child(), Filter.class);
+        match = (MatchOperator) filter.condition();
+        matchField = (UnresolvedAttribute) match.field();
+        assertThat(matchField.name(), equalTo("c"));
+        assertThat(match.query().fold(FoldContext.small()), equalTo("bat"));
+
+        // fourth subplan
+        eval = as(subPlans.get(3), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", literalString("fork4"))));
+        orderBy = as(eval.child(), OrderBy.class);
+        assertThat(orderBy.order().size(), equalTo(1));
+        order = orderBy.order().get(0);
+        assertThat(order.child(), instanceOf(UnresolvedAttribute.class));
+        assertThat(((UnresolvedAttribute) order.child()).name(), equalTo("c"));
+
+        // fifth subplan
+        eval = as(subPlans.get(4), Eval.class);
+        assertThat(as(eval.fields().get(0), Alias.class), equalTo(alias("_fork", literalString("fork5"))));
+        limit = as(eval.child(), Limit.class);
+        assertThat(limit.limit(), instanceOf(Literal.class));
+        assertThat(((Literal) limit.limit()).value(), equalTo(5));
+    }
+
+    public void testInvalidFork() {
+        assumeTrue("FORK requires corresponding capability", EsqlCapabilities.Cap.FORK.isEnabled());
+
+        expectError("FROM foo* | FORK (WHERE a:\"baz\")", "line 1:13: Fork requires at least two branches");
+        expectError("FROM foo* | FORK (LIMIT 10)", "line 1:13: Fork requires at least two branches");
+        expectError("FROM foo* | FORK (SORT a)", "line 1:13: Fork requires at least two branches");
+        expectError("FROM foo* | FORK (WHERE x>1 | LIMIT 5)", "line 1:13: Fork requires at least two branches");
+        expectError("FROM foo* | WHERE x>1 | FORK (WHERE a:\"baz\")", "Fork requires at least two branches");
+
+        expectError("FROM foo* | FORK (LIMIT 10) (EVAL x = 1)", "line 1:30: mismatched input 'EVAL' expecting {'limit', 'sort', 'where'}");
+        expectError("FROM foo* | FORK (EVAL x = 1) (LIMIT 10)", "line 1:19: mismatched input 'EVAL' expecting {'limit', 'sort', 'where'}");
+        expectError(
+            "FROM foo* | FORK (WHERE x>1 |EVAL x = 1) (WHERE x>1)",
+            "line 1:30: mismatched input 'EVAL' expecting {'limit', 'sort', 'where'}"
+        );
+        expectError(
+            "FROM foo* | FORK (WHERE x>1 |EVAL x = 1) (WHERE x>1)",
+            "line 1:30: mismatched input 'EVAL' expecting {'limit', 'sort', 'where'}"
+        );
+        expectError(
+            "FROM foo* | FORK (WHERE x>1 |STATS count(x) by y) (WHERE x>1)",
+            "line 1:30: mismatched input 'STATS' expecting {'limit', 'sort', 'where'}"
+        );
+        expectError(
+            "FROM foo* | FORK ( FORK (WHERE x>1) (WHERE y>1)) (WHERE z>1)",
+            "line 1:20: mismatched input 'FORK' expecting {'limit', 'sort', 'where'}"
+        );
+        expectError("FROM foo* | FORK ( x+1 ) ( WHERE y>2 )", "line 1:20: mismatched input 'x+1' expecting {'limit', 'sort', 'where'}");
+        expectError("FROM foo* | FORK ( LIMIT 10 ) ( y+2 )", "line 1:33: mismatched input 'y+2' expecting {'limit', 'sort', 'where'}");
+    }
+
+    public void testFieldNamesAsCommands() throws Exception {
+        String[] keywords = new String[] {
+            "dissect",
+            "drop",
+            "enrich",
+            "eval",
+            "explain",
+            "from",
+            "grok",
+            "keep",
+            "limit",
+            "mv_expand",
+            "rename",
+            "sort",
+            "stats" };
+        for (String keyword : keywords) {
+            var plan = statement("FROM test | STATS avg(" + keyword + ")");
+            var aggregate = as(plan, Aggregate.class);
+        }
+    }
+
+    static Alias alias(String name, Expression value) {
+        return new Alias(EMPTY, name, value);
     }
 }

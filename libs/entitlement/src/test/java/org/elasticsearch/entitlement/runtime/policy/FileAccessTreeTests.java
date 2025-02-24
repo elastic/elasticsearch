@@ -243,14 +243,7 @@ public class FileAccessTreeTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> accessTree(entitlement("foo/bar", "read"), exclusivePaths("test-component", "diff-module", "foo"))
         );
-        assertThat(
-            iae.getMessage(),
-            is(
-                "[test-component] [test-module] cannot use exclusive path "
-                    + "[/home/jdconrad/Code/elastic/elasticsearch/libs/entitlement/build/testrun/test/temp/"
-                    + "org.elasticsearch.entitlement.runtime.policy.FileAccessTreeTests_F47C6163CA22BE09-001/tempDir-002/foo]"
-            )
-        );
+        assertThat(iae.getMessage(), is("[test-component] [test-module] cannot use exclusive path [" + path("foo") + "]"));
     }
 
     FileAccessTree accessTree(FilesEntitlement entitlement, List<ExclusivePath> exclusivePaths) {

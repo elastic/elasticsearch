@@ -237,17 +237,15 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
                     throw new PolicyValidationException("files entitlement with a 'relative_path' must specify 'relative_to'");
                 }
 
-                Path relativePath = Path.of(relativePathAsString);
-                if (relativePath.isAbsolute()) {
+                if (FileData.isAbsolutePath(relativePathAsString)) {
                     throw new PolicyValidationException("'relative_path' [" + relativePathAsString + "] must be relative");
                 }
-                filesData.add(FileData.ofRelativePath(relativePath, baseDir, mode));
+                filesData.add(FileData.ofRelativePath(Path.of(relativePathAsString), baseDir, mode));
             } else if (pathAsString != null) {
-                Path path = Path.of(pathAsString);
-                if (path.isAbsolute() == false) {
+                if (FileData.isAbsolutePath(pathAsString) == false) {
                     throw new PolicyValidationException("'path' [" + pathAsString + "] must be absolute");
                 }
-                filesData.add(FileData.ofPath(path, mode));
+                filesData.add(FileData.ofPath(Path.of(pathAsString), mode));
             } else if (pathSetting != null) {
                 filesData.add(FileData.ofPathSetting(pathSetting, mode));
             } else if (relativePathSetting != null) {

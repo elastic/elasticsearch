@@ -582,11 +582,11 @@ public class IpFieldMapper extends FieldMapper {
                 throw e;
             }
         }
-        if (address != null) {
+        if (nullValue != null) {
             indexValue(context, address);
         }
         if (offsetsFieldName != null && context.isImmediateParentAnArray() && context.canAddIgnoredField()) {
-            if (address != null) {
+            if (nullValue != null) {
                 BytesRef sortableValue = new BytesRef(InetAddressPoint.encode(address));
                 context.getOffSetContext().recordOffset(offsetsFieldName, sortableValue);
             } else {

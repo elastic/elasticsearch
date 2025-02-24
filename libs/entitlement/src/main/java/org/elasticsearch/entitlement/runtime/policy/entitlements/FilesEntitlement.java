@@ -64,7 +64,9 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         }
 
         /**
-         * Tests if a path is absolute or relative, taking into consideration both Unix and Windows conventions
+         * Tests if a path is absolute or relative, taking into consideration both Unix and Windows conventions.
+         * Note that this leads to a conflict, resolved in favor of Unix rules: `/foo` can be either a Unix absolute path, or a Windows
+         * relative path with "wrong" directory separator (using non-canonical slash in Windows).
          */
         static boolean isAbsolutePath(String path) {
             if (path.isEmpty()) {

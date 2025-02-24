@@ -568,6 +568,7 @@ public class IpFieldMapper extends FieldMapper {
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         InetAddress address;
         String value = context.parser().textOrNull();
+        boolean isNotNull = value != null || nullValue != null;
         try {
             address = value == null ? nullValue : InetAddresses.forString(value);
         } catch (IllegalArgumentException e) {
@@ -582,11 +583,11 @@ public class IpFieldMapper extends FieldMapper {
                 throw e;
             }
         }
-        if (address != null) {
+        if (isNotNull) {
             indexValue(context, address);
         }
         if (offsetsFieldName != null && context.isImmediateParentAnArray() && context.canAddIgnoredField()) {
-            if (address != null) {
+            if (isNotNull) {
                 BytesRef sortableValue = new BytesRef(InetAddressPoint.encode(address));
                 context.getOffSetContext().recordOffset(offsetsFieldName, sortableValue);
             } else {

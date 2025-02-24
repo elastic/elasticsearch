@@ -10,17 +10,26 @@
 package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
 
 public final class FileAccessTree {
 
+    private static final Logger logger = LogManager.getLogger(FileAccessTree.class);
     private static final String FILE_SEPARATOR = getDefaultFileSystem().getSeparator();
 
     private final String[] readPaths;
@@ -29,22 +38,49 @@ public final class FileAccessTree {
     private FileAccessTree(FilesEntitlement filesEntitlement, PathLookup pathLookup) {
         List<String> readPaths = new ArrayList<>();
         List<String> writePaths = new ArrayList<>();
+        BiConsumer<Path, Mode> addPath = (path, mode) -> {
+            var normalized = normalizePath(path);
+            if (mode == Mode.READ_WRITE) {
+                writePaths.add(normalized);
+            }
+            readPaths.add(normalized);
+        };
+        BiConsumer<Path, Mode> addPathAndMaybeLink = (path, mode) -> {
+            addPath.accept(path, mode);
+            // also try to follow symlinks. Lucene does this and writes to the target path.
+            if (Files.exists(path)) {
+                try {
+                    Path realPath = path.toRealPath();
+                    if (realPath.equals(path) == false) {
+                        addPath.accept(realPath, mode);
+                    }
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+        };
         for (FilesEntitlement.FileData fileData : filesEntitlement.filesData()) {
+            var platform = fileData.platform();
+            if (platform != null && platform.isCurrent() == false) {
+                continue;
+            }
             var mode = fileData.mode();
             var paths = fileData.resolvePaths(pathLookup);
             paths.forEach(path -> {
-                var normalized = normalizePath(path);
-                if (mode == FilesEntitlement.Mode.READ_WRITE) {
-                    writePaths.add(normalized);
+                if (path == null) {
+                    // TODO: null paths shouldn't be allowed, but they can occur due to repo paths
+                    return;
                 }
-                readPaths.add(normalized);
+                addPathAndMaybeLink.accept(path, mode);
             });
         }
 
-        // everything has access to the temp dir
-        String tempDir = normalizePath(pathLookup.tempDir());
-        readPaths.add(tempDir);
-        writePaths.add(tempDir);
+        // everything has access to the temp dir and the jdk
+        addPathAndMaybeLink.accept(pathLookup.tempDir(), Mode.READ_WRITE);
+
+        // TODO: watcher uses javax.activation which looks for known mime types configuration, should this be global or explicit in watcher?
+        Path jdk = Paths.get(System.getProperty("java.home"));
+        addPathAndMaybeLink.accept(jdk.resolve("conf"), Mode.READ);
 
         readPaths.sort(String::compareTo);
         writePaths.sort(String::compareTo);
@@ -97,8 +133,12 @@ public final class FileAccessTree {
         }
         int ndx = Arrays.binarySearch(paths, path);
         if (ndx < -1) {
+            // logger.warn("Couldn't find path [{}] in paths:\n{}", path, Arrays.asList(paths));
             String maybeParent = paths[-ndx - 2];
-            return path.startsWith(maybeParent) && path.startsWith(FILE_SEPARATOR, maybeParent.length());
+            // logger.warn("Possible parent path: [{}]", maybeParent);
+            // Normalization on Windows does not allways remove trailing backslashes, we need to check both patterns
+            return path.startsWith(maybeParent)
+                && (maybeParent.endsWith(FILE_SEPARATOR) || path.startsWith(FILE_SEPARATOR, maybeParent.length()));
         }
         return ndx >= 0;
     }

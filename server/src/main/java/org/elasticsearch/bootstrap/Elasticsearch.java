@@ -117,9 +117,9 @@ class Elasticsearch {
         final PrintStream out = getStdout();
         final PrintStream err = getStderr();
         final ServerArgs args;
-        final boolean entitlementsExplicitlyEnabled = Booleans.parseBoolean(System.getProperty("es.entitlements.enabled", "false"));
+        final boolean entitlementsEnabled = Booleans.parseBoolean(System.getProperty("es.entitlements.enabled", "true"));
         // java 24+ only supports entitlements, but it may be enabled on earlier versions explicitly
-        final boolean useEntitlements = RuntimeVersionFeature.isSecurityManagerAvailable() == false || entitlementsExplicitlyEnabled;
+        final boolean useEntitlements = RuntimeVersionFeature.isSecurityManagerAvailable() == false || entitlementsEnabled;
         try {
             initSecurityProperties();
 
@@ -247,12 +247,13 @@ class Elasticsearch {
                 pluginsResolver::resolveClassToPluginName,
                 nodeEnv.settings()::get,
                 nodeEnv.settings()::getGlobValues,
-                nodeEnv::resolveRepoDir,
                 nodeEnv.dataDirs(),
+                nodeEnv.repoDirs(),
                 nodeEnv.configDir(),
                 nodeEnv.libDir(),
                 nodeEnv.logsDir(),
-                nodeEnv.tmpDir()
+                nodeEnv.tmpDir(),
+                args.pidFile()
             );
         } else {
             assert RuntimeVersionFeature.isSecurityManagerAvailable();

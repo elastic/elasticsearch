@@ -126,11 +126,12 @@ public class PolicyManager {
             .stream()
             .map(ModuleReference::descriptor)
             .collect(Collectors.toUnmodifiableSet());
-        return ModuleLayer.boot()
-            .modules()
-            .stream()
-            .filter(m -> systemModulesDescriptors.contains(m.getDescriptor()))
-            .collect(Collectors.toUnmodifiableSet());
+        return Stream.concat(
+            // entitlements is a "system" module, we can do anything from it
+            Stream.of(PolicyManager.class.getModule()),
+            // anything in the boot layer is also part of the system
+            ModuleLayer.boot().modules().stream().filter(m -> systemModulesDescriptors.contains(m.getDescriptor()))
+        ).collect(Collectors.toUnmodifiableSet());
     }
 
     /**

@@ -23,6 +23,7 @@ import java.util.Map;
 import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
 import static org.hamcrest.Matchers.is;
 
+@ESTestCase.WithoutSecurityManager
 public class FileAccessTreeTests extends ESTestCase {
 
     static Path root;
@@ -42,6 +43,7 @@ public class FileAccessTreeTests extends ESTestCase {
         Path.of("/home"),
         Path.of("/config"),
         new Path[] { Path.of("/data1"), Path.of("/data2") },
+        new Path[] { Path.of("/shared1"), Path.of("/shared2") },
         Path.of("/tmp"),
         setting -> settings.get(setting),
         glob -> settings.getGlobValues(glob)

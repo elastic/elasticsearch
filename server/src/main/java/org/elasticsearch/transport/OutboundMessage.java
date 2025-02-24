@@ -11,15 +11,16 @@ package org.elasticsearch.transport;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Streams;
 
 import java.io.IOException;
@@ -56,7 +57,7 @@ abstract class OutboundMessage extends NetworkMessage {
 
         final boolean compress = TransportStatus.isCompress(status);
         final StreamOutput stream = compress ? wrapCompressed(bytesStream) : bytesStream;
-        final BytesReference zeroCopyBuffer;
+        final ReleasableBytesReference zeroCopyBuffer;
         try {
             stream.setTransportVersion(version);
             if (variableHeaderLength == -1) {
@@ -67,10 +68,10 @@ abstract class OutboundMessage extends NetworkMessage {
                 zeroCopyBuffer = bRequest.bytes;
             } else if (message instanceof RemoteTransportException) {
                 stream.writeException((RemoteTransportException) message);
-                zeroCopyBuffer = BytesArray.EMPTY;
+                zeroCopyBuffer = ReleasableBytesReference.empty();
             } else {
                 message.writeTo(stream);
-                zeroCopyBuffer = BytesArray.EMPTY;
+                zeroCopyBuffer = ReleasableBytesReference.empty();
             }
         } finally {
             // We have to close here before accessing the bytes when using compression to ensure that some marker bytes (EOS marker)
@@ -83,7 +84,8 @@ abstract class OutboundMessage extends NetworkMessage {
         if (zeroCopyBuffer.length() == 0) {
             reference = message;
         } else {
-            reference = CompositeBytesReference.of(message, zeroCopyBuffer);
+            zeroCopyBuffer.mustIncRef();
+            reference = new ReleasableBytesReference(CompositeBytesReference.of(message, zeroCopyBuffer), (RefCounted) zeroCopyBuffer);
         }
 
         bytesStream.seek(0);

@@ -36,6 +36,10 @@ public final class FileAccessTree {
         List<ExclusivePath> exclusivePaths
     ) {
         List<String> updatedExclusivePaths = new ArrayList<>();
+        for (ExclusivePath exclusivePath : exclusivePaths) {
+            updatedExclusivePaths.add(normalizePath(exclusivePath.path()));
+        }
+
         List<String> readPaths = new ArrayList<>();
         List<String> writePaths = new ArrayList<>();
         for (FilesEntitlement.FileData fileData : filesEntitlement.filesData()) {
@@ -46,8 +50,25 @@ public final class FileAccessTree {
                 for (ExclusivePath exclusivePath : exclusivePaths) {
                     if (exclusivePath.componentName().equals(componentName) == false
                         || exclusivePath.moduleName().equals(moduleName) == false) {
+                        if (true) throw new IllegalArgumentException(
+                            path.getFileSystem() + " " + exclusivePath.path().getFileSystem() + " " + path.startsWith(exclusivePath.path())
+                        );
                         if (path.startsWith(exclusivePath.path())) {
-                            // TODO: throw
+                            throw new IllegalArgumentException(
+                                "["
+                                    + componentName
+                                    + "] ["
+                                    + moduleName
+                                    + "] cannot use"
+                                    + "exclusive path ["
+                                    + exclusivePath.path()
+                                    + "] from ["
+                                    + exclusivePath.componentName()
+                                    + "] "
+                                    + "["
+                                    + exclusivePath.moduleName()
+                                    + "]"
+                            );
                         }
                         updatedExclusivePaths.add(normalizePath(exclusivePath.path()));
                     }

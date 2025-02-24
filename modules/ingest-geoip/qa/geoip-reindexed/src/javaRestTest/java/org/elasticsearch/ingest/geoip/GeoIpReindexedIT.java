@@ -44,7 +44,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.is;
 
-public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCase {
+public class GeoIpReindexedIT extends ParameterizedFullClusterRestartTestCase {
 
     private static final boolean useFixture = Boolean.getBoolean("geoip_use_service") == false;
 
@@ -76,7 +76,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(fixture).around(cluster);
 
-    public FullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
+    public GeoIpReindexedIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
         super(upgradeStatus);
     }
 

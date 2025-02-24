@@ -85,7 +85,15 @@ public class HttpClientTests extends ESTestCase {
         String paramValue = randomAlphaOfLength(3);
         var httpPost = createHttpPost(webServer.getPort(), paramKey, paramValue);
 
-        try (var httpClient = HttpClient.create(emptyHttpSettings(), threadPool, createConnectionManager(), mockThrottlerManager(), RequestConfig.DEFAULT)) {
+        try (
+            var httpClient = HttpClient.create(
+                emptyHttpSettings(),
+                threadPool,
+                createConnectionManager(),
+                mockThrottlerManager(),
+                RequestConfig.DEFAULT
+            )
+        ) {
             httpClient.start();
 
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
@@ -103,7 +111,15 @@ public class HttpClientTests extends ESTestCase {
     }
 
     public void testSend_ThrowsErrorIfCalledBeforeStart() throws Exception {
-        try (var httpClient = HttpClient.create(emptyHttpSettings(), threadPool, createConnectionManager(), mockThrottlerManager(), RequestConfig.DEFAULT)) {
+        try (
+            var httpClient = HttpClient.create(
+                emptyHttpSettings(),
+                threadPool,
+                createConnectionManager(),
+                mockThrottlerManager(),
+                RequestConfig.DEFAULT
+            )
+        ) {
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();
             var thrownException = expectThrows(
                 AssertionError.class,
@@ -238,7 +254,15 @@ public class HttpClientTests extends ESTestCase {
         Settings settings = Settings.builder().put(HttpSettings.MAX_HTTP_RESPONSE_SIZE.getKey(), ByteSizeValue.ONE).build();
         var httpSettings = createHttpSettings(settings);
 
-        try (var httpClient = HttpClient.create(httpSettings, threadPool, createConnectionManager(), mockThrottlerManager(), RequestConfig.DEFAULT)) {
+        try (
+            var httpClient = HttpClient.create(
+                httpSettings,
+                threadPool,
+                createConnectionManager(),
+                mockThrottlerManager(),
+                RequestConfig.DEFAULT
+            )
+        ) {
             httpClient.start();
 
             PlainActionFuture<HttpResult> listener = new PlainActionFuture<>();

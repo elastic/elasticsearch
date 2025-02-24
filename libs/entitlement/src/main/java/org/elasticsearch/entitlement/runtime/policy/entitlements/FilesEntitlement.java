@@ -21,6 +21,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
 
+import static java.lang.Character.isLetter;
+
 /**
  * Describes a file entitlement with a path and mode.
  */
@@ -36,6 +38,7 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
     public enum BaseDir {
         CONFIG,
         DATA,
+        SHARED_REPO,
         HOME
     }
 
@@ -60,6 +63,51 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
         static FileData ofRelativePathSetting(String setting, BaseDir baseDir, Mode mode) {
             return new RelativePathSettingFileData(setting, baseDir, mode);
         }
+
+        /**
+         * Tests if a path is absolute or relative, taking into consideration both Unix and Windows conventions.
+         * Note that this leads to a conflict, resolved in favor of Unix rules: `/foo` can be either a Unix absolute path, or a Windows
+         * relative path with "wrong" directory separator (using non-canonical slash in Windows).
+         */
+        static boolean isAbsolutePath(String path) {
+            if (path.isEmpty()) {
+                return false;
+            }
+            if (path.charAt(0) == '/') {
+                // Unix/BSD absolute
+                return true;
+            }
+
+            return isWindowsAbsolutePath(path);
+        }
+
+        private static boolean isSlash(char c) {
+            return (c == '\\') || (c == '/');
+        }
+
+        private static boolean isWindowsAbsolutePath(String input) {
+            // if a prefix is present, we expected (long) UNC or (long) absolute
+            if (input.startsWith("\\\\?\\")) {
+                return true;
+            }
+
+            if (input.length() > 1) {
+                char c0 = input.charAt(0);
+                char c1 = input.charAt(1);
+                char c = 0;
+                int next = 2;
+                if (isSlash(c0) && isSlash(c1)) {
+                    // Two slashes or more: UNC
+                    return true;
+                }
+                if (isLetter(c0) && c1 == ':') {
+                    // A drive: absolute
+                    return true;
+                }
+            }
+            // Otherwise relative
+            return false;
+        }
     }
 
     private sealed interface RelativeFileData extends FileData {
@@ -75,20 +123,26 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
                 case CONFIG:
                     return relativePaths.map(relativePath -> pathLookup.configDir().resolve(relativePath));
                 case DATA:
-                    // multiple data dirs are a pain...we need the combination of relative paths and data dirs
-                    List<Path> paths = new ArrayList<>();
-                    for (var relativePath : relativePaths.toList()) {
-                        for (var dataDir : pathLookup.dataDirs()) {
-                            paths.add(dataDir.resolve(relativePath));
-                        }
-                    }
-                    return paths.stream();
+                    return relativePathsCombination(pathLookup.dataDirs(), relativePaths);
+                case SHARED_REPO:
+                    return relativePathsCombination(pathLookup.sharedRepoDirs(), relativePaths);
                 case HOME:
                     return relativePaths.map(relativePath -> pathLookup.homeDir().resolve(relativePath));
                 default:
                     throw new IllegalArgumentException();
             }
         }
+    }
+
+    private static Stream<Path> relativePathsCombination(Path[] baseDirs, Stream<Path> relativePaths) {
+        // multiple base dirs are a pain...we need the combination of the base dirs and relative paths
+        List<Path> paths = new ArrayList<>();
+        for (var relativePath : relativePaths.toList()) {
+            for (var dataDir : baseDirs) {
+                paths.add(dataDir.resolve(relativePath));
+            }
+        }
+        return paths.stream();
     }
 
     private record AbsolutePathFileData(Path path, Mode mode) implements FileData {
@@ -142,6 +196,7 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
             case "config" -> BaseDir.CONFIG;
             case "data" -> BaseDir.DATA;
             case "home" -> BaseDir.HOME;
+            // NOTE: shared_repo is _not_ accessible to policy files, only internally
             default -> throw new PolicyValidationException(
                 "invalid relative directory: " + baseDir + ", valid values: [config, data, home]"
             );
@@ -190,17 +245,15 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
                     throw new PolicyValidationException("files entitlement with a 'relative_path' must specify 'relative_to'");
                 }
 
-                Path relativePath = Path.of(relativePathAsString);
-                if (relativePath.isAbsolute()) {
+                if (FileData.isAbsolutePath(relativePathAsString)) {
                     throw new PolicyValidationException("'relative_path' [" + relativePathAsString + "] must be relative");
                 }
-                filesData.add(FileData.ofRelativePath(relativePath, baseDir, mode));
+                filesData.add(FileData.ofRelativePath(Path.of(relativePathAsString), baseDir, mode));
             } else if (pathAsString != null) {
-                Path path = Path.of(pathAsString);
-                if (path.isAbsolute() == false) {
+                if (FileData.isAbsolutePath(pathAsString) == false) {
                     throw new PolicyValidationException("'path' [" + pathAsString + "] must be absolute");
                 }
-                filesData.add(FileData.ofPath(path, mode));
+                filesData.add(FileData.ofPath(Path.of(pathAsString), mode));
             } else if (pathSetting != null) {
                 filesData.add(FileData.ofPathSetting(pathSetting, mode));
             } else if (relativePathSetting != null) {

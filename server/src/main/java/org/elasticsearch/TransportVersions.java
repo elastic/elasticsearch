@@ -204,6 +204,7 @@ public class TransportVersions {
     public static final TransportVersion RERANKER_FAILURES_ALLOWED = def(9_013_0_00);
     public static final TransportVersion VOYAGE_AI_INTEGRATION_ADDED = def(9_014_0_00);
     public static final TransportVersion BYTE_SIZE_VALUE_ALWAYS_USES_BYTES = def(9_015_0_00);
+    public static final TransportVersion ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS = def(9_016_0_00);
 
     /*
      * WARNING: DO NOT MERGE INTO MAIN!

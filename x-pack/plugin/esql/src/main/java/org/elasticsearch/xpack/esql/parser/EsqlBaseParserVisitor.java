@@ -181,6 +181,13 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitParenthesizedExpression(EsqlBaseParser.ParenthesizedExpressionContext ctx);
   /**
+   * Visit a parse tree produced by the {@code methodInvocation}
+   * labeled alternative in {@link EsqlBaseParser#primaryExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMethodInvocation(EsqlBaseParser.MethodInvocationContext ctx);
+  /**
    * Visit a parse tree produced by the {@code function}
    * labeled alternative in {@link EsqlBaseParser#primaryExpression}.
    * @param ctx the parse tree
@@ -211,6 +218,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitEntryExpression(EsqlBaseParser.EntryExpressionContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#methodExpression}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMethodExpression(EsqlBaseParser.MethodExpressionContext ctx);
   /**
    * Visit a parse tree produced by the {@code toDataType}
    * labeled alternative in {@link EsqlBaseParser#dataType}.

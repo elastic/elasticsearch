@@ -2340,11 +2340,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError("from test | WHERE field:2+3", "line 1:26: mismatched input '+'");
         expectError(
             "from test | WHERE \"field\":\"value\"",
-            "line 1:26: mismatched input ':' expecting {<EOF>, '|', 'and', '::', 'or', '+', '-', '*', '/', '%'}"
+            "line 1:26: mismatched input ':' expecting {<EOF>, '|', 'and', '::', '.', 'or', '+', '-', '*', '/', '%'}"
         );
         expectError(
             "from test | WHERE CONCAT(\"field\", 1):\"value\"",
-            "line 1:37: mismatched input ':' expecting {<EOF>, '|', 'and', '::', 'or', '+', '-', '*', '/', '%'}"
+            "line 1:37: mismatched input ':' expecting {<EOF>, '|', 'and', '::', '.', 'or', '+', '-', '*', '/', '%'}"
         );
     }
 

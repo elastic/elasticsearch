@@ -1,0 +1,400 @@
+methodAlias
+required_capability: methods
+row a = "a", b = "b" | eval concat(a, b, a), a.concat(b).concat(a);
+
+a:keyword | b:keyword | concat(a, b, a):keyword | a.concat(b).concat(a):keyword
+a         | b         | aba                     | aba
+;
+
+
+length
+required_capability: methods
+row a = "hello", b = "" | eval y = a.length() + b.length();
+
+a:keyword | b:keyword | y:integer
+hello | | 5
+;
+
+// note, emojis are encoded with at least two unicode code points
+lengthWithNonAsciiChars
+required_capability: methods
+row a = "¡", b = "❗️" | eval y = a.length() | eval z = b.length();
+
+a:keyword | b:keyword | y:integer | z:integer
+¡ | ❗️ | 1 | 2
+;
+
+foldLength
+required_capability: methods
+row a = 1 | eval b = "hello".length();
+
+a:integer | b:integer
+1 | 5
+;
+
+
+lengthAndSourceQuoting
+required_capability: methods
+from "employees" | sort emp_no | limit 3 | eval l = first_name.length() | keep emp_no, l;
+
+emp_no:integer | l:integer
+10001 | 6
+10002 | 7
+10003 | 5
+;
+
+startsWithConstant
+required_capability: methods
+from employees | sort emp_no | limit 10 | eval f_S = first_name.starts_with("S") | keep emp_no, first_name, f_S;
+
+emp_no:integer | first_name:keyword  | f_S:boolean
+10001 | Georgi    | false
+10002 | Bezalel   | false
+10003 | Parto     | false
+10004 | Chirstian | false
+10005 | Kyoichi   | false
+10006 | Anneke    | false
+10007 | Tzvetan   | false
+10008 | Saniya    | true
+10009 | Sumant    | true
+10010 | Duangkaew | false
+;
+
+startsWithField
+required_capability: methods
+from employees | where emp_no <= 10010 | eval f_l = last_name.starts_with(gender) | keep emp_no, last_name, gender, f_l;
+ignoreOrder:true
+
+emp_no:integer | last_name:keyword | gender:keyword | f_l:boolean
+10001 | Facello   | M    | false
+10002 | Simmel    | F    | false
+10003 | Bamford   | M    | false
+10004 | Koblick   | M    | false
+10005 | Maliniak  | M    | true
+10006 | Preusig   | F    | false
+10007 | Zielinski | F    | false
+10008 | Kalloufi  | M    | false
+10009 | Peac      | F    | false
+10010 | Piveteau  | null | null
+;
+
+stringCast
+required_capability: methods
+
+ROW a = 1 | eval ss = "abcd".substring("2"), l = "abcd".left("2"), r = "abcd".right("2");
+
+a:integer | ss:keyword | l:keyword | r:keyword
+1         | bcd        | ab        | cd
+;
+
+stringCastEmpAndSourceTripleQuoting
+required_capability: methods
+
+from """employees"""
+| eval ss = first_name.substring("2")
+| sort emp_no
+| keep emp_no, first_name, ss
+| limit 2;
+
+emp_no: integer | first_name:keyword | ss:keyword
+10001           | Georgi             | eorgi
+10002           | Bezalel            | ezalel
+;
+
+
+substring nested negative start
+required_capability: methods
+from employees | where emp_no <= 10010 | eval f_l = last_name.substring(-3).substring(-1) | keep emp_no, last_name, f_l;
+ignoreOrder:true
+
+emp_no:integer | last_name:keyword | f_l:keyword
+10001 | Facello   | o
+10002 | Simmel    | l
+10003 | Bamford   | d
+10004 | Koblick   | k
+10005 | Maliniak  | k
+10006 | Preusig   | g
+10007 | Zielinski | i
+10008 | Kalloufi  | i
+10009 | Peac      | c
+10010 | Piveteau  | u
+;
+
+substring length
+required_capability: methods
+from employees | where emp_no <= 10010 | eval f_l = last_name.substring(3).length() | keep emp_no, last_name, f_l;
+ignoreOrder:true
+
+emp_no:integer | last_name:keyword | f_l:integer
+10001 | Facello   | 5
+10002 | Simmel    | 4
+10003 | Bamford   | 5
+10004 | Koblick   | 5
+10005 | Maliniak  | 6
+10006 | Preusig   | 5
+10007 | Zielinski | 7
+10008 | Kalloufi  | 6
+10009 | Peac      | 2
+10010 | Piveteau  | 6
+;
+
+substring pair
+required_capability: methods
+from employees | where emp_no <= 10010 | eval x = last_name.substring(1, 1), y = 1, z = "abcdef".substring(y, y) | keep emp_no, last_name, x, z;
+ignoreOrder:true
+
+emp_no:integer | last_name:keyword | x:keyword | z:keyword
+10001 | Facello   | F | a
+10002 | Simmel    | S | a
+10003 | Bamford   | B | a
+10004 | Koblick   | K | a
+10005 | Maliniak  | M | a
+10006 | Preusig   | P | a
+10007 | Zielinski | Z | a
+10008 | Kalloufi  | K | a
+10009 | Peac      | P | a
+10010 | Piveteau  | P | a
+;
+
+substring empty string
+required_capability: methods
+row sub = "".substring(1, 3);
+
+sub:keyword
+""
+;
+
+substring Emoji
+required_capability: methods
+row a = "🐱Meow!🐶Woof!" | eval sub1 = a.substring(2) | eval sub2 = a.substring(2, 100);
+
+a:keyword | sub1:keyword | sub2:keyword
+🐱Meow!🐶Woof! | Meow!🐶Woof! | Meow!🐶Woof!
+;
+
+ltrim
+required_capability: methods
+from employees | sort emp_no | limit 10 | eval name = "  ".concat(first_name).concat("  ") | eval name = name.ltrim() | eval name = "'".concat(name, "'") | keep emp_no, name;
+
+emp_no:integer | name:keyword
+10001          | 'Georgi  '
+10002          | 'Bezalel  ' 
+10003          | 'Parto  '
+10004          | 'Chirstian  '
+10005          | 'Kyoichi  '
+10006          | 'Anneke  '
+10007          | 'Tzvetan  '
+10008          | 'Saniya  '
+10009          | 'Sumant  '
+10010          | 'Duangkaew  '
+;
+
+ltrimRow
+required_capability: methods
+ROW message = "   some text  ",  color = " red "
+| EVAL message = LTRIM(message)
+| EVAL color = LTRIM(color)
+| EVAL message = "'".CONCAT(message, "'")
+| EVAL color = CONCAT("'", color).CONCAT("'")
+;
+
+message:keyword | color:keyword
+'some text  ' | 'red '
+;
+
+
+convertFromString
+required_capability: methods
+from employees | sort emp_no | eval positions = job_positions.to_string() | keep emp_no, positions, job_positions | limit 5;
+
+emp_no:integer |positions:keyword                                                     |job_positions:keyword
+10001          |[Accountant, Senior Python Developer]                                 |[Accountant, Senior Python Developer]                                 
+10002          |Senior Team Lead                                                      |Senior Team Lead                                                      
+10003          |null                                                                  |null                                                                  
+10004          |[Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]|[Head Human Resources, Reporting Analyst, Support Engineer, Tech Lead]
+10005          |null                                                                  |null                                                                  
+;
+
+
+replaceComplex
+required_capability: methods
+from employees | where emp_no <= 10010 | eval f_l = last_name.substring(1, 20).replace("al", "AB").replace("a", "Z")  | keep emp_no, last_name, f_l | sort emp_no;
+
+emp_no:integer | last_name:keyword | f_l:keyword
+10001 | Facello   | FZcello
+10002 | Simmel    | Simmel
+10003 | Bamford   | BZmford
+10004 | Koblick   | Koblick
+10005 | Maliniak  | MABiniZk
+10006 | Preusig   | Preusig
+10007 | Zielinski | Zielinski
+10008 | Kalloufi  | KABloufi
+10009 | Peac      | PeZc
+10010 | Piveteau  | PiveteZu
+;
+
+replaceComplex2
+required_capability: methods
+from employees | where emp_no <= 10010 | eval f_l = last_name.replace("a", "Z").substring(1, 1)  | keep emp_no, last_name, f_l | sort emp_no;
+
+emp_no:integer | last_name:keyword | f_l:keyword
+10001 | Facello   | F
+10002 | Simmel    | S
+10003 | Bamford   | B
+10004 | Koblick   | K
+10005 | Maliniak  | M
+10006 | Preusig   | P
+10007 | Zielinski | Z
+10008 | Kalloufi  | K
+10009 | Peac      | P
+10010 | Piveteau  | P
+;
+
+replaceComplex3
+required_capability: methods
+FROM employees | eval x = emp_no.to_string().replace("(0+)", first_name.left(1)), y = first_name.left(1), is_match = y == x.substring(2, 1) | keep first_name, y, x, is_match | sort is_match, x | limit 8;
+
+first_name:keyword|  y:keyword    |  x:keyword    |is_match:boolean    
+Alejandro         |A              |1A59           |true           
+Anneke            |A              |1A6            |true           
+Anoosh            |A              |1A62           |true           
+Amabile           |A              |1A91           |true           
+Arumugam          |A              |1A94           |true           
+Berni             |B              |1B14           |true           
+Bezalel           |B              |1B2            |true           
+Bojan             |B              |1B23           |true
+;
+
+
+endsWithConstant
+required_capability: methods
+from employees | sort emp_no | limit 10 | eval f_a = first_name.ends_with("a") | keep emp_no, first_name, f_a;
+
+emp_no:integer | first_name:keyword  | f_a:boolean
+10001 | Georgi    | false
+10002 | Bezalel   | false
+10003 | Parto     | false
+10004 | Chirstian | false
+10005 | Kyoichi   | false
+10006 | Anneke    | false
+10007 | Tzvetan   | false
+10008 | Saniya    | true
+10009 | Sumant    | false
+10010 | Duangkaew | false
+;
+
+endsWithSequence
+required_capability: methods
+from employees | sort emp_no | limit 10 | eval f_a = first_name.ends_with("an") | keep emp_no, first_name, f_a;
+
+emp_no:integer | first_name:keyword  | f_a:boolean
+10001 | Georgi    | false
+10002 | Bezalel   | false
+10003 | Parto     | false
+10004 | Chirstian | true
+10005 | Kyoichi   | false
+10006 | Anneke    | false
+10007 | Tzvetan   | true
+10008 | Saniya    | false
+10009 | Sumant    | false
+10010 | Duangkaew | false
+;
+
+endsWithExpression
+required_capability: methods
+from employees | sort emp_no | limit 10
+| eval last_name_last_letter = last_name.right(1)
+| eval same_last_letters  = first_name.ends_with(last_name_last_letter)
+| keep emp_no, first_name, last_name, same_last_letters;
+
+emp_no:integer | first_name:keyword  | last_name:keyword | same_last_letters:boolean
+10001 | Georgi    | Facello   | false
+10002 | Bezalel   | Simmel    | true
+10003 | Parto     | Bamford   | false
+10004 | Chirstian | Koblick   | false
+10005 | Kyoichi   | Maliniak  | false
+10006 | Anneke    | Preusig   | false
+10007 | Tzvetan   | Zielinski | false
+10008 | Saniya    | Kalloufi  | false
+10009 | Sumant    | Peac      | false
+10010 | Duangkaew | Piveteau  | false
+;
+
+
+mvAppendStrings
+required_capability: methods
+
+FROM employees
+| WHERE emp_no == 10004
+| EVAL names = first_name.mv_append(last_name).mv_sort(), 
+       two_jobs = job_positions.mv_append(job_positions).mv_sort(),
+       three_jobs = job_positions.mv_append(job_positions).mv_append(job_positions).mv_sort()
+| KEEP emp_no, names, two_jobs, three_jobs
+;
+
+emp_no:integer | names:keyword    | two_jobs:keyword                                       | three_jobs:keyword
+10004          | ["Chirstian", "Koblick"] | ["Head Human Resources","Head Human Resources","Reporting Analyst","Reporting Analyst","Support Engineer","Support Engineer","Tech Lead","Tech Lead"]  | ["Head Human Resources","Head Human Resources","Head Human Resources","Reporting Analyst","Reporting Analyst","Reporting Analyst","Support Engineer","Support Engineer","Support Engineer","Tech Lead","Tech Lead","Tech Lead"] 
+;
+
+
+
+mvAppendStringsWhere
+required_capability: methods
+
+FROM employees
+| EVAL two_jobs = job_positions.mv_sort().mv_append(job_positions.mv_sort()) 
+| WHERE emp_no == 10004 AND job_positions.mv_sort().mv_append(job_positions.mv_sort()).mv_slice(6, 6) == "Support Engineer"
+| KEEP emp_no, two_jobs
+;
+
+emp_no:integer | two_jobs:keyword                       
+10004          | ["Head Human Resources","Reporting Analyst","Support Engineer","Tech Lead","Head Human Resources","Reporting Analyst","Support Engineer","Tech Lead"]   
+;
+
+mvAppendNullFields
+required_capability: methods
+
+FROM employees
+| WHERE emp_no == 10005
+| EVAL x = first_name.mv_append(job_positions), y = job_positions.mv_append(first_name), z = job_positions.mv_append(job_positions)
+| keep emp_no, first_name, job_positions, x, y, z
+;
+
+emp_no:integer | first_name:keyword | job_positions:keyword | x:keyword | y:keyword | z:keyword
+10005          | Kyoichi            | null                  | null      | null      | null
+;         
+
+
+repeatSubstring
+required_capability: methods
+row a = "catcat" | eval repeated = a.substring(4).repeat(2);
+
+a:keyword | repeated:keyword
+catcat | catcat
+;
+
+
+concatNull
+required_capability: methods
+row a = "catcat" | eval concat = null.concat(a);
+
+a:keyword | concat:keyword
+catcat | null
+;
+
+
+castConcat
+required_capability: methods
+row a = 1 | eval b = a::string.concat("one");
+
+a:integer | b:keyword
+1         | 1one
+;
+
+concatCast
+required_capability: methods
+row a = "1" | eval b = a.concat("2")::integer;
+
+a:keyword | b:integer
+1         | 12
+;

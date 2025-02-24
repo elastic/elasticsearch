@@ -694,6 +694,16 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
+    public Object visitMethodInvocation(EsqlBaseParser.MethodInvocationContext ctx) {
+        var methodCtx = ctx.methodExpression();
+        String name = visitIdentifier(methodCtx.identifier());
+        var args = new ArrayList<Expression>();
+        args.add(expression(ctx.primaryExpression()));
+        args.addAll(expressions(methodCtx.booleanExpression()));
+        return new UnresolvedFunction(source(ctx), name, FunctionResolutionStrategy.DEFAULT, args);
+    }
+
+    @Override
     public DataType visitToDataType(EsqlBaseParser.ToDataTypeContext ctx) {
         String typeName = visitIdentifier(ctx.identifier());
         DataType dataType = DataType.fromNameOrAlias(typeName);

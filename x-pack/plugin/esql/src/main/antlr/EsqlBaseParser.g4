@@ -102,6 +102,7 @@ primaryExpression
     | functionExpression                                                                #function
     | LP booleanExpression RP                                                           #parenthesizedExpression
     | primaryExpression CAST_OP dataType                                                #inlineCast
+    | primaryExpression methodExpression                                                #methodInvocation
     ;
 
 functionExpression
@@ -118,6 +119,10 @@ mapExpression
 
 entryExpression
     : key=string COLON value=constant
+    ;
+
+methodExpression
+    : DOT identifier LP ((booleanExpression (COMMA booleanExpression)*))? RP
     ;
 
 dataType

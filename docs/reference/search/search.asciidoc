@@ -782,6 +782,14 @@ Took time does *not* include:
 If `true`,
 the request timed out before completion;
 returned results may be partial or empty.
+--
+
+[[search-api-phase-failures]]
+`phase_failures`::
+(object)
+If present, contains information on any failures in specific search phases
+that did not prevent some results from being returned.
+In such cases, search results may be different to those expected.
 
 [[search-api-shards]]
 `_shards`::

@@ -444,9 +444,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=snapshot/10_basic/Failed to snapshot indices with synthetic source}
   issue: https://github.com/elastic/elasticsearch/issues/120332
-- class: org.elasticsearch.upgrades.DataStreamsUpgradeIT
-  method: testUpgradeDataStream
-  issue: https://github.com/elastic/elasticsearch/issues/123189
 - class: org.elasticsearch.xpack.core.common.notifications.AbstractAuditorTests
   method: testRecreateTemplateWhenDeleted
   issue: https://github.com/elastic/elasticsearch/issues/123232

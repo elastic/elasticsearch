@@ -214,3 +214,62 @@
             index.mode: lookup
             index.number_of_shards: 2
 
+---
+"Create index with invalid field type":
+  - requires:
+      cluster_features: [ "mapper.unknown_field_mapping_update_error_message" ]
+      reason: "Update error message for unknown field type"
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            properties:
+              content:
+                type: invalid
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: The mapper type [invalid] declared on field [content] does not exist. It might have been created within a future version or requires a plugin to be installed. Check the documentation." }
+
+---
+"Create index with invalid runtime field type":
+  - requires:
+      cluster_features: [ "mapper.unknown_field_mapping_update_error_message" ]
+      reason: "Update error message for unknown field type"
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            runtime:
+              content:
+                type: invalid
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: The mapper type [invalid] declared on runtime field [content] does not exist. It might have been created within a future version or requires a plugin to be installed. Check the documentation." }
+
+---
+"Create index with invalid multi-field type":
+  - requires:
+      cluster_features: [ "mapper.unknown_field_mapping_update_error_message" ]
+      reason: "Update error message for unknown field type"
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            properties:
+              city:
+                type: text
+                fields:
+                  raw:
+                    type: invalid
+
+  - match: { error.type: "mapper_parsing_exception" }
+  - match: { error.reason: "Failed to parse mapping: The mapper type [invalid] declared on field [raw] does not exist. It might have been created within a future version or requires a plugin to be installed. Check the documentation." }

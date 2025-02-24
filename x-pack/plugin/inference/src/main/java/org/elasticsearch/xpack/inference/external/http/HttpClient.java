@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.external.http;
 
 import org.apache.http.HttpResponse;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.concurrent.FutureCallback;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
@@ -56,14 +57,18 @@ public class HttpClient implements Closeable {
         PoolingNHttpClientConnectionManager connectionManager,
         ThrottlerManager throttlerManager
     ) {
-        CloseableHttpAsyncClient client = createAsyncClient(Objects.requireNonNull(connectionManager));
+        var client = createAsyncClient(Objects.requireNonNull(connectionManager), Objects.requireNonNull(settings));
 
         return new HttpClient(settings, client, threadPool, throttlerManager);
     }
 
-    private static CloseableHttpAsyncClient createAsyncClient(PoolingNHttpClientConnectionManager connectionManager) {
-        HttpAsyncClientBuilder clientBuilder = HttpAsyncClientBuilder.create();
-        clientBuilder.setConnectionManager(connectionManager);
+    private static CloseableHttpAsyncClient createAsyncClient(
+        PoolingNHttpClientConnectionManager connectionManager,
+        HttpSettings settings
+    ) {
+        var requestConfig = RequestConfig.custom().setConnectTimeout(settings.connectionTimeout()).build();
+
+        var clientBuilder = HttpAsyncClientBuilder.create().setConnectionManager(connectionManager).setDefaultRequestConfig(requestConfig);
         // The apache client will be shared across all connections because it can be expensive to create it
         // so we don't want to support cookies to avoid accidental authentication for unauthorized users
         clientBuilder.disableCookieManagement();

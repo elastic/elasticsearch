@@ -50,8 +50,7 @@ if [[ -f bin/elasticsearch-users ]]; then
       # keystore requires password
       if ! (echo "$KEYSTORE_PASSWORD" \
           | elasticsearch-keystore list | grep -q '^bootstrap.password$') ; then
-        COMMANDS="$(printf "%s\n%s" "$KEYSTORE_PASSWORD" "$ELASTIC_PASSWORD")"
-        (echo "$COMMANDS" | elasticsearch-keystore add -x 'bootstrap.password')
+        (echo "$KEYSTORE_PASSWORD" | elasticsearch-keystore add-file 'bootstrap.password' <(echo -n "$ELASTIC_PASSWORD"))
       fi
     fi
   fi

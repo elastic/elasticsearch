@@ -355,9 +355,6 @@ tests:
 - class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
   method: testBottomFieldSort
   issue: https://github.com/elastic/elasticsearch/issues/118214
-- class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
-  method: testRetryPointInTime
-  issue: https://github.com/elastic/elasticsearch/issues/120442
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testMultipleInferencesTriggeringDownloadAndDeploy
   issue: https://github.com/elastic/elasticsearch/issues/117208
@@ -429,9 +426,6 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/cat/allocation/cat-allocation-example}
   issue: https://github.com/elastic/elasticsearch/issues/121976
-- class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
-  method: testSearcherId
-  issue: https://github.com/elastic/elasticsearch/issues/118374
 - class: org.elasticsearch.xpack.security.authc.ldap.GroupMappingIT
   issue: https://github.com/elastic/elasticsearch/issues/121291
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT

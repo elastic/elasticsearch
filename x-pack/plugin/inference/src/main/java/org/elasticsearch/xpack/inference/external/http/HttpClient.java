@@ -55,21 +55,20 @@ public class HttpClient implements Closeable {
         HttpSettings settings,
         ThreadPool threadPool,
         PoolingNHttpClientConnectionManager connectionManager,
-        ThrottlerManager throttlerManager,
-        RequestConfig requestConfig
+        ThrottlerManager throttlerManager
     ) {
-        var client = createAsyncClient(Objects.requireNonNull(connectionManager), Objects.requireNonNull(requestConfig));
+        var client = createAsyncClient(Objects.requireNonNull(connectionManager), Objects.requireNonNull(settings));
 
         return new HttpClient(settings, client, threadPool, throttlerManager);
     }
 
     private static CloseableHttpAsyncClient createAsyncClient(
         PoolingNHttpClientConnectionManager connectionManager,
-        RequestConfig requestConfig
+        HttpSettings settings
     ) {
-        HttpAsyncClientBuilder clientBuilder = HttpAsyncClientBuilder.create()
-            .setConnectionManager(connectionManager)
-            .setDefaultRequestConfig(requestConfig);
+        var requestConfig = RequestConfig.custom().setConnectTimeout(settings.connectionTimeout()).build();
+
+        var clientBuilder = HttpAsyncClientBuilder.create().setConnectionManager(connectionManager).setDefaultRequestConfig(requestConfig);
         // The apache client will be shared across all connections because it can be expensive to create it
         // so we don't want to support cookies to avoid accidental authentication for unauthorized users
         clientBuilder.disableCookieManagement();

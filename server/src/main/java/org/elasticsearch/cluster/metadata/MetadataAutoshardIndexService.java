@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.logging.LogManager;
@@ -134,8 +135,8 @@ public class MetadataAutoshardIndexService {
     }
 
     public ClusterState applyAutoshardIndexRequest(
-        ClusterState currentState,
-        AutoshardIndexClusterStateUpdateRequest request,
+        final ClusterState currentState,
+        final AutoshardIndexClusterStateUpdateRequest request,
         boolean silent,
         final ActionListener<Void> rerouteListener
     ) {
@@ -144,20 +145,11 @@ public class MetadataAutoshardIndexService {
         int sourceNumShards = sourceMetadata.getNumberOfShards();
         int targetNumShards = sourceNumShards * 2;
 
-        /*
-        Settings.Builder settingsBuilder = Settings.builder().put(sourceMetadata.getSettings());
-        settingsBuilder.remove(IndexMetadata.SETTING_NUMBER_OF_SHARDS);
-        settingsBuilder.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, targetNumShards);
-
-        final Map<Index, Settings> updates = Maps.newHashMapWithExpectedSize(1);
-        updates.put(sourceMetadata.getIndex(), settingsBuilder.build());
-        final Metadata newMetadata = currentState.metadata().withIndexSettingsUpdates(updates);
-        */
-
         var routingTableBuilder = RoutingTable.builder(allocationService.getShardRoutingRoleStrategy(), currentState.routingTable())
             .updateNumberOfShards(targetNumShards, indexName);
 
-        Metadata newMetadata = Metadata.builder(currentState.metadata()).updateNumberOfShards(targetNumShards, indexName).build();
+        // Metadata newMetadata = Metadata.builder(currentState.metadata()).updateNumberOfShards(targetNumShards, indexName).build();
+        Metadata newMetadata = incrementNumberOfShards(currentState, targetNumShards, indexName).build();
         ClusterState updated = ClusterState.builder(currentState)
             .incrementVersion()
             .routingTable(routingTableBuilder)
@@ -165,6 +157,32 @@ public class MetadataAutoshardIndexService {
             .build();
         updated = allocationService.reroute(updated, "index [" + indexName + "] autosharded", rerouteListener);
         return updated;
+    }
+
+    /**
+     * Builder to update numberOfShards of an Index.
+     * The new shard count must be a multiple of the original shardcount.
+     * We do not support shrinking the shard count.
+     * @param currentState    Current clusterstate
+     * @param numberOfShards  Target number of shards
+     * @param index           Index whose shard count is being modified
+     * @return
+     */
+    public static Metadata.Builder incrementNumberOfShards(
+        final ClusterState currentState,
+        final int numberOfShards,
+        final String index) {
+        Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
+        IndexMetadata indexMetadata = metadataBuilder.get(index);
+        if (indexMetadata == null) {
+            throw new IndexNotFoundException(index);
+        }
+        metadataBuilder.put(
+            IndexMetadata.builder(indexMetadata)
+                .settingsVersion(indexMetadata.getSettingsVersion() + 1)
+                .reshardAddShards(numberOfShards)
+        );
+        return metadataBuilder;
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here

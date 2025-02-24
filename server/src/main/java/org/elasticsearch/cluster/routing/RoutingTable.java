@@ -478,15 +478,19 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             // Add new shards
             for (int i = 0; i < numNewShards; i++) {
                 ShardId shardId = new ShardId(indexRoutingTable.getIndex(), oldShardCount + i);
-                ShardRouting shardRouting = ShardRouting.newUnassigned(
-                    shardId,
-                    true,
-                    RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-                    new UnassignedInfo(UnassignedInfo.Reason.RESHARD_ADDED, null), // A new Reason needed in UnassignedInfo
-                    ShardRouting.Role.INDEX_ONLY
-                ); // A new role API similar to newReplicaRole() needed in shardRoutingRoleStrategy ?
                 IndexShardRoutingTable.Builder indexShardRoutingBuilder = IndexShardRoutingTable.builder(shardId);
-                indexShardRoutingBuilder.addShard(shardRouting);
+                for (int j = 0; j <= currentNumberOfReplicas; j++) {
+                    boolean primary = j == 0;
+                    ShardRouting shardRouting = ShardRouting.newUnassigned(
+                        shardId,
+                        primary,
+                        // TODO: Will add a SPLIT recovery type for primary
+                        primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE,
+                        new UnassignedInfo(UnassignedInfo.Reason.RESHARD_ADDED, null),
+                        shardRoutingRoleStrategy.newEmptyRole(j)
+                    );
+                    indexShardRoutingBuilder.addShard(shardRouting);
+                }
                 builder.addIndexShard(indexShardRoutingBuilder);
             }
             // No need to add replicas because no replicas on serverless.

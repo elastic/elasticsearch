@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataAutoshardIndexService;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -67,18 +68,9 @@ public class UpdateNumberofShardsTests extends ESAllocationTestCase {
             .updateNumberOfShards(2, index)
             .build();
 
-        /*
-        final IndexMetadata sourceIndexMetadata = clusterState.metadata().index(index);
-        Settings.Builder settingsBuilder = Settings.builder().put(sourceIndexMetadata.getSettings());
-        settingsBuilder.remove(IndexMetadata.SETTING_NUMBER_OF_SHARDS);
-        settingsBuilder.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2);
 
-        final Map<Index, Settings> updates = Maps.newHashMapWithExpectedSize(1);
-        updates.put(sourceIndexMetadata.getIndex(), settingsBuilder.build());
-        //final Metadata newMetadata = clusterState.metadata().withIndexSettingsUpdates(updates);
-        */
-
-        Metadata newMetadata = Metadata.builder(clusterState.metadata()).updateNumberOfShards(2, index).build();
+        //Metadata newMetadata = Metadata.builder(clusterState.metadata()).updateNumberOfShards(2, index).build();
+        Metadata newMetadata = MetadataAutoshardIndexService.incrementNumberOfShards(clusterState, 2, index).build();
         clusterState = ClusterState.builder(clusterState).routingTable(updatedRoutingTable).metadata(newMetadata).build();
 
         assertThat(clusterState.metadata().index("test").getNumberOfShards(), equalTo(2));

@@ -119,7 +119,7 @@ public class DateFieldMapperDocValuesSkipperBenchmark {
     @Param("1343120")
     private int numberOfDocuments;
 
-    @Param({"1340", "121300"})
+    @Param({ "1340", "121300" })
     private int batchSize;
 
     @Param("1000")

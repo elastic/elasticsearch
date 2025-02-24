@@ -34,10 +34,22 @@ final class SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer implements Co
     private final Function<BytesRef, BytesRef> converter;
     private DocValuesWithOffsetsLoader docValues;
 
+    /**
+     * @param name              The name of the field to synthesize
+     * @param offsetsFieldName  The related offset field used to correctly synthesize the field if it is a leaf array
+     */
     SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer(String name, String offsetsFieldName) {
         this(name, offsetsFieldName, Function.identity());
     }
 
+    /**
+     * @param name              The name of the field to synthesize
+     * @param offsetsFieldName  The related offset field used to correctly synthesize the field if it is a leaf array
+     * @param converter         This field value loader layer synthesizes the values read from doc values as utf8 string. If the doc value
+     *                          values aren't serializable as utf8 string then it is the responsibility of the converter to covert into a
+     *                          format that can be serialized as utf8 string. For example IP field mapper doc values can't directly be
+     *                          serialized as utf8 string.
+     */
     SortedSetWithOffsetsDocValuesSyntheticFieldLoaderLayer(String name, String offsetsFieldName, Function<BytesRef, BytesRef> converter) {
         this.name = Objects.requireNonNull(name);
         this.offsetsFieldName = Objects.requireNonNull(offsetsFieldName);

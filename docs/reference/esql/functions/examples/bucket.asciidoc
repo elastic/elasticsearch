@@ -60,8 +60,8 @@ include::{esql-specs}/bucket.csv-spec[tag=docsBucketWeeklyHistogramWithSpan]
 include::{esql-specs}/bucket.csv-spec[tag=docsBucketWeeklyHistogramWithSpan-result]
 |===
 
-NOTE: When providing the bucket size as the second parameter, it must be a time
-duration or date period.
+NOTE: When providing the bucket size as the second parameter, it must be a time duration or date period.
+Also the reference is epoch, which starts at `0001-01-01T00:00:00Z`.
 
 `BUCKET` can also operate on numeric fields. For example, to create a salary histogram:
 [source.merge.styled,esql]

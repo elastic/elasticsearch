@@ -20,8 +20,6 @@ module org.elasticsearch.multiproject {
     provides org.elasticsearch.cluster.project.ProjectResolverFactory
         with
             org.elasticsearch.multiproject.TestOnlyMultiProjectResolverFactory;
-    provides org.elasticsearch.reservedstate.service.FileSettingsServiceProvider
-        with
-            org.elasticsearch.multiproject.MultiProjectFileSettingsServiceProvider;
+
     provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.multiproject.TestOnlyMultiProjectFeatureSpecification;
 }

@@ -49,7 +49,7 @@ public class JwtMultiProjectIT extends ESRestTestCase {
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .nodes(1)
         .distribution(DistributionType.DEFAULT)
-        .module("multi-project")
+        .module("test-multi-project")
         .setting("multi_project.enabled", "true")
         .configFile("jwkset.json", Resource.fromClasspath("jwk/jwkset.json"))
         .setting("xpack.ml.enabled", "false")

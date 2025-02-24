@@ -117,16 +117,16 @@ public class DateFieldMapperDocValuesSkipperBenchmark {
     }
 
     @Param("1343120")
-    private int numberOfDocuments;
+    private int nDocs;
 
     @Param({ "1340", "121300" })
     private int batchSize;
 
     @Param("1000")
-    private int timestampIncrementMillis;
+    private int deltaTime;
 
     @Param({ "0.01", "0.2", "0.8" })
-    private double timestampRangeFraction;
+    private double queryRange;
 
     @Param({ "7390", "398470" })
     private int commitEvery;
@@ -182,7 +182,7 @@ public class DateFieldMapperDocValuesSkipperBenchmark {
         final Random random = new Random(seed);
         try (IndexWriter indexWriter = new IndexWriter(directory, config)) {
             int docCountSinceLastCommit = 0;
-            for (int i = 0; i < numberOfDocuments; i++) {
+            for (int i = 0; i < nDocs; i++) {
                 final Document doc = new Document();
                 addFieldsToDocument(doc, i, withDocValuesSkipper, random);
                 indexWriter.addDocument(doc);
@@ -207,8 +207,8 @@ public class DateFieldMapperDocValuesSkipperBenchmark {
     private void addFieldsToDocument(final Document doc, int docIndex, boolean withDocValuesSkipper, final Random random) {
         final int batchIndex = docIndex / batchSize;
         final String hostName = "host-" + batchIndex;
-        final long timestampDelta = random.nextInt(0, timestampIncrementMillis);
-        final long timestamp = BASE_TIMESTAMP + ((docIndex % batchSize) * timestampIncrementMillis) + timestampDelta;
+        final long timestampDelta = random.nextInt(0, deltaTime);
+        final long timestamp = BASE_TIMESTAMP + ((docIndex % batchSize) * deltaTime) + timestampDelta;
 
         if (withDocValuesSkipper) {
             doc.add(SortedNumericDocValuesField.indexedField(TIMESTAMP_FIELD, timestamp)); // NOTE: doc values skipper on `@timestamp`
@@ -231,7 +231,7 @@ public class DateFieldMapperDocValuesSkipperBenchmark {
      * @return The computed upper bound for the timestamp range query.
      */
     private long rangeEndTimestamp() {
-        return BASE_TIMESTAMP + ((long) (batchSize * timestampIncrementMillis * timestampRangeFraction));
+        return BASE_TIMESTAMP + ((long) (batchSize * deltaTime * queryRange));
     }
 
     @Benchmark
@@ -259,7 +259,7 @@ public class DateFieldMapperDocValuesSkipperBenchmark {
             rangeEndTimestamp,
             rangeQuery
         );
-        return searcher.search(query, numberOfDocuments, QUERY_SORT).totalHits.value();
+        return searcher.search(query, nDocs, QUERY_SORT).totalHits.value();
     }
 
     @TearDown(Level.Trial)

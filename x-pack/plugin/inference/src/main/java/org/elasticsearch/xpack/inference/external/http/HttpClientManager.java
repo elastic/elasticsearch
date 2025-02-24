@@ -218,7 +218,8 @@ public class HttpClientManager implements Closeable {
             MAX_TOTAL_CONNECTIONS,
             MAX_ROUTE_CONNECTIONS,
             CONNECTION_EVICTION_THREAD_INTERVAL_SETTING,
-            CONNECTION_MAX_IDLE_TIME_SETTING
+            CONNECTION_MAX_IDLE_TIME_SETTING,
+            CONNECTION_TIMEOUT
         );
     }
 

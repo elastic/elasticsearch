@@ -209,15 +209,17 @@ public class ExpressionTests extends ESTestCase {
     }
 
     public void testCommandNamesAsIdentifiers() {
-        Expression expr = whereExpression("from and limit");
-        assertThat(expr, instanceOf(And.class));
-        And and = (And) expr;
+        for (var commandName : List.of("dissect", "drop", "enrich", "eval", "keep", "limit", "sort")) {
+            Expression expr = whereExpression("from and " + commandName);
+            assertThat(expr, instanceOf(And.class));
+            And and = (And) expr;
 
-        assertThat(and.left(), instanceOf(UnresolvedAttribute.class));
-        assertThat(((UnresolvedAttribute) and.left()).name(), equalTo("from"));
+            assertThat(and.left(), instanceOf(UnresolvedAttribute.class));
+            assertThat(((UnresolvedAttribute) and.left()).name(), equalTo("from"));
 
-        assertThat(and.right(), instanceOf(UnresolvedAttribute.class));
-        assertThat(((UnresolvedAttribute) and.right()).name(), equalTo("limit"));
+            assertThat(and.right(), instanceOf(UnresolvedAttribute.class));
+            assertThat(((UnresolvedAttribute) and.right()).name(), equalTo(commandName));
+        }
     }
 
     public void testIdentifiersCaseSensitive() {

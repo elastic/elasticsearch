@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
@@ -25,10 +26,12 @@ import static org.hamcrest.Matchers.is;
 public class FileAccessTreeTests extends ESTestCase {
 
     static Path root;
+    static Settings settings;
 
     @BeforeClass
     public static void setupRoot() {
         root = createTempDir();
+        settings = Settings.EMPTY;
     }
 
     private static Path path(String s) {
@@ -39,7 +42,9 @@ public class FileAccessTreeTests extends ESTestCase {
         Path.of("/home"),
         Path.of("/config"),
         new Path[] { Path.of("/data1"), Path.of("/data2") },
-        Path.of("/tmp")
+        Path.of("/tmp"),
+        setting -> settings.get(setting),
+        glob -> settings.getGlobValues(glob)
     );
 
     public void testEmpty() {
@@ -89,6 +94,27 @@ public class FileAccessTreeTests extends ESTestCase {
         assertThat(tree.canWrite(path("foo")), is(false));
         assertThat(tree.canRead(path("foo/bar")), is(true));
         assertThat(tree.canWrite(path("foo/bar")), is(true));
+    }
+
+    public void testPrunedPaths() {
+        var tree = accessTree(entitlement("foo", "read", "foo/baz", "read", "foo/bar", "read"));
+        assertThat(tree.canRead(path("foo")), is(true));
+        assertThat(tree.canWrite(path("foo")), is(false));
+        assertThat(tree.canRead(path("foo/bar")), is(true));
+        assertThat(tree.canWrite(path("foo/bar")), is(false));
+        assertThat(tree.canRead(path("foo/baz")), is(true));
+        assertThat(tree.canWrite(path("foo/baz")), is(false));
+        // also test a non-existent subpath
+        assertThat(tree.canRead(path("foo/barf")), is(true));
+        assertThat(tree.canWrite(path("foo/barf")), is(false));
+
+        tree = accessTree(entitlement("foo", "read", "foo/bar", "read_write"));
+        assertThat(tree.canRead(path("foo")), is(true));
+        assertThat(tree.canWrite(path("foo")), is(false));
+        assertThat(tree.canRead(path("foo/bar")), is(true));
+        assertThat(tree.canWrite(path("foo/bar")), is(true));
+        assertThat(tree.canRead(path("foo/baz")), is(true));
+        assertThat(tree.canWrite(path("foo/baz")), is(false));
     }
 
     public void testReadWithRelativePath() {
@@ -163,13 +189,9 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testTempDirAccess() {
-        Path tempDir = createTempDir();
-        var tree = FileAccessTree.of(
-            FilesEntitlement.EMPTY,
-            new PathLookup(Path.of("/home"), Path.of("/config"), new Path[] { Path.of("/data1"), Path.of("/data2") }, tempDir)
-        );
-        assertThat(tree.canRead(tempDir), is(true));
-        assertThat(tree.canWrite(tempDir), is(true));
+        var tree = FileAccessTree.of(FilesEntitlement.EMPTY, TEST_PATH_LOOKUP);
+        assertThat(tree.canRead(TEST_PATH_LOOKUP.tempDir()), is(true));
+        assertThat(tree.canWrite(TEST_PATH_LOOKUP.tempDir()), is(true));
     }
 
     FileAccessTree accessTree(FilesEntitlement entitlement) {

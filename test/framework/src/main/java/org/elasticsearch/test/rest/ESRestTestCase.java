@@ -1991,7 +1991,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         Response response = client.performRequest(new Request("HEAD", "/" + index));
         return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
     }
-
+    
     /**
      * Deprecation message emitted since 7.12.0 for the rest of the 7.x series. Can be removed in v10 since it is not
      * emitted in v8 or v9 and N-2 versions are now supported.

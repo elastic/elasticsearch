@@ -351,7 +351,6 @@ public class ClusterStateChanges {
             threadPool,
             allocationService,
             actionFilters,
-            indexNameExpressionResolver,
             TestProjectResolvers.DEFAULT_PROJECT_ONLY
         );
         transportCreateIndexAction = new TransportCreateIndexAction(

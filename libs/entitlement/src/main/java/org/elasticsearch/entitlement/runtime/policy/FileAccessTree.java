@@ -89,7 +89,11 @@ public final class FileAccessTree {
         // Note that toAbsolutePath produces paths separated by the default file separator,
         // so on Windows, if the given path uses forward slashes, this consistently
         // converts it to backslashes.
-        return path.toAbsolutePath().normalize().toString();
+        String result = path.toAbsolutePath().normalize().toString();
+        while (result.endsWith(FILE_SEPARATOR)) {
+            result = result.substring(0, result.length() - FILE_SEPARATOR.length());
+        }
+        return result;
     }
 
     private static boolean checkPath(String path, String[] paths) {

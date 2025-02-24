@@ -180,8 +180,21 @@ public class FileAccessTreeTests extends ESTestCase {
     public void testNormalizePath() {
         var tree = accessTree(entitlement("foo/../bar", "read"));
         assertThat(tree.canRead(path("foo/../bar")), is(true));
+        assertThat(tree.canRead(path("foo/../bar/")), is(true));
         assertThat(tree.canRead(path("foo")), is(false));
         assertThat(tree.canRead(path("")), is(false));
+    }
+
+    public void testNormalizeTrailingSlashes() {
+        var tree = accessTree(entitlement("/trailing/slash/", "read", "/no/trailing/slash", "read"));
+        assertThat(tree.canRead(path("/trailing/slash")), is(true));
+        assertThat(tree.canRead(path("/trailing/slash/")), is(true));
+        assertThat(tree.canRead(path("/trailing/slash.xml")), is(false));
+        assertThat(tree.canRead(path("/trailing/slash/file.xml")), is(true));
+        assertThat(tree.canRead(path("/no/trailing/slash")), is(true));
+        assertThat(tree.canRead(path("/no/trailing/slash/")), is(true));
+        assertThat(tree.canRead(path("/no/trailing/slash.xml")), is(false));
+        assertThat(tree.canRead(path("/no/trailing/slash/file.xml")), is(true));
     }
 
     public void testForwardSlashes() {

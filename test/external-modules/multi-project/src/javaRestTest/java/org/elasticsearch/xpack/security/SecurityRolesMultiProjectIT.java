@@ -42,7 +42,7 @@ public class SecurityRolesMultiProjectIT extends MultiProjectRestTestCase {
         .nodes(1)
         .distribution(DistributionType.DEFAULT)
         .module("test-multi-project")
-        .setting("multi_project.enabled", "true")
+        .setting("test.multi_project.enabled", "true")
         .setting("xpack.security.enabled", "true")
         .user("admin", PASSWORD)
         .rolesFile(rolesFile)

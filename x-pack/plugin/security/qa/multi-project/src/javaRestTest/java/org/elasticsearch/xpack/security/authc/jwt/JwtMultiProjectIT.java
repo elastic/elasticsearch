@@ -50,7 +50,7 @@ public class JwtMultiProjectIT extends ESRestTestCase {
         .nodes(1)
         .distribution(DistributionType.DEFAULT)
         .module("test-multi-project")
-        .setting("multi_project.enabled", "true")
+        .setting("test.multi_project.enabled", "true")
         .configFile("jwkset.json", Resource.fromClasspath("jwk/jwkset.json"))
         .setting("xpack.ml.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")

@@ -45,14 +45,11 @@ import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
-import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
@@ -72,8 +69,8 @@ import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
-import org.elasticsearch.xpack.esql.plan.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -85,10 +82,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
-import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
-import org.elasticsearch.xpack.esql.plan.logical.Rrf;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
@@ -507,52 +502,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return resolveFork(f, context);
             }
 
-            if (plan instanceof Rrf rrf) {
-                return resolveRrf(rrf, context);
+            if (plan instanceof Dedup dedup) {
+                return resolveDedup(dedup, context);
             }
 
             return plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
-        }
-
-        private LogicalPlan resolveRrf(Rrf rrf, AnalyzerContext context) {
-            Attribute scoreAttribute = new UnresolvedAttribute(rrf.source(), "_score");
-            Attribute forkAttribute = new UnresolvedAttribute(rrf.source(), "_fork");
-            List<Expression> dedupRows = new ArrayList<>();
-            List<NamedExpression> aggregates = new ArrayList<>();
-
-            for (Attribute attr : rrf.output()) {
-                if (attr.name().equals("_score")) {
-                    scoreAttribute = attr;
-                } else if (attr.name().equals("_fork")) {
-                    forkAttribute = attr;
-                } else {
-                    var ref = new UnresolvedAttribute(rrf.source(), attr.name());
-                    dedupRows.add(ref);
-                    aggregates.add(ref);
-                }
-            }
-
-            aggregates.add(
-                0,
-                new Alias(rrf.source(), "_score", new Sum(rrf.source(), scoreAttribute, new Literal(rrf.source(), true, DataType.BOOLEAN)))
-            );
-            aggregates.add(
-                1,
-                new Alias(rrf.source(), "_fork", new Values(rrf.source(), forkAttribute, new Literal(rrf.source(), true, DataType.BOOLEAN)))
-            );
-
-            Order order = new Order(
-                rrf.source(),
-                new UnresolvedAttribute(rrf.source(), "_score"),
-                Order.OrderDirection.DESC,
-                Order.NullsPosition.LAST
-            );
-
-            LogicalPlan rrfScoreEval = new RrfScoreEval(rrf.source(), rrf.child());
-            Aggregate dedup = new Aggregate(rrf.source(), rrfScoreEval, Aggregate.AggregateType.STANDARD, dedupRows, aggregates);
-            LogicalPlan newPlan = rule(new OrderBy(dedup.source(), rule(dedup, context), List.of(order)), context);
-
-            return newPlan;
         }
 
         private Aggregate resolveAggregate(Aggregate aggregate, List<Attribute> childrenOutput) {
@@ -802,6 +756,25 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         private static FieldAttribute insistKeyword(Attribute attribute) {
             return new FieldAttribute(attribute.source(), attribute.name(), new PotentiallyUnmappedKeywordEsField(attribute.name()));
+        }
+
+        private LogicalPlan resolveDedup(Dedup dedup, AnalyzerContext context) {
+            List<NamedExpression> aggregates = dedup.aggregates();
+            List<NamedExpression> newAggs = new ArrayList<>();
+
+            for (NamedExpression agg : aggregates) {
+                var newAgg = (NamedExpression) agg.transformUp(UnresolvedAttribute.class, ua -> {
+                    Expression ne = ua;
+                    Attribute maybeResolved = maybeResolveAttribute(ua, dedup.child().output());
+                    if (maybeResolved != null) {
+                        ne = maybeResolved;
+                    }
+                    return ne;
+                });
+                newAggs.add(newAgg);
+            }
+
+            return new Dedup(dedup.source(), dedup.child(), newAggs);
         }
 
         private Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {

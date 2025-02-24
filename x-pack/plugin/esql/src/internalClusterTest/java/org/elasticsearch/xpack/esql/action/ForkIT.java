@@ -364,7 +364,7 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             System.out.println("response=" + resp);
             assertColumnNames(resp.columns(), List.of("id", "content", "_score", "_fork"));
             assertColumnTypes(resp.columns(), List.of("integer", "text", "double", "keyword"));
-            assertThat(getValuesList(resp.values()).size(), equalTo(3)); // just assert that the expected number of results
+            assertThat(getValuesList(resp.values()).size(), equalTo(3));
             Iterable<Iterable<Object>> expectedValues = List.of(
                 List.of(6, "The quick brown fox jumps over the lazy dog", 0.032266458495966696, List.of("fork1", "fork2")),
                 List.of(3, "This dog is really brown", 0.01639344262295082, "fork2"),

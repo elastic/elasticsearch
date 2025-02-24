@@ -40,9 +40,12 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
+import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -61,7 +64,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
-import org.elasticsearch.xpack.esql.plan.logical.Rrf;
+import org.elasticsearch.xpack.esql.plan.logical.RrfScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
@@ -690,6 +693,23 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public PlanFactory visitRrfCommand(EsqlBaseParser.RrfCommandContext ctx) {
-        return input -> new Rrf(source(ctx), input);
+        return input -> {
+            Source source = source(ctx);
+            Attribute scoreAttr = new UnresolvedAttribute(source, "_score");
+            Attribute forkAttr = new UnresolvedAttribute(source, "_fork");
+            List<NamedExpression> aggregates = List.of(
+                new Alias(source, "_score", new Sum(source, scoreAttr, new Literal(source, true, DataType.BOOLEAN))),
+                new Alias(source, "_fork", new Values(source, forkAttr, new Literal(source, true, DataType.BOOLEAN)))
+            );
+
+            LogicalPlan dedup = new Dedup(source, new RrfScoreEval(source, input), aggregates);
+
+            List<Order> order = List.of(
+                new Order(source, scoreAttr, Order.OrderDirection.DESC, Order.NullsPosition.LAST),
+                new Order(source, forkAttr, Order.OrderDirection.ASC, Order.NullsPosition.LAST)
+            );
+
+            return new OrderBy(source, dedup, order);
+        };
     }
 }

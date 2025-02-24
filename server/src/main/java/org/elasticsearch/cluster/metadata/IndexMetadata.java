@@ -939,87 +939,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     /**
-     * Creates a copy of this instance that has a new shard count. The new shard count
-     * must be a multiple of the original shardcount.
-     * We do not support shrinking the shard count.
-     * @param shardCount   updated shardCount
-     * @return updated instance with new shardcount
-     *
-     * Q: Should we populate the primaryTerms for the new shards here ?
-     * Q: Is it ok to set routingNumShards to shardCount ?
-     * Q: Should we increment this.version here ?
-     */
-    /*
-    public IndexMetadata withIncrementedPrimaryShards(int shardCount) {
-        if (this.primaryTerms.length == shardCount) return this;
-
-        if (shardCount % this.primaryTerms.length != 0) {
-            throw new IllegalArgumentException(
-                "New shard count ["
-                    + shardCount
-                    + "] should be a multiple"
-                    + " of current shard count ["
-                    + this.primaryTerms.length
-                    + "] for ["
-                    + index
-                    + "]"
-            );
-        }
-        final long[] newPrimaryTerms = new long[shardCount];
-        System.arraycopy(this.primaryTerms, 0, newPrimaryTerms, 0, this.primaryTerms.length);
-        return new IndexMetadata(
-            this.index,
-            this.version,
-            this.mappingVersion,
-            this.settingsVersion,
-            this.aliasesVersion,
-            newPrimaryTerms,
-            this.state,
-            shardCount,
-            this.numberOfReplicas,
-            this.settings,
-            this.mapping,
-            this.inferenceFields,
-            this.aliases,
-            this.customData,
-            this.inSyncAllocationIds,
-            this.requireFilters,
-            this.initialRecoveryFilters,
-            this.includeFilters,
-            this.excludeFilters,
-            this.indexCreatedVersion,
-            this.mappingsUpdatedVersion,
-            shardCount,
-            this.routingPartitionSize,
-            this.routingPaths,
-            this.waitForActiveShards,
-            this.rolloverInfos,
-            this.isSystem,
-            this.isHidden,
-            this.timestampRange,
-            this.eventIngestedRange,
-            this.priority,
-            this.creationDate,
-            this.ignoreDiskWatermarks,
-            this.tierPreference,
-            this.shardsPerNodeLimit,
-            this.lifecyclePolicyName,
-            this.lifecycleExecutionState,
-            this.autoExpandReplicas,
-            this.isSearchableSnapshot,
-            this.isPartialSearchableSnapshot,
-            this.indexMode,
-            this.timeSeriesStart,
-            this.timeSeriesEnd,
-            this.indexCompatibilityVersion,
-            this.stats,
-            this.writeLoadForecast,
-            this.shardSizeInBytesForecast
-        );
-    }
-    */
-
-    /**
      * @param timestampRange new @timestamp range
      * @param eventIngestedRange new 'event.ingested' range
      * @return copy of this instance with updated timestamp range
@@ -2033,10 +1952,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return this;
         }
 
-        /** Builder to create IndexMetadata that has an increased shard count (used for re-shard).
+        /**
+         * Builder to create IndexMetadata that has an increased shard count (used for re-shard).
          * The new shard count must be a multiple of the original shardcount.
          * We do not support shrinking the shard count.
          * @param shardCount   updated shardCount
+         *
+         * TODO: Check if this.version needs to be incremented
          */
         public Builder reshardAddShards(int shardCount) {
             // Assert routingNumShards is null ?

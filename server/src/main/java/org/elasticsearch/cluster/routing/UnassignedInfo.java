@@ -342,9 +342,9 @@ public record UnassignedInfo(
         } else if (reason.equals(Reason.RESHARD_ADDED)
             && out.getTransportVersion().before(TransportVersions.UNASSIGENEDINFO_RESHARD_ADDED)) {
                 out.writeByte((byte) Reason.FORCED_EMPTY_PRIMARY.ordinal());
-            } else {
+        } else {
                 out.writeByte((byte) reason.ordinal());
-            }
+        }
         out.writeLong(unassignedTimeMillis);
         // Do not serialize unassignedTimeNanos as System.nanoTime() cannot be compared across different JVMs
         out.writeBoolean(delayed);

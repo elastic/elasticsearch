@@ -227,15 +227,6 @@ class FieldCapabilitiesFetcher {
         return responseMap;
     }
 
-    private static boolean checkIncludeParents(String[] filters) {
-        for (String filter : filters) {
-            if ("-parent".equals(filter)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
     private static boolean canMatchShard(
         ShardId shardId,
         QueryBuilder indexFilter,

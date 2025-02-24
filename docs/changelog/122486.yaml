@@ -1,0 +1,5 @@
+pr: 122486
+summary: Add index mode to get data stream API
+area: Data streams
+type: enhancement
+issues: []

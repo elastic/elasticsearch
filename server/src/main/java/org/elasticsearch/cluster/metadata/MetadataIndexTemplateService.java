@@ -91,6 +91,9 @@ public class MetadataIndexTemplateService {
 
     public static final String DEFAULT_TIMESTAMP_FIELD = "@timestamp";
     public static final CompressedXContent DEFAULT_TIMESTAMP_MAPPING_WITHOUT_ROUTING;
+    // Names used for validating templates when we do not know the index or data stream name
+    public static final String VALIDATE_INDEX_NAME = "validate-index-name";
+    public static final String VALIDATE_DATA_STREAM_NAME = "validate-data-stream-name";
 
     private static final CompressedXContent DEFAULT_TIMESTAMP_MAPPING_WITH_ROUTING;
 
@@ -700,8 +703,8 @@ public class MetadataIndexTemplateService {
         var finalSettings = Settings.builder();
         for (var provider : indexSettingProviders) {
             var newAdditionalSettings = provider.getAdditionalIndexSettings(
-                "validate-index-name",
-                indexTemplate.getDataStreamTemplate() != null ? "validate-data-stream-name" : null,
+                VALIDATE_INDEX_NAME,
+                indexTemplate.getDataStreamTemplate() != null ? VALIDATE_DATA_STREAM_NAME : null,
                 metadata.retrieveIndexModeFromTemplate(indexTemplate),
                 currentState.getMetadata(),
                 now,

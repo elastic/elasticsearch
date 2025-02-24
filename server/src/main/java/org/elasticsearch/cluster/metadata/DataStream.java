@@ -88,7 +88,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final Comparator<LeafReader> TIMESERIES_LEAF_READERS_SORTER = Comparator.comparingLong((LeafReader r) -> {
         try {
             FieldInfo info = r.getFieldInfos().fieldInfo(TIMESTAMP_FIELD_NAME);
-            if (info.docValuesSkipIndexType() == DocValuesSkipIndexType.RANGE) {
+            if (info != null && info.docValuesSkipIndexType() == DocValuesSkipIndexType.RANGE) {
                 DocValuesSkipper skipper = r.getDocValuesSkipper(TIMESTAMP_FIELD_NAME);
                 return skipper.maxValue();
             }

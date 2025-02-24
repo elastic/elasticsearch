@@ -98,7 +98,6 @@ public class MonitoringInfoTransportActionTests extends ESTestCase {
             null,
             threadPool,
             mock(ActionFilters.class),
-            null,
             new MonitoringUsageServices(monitoring, exporters)
         );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();

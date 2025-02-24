@@ -40,3 +40,10 @@ tasks.register("loadCsvSpecData", JavaExec) {
   mainClass = "org.elasticsearch.xpack.esql.CsvTestsDataLoader"
 }
 
+tasks.register("parseProfile", JavaExec) {
+  group = "Execution"
+  description = "Parses the output of a query run with profile:true to be imported into perfetto."
+  classpath = sourceSets.main.runtimeClasspath
+  mainClass = "org.elasticsearch.xpack.esql.ProfileParser"
+}
+

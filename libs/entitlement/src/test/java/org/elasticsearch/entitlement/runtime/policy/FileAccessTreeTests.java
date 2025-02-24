@@ -117,6 +117,15 @@ public class FileAccessTreeTests extends ESTestCase {
         assertThat(tree.canWrite(path("foo/baz")), is(false));
     }
 
+    public void testPathAndFileWithSamePrefix() {
+        var tree = accessTree(entitlement("foo/bar/", "read", "foo/bar.xml", "read"));
+        assertThat(tree.canRead(path("foo")), is(false));
+        assertThat(tree.canRead(path("foo/bar")), is(true));
+        assertThat(tree.canRead(path("foo/bar/baz")), is(true));
+        assertThat(tree.canRead(path("foo/bar.xml")), is(true));
+        assertThat(tree.canRead(path("foo/bar.txt")), is(false));
+    }
+
     public void testReadWithRelativePath() {
         for (var dir : List.of("config", "home")) {
             var tree = accessTree(entitlement(Map.of("relative_path", "foo", "mode", "read", "relative_to", dir)));

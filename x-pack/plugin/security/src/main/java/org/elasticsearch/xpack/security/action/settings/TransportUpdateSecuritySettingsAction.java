@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -53,8 +52,7 @@ public class TransportUpdateSecuritySettingsAction extends TransportMasterNodeAc
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        MetadataUpdateSettingsService metadataUpdateSettingsService,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        MetadataUpdateSettingsService metadataUpdateSettingsService
     ) {
         super(
             UpdateSecuritySettingsAction.INSTANCE.name(),

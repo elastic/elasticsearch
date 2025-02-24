@@ -1080,8 +1080,8 @@ FROM employees
 | LIMIT 1
 ;
 
-warning:Line 5:10: evaluation of [replace(first_name, regex, \"\")] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 5:10: java.util.regex.PatternSyntaxException: Unclosed group near index 1%0D%0A(
+warningRegex:Line 5:10: evaluation of \[replace\(first_name, regex, \\"\\"\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 5:10: java.util.regex.PatternSyntaxException: Unclosed group near index 1(%0D)?%0A\(
 
 first_name:keyword | result:keyword
 Alejandro          | null

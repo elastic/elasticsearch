@@ -55,19 +55,9 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         ThreadPool threadPool,
         MetadataCreateIndexService createIndexService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Client client
     ) {
-        this(
-            ResizeAction.NAME,
-            transportService,
-            clusterService,
-            threadPool,
-            createIndexService,
-            actionFilters,
-            indexNameExpressionResolver,
-            client
-        );
+        this(ResizeAction.NAME, transportService, clusterService, threadPool, createIndexService, actionFilters, client);
     }
 
     protected TransportResizeAction(
@@ -77,7 +67,6 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         ThreadPool threadPool,
         MetadataCreateIndexService createIndexService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Client client
     ) {
         super(

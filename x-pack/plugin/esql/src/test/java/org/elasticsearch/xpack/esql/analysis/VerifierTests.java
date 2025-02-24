@@ -1671,108 +1671,162 @@ public class VerifierTests extends ESTestCase {
         assertEquals("1:38: Unknown column [first_name]", error("from test | keep emp_no | where term(first_name, \"Anna\")"));
     }
 
-    public void testCoalesceWithMixedNumericTypes() {
-        assertEquals(
-            "1:22: second argument of [coalesce(languages, height)] must be [integer], found value [height] type [double]",
-            error("from test | eval x = coalesce(languages, height)")
-        );
-        assertEquals(
-            "1:22: second argument of [coalesce(languages.long, height)] must be [long], found value [height] type [double]",
-            error("from test | eval x = coalesce(languages.long, height)")
-        );
-        assertEquals(
-            "1:22: second argument of [coalesce(salary, languages.long)] must be [integer], found value [languages.long] type [long]",
-            error("from test | eval x = coalesce(salary, languages.long)")
-        );
-        assertEquals(
-            "1:22: second argument of [coalesce(languages.short, height)] must be [integer], found value [height] type [double]",
-            error("from test | eval x = coalesce(languages.short, height)")
-        );
-        assertEquals(
-            "1:22: second argument of [coalesce(languages.byte, height)] must be [integer], found value [height] type [double]",
-            error("from test | eval x = coalesce(languages.byte, height)")
-        );
-        assertEquals(
-            "1:22: second argument of [coalesce(languages, height.float)] must be [integer], found value [height.float] type [double]",
-            error("from test | eval x = coalesce(languages, height.float)")
-        );
-        assertEquals(
-            "1:22: second argument of [coalesce(languages, height.scaled_float)] must be [integer], "
-                + "found value [height.scaled_float] type [double]",
-            error("from test | eval x = coalesce(languages, height.scaled_float)")
-        );
-        assertEquals(
-            "1:22: second argument of [coalesce(languages, height.half_float)] must be [integer], "
-                + "found value [height.half_float] type [double]",
-            error("from test | eval x = coalesce(languages, height.half_float)")
-        );
+    public void testConditionalFunctionsWithMixedNumericTypes() {
+        for (String functionName : List.of("coalesce", "greatest", "least")) {
+            assertEquals(
+                "1:22: second argument of [" + functionName + "(languages, height)] must be [integer], found value [height] type [double]",
+                error("from test | eval x = " + functionName + "(languages, height)")
+            );
+            assertEquals(
+                "1:22: second argument of ["
+                    + functionName
+                    + "(languages.long, height)] must be [long], found value [height] type [double]",
+                error("from test | eval x = " + functionName + "(languages.long, height)")
+            );
+            assertEquals(
+                "1:22: second argument of ["
+                    + functionName
+                    + "(salary, languages.long)] must be [integer], found value [languages.long] type [long]",
+                error("from test | eval x = " + functionName + "(salary, languages.long)")
+            );
+            assertEquals(
+                "1:22: second argument of ["
+                    + functionName
+                    + "(languages.short, height)] must be [integer], found value [height] type [double]",
+                error("from test | eval x = " + functionName + "(languages.short, height)")
+            );
+            assertEquals(
+                "1:22: second argument of ["
+                    + functionName
+                    + "(languages.byte, height)] must be [integer], found value [height] type [double]",
+                error("from test | eval x = " + functionName + "(languages.byte, height)")
+            );
+            assertEquals(
+                "1:22: second argument of ["
+                    + functionName
+                    + "(languages, height.float)] must be [integer], found value [height.float] type [double]",
+                error("from test | eval x = " + functionName + "(languages, height.float)")
+            );
+            assertEquals(
+                "1:22: second argument of ["
+                    + functionName
+                    + "(languages, height.scaled_float)] must be [integer], "
+                    + "found value [height.scaled_float] type [double]",
+                error("from test | eval x = " + functionName + "(languages, height.scaled_float)")
+            );
+            assertEquals(
+                "1:22: second argument of ["
+                    + functionName
+                    + "(languages, height.half_float)] must be [integer], "
+                    + "found value [height.half_float] type [double]",
+                error("from test | eval x = " + functionName + "(languages, height.half_float)")
+            );
 
-        assertEquals(
-            "1:22: third argument of [coalesce(null, languages, height)] must be [integer], found value [height] type [double]",
-            error("from test | eval x = coalesce(null, languages, height)")
-        );
-        assertEquals(
-            "1:22: third argument of [coalesce(null, languages.long, height)] must be [long], found value [height] type [double]",
-            error("from test | eval x = coalesce(null, languages.long, height)")
-        );
-        assertEquals(
-            "1:22: third argument of [coalesce(null, salary, languages.long)] must be [integer], "
-                + "found value [languages.long] type [long]",
-            error("from test | eval x = coalesce(null, salary, languages.long)")
-        );
-        assertEquals(
-            "1:22: third argument of [coalesce(null, languages.short, height)] must be [integer], found value [height] type [double]",
-            error("from test | eval x = coalesce(null, languages.short, height)")
-        );
-        assertEquals(
-            "1:22: third argument of [coalesce(null, languages.byte, height)] must be [integer], found value [height] type [double]",
-            error("from test | eval x = coalesce(null, languages.byte, height)")
-        );
-        assertEquals(
-            "1:22: third argument of [coalesce(null, languages, height.float)] must be [integer], "
-                + "found value [height.float] type [double]",
-            error("from test | eval x = coalesce(null, languages, height.float)")
-        );
-        assertEquals(
-            "1:22: third argument of [coalesce(null, languages, height.scaled_float)] must be [integer], "
-                + "found value [height.scaled_float] type [double]",
-            error("from test | eval x = coalesce(null, languages, height.scaled_float)")
-        );
-        assertEquals(
-            "1:22: third argument of [coalesce(null, languages, height.half_float)] must be [integer], "
-                + "found value [height.half_float] type [double]",
-            error("from test | eval x = coalesce(null, languages, height.half_float)")
-        );
+            assertEquals(
+                "1:22: third argument of ["
+                    + functionName
+                    + "(null, languages, height)] must be [integer], found value [height] type [double]",
+                error("from test | eval x = " + functionName + "(null, languages, height)")
+            );
+            assertEquals(
+                "1:22: third argument of ["
+                    + functionName
+                    + "(null, languages.long, height)] must be [long], found value [height] type [double]",
+                error("from test | eval x = " + functionName + "(null, languages.long, height)")
+            );
+            assertEquals(
+                "1:22: third argument of ["
+                    + functionName
+                    + "(null, salary, languages.long)] must be [integer], "
+                    + "found value [languages.long] type [long]",
+                error("from test | eval x = " + functionName + "(null, salary, languages.long)")
+            );
+            assertEquals(
+                "1:22: third argument of ["
+                    + functionName
+                    + "(null, languages.short, height)] must be [integer], found value [height] type [double]",
+                error("from test | eval x = " + functionName + "(null, languages.short, height)")
+            );
+            assertEquals(
+                "1:22: third argument of ["
+                    + functionName
+                    + "(null, languages.byte, height)] must be [integer], found value [height] type [double]",
+                error("from test | eval x = " + functionName + "(null, languages.byte, height)")
+            );
+            assertEquals(
+                "1:22: third argument of ["
+                    + functionName
+                    + "(null, languages, height.float)] must be [integer], "
+                    + "found value [height.float] type [double]",
+                error("from test | eval x = " + functionName + "(null, languages, height.float)")
+            );
+            assertEquals(
+                "1:22: third argument of ["
+                    + functionName
+                    + "(null, languages, height.scaled_float)] must be [integer], "
+                    + "found value [height.scaled_float] type [double]",
+                error("from test | eval x = " + functionName + "(null, languages, height.scaled_float)")
+            );
+            assertEquals(
+                "1:22: third argument of ["
+                    + functionName
+                    + "(null, languages, height.half_float)] must be [integer], "
+                    + "found value [height.half_float] type [double]",
+                error("from test | eval x = " + functionName + "(null, languages, height.half_float)")
+            );
 
-        // counter
-        assertEquals(
-            "1:23: second argument of [coalesce(network.bytes_in, 0)] must be [counter_long], found value [0] type [integer]",
-            error("FROM tests | eval x = coalesce(network.bytes_in, 0)", tsdb)
-        );
+            // counter
+            assertEquals(
+                "1:23: second argument of ["
+                    + functionName
+                    + "(network.bytes_in, 0)] must be [counter_long], found value [0] type [integer]",
+                error("FROM tests | eval x = " + functionName + "(network.bytes_in, 0)", tsdb)
+            );
 
-        assertEquals(
-            "1:23: second argument of [coalesce(network.bytes_in, to_long(0))] must be [counter_long], "
-                + "found value [to_long(0)] type [long]",
-            error("FROM tests | eval x = coalesce(network.bytes_in, to_long(0))", tsdb)
-        );
-        assertEquals(
-            "1:23: second argument of [coalesce(network.bytes_in, 0.0)] must be [counter_long], found value [0.0] type [double]",
-            error("FROM tests | eval x = coalesce(network.bytes_in, 0.0)", tsdb)
-        );
+            assertEquals(
+                "1:23: second argument of ["
+                    + functionName
+                    + "(network.bytes_in, to_long(0))] must be [counter_long], "
+                    + "found value [to_long(0)] type [long]",
+                error("FROM tests | eval x = " + functionName + "(network.bytes_in, to_long(0))", tsdb)
+            );
+            assertEquals(
+                "1:23: second argument of ["
+                    + functionName
+                    + "(network.bytes_in, 0.0)] must be [counter_long], found value [0.0] type [double]",
+                error("FROM tests | eval x = " + functionName + "(network.bytes_in, 0.0)", tsdb)
+            );
 
-        assertEquals(
-            "1:23: third argument of [coalesce(null, network.bytes_in, 0)] must be [counter_long], found value [0] type [integer]",
-            error("FROM tests | eval x = coalesce(null, network.bytes_in, 0)", tsdb)
-        );
+            assertEquals(
+                "1:23: third argument of ["
+                    + functionName
+                    + "(null, network.bytes_in, 0)] must be [counter_long], found value [0] type [integer]",
+                error("FROM tests | eval x = " + functionName + "(null, network.bytes_in, 0)", tsdb)
+            );
 
+            assertEquals(
+                "1:23: third argument of ["
+                    + functionName
+                    + "(null, network.bytes_in, to_long(0))] must be [counter_long], "
+                    + "found value [to_long(0)] type [long]",
+                error("FROM tests | eval x = " + functionName + "(null, network.bytes_in, to_long(0))", tsdb)
+            );
+            assertEquals(
+                "1:23: third argument of ["
+                    + functionName
+                    + "(null, network.bytes_in, 0.0)] must be [counter_long], found value [0.0] type [double]",
+                error("FROM tests | eval x = " + functionName + "(null, network.bytes_in, 0.0)", tsdb)
+            );
+        }
+
+        // case, a subset tests of coalesce/greatest/least
         assertEquals(
-            "1:23: third argument of [coalesce(null, network.bytes_in, to_long(0))] must be [counter_long], "
-                + "found value [to_long(0)] type [long]",
-            error("FROM tests | eval x = coalesce(null, network.bytes_in, to_long(0))", tsdb)
+            "1:22: third argument of [case(languages == 1, salary, height)] must be [integer], found value [height] type [double]",
+            error("from test | eval x = case(languages == 1, salary, height)")
         );
         assertEquals(
-            "1:23: third argument of [coalesce(null, network.bytes_in, 0.0)] must be [counter_long], found value [0.0] type [double]",
-            error("FROM tests | eval x = coalesce(null, network.bytes_in, 0.0)", tsdb)
+            "1:23: third argument of [case(name == \"a\", network.bytes_in, 0)] must be [counter_long], found value [0] type [integer]",
+            error("FROM tests | eval x = case(name == \"a\", network.bytes_in, 0)", tsdb)
         );
     }
 
@@ -2152,6 +2206,15 @@ public class VerifierTests extends ESTestCase {
             containsString(
                 "1:19: Invalid option [unknown_option] in [match(first_name, \"Jean\", {\"unknown_option\": true})]," + " expected one of "
             )
+        );
+    }
+
+    public void testInsistNotOnTopOfFrom() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+
+        assertThat(
+            error("FROM test | EVAL foo = 42 | INSIST_🐔 bar"),
+            containsString("1:29: [insist] can only be used after [from] or [insist] commands, but was [EVAL foo = 42]")
         );
     }
 

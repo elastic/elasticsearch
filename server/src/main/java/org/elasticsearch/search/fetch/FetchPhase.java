@@ -130,7 +130,7 @@ public final class FetchPhase {
         StoredFieldLoader storedFieldLoader = profiler.storedFields(StoredFieldLoader.fromSpec(storedFieldsSpec));
         IdLoader idLoader = context.newIdLoader();
         boolean requiresSource = storedFieldsSpec.requiresSource();
-        final int[] accumulatedBytesInLeaf = new int[1];
+        final int[] locallyAccumulatedBytes = new int[1];
         NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
 
         FetchPhaseDocsIterator docsIterator = new FetchPhaseDocsIterator() {
@@ -163,9 +163,9 @@ public final class FetchPhase {
                 if (context.isCancelled()) {
                     throw new TaskCancelledException("cancelled");
                 }
-                if (context.checkRealMemoryCB(accumulatedBytesInLeaf[0], "fetch source")) {
+                if (context.checkRealMemoryCB(locallyAccumulatedBytes[0], "fetch source")) {
                     // if we checked the real memory breaker, we restart our local accounting
-                    accumulatedBytesInLeaf[0] = 0;
+                    locallyAccumulatedBytes[0] = 0;
                 }
 
                 HitContext hit = prepareHitContext(
@@ -190,7 +190,7 @@ public final class FetchPhase {
 
                     BytesReference sourceRef = hit.hit().getSourceRef();
                     if (sourceRef != null) {
-                        accumulatedBytesInLeaf[0] += sourceRef.length();
+                        locallyAccumulatedBytes[0] += sourceRef.length();
                     }
                     success = true;
                     return hit.hit();

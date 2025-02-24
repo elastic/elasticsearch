@@ -276,7 +276,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     /**
      * The size of the buffer used for memory accounting.
-     * This buffer is used to locally track the memory accummulate during the executiong of
+     * This buffer is used to locally track the memory accummulated during the execution of
      * a search request before submitting the accumulated value to the circuit breaker.
      */
     public static final Setting<ByteSizeValue> MEMORY_ACCOUNTING_BUFFER_SIZE = Setting.byteSizeSetting(

@@ -44,7 +44,7 @@ import java.util.function.Supplier;
 public class TestOnlyMultiProjectPlugin extends Plugin implements ActionPlugin {
 
     public static final Setting<Boolean> MULTI_PROJECT_ENABLED = Setting.boolSetting(
-        "multi_project.enabled",
+        "test.multi_project.enabled",
         false,
         Setting.Property.NodeScope
     );

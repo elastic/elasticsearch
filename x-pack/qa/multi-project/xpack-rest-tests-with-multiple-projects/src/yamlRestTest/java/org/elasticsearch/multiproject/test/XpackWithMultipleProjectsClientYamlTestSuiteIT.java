@@ -26,7 +26,7 @@ public class XpackWithMultipleProjectsClientYamlTestSuiteIT extends MultipleProj
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .name("yamlRestTest")
-        .setting("multi_project.enabled", "true")
+        .setting("test.multi_project.enabled", "true")
         .setting("xpack.ml.enabled", "true")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.watcher.enabled", "false")

@@ -10,7 +10,5 @@
     - do:
         nodes.info: {}
 
-    - is_false: nodes.$master.settings.multi_project.enabled
-
     - length: { nodes.$master.plugins: @expected.plugins.count@ }
     # TODO: check that every plugin is installed

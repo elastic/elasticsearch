@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.injection.guice.Inject;
@@ -27,10 +26,9 @@ public class TransportSetResetModeAction extends AbstractTransportSetResetModeAc
         TransportService transportService,
         ThreadPool threadPool,
         ClusterService clusterService,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ActionFilters actionFilters
     ) {
-        super(SetResetModeAction.NAME, transportService, threadPool, clusterService, actionFilters, indexNameExpressionResolver);
+        super(SetResetModeAction.NAME, transportService, threadPool, clusterService, actionFilters);
     }
 
     @Override

@@ -102,7 +102,7 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.SampleTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @State(Scope.Thread)
-@Fork(0)
+@Fork(1)
 @Warmup(iterations = 10)
 @Measurement(iterations = 10)
 public class DateFieldMapperDocValuesSkipperBenchmark {

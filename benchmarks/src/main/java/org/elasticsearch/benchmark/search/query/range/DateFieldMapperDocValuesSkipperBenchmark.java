@@ -59,45 +59,45 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * Benchmark for measuring query performance with and without doc values skipper in Elasticsearch.
- * <p>
- * <b>Goal:</b> This benchmark is designed to **mimic and benchmark the execution of a range query in LogsDB**,
- * with and without a **sparse doc values index** on the `host.name` and `@timestamp` fields.
- * <p>
- * <b>Document Structure:</b>
- * - `host.name`: A keyword field (sorted, non-stored).
- * - `@timestamp`: A numeric field, indexed for range queries and using doc values with or without a doc values sparse index.
- * <p>
- * <b>Index Sorting:</b>
- * The index is sorted primarily by `host.name` (ascending) and secondarily by `@timestamp` (descending).
- * Documents are grouped into batches, where each hostname gets a dedicated batch of timestamps.
- * This is meant to simulate collection of logs from a set of hosts in a certain time interval.
- * <p>
- * <b>Batched Data Behavior:</b>
- * - The `host.name` value is generated in batches (e.g., "host-0", "host-1", ...).
- * - Each batch contains a fixed number of documents (`batchSize`).
- * - The `@timestamp` value resets to `BASE_TIMESTAMP` at the start of each batch.
- * - A random **timestamp delta** (0-{@code timestampIncrementMillis} ms) is added to ensure timestamps within each batch have slight
- * variation.
- * <p>
- * <b>Example Output:</b>
- * The table below shows a sample of generated documents (with a batch size of 10,000):
  *
+ * <p><b>Goal:</b> This benchmark is designed to mimic and benchmark the execution of a range query in LogsDB,
+ * with and without a sparse doc values index on the {@code host.name} and {@code @timestamp} fields.
+ *
+ * <p><b>Document Structure:</b>
+ * <ul>
+ *   <li>{@code host.name}: A keyword field (sorted, non-stored).</li>
+ *   <li>{@code @timestamp}: A numeric field, indexed for range queries and using doc values with or without a doc values sparse index.</li>
+ * </ul>
+ *
+ * <p><b>Index Sorting:</b>
+ * The index is sorted primarily by {@code host.name} (ascending) and secondarily by {@code @timestamp} (descending).
+ * Documents are grouped into batches, where each hostname gets a dedicated batch of timestamps.
+ * This is meant to simulate collecting logs from a set of hosts over a certain time interval.
+ *
+ * <p><b>Batched Data Behavior:</b>
+ * <ul>
+ *   <li>The {@code host.name} value is generated in batches (e.g., "host-0", "host-1", ...).</li>
+ *   <li>Each batch contains a fixed number of documents ({@code batchSize}).</li>
+ *   <li>The {@code @timestamp} value resets to {@code BASE_TIMESTAMP} at the start of each batch.</li>
+ *   <li>A random timestamp delta (0–{@code deltaTime} ms) is added so that each document in a batch differs slightly.</li>
+ * </ul>
+ *
+ * <p><b>Example Output:</b>
  * <pre>
  * | Document # | host.name | @timestamp (ms since epoch) |
- * |-----------|----------|---------------------------|
- * | 1         | host-0   | 1704067200005             |
- * | 2         | host-0   | 1704067201053             |
- * | 3         | host-0   | 1704067202091             |
- * | ...       | ...      | ...                       |
- * | 10000     | host-0   | 1704077199568             |
- * | 10001     | host-1   | 1704067200042             |
- * | 10002     | host-1   | 1704067201099             |
- * | ...       | ...      | ...                       |
+ * |-----------|-----------|------------------------------|
+ * | 1         | host-0    | 1704067200005               |
+ * | 2         | host-0    | 1704067201053               |
+ * | 3         | host-0    | 1704067202091               |
+ * | ...       | ...       | ...                          |
+ * | 10000     | host-0    | 1704077199568               |
+ * | 10001     | host-1    | 1704067200042               |
+ * | 10002     | host-1    | 1704067201099               |
+ * | ...       | ...       | ...                          |
  * </pre>
  *
- * <p>
- * When running the range query we also retrieve just a fraction of the data, to simulate a real-world scenario where a
- * dashboard requires only the most recent logs.
+ * <p>When running the range query, we retrieve only a fraction of the total data,
+ * simulating a real-world scenario where a dashboard only needs the most recent logs.
  */
 @BenchmarkMode(Mode.SampleTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
@@ -108,29 +108,39 @@ import java.util.concurrent.TimeUnit;
 @Measurement(iterations = 5)
 public class DateFieldMapperDocValuesSkipperBenchmark {
 
-    public static void main(String[] args) throws RunnerException {
-        final Options options = new OptionsBuilder().include(DateFieldMapperDocValuesSkipperBenchmark.class.getSimpleName())
-            .addProfiler(AsyncProfiler.class)
-            .build();
-
-        new Runner(options).run();
-    }
-
+    /**
+     * Total number of documents to index.
+     */
     @Param("1343120")
     private int nDocs;
 
+    /**
+     * Number of documents per hostname batch.
+     */
     @Param({ "1340", "121300" })
     private int batchSize;
 
+    /**
+     * Maximum random increment (in milliseconds) added to each doc's timestamp.
+     */
     @Param("1000")
     private int deltaTime;
 
+    /**
+     * Fraction of the total time range (derived from {@code batchSize * deltaTime}) that the range query will cover.
+     */
     @Param({ "0.01", "0.2", "0.8" })
     private double queryRange;
 
+    /**
+     * Number of docs to index before forcing a commit, thus creating multiple Lucene segments.
+     */
     @Param({ "7390", "398470" })
     private int commitEvery;
 
+    /**
+     * Seed for random data generation.
+     */
     @Param("42")
     private int seed;
 
@@ -143,50 +153,70 @@ public class DateFieldMapperDocValuesSkipperBenchmark {
     private ExecutorService executorService;
 
     /**
-     * Sets up the benchmark by creating Lucene indexes with and without doc values skipper.
+     * Main entry point for running this benchmark via JMH.
      *
-     * @throws IOException if an error occurs during index creation.
+     * @param args command line arguments (unused)
+     * @throws RunnerException if the benchmark fails to run
+     */
+    public static void main(String[] args) throws RunnerException {
+        final Options options = new OptionsBuilder().include(DateFieldMapperDocValuesSkipperBenchmark.class.getSimpleName())
+            .addProfiler(AsyncProfiler.class)
+            .build();
+
+        new Runner(options).run();
+    }
+
+    /**
+     * Sets up the benchmark by creating Lucene indexes (with and without doc values skipper).
+     * Sets up a single-threaded executor for searching the indexes and avoid concurrent search threads.
+     *
+     * @throws IOException if an error occurs while building the index
      */
     @Setup(Level.Trial)
     public void setup() throws IOException {
         executorService = Executors.newSingleThreadExecutor();
-        Directory tempDirectoryWithoutDocValuesSkipper = FSDirectory.open(Files.createTempDirectory("temp1-"));
-        Directory tempDirectoryWithDocValuesSkipper = FSDirectory.open(Files.createTempDirectory("temp2-"));
+
+        final Directory tempDirectoryWithoutDocValuesSkipper = FSDirectory.open(Files.createTempDirectory("temp1-"));
+        final Directory tempDirectoryWithDocValuesSkipper = FSDirectory.open(Files.createTempDirectory("temp2-"));
 
         indexSearcherWithoutDocValuesSkipper = createIndex(tempDirectoryWithoutDocValuesSkipper, false, commitEvery);
         indexSearcherWithDocValuesSkipper = createIndex(tempDirectoryWithDocValuesSkipper, true, commitEvery);
     }
 
     /**
-     * Creates an {@link IndexSearcher} from a newly created {@link IndexWriter}. Documents
-     * are added to the index and committed in batches of a specified size to generate multiple segments.
+     * Creates an {@link IndexSearcher} after indexing documents in batches.
+     * Each batch commit forces multiple segments to be created.
      *
-     * @param directory            the Lucene {@link Directory} where the index will be written
-     * @param withDocValuesSkipper indicates whether certain fields should skip doc values
-     * @param commitEvery          the number of documents after which to force a commit
-     * @return an {@link IndexSearcher} that can be used to query the newly created index
-     * @throws IOException if an I/O error occurs during index writing or reading
+     * @param directory            the Lucene {@link Directory} for writing the index
+     * @param withDocValuesSkipper true if we should enable doc values skipper on certain fields
+     * @param commitEvery          number of documents after which to commit (and thus segment)
+     * @return an {@link IndexSearcher} for querying the newly built index
+     * @throws IOException if an I/O error occurs during index writing
      */
     private IndexSearcher createIndex(final Directory directory, final boolean withDocValuesSkipper, final int commitEvery)
         throws IOException {
+
         final IndexWriterConfig config = new IndexWriterConfig(new StandardAnalyzer());
+        // NOTE: index sort config matching LogsDB's sort order
         config.setIndexSort(
             new Sort(
-                new SortField(HOSTNAME_FIELD, SortField.Type.STRING, false), // NOTE: `host.name` ascending
-                new SortedNumericSortField(TIMESTAMP_FIELD, SortField.Type.LONG, true) // NOTE: `@timestamp` descending
+                new SortField(HOSTNAME_FIELD, SortField.Type.STRING, false),
+                new SortedNumericSortField(TIMESTAMP_FIELD, SortField.Type.LONG, true)
             )
         );
 
         final Random random = new Random(seed);
+
         try (IndexWriter indexWriter = new IndexWriter(directory, config)) {
             int docCountSinceLastCommit = 0;
+
             for (int i = 0; i < nDocs; i++) {
                 final Document doc = new Document();
                 addFieldsToDocument(doc, i, withDocValuesSkipper, random);
                 indexWriter.addDocument(doc);
                 docCountSinceLastCommit++;
 
-                // NOTE: make sure we have multiple Lucene segments
+                // Force commit periodically to create multiple Lucene segments
                 if (docCountSinceLastCommit >= commitEvery) {
                     indexWriter.commit();
                     docCountSinceLastCommit = 0;
@@ -194,71 +224,111 @@ public class DateFieldMapperDocValuesSkipperBenchmark {
             }
 
             indexWriter.commit();
-            final DirectoryReader reader = DirectoryReader.open(indexWriter);
-            // NOTE: internally Elasticsearch runs multiple search threads concurrently, (at least) one per Lucene segment.
-            // Here we simplify the benchmark making sure we have a single-threaded search execution using a single thread
-            // executor Service.
+
+            // Open a reader and create a searcher on top of it using a single thread executor.
+            DirectoryReader reader = DirectoryReader.open(indexWriter);
             return new IndexSearcher(reader, executorService);
         }
     }
 
+    /**
+     * Populates the given {@link Document} with fields, optionally using doc values skipper.
+     *
+     * @param doc                  the Lucene document to fill
+     * @param docIndex             index of the document being added
+     * @param withDocValuesSkipper true if doc values skipper is enabled
+     * @param random               seeded {@link Random} for data variation
+     */
     private void addFieldsToDocument(final Document doc, int docIndex, boolean withDocValuesSkipper, final Random random) {
+
         final int batchIndex = docIndex / batchSize;
         final String hostName = "host-" + batchIndex;
-        final long timestampDelta = random.nextInt(0, deltaTime);
-        final long timestamp = BASE_TIMESTAMP + ((docIndex % batchSize) * deltaTime) + timestampDelta;
+
+        // Slightly vary the timestamp in each document
+        final long timestamp = BASE_TIMESTAMP + ((docIndex % batchSize) * deltaTime) + random.nextInt(0, deltaTime);
 
         if (withDocValuesSkipper) {
-            doc.add(SortedNumericDocValuesField.indexedField(TIMESTAMP_FIELD, timestamp)); // NOTE: doc values skipper on `@timestamp`
-            doc.add(SortedDocValuesField.indexedField(HOSTNAME_FIELD, new BytesRef(hostName))); // NOTE: doc values skipper on `host.name`
+            // Sparse doc values index on `@timestamp` and `host.name`
+            doc.add(SortedNumericDocValuesField.indexedField(TIMESTAMP_FIELD, timestamp));
+            doc.add(SortedDocValuesField.indexedField(HOSTNAME_FIELD, new BytesRef(hostName)));
         } else {
+            // Standard doc values, points and inverted index
             doc.add(new StringField(HOSTNAME_FIELD, hostName, Field.Store.NO));
-            doc.add(new SortedDocValuesField(HOSTNAME_FIELD, new BytesRef(hostName))); // NOTE: doc values without the doc values skipper on
-            // `host.name`
-            doc.add(new LongPoint(TIMESTAMP_FIELD, timestamp)); // KDB tree on `@timestamp`
-            doc.add(new SortedNumericDocValuesField(TIMESTAMP_FIELD, timestamp)); // NOTE: doc values without the doc values skipper on
-                                                                                  // `@timestamp`
+            doc.add(new SortedDocValuesField(HOSTNAME_FIELD, new BytesRef(hostName)));
+            doc.add(new LongPoint(TIMESTAMP_FIELD, timestamp));
+            doc.add(new SortedNumericDocValuesField(TIMESTAMP_FIELD, timestamp));
         }
     }
 
     /**
-     * Computes a dynamic timestamp upper bound based on the batch size,
-     * timestamp increment, and user-specified fraction.
+     * Calculates the upper bound for the timestamp range query based on {@code batchSize},
+     * {@code deltaTime}, and {@code queryRange}.
      *
-     * @return The computed upper bound for the timestamp range query.
+     * @return the computed upper bound for the timestamp range query
      */
     private long rangeEndTimestamp() {
-        return BASE_TIMESTAMP + ((long) (batchSize * deltaTime * queryRange));
+        return BASE_TIMESTAMP + (long) (batchSize * deltaTime * queryRange);
     }
 
+    /**
+     * Executes a range query without doc values skipper.
+     *
+     * @param bh the blackhole consuming the query result
+     * @throws IOException if a search error occurs
+     */
     @Benchmark
     public void rangeQueryWithoutDocValuesSkipper(final Blackhole bh) throws IOException {
         bh.consume(rangeQuery(indexSearcherWithoutDocValuesSkipper, BASE_TIMESTAMP, rangeEndTimestamp(), true));
     }
 
+    /**
+     * Executes a range query with doc values skipper enabled.
+     *
+     * @param bh the blackhole consuming the query result
+     * @throws IOException if a search error occurs
+     */
     @Benchmark
     public void rangeQueryWithDocValuesSkipper(final Blackhole bh) throws IOException {
         bh.consume(rangeQuery(indexSearcherWithDocValuesSkipper, BASE_TIMESTAMP, rangeEndTimestamp(), false));
     }
 
+    /**
+     * Runs the actual Lucene range query, optionally combining a {@link LongPoint} index query
+     * with doc values ({@link SortedNumericDocValuesField}) via {@link IndexOrDocValuesQuery},
+     * and then wrapping it with an {@link IndexSortSortedNumericDocValuesRangeQuery} to utilize the index sort.
+     *
+     * @param searcher            the Lucene {@link IndexSearcher}
+     * @param rangeStartTimestamp lower bound of the timestamp range
+     * @param rangeEndTimestamp   upper bound of the timestamp range
+     * @param isIndexed           true if we should combine indexed and doc value queries
+     * @return the total number of matching documents
+     * @throws IOException if a search error occurs
+     */
     private long rangeQuery(final IndexSearcher searcher, long rangeStartTimestamp, long rangeEndTimestamp, boolean isIndexed)
         throws IOException {
+
         assert rangeEndTimestamp > rangeStartTimestamp;
+
         final Query rangeQuery = isIndexed
             ? new IndexOrDocValuesQuery(
                 LongPoint.newRangeQuery(TIMESTAMP_FIELD, rangeStartTimestamp, rangeEndTimestamp),
                 SortedNumericDocValuesField.newSlowRangeQuery(TIMESTAMP_FIELD, rangeStartTimestamp, rangeEndTimestamp)
             )
             : SortedNumericDocValuesField.newSlowRangeQuery(TIMESTAMP_FIELD, rangeStartTimestamp, rangeEndTimestamp);
+
         final Query query = new IndexSortSortedNumericDocValuesRangeQuery(
             TIMESTAMP_FIELD,
             rangeStartTimestamp,
             rangeEndTimestamp,
             rangeQuery
         );
+
         return searcher.count(query);
     }
 
+    /**
+     * Shuts down the executor service after the trial completes.
+     */
     @TearDown(Level.Trial)
     public void tearDown() {
         if (executorService != null) {

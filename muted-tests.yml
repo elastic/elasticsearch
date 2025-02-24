@@ -370,9 +370,6 @@ tests:
 - class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
   method: testBottomFieldSort
   issue: https://github.com/elastic/elasticsearch/issues/118214
-- class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
-  method: testRetryPointInTime
-  issue: https://github.com/elastic/elasticsearch/issues/120442
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testMultipleInferencesTriggeringDownloadAndDeploy
   issue: https://github.com/elastic/elasticsearch/issues/117208
@@ -438,9 +435,6 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/rest-api/security/invalidate-tokens/line_216}
   issue: https://github.com/elastic/elasticsearch/issues/122229
-- class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
-  method: testSearcherId
-  issue: https://github.com/elastic/elasticsearch/issues/118374
 - class: org.elasticsearch.xpack.security.authc.esnative.ReservedRealmElasticAutoconfigIntegTests
   method: testAutoconfigFailedPasswordPromotion
   issue: https://github.com/elastic/elasticsearch/issues/122668

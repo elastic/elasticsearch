@@ -290,9 +290,12 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
 
     public void testReadFromPositionWithLength() {
         final var blobName = randomIdentifier();
-        final var blobBytes = randomBytesReference(randomIntBetween(100, 2_000));
+        // forcing multipart temporarily
+        final var blobBytes = randomBytesReference(randomIntBetween(25 * 1024 * 1024 + 100, 25 * 1024 * 1024 + 2_000));
 
         final var repository = getRepository();
+        logger.info("---> uploading blob of size {}", blobBytes.length());
+        logger.info("repository buffer size: {}", repository.getReadBufferSizeInBytes());
         executeOnBlobStore(repository, blobStore -> {
             blobStore.writeBlob(randomPurpose(), blobName, blobBytes, true);
             return null;

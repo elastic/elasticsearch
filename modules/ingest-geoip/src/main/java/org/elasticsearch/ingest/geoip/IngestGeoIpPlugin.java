@@ -214,6 +214,11 @@ public class IngestGeoIpPlugin extends Plugin
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return List.of(
+            new NamedXContentRegistry.Entry(
+                Metadata.Custom.class,
+                new ParseField(IngestGeoIpMetadata.TYPE),
+                IngestGeoIpMetadata::fromXContent
+            ),
             new NamedXContentRegistry.Entry(PersistentTaskParams.class, new ParseField(GEOIP_DOWNLOADER), GeoIpTaskParams::fromXContent),
             new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(GEOIP_DOWNLOADER), GeoIpTaskState::fromXContent),
             new NamedXContentRegistry.Entry(

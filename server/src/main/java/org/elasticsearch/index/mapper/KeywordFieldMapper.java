@@ -1107,7 +1107,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         boolean indexed = indexValue(context, value);
-        if (offsetsFieldName != null && context.isImmediateParentAnArray() && context.getRecordedSource() == false) {
+        if (offsetsFieldName != null && context.isImmediateParentAnArray() && context.canAddIgnoredField()) {
             if (indexed) {
                 context.getOffSetContext().recordOffset(offsetsFieldName, value);
             } else if (value == null) {

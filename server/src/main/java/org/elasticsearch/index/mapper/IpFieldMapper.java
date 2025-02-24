@@ -585,7 +585,7 @@ public class IpFieldMapper extends FieldMapper {
         if (address != null) {
             indexValue(context, address);
         }
-        if (offsetsFieldName != null && context.isImmediateParentAnArray() && context.getRecordedSource() == false) {
+        if (offsetsFieldName != null && context.isImmediateParentAnArray() && context.canAddIgnoredField()) {
             if (address != null) {
                 BytesRef sortableValue = new BytesRef(InetAddressPoint.encode(address));
                 context.getOffSetContext().recordOffset(offsetsFieldName, sortableValue);

@@ -111,7 +111,6 @@ public class EntitlementBootstrap {
         );
         exportInitializationToAgent();
         loadAgent(findAgentJar());
-        selfTest();
     }
 
     @SuppressForbidden(reason = "The VirtualMachine API is the only way to attach a java agent dynamically")

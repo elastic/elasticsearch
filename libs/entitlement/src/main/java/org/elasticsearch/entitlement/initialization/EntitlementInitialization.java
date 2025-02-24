@@ -175,7 +175,6 @@ public class EntitlementInitialization {
                     new FilesEntitlement(
                         List.of(
                             // Base ES directories
-                            FileData.ofPath(bootstrapArgs.tempDir(), READ_WRITE),
                             FileData.ofPath(bootstrapArgs.configDir(), READ),
                             FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
                             FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE),
@@ -212,7 +211,6 @@ public class EntitlementInitialization {
                     new FilesEntitlement(
                         List.of(
                             FileData.ofPath(bootstrapArgs.configDir(), READ),
-                            FileData.ofPath(bootstrapArgs.tempDir(), READ),
                             FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE)
                         )
                     )

@@ -77,7 +77,6 @@ public class TransportSetTransformUpgradeModeActionTests extends ESTestCase {
             clusterService,
             threadPool,
             mock(),
-            mock(),
             persistentTasksClusterService,
             persistentTasksService,
             client

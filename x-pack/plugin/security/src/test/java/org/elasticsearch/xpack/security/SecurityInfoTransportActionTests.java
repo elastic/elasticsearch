@@ -373,7 +373,6 @@ public class SecurityInfoTransportActionTests extends ESTestCase {
             null,
             threadPool,
             mock(ActionFilters.class),
-            null,
             settings,
             licenseState,
             securityServices

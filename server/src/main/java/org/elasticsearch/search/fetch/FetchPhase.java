@@ -83,6 +83,8 @@ public final class FetchPhase {
         SearchHits hits = null;
         try {
             hits = buildSearchHits(context, docIdsToLoad, profiler, rankDocs);
+            // check the real memory breaker after finishing the fetch phase
+            context.checkRealMemoryCB(0, true, "fetch source");
         } finally {
             // Always finish profiling
             ProfileResult profileResult = profiler.finish();
@@ -130,7 +132,7 @@ public final class FetchPhase {
         StoredFieldLoader storedFieldLoader = profiler.storedFields(StoredFieldLoader.fromSpec(storedFieldsSpec));
         IdLoader idLoader = context.newIdLoader();
         boolean requiresSource = storedFieldsSpec.requiresSource();
-
+        final int[] accumulatedBytesInLeaf = new int[1];
         NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
 
         FetchPhaseDocsIterator docsIterator = new FetchPhaseDocsIterator() {
@@ -140,17 +142,12 @@ public final class FetchPhase {
             LeafStoredFieldLoader leafStoredFieldLoader;
             SourceLoader.Leaf leafSourceLoader;
             IdLoader.Leaf leafIdLoader;
-            int accumulatedBytesInLeaf;
-            int docsInLeaf;
-            int processedDocs;
+
 
             @Override
             protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) throws IOException {
                 Timer timer = profiler.startNextReader();
                 this.ctx = ctx;
-                this.accumulatedBytesInLeaf = 0;
-                this.docsInLeaf = docsInLeaf.length;
-                this.processedDocs = 0;
                 this.leafNestedDocuments = nestedDocuments.getLeafNestedDocuments(ctx);
                 this.leafStoredFieldLoader = storedFieldLoader.getLoader(ctx, docsInLeaf);
                 this.leafSourceLoader = sourceLoader.leaf(ctx.reader(), docsInLeaf);
@@ -169,11 +166,9 @@ public final class FetchPhase {
                 if (context.isCancelled()) {
                     throw new TaskCancelledException("cancelled");
                 }
-                ++processedDocs;
-                // note that we only check the real memory breaker if we have a source to load
-                if (context.checkRealMemoryCB(accumulatedBytesInLeaf, (requiresSource && processedDocs == docsInLeaf), "fetch source")) {
+                if (context.checkRealMemoryCB(accumulatedBytesInLeaf[0], false, "fetch source")) {
                     // if we checked the real memory breaker, we restart our local accounting
-                    accumulatedBytesInLeaf = 0;
+                    accumulatedBytesInLeaf[0] = 0;
                 }
 
                 HitContext hit = prepareHitContext(
@@ -198,7 +193,7 @@ public final class FetchPhase {
 
                     BytesReference sourceRef = hit.hit().getSourceRef();
                     if (sourceRef != null) {
-                        this.accumulatedBytesInLeaf += sourceRef.length();
+                        accumulatedBytesInLeaf[0] += sourceRef.length();
                     }
                     success = true;
                     return hit.hit();

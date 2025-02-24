@@ -843,7 +843,10 @@ public class FetchSearchPhaseTests extends ESTestCase {
             document.add(new StoredField("_source", new BytesRef(body)));
             w.addDocument(document);
         }
-        w.forceMerge(1);
+        // we account per fetch phase so it doesn't matter if it's one or multiple segments, so let's test both
+        if (randomBoolean()) {
+            w.forceMerge(1);
+        }
         IndexReader r = w.getReader();
         w.close();
         ContextIndexSearcher contextIndexSearcher = createSearcher(r);

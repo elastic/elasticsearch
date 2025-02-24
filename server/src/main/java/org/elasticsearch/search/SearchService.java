@@ -282,6 +282,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public static final Setting<ByteSizeValue> MEMORY_ACCOUNTING_BUFFER_SIZE = Setting.byteSizeSetting(
         "search.memory_accounting_buffer_size",
         ByteSizeValue.of(1, ByteSizeUnit.MB),
+        ByteSizeValue.of(1, ByteSizeUnit.MB),
+        ByteSizeValue.ofBytes(Long.MAX_VALUE),
         Property.Dynamic,
         Property.NodeScope
     );

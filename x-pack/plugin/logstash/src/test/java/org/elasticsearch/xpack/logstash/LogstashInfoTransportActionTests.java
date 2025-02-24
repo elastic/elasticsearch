@@ -71,7 +71,6 @@ public class LogstashInfoTransportActionTests extends ESTestCase {
             null,
             transportService.getThreadPool(),
             mock(ActionFilters.class),
-            null,
             licenseState
         );
     }

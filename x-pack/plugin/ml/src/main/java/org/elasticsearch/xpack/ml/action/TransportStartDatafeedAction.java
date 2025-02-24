@@ -113,7 +113,6 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         XPackLicenseState licenseState,
         PersistentTasksService persistentTasksService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Client client,
         JobConfigProvider jobConfigProvider,
         DatafeedConfigProvider datafeedConfigProvider,

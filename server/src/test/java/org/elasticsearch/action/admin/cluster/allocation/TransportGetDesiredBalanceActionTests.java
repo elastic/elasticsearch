@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -80,7 +79,6 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
             mock(ClusterService.class),
             threadPool,
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class),
             desiredBalanceShardsAllocator,
             clusterInfoService,
             TEST_WRITE_LOAD_FORECASTER
@@ -112,7 +110,6 @@ public class TransportGetDesiredBalanceActionTests extends ESAllocationTestCase 
             mock(ClusterService.class),
             threadPool,
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class),
             mock(ShardsAllocator.class),
             mock(ClusterInfoService.class),
             mock(WriteLoadForecaster.class)

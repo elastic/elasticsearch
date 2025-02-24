@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
@@ -112,7 +111,7 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Pr
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         // role mappings are serialized without their names
-        return Iterators.concat(ChunkedToXContentHelper.startArray(TYPE), roleMappings.iterator(), ChunkedToXContentHelper.endArray());
+        return ChunkedToXContentHelper.array(TYPE, roleMappings.iterator());
     }
 
     public static RoleMappingMetadata fromXContent(XContentParser parser) throws IOException {

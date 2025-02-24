@@ -259,14 +259,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     Map<String, AliasFilter> buildIndexAliasFilters(
         ClusterState clusterState,
         Set<ResolvedExpression> indicesAndAliases,
-        Index[] concreteIndices
+        Index[] concreteIndices,
+        boolean filterEmpty
     ) {
         final Map<String, AliasFilter> aliasFilterMap = new HashMap<>();
         for (Index index : concreteIndices) {
             clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, index.getName());
             AliasFilter aliasFilter = searchService.buildAliasFilter(clusterState, index.getName(), indicesAndAliases);
             assert aliasFilter != null;
-            aliasFilterMap.put(index.getUUID(), aliasFilter);
+            if (filterEmpty == false || aliasFilter != AliasFilter.EMPTY) {
+                aliasFilterMap.put(index.getUUID(), aliasFilter);
+            }
         }
         return aliasFilterMap;
     }
@@ -1093,7 +1096,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 // add the cluster name to the remote index names for indices disambiguation
                 // this ends up in the hits returned with the search response
                 ShardId shardId = searchShardsGroup.shardId();
-                AliasFilter aliasFilter = aliasFilterMap.get(shardId.getIndex().getUUID());
+                AliasFilter aliasFilter = aliasFilterMap.getOrDefault(shardId.getIndex().getUUID(), AliasFilter.EMPTY);
                 String[] aliases = aliasFilter.getAliases();
                 String clusterAlias = entry.getKey();
                 String[] finalIndices = aliases.length == 0 ? new String[] { shardId.getIndexName() } : aliases;
@@ -1253,7 +1256,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 clusterState,
                 searchRequest.indices()
             );
-            aliasFilter = buildIndexAliasFilters(clusterState, indicesAndAliases, indices);
+            aliasFilter = buildIndexAliasFilters(clusterState, indicesAndAliases, indices, true);
             aliasFilter.putAll(remoteAliasMap);
             localShardIterators = getLocalShardsIterator(
                 clusterState,

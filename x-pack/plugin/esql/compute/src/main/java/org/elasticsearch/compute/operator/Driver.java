@@ -198,10 +198,16 @@ public class Driver implements Releasable, Describable {
     SubscribableListener<Void> run(TimeValue maxTime, int maxIterations, LongSupplier nowSupplier) {
         updateStatus(0, 0, DriverStatus.Status.RUNNING, "driver running");
         long maxTimeNanos = maxTime.nanos();
+        // Start time, used to stop the calculations after maxTime has passed.
         long startTime = nowSupplier.getAsLong();
+        // The time of the next forced status update.
         long nextStatus = startTime + statusNanos;
+        // Current executed iteration, used to stop the calculations after maxIterations have passed.
         int currentIteration = 0;
-        int extraStatusIterations = 0;
+        // The iterations to be reported on the next status update.
+        int unreportedIterations = 0;
+        // The time passed since the last status update.
+        long lastStatusUpdateTime = startTime;
         while (true) {
             IsBlockedResult isBlocked = Operator.NOT_BLOCKED;
             try {
@@ -211,30 +217,32 @@ public class Driver implements Releasable, Describable {
                 assert isFinished() : "not finished after early termination";
             }
             currentIteration++;
-            extraStatusIterations++;
+            unreportedIterations++;
+
+            long now = nowSupplier.getAsLong();
             if (isBlocked.listener().isDone() == false) {
-                updateStatus(nowSupplier.getAsLong() - startTime, extraStatusIterations, DriverStatus.Status.ASYNC, isBlocked.reason());
+                updateStatus(now - lastStatusUpdateTime, unreportedIterations, DriverStatus.Status.ASYNC, isBlocked.reason());
                 return isBlocked.listener();
             }
             if (isFinished()) {
-                finishNanos = nowSupplier.getAsLong();
-                updateStatus(finishNanos - startTime, extraStatusIterations, DriverStatus.Status.DONE, "driver done");
+                finishNanos = now;
+                updateStatus(finishNanos - lastStatusUpdateTime, unreportedIterations, DriverStatus.Status.DONE, "driver done");
                 driverContext.finish();
                 Releasables.close(releasable, driverContext.getSnapshot());
                 return Operator.NOT_BLOCKED.listener();
             }
-            long now = nowSupplier.getAsLong();
             if (currentIteration >= maxIterations) {
-                updateStatus(now - startTime, extraStatusIterations, DriverStatus.Status.WAITING, "driver iterations");
+                updateStatus(now - lastStatusUpdateTime, unreportedIterations, DriverStatus.Status.WAITING, "driver iterations");
                 return Operator.NOT_BLOCKED.listener();
             }
             if (now - startTime >= maxTimeNanos) {
-                updateStatus(now - startTime, extraStatusIterations, DriverStatus.Status.WAITING, "driver time");
+                updateStatus(now - lastStatusUpdateTime, unreportedIterations, DriverStatus.Status.WAITING, "driver time");
                 return Operator.NOT_BLOCKED.listener();
             }
             if (now > nextStatus) {
-                updateStatus(now - startTime, extraStatusIterations, DriverStatus.Status.RUNNING, "driver running");
-                extraStatusIterations = 0;
+                updateStatus(now - lastStatusUpdateTime, unreportedIterations, DriverStatus.Status.RUNNING, "driver running");
+                unreportedIterations = 0;
+                lastStatusUpdateTime = now;
                 nextStatus = now + statusNanos;
             }
         }

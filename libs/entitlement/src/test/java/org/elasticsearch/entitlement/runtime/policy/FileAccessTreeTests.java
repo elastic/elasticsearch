@@ -119,6 +119,15 @@ public class FileAccessTreeTests extends ESTestCase {
         assertThat(tree.canWrite(path("foo/baz")), is(false));
     }
 
+    public void testPathAndFileWithSamePrefix() {
+        var tree = accessTree(entitlement("foo/bar/", "read", "foo/bar.xml", "read"));
+        assertThat(tree.canRead(path("foo")), is(false));
+        assertThat(tree.canRead(path("foo/bar")), is(true));
+        assertThat(tree.canRead(path("foo/bar/baz")), is(true));
+        assertThat(tree.canRead(path("foo/bar.xml")), is(true));
+        assertThat(tree.canRead(path("foo/bar.txt")), is(false));
+    }
+
     public void testReadWithRelativePath() {
         for (var dir : List.of("config", "home")) {
             var tree = accessTree(entitlement(Map.of("relative_path", "foo", "mode", "read", "relative_to", dir)));
@@ -173,8 +182,21 @@ public class FileAccessTreeTests extends ESTestCase {
     public void testNormalizePath() {
         var tree = accessTree(entitlement("foo/../bar", "read"));
         assertThat(tree.canRead(path("foo/../bar")), is(true));
+        assertThat(tree.canRead(path("foo/../bar/")), is(true));
         assertThat(tree.canRead(path("foo")), is(false));
         assertThat(tree.canRead(path("")), is(false));
+    }
+
+    public void testNormalizeTrailingSlashes() {
+        var tree = accessTree(entitlement("/trailing/slash/", "read", "/no/trailing/slash", "read"));
+        assertThat(tree.canRead(path("/trailing/slash")), is(true));
+        assertThat(tree.canRead(path("/trailing/slash/")), is(true));
+        assertThat(tree.canRead(path("/trailing/slash.xml")), is(false));
+        assertThat(tree.canRead(path("/trailing/slash/file.xml")), is(true));
+        assertThat(tree.canRead(path("/no/trailing/slash")), is(true));
+        assertThat(tree.canRead(path("/no/trailing/slash/")), is(true));
+        assertThat(tree.canRead(path("/no/trailing/slash.xml")), is(false));
+        assertThat(tree.canRead(path("/no/trailing/slash/file.xml")), is(true));
     }
 
     public void testForwardSlashes() {

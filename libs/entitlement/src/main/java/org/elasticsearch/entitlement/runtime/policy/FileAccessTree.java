@@ -21,6 +21,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiConsumer;
@@ -82,8 +83,8 @@ public final class FileAccessTree {
         Path jdk = Paths.get(System.getProperty("java.home"));
         addPathAndMaybeLink.accept(jdk.resolve("conf"), Mode.READ);
 
-        readPaths.sort(String::compareTo);
-        writePaths.sort(String::compareTo);
+        readPaths.sort(PATH_ORDER);
+        writePaths.sort(PATH_ORDER);
 
         this.readPaths = pruneSortedPaths(readPaths).toArray(new String[0]);
         this.writePaths = pruneSortedPaths(writePaths).toArray(new String[0]);
@@ -96,7 +97,7 @@ public final class FileAccessTree {
             prunedReadPaths.add(currentPath);
             for (int i = 1; i < paths.size(); ++i) {
                 String nextPath = paths.get(i);
-                if (nextPath.startsWith(currentPath) == false) {
+                if (isParent(currentPath, nextPath) == false) {
                     prunedReadPaths.add(nextPath);
                     currentPath = nextPath;
                 }
@@ -124,23 +125,26 @@ public final class FileAccessTree {
         // Note that toAbsolutePath produces paths separated by the default file separator,
         // so on Windows, if the given path uses forward slashes, this consistently
         // converts it to backslashes.
-        return path.toAbsolutePath().normalize().toString();
+        String result = path.toAbsolutePath().normalize().toString();
+        while (result.endsWith(FILE_SEPARATOR)) {
+            result = result.substring(0, result.length() - FILE_SEPARATOR.length());
+        }
+        return result;
     }
 
     private static boolean checkPath(String path, String[] paths) {
         if (paths.length == 0) {
             return false;
         }
-        int ndx = Arrays.binarySearch(paths, path);
+        int ndx = Arrays.binarySearch(paths, path, PATH_ORDER);
         if (ndx < -1) {
-            // logger.warn("Couldn't find path [{}] in paths:\n{}", path, Arrays.asList(paths));
-            String maybeParent = paths[-ndx - 2];
-            // logger.warn("Possible parent path: [{}]", maybeParent);
-            // Normalization on Windows does not allways remove trailing backslashes, we need to check both patterns
-            return path.startsWith(maybeParent)
-                && (maybeParent.endsWith(FILE_SEPARATOR) || path.startsWith(FILE_SEPARATOR, maybeParent.length()));
+            return isParent(paths[-ndx - 2], path);
         }
         return ndx >= 0;
+    }
+
+    private static boolean isParent(String maybeParent, String path) {
+        return path.startsWith(maybeParent) && path.startsWith(FILE_SEPARATOR, maybeParent.length());
     }
 
     @Override
@@ -154,4 +158,30 @@ public final class FileAccessTree {
     public int hashCode() {
         return Objects.hash(Arrays.hashCode(readPaths), Arrays.hashCode(writePaths));
     }
+
+    /**
+     * For our lexicographic sort trick to work correctly, we must have path separators sort before
+     * any other character so that files in a directory appear immediately after that directory.
+     * For example, we require [/a, /a/b, /a.xml] rather than the natural order [/a, /a.xml, /a/b].
+     */
+    private static final Comparator<String> PATH_ORDER = (s1, s2) -> {
+        Path p1 = Path.of(s1);
+        Path p2 = Path.of(s2);
+        var i1 = p1.iterator();
+        var i2 = p2.iterator();
+        while (i1.hasNext() && i2.hasNext()) {
+            int cmp = i1.next().compareTo(i2.next());
+            if (cmp != 0) {
+                return cmp;
+            }
+        }
+        if (i1.hasNext()) {
+            return 1;
+        } else if (i2.hasNext()) {
+            return -1;
+        } else {
+            assert p1.equals(p2);
+            return 0;
+        }
+    };
 }

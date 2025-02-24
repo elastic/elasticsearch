@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -52,7 +51,6 @@ public class TransportGetDataStreamLifecycleStatsActionTests extends ESTestCase 
         mock(ClusterService.class),
         mock(ThreadPool.class),
         mock(ActionFilters.class),
-        mock(IndexNameExpressionResolver.class),
         dataStreamLifecycleService
     );
     private Long lastRunDuration;

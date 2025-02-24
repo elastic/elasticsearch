@@ -17,7 +17,6 @@ import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAc
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.injection.guice.Inject;
@@ -38,8 +37,7 @@ public class DeletePipelineTransportAction extends AcknowledgedTransportMasterNo
         ThreadPool threadPool,
         IngestService ingestService,
         TransportService transportService,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ActionFilters actionFilters
     ) {
         super(
             TYPE.name(),

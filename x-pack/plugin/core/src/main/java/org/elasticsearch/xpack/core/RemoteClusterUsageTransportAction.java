@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.core;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
@@ -29,8 +28,7 @@ public class RemoteClusterUsageTransportAction extends XPackUsageFeatureTranspor
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ActionFilters actionFilters
     ) {
         super(XPackUsageFeatureAction.REMOTE_CLUSTERS.name(), transportService, clusterService, threadPool, actionFilters);
     }

@@ -1118,9 +1118,19 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
         policyManager.checkFileWrite(callerClass, file);
     }
 
+    private static final boolean IS_WINDOWS = System.getProperty("os.name", "").startsWith("Windows");
+
+    private static boolean isNamedPipe(String fileName) {
+        return IS_WINDOWS && fileName.startsWith("\\\\.\\pipe\\");
+    }
+
     @Override
     public void check$java_io_FileInputStream$(Class<?> callerClass, File file) {
+        if (isNamedPipe(file.getAbsolutePath())) {
+            return;
+        }
         policyManager.checkFileRead(callerClass, file);
+
     }
 
     @Override
@@ -1130,26 +1140,41 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void check$java_io_FileInputStream$(Class<?> callerClass, String name) {
+        if (isNamedPipe(name)) {
+            return;
+        }
         policyManager.checkFileRead(callerClass, new File(name));
     }
 
     @Override
     public void check$java_io_FileOutputStream$(Class<?> callerClass, String name) {
+        if (isNamedPipe(name)) {
+            return;
+        }
         policyManager.checkFileWrite(callerClass, new File(name));
     }
 
     @Override
     public void check$java_io_FileOutputStream$(Class<?> callerClass, String name, boolean append) {
+        if (isNamedPipe(name)) {
+            return;
+        }
         policyManager.checkFileWrite(callerClass, new File(name));
     }
 
     @Override
     public void check$java_io_FileOutputStream$(Class<?> callerClass, File file) {
+        if (isNamedPipe(file.getAbsolutePath())) {
+            return;
+        }
         policyManager.checkFileWrite(callerClass, file);
     }
 
     @Override
     public void check$java_io_FileOutputStream$(Class<?> callerClass, File file, boolean append) {
+        if (isNamedPipe(file.getAbsolutePath())) {
+            return;
+        }
         policyManager.checkFileWrite(callerClass, file);
     }
 

@@ -41,6 +41,7 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
+import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 import org.openjdk.jmh.profile.AsyncProfiler;
@@ -52,6 +53,8 @@ import org.openjdk.jmh.runner.options.OptionsBuilder;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Random;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -98,10 +101,11 @@ import java.util.concurrent.TimeUnit;
  */
 @BenchmarkMode(Mode.SampleTime)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
-@State(Scope.Thread)
+@State(Scope.Benchmark)
 @Fork(1)
-@Warmup(iterations = 10)
-@Measurement(iterations = 10)
+@Threads(1)
+@Warmup(iterations = 3)
+@Measurement(iterations = 5)
 public class DateFieldMapperDocValuesSkipperBenchmark {
 
     public static void main(String[] args) throws RunnerException {
@@ -112,17 +116,20 @@ public class DateFieldMapperDocValuesSkipperBenchmark {
         new Runner(options).run();
     }
 
-    @Param("1000000")
+    @Param("1343120")
     private int numberOfDocuments;
 
-    @Param("10000")
+    @Param({"1340", "121300"})
     private int batchSize;
 
     @Param("1000")
     private int timestampIncrementMillis;
 
-    @Param({ "0.2" })
+    @Param({ "0.01", "0.2", "0.8" })
     private double timestampRangeFraction;
+
+    @Param({ "7390", "398470" })
+    private int commitEvery;
 
     @Param("42")
     private int seed;
@@ -133,10 +140,9 @@ public class DateFieldMapperDocValuesSkipperBenchmark {
 
     private static final Sort QUERY_SORT = new Sort(new SortedNumericSortField(TIMESTAMP_FIELD, SortField.Type.LONG, true));
 
-    private Directory tempDirectoryWithoutDocValuesSkipper;
-    private Directory tempDirectoryWithDocValuesSkipper;
     private IndexSearcher indexSearcherWithoutDocValuesSkipper;
     private IndexSearcher indexSearcherWithDocValuesSkipper;
+    private ExecutorService executorService;
 
     /**
      * Sets up the benchmark by creating Lucene indexes with and without doc values skipper.
@@ -145,22 +151,26 @@ public class DateFieldMapperDocValuesSkipperBenchmark {
      */
     @Setup(Level.Trial)
     public void setup() throws IOException {
-        tempDirectoryWithoutDocValuesSkipper = FSDirectory.open(Files.createTempDirectory("temp1-"));
-        tempDirectoryWithDocValuesSkipper = FSDirectory.open(Files.createTempDirectory("temp2-"));
+        executorService = Executors.newSingleThreadExecutor();
+        Directory tempDirectoryWithoutDocValuesSkipper = FSDirectory.open(Files.createTempDirectory("temp1-"));
+        Directory tempDirectoryWithDocValuesSkipper = FSDirectory.open(Files.createTempDirectory("temp2-"));
 
-        indexSearcherWithoutDocValuesSkipper = createIndex(tempDirectoryWithoutDocValuesSkipper, false);
-        indexSearcherWithDocValuesSkipper = createIndex(tempDirectoryWithDocValuesSkipper, true);
+        indexSearcherWithoutDocValuesSkipper = createIndex(tempDirectoryWithoutDocValuesSkipper, false, commitEvery);
+        indexSearcherWithDocValuesSkipper = createIndex(tempDirectoryWithDocValuesSkipper, true, commitEvery);
     }
 
     /**
-     * Creates an index with a specified sorting order and document structure.
+     * Creates an {@link IndexSearcher} from a newly created {@link IndexWriter}. Documents
+     * are added to the index and committed in batches of a specified size to generate multiple segments.
      *
-     * @param directory           The Lucene directory to store the index.
-     * @param withDocValuesSkipper Whether to use a sparse doc values index.
-     * @return An IndexSearcher instance for querying the created index.
-     * @throws IOException if an error occurs during index writing.
+     * @param directory            the Lucene {@link Directory} where the index will be written
+     * @param withDocValuesSkipper indicates whether certain fields should skip doc values
+     * @param commitEvery          the number of documents after which to force a commit
+     * @return an {@link IndexSearcher} that can be used to query the newly created index
+     * @throws IOException if an I/O error occurs during index writing or reading
      */
-    private IndexSearcher createIndex(final Directory directory, boolean withDocValuesSkipper) throws IOException {
+    private IndexSearcher createIndex(final Directory directory, final boolean withDocValuesSkipper, final int commitEvery)
+        throws IOException {
         final IndexWriterConfig config = new IndexWriterConfig(new StandardAnalyzer());
         config.setIndexSort(
             new Sort(
@@ -169,19 +179,29 @@ public class DateFieldMapperDocValuesSkipperBenchmark {
             )
         );
 
-        final IndexWriter indexWriter = new IndexWriter(directory, config);
         final Random random = new Random(seed);
+        try (IndexWriter indexWriter = new IndexWriter(directory, config)) {
+            int docCountSinceLastCommit = 0;
+            for (int i = 0; i < numberOfDocuments; i++) {
+                final Document doc = new Document();
+                addFieldsToDocument(doc, i, withDocValuesSkipper, random);
+                indexWriter.addDocument(doc);
+                docCountSinceLastCommit++;
 
-        for (int i = 0; i < numberOfDocuments; i++) {
-            final Document doc = new Document();
-            addFieldsToDocument(doc, i, withDocValuesSkipper, random);
-            indexWriter.addDocument(doc);
+                // NOTE: make sure we have multiple Lucene segments
+                if (docCountSinceLastCommit >= commitEvery) {
+                    indexWriter.commit();
+                    docCountSinceLastCommit = 0;
+                }
+            }
+
+            indexWriter.commit();
+            final DirectoryReader reader = DirectoryReader.open(indexWriter);
+            // NOTE: internally Elasticsearch runs multiple search threads concurrently, (at least) one per Lucene segment.
+            // Here we simplify the benchmark making sure we have a single-threaded search execution using a single thread
+            // executor Service.
+            return new IndexSearcher(reader, executorService);
         }
-
-        indexWriter.commit();
-        final DirectoryReader reader = DirectoryReader.open(indexWriter);
-        indexWriter.close();
-        return new IndexSearcher(reader);
     }
 
     private void addFieldsToDocument(final Document doc, int docIndex, boolean withDocValuesSkipper, final Random random) {
@@ -243,10 +263,17 @@ public class DateFieldMapperDocValuesSkipperBenchmark {
     }
 
     @TearDown(Level.Trial)
-    public void tearDown() throws IOException {
-        indexSearcherWithoutDocValuesSkipper.getIndexReader().close();
-        indexSearcherWithDocValuesSkipper.getIndexReader().close();
-        tempDirectoryWithoutDocValuesSkipper.close();
-        tempDirectoryWithDocValuesSkipper.close();
+    public void tearDown() {
+        if (executorService != null) {
+            executorService.shutdown();
+            try {
+                if (executorService.awaitTermination(30, TimeUnit.SECONDS) == false) {
+                    executorService.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                executorService.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+        }
     }
 }

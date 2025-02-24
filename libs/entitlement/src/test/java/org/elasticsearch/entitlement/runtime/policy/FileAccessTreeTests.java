@@ -9,8 +9,9 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.entitlement.runtime.policy.PolicyManager.ExclusivePath;
+import org.elasticsearch.entitlement.runtime.policy.FileAccessTree.ExclusivePath;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
@@ -24,6 +25,7 @@ import java.util.Map;
 import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
 import static org.hamcrest.Matchers.is;
 
+@LuceneTestCase.SuppressFileSystems("*")
 public class FileAccessTreeTests extends ESTestCase {
 
     static Path root;
@@ -237,8 +239,18 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testInvalidExclusiveAccess() {
-        var tree = accessTree(entitlement("foo/bar", "read"), exclusivePaths("test-component", "diff-module", "foo"));
-
+        var iae = assertThrows(
+            IllegalArgumentException.class,
+            () -> accessTree(entitlement("foo/bar", "read"), exclusivePaths("test-component", "diff-module", "foo"))
+        );
+        assertThat(
+            iae.getMessage(),
+            is(
+                "[test-component] [test-module] cannot use exclusive path "
+                    + "[/home/jdconrad/Code/elastic/elasticsearch/libs/entitlement/build/testrun/test/temp/"
+                    + "org.elasticsearch.entitlement.runtime.policy.FileAccessTreeTests_F47C6163CA22BE09-001/tempDir-002/foo]"
+            )
+        );
     }
 
     FileAccessTree accessTree(FilesEntitlement entitlement, List<ExclusivePath> exclusivePaths) {
@@ -263,7 +275,7 @@ public class FileAccessTreeTests extends ESTestCase {
     static List<ExclusivePath> exclusivePaths(String componentName, String moduleName, String... paths) {
         List<ExclusivePath> exclusivePaths = new ArrayList<>();
         for (String path : paths) {
-            exclusivePaths.add(new ExclusivePath(componentName, moduleName, path(path)));
+            exclusivePaths.add(new ExclusivePath(componentName, moduleName, path(path).toString()));
         }
         return exclusivePaths;
     }

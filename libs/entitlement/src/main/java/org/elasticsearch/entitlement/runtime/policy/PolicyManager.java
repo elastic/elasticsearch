@@ -15,6 +15,8 @@ import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
+import org.elasticsearch.entitlement.runtime.policy.FileAccessTree.ExclusiveFileEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.FileAccessTree.ExclusivePath;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoaderEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ExitVMEntitlement;
@@ -35,7 +37,6 @@ import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReference;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -172,21 +173,18 @@ public class PolicyManager {
         this.pathLookup = requireNonNull(pathLookup);
         this.defaultFileAccess = FileAccessTree.of("", "", FilesEntitlement.EMPTY, pathLookup, List.of());
 
-        List<ExclusivePath> exclusivePaths = new ArrayList<>();
+        List<ExclusiveFileEntitlement> exclusiveFileEntitlements = new ArrayList<>();
         for (var e : serverEntitlements.entrySet()) {
-            validateEntitlementsPerModule(SERVER_COMPONENT_NAME, e.getKey(), e.getValue());
-            buildExclusivePathList(exclusivePaths, pathLookup, SERVER_COMPONENT_NAME, e.getKey(), e.getValue());
+            validateEntitlementsPerModule(SERVER_COMPONENT_NAME, e.getKey(), e.getValue(), exclusiveFileEntitlements);
         }
-        validateEntitlementsPerModule(APM_AGENT_COMPONENT_NAME, ALL_UNNAMED, apmAgentEntitlements);
-        buildExclusivePathList(exclusivePaths, pathLookup, APM_AGENT_COMPONENT_NAME, ALL_UNNAMED, apmAgentEntitlements);
+        validateEntitlementsPerModule(APM_AGENT_COMPONENT_NAME, ALL_UNNAMED, apmAgentEntitlements, exclusiveFileEntitlements);
         for (var p : pluginsEntitlements.entrySet()) {
             for (var m : p.getValue().entrySet()) {
-                validateEntitlementsPerModule(p.getKey(), m.getKey(), m.getValue());
-                buildExclusivePathList(exclusivePaths, pathLookup, p.getKey(), m.getKey(), m.getValue());
+                validateEntitlementsPerModule(p.getKey(), m.getKey(), m.getValue(), exclusiveFileEntitlements);
             }
         }
-        exclusivePaths.sort(Comparator.comparing(ExclusivePath::path));
-        validateExclusivePaths(exclusivePaths);
+        List<ExclusivePath> exclusivePaths = FileAccessTree.buildExclusivePathList(exclusiveFileEntitlements, pathLookup);
+        FileAccessTree.validateExclusivePaths(exclusivePaths);
         this.exclusivePaths = exclusivePaths;
     }
 
@@ -194,7 +192,12 @@ public class PolicyManager {
         return policy.scopes().stream().collect(toUnmodifiableMap(Scope::moduleName, Scope::entitlements));
     }
 
-    private static void validateEntitlementsPerModule(String componentName, String moduleName, List<Entitlement> entitlements) {
+    private static void validateEntitlementsPerModule(
+        String componentName,
+        String moduleName,
+        List<Entitlement> entitlements,
+        List<ExclusiveFileEntitlement> exclusiveFileEntitlements
+    ) {
         Set<Class<? extends Entitlement>> found = new HashSet<>();
         for (var e : entitlements) {
             if (found.contains(e.getClass())) {
@@ -203,43 +206,8 @@ public class PolicyManager {
                 );
             }
             found.add(e.getClass());
-        }
-    }
-
-    record ExclusivePath(String componentName, String moduleName, Path path) {}
-
-    private static void buildExclusivePathList(
-        List<ExclusivePath> exclusivePaths,
-        PathLookup pathLookup,
-        String componentName,
-        String moduleName,
-        List<Entitlement> entitlements
-    ) {
-        for (var e : entitlements) {
             if (e instanceof FilesEntitlement fe) {
-                for (FilesEntitlement.FileData fd : fe.filesData()) {
-                    if (fd.exclusive()) {
-                        List<Path> paths = fd.resolvePaths(pathLookup).toList();
-                        for (Path path : paths) {
-                            exclusivePaths.add(new ExclusivePath(componentName, moduleName, path));
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private static void validateExclusivePaths(List<ExclusivePath> exclusivePaths) {
-        if (exclusivePaths.isEmpty() == false) {
-            ExclusivePath currentExclusivePath = exclusivePaths.get(0);
-            for (int i = 1; i < exclusivePaths.size(); ++i) {
-                ExclusivePath nextPath = exclusivePaths.get(i);
-                if (nextPath.path().equals(currentExclusivePath.path())) {
-                    // TODO: throw
-                } else if (nextPath.path().startsWith(currentExclusivePath.path())) {
-                    // TODO: throw
-                }
-                currentExclusivePath = nextPath;
+                exclusiveFileEntitlements.add(new ExclusiveFileEntitlement(componentName, moduleName, fe));
             }
         }
     }

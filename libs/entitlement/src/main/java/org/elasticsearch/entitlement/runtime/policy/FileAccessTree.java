@@ -9,7 +9,6 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
-import org.elasticsearch.entitlement.runtime.policy.PolicyManager.ExclusivePath;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
 
 import java.nio.file.Path;
@@ -22,6 +21,39 @@ import java.util.Objects;
 import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
 
 public final class FileAccessTree {
+
+    record ExclusiveFileEntitlement(String componentName, String moduleName, FilesEntitlement filesEntitlement) {}
+
+    record ExclusivePath(String componentName, String moduleName, String path) {}
+
+    static List<ExclusivePath> buildExclusivePathList(List<ExclusiveFileEntitlement> exclusiveFileEntitlements, PathLookup pathLookup) {
+        List<ExclusivePath> exclusivePaths = new ArrayList<>();
+        for (ExclusiveFileEntitlement efe : exclusiveFileEntitlements) {
+            for (FilesEntitlement.FileData fd : efe.filesEntitlement().filesData()) {
+                if (fd.exclusive()) {
+                    List<Path> paths = fd.resolvePaths(pathLookup).toList();
+                    for (Path path : paths) {
+                        exclusivePaths.add(new ExclusivePath(efe.componentName(), efe.moduleName(), normalizePath(path)));
+                    }
+                }
+            }
+        }
+        exclusivePaths.sort((ep1, ep2) -> PATH_ORDER.compare(ep1.path(), ep2.path()));
+        return exclusivePaths;
+    }
+
+    static void validateExclusivePaths(List<ExclusivePath> exclusivePaths) {
+        if (exclusivePaths.isEmpty() == false) {
+            ExclusivePath currentExclusivePath = exclusivePaths.get(0);
+            for (int i = 1; i < exclusivePaths.size(); ++i) {
+                ExclusivePath nextPath = exclusivePaths.get(i);
+                if (isParent(currentExclusivePath.path(), nextPath.path())) {
+
+                }
+                currentExclusivePath = nextPath;
+            }
+        }
+    }
 
     private static final String FILE_SEPARATOR = getDefaultFileSystem().getSeparator();
 
@@ -38,7 +70,9 @@ public final class FileAccessTree {
     ) {
         List<String> updatedExclusivePaths = new ArrayList<>();
         for (ExclusivePath exclusivePath : exclusivePaths) {
-            updatedExclusivePaths.add(normalizePath(exclusivePath.path()));
+            if (exclusivePath.componentName().equals(componentName) == false || exclusivePath.moduleName().equals(moduleName) == false) {
+                updatedExclusivePaths.add(exclusivePath.path());
+            }
         }
 
         List<String> readPaths = new ArrayList<>();
@@ -48,30 +82,11 @@ public final class FileAccessTree {
             var paths = fileData.resolvePaths(pathLookup);
             paths.forEach(path -> {
                 var normalized = normalizePath(path);
-                for (ExclusivePath exclusivePath : exclusivePaths) {
-                    if (exclusivePath.componentName().equals(componentName) == false
-                        || exclusivePath.moduleName().equals(moduleName) == false) {
-                        if (true) throw new IllegalArgumentException(
-                            path.getFileSystem() + " " + exclusivePath.path().getFileSystem() + " " + path.startsWith(exclusivePath.path())
+                for (String exclusivePath : updatedExclusivePaths) {
+                    if (isParent(exclusivePath, normalized)) {
+                        throw new IllegalArgumentException(
+                            "[" + componentName + "] [" + moduleName + "] cannot use exclusive path [" + exclusivePath + "]"
                         );
-                        if (path.startsWith(exclusivePath.path())) {
-                            throw new IllegalArgumentException(
-                                "["
-                                    + componentName
-                                    + "] ["
-                                    + moduleName
-                                    + "] cannot use"
-                                    + "exclusive path ["
-                                    + exclusivePath.path()
-                                    + "] from ["
-                                    + exclusivePath.componentName()
-                                    + "] "
-                                    + "["
-                                    + exclusivePath.moduleName()
-                                    + "]"
-                            );
-                        }
-                        updatedExclusivePaths.add(normalizePath(exclusivePath.path()));
                     }
                 }
                 if (mode == FilesEntitlement.Mode.READ_WRITE) {
@@ -86,14 +101,13 @@ public final class FileAccessTree {
         readPaths.add(tempDir);
         writePaths.add(tempDir);
 
+        updatedExclusivePaths.sort(PATH_ORDER);
         readPaths.sort(PATH_ORDER);
         writePaths.sort(PATH_ORDER);
 
         this.exclusivePaths = updatedExclusivePaths.toArray(new String[0]);
         this.readPaths = pruneSortedPaths(readPaths).toArray(new String[0]);
         this.writePaths = pruneSortedPaths(writePaths).toArray(new String[0]);
-        // if (true) throw new IllegalStateException("EXCLUSIVE: " + Arrays.toString(this.exclusivePaths) +
-        // "\n READ: " + Arrays.toString(this.readPaths) + "\n WRITE: " + Arrays.toString(this.writePaths));
     }
 
     private static List<String> pruneSortedPaths(List<String> paths) {
@@ -110,7 +124,6 @@ public final class FileAccessTree {
             }
         }
         return prunedReadPaths;
-
     }
 
     public static FileAccessTree of(

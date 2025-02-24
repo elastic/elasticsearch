@@ -138,8 +138,6 @@ public class DateFieldMapperDocValuesSkipperBenchmark {
     private static final String HOSTNAME_FIELD = "host.name";
     private static final long BASE_TIMESTAMP = 1704067200000L;
 
-    private static final Sort QUERY_SORT = new Sort(new SortedNumericSortField(TIMESTAMP_FIELD, SortField.Type.LONG, true));
-
     private IndexSearcher indexSearcherWithoutDocValuesSkipper;
     private IndexSearcher indexSearcherWithDocValuesSkipper;
     private ExecutorService executorService;
@@ -214,14 +212,13 @@ public class DateFieldMapperDocValuesSkipperBenchmark {
             doc.add(SortedNumericDocValuesField.indexedField(TIMESTAMP_FIELD, timestamp)); // NOTE: doc values skipper on `@timestamp`
             doc.add(SortedDocValuesField.indexedField(HOSTNAME_FIELD, new BytesRef(hostName))); // NOTE: doc values skipper on `host.name`
         } else {
-            doc.add(new LongPoint(TIMESTAMP_FIELD, timestamp)); // BKD tree on `@timestamp`
+            doc.add(new StringField(HOSTNAME_FIELD, hostName, Field.Store.NO));
+            doc.add(new SortedDocValuesField(HOSTNAME_FIELD, new BytesRef(hostName))); // NOTE: doc values without the doc values skipper on
+            // `host.name`
+            doc.add(new LongPoint(TIMESTAMP_FIELD, timestamp)); // KDB tree on `@timestamp`
             doc.add(new SortedNumericDocValuesField(TIMESTAMP_FIELD, timestamp)); // NOTE: doc values without the doc values skipper on
                                                                                   // `@timestamp`
-            doc.add(new SortedDocValuesField(HOSTNAME_FIELD, new BytesRef(hostName))); // NOTE: doc values without the doc values skipper on
-                                                                                       // `host.name`
         }
-
-        doc.add(new StringField(HOSTNAME_FIELD, hostName, Field.Store.NO));
     }
 
     /**
@@ -259,7 +256,7 @@ public class DateFieldMapperDocValuesSkipperBenchmark {
             rangeEndTimestamp,
             rangeQuery
         );
-        return searcher.search(query, nDocs, QUERY_SORT).totalHits.value();
+        return searcher.count(query);
     }
 
     @TearDown(Level.Trial)

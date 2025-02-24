@@ -209,10 +209,7 @@ public class EntitlementInitialization {
                     new LoadNativeLibrariesEntitlement(),
                     new ManageThreadsEntitlement(),
                     new FilesEntitlement(
-                        List.of(
-                            FileData.ofPath(bootstrapArgs.configDir(), READ),
-                            FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE)
-                        )
+                        List.of(FileData.ofPath(bootstrapArgs.configDir(), READ), FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE))
                     )
                 )
             ),

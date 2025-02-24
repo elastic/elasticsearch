@@ -476,5 +476,4 @@ module org.elasticsearch.server {
     exports org.elasticsearch.monitor.metrics;
     exports org.elasticsearch.plugins.internal.rewriter to org.elasticsearch.inference;
     exports org.elasticsearch.lucene.util.automaton;
-    exports org.elasticsearch.action.admin.indices.autoshard;
 }

@@ -107,6 +107,7 @@ public class SearchEngine extends Engine {
     private final ReferenceManager<ElasticsearchDirectoryReader> readerManager;
     private final SearchDirectory directory;
     private final Executor blobStoreFetchExecutor;
+    private final CompletionStatsCache completionStatsCache;
 
     private volatile SegmentInfosAndCommit segmentInfosAndCommit;
     private volatile PrimaryTermAndGeneration currentPrimaryTermGeneration;
@@ -116,6 +117,7 @@ public class SearchEngine extends Engine {
     // Guarded by the openReaders monitor
     private final Map<DirectoryReader, OpenReaderInfo> openReaders = new HashMap<>();
 
+    @SuppressWarnings("this-escape")
     public SearchEngine(EngineConfig config, ClosedShardService closedShardService) {
         super(config);
         assert config.isPromotableToPrimary() == false;
@@ -188,6 +190,8 @@ public class SearchEngine extends Engine {
             );
             this.setSequenceNumbers(segmentInfosAndCommit.segmentInfos());
             this.readerManager = readerManager;
+            this.completionStatsCache = new CompletionStatsCache(() -> acquireSearcher("completion_stats"));
+            this.readerManager.addListener(completionStatsCache);
             for (ReferenceManager.RefreshListener refreshListener : config.getExternalRefreshListener()) {
                 readerManager.addListener(refreshListener);
             }
@@ -564,7 +568,7 @@ public class SearchEngine extends Engine {
 
     @Override
     public CompletionStats completionStats(String... fieldNamePatterns) {
-        return new CompletionStatsCache(() -> acquireSearcher("completion_stats")).get(fieldNamePatterns);
+        return completionStatsCache.get(fieldNamePatterns);
     }
 
     @Override

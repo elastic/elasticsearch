@@ -9,3 +9,4 @@ org.elasticsearch.ml:
         mode: read_write
       - path: \\.\pipe\
         mode: read_write
+        platform: windows

@@ -26,16 +26,6 @@ public class ScaledFloatFieldBlockLoaderTests extends NumberFieldBlockLoaderTest
     protected Double convert(Number value, Map<String, Object> fieldMapping) {
         var scalingFactor = ((Number) fieldMapping.get("scaling_factor")).doubleValue();
 
-        var docValues = (boolean) fieldMapping.getOrDefault("doc_values", false);
-
-        // There is a slight inconsistency between values that are read from doc_values and from source.
-        // Due to how precision reduction is applied to source values so that they are consistent with doc_values.
-        // See #122547.
-        if (docValues) {
-            var reverseScalingFactor = 1d / scalingFactor;
-            return Math.round(value.doubleValue() * scalingFactor) * reverseScalingFactor;
-        }
-
         // Adjust values coming from source to the way they are stored in doc_values.
         // See mapper implementation.
         return Math.round(value.doubleValue() * scalingFactor) / scalingFactor;

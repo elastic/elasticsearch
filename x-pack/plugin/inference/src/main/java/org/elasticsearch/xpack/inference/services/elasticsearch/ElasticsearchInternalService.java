@@ -35,9 +35,9 @@ import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
@@ -635,7 +635,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         );
 
         ActionListener<InferModelAction.Response> mlResultsListener = listener.delegateFailureAndWrap(
-            (l, inferenceResult) -> l.onResponse(InferenceTextEmbeddingFloatResults.of(inferenceResult.getInferenceResults()))
+            (l, inferenceResult) -> l.onResponse(TextEmbeddingFloatResults.of(inferenceResult.getInferenceResults()))
         );
 
         var maybeDeployListener = mlResultsListener.delegateResponse(
@@ -728,7 +728,6 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker(
                 input,
                 EMBEDDING_MAX_BATCH_SIZE,
-                embeddingTypeFromTaskTypeAndSettings(model.getTaskType(), esModel.internalServiceSettings),
                 esModel.getConfigurations().getChunkingSettings()
             ).batchRequestsWithListeners(listener);
 
@@ -751,13 +750,11 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         ActionListener<InferenceServiceResults> chunkPartListener
     ) {
         if (taskType == TaskType.TEXT_EMBEDDING) {
-            var translated = new ArrayList<InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding>();
+            var translated = new ArrayList<TextEmbeddingFloatResults.Embedding>();
 
             for (var inferenceResult : inferenceResults) {
                 if (inferenceResult instanceof MlTextEmbeddingResults mlTextEmbeddingResult) {
-                    translated.add(
-                        new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(mlTextEmbeddingResult.getInferenceAsFloat())
-                    );
+                    translated.add(new TextEmbeddingFloatResults.Embedding(mlTextEmbeddingResult.getInferenceAsFloat()));
                 } else if (inferenceResult instanceof ErrorInferenceResults error) {
                     chunkPartListener.onFailure(error.getException());
                     return;
@@ -768,7 +765,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                     return;
                 }
             }
-            chunkPartListener.onResponse(new InferenceTextEmbeddingFloatResults(translated));
+            chunkPartListener.onResponse(new TextEmbeddingFloatResults(translated));
         } else { // sparse
             var translated = new ArrayList<SparseEmbeddingResults.Embedding>();
 
@@ -944,23 +941,6 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
     @Override
     boolean isDefaultId(String inferenceId) {
         return DEFAULT_ELSER_ID.equals(inferenceId) || DEFAULT_E5_ID.equals(inferenceId) || DEFAULT_RERANK_ID.equals(inferenceId);
-    }
-
-    static EmbeddingRequestChunker.EmbeddingType embeddingTypeFromTaskTypeAndSettings(
-        TaskType taskType,
-        ElasticsearchInternalServiceSettings serviceSettings
-    ) {
-        return switch (taskType) {
-            case SPARSE_EMBEDDING -> EmbeddingRequestChunker.EmbeddingType.SPARSE;
-            case TEXT_EMBEDDING -> serviceSettings.elementType() == null
-                ? EmbeddingRequestChunker.EmbeddingType.FLOAT
-                : EmbeddingRequestChunker.EmbeddingType.fromDenseVectorElementType(serviceSettings.elementType());
-            default -> throw new ElasticsearchStatusException(
-                "Chunking is not supported for task type [{}]",
-                RestStatus.BAD_REQUEST,
-                taskType
-            );
-        };
     }
 
     private void validateAgainstDeployment(

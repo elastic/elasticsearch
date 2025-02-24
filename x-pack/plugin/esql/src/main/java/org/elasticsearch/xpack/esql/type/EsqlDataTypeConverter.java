@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.type;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -15,7 +16,13 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.Metric;
+import org.elasticsearch.compute.data.CompositeBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -662,6 +669,26 @@ public class EsqlDataTypeConverter {
 
     public static long booleanToUnsignedLong(boolean number) {
         return number ? ONE_AS_UNSIGNED_LONG : ZERO_AS_UNSIGNED_LONG;
+    }
+
+    public static String aggregateMetricDoubleBlockToString(CompositeBlock compositeBlock, int index) {
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.startObject();
+            for (Metric metric : List.of(Metric.MIN, Metric.MAX, Metric.SUM)) {
+                var block = compositeBlock.getBlock(metric.getIndex());
+                if (block.isNull(index) == false) {
+                    builder.field(metric.getLabel(), ((DoubleBlock) block).getDouble(index));
+                }
+            }
+            var countBlock = compositeBlock.getBlock(Metric.COUNT.getIndex());
+            if (countBlock.isNull(index) == false) {
+                builder.field(Metric.COUNT.getLabel(), ((IntBlock) countBlock).getInt(index));
+            }
+            builder.endObject();
+            return Strings.toString(builder);
+        } catch (IOException e) {
+            throw new IllegalStateException("error rendering aggregate metric double", e);
+        }
     }
 
     public enum EsqlConverter implements Converter {

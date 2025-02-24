@@ -98,7 +98,9 @@ public final class FileAccessTree {
         int ndx = Arrays.binarySearch(paths, path);
         if (ndx < -1) {
             String maybeParent = paths[-ndx - 2];
-            return path.startsWith(maybeParent) && path.startsWith(FILE_SEPARATOR, maybeParent.length());
+            // Normalization on Windows does not allways remove trailing backslashes, we need to check both patterns
+            return path.startsWith(maybeParent)
+                && (maybeParent.endsWith(FILE_SEPARATOR) || path.startsWith(FILE_SEPARATOR, maybeParent.length()));
         }
         return ndx >= 0;
     }

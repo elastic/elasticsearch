@@ -57,7 +57,7 @@ public class RescoreKnnVectorQuery extends Query implements QueryProfilerProvide
 
         // Retrieve top k documents from the rescored query
         TopDocs topDocs = searcher.search(query, k);
-        vectorOperations = topDocs.totalHits.value();
+        vectorOperations = topDocs.totalHits.value;
         return new KnnScoreDocQuery(topDocs.scoreDocs, searcher.getIndexReader());
     }
 

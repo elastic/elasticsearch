@@ -38,6 +38,7 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
     public enum BaseDir {
         CONFIG,
         DATA,
+        SHARED_REPO,
         HOME
     }
 
@@ -122,20 +123,26 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
                 case CONFIG:
                     return relativePaths.map(relativePath -> pathLookup.configDir().resolve(relativePath));
                 case DATA:
-                    // multiple data dirs are a pain...we need the combination of relative paths and data dirs
-                    List<Path> paths = new ArrayList<>();
-                    for (var relativePath : relativePaths.toList()) {
-                        for (var dataDir : pathLookup.dataDirs()) {
-                            paths.add(dataDir.resolve(relativePath));
-                        }
-                    }
-                    return paths.stream();
+                    return relativePathsCombination(pathLookup.dataDirs(), relativePaths);
+                case SHARED_REPO:
+                    return relativePathsCombination(pathLookup.sharedRepoDirs(), relativePaths);
                 case HOME:
                     return relativePaths.map(relativePath -> pathLookup.homeDir().resolve(relativePath));
                 default:
                     throw new IllegalArgumentException();
             }
         }
+    }
+
+    private static Stream<Path> relativePathsCombination(Path[] baseDirs, Stream<Path> relativePaths) {
+        // multiple base dirs are a pain...we need the combination of the base dirs and relative paths
+        List<Path> paths = new ArrayList<>();
+        for (var relativePath : relativePaths.toList()) {
+            for (var dataDir : baseDirs) {
+                paths.add(dataDir.resolve(relativePath));
+            }
+        }
+        return paths.stream();
     }
 
     private record AbsolutePathFileData(Path path, Mode mode) implements FileData {
@@ -189,6 +196,7 @@ public record FilesEntitlement(List<FileData> filesData) implements Entitlement 
             case "config" -> BaseDir.CONFIG;
             case "data" -> BaseDir.DATA;
             case "home" -> BaseDir.HOME;
+            // NOTE: shared_repo is _not_ accessible to policy files, only internally
             default -> throw new PolicyValidationException(
                 "invalid relative directory: " + baseDir + ", valid values: [config, data, home]"
             );

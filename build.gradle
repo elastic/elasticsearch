@@ -247,15 +247,6 @@ allprojects {
     }
   }
 
-  // injecting groovy property variables into all projects
-  project.ext {
-    // for ide hacks...
-    isEclipse = providers.systemProperty("eclipse.launcher").isPresent() ||   // Detects gradle launched from Eclipse's IDE
-      providers.systemProperty("eclipse.application").isPresent() ||    // Detects gradle launched from the Eclipse compiler server
-      gradle.startParameter.taskNames.contains('eclipse') ||  // Detects gradle launched from the command line to do eclipse stuff
-      gradle.startParameter.taskNames.contains('cleanEclipse')
-  }
-
   ext.bwc_tests_enabled = bwc_tests_enabled
 
   // eclipse configuration

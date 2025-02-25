@@ -70,7 +70,6 @@ public class AnalyticsInfoTransportActionTests extends ESTestCase {
             clusterService,
             threadPool,
             mock(ActionFilters.class),
-            null,
             client
         );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
@@ -98,7 +97,6 @@ public class AnalyticsInfoTransportActionTests extends ESTestCase {
             clusterService,
             threadPool,
             mock(ActionFilters.class),
-            null,
             client
         );
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();

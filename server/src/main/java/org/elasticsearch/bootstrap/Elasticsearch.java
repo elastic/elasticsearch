@@ -29,9 +29,11 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
+import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyParserUtils;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
@@ -52,6 +54,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.lang.invoke.MethodHandles;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Permission;
@@ -249,6 +252,7 @@ class Elasticsearch {
                 nodeEnv.tmpDir(),
                 args.pidFile()
             );
+            entitlementSelfTest();
         } else {
             assert RuntimeVersionFeature.isSecurityManagerAvailable();
             // no need to explicitly enable native access for legacy code
@@ -263,6 +267,34 @@ class Elasticsearch {
         }
 
         bootstrap.setPluginsLoader(pluginsLoader);
+    }
+
+    // check entitlements were loaded correctly. note this must be outside the entitlements lib.
+    private static void entitlementSelfTest() {
+        ensureCannotStartProcess(ProcessBuilder::start);
+        // Try again with reflection
+        ensureCannotStartProcess(Elasticsearch::reflectiveStartProcess);
+    }
+
+    private static void ensureCannotStartProcess(CheckedConsumer<ProcessBuilder, ?> startProcess) {
+        try {
+            // The command doesn't matter; it doesn't even need to exist
+            startProcess.accept(new ProcessBuilder(""));
+        } catch (NotEntitledException e) {
+            return;
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed entitlement protection self-test", e);
+        }
+        throw new IllegalStateException("Entitlement protection self-test was incorrectly permitted");
+    }
+
+    private static void reflectiveStartProcess(ProcessBuilder pb) throws Exception {
+        try {
+            var start = ProcessBuilder.class.getMethod("start");
+            start.invoke(pb);
+        } catch (InvocationTargetException e) {
+            throw (Exception) e.getCause();
+        }
     }
 
     private static void ensureInitialized(Class<?>... classes) {

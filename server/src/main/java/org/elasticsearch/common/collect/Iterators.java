@@ -34,22 +34,27 @@ public class Iterators {
      * Returns a single element iterator over the supplied value.
      */
     public static <T> Iterator<T> single(T element) {
-        return new Iterator<>() {
+        return new SingleIterator<>(element);
+    }
 
-            private T value = Objects.requireNonNull(element);
+    private static final class SingleIterator<T> implements Iterator<T> {
+        private T value;
 
-            @Override
-            public boolean hasNext() {
-                return value != null;
-            }
+        SingleIterator(T element) {
+            value = Objects.requireNonNull(element);
+        }
 
-            @Override
-            public T next() {
-                final T res = value;
-                value = null;
-                return res;
-            }
-        };
+        @Override
+        public boolean hasNext() {
+            return value != null;
+        }
+
+        @Override
+        public T next() {
+            final T res = value;
+            value = null;
+            return res;
+        }
     }
 
     @SafeVarargs
@@ -496,5 +501,4 @@ public class Iterators {
         }
         return result;
     }
-
 }

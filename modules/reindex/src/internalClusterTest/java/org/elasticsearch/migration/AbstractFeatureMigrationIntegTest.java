@@ -9,14 +9,17 @@
 
 package org.elasticsearch.migration;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -28,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.SystemIndexPlugin;
@@ -50,6 +54,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
+import static java.util.Collections.emptySet;
+import static java.util.Collections.singletonList;
+import static java.util.Collections.unmodifiableSet;
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -255,12 +263,18 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         assertThat(thisIndexStats.getTotal().getDocs().getCount(), is((long) INDEX_DOC_COUNT));
     }
 
-    public static class TestPlugin extends Plugin implements SystemIndexPlugin {
+    public static class TestPlugin extends Plugin implements SystemIndexPlugin, ActionPlugin {
         public final AtomicReference<Function<ClusterState, Map<String, Object>>> preMigrationHook = new AtomicReference<>();
         public final AtomicReference<BiConsumer<ClusterState, Map<String, Object>>> postMigrationHook = new AtomicReference<>();
+        private final BlockingActionFilter blockingActionFilter;
 
         public TestPlugin() {
+            blockingActionFilter = new BlockingActionFilter();
+        }
 
+        @Override
+        public List<ActionFilter> getActionFilters() {
+            return singletonList(blockingActionFilter);
         }
 
         @Override
@@ -298,6 +312,27 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         ) {
             postMigrationHook.get().accept(clusterService.state(), preUpgradeMetadata);
             listener.onResponse(true);
+        }
+
+        public static class BlockingActionFilter extends org.elasticsearch.action.support.ActionFilter.Simple {
+            private Set<String> blockedActions = emptySet();
+
+            @Override
+            protected boolean apply(String action, ActionRequest request, ActionListener<?> listener) {
+                if (blockedActions.contains(action)) {
+                    throw new ElasticsearchException("force exception on [" + action + "]");
+                }
+                return true;
+            }
+
+            @Override
+            public int order() {
+                return 0;
+            }
+
+            public void blockActions(String... actions) {
+                blockedActions = unmodifiableSet(newHashSet(actions));
+            }
         }
     }
 }

@@ -8,8 +8,6 @@
 package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
-import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -19,7 +17,6 @@ import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tasks.TaskCancelledException;
 
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -51,28 +48,12 @@ public final class ExchangeSourceHandler {
      * @param maxBufferSize      the maximum size of the exchange buffer. A larger buffer reduces ``pauses`` but uses more memory,
      *                           which could otherwise be allocated for other purposes.
      * @param fetchExecutor      the executor used to fetch pages.
-     * @param completionListener a listener that will be notified when the exchange source handler completes
      */
-    public ExchangeSourceHandler(int maxBufferSize, Executor fetchExecutor, ActionListener<Void> completionListener) {
+    public ExchangeSourceHandler(int maxBufferSize, Executor fetchExecutor) {
         this.buffer = new ExchangeBuffer(maxBufferSize);
         this.fetchExecutor = fetchExecutor;
         this.outstandingSinks = new PendingInstances(() -> buffer.finish(false));
-        final PendingInstances closingSinks = new PendingInstances(() -> {});
-        closingSinks.trackNewInstance();
-        this.outstandingSources = new PendingInstances(() -> finishEarly(true, ActionListener.running(closingSinks::finishInstance)));
-        buffer.addCompletionListener(ActionListener.running(() -> {
-            final ActionListener<Void> listener = ActionListener.assertAtLeastOnce(completionListener);
-            try (RefCountingRunnable refs = new RefCountingRunnable(ActionRunnable.run(listener, this::checkFailure))) {
-                closingSinks.completion.addListener(refs.acquireListener());
-                for (PendingInstances pending : List.of(outstandingSinks, outstandingSources)) {
-                    // Create an outstanding instance and then finish to complete the completionListener
-                    // if we haven't registered any instances of exchange sinks or exchange sources before.
-                    pending.trackNewInstance();
-                    pending.completion.addListener(refs.acquireListener());
-                    pending.finishInstance();
-                }
-            }
-        }));
+        this.outstandingSources = new PendingInstances(() -> finishEarly(true, ActionListener.noop()));
     }
 
     private void checkFailure() {
@@ -271,7 +252,13 @@ public final class ExchangeSourceHandler {
         final ActionListener<Void> sinkListener = ActionListener.assertAtLeastOnce(
             ActionListener.notifyOnce(ActionListener.runBefore(listener, () -> remoteSinks.remove(sinkId)))
         );
+        final Releasable emptySink = addEmptySink();
         fetchExecutor.execute(new AbstractRunnable() {
+            @Override
+            public void onAfter() {
+                emptySink.close();
+            }
+
             @Override
             public void onFailure(Exception e) {
                 if (failFast) {

@@ -1069,7 +1069,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
         // Sanity check that the setting has not been set in follower index:
         {
-            GetSettingsRequest getSettingsRequest = new GetSettingsRequest();
+            GetSettingsRequest getSettingsRequest = new GetSettingsRequest(TEST_REQUEST_TIMEOUT);
             getSettingsRequest.indices("follower");
             GetSettingsResponse getSettingsResponse = followerClient().admin().indices().getSettings(getSettingsRequest).actionGet();
             assertThat(getSettingsResponse.getSetting("follower", "index.max_ngram_diff"), nullValue());
@@ -1085,7 +1085,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         }
         assertBusy(() -> {
             // Check that the setting has been set in follower index:
-            GetSettingsRequest getSettingsRequest = new GetSettingsRequest();
+            GetSettingsRequest getSettingsRequest = new GetSettingsRequest(TEST_REQUEST_TIMEOUT);
             getSettingsRequest.indices("follower");
             GetSettingsResponse getSettingsResponse = followerClient().admin().indices().getSettings(getSettingsRequest).actionGet();
             assertThat(getSettingsResponse.getSetting("follower", "index.max_ngram_diff"), equalTo("2"));
@@ -1120,7 +1120,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
         // Sanity check that the setting has not been set in follower index:
         {
-            GetSettingsRequest getSettingsRequest = new GetSettingsRequest();
+            GetSettingsRequest getSettingsRequest = new GetSettingsRequest(TEST_REQUEST_TIMEOUT);
             getSettingsRequest.indices("follower");
             GetSettingsResponse getSettingsResponse = followerClient().admin().indices().getSettings(getSettingsRequest).actionGet();
             assertThat(getSettingsResponse.getSetting("follower", "index.number_of_replicas"), equalTo("0"));
@@ -1135,7 +1135,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             leaderClient().prepareIndex("leader").setSource("{}", XContentType.JSON).get();
         }
         assertBusy(() -> {
-            GetSettingsRequest getSettingsRequest = new GetSettingsRequest();
+            GetSettingsRequest getSettingsRequest = new GetSettingsRequest(TEST_REQUEST_TIMEOUT);
             getSettingsRequest.indices("follower");
             GetSettingsResponse getSettingsResponse = followerClient().admin().indices().getSettings(getSettingsRequest).actionGet();
             assertThat(getSettingsResponse.getSetting("follower", "index.number_of_replicas"), equalTo("0"));
@@ -1197,7 +1197,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             assertThat(getFollowTaskSettingsVersion("follower"), equalTo(4L));
             assertThat(getFollowTaskMappingVersion("follower"), equalTo(2L));
 
-            GetSettingsRequest getSettingsRequest = new GetSettingsRequest();
+            GetSettingsRequest getSettingsRequest = new GetSettingsRequest(TEST_REQUEST_TIMEOUT);
             getSettingsRequest.indices("follower");
             GetSettingsResponse getSettingsResponse = followerClient().admin().indices().getSettings(getSettingsRequest).actionGet();
             assertThat(getSettingsResponse.getSetting("follower", "index.analysis.analyzer.my_analyzer.type"), equalTo("custom"));
@@ -1256,7 +1256,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
             }
         });
         assertBusy(() -> {
-            GetSettingsResponse resp = followerClient().admin().indices().prepareGetSettings("follower").get();
+            GetSettingsResponse resp = followerClient().admin().indices().prepareGetSettings(TEST_REQUEST_TIMEOUT, "follower").get();
             assertThat(resp.getSetting("follower", "index.max_ngram_diff"), equalTo("2"));
             assertThat(resp.getSetting("follower", PrivateSettingPlugin.INDEX_INTERNAL_SETTING.getKey()), nullValue());
             assertThat(resp.getSetting("follower", PrivateSettingPlugin.INDEX_PRIVATE_SETTING.getKey()), nullValue());
@@ -1285,7 +1285,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
 
         final PutFollowAction.Request followRequest = putFollow("leader", "follower");
         followerClient().execute(PutFollowAction.INSTANCE, followRequest).get();
-        GetSettingsResponse resp = followerClient().admin().indices().prepareGetSettings("follower").get();
+        GetSettingsResponse resp = followerClient().admin().indices().prepareGetSettings(TEST_REQUEST_TIMEOUT, "follower").get();
         assertThat(resp.getSetting("follower", DataTier.TIER_PREFERENCE), equalTo(tier));
     }
 
@@ -1327,7 +1327,7 @@ public class IndexFollowingIT extends CcrIntegTestCase {
         });
         latch.await();
         assertBusy(() -> assertThat(getFollowTaskSettingsVersion("follower"), equalTo(settingVersionOnLeader.get())));
-        GetSettingsResponse resp = followerClient().admin().indices().prepareGetSettings("follower").get();
+        GetSettingsResponse resp = followerClient().admin().indices().prepareGetSettings(TEST_REQUEST_TIMEOUT, "follower").get();
         assertThat(resp.getSetting("follower", PrivateSettingPlugin.INDEX_INTERNAL_SETTING.getKey()), nullValue());
         assertThat(resp.getSetting("follower", PrivateSettingPlugin.INDEX_PRIVATE_SETTING.getKey()), nullValue());
     }

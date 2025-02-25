@@ -112,7 +112,7 @@ public class AsyncOperatorTests extends ESTestCase {
             }
         };
         int maxConcurrentRequests = randomIntBetween(1, 10);
-        AsyncOperator<Page> asyncOperator = new AsyncOperator<Page>(driverContext, maxConcurrentRequests) {
+        AsyncOperator<Page> asyncOperator = new AsyncOperator<Page>(driverContext, threadPool.getThreadContext(), maxConcurrentRequests) {
             final LookupService lookupService = new LookupService(threadPool, globalBlockFactory, dict, maxConcurrentRequests);
 
             @Override
@@ -182,7 +182,7 @@ public class AsyncOperatorTests extends ESTestCase {
         Map<Page, ActionListener<Page>> handlers = new HashMap<>();
 
         TestOp(DriverContext driverContext, int maxOutstandingRequests) {
-            super(driverContext, maxOutstandingRequests);
+            super(driverContext, threadPool.getThreadContext(), maxOutstandingRequests);
         }
 
         @Override
@@ -262,7 +262,7 @@ public class AsyncOperatorTests extends ESTestCase {
         );
         int maxConcurrentRequests = randomIntBetween(1, 10);
         AtomicBoolean failed = new AtomicBoolean();
-        AsyncOperator<Page> asyncOperator = new AsyncOperator<Page>(driverContext, maxConcurrentRequests) {
+        AsyncOperator<Page> asyncOperator = new AsyncOperator<Page>(driverContext, threadPool.getThreadContext(), maxConcurrentRequests) {
             @Override
             protected void performAsync(Page inputPage, ActionListener<Page> listener) {
                 ActionRunnable<Page> command = new ActionRunnable<>(listener) {
@@ -324,7 +324,7 @@ public class AsyncOperatorTests extends ESTestCase {
         for (int i = 0; i < iters; i++) {
             DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory);
             CyclicBarrier barrier = new CyclicBarrier(2);
-            AsyncOperator<Page> asyncOperator = new AsyncOperator<Page>(driverContext, between(1, 10)) {
+            AsyncOperator<Page> asyncOperator = new AsyncOperator<Page>(driverContext, threadPool.getThreadContext(), between(1, 10)) {
                 @Override
                 protected void performAsync(Page inputPage, ActionListener<Page> listener) {
                     ActionRunnable<Page> command = new ActionRunnable<>(listener) {

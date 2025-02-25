@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.operator;
 
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.common.util.FeatureFlag;
 
 import java.util.Objects;
 import java.util.Set;
@@ -557,7 +556,6 @@ public class Constants {
         "indices:admin/xpack/ccr/put_follow",
         "indices:admin/xpack/ccr/unfollow",
         "indices:admin/xpack/downsample",
-        "indices:admin/xpack/downsample_indexer",
         "indices:data/read/downsample_delegate",
         "indices:data/read/async_search/delete",
         "indices:data/read/async_search/get",
@@ -638,11 +636,12 @@ public class Constants {
         "internal:gateway/local/started_shards",
         "internal:admin/indices/prevalidate_shard_path",
         "internal:index/metadata/migration_version/update",
-        new FeatureFlag("reindex_data_stream").isEnabled() ? "indices:admin/migration/reindex_status" : null,
-        new FeatureFlag("reindex_data_stream").isEnabled() ? "indices:admin/data_stream/index/reindex" : null,
-        new FeatureFlag("reindex_data_stream").isEnabled() ? "indices:admin/data_stream/reindex" : null,
-        new FeatureFlag("reindex_data_stream").isEnabled() ? "indices:admin/data_stream/reindex_cancel" : null,
-        new FeatureFlag("reindex_data_stream").isEnabled() ? "indices:admin/index/create_from_source" : null,
+        "indices:admin/migration/reindex_status",
+        "indices:admin/data_stream/index/reindex",
+        "indices:admin/data_stream/reindex",
+        "indices:admin/data_stream/reindex_cancel",
+        "indices:admin/index/create_from_source",
+        "indices:admin/index/copy_lifecycle_index_metadata",
         "internal:admin/repository/verify",
         "internal:admin/repository/verify/coordinate"
     ).filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());

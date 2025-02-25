@@ -1195,20 +1195,35 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         if (processor instanceof ConditionalProcessor conditionalProcessor) {
             processor = conditionalProcessor.getInnerProcessor();
         }
-        StringBuilder sb = new StringBuilder(5);
-        sb.append(processor.getType());
 
-        if (processor instanceof PipelineProcessor pipelineProcessor) {
-            String pipelineName = pipelineProcessor.getPipelineTemplate().newInstance(Map.of()).execute();
-            sb.append(":");
-            sb.append(pipelineName);
-        }
         String tag = processor.getTag();
-        if (tag != null && tag.isEmpty() == false) {
-            sb.append(":");
-            sb.append(tag);
+        if (tag != null && tag.isEmpty()) {
+            tag = null; // it simplifies the rest of the logic slightly to coalesce to null
         }
-        return sb.toString();
+
+        String pipelineName = null;
+        if (processor instanceof PipelineProcessor pipelineProcessor) {
+            pipelineName = pipelineProcessor.getPipelineTemplate().newInstance(Map.of()).execute();
+        }
+
+        // if there's a tag, OR if it's a pipeline processor, then the processor name is a compound thing,
+        // BUT if neither of those apply, then it's just the type -- so we can return the type itself without
+        // allocating a new String object
+        if (tag == null && pipelineName == null) {
+            return processor.getType();
+        } else {
+            StringBuilder sb = new StringBuilder(5);
+            sb.append(processor.getType());
+            if (pipelineName != null) {
+                sb.append(":");
+                sb.append(pipelineName);
+            }
+            if (tag != null) {
+                sb.append(":");
+                sb.append(tag);
+            }
+            return sb.toString();
+        }
     }
 
     /**

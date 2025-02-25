@@ -1459,7 +1459,8 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Runs the code block for the provided interval, waiting for no assertions to trip.
+     * Runs the code block for the provided interval, waiting for no assertions to trip. Retries on AssertionError
+     * with exponential backoff until provided time runs out
      */
     public static void assertBusy(CheckedRunnable<Exception> codeBlock, long maxWaitTime, TimeUnit unit) throws Exception {
         long maxTimeInMillis = TimeUnit.MILLISECONDS.convert(maxWaitTime, unit);

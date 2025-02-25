@@ -41,6 +41,10 @@ public class InferenceServiceRegistry implements Closeable {
         services.values().forEach(s -> s.init(client));
     }
 
+    public void onNodeStarted() {
+        services.values().forEach(InferenceService::onNodeStarted);
+    }
+
     public Map<String, InferenceService> getServices() {
         return services;
     }

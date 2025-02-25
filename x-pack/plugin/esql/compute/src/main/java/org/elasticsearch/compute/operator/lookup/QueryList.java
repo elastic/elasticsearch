@@ -36,6 +36,7 @@ import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.IntFunction;
@@ -47,13 +48,19 @@ public abstract class QueryList {
     protected final SearchExecutionContext searchExecutionContext;
     protected final MappedFieldType field;
     protected final Block block;
-    protected final boolean onlySingleValues;
+    @Nullable
+    protected final OnlySingleValueParams onlySingleValueParams;
 
-    protected QueryList(MappedFieldType field, SearchExecutionContext searchExecutionContext, Block block, boolean onlySingleValues) {
+    protected QueryList(
+        MappedFieldType field,
+        SearchExecutionContext searchExecutionContext,
+        Block block,
+        OnlySingleValueParams onlySingleValueParams
+    ) {
         this.searchExecutionContext = searchExecutionContext;
         this.field = field;
         this.block = block;
-        this.onlySingleValues = onlySingleValues;
+        this.onlySingleValueParams = onlySingleValueParams;
     }
 
     /**
@@ -66,19 +73,27 @@ public abstract class QueryList {
     /**
      * Returns a copy of this query list that only returns queries for single-valued positions.
      * That is, it returns `null` queries for either multivalued or null positions.
+     * <p>
+     *     Whenever a multi-value position is encountered, whether in the input block or in the queried index, a warning is emitted.
+     * </p>
      */
-    public abstract QueryList onlySingleValues();
+    public abstract QueryList onlySingleValues(Warnings warnings, String multiValueWarningMessage);
 
     final Query getQuery(int position) {
         final int valueCount = block.getValueCount(position);
-        if (onlySingleValues && valueCount != 1) {
+        if (onlySingleValueParams != null && valueCount != 1) {
+            if (valueCount > 1) {
+                onlySingleValueParams.warnings.registerException(
+                    new IllegalArgumentException(onlySingleValueParams.multiValueWarningMessage)
+                );
+            }
             return null;
         }
         final int firstValueIndex = block.getFirstValueIndex(position);
 
         Query query = doGetQuery(position, firstValueIndex, valueCount);
 
-        if (onlySingleValues) {
+        if (onlySingleValueParams != null) {
             query = wrapSingleValueQuery(query);
         }
 
@@ -92,13 +107,16 @@ public abstract class QueryList {
     abstract Query doGetQuery(int position, int firstValueIndex, int valueCount);
 
     private Query wrapSingleValueQuery(Query query) {
+        assert onlySingleValueParams != null : "Requested to wrap single value query without single value params";
+
         SingleValueMatchQuery singleValueQuery = new SingleValueMatchQuery(
             searchExecutionContext.getForField(field, MappedFieldType.FielddataOperation.SEARCH),
             // Not emitting warnings for multivalued fields not matching
-            Warnings.NOOP_WARNINGS
+            onlySingleValueParams.warnings,
+            onlySingleValueParams.multiValueWarningMessage
         );
 
-        Query rewrite = singleValueQuery;
+        Query rewrite;
         try {
             rewrite = singleValueQuery.rewrite(searchExecutionContext.searcher());
             if (rewrite instanceof MatchAllDocsQuery) {
@@ -106,8 +124,7 @@ public abstract class QueryList {
                 return query;
             }
         } catch (IOException e) {
-            // ignore
-            // TODO: Should we do something with the exception?
+            throw new UncheckedIOException("Error while rewriting SingleValueQuery", e);
         }
 
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
@@ -152,7 +169,7 @@ public abstract class QueryList {
             case COMPOSITE -> throw new IllegalArgumentException("can't read values from [composite] block");
             case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");
         };
-        return new TermQueryList(field, searchExecutionContext, block, false, blockToJavaObject);
+        return new TermQueryList(field, searchExecutionContext, block, null, blockToJavaObject);
     }
 
     /**
@@ -162,7 +179,7 @@ public abstract class QueryList {
     public static QueryList ipTermQueryList(MappedFieldType field, SearchExecutionContext searchExecutionContext, BytesRefBlock block) {
         BytesRef scratch = new BytesRef();
         byte[] ipBytes = new byte[InetAddressPoint.BYTES];
-        return new TermQueryList(field, searchExecutionContext, block, false, offset -> {
+        return new TermQueryList(field, searchExecutionContext, block, null, offset -> {
             final var bytes = block.getBytesRef(offset, scratch);
             if (ipBytes.length != bytes.length) {
                 // Lucene only support 16-byte IP addresses, even IPv4 is encoded in 16 bytes
@@ -182,7 +199,7 @@ public abstract class QueryList {
             field,
             searchExecutionContext,
             block,
-            false,
+            null,
             field instanceof RangeFieldMapper.RangeFieldType rangeFieldType
                 ? offset -> rangeFieldType.dateTimeFormatter().formatMillis(block.getLong(offset))
                 : block::getLong
@@ -193,7 +210,7 @@ public abstract class QueryList {
      * Returns a list of geo_shape queries for the given field and the input block.
      */
     public static QueryList geoShapeQueryList(MappedFieldType field, SearchExecutionContext searchExecutionContext, Block block) {
-        return new GeoShapeQueryList(field, searchExecutionContext, block, false);
+        return new GeoShapeQueryList(field, searchExecutionContext, block, null);
     }
 
     private static class TermQueryList extends QueryList {
@@ -203,16 +220,22 @@ public abstract class QueryList {
             MappedFieldType field,
             SearchExecutionContext searchExecutionContext,
             Block block,
-            boolean onlySingleValues,
+            OnlySingleValueParams onlySingleValueParams,
             IntFunction<Object> blockValueReader
         ) {
-            super(field, searchExecutionContext, block, onlySingleValues);
+            super(field, searchExecutionContext, block, onlySingleValueParams);
             this.blockValueReader = blockValueReader;
         }
 
         @Override
-        public TermQueryList onlySingleValues() {
-            return new TermQueryList(field, searchExecutionContext, block, true, blockValueReader);
+        public TermQueryList onlySingleValues(Warnings warnings, String multiValueWarningMessage) {
+            return new TermQueryList(
+                field,
+                searchExecutionContext,
+                block,
+                new OnlySingleValueParams(warnings, multiValueWarningMessage),
+                blockValueReader
+            );
         }
 
         @Override
@@ -241,17 +264,22 @@ public abstract class QueryList {
             MappedFieldType field,
             SearchExecutionContext searchExecutionContext,
             Block block,
-            boolean onlySingleValues
+            OnlySingleValueParams onlySingleValueParams
         ) {
-            super(field, searchExecutionContext, block, onlySingleValues);
+            super(field, searchExecutionContext, block, onlySingleValueParams);
 
             this.blockValueReader = blockToGeometry(block);
             this.shapeQuery = shapeQuery();
         }
 
         @Override
-        public GeoShapeQueryList onlySingleValues() {
-            return new GeoShapeQueryList(field, searchExecutionContext, block, true);
+        public GeoShapeQueryList onlySingleValues(Warnings warnings, String multiValueWarningMessage) {
+            return new GeoShapeQueryList(
+                field,
+                searchExecutionContext,
+                block,
+                new OnlySingleValueParams(warnings, multiValueWarningMessage)
+            );
         }
 
         @Override
@@ -295,4 +323,6 @@ public abstract class QueryList {
             throw new IllegalArgumentException("Unsupported field type for geo_match ENRICH: " + field.typeName());
         }
     }
+
+    protected record OnlySingleValueParams(Warnings warnings, String multiValueWarningMessage) {}
 }

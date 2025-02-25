@@ -20,8 +20,10 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.cluster.ClusterStateChanges;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -31,11 +33,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -220,5 +225,49 @@ public class AutoExpandReplicasTests extends ESTestCase {
         int matchingNodes = between(0, max);
         assertThat(autoExpandReplicas.calculateDesiredNumberOfReplicas(matchingNodes), equalTo(Math.max(lowerBound, matchingNodes - 1)));
         assertThat(autoExpandReplicas.calculateDesiredNumberOfReplicas(max + 1), equalTo(max));
+    }
+
+    public void testGetAutoExpandReplicaChangesStatelessIndices() {
+        {
+            // number of replicas is adjusted to 1 when it is initialized to 0
+            Metadata metadata = Metadata.builder()
+                .put(
+                    IndexMetadata.builder("test")
+                        .settings(
+                            Settings.builder()
+                                .put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), "stateless")
+                                .put("index.version.created", IndexVersion.current())
+                                .put(SETTING_NUMBER_OF_SHARDS, 1)
+                                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                                .put(INDEX_AUTO_EXPAND_REPLICAS_SETTING.getKey(), "0-all")
+                        )
+                )
+                .build();
+            Map<Integer, List<String>> autoExpandReplicaChanges = AutoExpandReplicas.getAutoExpandReplicaChanges(metadata, null);
+            assertEquals(1, autoExpandReplicaChanges.size());
+            List<String> indices = autoExpandReplicaChanges.get(1);
+            assertEquals(1, indices.size());
+            assertEquals("test", indices.getFirst());
+        }
+        {
+            // no changes when number of replicas is set to anything other than 0
+            Metadata metadata = Metadata.builder()
+                .put(
+                    IndexMetadata.builder("test")
+                        .settings(
+                            Settings.builder()
+                                .put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), "stateless")
+                                .put("index.version.created", IndexVersion.current())
+                                .put(SETTING_NUMBER_OF_SHARDS, 1)
+                                .put(SETTING_NUMBER_OF_REPLICAS, randomIntBetween(1, 10))
+                                .put(INDEX_AUTO_EXPAND_REPLICAS_SETTING.getKey(), "0-all")
+                        )
+                )
+                .build();
+            Map<Integer, List<String>> autoExpandReplicaChanges = AutoExpandReplicas.getAutoExpandReplicaChanges(metadata, () -> {
+                throw new UnsupportedOperationException();
+            });
+            assertEquals(0, autoExpandReplicaChanges.size());
+        }
     }
 }

@@ -117,6 +117,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     public static final NodeFeature SEMANTIC_TEXT_ALWAYS_EMIT_INFERENCE_ID_FIX = new NodeFeature(
         "semantic_text.always_emit_inference_id_fix"
     );
+    public static final NodeFeature SEMANTIC_TEXT_SKIP_INFERENCE_FIELDS = new NodeFeature("semantic_text.skip_inference_fields");
 
     public static final String CONTENT_TYPE = "semantic_text";
     public static final String DEFAULT_ELSER_2_INFERENCE_ID = DEFAULT_ELSER_ID;
@@ -708,9 +709,12 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
                         MlTextEmbeddingResults textEmbeddingResults = (MlTextEmbeddingResults) inferenceResults;
                         float[] inference = textEmbeddingResults.getInferenceAsFloat();
-                        if (inference.length != modelSettings.dimensions()) {
+                        var inferenceLength = modelSettings.elementType() == DenseVectorFieldMapper.ElementType.BIT
+                            ? inference.length * Byte.SIZE
+                            : inference.length;
+                        if (inferenceLength != modelSettings.dimensions()) {
                             throw new IllegalArgumentException(
-                                generateDimensionCountMismatchMessage(inference.length, modelSettings.dimensions())
+                                generateDimensionCountMismatchMessage(inferenceLength, modelSettings.dimensions())
                             );
                         }
 

@@ -396,7 +396,15 @@ public class ObjectMapper extends Mapper {
                     }
                     Mapper.TypeParser typeParser = parserContext.typeParser(type);
                     if (typeParser == null) {
-                        throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + fieldName + "]");
+                        throw new MapperParsingException(
+                            "The mapper type ["
+                                + type
+                                + "] declared on field ["
+                                + fieldName
+                                + "] does not exist."
+                                + " It might have been created within a future version or requires a plugin to be installed."
+                                + " Check the documentation."
+                        );
                     }
                     Mapper.Builder fieldBuilder;
                     if (objBuilder.subobjects.isPresent() && objBuilder.subobjects.get() != Subobjects.ENABLED) {

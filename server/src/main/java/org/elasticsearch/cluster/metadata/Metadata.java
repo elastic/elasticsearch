@@ -1714,7 +1714,17 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
                                 && MOVED_PROJECT_CUSTOMS.contains(currentFieldName) == false) {
                                 parseCustomObject(parser, currentFieldName, ClusterCustom.class, builder::putCustom);
                             } else if (registry.hasParser(ProjectCustom.class, currentFieldName, parser.getRestApiVersion())) {
-                                parseCustomObject(parser, currentFieldName, ProjectCustom.class, builder::putProjectCustom);
+                                parseCustomObject(parser, currentFieldName, ProjectCustom.class, (name, projectCustom) -> {
+                                    if (projectCustom instanceof PersistentTasksCustomMetadata persistentTasksCustomMetadata) {
+                                        assert PersistentTasksCustomMetadata.TYPE.equals(name)
+                                            : name + " != " + PersistentTasksCustomMetadata.TYPE;
+                                        final var tuple = persistentTasksCustomMetadata.split();
+                                        builder.putProjectCustom(PersistentTasksCustomMetadata.TYPE, tuple.v2());
+                                        builder.putCustom(ClusterPersistentTasksCustomMetadata.TYPE, tuple.v1());
+                                    } else {
+                                        builder.putProjectCustom(name, projectCustom);
+                                    }
+                                });
                             } else {
                                 logger.warn("Skipping unknown custom object with type {}", currentFieldName);
                                 parser.skipChildren();

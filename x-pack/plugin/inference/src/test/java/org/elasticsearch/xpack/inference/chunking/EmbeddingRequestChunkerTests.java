@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.TextEmbeddingBitResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
@@ -337,6 +338,78 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
                 embeddings.add(new TextEmbeddingByteResults.Embedding(new byte[] { randomByte() }));
             }
             batches.get(1).listener().onResponse(new TextEmbeddingByteResults(embeddings));
+        }
+
+        assertNotNull(finalListener.results);
+        assertThat(finalListener.results, hasSize(4));
+        {
+            var chunkedResult = finalListener.results.get(0);
+            assertThat(chunkedResult, instanceOf(ChunkedInferenceEmbedding.class));
+            var chunkedByteResult = (ChunkedInferenceEmbedding) chunkedResult;
+            assertThat(chunkedByteResult.chunks(), hasSize(1));
+            assertEquals("1st small", chunkedByteResult.chunks().get(0).matchedText());
+        }
+        {
+            // this is the large input split in multiple chunks
+            var chunkedResult = finalListener.results.get(1);
+            assertThat(chunkedResult, instanceOf(ChunkedInferenceEmbedding.class));
+            var chunkedByteResult = (ChunkedInferenceEmbedding) chunkedResult;
+            assertThat(chunkedByteResult.chunks(), hasSize(6));
+            assertThat(chunkedByteResult.chunks().get(0).matchedText(), startsWith("passage_input0 "));
+            assertThat(chunkedByteResult.chunks().get(1).matchedText(), startsWith(" passage_input20 "));
+            assertThat(chunkedByteResult.chunks().get(2).matchedText(), startsWith(" passage_input40 "));
+            assertThat(chunkedByteResult.chunks().get(3).matchedText(), startsWith(" passage_input60 "));
+            assertThat(chunkedByteResult.chunks().get(4).matchedText(), startsWith(" passage_input80 "));
+            assertThat(chunkedByteResult.chunks().get(5).matchedText(), startsWith(" passage_input100 "));
+        }
+        {
+            var chunkedResult = finalListener.results.get(2);
+            assertThat(chunkedResult, instanceOf(ChunkedInferenceEmbedding.class));
+            var chunkedByteResult = (ChunkedInferenceEmbedding) chunkedResult;
+            assertThat(chunkedByteResult.chunks(), hasSize(1));
+            assertEquals("2nd small", chunkedByteResult.chunks().get(0).matchedText());
+        }
+        {
+            var chunkedResult = finalListener.results.get(3);
+            assertThat(chunkedResult, instanceOf(ChunkedInferenceEmbedding.class));
+            var chunkedByteResult = (ChunkedInferenceEmbedding) chunkedResult;
+            assertThat(chunkedByteResult.chunks(), hasSize(1));
+            assertEquals("3rd small", chunkedByteResult.chunks().get(0).matchedText());
+        }
+    }
+
+    public void testMergingListener_Bit() {
+        int batchSize = 5;
+        int chunkSize = 20;
+        int overlap = 0;
+        // passage will be chunked into batchSize + 1 parts
+        // and spread over 2 batch requests
+        int numberOfWordsInPassage = (chunkSize * batchSize) + 5;
+
+        var passageBuilder = new StringBuilder();
+        for (int i = 0; i < numberOfWordsInPassage; i++) {
+            passageBuilder.append("passage_input").append(i).append(" "); // chunk on whitespace
+        }
+        List<String> inputs = List.of("1st small", passageBuilder.toString(), "2nd small", "3rd small");
+
+        var finalListener = testListener();
+        var batches = new EmbeddingRequestChunker(inputs, batchSize, chunkSize, overlap).batchRequestsWithListeners(finalListener);
+        assertThat(batches, hasSize(2));
+
+        // 4 inputs in 2 batches
+        {
+            var embeddings = new ArrayList<TextEmbeddingByteResults.Embedding>();
+            for (int i = 0; i < batchSize; i++) {
+                embeddings.add(new TextEmbeddingByteResults.Embedding(new byte[] { randomByte() }));
+            }
+            batches.get(0).listener().onResponse(new TextEmbeddingBitResults(embeddings));
+        }
+        {
+            var embeddings = new ArrayList<TextEmbeddingByteResults.Embedding>();
+            for (int i = 0; i < 4; i++) { // 4 requests in the 2nd batch
+                embeddings.add(new TextEmbeddingByteResults.Embedding(new byte[] { randomByte() }));
+            }
+            batches.get(1).listener().onResponse(new TextEmbeddingBitResults(embeddings));
         }
 
         assertNotNull(finalListener.results);

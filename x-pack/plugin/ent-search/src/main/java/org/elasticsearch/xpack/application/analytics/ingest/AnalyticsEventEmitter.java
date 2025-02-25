@@ -34,6 +34,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 
+/**
+ * @deprecated in 9.0
+ */
+@Deprecated
 public class AnalyticsEventEmitter extends AbstractLifecycleComponent {
 
     private static final Logger logger = LogManager.getLogger(AnalyticsEventEmitter.class);

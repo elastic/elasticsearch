@@ -222,7 +222,10 @@ public class EntitlementInitialization {
                 "org.apache.lucene.misc",
                 List.of(new FilesEntitlement(List.of(FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE))))
             ),
-            new Scope("org.apache.logging.log4j.core", List.of(new ManageThreadsEntitlement())),
+            new Scope(
+                "org.apache.logging.log4j.core",
+                List.of(new ManageThreadsEntitlement(), new FilesEntitlement(List.of(FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE))))
+            ),
             new Scope(
                 "org.elasticsearch.nativeaccess",
                 List.of(
@@ -269,7 +272,8 @@ public class EntitlementInitialization {
             resolver,
             AGENTS_PACKAGE_NAME,
             ENTITLEMENTS_MODULE,
-            pathLookup
+            pathLookup,
+            bootstrapArgs.suppressFailureLogClasses()
         );
     }
 

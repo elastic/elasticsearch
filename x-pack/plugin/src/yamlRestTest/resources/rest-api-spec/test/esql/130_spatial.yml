@@ -161,12 +161,12 @@ values supported for geo_point:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'FROM geo_points | STATS locations = VALUES(location)'
+          query: 'FROM geo_points | STATS locations = VALUES(location) | EVAL locations = MV_SORT(TO_STRING(locations))'
   - length: { columns: 1 }
   - match: { columns.0.name: locations }
-  - match: { columns.0.type: geo_point }
+  - match: { columns.0.type: keyword }
   - length: { values: 1 }
-  - match: { values.0.0: ["POINT (1.0 -1.0)", "POINT (-1.0 1.0)"] }
+  - match: { values.0.0: ["POINT (-1.0 1.0)", "POINT (1.0 -1.0)"] }
 
 ---
 cartesian_point:

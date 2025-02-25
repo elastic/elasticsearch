@@ -106,7 +106,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                 String taskDescription = status.taskDescription();
                 for (DriverStatus.OperatorStatus o : status.activeOperators()) {
                     logger.info("status {}", o);
-                    if (o.operator().startsWith("LuceneSourceOperator[maxPageSize = " + pageSize())) {
+                    if (o.operator().startsWith("LuceneSourceOperator[")) {
                         assertThat(taskDescription, equalTo("data"));
                         LuceneSourceOperator.Status oStatus = (LuceneSourceOperator.Status) o.status();
                         assertThat(oStatus.processedSlices(), lessThanOrEqualTo(oStatus.totalSlices()));

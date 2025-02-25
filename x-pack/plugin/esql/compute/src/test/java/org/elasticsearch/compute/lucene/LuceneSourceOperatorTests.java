@@ -99,7 +99,7 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return matchesRegex("LuceneSourceOperator\\[maxPageSize = \\d+, remainingDocs = \\d+]");
+        return matchesRegex("LuceneSourceOperator\\[shards = \\[test], maxPageSize = \\d+, remainingDocs = \\d+]");
     }
 
     @Override

@@ -1068,6 +1068,25 @@ Gatewayinstances|Gateway instances
 null            |null             
 ;
 
+replaceWarnings
+required_capability: functions_source_serialization_warnings
+
+FROM employees
+| SORT first_name ASC
+| EVAL
+    regex = CASE(first_name == "Alejandro", "(", ""),
+    result = replace(first_name, regex, "")
+| KEEP first_name, result
+| LIMIT 1
+;
+
+warningRegex:Line 5:10: evaluation of \[replace\(first_name, regex, \\"\\"\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 5:10: java.util.regex.PatternSyntaxException: Unclosed group near index 1(%0D)?%0A\(
+
+first_name:keyword | result:keyword
+Alejandro          | null
+;
+
 left
 // tag::left[]
 FROM employees

@@ -238,13 +238,13 @@ public class FileAccessTreeTests extends ESTestCase {
         assertThat(tree.canWrite(path("foo/bar")), is(false));
         tree = accessTree(
             entitlement("foo", "read", "foo.xml", "read", "foo/bar.xml", "read_write"),
-            exclusivePaths("test-component", "diff-module", "foo/bar")
+            exclusivePaths("test-component", "diff-module", "foo/bar", "foo/baz", "other")
         );
         assertThat(tree.canRead(path("foo")), is(true));
         assertThat(tree.canWrite(path("foo")), is(false));
         assertThat(tree.canRead(path("foo.xml")), is(true));
         assertThat(tree.canWrite(path("foo.xml")), is(false));
-        assertThat(tree.canRead(path("foo/baz")), is(true));
+        assertThat(tree.canRead(path("foo/baz")), is(false));
         assertThat(tree.canWrite(path("foo/baz")), is(false));
         assertThat(tree.canRead(path("foo/bar")), is(false));
         assertThat(tree.canWrite(path("foo/bar")), is(false));
@@ -252,6 +252,8 @@ public class FileAccessTreeTests extends ESTestCase {
         assertThat(tree.canWrite(path("foo/bar.xml")), is(true));
         assertThat(tree.canRead(path("foo/bar.baz")), is(true));
         assertThat(tree.canWrite(path("foo/bar.baz")), is(false));
+        assertThat(tree.canRead(path("foo/biz/bar.xml")), is(true));
+        assertThat(tree.canWrite(path("foo/biz/bar.xml")), is(false));
     }
 
     public void testInvalidExclusiveAccess() {

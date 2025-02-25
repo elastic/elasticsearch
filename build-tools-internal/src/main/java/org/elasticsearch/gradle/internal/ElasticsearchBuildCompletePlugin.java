@@ -110,6 +110,8 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
         projectDirFiles.include("**/build/testrun/*/temp/**");
         projectDirFiles.include("**/build/**/hs_err_pid*.log");
         projectDirFiles.include("**/build/**/replay_pid*.log");
+        // core dump files are in the working directory of the installation, which is not project specific
+        projectDirFiles.include("distribution/**/build/install/*/core.*");
         projectDirFiles.exclude("**/build/testclusters/**/data/**");
         projectDirFiles.exclude("**/build/testclusters/**/distro/**");
         projectDirFiles.exclude("**/build/testclusters/**/repo/**");

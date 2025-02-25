@@ -626,68 +626,101 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
         @Override
         public IngestMetadata execute(IngestMetadata currentIngestMetadata, Collection<IndexMetadata> allIndexMetadata) {
-            BytesReference pipelineSource = request.getSource();
-            if (request.getVersion() != null) {
-                var currentPipeline = currentIngestMetadata != null ? currentIngestMetadata.getPipelines().get(request.getId()) : null;
-                if (currentPipeline == null) {
-                    throw new IllegalArgumentException(
-                        String.format(
-                            Locale.ROOT,
-                            "version conflict, required version [%s] for pipeline [%s] but no pipeline was found",
-                            request.getVersion(),
-                            request.getId()
-                        )
-                    );
-                }
-
-                final Integer currentVersion = currentPipeline.getVersion();
-                if (Objects.equals(request.getVersion(), currentVersion) == false) {
-                    throw new IllegalArgumentException(
-                        String.format(
-                            Locale.ROOT,
-                            "version conflict, required version [%s] for pipeline [%s] but current version is [%s]",
-                            request.getVersion(),
-                            request.getId(),
-                            currentVersion
-                        )
-                    );
-                }
-
-                var pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
-                final Integer specifiedVersion = (Integer) pipelineConfig.get("version");
-                if (pipelineConfig.containsKey("version") && Objects.equals(specifiedVersion, currentVersion)) {
-                    throw new IllegalArgumentException(
-                        String.format(
-                            Locale.ROOT,
-                            "cannot update pipeline [%s] with the same version [%s]",
-                            request.getId(),
-                            request.getVersion()
-                        )
-                    );
-                }
-
-                // if no version specified in the pipeline definition, inject a version of [request.getVersion() + 1]
-                if (specifiedVersion == null) {
-                    pipelineConfig.put("version", request.getVersion() == null ? 1 : request.getVersion() + 1);
-                    try {
-                        var builder = XContentBuilder.builder(request.getXContentType().xContent()).map(pipelineConfig);
-                        pipelineSource = BytesReference.bytes(builder);
-                    } catch (IOException e) {
-                        throw new IllegalStateException(e);
-                    }
-                }
-            }
-
-            Map<String, PipelineConfiguration> pipelines;
-            if (currentIngestMetadata != null) {
-                pipelines = new HashMap<>(currentIngestMetadata.getPipelines());
-            } else {
-                pipelines = new HashMap<>();
-            }
-
-            pipelines.put(request.getId(), new PipelineConfiguration(request.getId(), pipelineSource, request.getXContentType()));
-            return new IngestMetadata(pipelines);
+            return clusterStateBulkUpdatePipelines(currentIngestMetadata, List.of(request));
         }
+    }
+
+    /**
+     * Gets the pipelines from the current metadata as a new map, or creates an empty map to hold updates.
+     */
+    static Map<String, PipelineConfiguration> getPipelines(IngestMetadata currentIngestMetadata) {
+        Map<String, PipelineConfiguration> pipelines;
+        if (currentIngestMetadata != null) {
+            pipelines = new HashMap<>(currentIngestMetadata.getPipelines());
+        } else {
+            pipelines = new HashMap<>();
+        }
+        return pipelines;
+    }
+
+    /**
+     * Validates the request version against the current state of the ingest metadata, and returns the request's source data optionally
+     * modified with an incremented version number if needed.
+     * @param currentIngestMetadata current state of the ingest metadata
+     * @param request put pipeline request to validate
+     * @return source data from the give request, potentially updated with version info if needed
+     */
+    static BytesReference validatePipelineVersionAndGetSource(
+        IngestMetadata currentIngestMetadata,
+        PutPipelineRequest request
+    ) {
+        if (request.getVersion() != null) {
+            var currentPipeline = currentIngestMetadata != null ? currentIngestMetadata.getPipelines().get(request.getId()) : null;
+            if (currentPipeline == null) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "version conflict, required version [%s] for pipeline [%s] but no pipeline was found",
+                        request.getVersion(),
+                        request.getId()
+                    )
+                );
+            }
+
+            final Integer currentVersion = currentPipeline.getVersion();
+            if (Objects.equals(request.getVersion(), currentVersion) == false) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "version conflict, required version [%s] for pipeline [%s] but current version is [%s]",
+                        request.getVersion(),
+                        request.getId(),
+                        currentVersion
+                    )
+                );
+            }
+
+            var pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
+            final Integer specifiedVersion = (Integer) pipelineConfig.get("version");
+            if (pipelineConfig.containsKey("version") && Objects.equals(specifiedVersion, currentVersion)) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "cannot update pipeline [%s] with the same version [%s]",
+                        request.getId(),
+                        request.getVersion()
+                    )
+                );
+            }
+
+            // if no version specified in the pipeline definition, inject a version of [request.getVersion() + 1]
+            if (specifiedVersion == null) {
+                pipelineConfig.put("version", request.getVersion() == null ? 1 : request.getVersion() + 1);
+                try {
+                    var builder = XContentBuilder.builder(request.getXContentType().xContent()).map(pipelineConfig);
+                    return BytesReference.bytes(builder);
+                } catch (IOException e) {
+                    throw new IllegalStateException(e);
+                }
+            }
+        }
+        return request.getSource();
+    }
+
+    public static IngestMetadata clusterStateBulkUpdatePipelines(IngestMetadata currentIngestMetadata, List<PutPipelineRequest> requests) {
+        if (requests.isEmpty()) {
+            return currentIngestMetadata;
+        }
+        Map<String, PipelineConfiguration> pipelines = null;
+        for (PutPipelineRequest request : requests) {
+            BytesReference pipelineSource = validatePipelineVersionAndGetSource(currentIngestMetadata, request);
+            if (pipelines == null) {
+                // Lazily construct the pipelines map until after the first operation is validated
+                pipelines = getPipelines(currentIngestMetadata);
+            }
+            pipelines.put(request.getId(), new PipelineConfiguration(request.getId(), pipelineSource, request.getXContentType()));
+        }
+        return new IngestMetadata(pipelines);
     }
 
     @UpdateForV10(owner = DATA_MANAGEMENT) // Change deprecation log for special characters in name to a failure

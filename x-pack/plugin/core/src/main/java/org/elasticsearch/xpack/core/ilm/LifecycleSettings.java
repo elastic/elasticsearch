@@ -36,7 +36,7 @@ public class LifecycleSettings {
 
     public static final Setting<TimeValue> LIFECYCLE_POLL_INTERVAL_SETTING = Setting.timeSetting(
         LIFECYCLE_POLL_INTERVAL,
-        TimeValue.timeValueMinutes(10),
+        TimeValue.timeValueMinutes(1),
         TimeValue.timeValueSeconds(1),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope

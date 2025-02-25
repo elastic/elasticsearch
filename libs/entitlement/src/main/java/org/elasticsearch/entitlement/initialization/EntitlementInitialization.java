@@ -154,7 +154,7 @@ public class EntitlementInitialization {
             // Base ES directories
             FileData.ofPath(bootstrapArgs.configDir(), READ),
             FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
-            FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE),
+            FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE),
             FileData.ofRelativePath(Path.of(""), SHARED_REPO, READ_WRITE),
 
             // OS release on Linux

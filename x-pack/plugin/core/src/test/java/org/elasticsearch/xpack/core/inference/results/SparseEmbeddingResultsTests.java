@@ -5,12 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.results;
+package org.elasticsearch.xpack.core.inference.results;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 
@@ -20,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class SparseEmbeddingResultsTests extends AbstractWireSerializingTestCase<SparseEmbeddingResults> {
@@ -156,6 +156,44 @@ public class SparseEmbeddingResultsTests extends AbstractWireSerializingTestCase
                 List.of(
                     new TextExpansionResults(DEFAULT_RESULTS_FIELD, List.of(new WeightedToken("token", 0.1F)), false),
                     new TextExpansionResults(DEFAULT_RESULTS_FIELD, List.of(new WeightedToken("token2", 0.2F)), true)
+                )
+            )
+        );
+    }
+
+    public void testEmbeddingMerge() {
+        SparseEmbeddingResults.Embedding embedding1 = new SparseEmbeddingResults.Embedding(
+            List.of(
+                new WeightedToken("this", 1.0f),
+                new WeightedToken("is", 0.8f),
+                new WeightedToken("the", 0.6f),
+                new WeightedToken("first", 0.4f),
+                new WeightedToken("embedding", 0.2f)
+            ),
+            true
+        );
+        SparseEmbeddingResults.Embedding embedding2 = new SparseEmbeddingResults.Embedding(
+            List.of(
+                new WeightedToken("this", 0.95f),
+                new WeightedToken("is", 0.85f),
+                new WeightedToken("another", 0.65f),
+                new WeightedToken("embedding", 0.15f)
+            ),
+            false
+        );
+        assertThat(
+            embedding1.merge(embedding2),
+            equalTo(
+                new SparseEmbeddingResults.Embedding(
+                    List.of(
+                        new WeightedToken("this", 1.0f),
+                        new WeightedToken("is", 0.85f),
+                        new WeightedToken("another", 0.65f),
+                        new WeightedToken("the", 0.6f),
+                        new WeightedToken("first", 0.4f),
+                        new WeightedToken("embedding", 0.2f)
+                    ),
+                    true
                 )
             )
         );

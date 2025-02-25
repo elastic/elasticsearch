@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -42,7 +43,8 @@ public class EntitlementBootstrap {
         Path libDir,
         Path logsDir,
         Path tempDir,
-        Path pidFile
+        Path pidFile,
+        Set<Class<?>> suppressFailureLogClasses
     ) {
         public BootstrapArgs {
             requireNonNull(pluginPolicies);
@@ -58,6 +60,7 @@ public class EntitlementBootstrap {
             requireNonNull(libDir);
             requireNonNull(logsDir);
             requireNonNull(tempDir);
+            requireNonNull(suppressFailureLogClasses);
         }
     }
 
@@ -82,6 +85,7 @@ public class EntitlementBootstrap {
      * @param tempDir        the temp directory for Elasticsearch
      * @param logsDir        the log directory for Elasticsearch
      * @param pidFile        path to a pid file for Elasticsearch, or {@code null} if one was not specified
+     * @param suppressFailureLogClasses   classes for which we do not need or want to log Entitlements failures
      */
     public static void bootstrap(
         Map<String, Policy> pluginPolicies,
@@ -94,7 +98,8 @@ public class EntitlementBootstrap {
         Path libDir,
         Path logsDir,
         Path tempDir,
-        Path pidFile
+        Path pidFile,
+        Set<Class<?>> suppressFailureLogClasses
     ) {
         logger.debug("Loading entitlement agent");
         if (EntitlementBootstrap.bootstrapArgs != null) {
@@ -111,7 +116,8 @@ public class EntitlementBootstrap {
             libDir,
             logsDir,
             tempDir,
-            pidFile
+            pidFile,
+            suppressFailureLogClasses
         );
         exportInitializationToAgent();
         loadAgent(findAgentJar());

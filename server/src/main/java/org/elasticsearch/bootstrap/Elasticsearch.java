@@ -256,9 +256,10 @@ class Elasticsearch {
                 nodeEnv.libDir(),
                 nodeEnv.logsDir(),
                 nodeEnv.tmpDir(),
-                args.pidFile()
+                args.pidFile(),
+                Set.of(EntitlementSelfTester.class)
             );
-            entitlementSelfTest();
+            EntitlementSelfTester.entitlementSelfTest();
         } else {
             assert RuntimeVersionFeature.isSecurityManagerAvailable();
             // no need to explicitly enable native access for legacy code
@@ -275,31 +276,33 @@ class Elasticsearch {
         bootstrap.setPluginsLoader(pluginsLoader);
     }
 
-    // check entitlements were loaded correctly. note this must be outside the entitlements lib.
-    private static void entitlementSelfTest() {
-        ensureCannotStartProcess(ProcessBuilder::start);
-        // Try again with reflection
-        ensureCannotStartProcess(Elasticsearch::reflectiveStartProcess);
-    }
-
-    private static void ensureCannotStartProcess(CheckedConsumer<ProcessBuilder, ?> startProcess) {
-        try {
-            // The command doesn't matter; it doesn't even need to exist
-            startProcess.accept(new ProcessBuilder(""));
-        } catch (NotEntitledException e) {
-            return;
-        } catch (Exception e) {
-            throw new IllegalStateException("Failed entitlement protection self-test", e);
+    private static class EntitlementSelfTester {
+        // check entitlements were loaded correctly. note this must be outside the entitlements lib.
+        private static void entitlementSelfTest() {
+            ensureCannotStartProcess(ProcessBuilder::start);
+            // Try again with reflection
+            ensureCannotStartProcess(EntitlementSelfTester::reflectiveStartProcess);
         }
-        throw new IllegalStateException("Entitlement protection self-test was incorrectly permitted");
-    }
 
-    private static void reflectiveStartProcess(ProcessBuilder pb) throws Exception {
-        try {
-            var start = ProcessBuilder.class.getMethod("start");
-            start.invoke(pb);
-        } catch (InvocationTargetException e) {
-            throw (Exception) e.getCause();
+        private static void ensureCannotStartProcess(CheckedConsumer<ProcessBuilder, ?> startProcess) {
+            try {
+                // The command doesn't matter; it doesn't even need to exist
+                startProcess.accept(new ProcessBuilder(""));
+            } catch (NotEntitledException e) {
+                return;
+            } catch (Exception e) {
+                throw new IllegalStateException("Failed entitlement protection self-test", e);
+            }
+            throw new IllegalStateException("Entitlement protection self-test was incorrectly permitted");
+        }
+
+        private static void reflectiveStartProcess(ProcessBuilder pb) throws Exception {
+            try {
+                var start = ProcessBuilder.class.getMethod("start");
+                start.invoke(pb);
+            } catch (InvocationTargetException e) {
+                throw (Exception) e.getCause();
+            }
         }
     }
 

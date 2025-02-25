@@ -113,7 +113,13 @@ public abstract class TransportWriteAction<
 
     @Override
     protected Releasable checkOperationLimits(Request request) {
-        return indexingPressure.markPrimaryOperationStarted(primaryOperationCount(request), primaryOperationSize(request), force(request));
+        return indexingPressure.validateAndMarkPrimaryOperationStarted(
+            primaryOperationCount(request),
+            primaryOperationSize(request),
+            primaryLargestOperationSize(request),
+            force(request),
+            primaryAllowsOperationsBeyondSizeLimit(request)
+        );
     }
 
     protected boolean force(ReplicatedWriteRequest<?> request) {
@@ -131,6 +137,11 @@ public abstract class TransportWriteAction<
             // If this primary request was received from a local reroute initiated by the node client, we
             // must mark a new primary operation local to the coordinating node.
             if (localRerouteInitiatedByNodeClient) {
+                indexingPressure.checkLargestPrimaryOperationIsWithinLimits(
+                    primaryOperationCount(request),
+                    primaryLargestOperationSize(request),
+                    primaryAllowsOperationsBeyondSizeLimit(request)
+                );
                 return indexingPressure.markPrimaryOperationLocalToCoordinatingNodeStarted(
                     primaryOperationCount(request),
                     primaryOperationSize(request)
@@ -142,11 +153,14 @@ public abstract class TransportWriteAction<
             // If this primary request was received directly from the network, we must mark a new primary
             // operation. This happens if the write action skips the reroute step (ex: rsync) or during
             // primary delegation, after the primary relocation hand-off.
-            return indexingPressure.markPrimaryOperationStarted(
+            return indexingPressure.validateAndMarkPrimaryOperationStarted(
                 primaryOperationCount(request),
                 primaryOperationSize(request),
-                force(request)
+                primaryLargestOperationSize(request),
+                force(request),
+                primaryAllowsOperationsBeyondSizeLimit(request)
             );
+
         }
     }
 
@@ -156,6 +170,14 @@ public abstract class TransportWriteAction<
 
     protected int primaryOperationCount(Request request) {
         return 0;
+    }
+
+    protected long primaryLargestOperationSize(Request request) {
+        return 0;
+    }
+
+    protected boolean primaryAllowsOperationsBeyondSizeLimit(Request request) {
+        return true;
     }
 
     @Override

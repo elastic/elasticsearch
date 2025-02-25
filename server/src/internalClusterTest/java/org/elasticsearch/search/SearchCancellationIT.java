@@ -267,7 +267,7 @@ public class SearchCancellationIT extends AbstractSearchCancellationTestCase {
                 if (letOneShardProceed.compareAndSet(false, true)) {
                     // Let one shard continue.
                 } else {
-                    safeAwait(shardTaskLatch); // Block the other shards.
+                    safeAwait(shardTaskLatch, TimeValue.timeValueSeconds(30)); // Block the other shards.
                 }
             });
         }

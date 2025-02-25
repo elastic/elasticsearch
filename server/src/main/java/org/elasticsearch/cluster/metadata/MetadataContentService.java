@@ -12,6 +12,8 @@ package org.elasticsearch.cluster.metadata;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
@@ -20,19 +22,19 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.IndexSettingProvider;
-import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.ingest.IngestMetadata;
+import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -41,35 +43,33 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class MetadataContentService {
 
     private static final Logger logger = LogManager.getLogger(MetadataContentService.class);
     private final ClusterService clusterService;
-    private final MasterServiceTaskQueue<ContentClusterStateUpdateTask> taskQueue;
+    private final MasterServiceTaskQueue<PutContentPackClusterStateUpdateTask> taskQueue;
     private final IndicesService indicesService;
-    private final MetadataCreateIndexService metadataCreateIndexService;
     private final MetadataIndexTemplateService metadataIndexTemplateService;
-    private final IndexScopedSettings indexScopedSettings;
     private final NamedXContentRegistry xContentRegistry;
-    private final SystemIndices systemIndices;
-    private final Set<IndexSettingProvider> indexSettingProviders;
     private final DataStreamGlobalRetentionSettings globalRetentionSettings;
+    private final IngestService ingestService;
 
     /**
      * This is the cluster state task executor for all bulk content installation actions.
      */
-    private static final SimpleBatchedExecutor<ContentClusterStateUpdateTask, Void> CONTENT_TASK_EXECUTOR =
+    private static final SimpleBatchedExecutor<PutContentPackClusterStateUpdateTask, Void> CONTENT_TASK_EXECUTOR =
         new SimpleBatchedExecutor<>() {
             @Override
-            public Tuple<ClusterState, Void> executeTask(ContentClusterStateUpdateTask task, ClusterState clusterState) throws Exception {
+            public Tuple<ClusterState, Void> executeTask(PutContentPackClusterStateUpdateTask task, ClusterState clusterState)
+                throws Exception {
                 return Tuple.tuple(task.execute(clusterState), null);
             }
 
             @Override
-            public void taskSucceeded(ContentClusterStateUpdateTask task, Void unused) {
+            public void taskSucceeded(PutContentPackClusterStateUpdateTask task, Void unused) {
                 task.listener.onResponse(AcknowledgedResponse.TRUE);
             }
         };
@@ -78,23 +78,26 @@ public class MetadataContentService {
      * A specialized cluster state update task that always takes a listener handling an
      * AcknowledgedResponse, as all template actions have simple acknowledged yes/no responses.
      */
-    private class ContentClusterStateUpdateTask implements ClusterStateTaskListener {
+    private class PutContentPackClusterStateUpdateTask implements ClusterStateTaskListener {
+        final List<PutPipelineRequest> ingestPipelines;
         final List<ComponentTemplateOperation> componentTemplateOperations;
         final List<ComposableTemplateOperation> composableTemplateOperations;
         final ActionListener<AcknowledgedResponse> listener;
 
-        ContentClusterStateUpdateTask(
+        PutContentPackClusterStateUpdateTask(
+            List<PutPipelineRequest> ingestPipelines,
             List<ComponentTemplateOperation> componentTemplateOperations,
             List<ComposableTemplateOperation> composableTemplateOperations,
             ActionListener<AcknowledgedResponse> listener
         ) {
+            this.ingestPipelines = ingestPipelines;
             this.componentTemplateOperations = componentTemplateOperations;
             this.composableTemplateOperations = composableTemplateOperations;
             this.listener = listener;
         }
 
         public ClusterState execute(ClusterState currentState) throws Exception {
-            return processBulkTemplateUpdate(currentState, componentTemplateOperations, composableTemplateOperations);
+            return processContentPackUpdate(currentState, ingestPipelines, componentTemplateOperations, composableTemplateOperations);
         }
 
         @Override
@@ -106,28 +109,37 @@ public class MetadataContentService {
     @Inject
     public MetadataContentService(
         ClusterService clusterService,
-        MetadataCreateIndexService metadataCreateIndexService,
         MetadataIndexTemplateService metadataIndexTemplateService,
         IndicesService indicesService,
-        IndexScopedSettings indexScopedSettings,
         NamedXContentRegistry xContentRegistry,
-        SystemIndices systemIndices,
-        IndexSettingProviders indexSettingProviders,
-        DataStreamGlobalRetentionSettings globalRetentionSettings
+        DataStreamGlobalRetentionSettings globalRetentionSettings,
+        IngestService ingestService
     ) {
         this.clusterService = clusterService;
         this.taskQueue = clusterService.createTaskQueue("plugin-contents", Priority.URGENT, CONTENT_TASK_EXECUTOR);
         this.indicesService = indicesService;
-        this.metadataCreateIndexService = metadataCreateIndexService;
         this.metadataIndexTemplateService = metadataIndexTemplateService;
-        this.indexScopedSettings = indexScopedSettings;
         this.xContentRegistry = xContentRegistry;
-        this.systemIndices = systemIndices;
-        this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
         this.globalRetentionSettings = globalRetentionSettings;
+        this.ingestService = ingestService;
     }
 
+    public record IngestPipelineOperation(String id, BytesReference content, XContentType xContentType) {}
+
+    /**
+     * A simple request holder for component template updates
+     * @param name
+     * @param template
+     * @param create
+     */
     public record ComponentTemplateOperation(String name, ComponentTemplate template, boolean create) {}
+
+    /**
+     * A simple request holder for index template updates
+     * @param name
+     * @param template
+     * @param create
+     */
     public record ComposableTemplateOperation(String name, ComposableIndexTemplate template, boolean create) {}
 
     /**
@@ -137,76 +149,170 @@ public class MetadataContentService {
      */
     public record NamedTemplateTuple(String name, ComposableIndexTemplate template) {}
 
-    public enum TemplateType {
-        COMPONENT_TEMPLATE,
-        COMPOSABLE_TEMPLATE
-    }
+    /**
+     * The collection of contents contained in this content pack that will be bulk updated/installed
+     * @param ingestPipelines
+     * @param componentTemplateOperations
+     * @param composableTemplateOperations
+     * @param masterTimeout
+     */
+    public record ContentPack(
+        List<IngestPipelineOperation> ingestPipelines,
+        List<ComponentTemplateOperation> componentTemplateOperations,
+        List<ComposableTemplateOperation> composableTemplateOperations,
+        TimeValue masterTimeout
+    ) {}
 
-    public record TemplateResult(String name, TemplateType type, Exception failure) {
-        public boolean hasFailure() {
-            return failure != null;
+    /**
+     * Bulk install/update all provided pipelines, templates, and lifecycles into the cluster state
+     * @param cause information about caller to identify this operation in the pending tasks
+     * @param contentPack collection of content needed to be installed/updated in this operation
+     * @param listener called upon completion of the installation
+     * @param nodeInfoListener optionally called to collect NodesInfoResponse for pipeline validation if applicable
+     */
+    public void installContentPack(
+        final String cause,
+        final ContentPack contentPack,
+        final ActionListener<AcknowledgedResponse> listener,
+        Consumer<ActionListener<NodesInfoResponse>> nodeInfoListener
+    ) {
+        // PRTODO: Is this cluster state by-definition less fresh than the one we maintain in the IngestService?
+        //  Is this safe to check against?
+        ClusterState clusterState = clusterService.state();
+        List<PutPipelineRequest> ingestPipelines = new ArrayList<>();
+        for (IngestPipelineOperation ingestPipeline : contentPack.ingestPipelines) {
+            PutPipelineRequest putPipelineRequest = new PutPipelineRequest(
+                contentPack.masterTimeout,
+                contentPack.masterTimeout,
+                ingestPipeline.id,
+                ingestPipeline.content,
+                ingestPipeline.xContentType
+            );
+            if (IngestService.isNoOpPipelineUpdate(clusterState, putPipelineRequest)) {
+                // existing pipeline matches request pipeline -- no need to update
+                continue;
+            }
+            ingestPipelines.add(putPipelineRequest);
+        }
+
+        if (ingestPipelines.isEmpty()) {
+            // Don't need nodes info to validate pipelines, move along
+            taskQueue.submitTask(
+                "create-content-pack, cause [" + cause + "]",
+                new PutContentPackClusterStateUpdateTask(
+                    List.of(),
+                    contentPack.componentTemplateOperations,
+                    contentPack.composableTemplateOperations,
+                    listener
+                ),
+                contentPack.masterTimeout
+            );
+        } else {
+            nodeInfoListener.accept(listener.delegateFailureAndWrap((l, nodesInfoResponse) -> {
+                // Verify each pipeline can be installed on each node before submitting the cluster state update
+                for (PutPipelineRequest ingestPipeline : ingestPipelines) {
+                    ingestService.validatePipelineRequest(ingestPipeline, nodesInfoResponse);
+                }
+
+                taskQueue.submitTask(
+                    "create-content-pack, cause [" + cause + "]",
+                    new PutContentPackClusterStateUpdateTask(
+                        ingestPipelines,
+                        contentPack.componentTemplateOperations,
+                        contentPack.composableTemplateOperations,
+                        listener
+                    ),
+                    contentPack.masterTimeout
+                );
+            }));
         }
     }
 
-    /**
-     * Add the given templates to the cluster state.
-     */
-    public void bulkPutTemplates(
-        final String cause,
-        final List<ComponentTemplateOperation> componentTemplateOperations,
-        final List<ComposableTemplateOperation> composableTemplateOperations,
-        final TimeValue masterTimeout,
-        final ActionListener<AcknowledgedResponse> listener
-    ) {
-        taskQueue.submitTask(
-            "bulk-create-templates, cause [" + cause + "]",
-            new ContentClusterStateUpdateTask(componentTemplateOperations, composableTemplateOperations, listener),
-            masterTimeout
+    ClusterState processContentPackUpdate(
+        final ClusterState currentState,
+        List<PutPipelineRequest> ingestPipelines,
+        List<ComponentTemplateOperation> componentTemplateOperations,
+        List<ComposableTemplateOperation> composableTemplateOperations
+    ) throws Exception {
+        // Process pipelines into cluster state
+        final IngestMetadata initialIngestMetadata = currentState.metadata().custom(IngestMetadata.TYPE);
+        final IngestMetadata finalIngestMetadata = IngestService.clusterStateBulkUpdatePipelines(initialIngestMetadata, ingestPipelines);
+        Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
+        if (finalIngestMetadata == initialIngestMetadata) {
+            metadataBuilder.putCustom(IngestMetadata.TYPE, finalIngestMetadata);
+        }
+
+        // Process templates into cluster state - updates metadata builder by side effect
+        InterimTemplateValidationInfo templateInfo = processBulkTemplateUpdate(
+            currentState,
+            componentTemplateOperations,
+            composableTemplateOperations,
+            currentState.metadata().componentTemplates(),
+            currentState.metadata().templatesV2(),
+            metadataBuilder
         );
+
+        // Build cluster state with all updates from the parent bulk content pack operation
+        ClusterState candidateState = ClusterState.builder(currentState).metadata(metadataBuilder).build();
+
+        validateFinalClusterState(candidateState, templateInfo);
+
+        return candidateState;
     }
 
-    ClusterState processBulkTemplateUpdate(
-        final ClusterState currentState,
+    /**
+     * Holds interim information from the template installation process about what needs validating still.
+     * @param allTemplatesRequiringValidation
+     * @param updatedComponentTemplates
+     * @param updatedComposableIndexTemplates
+     */
+    private record InterimTemplateValidationInfo(
+        Map<String, ComposableIndexTemplate> allTemplatesRequiringValidation,
+        Map<String, ComponentTemplate> updatedComponentTemplates,
+        Map<String, ComposableIndexTemplate> updatedComposableIndexTemplates
+    ) {}
+
+    InterimTemplateValidationInfo processBulkTemplateUpdate(
+        final ClusterState unupdatedPreviousClusterState,
         final List<ComponentTemplateOperation> componentTemplateOperations,
-        final List<ComposableTemplateOperation> composableTemplateOperations
+        final List<ComposableTemplateOperation> composableTemplateOperations,
+        final Map<String, ComponentTemplate> intialComponentTemplates,
+        final Map<String, ComposableIndexTemplate> initialTemplatesV2,
+        final Metadata.Builder metadataBuilder
     ) throws Exception {
         Map<String, ComponentTemplate> updatedComponentTemplates = new HashMap<>();
         Map<String, ComposableIndexTemplate> updatedComposableIndexTemplates = new HashMap<>();
 
-        // PRTODO: Would it be easier to just update the cluster state and then use it, and discard the new state if validation fails?
         // Keep a union of current and updated composable index templates to represent the updated cluster state contents
-        Map<String, ComponentTemplate> workingComponents = new HashMap<>(currentState.metadata().componentTemplates());
-        Map<String, ComposableIndexTemplate> workingTemplatesV2 = new HashMap<>(currentState.metadata().templatesV2());
+        Map<String, ComponentTemplate> workingComponents = new HashMap<>(intialComponentTemplates);
+        Map<String, ComposableIndexTemplate> workingTemplatesV2 = new HashMap<>(initialTemplatesV2);
 
         // Process and finalize all templates to be operated on
         for (ComponentTemplateOperation componentTemplate : componentTemplateOperations) {
-            final Optional<ComponentTemplate> maybeFinalComponentTemplate = prepareComponentTemplate(
-                currentState,
+            final ComponentTemplate maybeFinalComponentTemplate = prepareComponentTemplate(
+                intialComponentTemplates,
                 componentTemplate.create,
                 componentTemplate.name,
                 componentTemplate.template
             );
-            maybeFinalComponentTemplate.ifPresent(
-                finalComponentTemplate -> {
-                    updatedComponentTemplates.put(componentTemplate.name, finalComponentTemplate);
-                    workingComponents.put(componentTemplate.name, finalComponentTemplate);
-                }
-            );
+            if (maybeFinalComponentTemplate != null) {
+                updatedComponentTemplates.put(componentTemplate.name, maybeFinalComponentTemplate);
+                workingComponents.put(componentTemplate.name, maybeFinalComponentTemplate);
+            }
         }
 
         for (ComposableTemplateOperation composableIndexTemplate : composableTemplateOperations) {
-            final Optional<ComposableIndexTemplate> maybeFinalComposableTemplate = prepareComposableTemplate(
-                currentState,
+            final ComposableIndexTemplate maybeFinalComposableTemplate = prepareComposableTemplate(
+                unupdatedPreviousClusterState,
+                initialTemplatesV2,
                 composableIndexTemplate.create,
                 composableIndexTemplate.name,
                 composableIndexTemplate.template
             );
-            maybeFinalComposableTemplate.ifPresent(
-                finalComposableTemplate -> {
-                    updatedComposableIndexTemplates.put(composableIndexTemplate.name, finalComposableTemplate);
-                    workingTemplatesV2.put(composableIndexTemplate.name, finalComposableTemplate);
-                }
-            );
+            if (maybeFinalComposableTemplate != null) {
+                updatedComposableIndexTemplates.put(composableIndexTemplate.name, maybeFinalComposableTemplate);
+                workingTemplatesV2.put(composableIndexTemplate.name, maybeFinalComposableTemplate);
+            }
         }
 
         // Collect all the composable index templates that use any of the updated component template. Additionally, collect all updated
@@ -257,19 +363,28 @@ public class MetadataContentService {
         }
 
         // Sufficiently validated enough to apply changes to a candidate cluster state to complete the rest of the validation
-        Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
         for (Map.Entry<String, ComponentTemplate> component : updatedComponentTemplates.entrySet()) {
             metadataBuilder.put(component.getKey(), component.getValue());
         }
         for (Map.Entry<String, ComposableIndexTemplate> indexTemplate : updatedComposableIndexTemplates.entrySet()) {
             metadataBuilder.put(indexTemplate.getKey(), indexTemplate.getValue());
         }
-        ClusterState candidateState = ClusterState.builder(currentState).metadata(metadataBuilder).build();
 
+        // We need to build the final cluster state before we do any more validation on the templates, but building it here would force
+        // this method to be the last in the chain of change applicators to the state. Instead, stash handles to these validation bits
+        // to use once the entire cluster state is done being constructed and the candidate state can be validated.
+        return new InterimTemplateValidationInfo(
+            allTemplatesRequiringValidation,
+            updatedComponentTemplates,
+            updatedComposableIndexTemplates
+        );
+    }
+
+    private void validateFinalClusterState(ClusterState candidateState, InterimTemplateValidationInfo templateInfo) throws Exception {
         // Validate all changed composable index templates that have been updated, either directly or by changes to their dependencies
-        if (allTemplatesRequiringValidation.isEmpty() == false) {
+        if (templateInfo.allTemplatesRequiringValidation.isEmpty() == false) {
             Exception validationFailure = null;
-            for (Map.Entry<String, ComposableIndexTemplate> entry : allTemplatesRequiringValidation.entrySet()) {
+            for (Map.Entry<String, ComposableIndexTemplate> entry : templateInfo.allTemplatesRequiringValidation.entrySet()) {
                 final String composableTemplateName = entry.getKey();
                 final ComposableIndexTemplate composableTemplate = entry.getValue();
                 try {
@@ -285,8 +400,8 @@ public class MetadataContentService {
                                 + generateTemplateNamesForException(
                                     composableTemplateName,
                                     composableTemplate,
-                                    updatedComponentTemplates,
-                                    updatedComposableIndexTemplates
+                                    templateInfo.updatedComponentTemplates,
+                                    templateInfo.updatedComposableIndexTemplates
                                 )
                                 + "] results in invalid composable template ["
                                 + composableTemplateName
@@ -302,8 +417,6 @@ public class MetadataContentService {
                 throw validationFailure;
             }
         }
-
-        return candidateState;
     }
 
     private static StringBuilder generateTemplateNamesForException(
@@ -372,13 +485,13 @@ public class MetadataContentService {
         }
     }
 
-    private Optional<ComponentTemplate> prepareComponentTemplate(
-        ClusterState currentState,
+    private ComponentTemplate prepareComponentTemplate(
+        Map<String, ComponentTemplate> intialComponentTemplates,
         boolean create,
         String name,
         ComponentTemplate template
     ) throws Exception {
-        final ComponentTemplate existing = currentState.metadata().componentTemplates().get(name);
+        final ComponentTemplate existing = intialComponentTemplates.get(name);
         if (create && existing != null) {
             throw new IllegalArgumentException("component template [" + name + "] already exists");
         }
@@ -400,8 +513,8 @@ public class MetadataContentService {
             template.deprecated()
         );
 
-        if (finalComponentTemplate.equals(currentState.metadata().componentTemplates().get(name))) {
-            return Optional.empty();
+        if (finalComponentTemplate.equals(intialComponentTemplates.get(name))) {
+            return null;
         }
 
         // Immediate validation of the component template only
@@ -411,22 +524,23 @@ public class MetadataContentService {
             // We do not know if this lifecycle will belong to an internal data stream, so we fall back to a non internal.
             finalComponentTemplate.template().lifecycle().addWarningHeaderIfDataRetentionNotEffective(globalRetentionSettings.get(), false);
         }
-        return Optional.of(finalComponentTemplate);
+        return finalComponentTemplate;
     }
 
-    private Optional<ComposableIndexTemplate> prepareComposableTemplate(
-        final ClusterState currentState,
+    private ComposableIndexTemplate prepareComposableTemplate(
+        final ClusterState previousState,
+        final Map<String, ComposableIndexTemplate> initialTemplatesV2,
         final boolean create,
         final String name,
         final ComposableIndexTemplate template
     ) throws IOException {
-        final ComposableIndexTemplate existing = currentState.metadata().templatesV2().get(name);
+        final ComposableIndexTemplate existing = initialTemplatesV2.get(name);
         if (create && existing != null) {
             throw new IllegalArgumentException("index template [" + name + "] already exists");
         }
 
         Map<String, List<String>> overlaps = MetadataIndexTemplateService.findConflictingV1Templates(
-            currentState,
+            previousState,
             name,
             template.indexPatterns()
         );
@@ -464,8 +578,8 @@ public class MetadataContentService {
 
         // If this finalized template hasn't changed compared to what is in the cluster, skip updating it
         if (finalIndexTemplate.equals(existing)) {
-            return Optional.empty();
+            return null;
         }
-        return Optional.of(finalIndexTemplate);
+        return finalIndexTemplate;
     }
 }

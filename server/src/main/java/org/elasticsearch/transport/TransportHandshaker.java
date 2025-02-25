@@ -11,6 +11,7 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -210,11 +211,15 @@ final class TransportHandshaker {
             assert ignoreDeserializationErrors : exception;
             throw exception;
         }
-        ensureCompatibleVersion(version, handshakeRequest.transportVersion, handshakeRequest.releaseVersion, channel);
-        channel.sendResponse(new HandshakeResponse(this.version, Build.current().version()));
+        channel.sendResponse(
+            new HandshakeResponse(
+                ensureCompatibleVersion(version, handshakeRequest.transportVersion, handshakeRequest.releaseVersion, channel),
+                Build.current().version()
+            )
+        );
     }
 
-    static void ensureCompatibleVersion(
+    private static TransportVersion ensureCompatibleVersion(
         TransportVersion localTransportVersion,
         TransportVersion remoteTransportVersion,
         String releaseVersion,
@@ -224,12 +229,30 @@ final class TransportHandshaker {
             if (remoteTransportVersion.onOrAfter(localTransportVersion)) {
                 // Remote is newer than us, so we will be using our transport protocol and it's up to the other end to decide whether it
                 // knows how to do that.
-                return;
+                return localTransportVersion;
             }
-            if (remoteTransportVersion.isKnown()) {
-                // Remote is older than us, so we will be using its transport protocol, which we can only do if and only if its protocol
-                // version is known to us.
-                return;
+            final var bestKnownVersion = remoteTransportVersion.bestKnownVersion();
+            if (bestKnownVersion.equals(TransportVersions.ZERO) == false) {
+                if (bestKnownVersion.equals(remoteTransportVersion) == false) {
+                    // Remote is older than us, and we do not know its exact transport protocol version, so we choose a still-older version
+                    // which we _do_ know (at least syntactically). However, this means that the remote is running a chronologically-newer
+                    // release than us, even though it's a numerically-older version. We recommend not doing this, it implies an upgrade
+                    // that goes backwards in time and therefore may regress in some way:
+                    logger.warn(
+                        """
+                            Negotiating transport handshake with remote node with version [{}/{}] received on [{}] which appears to be \
+                            from a chronologically-older release with a numerically-newer version compared to this node's version [{}/{}]. \
+                            Upgrading to a chronologically-older release may not work reliably and is not recommended. \
+                            Falling back to transport protocol version [{}].""",
+                        releaseVersion,
+                        remoteTransportVersion,
+                        channel,
+                        Build.current().version(),
+                        localTransportVersion,
+                        bestKnownVersion
+                    );
+                } // else remote is older and we _do_ know its version, so we just use that without further fuss.
+                return bestKnownVersion;
             }
         }
 
@@ -287,8 +310,12 @@ final class TransportHandshaker {
         public void handleResponse(HandshakeResponse response) {
             if (isDone.compareAndSet(false, true)) {
                 ActionListener.completeWith(listener, () -> {
-                    ensureCompatibleVersion(version, response.getTransportVersion(), response.getReleaseVersion(), channel);
-                    final var resultVersion = TransportVersion.min(TransportHandshaker.this.version, response.getTransportVersion());
+                    final var resultVersion = ensureCompatibleVersion(
+                        version,
+                        response.getTransportVersion(),
+                        response.getReleaseVersion(),
+                        channel
+                    );
                     assert TransportVersion.current().before(version) // simulating a newer-version transport service for test purposes
                         || resultVersion.isKnown() : "negotiated unknown version " + resultVersion;
                     return resultVersion;

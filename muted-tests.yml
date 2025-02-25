@@ -453,3 +453,6 @@ tests:
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/rest-api/common-options/line_102}
   issue: https://github.com/elastic/elasticsearch/issues/121748
+- class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
+  method: test {yaml=analysis-common/40_token_filters/stemmer_override file access}
+  issue: https://github.com/elastic/elasticsearch/issues/121625

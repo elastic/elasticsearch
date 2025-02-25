@@ -1,0 +1,8 @@
+org.elasticsearch.searchablesnapshots:
+  - files:
+      - relative_path: snapshot_cache
+        relative_to: data
+        mode: read_write
+      - relative_path: indices
+        relative_to: data
+        mode: read_write

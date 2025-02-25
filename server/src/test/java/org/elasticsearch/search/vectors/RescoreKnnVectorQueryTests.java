@@ -9,36 +9,39 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.KnnVectorValues;
-import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.queries.function.FunctionScoreQuery;
+import org.apache.lucene.search.DoubleValuesSource;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
+import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec;
+import org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
+import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
+import org.elasticsearch.index.mapper.vectors.VectorSimilarityFloatValueSource;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.PriorityQueue;
-import java.util.stream.Collectors;
 
-import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -59,51 +62,45 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                 // Use a RescoreKnnVectorQuery with a match all query, to ensure we get scoring of 1 from the inner query
                 // and thus we're rescoring the top k docs.
                 float[] queryVector = randomVector(numDims);
+                Query innerQuery;
+                if (randomBoolean()) {
+                    innerQuery = new KnnFloatVectorQuery(FIELD_NAME, queryVector, (int) (k * randomFloatBetween(1.0f, 10.0f, true)));
+                } else {
+                    innerQuery = new MatchAllDocsQuery();
+                }
                 RescoreKnnVectorQuery rescoreKnnVectorQuery = new RescoreKnnVectorQuery(
                     FIELD_NAME,
                     queryVector,
                     VectorSimilarityFunction.COSINE,
                     k,
-                    new MatchAllDocsQuery()
+                    innerQuery
                 );
 
                 IndexSearcher searcher = newSearcher(reader, true, false);
-                TopDocs docs = searcher.search(rescoreKnnVectorQuery, numDocs);
-                Map<Integer, Float> rescoredDocs = Arrays.stream(docs.scoreDocs)
-                    .collect(Collectors.toMap(scoreDoc -> scoreDoc.doc, scoreDoc -> scoreDoc.score));
+                TopDocs rescoredDocs = searcher.search(rescoreKnnVectorQuery, numDocs);
+                assertThat(rescoredDocs.scoreDocs.length, equalTo(k));
 
-                assertThat(rescoredDocs.size(), equalTo(k));
+                // Get real scores
+                DoubleValuesSource valueSource = new VectorSimilarityFloatValueSource(
+                    FIELD_NAME,
+                    queryVector,
+                    VectorSimilarityFunction.COSINE
+                );
+                FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(new MatchAllDocsQuery(), valueSource);
+                TopDocs realScoreTopDocs = searcher.search(functionScoreQuery, numDocs);
 
-                Collection<Float> rescoredScores = new HashSet<>(rescoredDocs.values());
-
-                // Collect all docs sequentially, and score them using the similarity function to get the top K scores
-                PriorityQueue<Float> topK = new PriorityQueue<>((o1, o2) -> Float.compare(o2, o1));
-
-                for (LeafReaderContext leafReaderContext : reader.leaves()) {
-                    FloatVectorValues vectorValues = leafReaderContext.reader().getFloatVectorValues(FIELD_NAME);
-                    KnnVectorValues.DocIndexIterator iterator = vectorValues.iterator();
-                    while (iterator.nextDoc() != NO_MORE_DOCS) {
-                        float[] vectorData = vectorValues.vectorValue(iterator.docID());
-                        float score = VectorSimilarityFunction.COSINE.compare(queryVector, vectorData);
-                        topK.add(score);
-                        int docId = iterator.docID();
-                        // If the doc has been retrieved from the RescoreKnnVectorQuery, check the score is the same and remove it
-                        // to ensure we found them all
-                        if (rescoredDocs.containsKey(docId)) {
-                            assertThat(rescoredDocs.get(docId), equalTo(score));
-                            rescoredDocs.remove(docId);
-                        }
+                int i = 0;
+                ScoreDoc[] realScoreDocs = realScoreTopDocs.scoreDocs;
+                for (ScoreDoc rescoreDoc : rescoredDocs.scoreDocs) {
+                    // There are docs that won't be found in the rescored search, but every doc found must be in the same order
+                    // and have the same score
+                    while (i < realScoreDocs.length && realScoreDocs[i].doc != rescoreDoc.doc) {
+                        i++;
                     }
-                }
-
-                assertThat(rescoredDocs.size(), equalTo(0));
-
-                // Check top scoring docs are contained in rescored docs
-                for (int i = 0; i < k; i++) {
-                    Float topScore = topK.poll();
-                    if (rescoredScores.contains(topScore) == false) {
-                        fail("Top score " + topScore + " not contained in rescored doc scores " + rescoredScores);
+                    if (i >= realScoreDocs.length) {
+                        fail("Rescored doc not found in real score docs");
                     }
+                    assertThat("Real score is not the same as rescored score", rescoreDoc.score, equalTo(realScoreDocs[i].score));
                 }
             }
         }
@@ -205,16 +202,33 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
     }
 
     private static void addRandomDocuments(int numDocs, Directory d, int numDims) throws IOException {
+        IndexWriterConfig iwc = new IndexWriterConfig();
+        // Pick codec from quantized vector formats to ensure scores use real scores when using knn rescore
+        KnnVectorsFormat format = randomFrom(
+            new ES818BinaryQuantizedVectorsFormat(),
+            new ES818HnswBinaryQuantizedVectorsFormat(),
+            new ES813Int8FlatVectorFormat(),
+            new ES813Int8FlatVectorFormat(),
+            new ES814HnswScalarQuantizedVectorsFormat()
+        );
+        iwc.setCodec(new Elasticsearch900Lucene101Codec(randomFrom(Zstd814StoredFieldsFormat.Mode.values())) {
+            @Override
+            public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
+                return format;
+            }
+        });
         try (IndexWriter w = new IndexWriter(d, newIndexWriterConfig())) {
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
                 float[] vector = randomVector(numDims);
-                KnnFloatVectorField vectorField = new KnnFloatVectorField(FIELD_NAME, vector);
+                KnnFloatVectorField vectorField = new KnnFloatVectorField(FIELD_NAME, vector, VectorSimilarityFunction.COSINE);
                 document.add(vectorField);
                 w.addDocument(document);
+                if (randomBoolean() && (i % 10 == 0)) {
+                    w.commit();
+                }
             }
             w.commit();
-            w.forceMerge(1);
         }
     }
 }

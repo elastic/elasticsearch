@@ -87,7 +87,8 @@ public class CopyLifecycleIndexMetadataTransportActionIT extends ESIntegTestCase
         safeGet(indicesAdmin().create(new CreateIndexRequest(destIndex)));
 
         // verify source and dest date are actually different before copying
-        var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(sourceIndex, destIndex)).actionGet();
+        var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(sourceIndex, destIndex))
+            .actionGet();
         var indexToSettings = settingsResponse.getIndexToSettings();
         var sourceDate = indexToSettings.get(sourceIndex).getAsLong(IndexMetadata.SETTING_CREATION_DATE, 0L);
         {
@@ -100,7 +101,7 @@ public class CopyLifecycleIndexMetadataTransportActionIT extends ESIntegTestCase
         // copy over the metadata
         copyMetadata(sourceIndex, destIndex);
 
-        var destDate = indicesAdmin().getSettings(new GetSettingsRequest().indices(sourceIndex, destIndex))
+        var destDate = indicesAdmin().getSettings(new GetSettingsRequest(TEST_REQUEST_TIMEOUT).indices(sourceIndex, destIndex))
             .actionGet()
             .getIndexToSettings()
             .get(destIndex)

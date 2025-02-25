@@ -10,7 +10,10 @@
 package org.elasticsearch.index.mapper.blockloader;
 
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
+import org.elasticsearch.index.mapper.NumberFieldBlockLoaderTestCase;
 import org.elasticsearch.logsdb.datageneration.FieldType;
+
+import java.util.Map;
 
 public class HalfFloatFieldBlockLoaderTests extends NumberFieldBlockLoaderTestCase<Double> {
     public HalfFloatFieldBlockLoaderTests() {
@@ -18,7 +21,7 @@ public class HalfFloatFieldBlockLoaderTests extends NumberFieldBlockLoaderTestCa
     }
 
     @Override
-    protected Double convert(Number value) {
+    protected Double convert(Number value, Map<String, Object> fieldMapping) {
         // All float values are represented as double
         return (double) HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(value.floatValue()));
     }

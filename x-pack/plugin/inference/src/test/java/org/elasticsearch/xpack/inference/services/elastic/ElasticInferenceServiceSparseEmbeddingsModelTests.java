@@ -26,7 +26,7 @@ public class ElasticInferenceServiceSparseEmbeddingsModelTests extends ESTestCas
             new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, maxInputTokens, null),
             EmptyTaskSettings.INSTANCE,
             EmptySecretSettings.INSTANCE,
-            new ElasticInferenceServiceComponents(url)
+            ElasticInferenceServiceComponents.withNoRevokeDelay(url)
         );
     }
 }

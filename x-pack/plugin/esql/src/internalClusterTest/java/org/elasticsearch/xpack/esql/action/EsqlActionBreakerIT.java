@@ -95,9 +95,7 @@ public class EsqlActionBreakerIT extends EsqlActionIT {
 
     @Override
     protected EsqlQueryResponse run(EsqlQueryRequest request) {
-        if (randomBoolean()) {
-            request.allowPartialResults(randomBoolean());
-        }
+        request.allowPartialResults(randomBoolean());
         Exception failure = null;
         try {
             final EsqlQueryResponse resp = runWithBreaking(request);

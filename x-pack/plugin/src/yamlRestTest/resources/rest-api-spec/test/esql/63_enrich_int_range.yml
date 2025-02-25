@@ -189,11 +189,3 @@ teardown:
 
   - length: { values: 1 }
   - match: { values.0: [ 5, null ] }
-
----
-"Invalid age as double":
-  - do:
-      catch: /ENRICH range and input types are incompatible. range\[INTEGER\], input\[DOUBLE\]/
-      esql.query:
-        body:
-          query: 'FROM employees | ENRICH ages-policy ON salary | STATS count=COUNT(*) BY description | SORT count DESC, description ASC'

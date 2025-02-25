@@ -11,7 +11,6 @@ package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoaderEntitlement;
@@ -114,6 +113,7 @@ public class PolicyManager {
     private final Function<Class<?>, String> pluginResolver;
     private final PathLookup pathLookup;
     private final FileAccessTree defaultFileAccess;
+    private final Set<Class<?>> mutedClasses;
 
     public static final String ALL_UNNAMED = "ALL-UNNAMED";
 
@@ -150,7 +150,8 @@ public class PolicyManager {
         Function<Class<?>, String> pluginResolver,
         String apmAgentPackageName,
         Module entitlementsModule,
-        PathLookup pathLookup
+        PathLookup pathLookup,
+        Set<Class<?>> suppressFailureLogClasses
     ) {
         this.serverEntitlements = buildScopeEntitlementsMap(requireNonNull(serverPolicy));
         this.apmAgentEntitlements = apmAgentEntitlements;
@@ -162,6 +163,7 @@ public class PolicyManager {
         this.entitlementsModule = entitlementsModule;
         this.pathLookup = requireNonNull(pathLookup);
         this.defaultFileAccess = FileAccessTree.of(FilesEntitlement.EMPTY, pathLookup);
+        this.mutedClasses = suppressFailureLogClasses;
 
         for (var e : serverEntitlements.entrySet()) {
             validateEntitlementsPerModule(SERVER_COMPONENT_NAME, e.getKey(), e.getValue());
@@ -386,7 +388,7 @@ public class PolicyManager {
         checkFlagEntitlement(classEntitlements, OutboundNetworkEntitlement.class, requestingClass, callerClass);
     }
 
-    private static void checkFlagEntitlement(
+    private void checkFlagEntitlement(
         ModuleEntitlements classEntitlements,
         Class<? extends Entitlement> entitlementClass,
         Class<?> requestingClass,
@@ -446,10 +448,10 @@ public class PolicyManager {
         );
     }
 
-    private static void notEntitled(String message, Class<?> callerClass) {
+    private void notEntitled(String message, Class<?> callerClass) {
         var exception = new NotEntitledException(message);
-        // don't log self tests in EntitlementBootstrap
-        if (EntitlementBootstrap.class.equals(callerClass) == false) {
+        // Don't emit a log for muted classes, e.g. classes containing self tests
+        if (mutedClasses.contains(callerClass) == false) {
             logger.warn(message, exception);
         }
         throw exception;

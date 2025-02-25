@@ -109,10 +109,10 @@ public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<I
     }
 
     public void testGetFirstEmbeddingSize() {
-        var firstEmbeddingSize = new TextEmbeddingFloatResults(
+        var firstEmbeddingSize = new InferenceTextEmbeddingFloatResults(
             List.of(
-                new TextEmbeddingFloatResults.Embedding(new float[] { 0.1F, 0.2F }),
-                new TextEmbeddingFloatResults.Embedding(new float[] { 0.3F, 0.4F })
+                new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { 0.1F, 0.2F }),
+                new InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding(new float[] { 0.3F, 0.4F })
             )
         ).getFirstEmbeddingSize();
 

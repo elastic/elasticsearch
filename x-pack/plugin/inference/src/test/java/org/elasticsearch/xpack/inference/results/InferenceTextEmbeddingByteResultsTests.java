@@ -103,10 +103,10 @@ public class InferenceTextEmbeddingByteResultsTests extends AbstractWireSerializ
     }
 
     public void testGetFirstEmbeddingSize() {
-        var firstEmbeddingSize = new TextEmbeddingByteResults(
+        var firstEmbeddingSize = new InferenceTextEmbeddingByteResults(
             List.of(
-                new TextEmbeddingByteResults.Embedding(new byte[] { (byte) 23, (byte) 24 }),
-                new TextEmbeddingByteResults.Embedding(new byte[] { (byte) 25, (byte) 26 })
+                new InferenceByteEmbedding(new byte[] { (byte) 23, (byte) 24 }),
+                new InferenceByteEmbedding(new byte[] { (byte) 25, (byte) 26 })
             )
         ).getFirstEmbeddingSize();
 

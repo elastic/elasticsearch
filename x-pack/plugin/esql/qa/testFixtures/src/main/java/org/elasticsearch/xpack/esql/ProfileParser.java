@@ -74,25 +74,7 @@ public class ProfileParser {
             builder.field("traceEvents");
             builder.startArray();
             for (Map<String, Object> driver : drivers) {
-                /// Start event
-                builder.startObject();
-                builder.field("ph", "B");
-                builder.field("name", "Driver" + driverIndex);
-                builder.field("pid", 0);
-                builder.field("ts", readIntOrLong(driver, "start_millis") * 1000);
-                builder.field("args");
-                builder.startObject();
-                builder.field("cpu_nanos", readIntOrLong(driver, "cpu_nanos"));
-                builder.endObject();
-                builder.endObject();
-
-                /// End event
-                builder.startObject();
-                builder.field("ph", "E");
-                builder.field("name", "Driver" + (driverIndex++));
-                builder.field("pid", 0);
-                builder.field("ts", readIntOrLong(driver, "stop_millis") * 1000);
-                builder.endObject();
+                parseDriverProfile(driver, driverIndex++, builder);
             }
             builder.endArray();
 
@@ -102,6 +84,55 @@ public class ProfileParser {
         }
 
         logger.info("Exiting", args[0]);
+    }
+
+    @SuppressWarnings("unchecked")
+    /**
+     * Uses the legacy Chromium spec for event descriptions:
+     * https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU
+     *
+     * We probably want to upgrade to the newer, more flexible protobuf-based spec by perfetto in the future.
+     */
+    private static void parseDriverProfile(Map<String, Object> driver, int driverIndex, XContentBuilder builder) throws IOException {
+        String taskDescription = (String) driver.get("task_description");
+        String name = taskDescription + driverIndex;
+
+        /// Start event
+        builder.startObject();
+        builder.field("ph", "B");
+        builder.field("name", name);
+        builder.field("cat", taskDescription);
+        builder.field("pid", 0);
+        builder.field("ts", readIntOrLong(driver, "start_millis") * 1000);
+        builder.field("args");
+
+        builder.startObject();
+        builder.field("cpu_nanos", readIntOrLong(driver, "cpu_nanos"));
+        builder.field("took_nanos", readIntOrLong(driver, "took_nanos"));
+        builder.field("iterations", readIntOrLong(driver, "iterations"));
+        // TODO: Sleeps have more details
+        int sleeps = ((Map<?, ?>) driver.get("sleeps")).size();
+        builder.field("sleeps", sleeps);
+
+        builder.field("operators");
+        builder.startArray();
+        for (Map<String, Object> operator : (List<Map<String, Object>>) driver.get("operators")) {
+            builder.value((String) operator.get("operator"));
+            // TODO: Add status; needs standardizing the operatur statuses, probably.
+        }
+        builder.endArray();
+
+        builder.endObject();
+
+        builder.endObject();
+
+        /// End event
+        builder.startObject();
+        builder.field("ph", "E");
+        builder.field("name", name);
+        builder.field("pid", 0);
+        builder.field("ts", readIntOrLong(driver, "stop_millis") * 1000);
+        builder.endObject();
     }
 
     private static Long readIntOrLong(Map<String, Object> json, String name) {

@@ -1,0 +1,38 @@
+//
+// CSV spec for RRF command
+//
+
+simpleRrf
+required_capability: fork
+required_capability: rrf
+
+FROM employees METADATA _score
+| FORK ( WHERE emp_no == 10001 )
+       ( WHERE emp_no == 10002 )
+| KEEP emp_no, _score, _fork
+| RRF
+;
+
+_score:double       | _fork:keyword  | emp_no:integer
+0.01639344262295082 | fork1          | 10001
+0.01639344262295082 | fork2          | 10002
+;
+
+rrfWithMatchAndScore
+required_capability: fork
+required_capability: rrf
+
+FROM books METADATA _id, _score
+| FORK ( WHERE title:"Tolkien" | SORT _score DESC | LIMIT 3 )
+       ( WHERE author:"Tolkien" | SORT _score DESC | LIMIT 3 )
+| KEEP _id, _score, _fork
+| RRF
+;
+
+_score:double        | _fork:keyword  | _id:keyword
+0.03225806451612903  | [fork1, fork2] | 26
+0.01639344262295082  | fork1          | 36
+0.01639344262295082  | fork2          | 18
+0.015873015873015872 | fork1          | 56
+0.015873015873015872 | fork2          | 59
+;

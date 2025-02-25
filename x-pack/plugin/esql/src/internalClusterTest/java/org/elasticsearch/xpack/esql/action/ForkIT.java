@@ -351,6 +351,8 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testRrf() {
+        assumeTrue("requires RRF capability", EsqlCapabilities.Cap.RRF.isEnabled());
+
         var query = """
             FROM test METADATA _score
             | WHERE id > 2

@@ -99,6 +99,7 @@ The following example returns all Analytics Collections prefixed with `my`:
 ----
 GET _application/analytics/my*
 ----
+// TEST[skip:Behavioral Analytics APIs emit deprecation warnings and will not be updated]
 
 A sample response:
 

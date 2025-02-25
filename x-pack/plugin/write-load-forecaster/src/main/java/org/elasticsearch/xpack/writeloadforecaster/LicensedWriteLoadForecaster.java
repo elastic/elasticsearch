@@ -166,6 +166,10 @@ class LicensedWriteLoadForecaster implements WriteLoadForecaster {
         return indexMetadata.getForecastedWriteLoad();
     }
 
+    /**
+     * Used to atomically {@code getAndSet()} the {@link #hasValidLicence} field. This is better than an
+     * {@link java.util.concurrent.atomic.AtomicBoolean} because it takes one less pointer dereference on each read.
+     */
     private static final VarHandle VH_HAS_VALID_LICENCE_FIELD;
 
     static {

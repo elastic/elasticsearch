@@ -67,7 +67,6 @@ import static co.elastic.elasticsearch.stateless.engine.translog.TranslogRecover
 import static co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics.TRANSLOG_OPERATIONS_TOTAL_METRIC;
 import static co.elastic.elasticsearch.stateless.engine.translog.TranslogRecoveryMetrics.TRANSLOG_REPLAY_TIME_METRIC;
 import static org.elasticsearch.indices.recovery.RecoverySourceHandlerTests.generateOperation;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
@@ -373,7 +372,10 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         translogReplicator.markShardCommitUploaded(shardId, commitFileNewStartingPoint);
 
-        assertBusy(() -> assertThat(translogReplicator.getTranslogFilesToDelete(), empty()));
+        assertThat(
+            translogReplicator.getActiveTranslogFiles().stream().filter(f -> f.generation() < commitFileNewStartingPoint).count(),
+            equalTo(0L)
+        );
 
         translogReplicator.add(shardId, operationsBytes[5], 5, new Translog.Location(0, currentLocation, operationsBytes[5].length()));
 

@@ -340,6 +340,9 @@ tests:
 - class: org.elasticsearch.action.admin.indices.diskusage.IndexDiskUsageAnalyzerTests
   method: testCompletionField
   issue: https://github.com/elastic/elasticsearch/issues/123269
+- class: org.elasticsearch.index.mapper.IPSyntheticSourceNativeArrayIntegrationTests
+  method: testSynthesizeArray
+  issue: https://github.com/elastic/elasticsearch/issues/123417
 
 # Examples:
 #

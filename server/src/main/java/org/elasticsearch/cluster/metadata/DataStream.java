@@ -74,7 +74,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final TransportVersion ADD_DATA_STREAM_OPTIONS_VERSION = TransportVersions.V_8_16_0;
 
     public static boolean isFailureStoreFeatureFlagEnabled() {
-        return FAILURE_STORE_FEATURE_FLAG.isEnabled();
+        return true;
     }
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";

@@ -10,21 +10,38 @@ package org.elasticsearch.xpack.inference.services.elastic;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
+import java.util.Objects;
+
 /**
  * @param elasticInferenceServiceUrl the upstream Elastic Inference Server's URL
- * @param revokeAuthorizationDelay Amount of time to wait before attempting to revoke authorization to certain model ids.
- *                                 null indicates that there should be no delay
+ * @param authRequestInterval Amount of time to wait before making another authorization request
+ * @param maxAuthRequestJitter The maximum amount of jitter to add
  */
-public record ElasticInferenceServiceComponents(@Nullable String elasticInferenceServiceUrl, @Nullable TimeValue revokeAuthorizationDelay) {
-    private static final TimeValue DEFAULT_REVOKE_AUTHORIZATION_DELAY = TimeValue.timeValueMinutes(10);
+public record ElasticInferenceServiceComponents(
+    @Nullable String elasticInferenceServiceUrl,
+    TimeValue authRequestInterval,
+    TimeValue maxAuthRequestJitter
+) {
 
-    public static final ElasticInferenceServiceComponents EMPTY_INSTANCE = new ElasticInferenceServiceComponents(null, null);
+    private static final TimeValue DEFAULT_AUTH_REQUEST_INTERVAL = TimeValue.timeValueMinutes(10);
+    private static final TimeValue DEFAULT_AUTH_REQUEST_JITTER = TimeValue.timeValueMinutes(5);
 
-    public static ElasticInferenceServiceComponents withNoRevokeDelay(String elasticInferenceServiceUrl) {
-        return new ElasticInferenceServiceComponents(elasticInferenceServiceUrl, null);
+    public static final ElasticInferenceServiceComponents EMPTY_INSTANCE = new ElasticInferenceServiceComponents(
+        null,
+        DEFAULT_AUTH_REQUEST_INTERVAL,
+        DEFAULT_AUTH_REQUEST_JITTER
+    );
+
+    public static ElasticInferenceServiceComponents withDefaults(String elasticInferenceServiceUrl) {
+        return new ElasticInferenceServiceComponents(
+            elasticInferenceServiceUrl,
+            DEFAULT_AUTH_REQUEST_INTERVAL,
+            DEFAULT_AUTH_REQUEST_JITTER
+        );
     }
 
-    public static ElasticInferenceServiceComponents withDefaultRevokeDelay(String elasticInferenceServiceUrl) {
-        return new ElasticInferenceServiceComponents(elasticInferenceServiceUrl, DEFAULT_REVOKE_AUTHORIZATION_DELAY);
+    public ElasticInferenceServiceComponents {
+        Objects.requireNonNull(authRequestInterval);
+        Objects.requireNonNull(maxAuthRequestJitter);
     }
 }

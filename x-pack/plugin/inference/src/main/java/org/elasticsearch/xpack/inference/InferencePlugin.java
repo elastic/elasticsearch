@@ -118,7 +118,7 @@ import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
-import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationHandler;
+import org.elasticsearch.xpack.inference.services.elastic.authorization.ElasticInferenceServiceAuthorizationRequestHandler;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
 import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioService;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService;
@@ -277,10 +277,10 @@ public class InferencePlugin extends Plugin
         ElasticInferenceServiceSettings inferenceServiceSettings = new ElasticInferenceServiceSettings(settings);
         String elasticInferenceUrl = inferenceServiceSettings.getElasticInferenceServiceUrl();
 
-        var elasticInferenceServiceComponentsInstance = ElasticInferenceServiceComponents.withDefaultRevokeDelay(elasticInferenceUrl);
+        var elasticInferenceServiceComponentsInstance = ElasticInferenceServiceComponents.withDefaults(elasticInferenceUrl);
         elasticInferenceServiceComponents.set(elasticInferenceServiceComponentsInstance);
 
-        var authorizationHandler = new ElasticInferenceServiceAuthorizationHandler(
+        var authorizationHandler = new ElasticInferenceServiceAuthorizationRequestHandler(
             elasticInferenceServiceComponentsInstance.elasticInferenceServiceUrl(),
             services.threadPool()
         );

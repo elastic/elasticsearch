@@ -19,21 +19,21 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * This is a helper class for managing the response from {@link ElasticInferenceServiceAuthorizationHandler}.
+ * Transforms the response from {@link ElasticInferenceServiceAuthorizationRequestHandler} into a format for consumption by the service.
  */
-public class ElasticInferenceServiceAuthorization {
+public class ElasticInferenceServiceAuthorizationModel {
 
     private final Map<TaskType, Set<String>> taskTypeToModels;
     private final EnumSet<TaskType> authorizedTaskTypes;
     private final Set<String> authorizedModelIds;
 
     /**
-     * Converts an authorization response from Elastic Inference Service into the {@link ElasticInferenceServiceAuthorization} format.
+     * Converts an authorization response from Elastic Inference Service into the {@link ElasticInferenceServiceAuthorizationModel} format.
      *
      * @param responseEntity the {@link ElasticInferenceServiceAuthorizationResponseEntity} response from the upstream gateway.
-     * @return a new {@link ElasticInferenceServiceAuthorization}
+     * @return a new {@link ElasticInferenceServiceAuthorizationModel}
      */
-    public static ElasticInferenceServiceAuthorization of(ElasticInferenceServiceAuthorizationResponseEntity responseEntity) {
+    public static ElasticInferenceServiceAuthorizationModel of(ElasticInferenceServiceAuthorizationResponseEntity responseEntity) {
         var taskTypeToModelsMap = new HashMap<TaskType, Set<String>>();
         var enabledTaskTypesSet = EnumSet.noneOf(TaskType.class);
         var enabledModelsSet = new HashSet<String>();
@@ -54,17 +54,17 @@ public class ElasticInferenceServiceAuthorization {
             }
         }
 
-        return new ElasticInferenceServiceAuthorization(taskTypeToModelsMap, enabledModelsSet, enabledTaskTypesSet);
+        return new ElasticInferenceServiceAuthorizationModel(taskTypeToModelsMap, enabledModelsSet, enabledTaskTypesSet);
     }
 
     /**
      * Returns an object indicating that the cluster has no access to Elastic Inference Service.
      */
-    public static ElasticInferenceServiceAuthorization newDisabledService() {
-        return new ElasticInferenceServiceAuthorization(Map.of(), Set.of(), EnumSet.noneOf(TaskType.class));
+    public static ElasticInferenceServiceAuthorizationModel newDisabledService() {
+        return new ElasticInferenceServiceAuthorizationModel(Map.of(), Set.of(), EnumSet.noneOf(TaskType.class));
     }
 
-    private ElasticInferenceServiceAuthorization(
+    private ElasticInferenceServiceAuthorizationModel(
         Map<TaskType, Set<String>> taskTypeToModels,
         Set<String> authorizedModelIds,
         EnumSet<TaskType> authorizedTaskTypes
@@ -91,13 +91,13 @@ public class ElasticInferenceServiceAuthorization {
     }
 
     /**
-     * Returns a new {@link ElasticInferenceServiceAuthorization} object retaining only the specified task types
+     * Returns a new {@link ElasticInferenceServiceAuthorizationModel} object retaining only the specified task types
      * and applicable models that leverage those task types. Any task types not specified in the passed in set will be
      * excluded from the returned object. This is essentially an intersection.
      * @param taskTypes the task types to retain in the newly created object
      * @return a new object containing models and task types limited to the specified set.
      */
-    public ElasticInferenceServiceAuthorization newLimitedToTaskTypes(EnumSet<TaskType> taskTypes) {
+    public ElasticInferenceServiceAuthorizationModel newLimitedToTaskTypes(EnumSet<TaskType> taskTypes) {
         var newTaskTypeToModels = new HashMap<TaskType, Set<String>>();
         var taskTypesThatHaveModels = EnumSet.noneOf(TaskType.class);
 
@@ -110,15 +110,48 @@ public class ElasticInferenceServiceAuthorization {
             }
         }
 
-        Set<String> newEnabledModels = newTaskTypeToModels.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
+        return new ElasticInferenceServiceAuthorizationModel(
+            newTaskTypeToModels,
+            enabledModels(newTaskTypeToModels),
+            taskTypesThatHaveModels
+        );
+    }
 
-        return new ElasticInferenceServiceAuthorization(newTaskTypeToModels, newEnabledModels, taskTypesThatHaveModels);
+    private static Set<String> enabledModels(Map<TaskType, Set<String>> taskTypeToModels) {
+        return taskTypeToModels.values().stream().flatMap(Set::stream).collect(Collectors.toSet());
+    }
+
+    /**
+     * Returns a new {@link ElasticInferenceServiceAuthorizationModel} that combines the current model and the passed in one.
+     * @param other model to merge into this one
+     * @return a new model
+     */
+    public ElasticInferenceServiceAuthorizationModel merge(ElasticInferenceServiceAuthorizationModel other) {
+        Map<TaskType, Set<String>> newTaskTypeToModels = taskTypeToModels.entrySet()
+            .stream()
+            .collect(Collectors.toMap(Map.Entry::getKey, e -> new HashSet<>(e.getValue())));
+
+        for (var entry : other.taskTypeToModels.entrySet()) {
+            newTaskTypeToModels.merge(entry.getKey(), new HashSet<>(entry.getValue()), (existingModelIds, newModelIds) -> {
+                existingModelIds.addAll(newModelIds);
+                return existingModelIds;
+            });
+        }
+
+        var newAuthorizedTaskTypes = authorizedTaskTypes.isEmpty() ? EnumSet.noneOf(TaskType.class) : EnumSet.copyOf(authorizedTaskTypes);
+        newAuthorizedTaskTypes.addAll(other.authorizedTaskTypes);
+
+        return new ElasticInferenceServiceAuthorizationModel(
+            newTaskTypeToModels,
+            enabledModels(newTaskTypeToModels),
+            newAuthorizedTaskTypes
+        );
     }
 
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
-        ElasticInferenceServiceAuthorization that = (ElasticInferenceServiceAuthorization) o;
+        ElasticInferenceServiceAuthorizationModel that = (ElasticInferenceServiceAuthorizationModel) o;
         return Objects.equals(taskTypeToModels, that.taskTypeToModels)
             && Objects.equals(authorizedTaskTypes, that.authorizedTaskTypes)
             && Objects.equals(authorizedModelIds, that.authorizedModelIds);

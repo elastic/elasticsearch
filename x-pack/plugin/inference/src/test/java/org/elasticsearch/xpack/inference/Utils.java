@@ -59,6 +59,8 @@ import static org.mockito.Mockito.when;
 
 public final class Utils {
 
+    public static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
+
     private Utils() {
         throw new UnsupportedOperationException("Utils is a utility class and should not be instantiated");
     }

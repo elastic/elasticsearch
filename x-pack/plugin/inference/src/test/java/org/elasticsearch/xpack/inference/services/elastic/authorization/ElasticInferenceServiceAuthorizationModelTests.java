@@ -17,9 +17,9 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.is;
 
-public class ElasticInferenceServiceAuthorizationTests extends ESTestCase {
-    public static ElasticInferenceServiceAuthorization createEnabledAuth() {
-        return ElasticInferenceServiceAuthorization.of(
+public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
+    public static ElasticInferenceServiceAuthorizationModel createEnabledAuth() {
+        return ElasticInferenceServiceAuthorizationModel.of(
             new ElasticInferenceServiceAuthorizationResponseEntity(
                 List.of(
                     new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel("model-1", EnumSet.of(TaskType.TEXT_EMBEDDING))
@@ -29,20 +29,20 @@ public class ElasticInferenceServiceAuthorizationTests extends ESTestCase {
     }
 
     public void testIsAuthorized_ReturnsFalse_WithEmptyMap() {
-        assertFalse(ElasticInferenceServiceAuthorization.newDisabledService().isAuthorized());
+        assertFalse(ElasticInferenceServiceAuthorizationModel.newDisabledService().isAuthorized());
     }
 
     public void testExcludes_ModelsWithoutTaskTypes() {
         var response = new ElasticInferenceServiceAuthorizationResponseEntity(
             List.of(new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel("model-1", EnumSet.noneOf(TaskType.class)))
         );
-        var auth = ElasticInferenceServiceAuthorization.of(response);
+        var auth = ElasticInferenceServiceAuthorizationModel.of(response);
         assertTrue(auth.getAuthorizedTaskTypes().isEmpty());
         assertFalse(auth.isAuthorized());
     }
 
     public void testEnabledTaskTypes_MergesFromSeparateModels() {
-        var auth = ElasticInferenceServiceAuthorization.of(
+        var auth = ElasticInferenceServiceAuthorizationModel.of(
             new ElasticInferenceServiceAuthorizationResponseEntity(
                 List.of(
                     new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel("model-1", EnumSet.of(TaskType.TEXT_EMBEDDING)),
@@ -55,7 +55,7 @@ public class ElasticInferenceServiceAuthorizationTests extends ESTestCase {
     }
 
     public void testEnabledTaskTypes_FromSingleEntry() {
-        var auth = ElasticInferenceServiceAuthorization.of(
+        var auth = ElasticInferenceServiceAuthorizationModel.of(
             new ElasticInferenceServiceAuthorizationResponseEntity(
                 List.of(
                     new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
@@ -71,7 +71,7 @@ public class ElasticInferenceServiceAuthorizationTests extends ESTestCase {
     }
 
     public void testNewLimitToTaskTypes_SingleModel() {
-        var auth = ElasticInferenceServiceAuthorization.of(
+        var auth = ElasticInferenceServiceAuthorizationModel.of(
             new ElasticInferenceServiceAuthorizationResponseEntity(
                 List.of(
                     new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
@@ -86,7 +86,7 @@ public class ElasticInferenceServiceAuthorizationTests extends ESTestCase {
         assertThat(
             auth.newLimitedToTaskTypes(EnumSet.of(TaskType.TEXT_EMBEDDING)),
             is(
-                ElasticInferenceServiceAuthorization.of(
+                ElasticInferenceServiceAuthorizationModel.of(
                     new ElasticInferenceServiceAuthorizationResponseEntity(
                         List.of(
                             new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
@@ -101,7 +101,7 @@ public class ElasticInferenceServiceAuthorizationTests extends ESTestCase {
     }
 
     public void testNewLimitToTaskTypes_MultipleModels_OnlyTextEmbedding() {
-        var auth = ElasticInferenceServiceAuthorization.of(
+        var auth = ElasticInferenceServiceAuthorizationModel.of(
             new ElasticInferenceServiceAuthorizationResponseEntity(
                 List.of(
                     new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
@@ -116,7 +116,7 @@ public class ElasticInferenceServiceAuthorizationTests extends ESTestCase {
         assertThat(
             auth.newLimitedToTaskTypes(EnumSet.of(TaskType.TEXT_EMBEDDING)),
             is(
-                ElasticInferenceServiceAuthorization.of(
+                ElasticInferenceServiceAuthorizationModel.of(
                     new ElasticInferenceServiceAuthorizationResponseEntity(
                         List.of(
                             new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
@@ -135,7 +135,7 @@ public class ElasticInferenceServiceAuthorizationTests extends ESTestCase {
     }
 
     public void testNewLimitToTaskTypes_MultipleModels_MultipleTaskTypes() {
-        var auth = ElasticInferenceServiceAuthorization.of(
+        var auth = ElasticInferenceServiceAuthorizationModel.of(
             new ElasticInferenceServiceAuthorizationResponseEntity(
                 List.of(
                     new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
@@ -154,11 +154,11 @@ public class ElasticInferenceServiceAuthorizationTests extends ESTestCase {
             )
         );
 
-        var a = auth.newLimitedToTaskTypes(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.CHAT_COMPLETION));
+        var limitedAuth = auth.newLimitedToTaskTypes(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.CHAT_COMPLETION));
         assertThat(
-            a,
+            limitedAuth,
             is(
-                ElasticInferenceServiceAuthorization.of(
+                ElasticInferenceServiceAuthorizationModel.of(
                     new ElasticInferenceServiceAuthorizationResponseEntity(
                         List.of(
                             new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
@@ -177,7 +177,7 @@ public class ElasticInferenceServiceAuthorizationTests extends ESTestCase {
     }
 
     public void testNewLimitToTaskTypes_DuplicateModelNames() {
-        var auth = ElasticInferenceServiceAuthorization.of(
+        var auth = ElasticInferenceServiceAuthorizationModel.of(
             new ElasticInferenceServiceAuthorizationResponseEntity(
                 List.of(
                     new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
@@ -192,11 +192,11 @@ public class ElasticInferenceServiceAuthorizationTests extends ESTestCase {
             )
         );
 
-        var a = auth.newLimitedToTaskTypes(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING, TaskType.RERANK));
+        var limitedAuth = auth.newLimitedToTaskTypes(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING, TaskType.RERANK));
         assertThat(
-            a,
+            limitedAuth,
             is(
-                ElasticInferenceServiceAuthorization.of(
+                ElasticInferenceServiceAuthorizationModel.of(
                     new ElasticInferenceServiceAuthorizationResponseEntity(
                         List.of(
                             new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
@@ -211,7 +211,7 @@ public class ElasticInferenceServiceAuthorizationTests extends ESTestCase {
     }
 
     public void testNewLimitToTaskTypes_ReturnsDisabled_WhenNoOverlapForTaskTypes() {
-        var auth = ElasticInferenceServiceAuthorization.of(
+        var auth = ElasticInferenceServiceAuthorizationModel.of(
             new ElasticInferenceServiceAuthorizationResponseEntity(
                 List.of(
                     new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
@@ -226,7 +226,160 @@ public class ElasticInferenceServiceAuthorizationTests extends ESTestCase {
             )
         );
 
-        var a = auth.newLimitedToTaskTypes(EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.RERANK));
-        assertThat(a, is(ElasticInferenceServiceAuthorization.newDisabledService()));
+        var limitedAuth = auth.newLimitedToTaskTypes(EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.RERANK));
+        assertThat(limitedAuth, is(ElasticInferenceServiceAuthorizationModel.newDisabledService()));
+    }
+
+    public void testMerge_CombinesCorrectly() {
+        var auth1 = ElasticInferenceServiceAuthorizationModel.of(
+            new ElasticInferenceServiceAuthorizationResponseEntity(
+                List.of(
+                    new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
+                        "model-1",
+                        EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING)
+                    )
+                )
+            )
+        );
+
+        var auth2 = ElasticInferenceServiceAuthorizationModel.of(
+            new ElasticInferenceServiceAuthorizationResponseEntity(
+                List.of(
+                    new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel("model-2", EnumSet.of(TaskType.SPARSE_EMBEDDING))
+                )
+            )
+        );
+
+        assertThat(
+            auth1.merge(auth2),
+            is(
+                ElasticInferenceServiceAuthorizationModel.of(
+                    new ElasticInferenceServiceAuthorizationResponseEntity(
+                        List.of(
+                            new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
+                                "model-1",
+                                EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING)
+                            ),
+                            new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
+                                "model-2",
+                                EnumSet.of(TaskType.SPARSE_EMBEDDING)
+                            )
+                        )
+                    )
+                )
+            )
+        );
+    }
+
+    public void testMerge_AddsNewTaskType() {
+        var auth1 = ElasticInferenceServiceAuthorizationModel.of(
+            new ElasticInferenceServiceAuthorizationResponseEntity(
+                List.of(
+                    new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
+                        "model-1",
+                        EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING)
+                    )
+                )
+            )
+        );
+
+        var auth2 = ElasticInferenceServiceAuthorizationModel.of(
+            new ElasticInferenceServiceAuthorizationResponseEntity(
+                List.of(
+                    new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel("model-2", EnumSet.of(TaskType.CHAT_COMPLETION))
+                )
+            )
+        );
+
+        assertThat(
+            auth1.merge(auth2),
+            is(
+                ElasticInferenceServiceAuthorizationModel.of(
+                    new ElasticInferenceServiceAuthorizationResponseEntity(
+                        List.of(
+                            new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
+                                "model-1",
+                                EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING)
+                            ),
+                            new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
+                                "model-2",
+                                EnumSet.of(TaskType.CHAT_COMPLETION)
+                            )
+                        )
+                    )
+                )
+            )
+        );
+    }
+
+    public void testMerge_IgnoresDuplicates() {
+        var auth1 = ElasticInferenceServiceAuthorizationModel.of(
+            new ElasticInferenceServiceAuthorizationResponseEntity(
+                List.of(
+                    new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
+                        "model-1",
+                        EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING)
+                    )
+                )
+            )
+        );
+
+        var auth2 = ElasticInferenceServiceAuthorizationModel.of(
+            new ElasticInferenceServiceAuthorizationResponseEntity(
+                List.of(
+                    new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
+                        "model-1",
+                        EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING)
+                    )
+                )
+            )
+        );
+
+        assertThat(
+            auth1.merge(auth2),
+            is(
+                ElasticInferenceServiceAuthorizationModel.of(
+                    new ElasticInferenceServiceAuthorizationResponseEntity(
+                        List.of(
+                            new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
+                                "model-1",
+                                EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING)
+                            )
+                        )
+                    )
+                )
+            )
+        );
+    }
+
+    public void testMerge_CombinesCorrectlyWithEmptyModel() {
+        var auth1 = ElasticInferenceServiceAuthorizationModel.of(
+            new ElasticInferenceServiceAuthorizationResponseEntity(
+                List.of(
+                    new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
+                        "model-1",
+                        EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING)
+                    )
+                )
+            )
+        );
+
+        var auth2 = ElasticInferenceServiceAuthorizationModel.newDisabledService();
+
+        assertThat(
+            auth1.merge(auth2),
+            is(
+                ElasticInferenceServiceAuthorizationModel.of(
+                    new ElasticInferenceServiceAuthorizationResponseEntity(
+                        List.of(
+                            new ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedModel(
+                                "model-1",
+                                EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.SPARSE_EMBEDDING)
+                            )
+                        )
+                    )
+                )
+            )
+        );
     }
 }

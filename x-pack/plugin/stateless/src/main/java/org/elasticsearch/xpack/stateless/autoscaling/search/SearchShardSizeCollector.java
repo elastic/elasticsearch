@@ -303,10 +303,15 @@ public class SearchShardSizeCollector extends AbstractLifecycleComponent
     }
 
     private void completeTasks(long batchSize) {
-        if (0L < publishTaskQueueLength.addAndGet(-batchSize)) {
-            executor.execute(publishTask);
-        } else {
-            scheduleFutureDiffPublication();
+        // To be investigated where the trace context is (incorrectly) initialized.
+        // Prevent the propagation of the trace context here to not cause memory issues in APM agent.
+        // https://elasticco.atlassian.net/browse/ES-10969
+        try (var ignored = threadPool.getThreadContext().clearTraceContext()) {
+            if (0L < publishTaskQueueLength.addAndGet(-batchSize)) {
+                executor.execute(publishTask);
+            } else {
+                scheduleFutureDiffPublication();
+            }
         }
     }
 

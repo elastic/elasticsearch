@@ -30,9 +30,21 @@ import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
 
 public final class FileAccessTree {
 
+    /**
+     * An intermediary structure to help build exclusive paths for files entitlements.
+     */
     record ExclusiveFileEntitlement(String componentName, String moduleName, FilesEntitlement filesEntitlement) {}
 
-    record ExclusivePath(String componentName, String moduleName, String path) {}
+    /**
+     * An intermediary structure to help globally validate exclusive paths, and then build exclusive paths for individual modules.
+     */
+    record ExclusivePath(String componentName, String moduleName, String path) {
+
+        @Override
+        public String toString() {
+            return "[[" + componentName + "] [" + moduleName + "] [" + path + "]]";
+        }
+    }
 
     static List<ExclusivePath> buildExclusivePathList(List<ExclusiveFileEntitlement> exclusiveFileEntitlements, PathLookup pathLookup) {
         List<ExclusivePath> exclusivePaths = new ArrayList<>();
@@ -57,21 +69,7 @@ public final class FileAccessTree {
                 ExclusivePath nextPath = exclusivePaths.get(i);
                 if (currentExclusivePath.path().equals(nextPath.path) || isParent(currentExclusivePath.path(), nextPath.path())) {
                     throw new IllegalArgumentException(
-                        "duplicate/overlapping exclusive paths found in files entitlements: "
-                            + "[["
-                            + currentExclusivePath.componentName()
-                            + "] ["
-                            + currentExclusivePath.moduleName()
-                            + "] ["
-                            + currentExclusivePath.path()
-                            + "]] and [["
-
-                            + nextPath.componentName()
-                            + "] ["
-                            + nextPath.moduleName()
-                            + "] ["
-                            + nextPath.path()
-                            + "]]"
+                        "duplicate/overlapping exclusive paths found in files entitlements: " + currentExclusivePath + " and " + nextPath
                     );
                 }
                 currentExclusivePath = nextPath;
@@ -104,13 +102,6 @@ public final class FileAccessTree {
         List<String> writePaths = new ArrayList<>();
         BiConsumer<Path, Mode> addPath = (path, mode) -> {
             var normalized = normalizePath(path);
-            for (String exclusivePath : updatedExclusivePaths) {
-                if (exclusivePath.equals(normalized) || isParent(exclusivePath, normalized)) {
-                    throw new IllegalArgumentException(
-                        "[" + componentName + "] [" + moduleName + "] cannot use exclusive path [" + exclusivePath + "]"
-                    );
-                }
-            }
             if (mode == Mode.READ_WRITE) {
                 writePaths.add(normalized);
             }
@@ -211,9 +202,15 @@ public final class FileAccessTree {
     }
 
     private boolean checkPath(String path, String[] paths) {
-        if (paths.length == 0 || Arrays.binarySearch(exclusivePaths, path) >= 0) {
+        if (paths.length == 0) {
             return false;
         }
+
+        int endx = Arrays.binarySearch(exclusivePaths, path, PATH_ORDER);
+        if (endx < -1 && isParent(exclusivePaths[-endx - 2], path) || endx >= 0) {
+            return false;
+        }
+
         int ndx = Arrays.binarySearch(paths, path, PATH_ORDER);
         if (ndx < -1) {
             return isParent(paths[-ndx - 2], path);

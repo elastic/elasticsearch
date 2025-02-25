@@ -299,11 +299,21 @@ public class FileAccessTreeTests extends ESTestCase {
     }
 
     public void testInvalidExclusiveAccess() {
-        var iae = assertThrows(
-            IllegalArgumentException.class,
-            () -> accessTree(entitlement("foo/bar", "read"), exclusivePaths("test-component", "diff-module", "foo"))
-        );
-        assertThat(iae.getMessage(), is("[test-component] [test-module] cannot use exclusive path [" + path("foo") + "]"));
+        var tree = accessTree(entitlement("a", "read"), exclusivePaths("diff-component", "diff-module", "a/b"));
+        assertThat(tree.canRead(path("a")), is(true));
+        assertThat(tree.canWrite(path("a")), is(false));
+        assertThat(tree.canRead(path("a/b")), is(false));
+        assertThat(tree.canWrite(path("a/b")), is(false));
+        assertThat(tree.canRead(path("a/b/c")), is(false));
+        assertThat(tree.canWrite(path("a/b/c")), is(false));
+        tree = accessTree(entitlement("a/b", "read"), exclusivePaths("diff-component", "diff-module", "a"));
+        assertThat(tree.canRead(path("a")), is(false));
+        assertThat(tree.canWrite(path("a")), is(false));
+        assertThat(tree.canRead(path("a/b")), is(false));
+        assertThat(tree.canWrite(path("a/b")), is(false));
+        tree = accessTree(entitlement("a", "read"), exclusivePaths("diff-component", "diff-module", "a"));
+        assertThat(tree.canRead(path("a")), is(false));
+        assertThat(tree.canWrite(path("a")), is(false));
     }
 
     FileAccessTree accessTree(FilesEntitlement entitlement, List<ExclusivePath> exclusivePaths) {

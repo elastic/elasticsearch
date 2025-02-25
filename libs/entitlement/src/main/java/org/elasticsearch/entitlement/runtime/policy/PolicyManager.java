@@ -172,7 +172,13 @@ public class PolicyManager {
         this.apmAgentPackageName = apmAgentPackageName;
         this.entitlementsModule = entitlementsModule;
         this.pathLookup = requireNonNull(pathLookup);
-        this.defaultFileAccess = FileAccessTree.of("", "", FilesEntitlement.EMPTY, pathLookup, List.of());
+        this.defaultFileAccess = FileAccessTree.of(
+            UNKNOWN_COMPONENT_NAME,
+            UNKNOWN_COMPONENT_NAME,
+            FilesEntitlement.EMPTY,
+            pathLookup,
+            List.of()
+        );
         this.mutedClasses = suppressFailureLogClasses;
 
         List<ExclusiveFileEntitlement> exclusiveFileEntitlements = new ArrayList<>();

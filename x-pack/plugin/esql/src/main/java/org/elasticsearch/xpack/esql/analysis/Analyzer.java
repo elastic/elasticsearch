@@ -764,8 +764,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private LogicalPlan resolveDedup(Dedup dedup, List<Attribute> childrenOutput) {
-            List<NamedExpression> aggregates = dedup.aggregates();
+            List<NamedExpression> aggregates = dedup.finalAggs();
+            List<Attribute> groupings = dedup.groupings();
             List<NamedExpression> newAggs = new ArrayList<>();
+            List<Attribute> newGroupings = new ArrayList<>();
 
             for (NamedExpression agg : aggregates) {
                 var newAgg = (NamedExpression) agg.transformUp(UnresolvedAttribute.class, ua -> {
@@ -779,7 +781,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 newAggs.add(newAgg);
             }
 
-            return new Dedup(dedup.source(), dedup.child(), newAggs);
+            for (Attribute attr : groupings) {
+                if (attr instanceof UnresolvedAttribute ua) {
+                    newGroupings.add(resolveAttribute(ua, childrenOutput));
+                } else {
+                    newGroupings.add(attr);
+                }
+            }
+
+            return new Dedup(dedup.source(), dedup.child(), newAggs, newGroupings);
         }
 
         private LogicalPlan resolveRrfScoreEval(RrfScoreEval rrf, List<Attribute> childrenOutput) {

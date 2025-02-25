@@ -697,16 +697,20 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             Source source = source(ctx);
             Attribute scoreAttr = new UnresolvedAttribute(source, "_score");
             Attribute forkAttr = new UnresolvedAttribute(source, "_fork");
+            Attribute idAttr = new UnresolvedAttribute(source, "_id");
+            Attribute indexAttr = new UnresolvedAttribute(source, "_index");
             List<NamedExpression> aggregates = List.of(
                 new Alias(source, "_score", new Sum(source, scoreAttr, new Literal(source, true, DataType.BOOLEAN))),
                 new Alias(source, "_fork", new Values(source, forkAttr, new Literal(source, true, DataType.BOOLEAN)))
             );
+            List<Attribute> groupings = List.of(idAttr, indexAttr);
 
-            LogicalPlan dedup = new Dedup(source, new RrfScoreEval(source, input, scoreAttr, forkAttr), aggregates);
+            LogicalPlan dedup = new Dedup(source, new RrfScoreEval(source, input, scoreAttr, forkAttr), aggregates, groupings);
 
             List<Order> order = List.of(
                 new Order(source, scoreAttr, Order.OrderDirection.DESC, Order.NullsPosition.LAST),
-                new Order(source, forkAttr, Order.OrderDirection.ASC, Order.NullsPosition.LAST)
+                new Order(source, idAttr, Order.OrderDirection.ASC, Order.NullsPosition.LAST),
+                new Order(source, indexAttr, Order.OrderDirection.ASC, Order.NullsPosition.LAST)
             );
 
             return new OrderBy(source, dedup, order);

@@ -7,17 +7,18 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -26,74 +27,78 @@ import java.util.List;
 import java.util.Set;
 
 public class Dedup extends UnaryPlan implements SurrogateLogicalPlan {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Dedup", Dedup::new);
     private final List<NamedExpression> aggregates;
+    private final List<Attribute> groupings;
     private List<Attribute> lazyOutput;
+    private List<NamedExpression> lazyFinalAggs;
 
-    public Dedup(Source source, LogicalPlan child, List<NamedExpression> aggregates) {
+    public Dedup(Source source, LogicalPlan child, List<NamedExpression> aggregates, List<Attribute> groupings) {
         super(source, child);
         this.aggregates = aggregates;
-    }
-
-    private Dedup(StreamInput in) throws IOException {
-        this(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteable(LogicalPlan.class),
-            in.readNamedWriteableCollectionAsList(NamedExpression.class)
-        );
+        this.groupings = groupings;
     }
 
     @Override
     public String getWriteableName() {
-        return ENTRY.name;
+        throw new UnsupportedOperationException("not serialized");
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Source.EMPTY.writeTo(out);
+        throw new UnsupportedOperationException("not serialized");
     }
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, Dedup::new, child(), aggregates);
+        return NodeInfo.create(this, Dedup::new, child(), aggregates, groupings);
     }
 
     @Override
     public boolean expressionsResolved() {
-        return Resolvables.resolved(aggregates);
+        return Resolvables.resolved(aggregates) && Resolvables.resolved(groupings);
     }
 
     @Override
     public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return new Dedup(source(), newChild, aggregates);
+        return new Dedup(source(), newChild, aggregates, groupings);
     }
 
     @Override
     public LogicalPlan surrogate() {
-        List<NamedExpression> aggs = new ArrayList<>(aggregates);
-        List<Expression> groupings = new ArrayList<>();
-
-        Set<String> names = new HashSet<>(aggs.stream().map(exp -> exp.name()).toList());
-
-        for (Attribute attr : child().output()) {
-            if (names.contains(attr.name())) {
-                continue;
-            }
-            aggs.add(attr);
-            groupings.add(attr);
-        }
-
-        return new Aggregate(source(), child(), Aggregate.AggregateType.STANDARD, groupings, aggs);
+        return new Aggregate(source(), child(), Aggregate.AggregateType.STANDARD, new ArrayList<>(groupings), finalAggs());
     }
 
     public List<NamedExpression> aggregates() {
         return aggregates;
     }
 
+    public List<Attribute> groupings() {
+        return groupings;
+    }
+
+    public List<NamedExpression> finalAggs() {
+        if (lazyFinalAggs == null) {
+            lazyFinalAggs = new ArrayList<>(aggregates);
+
+            Set<String> names = new HashSet<>(aggregates.stream().map(att -> att.name()).toList());
+            Expression aggFilter = new Literal(source(), true, DataType.BOOLEAN);
+
+            for (Attribute attr : child().output()) {
+                if (names.contains(attr.name())) {
+                    continue;
+                }
+
+                lazyFinalAggs.add(new Alias(source(), attr.name(), new Values(source(), attr, aggFilter)));
+            }
+        }
+
+        return lazyFinalAggs;
+    }
+
     @Override
     public List<Attribute> output() {
         if (lazyOutput == null) {
-            lazyOutput = NamedExpressions.mergeOutputAttributes(aggregates, child().output());
+            lazyOutput = NamedExpressions.mergeOutputAttributes(finalAggs(), child().output());
         }
         return lazyOutput;
     }

@@ -354,7 +354,7 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
         assumeTrue("requires RRF capability", EsqlCapabilities.Cap.RRF.isEnabled());
 
         var query = """
-            FROM test METADATA _score
+            FROM test METADATA _score, _id, _index
             | WHERE id > 2
             | FORK
                ( WHERE content:"fox" )
@@ -365,7 +365,7 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             System.out.println("response=" + resp);
             assertColumnNames(resp.columns(), List.of("id", "content", "_score", "_fork"));
-            assertColumnTypes(resp.columns(), List.of("integer", "text", "double", "keyword"));
+            assertColumnTypes(resp.columns(), List.of("integer", "keyword", "double", "keyword"));
             assertThat(getValuesList(resp.values()).size(), equalTo(3));
             Iterable<Iterable<Object>> expectedValues = List.of(
                 List.of(6, "The quick brown fox jumps over the lazy dog", 0.032266458495966696, List.of("fork1", "fork2")),

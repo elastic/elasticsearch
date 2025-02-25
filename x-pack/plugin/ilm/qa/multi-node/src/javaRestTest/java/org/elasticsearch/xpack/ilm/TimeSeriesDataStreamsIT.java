@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ilm;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.WarningFailureException;
@@ -97,14 +96,12 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
 
         indexDocument(client(), dataStream, true);
 
-        final var firstGenerationIndex = new SetOnce<String>();
-        assertBusy(() -> {
-            final var backingIndices = getBackingIndices(client(), dataStream);
-            assertEquals(1, backingIndices.size());
-            assertEquals(WaitForRolloverReadyStep.NAME, getStepKeyForIndex(client(), backingIndices.getFirst()).name());
-            firstGenerationIndex.set(backingIndices.getFirst());
-        }, 30, TimeUnit.SECONDS);
-
+        String firstGenerationIndex = getBackingIndices(client(), dataStream).getFirst();
+        assertBusy(
+            () -> assertThat(getStepKeyForIndex(client(), firstGenerationIndex).name(), equalTo(WaitForRolloverReadyStep.NAME)),
+            30,
+            TimeUnit.SECONDS
+        );
         rolloverMaxOneDocCondition(client(), dataStream);
         assertBusy(() -> {
             final var backingIndices = getBackingIndices(client(), dataStream);
@@ -114,7 +111,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         // even though the first index doesn't have 2 documents to fulfill the rollover condition, it should complete the rollover action
         // because it's not the write index anymore
         assertBusy(
-            () -> assertEquals(PhaseCompleteStep.finalStep("hot").getKey(), getStepKeyForIndex(client(), firstGenerationIndex.get())),
+            () -> assertThat(getStepKeyForIndex(client(), firstGenerationIndex), equalTo(PhaseCompleteStep.finalStep("hot").getKey())),
             30,
             TimeUnit.SECONDS
         );

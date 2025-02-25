@@ -145,6 +145,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     @Override
     public void allocate(RoutingAllocation allocation) {
+        writeLoadForecaster.refreshLicence();
+
         assert allocation.ignoreDisable() == false;
 
         if (allocation.routingNodes().size() == 0) {

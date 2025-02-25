@@ -70,6 +70,7 @@ public class NodeAllocationStatsAndWeightsCalculator {
         ClusterInfo clusterInfo,
         @Nullable DesiredBalance desiredBalance
     ) {
+        writeLoadForecaster.refreshLicence();
         var weightFunction = new WeightFunction(shardBalanceFactor, indexBalanceFactor, writeLoadBalanceFactor, diskUsageBalanceFactor);
         var avgShardsPerNode = WeightFunction.avgShardPerNode(metadata, routingNodes);
         var avgWriteLoadPerNode = WeightFunction.avgWriteLoadPerNode(writeLoadForecaster, metadata, routingNodes);

@@ -41,7 +41,8 @@ public class EntitlementBootstrap {
         Path configDir,
         Path libDir,
         Path logsDir,
-        Path tempDir
+        Path tempDir,
+        Path pidFile
     ) {
         public BootstrapArgs {
             requireNonNull(pluginPolicies);
@@ -80,6 +81,7 @@ public class EntitlementBootstrap {
      * @param libDir         the lib directory for Elasticsearch
      * @param tempDir        the temp directory for Elasticsearch
      * @param logsDir        the log directory for Elasticsearch
+     * @param pidFile        path to a pid file for Elasticsearch, or {@code null} if one was not specified
      */
     public static void bootstrap(
         Map<String, Policy> pluginPolicies,
@@ -91,7 +93,8 @@ public class EntitlementBootstrap {
         Path configDir,
         Path libDir,
         Path logsDir,
-        Path tempDir
+        Path tempDir,
+        Path pidFile
     ) {
         logger.debug("Loading entitlement agent");
         if (EntitlementBootstrap.bootstrapArgs != null) {
@@ -107,7 +110,8 @@ public class EntitlementBootstrap {
             configDir,
             libDir,
             logsDir,
-            tempDir
+            tempDir,
+            pidFile
         );
         exportInitializationToAgent();
         loadAgent(findAgentJar());

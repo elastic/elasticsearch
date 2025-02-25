@@ -91,7 +91,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         }
 
         @Override
-        public void refreshLicence() {}
+        public void refreshLicense() {}
     };
 
     public static MockAllocationService createAllocationService() {

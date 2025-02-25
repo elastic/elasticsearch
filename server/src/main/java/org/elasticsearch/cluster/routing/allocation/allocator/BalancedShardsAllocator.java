@@ -147,7 +147,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     public void allocate(RoutingAllocation allocation) {
         if (allocation.metadata().indices().isEmpty() == false) {
             // must not use licensed features when just starting up
-            writeLoadForecaster.refreshLicence();
+            writeLoadForecaster.refreshLicense();
         }
 
         assert allocation.ignoreDisable() == false;

@@ -21,7 +21,7 @@ public interface WriteLoadForecaster {
 
     OptionalDouble getForecastedWriteLoad(IndexMetadata indexMetadata);
 
-    void refreshLicence();
+    void refreshLicense();
 
     class DefaultWriteLoadForecaster implements WriteLoadForecaster {
         @Override
@@ -35,6 +35,6 @@ public interface WriteLoadForecaster {
         }
 
         @Override
-        public void refreshLicence() {}
+        public void refreshLicense() {}
     }
 }

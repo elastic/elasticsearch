@@ -59,13 +59,13 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
     public void testWriteLoadForecastIsAddedToWriteIndex() {
         final TimeValue maxIndexAge = TimeValue.timeValueDays(7);
         final AtomicBoolean hasValidLicense = new AtomicBoolean(true);
-        final AtomicInteger licenceCheckCount = new AtomicInteger();
+        final AtomicInteger licenseCheckCount = new AtomicInteger();
         final WriteLoadForecaster writeLoadForecaster = new LicensedWriteLoadForecaster(() -> {
-            licenceCheckCount.incrementAndGet();
+            licenseCheckCount.incrementAndGet();
             return hasValidLicense.get();
         }, threadPool, maxIndexAge);
 
-        writeLoadForecaster.refreshLicence();
+        writeLoadForecaster.refreshLicense();
 
         final Metadata.Builder metadataBuilder = Metadata.builder();
         final String dataStreamName = "logs-es";
@@ -107,11 +107,11 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
         assertThat(forecastedWriteLoad.isPresent(), is(true));
         assertThat(forecastedWriteLoad.getAsDouble(), is(greaterThan(0.0)));
 
-        assertThat(licenceCheckCount.get(), equalTo(1));
+        assertThat(licenseCheckCount.get(), equalTo(1));
         hasValidLicense.set(false);
 
-        writeLoadForecaster.refreshLicence();
-        assertThat(licenceCheckCount.get(), equalTo(2));
+        writeLoadForecaster.refreshLicense();
+        assertThat(licenseCheckCount.get(), equalTo(2));
 
         final OptionalDouble forecastedWriteLoadAfterLicenseChange = writeLoadForecaster.getForecastedWriteLoad(writeIndex);
         assertThat(forecastedWriteLoadAfterLicenseChange.isPresent(), is(false));
@@ -152,7 +152,7 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
         metadataBuilder.put(dataStream);
 
         final WriteLoadForecaster writeLoadForecaster = new LicensedWriteLoadForecaster(() -> true, threadPool, maxIndexAge);
-        writeLoadForecaster.refreshLicence();
+        writeLoadForecaster.refreshLicense();
 
         final Metadata.Builder updatedMetadataBuilder = writeLoadForecaster.withWriteLoadForecastForWriteIndex(
             dataStream.getName(),
@@ -171,7 +171,7 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
         final TimeValue maxIndexAge = TimeValue.timeValueDays(7);
         final AtomicBoolean hasValidLicense = new AtomicBoolean(true);
         final WriteLoadForecaster writeLoadForecaster = new LicensedWriteLoadForecaster(hasValidLicense::get, threadPool, maxIndexAge);
-        writeLoadForecaster.refreshLicence();
+        writeLoadForecaster.refreshLicense();
 
         final Metadata.Builder metadataBuilder = Metadata.builder();
         final String dataStreamName = "logs-es";
@@ -215,7 +215,7 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
         assertThat(forecastedWriteLoad.getAsDouble(), is(equalTo(0.6)));
 
         hasValidLicense.set(false);
-        writeLoadForecaster.refreshLicence();
+        writeLoadForecaster.refreshLicense();
 
         final OptionalDouble forecastedWriteLoadAfterLicenseChange = writeLoadForecaster.getForecastedWriteLoad(writeIndex);
         assertThat(forecastedWriteLoadAfterLicenseChange.isPresent(), is(false));
@@ -370,24 +370,24 @@ public class LicensedWriteLoadForecasterTests extends ESTestCase {
         };
 
         MockLog.assertThatLogger(() -> {
-            final var hasValidLicence = new AtomicBoolean();
-            final var writeLoadForecaster = new LicensedWriteLoadForecaster(hasValidLicence::get, threadPool, randomTimeValue());
+            final var hasValidLicense = new AtomicBoolean();
+            final var writeLoadForecaster = new LicensedWriteLoadForecaster(hasValidLicense::get, threadPool, randomTimeValue());
             assertThat(seenMessages, empty());
-            writeLoadForecaster.refreshLicence();
+            writeLoadForecaster.refreshLicense();
             assertThat(seenMessages, empty());
 
-            hasValidLicence.set(true);
-            writeLoadForecaster.refreshLicence();
+            hasValidLicense.set(true);
+            writeLoadForecaster.refreshLicense();
             assertThat(seenMessages, contains("license state changed, now [valid]"));
-            writeLoadForecaster.refreshLicence();
+            writeLoadForecaster.refreshLicense();
             assertThat(seenMessages, contains("license state changed, now [valid]"));
 
-            hasValidLicence.set(false);
-            writeLoadForecaster.refreshLicence();
+            hasValidLicense.set(false);
+            writeLoadForecaster.refreshLicense();
             assertThat(seenMessages, contains("license state changed, now [valid]", "license state changed, now [not valid]"));
 
-            hasValidLicence.set(true);
-            ESTestCase.startInParallel(between(1, 10), ignored -> writeLoadForecaster.refreshLicence());
+            hasValidLicense.set(true);
+            ESTestCase.startInParallel(between(1, 10), ignored -> writeLoadForecaster.refreshLicense());
             assertThat(
                 seenMessages,
                 contains(

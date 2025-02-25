@@ -1,5 +1,5 @@
 pr: 123346
-summary: Reduce licence checks in `LicensedWriteLoadForecaster`
+summary: Reduce license checks in `LicensedWriteLoadForecaster`
 area: CRUD
 type: bug
 issues:

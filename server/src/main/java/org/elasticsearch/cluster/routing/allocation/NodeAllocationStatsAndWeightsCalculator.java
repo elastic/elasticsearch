@@ -72,7 +72,7 @@ public class NodeAllocationStatsAndWeightsCalculator {
     ) {
         if (metadata.indices().isEmpty() == false) {
             // must not use licensed features when just starting up
-            writeLoadForecaster.refreshLicence();
+            writeLoadForecaster.refreshLicense();
         }
         var weightFunction = new WeightFunction(shardBalanceFactor, indexBalanceFactor, writeLoadBalanceFactor, diskUsageBalanceFactor);
         var avgShardsPerNode = WeightFunction.avgShardPerNode(metadata, routingNodes);

@@ -84,7 +84,7 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
         assertAllPreviousForecastsAreClearedAfterRollover(dataStream, metadata);
 
         setHasValidLicense(false);
-        writeLoadForecaster.refreshLicence();
+        writeLoadForecaster.refreshLicense();
 
         final OptionalDouble forecastedWriteLoadAfterLicenseChange = writeLoadForecaster.getForecastedWriteLoad(writeIndexMetadata);
         assertThat(forecastedWriteLoadAfterLicenseChange.isPresent(), is(equalTo(false)));
@@ -132,7 +132,7 @@ public class WriteLoadForecasterIT extends ESIntegTestCase {
         assertAllPreviousForecastsAreClearedAfterRollover(dataStream, metadata);
 
         setHasValidLicense(false);
-        writeLoadForecaster.refreshLicence();
+        writeLoadForecaster.refreshLicense();
 
         final OptionalDouble forecastedWriteLoadAfterLicenseChange = writeLoadForecaster.getForecastedWriteLoad(writeIndexMetadata);
         assertThat(forecastedWriteLoadAfterLicenseChange.isPresent(), is(equalTo(false)));

@@ -31,7 +31,7 @@ class OracleOpenJdkToolchainResolverSpec extends AbstractToolchainResolverSpec {
             }
         }
         toolChain.builds = toolChain.builds.findAll { it instanceof OracleOpenJdkToolchainResolver.EarlyAccessJdkBuild } + [
-            new OracleOpenJdkToolchainResolver.ReleasedJdkBuild(
+            new OracleOpenJdkToolchainResolver.ReleaseJdkBuild(
                 JavaLanguageVersion.of(20),
                 "20",
                 "36",

@@ -346,6 +346,9 @@ tests:
 - class: org.elasticsearch.index.mapper.IPSyntheticSourceNativeArrayIntegrationTests
   method: testSynthesizeArrayRandom
   issue: https://github.com/elastic/elasticsearch/issues/123418
+- class: org.elasticsearch.index.mapper.IPSyntheticSourceNativeArrayIntegrationTests
+  method: testSynthesizeArrayIgnoreMalformed
+  issue: https://github.com/elastic/elasticsearch/issues/123419
 
 # Examples:
 #

@@ -39,6 +39,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportChannel;
@@ -194,6 +195,7 @@ public abstract class TransportBroadcastByNodeAction<
      * @param concreteIndices the concrete indices on which to execute the operation
      * @return the shards on which to execute the operation
      */
+    @FixForMultiProject(description = "consider taking project scoped state as parameter")
     protected abstract ShardsIterator shards(ClusterState clusterState, Request request, String[] concreteIndices);
 
     /**
@@ -213,6 +215,7 @@ public abstract class TransportBroadcastByNodeAction<
      * @param concreteIndices the concrete indices on which to execute the operation
      * @return a non-null exception if the operation if blocked
      */
+    @FixForMultiProject(description = "consider taking project scoped state as parameter")
     protected abstract ClusterBlockException checkRequestBlock(ClusterState state, Request request, String[] concreteIndices);
 
     /**

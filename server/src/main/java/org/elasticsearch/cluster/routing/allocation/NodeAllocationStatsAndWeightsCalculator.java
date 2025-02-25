@@ -88,7 +88,7 @@ public class NodeAllocationStatsAndWeightsCalculator {
                     continue;
                 }
                 ++shards;
-                IndexMetadata indexMetadata = metadata.getIndexSafe(shardRouting.index());
+                IndexMetadata indexMetadata = metadata.indexMetadata(shardRouting.index());
                 if (isDesiredAllocation(desiredBalance, shardRouting) == false) {
                     undesiredShards++;
                 }

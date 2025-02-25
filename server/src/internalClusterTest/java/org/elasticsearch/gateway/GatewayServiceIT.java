@@ -61,7 +61,7 @@ public class GatewayServiceIT extends ESIntegTestCase {
             return Map.of(ALLOCATOR_NAME, new ExistingShardsAllocator() {
                 @Override
                 public void beforeAllocation(RoutingAllocation allocation) {
-                    if (allocation.routingTable().iterator().hasNext()) {
+                    if (allocation.globalRoutingTable().routingTables().values().stream().anyMatch(table -> table.iterator().hasNext())) {
                         // state is recovered so we must have applied the setting
                         assertTrue(settingApplied.get());
                     }

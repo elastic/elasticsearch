@@ -266,7 +266,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         }
         desiredBalanceComputation.onNewInput(DesiredBalanceInput.create(index, allocation));
 
-        if (allocation.routingTable().indicesRouting().isEmpty()) {
+        if (allocation.globalRoutingTable().hasIndices() == false) {
             logger.debug("No eager reconciliation needed for empty routing table");
             return;
         }

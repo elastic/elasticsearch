@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.autoscaling;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandlerProvider;
 
@@ -27,7 +28,7 @@ public class ReservedAutoscalingStateHandlerProvider implements ReservedClusterS
     }
 
     @Override
-    public Collection<ReservedClusterStateHandler<?>> handlers() {
+    public Collection<ReservedClusterStateHandler<ClusterState, ?>> clusterHandlers() {
         return plugin.reservedClusterStateHandlers();
     }
 }

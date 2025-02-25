@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
@@ -42,7 +43,7 @@ public class IndexAbstractionResolverTests extends ESTestCase {
 
     private IndexNameExpressionResolver indexNameExpressionResolver;
     private IndexAbstractionResolver indexAbstractionResolver;
-    private Metadata metadata;
+    private ProjectMetadata projectMetadata;
     private String dateTimeIndexToday;
     private String dateTimeIndexTomorrow;
 
@@ -52,7 +53,12 @@ public class IndexAbstractionResolverTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE);
+        final var projectId = randomProjectIdOrDefault();
+        indexNameExpressionResolver = new IndexNameExpressionResolver(
+            new ThreadContext(Settings.EMPTY),
+            EmptySystemIndices.INSTANCE,
+            TestProjectResolvers.singleProject(projectId)
+        );
         indexAbstractionResolver = new IndexAbstractionResolver(indexNameExpressionResolver);
 
         // Try to resist failing at midnight on the first/last day of the month. Time generally moves forward, so make a timestamp for
@@ -62,7 +68,8 @@ public class IndexAbstractionResolverTests extends ESTestCase {
         dateTimeIndexToday = IndexNameExpressionResolver.resolveDateMathExpression("<datetime-{now/M}>", timeMillis);
         dateTimeIndexTomorrow = IndexNameExpressionResolver.resolveDateMathExpression("<datetime-{now/M}>", timeTomorrow);
 
-        metadata = DataStreamTestHelper.getClusterStateWithDataStreams(
+        projectMetadata = DataStreamTestHelper.getClusterStateWithDataStreams(
+            projectId,
             List.of(new Tuple<>("data-stream1", 2), new Tuple<>("data-stream2", 2)),
             List.of("index1", "index2", "index3", dateTimeIndexToday, dateTimeIndexTomorrow),
             randomMillisUpToYear9999(),
@@ -70,7 +77,7 @@ public class IndexAbstractionResolverTests extends ESTestCase {
             0,
             false,
             true
-        ).metadata();
+        ).metadata().getProject(projectId);
     }
 
     public void testResolveIndexAbstractions() {
@@ -258,7 +265,7 @@ public class IndexAbstractionResolverTests extends ESTestCase {
             List.of(new SystemIndices.Feature("name", "description", List.of(fooDescriptor, barDescriptor)))
         );
 
-        metadata = Metadata.builder().put(foo, true).put(barReindexed, true).put(other, true).build();
+        projectMetadata = ProjectMetadata.builder(projectMetadata.id()).put(foo, true).put(barReindexed, true).put(other, true).build();
 
         // these indices options are for the GET _data_streams case
         final IndicesOptions noHiddenNoAliases = IndicesOptions.builder()
@@ -275,7 +282,11 @@ public class IndexAbstractionResolverTests extends ESTestCase {
         {
             final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
             threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, "true");
-            indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, systemIndices);
+            indexNameExpressionResolver = new IndexNameExpressionResolver(
+                threadContext,
+                systemIndices,
+                TestProjectResolvers.singleProject(projectMetadata.id())
+            );
             indexAbstractionResolver = new IndexAbstractionResolver(indexNameExpressionResolver);
 
             // this covers the GET * case -- with system access, you can see everything
@@ -292,7 +303,11 @@ public class IndexAbstractionResolverTests extends ESTestCase {
         {
             final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
             threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, "false");
-            indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, systemIndices);
+            indexNameExpressionResolver = new IndexNameExpressionResolver(
+                threadContext,
+                systemIndices,
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY
+            );
             indexAbstractionResolver = new IndexAbstractionResolver(indexNameExpressionResolver);
 
             // this covers the GET * case -- without system access, you can't see everything
@@ -310,7 +325,11 @@ public class IndexAbstractionResolverTests extends ESTestCase {
             final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
             threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, "true");
             threadContext.putHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, "some-elastic-product");
-            indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, systemIndices);
+            indexNameExpressionResolver = new IndexNameExpressionResolver(
+                threadContext,
+                systemIndices,
+                TestProjectResolvers.singleProject(projectMetadata.id())
+            );
             indexAbstractionResolver = new IndexAbstractionResolver(indexNameExpressionResolver);
 
             // this covers the GET * case -- with product (only) access, you can't see everything
@@ -348,7 +367,7 @@ public class IndexAbstractionResolverTests extends ESTestCase {
     }
 
     private List<String> resolveAbstractions(List<String> expressions, IndicesOptions indicesOptions, Supplier<Set<String>> mask) {
-        return indexAbstractionResolver.resolveIndexAbstractions(expressions, indicesOptions, metadata, mask, (idx) -> true, true);
+        return indexAbstractionResolver.resolveIndexAbstractions(expressions, indicesOptions, projectMetadata, mask, (idx) -> true, true);
     }
 
     private boolean isIndexVisible(String index, String selector) {
@@ -356,6 +375,15 @@ public class IndexAbstractionResolverTests extends ESTestCase {
     }
 
     private boolean isIndexVisible(String index, String selector, IndicesOptions indicesOptions) {
-        return IndexAbstractionResolver.isIndexVisible("*", selector, index, indicesOptions, metadata, indexNameExpressionResolver, true);
+        return IndexAbstractionResolver.isIndexVisible(
+            "*",
+            selector,
+            index,
+            indicesOptions,
+            projectMetadata,
+            indexNameExpressionResolver,
+            true
+        );
     }
+
 }

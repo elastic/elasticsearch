@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -59,7 +60,8 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         NamedXContentRegistry xContentRegistry,
-        IndexLifecycleService indexLifecycleService
+        IndexLifecycleService indexLifecycleService,
+        ProjectResolver projectResolver
     ) {
         super(
             ExplainLifecycleAction.NAME,
@@ -69,7 +71,8 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
             actionFilters,
             ExplainLifecycleRequest::new,
             indexNameExpressionResolver,
-            ExplainLifecycleResponse::new
+            ExplainLifecycleResponse::new,
+            projectResolver
         );
         this.xContentRegistry = xContentRegistry;
         this.indexLifecycleService = indexLifecycleService;
@@ -121,7 +124,7 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
         NamedXContentRegistry xContentRegistry,
         boolean rolloverOnlyIfHasDocuments
     ) throws IOException {
-        IndexMetadata indexMetadata = metadata.index(indexName);
+        IndexMetadata indexMetadata = metadata.getProject().index(indexName);
         Settings idxSettings = indexMetadata.getSettings();
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
         String policyName = indexMetadata.getLifecyclePolicyName();
@@ -164,7 +167,7 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
         }
 
         final IndexLifecycleExplainResponse indexResponse;
-        if (metadata.isIndexManagedByILM(indexMetadata)) {
+        if (metadata.getProject().isIndexManagedByILM(indexMetadata)) {
             // If this is requesting only errors, only include indices in the error step or which are using a nonexistent policy
             if (onlyErrors == false
                 || (ErrorStep.NAME.equals(lifecycleState.step()) || indexLifecycleService.policyExists(policyName) == false)) {

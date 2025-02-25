@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
@@ -225,7 +226,8 @@ public class SecurityTests extends ESTestCase {
             env,
             TestIndexNameExpressionResolver.newInstance(threadContext),
             TelemetryProvider.NOOP,
-            mock(PersistentTasksService.class)
+            mock(PersistentTasksService.class),
+            TestProjectResolvers.singleProjectOnly()
         );
     }
 
@@ -855,8 +857,10 @@ public class SecurityTests extends ESTestCase {
                 mock(ClusterService.class),
                 null,
                 List.of(),
+                List.of(),
                 RestExtension.allowAll(),
-                new IncrementalBulkService(null, null)
+                new IncrementalBulkService(null, null),
+                TestProjectResolvers.singleProjectOnly()
             );
             actionModule.initRestHandlers(null, null);
 

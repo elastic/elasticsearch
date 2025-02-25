@@ -96,7 +96,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
         TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
 
         ClusterState state = clusterService.state();
-        PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = state.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         // If there are deleted configs, but the task is still around, we probably want to return the tasks in the stats call
         jobConfigProvider.expandJobsIds(
             request.getJobId(),
@@ -144,7 +144,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
         TaskId parentTaskId = new TaskId(clusterService.localNode().getId(), actionTask.getId());
         String jobId = task.getJobId();
         ClusterState state = clusterService.state();
-        PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = state.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         Optional<Tuple<DataCounts, Tuple<ModelSizeStats, TimingStats>>> stats = processManager.getStatistics(task);
         if (stats.isPresent()) {
             DataCounts dataCounts = stats.get().v1();
@@ -201,7 +201,7 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
             }
         };
 
-        PersistentTasksCustomMetadata tasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasks = clusterService.state().getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
             for (int i = 0; i < closedJobIds.size(); i++) {
                 int slot = i;

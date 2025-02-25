@@ -58,6 +58,8 @@ import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -1260,6 +1262,20 @@ public abstract class ESTestCase extends LuceneTestCase {
         return randomAlphaOfLengthBetween(8, 12).toLowerCase(Locale.ROOT);
     }
 
+    /**
+     * Returns a project id. This may be {@link Metadata#DEFAULT_PROJECT_ID}, or it may be a randomly-generated id.
+     */
+    public static ProjectId randomProjectIdOrDefault() {
+        return randomBoolean() ? Metadata.DEFAULT_PROJECT_ID : new ProjectId(randomUUID());
+    }
+
+    /**
+     * Returns a new randomly-generated project id
+     */
+    public static ProjectId randomUniqueProjectId() {
+        return new ProjectId(randomUUID());
+    }
+
     public static String randomUUID() {
         return UUIDs.randomBase64UUID(random());
     }
@@ -1630,6 +1646,13 @@ public abstract class ESTestCase extends LuceneTestCase {
     /** Return consistent index settings for the provided index version, shard- and replica-count. */
     public static Settings.Builder indexSettings(IndexVersion indexVersionCreated, int shards, int replicas) {
         return settings(indexVersionCreated).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas);
+    }
+
+    /** Return consistent index settings for the provided index version, uuid, shard- and replica-count, */
+    public static Settings.Builder indexSettings(IndexVersion indexVersionCreated, String uuid, int shards, int replicas) {
+        return settings(indexVersionCreated).put(IndexMetadata.SETTING_INDEX_UUID, uuid)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicas);
     }
 

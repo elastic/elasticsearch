@@ -32,9 +32,12 @@ import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -105,6 +108,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     private static final ExecutorService writeExecutor = new NamedDirectExecutorService("write");
     private static final ExecutorService systemWriteExecutor = new NamedDirectExecutorService("system_write");
 
+    private final ProjectId projectId = randomProjectIdOrDefault();
+
     /** Services needed by bulk action */
     TransportService transportService;
     ClusterService clusterService;
@@ -158,6 +163,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 TestIndexNameExpressionResolver.newInstance(),
                 new IndexingPressure(SETTINGS),
                 EmptySystemIndices.INSTANCE,
+                TestProjectResolvers.singleProject(projectId),
                 FailureStoreMetrics.NOOP,
                 DataStreamFailureStoreSettings.create(ClusterSettings.createBuiltInClusterSettings())
             );
@@ -299,9 +305,10 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         when(nodes.getIngestNodes()).thenReturn(ingestNodes);
         ClusterState state = mock(ClusterState.class);
         when(state.getNodes()).thenReturn(nodes);
+        when(state.projectState(any(ProjectId.class))).thenCallRealMethod();
         mockFeatureService = mock(FeatureService.class);
         when(mockFeatureService.clusterHasFeature(any(), any())).thenReturn(true);
-        Metadata metadata = Metadata.builder()
+        ProjectMetadata project = ProjectMetadata.builder(projectId)
             .indices(
                 Map.of(
                     WITH_DEFAULT_PIPELINE,
@@ -331,6 +338,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 )
             )
             .build();
+        Metadata metadata = Metadata.builder().put(project).build();
         when(state.getMetadata()).thenReturn(metadata);
         when(state.metadata()).thenReturn(metadata);
         when(state.blocks()).thenReturn(mock(ClusterBlocks.class));
@@ -398,6 +406,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
         verify(ingestService).executeBulkRequest(
+            eq(projectId),
             eq(bulkRequest.numberOfActions()),
             bulkDocsItr.capture(),
             any(),
@@ -448,6 +457,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
         verify(ingestService).executeBulkRequest(
+            eq(projectId),
             eq(1),
             bulkDocsItr.capture(),
             any(),
@@ -496,6 +506,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
         verify(ingestService).executeBulkRequest(
+            eq(projectId),
             eq(bulkRequest.numberOfActions()),
             bulkDocsItr.capture(),
             any(),
@@ -535,7 +546,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         ActionTestUtils.execute(action, null, bulkRequest, listener);
 
         // should not have executed ingest locally
-        verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any(), any(), any(), any());
+        verify(ingestService, never()).executeBulkRequest(eq(projectId), anyInt(), any(), any(), any(), any(), any(), any(), any());
         // but instead should have sent to a remote node with the transport service
         ArgumentCaptor<DiscoveryNode> node = ArgumentCaptor.forClass(DiscoveryNode.class);
         verify(transportService).sendRequest(node.capture(), eq(TransportBulkAction.NAME), any(), remoteResponseHandler.capture());
@@ -575,7 +586,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         ActionTestUtils.execute(singleItemBulkWriteAction, null, indexRequest, listener);
 
         // should not have executed ingest locally
-        verify(ingestService, never()).executeBulkRequest(anyInt(), any(), any(), any(), any(), any(), any(), any());
+        verify(ingestService, never()).executeBulkRequest(eq(projectId), anyInt(), any(), any(), any(), any(), any(), any(), any());
         // but instead should have sent to a remote node with the transport service
         ArgumentCaptor<DiscoveryNode> node = ArgumentCaptor.forClass(DiscoveryNode.class);
         verify(transportService).sendRequest(node.capture(), eq(TransportBulkAction.NAME), any(), remoteResponseHandler.capture());
@@ -656,6 +667,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
         verify(ingestService).executeBulkRequest(
+            eq(projectId),
             eq(bulkRequest.numberOfActions()),
             bulkDocsItr.capture(),
             any(),
@@ -706,6 +718,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
         verify(ingestService).executeBulkRequest(
+            eq(projectId),
             eq(1),
             bulkDocsItr.capture(),
             any(),
@@ -779,12 +792,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 .build()
         );
 
-        Metadata metadata = mock(Metadata.class);
+        Metadata metadata = Metadata.builder().put(ProjectMetadata.builder(projectId).templates(templateMetadata)).build();
         when(state.metadata()).thenReturn(metadata);
         when(state.getMetadata()).thenReturn(metadata);
-        when(metadata.templates()).thenReturn(templateMetadata);
-        when(metadata.getTemplates()).thenReturn(templateMetadata);
-        when(metadata.indices()).thenReturn(Map.of());
 
         IndexRequest indexRequest = new IndexRequest("missing_index").id("id");
         indexRequest.source(Collections.emptyMap());
@@ -802,6 +812,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
 
         assertEquals("pipeline2", indexRequest.getPipeline());
         verify(ingestService).executeBulkRequest(
+            eq(projectId),
             eq(1),
             bulkDocsItr.capture(),
             any(),
@@ -822,7 +833,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
             .build();
 
         ClusterState state = clusterService.state();
-        Metadata metadata = Metadata.builder().put("my-template", t1).build();
+        Metadata metadata = Metadata.builder().put(ProjectMetadata.builder(projectId).put("my-template", t1)).build();
         when(state.metadata()).thenReturn(metadata);
         when(state.getMetadata()).thenReturn(metadata);
 
@@ -842,6 +853,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
 
         assertEquals("pipeline2", indexRequest.getPipeline());
         verify(ingestService).executeBulkRequest(
+            eq(projectId),
             eq(1),
             bulkDocsItr.capture(),
             any(),
@@ -871,6 +883,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
         verify(ingestService).executeBulkRequest(
+            eq(projectId),
             eq(bulkRequest.numberOfActions()),
             bulkDocsItr.capture(),
             any(),
@@ -910,6 +923,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         assertFalse(responseCalled.get());
         assertFalse(failureCalled.get());
         verify(ingestService).executeBulkRequest(
+            eq(projectId),
             eq(1),
             bulkDocsItr.capture(),
             any(),

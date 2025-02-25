@@ -241,7 +241,7 @@ public abstract class AbstractFeatureMigrationIntegTest extends ESIntegTestCase 
         boolean isInternal,
         Collection<String> aliasNames
     ) {
-        IndexMetadata imd = metadata.index(indexName);
+        IndexMetadata imd = metadata.getProject().index(indexName);
         assertThat(imd.getSettings().get(FlAG_SETTING_KEY), equalTo(Integer.toString(settingsFlagValue)));
         final Map<String, Object> mapping = imd.mapping().getSourceAsMap();
         @SuppressWarnings("unchecked")

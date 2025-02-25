@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -29,6 +30,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
@@ -41,8 +44,12 @@ import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.assertAllocationIdsConsistencyForOnePersistentTasks;
+import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.getNonZeroAllocationIds;
 
 /**
  * Component that runs only on the master node and is responsible for assigning running tasks to nodes
@@ -135,7 +142,7 @@ public final class PersistentTasksClusterService implements ClusterStateListener
 
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                PersistentTasksCustomMetadata tasks = newState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+                PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(newState);
                 if (tasks != null) {
                     PersistentTask<?> task = tasks.getTask(taskId);
                     listener.onResponse(task);
@@ -409,7 +416,7 @@ public final class PersistentTasksClusterService implements ClusterStateListener
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 reassigningTasks.set(false);
-                if (isAnyTaskUnassigned(newState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE))) {
+                if (isAnyTaskUnassigned(PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(newState))) {
                     periodicRechecker.rescheduleIfNecessary();
                 }
             }
@@ -422,7 +429,7 @@ public final class PersistentTasksClusterService implements ClusterStateListener
      * persistent tasks changed.
      */
     boolean shouldReassignPersistentTasks(final ClusterChangedEvent event) {
-        final PersistentTasksCustomMetadata tasks = event.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        final PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(event.state());
         if (tasks == null) {
             return false;
         }
@@ -463,7 +470,7 @@ public final class PersistentTasksClusterService implements ClusterStateListener
     ClusterState reassignTasks(final ClusterState currentState) {
         ClusterState clusterState = currentState;
 
-        final PersistentTasksCustomMetadata tasks = currentState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        final PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(currentState);
         if (tasks != null) {
             logger.trace("reassigning {} persistent tasks", tasks.tasks().size());
             final DiscoveryNodes nodes = currentState.nodes();
@@ -494,7 +501,10 @@ public final class PersistentTasksClusterService implements ClusterStateListener
     /** Returns true if the persistent tasks are not equal between the previous and the current cluster state **/
     static boolean persistentTasksChanged(final ClusterChangedEvent event) {
         String type = PersistentTasksCustomMetadata.TYPE;
-        return Objects.equals(event.state().metadata().custom(type), event.previousState().metadata().custom(type)) == false;
+        return Objects.equals(
+            event.state().metadata().getProject().custom(type),
+            event.previousState().metadata().getProject().custom(type)
+        ) == false;
     }
 
     /** Returns true if the task is not assigned or is assigned to a non-existing node */
@@ -503,17 +513,65 @@ public final class PersistentTasksClusterService implements ClusterStateListener
     }
 
     private static PersistentTasksCustomMetadata.Builder builder(ClusterState currentState) {
-        return PersistentTasksCustomMetadata.builder(currentState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE));
+        return PersistentTasksCustomMetadata.builder(currentState.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE));
     }
 
     private static ClusterState update(ClusterState currentState, PersistentTasksCustomMetadata.Builder tasksInProgress) {
         if (tasksInProgress.isChanged()) {
-            return ClusterState.builder(currentState)
+            final ClusterState updatedClusterState = ClusterState.builder(currentState)
                 .metadata(Metadata.builder(currentState.metadata()).putCustom(PersistentTasksCustomMetadata.TYPE, tasksInProgress.build()))
                 .build();
+            assert assertAllocationIdsConsistency(updatedClusterState);
+            return updatedClusterState;
         } else {
             return currentState;
         }
+    }
+
+    @FixForMultiProject(description = "Revisit this method to either reduce the complexity or remove if it turns out to be unnecessary")
+    private static boolean assertAllocationIdsConsistency(ClusterState clusterState) {
+        // Cluster scoped persistent tasks and each project's project scoped persistent tasks should have no duplicated allocationId
+        // The lastAllocationId must be larger or equal to allocationId of all individual tasks
+        final var clusterPersistentTasksCustomMetadata = ClusterPersistentTasksCustomMetadata.get(clusterState.metadata());
+        assert assertAllocationIdsConsistencyForOnePersistentTasks(clusterPersistentTasksCustomMetadata);
+
+        final List<PersistentTasks> allPersistentTasks = new ArrayList<>();
+        allPersistentTasks.add(clusterPersistentTasksCustomMetadata);
+
+        final List<ProjectMetadata> projects = List.copyOf(clusterState.metadata().projects().values());
+        for (ProjectMetadata projectMetadata : projects) {
+            final var projectPersistentTasksCustomMetadata = PersistentTasksCustomMetadata.get(projectMetadata);
+            assert assertAllocationIdsConsistencyForOnePersistentTasks(projectPersistentTasksCustomMetadata);
+            allPersistentTasks.add(projectPersistentTasksCustomMetadata);
+        }
+
+        // No duplicated allocationId between cluster scoped and project scoped tasks across all projects
+        for (int i = 0; i < allPersistentTasks.size() - 1; i++) {
+            final PersistentTasks persistentTasks1 = allPersistentTasks.get(i);
+            if (persistentTasks1 == null) {
+                continue;
+            }
+            for (int j = i + 1; j < allPersistentTasks.size(); j++) {
+                final PersistentTasks persistentTasks2 = allPersistentTasks.get(j);
+                if (persistentTasks2 == null) {
+                    continue;
+                }
+                assert Sets.intersection(
+                    Set.copyOf(getNonZeroAllocationIds(persistentTasks1)),
+                    Set.copyOf(getNonZeroAllocationIds(persistentTasks2))
+                ).isEmpty()
+                    : "duplicated allocationId found between "
+                        + (i == 0 ? "cluster" : "project [" + projects.get(i - 1).id() + "]")
+                        + " scoped persistent tasks ["
+                        + persistentTasks1
+                        + "] and project ["
+                        + projects.get(j - 1).id()
+                        + "] scoped persistent tasks ["
+                        + persistentTasks2
+                        + "]";
+            }
+        }
+        return true;
     }
 
     private static Assignment unassignedAssignment(String reason) {
@@ -540,7 +598,7 @@ public final class PersistentTasksClusterService implements ClusterStateListener
                 // TODO just run on the elected master?
                 final ClusterState state = clusterService.state();
                 logger.trace("periodic persistent task assignment check running for cluster state {}", state.getVersion());
-                if (isAnyTaskUnassigned(state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE))) {
+                if (isAnyTaskUnassigned(PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(state))) {
                     reassignPersistentTasks();
                 }
             }

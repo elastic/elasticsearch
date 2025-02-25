@@ -35,7 +35,7 @@ import java.util.TreeMap;
  * Holds the results of the most recent attempt to migrate system indices. Updated by {@link SystemIndexMigrator} as it finishes each
  * feature, or fails.
  */
-public class FeatureMigrationResults implements Metadata.Custom {
+public class FeatureMigrationResults implements Metadata.ProjectCustom {
     public static final String TYPE = "system_index_migration";
     public static final TransportVersion MIGRATION_ADDED_VERSION = TransportVersions.V_8_0_0;
 
@@ -118,15 +118,15 @@ public class FeatureMigrationResults implements Metadata.Custom {
     }
 
     @Override
-    public Diff<Metadata.Custom> diff(Metadata.Custom previousState) {
+    public Diff<Metadata.ProjectCustom> diff(Metadata.ProjectCustom previousState) {
         return new ResultsDiff((FeatureMigrationResults) previousState, this);
     }
 
-    public static NamedDiff<Metadata.Custom> readDiffFrom(StreamInput in) throws IOException {
+    public static NamedDiff<Metadata.ProjectCustom> readDiffFrom(StreamInput in) throws IOException {
         return new ResultsDiff(in);
     }
 
-    public static class ResultsDiff implements NamedDiff<Metadata.Custom> {
+    public static class ResultsDiff implements NamedDiff<Metadata.ProjectCustom> {
         private final Diff<Map<String, SingleFeatureMigrationResult>> resultsDiff;
 
         public ResultsDiff(FeatureMigrationResults before, FeatureMigrationResults after) {
@@ -143,7 +143,7 @@ public class FeatureMigrationResults implements Metadata.Custom {
         }
 
         @Override
-        public Metadata.Custom apply(Metadata.Custom part) {
+        public Metadata.ProjectCustom apply(Metadata.ProjectCustom part) {
             TreeMap<String, SingleFeatureMigrationResult> newResults = new TreeMap<>(
                 resultsDiff.apply(((FeatureMigrationResults) part).featureStatuses)
             );

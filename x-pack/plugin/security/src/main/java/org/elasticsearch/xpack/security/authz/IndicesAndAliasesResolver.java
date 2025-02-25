@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
@@ -106,13 +107,13 @@ class IndicesAndAliasesResolver {
     ResolvedIndices resolve(
         String action,
         TransportRequest request,
-        Metadata metadata,
+        ProjectMetadata projectMetadata,
         AuthorizationEngine.AuthorizedIndices authorizedIndices
     ) {
         if (request instanceof IndicesAliasesRequest indicesAliasesRequest) {
             ResolvedIndices.Builder resolvedIndicesBuilder = new ResolvedIndices.Builder();
             for (IndicesRequest indicesRequest : indicesAliasesRequest.getAliasActions()) {
-                final ResolvedIndices resolved = resolveIndicesAndAliases(action, indicesRequest, metadata, authorizedIndices);
+                final ResolvedIndices resolved = resolveIndicesAndAliases(action, indicesRequest, projectMetadata, authorizedIndices);
                 resolvedIndicesBuilder.addLocal(resolved.getLocal());
                 resolvedIndicesBuilder.addRemote(resolved.getRemote());
             }
@@ -123,7 +124,7 @@ class IndicesAndAliasesResolver {
         if (request instanceof IndicesRequest == false) {
             throw new IllegalStateException("Request [" + request + "] is not an Indices request, but should be.");
         }
-        return resolveIndicesAndAliases(action, (IndicesRequest) request, metadata, authorizedIndices);
+        return resolveIndicesAndAliases(action, (IndicesRequest) request, projectMetadata, authorizedIndices);
     }
 
     /**
@@ -273,7 +274,7 @@ class IndicesAndAliasesResolver {
     ResolvedIndices resolveIndicesAndAliases(
         String action,
         IndicesRequest indicesRequest,
-        Metadata metadata,
+        ProjectMetadata projectMetadata,
         AuthorizationEngine.AuthorizedIndices authorizedIndices
     ) {
         final ResolvedIndices.Builder resolvedIndicesBuilder = new ResolvedIndices.Builder();
@@ -287,7 +288,7 @@ class IndicesAndAliasesResolver {
             assert indicesRequest.indices() == null || indicesRequest.indices().length == 0
                 : "indices are: " + Arrays.toString(indicesRequest.indices()); // Arrays.toString() can handle null values - all good
             resolvedIndicesBuilder.addLocal(
-                getPutMappingIndexOrAlias((PutMappingRequest) indicesRequest, authorizedIndices::check, metadata)
+                getPutMappingIndexOrAlias((PutMappingRequest) indicesRequest, authorizedIndices::check, projectMetadata)
             );
         } else if (indicesRequest instanceof final IndicesRequest.Replaceable replaceable) {
             final IndicesOptions indicesOptions = indicesRequest.indicesOptions();
@@ -328,7 +329,7 @@ class IndicesAndAliasesResolver {
                             allIndicesPatternSelector,
                             authorizedIndex,
                             indicesOptions,
-                            metadata,
+                            projectMetadata,
                             nameExpressionResolver,
                             indicesRequest.includeDataStreams()
                         )) {
@@ -350,7 +351,7 @@ class IndicesAndAliasesResolver {
                 List<String> replaced = indexAbstractionResolver.resolveIndexAbstractions(
                     split.getLocal(),
                     indicesOptions,
-                    metadata,
+                    projectMetadata,
                     authorizedIndices.all(),
                     authorizedIndices::check,
                     indicesRequest.includeDataStreams()
@@ -388,7 +389,7 @@ class IndicesAndAliasesResolver {
             if (aliasesRequest.expandAliasesWildcards()) {
                 List<String> aliases = replaceWildcardsWithAuthorizedAliases(
                     aliasesRequest.aliases(),
-                    loadAuthorizedAliases(authorizedIndices.all(), metadata)
+                    loadAuthorizedAliases(authorizedIndices.all(), projectMetadata)
                 );
                 aliasesRequest.replaceAliases(aliases.toArray(new String[aliases.size()]));
             }
@@ -410,7 +411,7 @@ class IndicesAndAliasesResolver {
                 resolvedIndicesBuilder.addLocal(aliasesRequest.aliases());
             }
             /*
-             * If no aliases are authorized, then fill in an expression that Metadata#findAliases evaluates to an
+             * If no aliases are authorized, then fill in an expression that ProjectMetadata#findAliases evaluates to an
              * empty alias list. We can not put an empty list here because core resolves this as _all. For other
              * request types, this replacement is not needed and can trigger issues when we rewrite the request
              * on the coordinating node. For example, for a remove index request, if we did this replacement,
@@ -430,11 +431,11 @@ class IndicesAndAliasesResolver {
      * request's concrete index is not in the list of authorized indices, then we need to look to
      * see if this can be authorized against an alias
      */
-    static String getPutMappingIndexOrAlias(PutMappingRequest request, Predicate<String> isAuthorized, Metadata metadata) {
+    static String getPutMappingIndexOrAlias(PutMappingRequest request, Predicate<String> isAuthorized, ProjectMetadata projectMetadata) {
         final String concreteIndexName = request.getConcreteIndex().getName();
 
         // validate that the concrete index exists, otherwise there is no remapping that we could do
-        final IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(concreteIndexName);
+        final IndexAbstraction indexAbstraction = projectMetadata.getIndicesLookup().get(concreteIndexName);
         final String resolvedAliasOrIndex;
         if (indexAbstraction == null) {
             resolvedAliasOrIndex = concreteIndexName;
@@ -452,11 +453,11 @@ class IndicesAndAliasesResolver {
         } else {
             // the user is not authorized to put mappings for this index, but could have been
             // authorized for a write using an alias that triggered a dynamic mapping update
-            Map<String, List<AliasMetadata>> foundAliases = metadata.findAllAliases(new String[] { concreteIndexName });
+            Map<String, List<AliasMetadata>> foundAliases = projectMetadata.findAllAliases(new String[] { concreteIndexName });
             List<AliasMetadata> aliasMetadata = foundAliases.get(concreteIndexName);
             if (aliasMetadata != null) {
                 Optional<String> foundAlias = aliasMetadata.stream().map(AliasMetadata::alias).filter(isAuthorized).filter(aliasName -> {
-                    IndexAbstraction alias = metadata.getIndicesLookup().get(aliasName);
+                    IndexAbstraction alias = projectMetadata.getIndicesLookup().get(aliasName);
                     List<Index> indices = alias.getIndices();
                     if (indices.size() == 1) {
                         return true;
@@ -475,9 +476,9 @@ class IndicesAndAliasesResolver {
         return resolvedAliasOrIndex;
     }
 
-    private static List<String> loadAuthorizedAliases(Supplier<Set<String>> authorizedIndices, Metadata metadata) {
+    private static List<String> loadAuthorizedAliases(Supplier<Set<String>> authorizedIndices, ProjectMetadata projectMetadata) {
         List<String> authorizedAliases = new ArrayList<>();
-        SortedMap<String, IndexAbstraction> existingAliases = metadata.getIndicesLookup();
+        SortedMap<String, IndexAbstraction> existingAliases = projectMetadata.getIndicesLookup();
         for (String authorizedIndex : authorizedIndices.get()) {
             IndexAbstraction indexAbstraction = existingAliases.get(authorizedIndex);
             if (indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {

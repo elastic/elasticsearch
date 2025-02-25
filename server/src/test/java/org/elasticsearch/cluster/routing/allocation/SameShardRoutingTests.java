@@ -64,7 +64,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
@@ -139,7 +139,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
             .build();
 
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
-            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.getProject().index("test"))
             .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
@@ -250,7 +250,9 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
             ClusterState.builder(ClusterName.DEFAULT)
                 .metadata(metadata)
                 .routingTable(
-                    RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY).addAsNew(metadata.index("test")).build()
+                    RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+                        .addAsNew(metadata.getProject().index("test"))
+                        .build()
                 )
                 .nodes(DiscoveryNodes.builder().add(node1).add(node2))
                 .build(),
@@ -263,7 +265,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
     public void testForceAllocatePrimaryOnSameNodeNotAllowed() {
         SameShardAllocationDecider decider = new SameShardAllocationDecider(createBuiltInClusterSettings());
         ClusterState clusterState = ClusterStateCreationUtils.state("idx", randomIntBetween(2, 4), 1);
-        Index index = clusterState.getMetadata().index("idx").getIndex();
+        Index index = clusterState.getMetadata().getProject().index("idx").getIndex();
         ShardRouting primaryShard = clusterState.routingTable().index(index).shard(0).primaryShard();
         RoutingNode routingNode = clusterState.getRoutingNodes().node(primaryShard.currentNodeId());
         RoutingAllocation routingAllocation = new RoutingAllocation(

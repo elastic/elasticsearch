@@ -101,7 +101,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
 
         for (String index : indices) {
             boolean isCompatibleIndexVersion = MlIndexAndAlias.indexIsReadWriteCompatibleInV9(
-                latestState.metadata().index(index).getCreationVersion()
+                latestState.metadata().getProject().index(index).getCreationVersion()
             );
 
             if (isCompatibleIndexVersion) {
@@ -190,7 +190,7 @@ public class MlAnomaliesIndexUpdate implements MlAutoUpdateService.UpdateAction 
         // Multiple jobs can share the same index each job
         // has a read and write alias that needs updating
         // after the rollover
-        var meta = clusterState.metadata().index(oldIndex);
+        var meta = clusterState.metadata().getProject().index(oldIndex);
         assert meta != null;
         if (meta == null) {
             return aliasRequestBuilder;

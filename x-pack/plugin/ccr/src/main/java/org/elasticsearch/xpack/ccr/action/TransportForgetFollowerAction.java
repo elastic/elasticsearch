@@ -99,7 +99,7 @@ public class TransportForgetFollowerAction extends TransportBroadcastByNodeActio
         ActionListener<EmptyResult> listener
     ) {
         final Index followerIndex = new Index(request.followerIndex(), request.followerIndexUUID());
-        final Index leaderIndex = clusterService.state().metadata().index(request.leaderIndex()).getIndex();
+        final Index leaderIndex = clusterService.state().metadata().getProject().index(request.leaderIndex()).getIndex();
         final String id = CcrRetentionLeases.retentionLeaseId(
             request.followerCluster(),
             followerIndex,

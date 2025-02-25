@@ -210,9 +210,9 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
 
     @Override
     public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
-        final var currentState = clusterService.state();
-        var ilmMetadata = currentState.metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
-        final var currentMode = currentILMMode(currentState);
+        final var projectMetadata = clusterService.state().metadata().getProject();
+        var ilmMetadata = projectMetadata.custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
+        final var currentMode = currentILMMode(projectMetadata);
         if (ilmMetadata.getPolicyMetadatas().isEmpty()) {
             return createIndicator(
                 GREEN,
@@ -344,10 +344,11 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
             var metadata = clusterService.state().metadata();
             var now = nowSupplier.getAsLong();
 
-            return metadata.indices()
+            return metadata.getProject()
+                .indices()
                 .values()
                 .stream()
-                .filter(metadata::isIndexManagedByILM)
+                .filter(metadata.getProject()::isIndexManagedByILM)
                 .filter(md -> isStagnated(rules, now, md))
                 .toList();
         }

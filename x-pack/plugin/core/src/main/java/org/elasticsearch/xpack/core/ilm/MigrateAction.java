@@ -105,7 +105,7 @@ public class MigrateAction implements LifecycleAction {
                 migrationKey,
                 nextStepKey,
                 (index, clusterState) -> {
-                    IndexMetadata indexMetadata = clusterState.metadata().index(index);
+                    IndexMetadata indexMetadata = clusterState.metadata().getProject().index(index);
 
                     // partially mounted indices will already have data_frozen, and we don't want to change that if they do
                     if (indexMetadata.isPartialSearchableSnapshot()) {

@@ -104,7 +104,7 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
 
             @Override
             public void clusterStateProcessed(final ClusterState oldState, final ClusterState newState) {
-                final IndexMetadata indexMetadata = oldState.metadata().index(request.getFollowerIndex());
+                final IndexMetadata indexMetadata = oldState.metadata().getProject().index(request.getFollowerIndex());
                 final Map<String, String> ccrCustomMetadata = indexMetadata.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
                 final String remoteClusterName = ccrCustomMetadata.get(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY);
 
@@ -247,7 +247,7 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
     }
 
     static ClusterState unfollow(String followerIndex, ClusterState current) {
-        IndexMetadata followerIMD = current.metadata().index(followerIndex);
+        IndexMetadata followerIMD = current.metadata().getProject().index(followerIndex);
         if (followerIMD == null) {
             throw new IndexNotFoundException(followerIndex);
         }
@@ -262,7 +262,7 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
             );
         }
 
-        PersistentTasksCustomMetadata persistentTasks = current.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata persistentTasks = current.metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         if (persistentTasks != null) {
             for (PersistentTasksCustomMetadata.PersistentTask<?> persistentTask : persistentTasks.tasks()) {
                 if (persistentTask.getTaskName().equals(ShardFollowTask.NAME)) {

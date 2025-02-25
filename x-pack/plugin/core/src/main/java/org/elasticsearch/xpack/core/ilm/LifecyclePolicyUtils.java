@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ItemUsage;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.NotXContentException;
 import org.elasticsearch.common.settings.Settings;
@@ -111,11 +111,10 @@ public class LifecyclePolicyUtils {
      */
     public static ItemUsage calculateUsage(
         final IndexNameExpressionResolver indexNameExpressionResolver,
-        final ClusterState state,
+        final ProjectMetadata project,
         final String policyName
     ) {
-        final List<String> indices = state.metadata()
-            .indices()
+        final List<String> indices = project.indices()
             .values()
             .stream()
             .filter(indexMetadata -> policyName.equals(indexMetadata.getLifecyclePolicyName()))
@@ -123,22 +122,22 @@ public class LifecyclePolicyUtils {
             .toList();
 
         final List<String> allDataStreams = indexNameExpressionResolver.dataStreamNames(
-            state,
+            project,
             IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN_NO_SELECTOR
         );
 
         final List<String> dataStreams = allDataStreams.stream().filter(dsName -> {
-            String indexTemplate = MetadataIndexTemplateService.findV2Template(state.metadata(), dsName, false);
+            String indexTemplate = MetadataIndexTemplateService.findV2Template(project, dsName, false);
             if (indexTemplate != null) {
-                Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), indexTemplate);
+                Settings settings = MetadataIndexTemplateService.resolveSettings(project, indexTemplate);
                 return policyName.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(settings));
             } else {
                 return false;
             }
         }).toList();
 
-        final List<String> composableTemplates = state.metadata().templatesV2().keySet().stream().filter(templateName -> {
-            Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), templateName);
+        final List<String> composableTemplates = project.templatesV2().keySet().stream().filter(templateName -> {
+            Settings settings = MetadataIndexTemplateService.resolveSettings(project, templateName);
             return policyName.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(settings));
         }).toList();
 

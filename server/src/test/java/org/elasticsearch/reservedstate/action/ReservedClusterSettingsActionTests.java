@@ -37,7 +37,11 @@ public class ReservedClusterSettingsActionTests extends ESTestCase {
     static final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(dummySetting1, dummySetting2));
     static final ReservedClusterSettingsAction testAction = new ReservedClusterSettingsAction(clusterSettings);
 
-    private TransformState processJSON(ReservedClusterSettingsAction action, TransformState prevState, String json) throws Exception {
+    private TransformState<ClusterState> processJSON(
+        ReservedClusterSettingsAction action,
+        TransformState<ClusterState> prevState,
+        String json
+    ) throws Exception {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
             return action.transform(parser.map(), prevState);
         }
@@ -47,7 +51,7 @@ public class ReservedClusterSettingsActionTests extends ESTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
-        TransformState prevState = new TransformState(state, Collections.emptySet());
+        TransformState<ClusterState> prevState = new TransformState<>(state, Collections.emptySet());
         ReservedClusterSettingsAction action = new ReservedClusterSettingsAction(clusterSettings);
 
         String badPolicyJSON = """
@@ -65,12 +69,12 @@ public class ReservedClusterSettingsActionTests extends ESTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
-        TransformState prevState = new TransformState(state, Collections.emptySet());
+        TransformState<ClusterState> prevState = new TransformState<>(state, Collections.emptySet());
         ReservedClusterSettingsAction action = new ReservedClusterSettingsAction(clusterSettings);
 
         String emptyJSON = "";
 
-        TransformState updatedState = processJSON(action, prevState, emptyJSON);
+        TransformState<ClusterState> updatedState = processJSON(action, prevState, emptyJSON);
         assertThat(updatedState.keys(), empty());
         assertEquals(prevState.state(), updatedState.state());
 
@@ -119,7 +123,7 @@ public class ReservedClusterSettingsActionTests extends ESTestCase {
             prevSettings,
             logger
         );
-        TransformState prevState = new TransformState(clusterState, Set.of("dummy.setting1"));
+        TransformState<ClusterState> prevState = new TransformState<>(clusterState, Set.of("dummy.setting1"));
 
         String json = """
             {
@@ -130,7 +134,7 @@ public class ReservedClusterSettingsActionTests extends ESTestCase {
             }
             """;
 
-        TransformState newState = processJSON(testAction, prevState, json);
+        TransformState<ClusterState> newState = processJSON(testAction, prevState, json);
         assertThat(newState.keys(), containsInAnyOrder("dummy.setting1", "dummy.setting2"));
         assertThat(newState.state().metadata().persistentSettings().get("dummy.setting1"), is("value1"));
         assertThat(newState.state().metadata().persistentSettings().get("dummy.setting2"), is("value2"));
@@ -142,7 +146,7 @@ public class ReservedClusterSettingsActionTests extends ESTestCase {
                 }
             }
             """;
-        TransformState newState2 = processJSON(testAction, prevState, jsonRemoval);
+        TransformState<ClusterState> newState2 = processJSON(testAction, prevState, jsonRemoval);
         assertThat(newState2.keys(), containsInAnyOrder("dummy.setting2"));
         assertThat(newState2.state().metadata().persistentSettings().get("dummy.setting2"), is("value2"));
     }

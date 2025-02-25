@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -165,12 +166,12 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
         return Arrays.asList(
             // Custom Metadata
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                Metadata.ProjectCustom.class,
                 new ParseField(SnapshotLifecycleMetadata.TYPE),
                 parser -> SnapshotLifecycleMetadata.PARSER.parse(parser, null)
             ),
             new NamedXContentRegistry.Entry(
-                Metadata.Custom.class,
+                Metadata.ProjectCustom.class,
                 new ParseField(RegisteredPolicySnapshots.TYPE),
                 RegisteredPolicySnapshots::parse
             )
@@ -233,7 +234,7 @@ public class SnapshotLifecycle extends Plugin implements ActionPlugin, HealthPlu
         return actions;
     }
 
-    List<ReservedClusterStateHandler<?>> reservedClusterStateHandlers() {
+    List<ReservedClusterStateHandler<ClusterState, ?>> reservedClusterStateHandlers() {
         return List.of(new ReservedSnapshotAction());
     }
 

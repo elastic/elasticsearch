@@ -15,9 +15,10 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -97,7 +98,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         ClusterInfo clusterInfo,
         SnapshotShardSizeInfo snapshotShardSizeInfo,
         Metadata metadata,
-        RoutingTable routingTable,
+        GlobalRoutingTable routingTable,
         long sizeOfUnaccountableSearchableSnapshotShards
     ) {
         // Account for reserved space wherever it is available
@@ -115,9 +116,17 @@ public class DiskThresholdDecider extends AllocationDecider {
                 // if we don't yet know the actual path of the incoming shard then conservatively assume
                 // it's going to the path with the least free space
                 if (actualPath == null || actualPath.equals(dataPath)) {
+                    final ProjectMetadata project = metadata.projectFor(routing.index());
                     totalSize += Math.max(
                         routing.getExpectedShardSize(),
-                        getExpectedShardSize(routing, 0L, clusterInfo, snapshotShardSizeInfo, metadata, routingTable)
+                        getExpectedShardSize(
+                            routing,
+                            0L,
+                            clusterInfo,
+                            snapshotShardSizeInfo,
+                            project,
+                            routingTable.routingTable(project.id())
+                        )
                     );
                 }
             }
@@ -128,7 +137,15 @@ public class DiskThresholdDecider extends AllocationDecider {
         if (subtractShardsMovingAway) {
             for (ShardRouting routing : node.relocating()) {
                 if (dataPath.equals(clusterInfo.getDataPath(routing))) {
-                    totalSize -= getExpectedShardSize(routing, 0L, clusterInfo, snapshotShardSizeInfo, metadata, routingTable);
+                    ProjectMetadata project = metadata.projectFor(routing.index());
+                    totalSize -= getExpectedShardSize(
+                        routing,
+                        0L,
+                        clusterInfo,
+                        snapshotShardSizeInfo,
+                        project,
+                        routingTable.routingTable(project.id())
+                    );
                 }
             }
         }
@@ -156,7 +173,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             return decision;
         }
 
-        if (allocation.metadata().index(shardRouting.index()).ignoreDiskWatermarks()) {
+        if (allocation.metadata().indexMetadata(shardRouting.index()).ignoreDiskWatermarks()) {
             return YES_DISK_WATERMARKS_IGNORED;
         }
 
@@ -175,7 +192,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                 allocation.clusterInfo(),
                 allocation.snapshotShardSizeInfo(),
                 allocation.metadata(),
-                allocation.routingTable(),
+                allocation.globalRoutingTable(),
                 allocation.unaccountedSearchableSnapshotSize(node)
             );
             logger.debug(
@@ -317,7 +334,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             return decision;
         }
 
-        if (allocation.metadata().index(shardRouting.index()).ignoreDiskWatermarks()) {
+        if (allocation.metadata().getProject().index(shardRouting.index()).ignoreDiskWatermarks()) {
             return YES_DISK_WATERMARKS_IGNORED;
         }
 
@@ -384,7 +401,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                 allocation.clusterInfo(),
                 allocation.snapshotShardSizeInfo(),
                 allocation.metadata(),
-                allocation.routingTable(),
+                allocation.globalRoutingTable(),
                 allocation.unaccountedSearchableSnapshotSize(node)
             );
             logger.debug(
@@ -464,7 +481,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                 allocation.clusterInfo(),
                 allocation.snapshotShardSizeInfo(),
                 allocation.metadata(),
-                allocation.routingTable(),
+                allocation.globalRoutingTable(),
                 allocation.unaccountedSearchableSnapshotSize(node)
             )
         );

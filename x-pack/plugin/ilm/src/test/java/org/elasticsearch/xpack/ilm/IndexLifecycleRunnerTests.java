@@ -357,6 +357,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         assertBusy(() -> assertNotEquals(before, clusterService.state()));
         LifecycleExecutionState newExecutionState = clusterService.state()
             .metadata()
+            .getProject()
             .index(indexMetadata.getIndex())
             .getLifecycleExecutionState();
         assertThat(newExecutionState.phase(), equalTo("phase"));
@@ -446,6 +447,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         assertBusy(() -> assertNotEquals(before, clusterService.state()));
         LifecycleExecutionState newExecutionState = clusterService.state()
             .metadata()
+            .getProject()
             .index(indexMetadata.getIndex())
             .getLifecycleExecutionState();
         assertThat(newExecutionState.phase(), equalTo("phase"));
@@ -923,10 +925,10 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         assertNotSame(oldClusterState, newClusterState);
         Metadata newMetadata = newClusterState.metadata();
         assertNotSame(oldClusterState.metadata(), newMetadata);
-        IndexMetadata newIndexMetadata = newMetadata.getIndexSafe(index);
-        assertNotSame(oldClusterState.metadata().index(index), newIndexMetadata);
-        LifecycleExecutionState newLifecycleState = newClusterState.metadata().index(index).getLifecycleExecutionState();
-        LifecycleExecutionState oldLifecycleState = oldClusterState.metadata().index(index).getLifecycleExecutionState();
+        IndexMetadata newIndexMetadata = newMetadata.getProject().getIndexSafe(index);
+        assertNotSame(oldClusterState.metadata().getProject().index(index), newIndexMetadata);
+        LifecycleExecutionState newLifecycleState = newClusterState.metadata().getProject().index(index).getLifecycleExecutionState();
+        LifecycleExecutionState oldLifecycleState = oldClusterState.metadata().getProject().index(index).getLifecycleExecutionState();
         assertNotSame(oldLifecycleState, newLifecycleState);
         assertEquals(nextStep.phase(), newLifecycleState.phase());
         assertEquals(nextStep.action(), newLifecycleState.action());

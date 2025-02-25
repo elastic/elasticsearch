@@ -17,10 +17,12 @@ import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -132,8 +134,10 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
             );
         }
 
-        final ClusterBlocks clusterBlocks = clusterService.state().blocks();
-        if (clusterBlocks.hasIndexBlock(shardId.getIndexName(), request.clusterBlock()) == false) {
+        final ClusterState clusterState = clusterService.state();
+        final ClusterBlocks clusterBlocks = clusterState.blocks();
+        final ProjectId projectId = clusterState.metadata().projectFor(shardId.getIndex()).id();
+        if (clusterBlocks.hasIndexBlock(projectId, shardId.getIndexName(), request.clusterBlock()) == false) {
             throw new IllegalStateException("index shard " + shardId + " has not applied block " + request.clusterBlock());
         }
 

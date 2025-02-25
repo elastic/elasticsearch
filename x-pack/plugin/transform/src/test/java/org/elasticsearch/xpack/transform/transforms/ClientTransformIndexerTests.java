@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
@@ -89,6 +90,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class ClientTransformIndexerTests extends ESTestCase {
@@ -505,11 +507,14 @@ public class ClientTransformIndexerTests extends ESTestCase {
     private ClusterService serviceWithBlockCheck(boolean checkResponse) {
         var clusterBlocks = mock(ClusterBlocks.class);
         when(clusterBlocks.indexBlocked(eq(ClusterBlockLevel.WRITE), anyString())).thenReturn(checkResponse);
-        var metadata = mock(Metadata.class);
-        when(metadata.custom(eq(TransformMetadata.TYPE))).thenReturn(TransformMetadata.EMPTY_METADATA);
+
+        var project = spy(ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID).build());
+        when(project.custom(eq(TransformMetadata.TYPE))).thenReturn(TransformMetadata.EMPTY_METADATA);
+
+        var metadata = Metadata.builder().put(project).build();
         var clusterState = mock(ClusterState.class);
         when(clusterState.blocks()).thenReturn(clusterBlocks);
-        when(clusterState.getMetadata()).thenReturn(metadata);
+        when(clusterState.metadata()).thenReturn(metadata);
         var clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
         return clusterService;
@@ -517,7 +522,12 @@ public class ClientTransformIndexerTests extends ESTestCase {
 
     private IndexNameExpressionResolver resolver() {
         var resolver = mock(IndexNameExpressionResolver.class);
-        when(resolver.concreteWriteIndex(any(), any(), any(), anyBoolean(), anyBoolean())).thenAnswer(ans -> {
+        when(resolver.concreteWriteIndex(any(ProjectMetadata.class), any(), any(), anyBoolean(), anyBoolean())).thenAnswer(ans -> {
+            Index destIndex = mock();
+            when(destIndex.getName()).thenReturn(ans.getArgument(2));
+            return destIndex;
+        });
+        when(resolver.concreteWriteIndex(any(ClusterState.class), any(), any(), anyBoolean(), anyBoolean())).thenAnswer(ans -> {
             Index destIndex = mock();
             when(destIndex.getName()).thenReturn(ans.getArgument(2));
             return destIndex;

@@ -86,7 +86,7 @@ public class TransportSetUpgradeModeAction extends AbstractTransportSetUpgradeMo
     @Override
     protected ClusterState createUpdatedState(SetUpgradeModeActionRequest request, ClusterState currentState) {
         logger.trace("Executing cluster state update");
-        MlMetadata.Builder builder = new MlMetadata.Builder(currentState.metadata().custom(MlMetadata.TYPE));
+        MlMetadata.Builder builder = new MlMetadata.Builder(currentState.metadata().getProject().custom(MlMetadata.TYPE));
         builder.isUpgradeMode(request.enabled());
         ClusterState.Builder newState = ClusterState.builder(currentState);
         newState.metadata(Metadata.builder(currentState.getMetadata()).putCustom(MlMetadata.TYPE, builder.build()).build());
@@ -99,7 +99,7 @@ public class TransportSetUpgradeModeAction extends AbstractTransportSetUpgradeMo
         ClusterState state,
         ActionListener<AcknowledgedResponse> wrappedListener
     ) {
-        final PersistentTasksCustomMetadata tasksCustomMetadata = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        final PersistentTasksCustomMetadata tasksCustomMetadata = state.metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
 
         // <4> We have unassigned the tasks, respond to the listener.
         ActionListener<List<PersistentTask<?>>> unassignPersistentTasksListener = ActionListener.wrap(unassignedPersistentTasks -> {

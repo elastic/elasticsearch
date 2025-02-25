@@ -57,13 +57,13 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
         if (metadata == null) {
             throw new IllegalStateException("enrich processor factory has not yet been initialized with cluster state");
         }
-        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(indexAlias);
+        IndexAbstraction indexAbstraction = metadata.getProject().getIndicesLookup().get(indexAlias);
         if (indexAbstraction == null) {
             throw new IllegalArgumentException("no enrich index exists for policy with name [" + policyName + "]");
         }
         assert indexAbstraction.getType() == IndexAbstraction.Type.ALIAS;
         assert indexAbstraction.getIndices().size() == 1;
-        IndexMetadata imd = metadata.index(indexAbstraction.getIndices().get(0));
+        IndexMetadata imd = metadata.getProject().index(indexAbstraction.getIndices().get(0));
 
         Map<String, Object> mappingAsMap = imd.mapping().sourceAsMap();
         String policyType = (String) XContentMapValues.extractValue(
@@ -144,7 +144,7 @@ final class EnrichProcessorFactory implements Processor.Factory, Consumer<Cluste
     }
 
     private String getEnrichIndexKey(String indexAlias) {
-        IndexAbstraction ia = metadata.getIndicesLookup().get(indexAlias);
+        IndexAbstraction ia = metadata.getProject().getIndicesLookup().get(indexAlias);
         if (ia == null) {
             throw new IndexNotFoundException("no generated enrich index [" + indexAlias + "]");
         }

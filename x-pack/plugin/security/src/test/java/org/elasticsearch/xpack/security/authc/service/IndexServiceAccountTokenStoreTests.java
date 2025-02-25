@@ -131,21 +131,22 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
         cacheInvalidatorRegistry = mock(CacheInvalidatorRegistry.class);
 
         securityIndex = mock(SecurityIndexManager.class);
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
-        when(securityIndex.indexExists()).thenReturn(true);
-        when(securityIndex.isIndexUpToDate()).thenReturn(true);
-        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
+        SecurityIndexManager.IndexState projectIndex = Mockito.mock(SecurityIndexManager.IndexState.class);
+        when(securityIndex.forCurrentProject()).thenReturn(projectIndex);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
+        when(projectIndex.indexExists()).thenReturn(true);
+        when(projectIndex.isIndexUpToDate()).thenReturn(true);
         doAnswer((i) -> {
             Runnable action = (Runnable) i.getArguments()[1];
             action.run();
             return null;
-        }).when(securityIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
+        }).when(projectIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
         doAnswer((i) -> {
             Runnable action = (Runnable) i.getArguments()[1];
             action.run();
             return null;
-        }).when(securityIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
+        }).when(projectIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
         store = new IndexServiceAccountTokenStore(
             Settings.EMPTY,
             threadPool,
@@ -359,8 +360,9 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
     public void testIndexStateIssues() {
         // Index not exists
         Mockito.reset(securityIndex);
-        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
-        when(securityIndex.indexExists()).thenReturn(false);
+        SecurityIndexManager.IndexState projectIndex = Mockito.mock(SecurityIndexManager.IndexState.class);
+        when(securityIndex.forCurrentProject()).thenReturn(projectIndex);
+        when(projectIndex.indexExists()).thenReturn(false);
 
         final ServiceAccountId accountId = new ServiceAccountId(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
         final PlainActionFuture<Collection<TokenInfo>> future1 = new PlainActionFuture<>();
@@ -378,13 +380,14 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
 
         // Index exists but not available
         Mockito.reset(securityIndex);
-        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
-        when(securityIndex.indexExists()).thenReturn(true);
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(false);
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(false);
+        Mockito.reset(projectIndex);
+        when(securityIndex.forCurrentProject()).thenReturn(projectIndex);
+        when(projectIndex.indexExists()).thenReturn(true);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(false);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(false);
         final ElasticsearchException e = new ElasticsearchException("fail");
-        when(securityIndex.getUnavailableReason(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(e);
-        when(securityIndex.getUnavailableReason(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(e);
+        when(projectIndex.getUnavailableReason(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(e);
+        when(projectIndex.getUnavailableReason(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(e);
 
         final PlainActionFuture<Collection<TokenInfo>> future3 = new PlainActionFuture<>();
         store.findTokensFor(accountId, future3);

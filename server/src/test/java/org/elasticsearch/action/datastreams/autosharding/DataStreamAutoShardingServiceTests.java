@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataStats;
 import org.elasticsearch.cluster.metadata.IndexWriteLoad;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -91,7 +92,8 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
     }
 
     public void testCalculateValidations() {
-        Metadata.Builder builder = Metadata.builder();
+        var projectId = randomProjectIdOrDefault();
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
         DataStream dataStream = createDataStream(
             builder,
             dataStreamName,
@@ -104,7 +106,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         builder.put(dataStream);
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("n1")).add(DiscoveryNodeUtils.create("n2")))
-            .metadata(builder)
+            .putProjectMetadata(builder.build())
             .build();
 
         {
@@ -115,13 +117,13 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
                 System::currentTimeMillis
             );
 
-            AutoShardingResult autoShardingResult = disabledAutoshardingService.calculate(state, dataStream, 2.0);
+            AutoShardingResult autoShardingResult = disabledAutoshardingService.calculate(state.projectState(projectId), dataStream, 2.0);
             assertThat(autoShardingResult, is(NOT_APPLICABLE_RESULT));
         }
 
         {
             // null write load passed
-            AutoShardingResult autoShardingResult = service.calculate(state, dataStream, null);
+            AutoShardingResult autoShardingResult = service.calculate(state.projectState(projectId), dataStream, null);
             assertThat(autoShardingResult, is(NOT_APPLICABLE_RESULT));
         }
     }
@@ -131,7 +133,8 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         // all 4 backing indices have a write load of 2.0
         // we'll recreate it across the test and add an auto sharding event as we iterate
         {
-            Metadata.Builder builder = Metadata.builder();
+            var projectId = randomProjectIdOrDefault();
+            ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
             Function<DataStreamAutoShardingEvent, DataStream> dataStreamSupplier = (autoShardingEvent) -> createDataStream(
                 builder,
                 dataStreamName,
@@ -146,10 +149,10 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             builder.put(dataStream);
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
                 .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("n1")).add(DiscoveryNodeUtils.create("n2")))
-                .metadata(builder)
+                .putProjectMetadata(builder.build())
                 .build();
 
-            AutoShardingResult autoShardingResult = service.calculate(state, dataStream, 2.5);
+            AutoShardingResult autoShardingResult = service.calculate(state.projectState(projectId), dataStream, 2.5);
             assertThat(autoShardingResult.type(), is(INCREASE_SHARDS));
             // no pre-existing scaling event so the cool down must be zero
             assertThat(autoShardingResult.coolDownRemaining(), is(TimeValue.ZERO));
@@ -159,7 +162,8 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         {
             // let's add a pre-existing sharding event so that we'll return some cool down period that's preventing an INCREASE_SHARDS
             // event so the result type we're expecting is COOLDOWN_PREVENTED_INCREASE
-            Metadata.Builder builder = Metadata.builder();
+            var projectId = randomProjectIdOrDefault();
+            ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
             Function<DataStreamAutoShardingEvent, DataStream> dataStreamSupplier = (autoShardingEvent) -> createDataStream(
                 builder,
                 dataStreamName,
@@ -177,10 +181,10 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             builder.put(dataStream);
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
                 .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("n1")).add(DiscoveryNodeUtils.create("n2")))
-                .metadata(builder)
+                .putProjectMetadata(builder.build())
                 .build();
 
-            AutoShardingResult autoShardingResult = service.calculate(state, dataStream, 2.5);
+            AutoShardingResult autoShardingResult = service.calculate(state.projectState(projectId), dataStream, 2.5);
             assertThat(autoShardingResult.type(), is(COOLDOWN_PREVENTED_INCREASE));
             // no pre-existing scaling event so the cool down must be zero
             assertThat(autoShardingResult.targetNumberOfShards(), is(3));
@@ -190,7 +194,8 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
 
         {
             // let's test a subsequent increase in the number of shards after a previos auto sharding event
-            Metadata.Builder builder = Metadata.builder();
+            var projectId = randomProjectIdOrDefault();
+            ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
             Function<DataStreamAutoShardingEvent, DataStream> dataStreamSupplier = (autoShardingEvent) -> createDataStream(
                 builder,
                 dataStreamName,
@@ -208,10 +213,10 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             builder.put(dataStream);
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
                 .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("n1")).add(DiscoveryNodeUtils.create("n2")))
-                .metadata(builder)
+                .putProjectMetadata(builder.build())
                 .build();
 
-            AutoShardingResult autoShardingResult = service.calculate(state, dataStream, 2.5);
+            AutoShardingResult autoShardingResult = service.calculate(state.projectState(projectId), dataStream, 2.5);
             assertThat(autoShardingResult.type(), is(INCREASE_SHARDS));
             // no pre-existing scaling event so the cool down must be zero
             assertThat(autoShardingResult.targetNumberOfShards(), is(3));
@@ -224,7 +229,8 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         {
             // testing a decrease shards events prevented by the cool down period not lapsing due to the oldest generation index being
             // "too new" (i.e. the cool down period hasn't lapsed since the oldest generation index)
-            Metadata.Builder builder = Metadata.builder();
+            var projectId = randomProjectIdOrDefault();
+            ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
             Function<DataStreamAutoShardingEvent, DataStream> dataStreamSupplier = (autoShardingEvent) -> createDataStream(
                 builder,
                 dataStreamName,
@@ -239,10 +245,10 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             builder.put(dataStream);
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
                 .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("n1")).add(DiscoveryNodeUtils.create("n2")))
-                .metadata(builder)
+                .putProjectMetadata(builder.build())
                 .build();
 
-            AutoShardingResult autoShardingResult = service.calculate(state, dataStream, 1.0);
+            AutoShardingResult autoShardingResult = service.calculate(state.projectState(projectId), dataStream, 1.0);
             // the cooldown period for the decrease shards event hasn't lapsed since the data stream was created
             assertThat(autoShardingResult.type(), is(COOLDOWN_PREVENTED_DECREASE));
             assertThat(autoShardingResult.coolDownRemaining(), is(TimeValue.timeValueMillis(TimeValue.timeValueDays(3).millis() - 10_000)));
@@ -251,7 +257,8 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         }
 
         {
-            Metadata.Builder builder = Metadata.builder();
+            var projectId = randomProjectIdOrDefault();
+            ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
             Function<DataStreamAutoShardingEvent, DataStream> dataStreamSupplier = (autoShardingEvent) -> createDataStream(
                 builder,
                 dataStreamName,
@@ -272,10 +279,10 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             builder.put(dataStream);
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
                 .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("n1")).add(DiscoveryNodeUtils.create("n2")))
-                .metadata(builder)
+                .putProjectMetadata(builder.build())
                 .build();
 
-            AutoShardingResult autoShardingResult = service.calculate(state, dataStream, 1.0);
+            AutoShardingResult autoShardingResult = service.calculate(state.projectState(projectId), dataStream, 1.0);
             assertThat(autoShardingResult.type(), is(DECREASE_SHARDS));
             assertThat(autoShardingResult.targetNumberOfShards(), is(1));
             // no pre-existing auto sharding event however we have old enough backing indices (older than the cooldown period) so we can
@@ -285,7 +292,8 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
 
         {
             // let's test a decrease in number of shards after a previous decrease event
-            Metadata.Builder builder = Metadata.builder();
+            var projectId = randomProjectIdOrDefault();
+            ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
             Function<DataStreamAutoShardingEvent, DataStream> dataStreamSupplier = (autoShardingEvent) -> createDataStream(
                 builder,
                 dataStreamName,
@@ -313,10 +321,10 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             builder.put(dataStream);
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
                 .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("n1")).add(DiscoveryNodeUtils.create("n2")))
-                .metadata(builder)
+                .putProjectMetadata(builder.build())
                 .build();
 
-            AutoShardingResult autoShardingResult = service.calculate(state, dataStream, 1.0);
+            AutoShardingResult autoShardingResult = service.calculate(state.projectState(projectId), dataStream, 1.0);
             assertThat(autoShardingResult.type(), is(DECREASE_SHARDS));
             assertThat(autoShardingResult.targetNumberOfShards(), is(1));
             assertThat(autoShardingResult.coolDownRemaining(), is(TimeValue.ZERO));
@@ -325,7 +333,8 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         {
             // let's test a decrease in number of shards that's prevented by the cool down period due to a previous sharding event
             // the expected result type here is COOLDOWN_PREVENTED_DECREASE
-            Metadata.Builder builder = Metadata.builder();
+            var projectId = randomProjectIdOrDefault();
+            ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
             Function<DataStreamAutoShardingEvent, DataStream> dataStreamSupplier = (autoShardingEvent) -> createDataStream(
                 builder,
                 dataStreamName,
@@ -352,10 +361,10 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             builder.put(dataStream);
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
                 .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("n1")).add(DiscoveryNodeUtils.create("n2")))
-                .metadata(builder)
+                .putProjectMetadata(builder.build())
                 .build();
 
-            AutoShardingResult autoShardingResult = service.calculate(state, dataStream, 1.0);
+            AutoShardingResult autoShardingResult = service.calculate(state.projectState(projectId), dataStream, 1.0);
             assertThat(autoShardingResult.type(), is(COOLDOWN_PREVENTED_DECREASE));
             assertThat(autoShardingResult.targetNumberOfShards(), is(1));
             assertThat(autoShardingResult.coolDownRemaining(), is(TimeValue.timeValueDays(1)));
@@ -363,7 +372,8 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
 
         {
             // no change required
-            Metadata.Builder builder = Metadata.builder();
+            var projectId = randomProjectIdOrDefault();
+            ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
             Function<DataStreamAutoShardingEvent, DataStream> dataStreamSupplier = (autoShardingEvent) -> createDataStream(
                 builder,
                 dataStreamName,
@@ -385,10 +395,10 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             builder.put(dataStream);
             ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
                 .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("n1")).add(DiscoveryNodeUtils.create("n2")))
-                .metadata(builder)
+                .putProjectMetadata(builder.build())
                 .build();
 
-            AutoShardingResult autoShardingResult = service.calculate(state, dataStream, 4.0);
+            AutoShardingResult autoShardingResult = service.calculate(state.projectState(projectId), dataStream, 4.0);
             assertThat(autoShardingResult.type(), is(NO_CHANGE_REQUIRED));
             assertThat(autoShardingResult.targetNumberOfShards(), is(3));
             assertThat(autoShardingResult.coolDownRemaining(), is(TimeValue.ZERO));
@@ -521,7 +531,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         metadataBuilder.put(dataStream);
 
         double maxIndexLoadWithinCoolingPeriod = DataStreamAutoShardingService.getMaxIndexLoadWithinCoolingPeriod(
-            metadataBuilder.build(),
+            metadataBuilder.build().getProject(),
             dataStream,
             3.0,
             coolingPeriod,
@@ -577,7 +587,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
         metadataBuilder.put(dataStream);
 
         double maxIndexLoadWithinCoolingPeriod = DataStreamAutoShardingService.getMaxIndexLoadWithinCoolingPeriod(
-            metadataBuilder.build(),
+            metadataBuilder.build().getProject(),
             dataStream,
             0.1,
             coolingPeriod,
@@ -624,7 +634,7 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
     }
 
     private DataStream createDataStream(
-        Metadata.Builder builder,
+        ProjectMetadata.Builder builder,
         String dataStreamName,
         int numberOfShards,
         Long now,

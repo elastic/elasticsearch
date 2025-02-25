@@ -82,7 +82,7 @@ public class TransportDeleteSnapshotLifecycleAction extends TransportMasterNodeA
 
         @Override
         public ClusterState execute(ClusterState currentState) {
-            SnapshotLifecycleMetadata snapMeta = currentState.metadata().custom(SnapshotLifecycleMetadata.TYPE);
+            SnapshotLifecycleMetadata snapMeta = currentState.metadata().getProject().custom(SnapshotLifecycleMetadata.TYPE);
             if (snapMeta == null) {
                 throw new ResourceNotFoundException("snapshot lifecycle policy not found: {}", request.getLifecycleId());
             }

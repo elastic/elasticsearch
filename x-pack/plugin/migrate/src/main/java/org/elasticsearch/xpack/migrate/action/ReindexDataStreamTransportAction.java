@@ -68,13 +68,16 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
     protected void doExecute(Task task, ReindexDataStreamRequest request, ActionListener<AcknowledgedResponse> listener) {
         String sourceDataStreamName = request.getSourceDataStream();
         Metadata metadata = clusterService.state().metadata();
-        DataStream dataStream = metadata.dataStreams().get(sourceDataStreamName);
+        DataStream dataStream = metadata.getProject().dataStreams().get(sourceDataStreamName);
         if (dataStream == null) {
             listener.onFailure(new ResourceNotFoundException("Data stream named [{}] does not exist", sourceDataStreamName));
             return;
         }
         int totalIndices = dataStream.getIndices().size();
-        int totalIndicesToBeUpgraded = (int) dataStream.getIndices().stream().filter(getReindexRequiredPredicate(metadata, false)).count();
+        int totalIndicesToBeUpgraded = (int) dataStream.getIndices()
+            .stream()
+            .filter(getReindexRequiredPredicate(metadata.getProject(), false))
+            .count();
         ReindexDataStreamTaskParams params = new ReindexDataStreamTaskParams(
             sourceDataStreamName,
             transportService.getThreadPool().absoluteTimeInMillis(),

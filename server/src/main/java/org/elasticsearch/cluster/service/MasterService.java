@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Priority;
@@ -42,6 +43,7 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -522,7 +524,12 @@ public class MasterService extends AbstractLifecycleComponent {
 
             final var previousMetadata = newClusterState.metadata();
             newClusterState = builder.build();
-            assert previousMetadata.sameIndicesLookup(newClusterState.metadata());
+            if (Assertions.ENABLED) {
+                for (ProjectMetadata previousProject : previousMetadata.projects().values()) {
+                    final var newProject = newClusterState.metadata().projects().get(previousProject.id());
+                    assert newProject == null || previousProject.sameIndicesLookup(newProject);
+                }
+            }
         }
 
         return newClusterState;

@@ -12,14 +12,19 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
 import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
 
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -30,7 +35,7 @@ import static org.elasticsearch.xpack.core.security.SecurityExtension.SecurityCo
  * A role mapper the reads the role mapping rules (i.e. {@link ExpressionRoleMapping}s) from the cluster state
  * (i.e. {@link RoleMappingMetadata}). This is not enabled by default.
  */
-public class ClusterStateRoleMapper extends AbstractRoleMapperClearRealmCache implements ClusterStateListener {
+public class ProjectStateRoleMapper extends AbstractRoleMapperClearRealmCache implements ClusterStateListener {
     /**
      * This setting is never registered by the xpack security plugin - in order to disable the
      * cluster-state based role mapper another plugin must register it as a boolean setting
@@ -46,17 +51,24 @@ public class ClusterStateRoleMapper extends AbstractRoleMapperClearRealmCache im
      * </ul>
      */
     public static final String CLUSTER_STATE_ROLE_MAPPINGS_ENABLED = "xpack.security.authc.cluster_state_role_mappings.enabled";
-    private static final Logger logger = LogManager.getLogger(ClusterStateRoleMapper.class);
+    private static final Logger logger = LogManager.getLogger(ProjectStateRoleMapper.class);
 
     private final ScriptService scriptService;
     private final ClusterService clusterService;
+    private final ProjectResolver projectResolver;
     private final boolean enabled;
 
-    public ClusterStateRoleMapper(Settings settings, ScriptService scriptService, ClusterService clusterService) {
+    public ProjectStateRoleMapper(
+        Settings settings,
+        ScriptService scriptService,
+        ClusterService clusterService,
+        ProjectResolver projectResolver
+    ) {
         this.scriptService = scriptService;
         this.clusterService = clusterService;
         // this role mapper is enabled by default and only code in other plugins can disable it
         this.enabled = settings.getAsBoolean(CLUSTER_STATE_ROLE_MAPPINGS_ENABLED, true);
+        this.projectResolver = projectResolver;
         if (this.enabled) {
             clusterService.addListener(this);
         }
@@ -68,18 +80,37 @@ public class ClusterStateRoleMapper extends AbstractRoleMapperClearRealmCache im
     }
 
     @Override
+    @FixForMultiProject(description = "It would be better to clear a project specific realm cache, rather than the cache for all projects")
     public void clusterChanged(ClusterChangedEvent event) {
         // The cluster state (which contains the new role mappings) is already applied when this listener is called,
         // such that {@link #resolveRoles} will be returning the new role mappings when called after this is called
-        if (enabled
-            && false == Objects.equals(
-                RoleMappingMetadata.getFromClusterState(event.previousState()),
-                RoleMappingMetadata.getFromClusterState(event.state())
-            )) {
-            // trigger realm cache clear, even if only disabled role mappings have changed
-            // ideally disabled role mappings should not be published in the cluster state
-            clearRealmCachesOnLocalNode();
+        if (enabled) {
+            if (roleMappingsChanged(event)) {
+                // trigger realm cache clear, even if only disabled role mappings have changed
+                // ideally disabled role mappings should not be published in the cluster state
+                clearRealmCachesOnLocalNode();
+            }
         }
+    }
+
+    private boolean roleMappingsChanged(ClusterChangedEvent event) {
+        final Map<ProjectId, ProjectMetadata> previousProjects = event.previousState().metadata().projects();
+        for (ProjectMetadata currentProject : event.state().metadata().projects().values()) {
+            final RoleMappingMetadata currentMapping = RoleMappingMetadata.getFromProject(currentProject);
+            final ProjectMetadata previousProject = previousProjects.get(currentProject.id());
+            if (previousProject == null) {
+                if (currentMapping != null) {
+                    return true;
+                } else {
+                    continue;
+                }
+            }
+            final RoleMappingMetadata previousMapping = RoleMappingMetadata.getFromProject(previousProject);
+            if (false == Objects.equals(previousMapping, currentMapping)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public boolean hasMapping(String name) {
@@ -97,7 +128,8 @@ public class ClusterStateRoleMapper extends AbstractRoleMapperClearRealmCache im
         if (enabled == false) {
             return Set.of();
         }
-        final Set<ExpressionRoleMapping> mappings = RoleMappingMetadata.getFromClusterState(clusterService.state()).getRoleMappings();
+        final ProjectMetadata project = projectResolver.getProjectMetadata(clusterService.state());
+        final Set<ExpressionRoleMapping> mappings = RoleMappingMetadata.getFromProject(project).getRoleMappings();
         logger.trace("Retrieved [{}] mapping(s) from cluster state", mappings.size());
         if (names == null || names.isEmpty()) {
             return mappings;

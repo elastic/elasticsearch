@@ -68,6 +68,7 @@ public class GetMigrationReindexStatusTransportAction extends HandledTransportAc
         String persistentTaskId = ReindexDataStreamAction.TASK_ID_PREFIX + index;
         PersistentTasksCustomMetadata persistentTasksCustomMetadata = clusterService.state()
             .getMetadata()
+            .getProject()
             .custom(PersistentTasksCustomMetadata.TYPE);
         PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = persistentTasksCustomMetadata.getTask(persistentTaskId);
         if (persistentTask == null) {

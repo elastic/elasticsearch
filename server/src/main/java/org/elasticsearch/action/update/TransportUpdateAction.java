@@ -27,10 +27,11 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.instance.TransportInstanceSingleOperationAction;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -80,6 +81,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     public TransportUpdateAction(
         ThreadPool threadPool,
         ClusterService clusterService,
+        ProjectResolver projectResolver,
         TransportService transportService,
         UpdateHelper updateHelper,
         ActionFilters actionFilters,
@@ -88,7 +90,16 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         AutoCreateIndex autoCreateIndex,
         NodeClient client
     ) {
-        super(NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, UpdateRequest::new);
+        super(
+            NAME,
+            threadPool,
+            clusterService,
+            projectResolver,
+            transportService,
+            actionFilters,
+            indexNameExpressionResolver,
+            UpdateRequest::new
+        );
         this.updateHelper = updateHelper;
         this.indicesService = indicesService;
         this.autoCreateIndex = autoCreateIndex;
@@ -115,20 +126,21 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     }
 
     @Override
-    protected void resolveRequest(ClusterState state, UpdateRequest docWriteRequest) {
+    protected void resolveRequest(ProjectState state, UpdateRequest docWriteRequest) {
         docWriteRequest.routing(state.metadata().resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
     }
 
     @Override
     protected void doExecute(Task task, final UpdateRequest request, final ActionListener<UpdateResponse> listener) {
-        if (request.isRequireAlias() && (clusterService.state().getMetadata().hasAlias(request.index()) == false)) {
+        final ProjectState state = getProjectState();
+        if (request.isRequireAlias() && (state.metadata().hasAlias(request.index()) == false)) {
             throw new IndexNotFoundException(
                 "[" + DocWriteRequest.REQUIRE_ALIAS + "] request flag is [true] and [" + request.index() + "] is not an alias",
                 request.index()
             );
         }
         // if we don't have a master, we don't have metadata, that's fine, let it find a master using create index API
-        if (autoCreateIndex.shouldAutoCreate(request.index(), clusterService.state())) {
+        if (autoCreateIndex.shouldAutoCreate(request.index(), state.metadata())) {
             client.admin()
                 .indices()
                 .create(
@@ -165,17 +177,17 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     }
 
     @Override
-    protected ShardIterator shards(ClusterState clusterState, UpdateRequest request) {
+    protected ShardIterator shards(ProjectState projectState, UpdateRequest request) {
         if (request.getShardId() != null) {
-            return clusterState.routingTable().index(request.concreteIndex()).shard(request.getShardId().getId()).primaryShardIt();
+            return projectState.routingTable().index(request.concreteIndex()).shard(request.getShardId().getId()).primaryShardIt();
         }
-        IndexMetadata indexMetadata = clusterState.metadata().index(request.concreteIndex());
+        IndexMetadata indexMetadata = projectState.metadata().index(request.concreteIndex());
         if (indexMetadata == null) {
             throw new IndexNotFoundException(request.concreteIndex());
         }
         IndexRouting indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
         int shardId = indexRouting.updateShard(request.id(), request.routing());
-        return RoutingTable.shardRoutingTable(clusterState.routingTable().index(request.concreteIndex()), shardId).primaryShardIt();
+        return RoutingTable.shardRoutingTable(projectState.routingTable().index(request.concreteIndex()), shardId).primaryShardIt();
     }
 
     @Override

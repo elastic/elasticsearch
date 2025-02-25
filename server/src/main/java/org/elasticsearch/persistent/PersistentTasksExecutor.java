@@ -39,6 +39,21 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
         return taskName;
     }
 
+    public enum Scope {
+        /**
+         * The persistent task runs separately for each project
+         */
+        PROJECT,
+        /**
+         * The persistent task runs for the cluster itself with no project context
+         */
+        CLUSTER
+    }
+
+    public Scope scope() {
+        return Scope.PROJECT;
+    }
+
     public static final Assignment NO_NODE_FOUND = new Assignment(null, "no appropriate nodes found for the assignment");
 
     /**
@@ -66,7 +81,7 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
     ) {
         long minLoad = Long.MAX_VALUE;
         DiscoveryNode minLoadedNode = null;
-        PersistentTasksCustomMetadata persistentTasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata persistentTasks = clusterState.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         for (DiscoveryNode node : candidateNodes) {
             if (selector.test(node)) {
                 if (persistentTasks == null) {

@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.node.VersionInformation;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -80,6 +81,7 @@ public class TransportResolveIndexActionTests extends ESTestCase {
                 transportService,
                 clusterService,
                 actionFilters,
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY,
                 null
             );
 

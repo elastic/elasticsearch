@@ -12,6 +12,7 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.bulk.SimulateBulkRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -61,14 +62,15 @@ public class SimulateIngestServiceTests extends ESTestCase {
             }
         );
         IngestService ingestService = createWithProcessors(processors);
-        ingestService.innerUpdatePipelines(ingestMetadata);
+        final var projectId = randomProjectIdOrDefault();
+        ingestService.innerUpdatePipelines(projectId, ingestMetadata);
         {
             // First we make sure that if there are no substitutions that we get our original pipeline back:
             SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of(), Map.of());
             SimulateIngestService simulateIngestService = new SimulateIngestService(ingestService, simulateBulkRequest);
-            Pipeline pipeline = simulateIngestService.getPipeline("pipeline1");
+            Pipeline pipeline = simulateIngestService.getPipeline(projectId, "pipeline1");
             assertThat(pipeline.getProcessors(), contains(transformedMatch(Processor::getType, equalTo("processor1"))));
-            assertNull(simulateIngestService.getPipeline("pipeline2"));
+            assertNull(simulateIngestService.getPipeline(projectId, "pipeline2"));
         }
         {
             // Here we make sure that if we have a substitution with the same name as the original pipeline that we get the new one back
@@ -84,7 +86,7 @@ public class SimulateIngestServiceTests extends ESTestCase {
 
             SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(pipelineSubstitutions, Map.of(), Map.of(), Map.of());
             SimulateIngestService simulateIngestService = new SimulateIngestService(ingestService, simulateBulkRequest);
-            Pipeline pipeline1 = simulateIngestService.getPipeline("pipeline1");
+            Pipeline pipeline1 = simulateIngestService.getPipeline(projectId, "pipeline1");
             assertThat(
                 pipeline1.getProcessors(),
                 contains(
@@ -92,7 +94,7 @@ public class SimulateIngestServiceTests extends ESTestCase {
                     transformedMatch(Processor::getType, equalTo("processor3"))
                 )
             );
-            Pipeline pipeline2 = simulateIngestService.getPipeline("pipeline2");
+            Pipeline pipeline2 = simulateIngestService.getPipeline(projectId, "pipeline2");
             assertThat(pipeline2.getProcessors(), contains(transformedMatch(Processor::getType, equalTo("processor3"))));
         }
         {
@@ -104,9 +106,9 @@ public class SimulateIngestServiceTests extends ESTestCase {
             pipelineSubstitutions.put("pipeline2", newHashMap("processors", List.of(newHashMap("processor3", Collections.emptyMap()))));
             SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(pipelineSubstitutions, Map.of(), Map.of(), Map.of());
             SimulateIngestService simulateIngestService = new SimulateIngestService(ingestService, simulateBulkRequest);
-            Pipeline pipeline1 = simulateIngestService.getPipeline("pipeline1");
+            Pipeline pipeline1 = simulateIngestService.getPipeline(projectId, "pipeline1");
             assertThat(pipeline1.getProcessors(), contains(transformedMatch(Processor::getType, equalTo("processor1"))));
-            Pipeline pipeline2 = simulateIngestService.getPipeline("pipeline2");
+            Pipeline pipeline2 = simulateIngestService.getPipeline(projectId, "pipeline2");
             assertThat(pipeline2.getProcessors(), contains(transformedMatch(Processor::getType, equalTo("processor3"))));
         }
     }
@@ -131,7 +133,8 @@ public class SimulateIngestServiceTests extends ESTestCase {
             List.of(ingestPlugin),
             client,
             null,
-            FailureStoreMetrics.NOOP
+            FailureStoreMetrics.NOOP,
+            TestProjectResolvers.singleProjectOnly()
         );
     }
 }

@@ -26,7 +26,7 @@ public class WatchStoreUtils {
      * @throws IndexNotFoundException If no index exists
      */
     public static IndexMetadata getConcreteIndex(String name, Metadata metadata) {
-        IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(name);
+        IndexAbstraction indexAbstraction = metadata.getProject().getIndicesLookup().get(name);
         if (indexAbstraction == null) {
             return null;
         }
@@ -48,7 +48,7 @@ public class WatchStoreUtils {
         if (concreteIndex == null) {
             concreteIndex = indexAbstraction.getIndices().get(indexAbstraction.getIndices().size() - 1);
         }
-        return metadata.index(concreteIndex);
+        return metadata.getProject().index(concreteIndex);
     }
 
 }

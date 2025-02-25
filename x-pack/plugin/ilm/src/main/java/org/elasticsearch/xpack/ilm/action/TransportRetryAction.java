@@ -80,7 +80,7 @@ public class TransportRetryAction extends TransportMasterNodeAction<TransportRet
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 for (String index : request.indices()) {
-                    IndexMetadata idxMeta = newState.metadata().index(index);
+                    IndexMetadata idxMeta = newState.metadata().getProject().index(index);
                     LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
                     StepKey retryStep = new StepKey(lifecycleState.phase(), lifecycleState.action(), lifecycleState.step());
                     if (idxMeta == null) {

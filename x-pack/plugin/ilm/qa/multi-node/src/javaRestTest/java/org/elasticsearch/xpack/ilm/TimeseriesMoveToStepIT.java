@@ -107,6 +107,9 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
                 .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
         );
 
+        // Wait for ILM to run.
+        assertBusy(() -> assertEquals(PhaseCompleteStep.stepKey("new"), getStepKeyForIndex(client(), originalIndex)));
+
         // move to a step
         Request moveToStepRequest = new Request("POST", "_ilm/move/" + originalIndex);
         // index document to trigger rollover
@@ -299,6 +302,9 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)
         );
 
+        // Wait for ILM to run.
+        assertBusy(() -> assertEquals(PhaseCompleteStep.stepKey("new"), getStepKeyForIndex(client(), index)));
+
         // move to a step
         Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);
         moveToStepRequest.setJsonEntity("""
@@ -335,6 +341,9 @@ public class TimeseriesMoveToStepIT extends ESRestTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(LifecycleSettings.LIFECYCLE_NAME, policy)
         );
+
+        // Wait for ILM to run.
+        assertBusy(() -> assertEquals(PhaseCompleteStep.stepKey("new"), getStepKeyForIndex(client(), index)));
 
         // move to a step
         Request moveToStepRequest = new Request("POST", "_ilm/move/" + index);

@@ -60,6 +60,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -90,8 +91,11 @@ public class IndexLifecycleService
     private final IndexLifecycleRunner lifecycleRunner;
     private final Settings settings;
     private final ClusterService clusterService;
+    private final ThreadPool threadPool;
     private final LongSupplier nowSupplier;
     private SchedulerEngine.Job scheduledJob;
+
+    private final AtomicReference<ClusterState> lastSeenState = new AtomicReference<>();
 
     @SuppressWarnings("this-escape")
     public IndexLifecycleService(
@@ -108,6 +112,7 @@ public class IndexLifecycleService
         super();
         this.settings = settings;
         this.clusterService = clusterService;
+        this.threadPool = threadPool;
         this.clock = clock;
         this.nowSupplier = nowSupplier;
         this.scheduledJob = null;
@@ -332,15 +337,37 @@ public class IndexLifecycleService
             // ClusterChangedEvent.indicesDeleted uses an equality check to skip computation if necessary.
             final List<Index> indicesDeleted = event.indicesDeleted();
             if (indicesDeleted.isEmpty() == false) {
-                clusterService.getClusterApplierService().threadPool().executor(ThreadPool.Names.MANAGEMENT).execute(() -> {
+                threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(() -> {
                     for (Index index : indicesDeleted) {
                         policyRegistry.delete(index);
                     }
                 });
             }
 
-            triggerPolicies(event.state(), true);
+            if (lastSeenState.getAndSet(event.state()) == null) {
+                logger.info("Hoi - starting cluster state processing");
+                temp();
+            } else {
+                logger.info("Hoi - cluster state processing was still running; nto starting a new thread");
+            }
         }
+    }
+
+    private void temp() {
+        threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(() -> {
+            final ClusterState currentState = lastSeenState.get();
+            if (currentState == null) {
+                logger.warn("Hoi - last seen state was null");
+                return;
+            }
+            triggerPolicies(currentState, true);
+            if (lastSeenState.compareAndSet(currentState, null)) {
+                logger.info("Hoi - no new state, stopping processing");
+                return;
+            }
+            logger.info("Hoi - found new state, starting new processing thread");
+            temp();
+        });
     }
 
     @Override

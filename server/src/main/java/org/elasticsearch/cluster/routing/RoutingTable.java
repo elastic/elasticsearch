@@ -460,53 +460,6 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
                 .addShard(shardRoutingEntry);
         }
 
-        /* Update the number of shards for an existing index in serverless */
-        /*
-        public Builder reshardUpdateNumberOfShards(final int newShardCount, final String index) {
-            if (indicesRouting == null) {
-                throw new IllegalStateException("once build is called the builder cannot be reused");
-            }
-            IndexRoutingTable indexRoutingTable = indicesRouting.get(index);
-            if (indexRoutingTable == null) {
-                // ignore index missing failure, its closed...
-                return this;
-            }
-            // Replica count (should be 0 for serverless)
-            int currentNumberOfReplicas = indexRoutingTable.shard(0).size() - 1; // remove the required primary
-            int oldShardCount = indexRoutingTable.size();
-            assert (newShardCount % oldShardCount == 0) : "New shard count must be multiple of old shard count";
-            IndexRoutingTable.Builder builder = new IndexRoutingTable.Builder(shardRoutingRoleStrategy, indexRoutingTable.getIndex());
-            builder.ensureShardArray(newShardCount);
-
-            // re-add existing shards
-            for (int i = 0; i < oldShardCount; i++) {
-                builder.addIndexShard(new IndexShardRoutingTable.Builder(indexRoutingTable.shard(i)));
-            }
-
-            int numNewShards = newShardCount - oldShardCount;
-            // Add new shards and replicas
-            for (int i = 0; i < numNewShards; i++) {
-                ShardId shardId = new ShardId(indexRoutingTable.getIndex(), oldShardCount + i);
-                IndexShardRoutingTable.Builder indexShardRoutingBuilder = IndexShardRoutingTable.builder(shardId);
-                for (int j = 0; j <= currentNumberOfReplicas; j++) {
-                    boolean primary = j == 0;
-                    ShardRouting shardRouting = ShardRouting.newUnassigned(
-                        shardId,
-                        primary,
-                        // TODO: Will add a SPLIT recovery type for primary
-                        primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE,
-                        new UnassignedInfo(UnassignedInfo.Reason.RESHARD_ADDED, null),
-                        shardRoutingRoleStrategy.newEmptyRole(j)
-                    );
-                    indexShardRoutingBuilder.addShard(shardRouting);
-                }
-                builder.addIndexShard(indexShardRoutingBuilder);
-            }
-            indicesRouting.put(index, builder.build());
-            return this;
-        }
-         */
-
         /**
          * Update the number of replicas for the specified indices.
          *

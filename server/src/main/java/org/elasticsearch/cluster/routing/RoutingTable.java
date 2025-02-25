@@ -459,6 +459,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         }
 
         /* Update the number of shards for an existing index in serverless */
+        /*
         public Builder reshardUpdateNumberOfShards(final int newShardCount, final String index) {
             if (indicesRouting == null) {
                 throw new IllegalStateException("once build is called the builder cannot be reused");
@@ -502,6 +503,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             indicesRouting.put(index, builder.build());
             return this;
         }
+         */
 
         /**
          * Update the number of replicas for the specified indices.

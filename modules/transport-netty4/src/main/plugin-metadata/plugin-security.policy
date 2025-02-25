@@ -16,6 +16,9 @@ grant codeBase "${codebase.netty-common}" {
 
    // Netty sets custom classloader for some of its internal threads
    permission java.lang.RuntimePermission "setContextClassLoader";
+
+   // Netty also gets the classloader for some of its internal threads
+   permission java.lang.RuntimePermission "getClassLoader";
 };
 
 grant codeBase "${codebase.netty-transport}" {
@@ -23,3 +26,8 @@ grant codeBase "${codebase.netty-transport}" {
    // the bug says it only happened rarely, and that its fixed, but apparently it still happens rarely!
    permission java.util.PropertyPermission "sun.nio.ch.bugLevel", "write";
 };
+
+grant {
+   // Netty also gets the classloader for some of its internal threads
+   permission java.lang.RuntimePermission "getClassLoader";
+}

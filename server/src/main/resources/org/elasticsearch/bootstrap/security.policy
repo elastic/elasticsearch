@@ -76,7 +76,7 @@ grant codeBase "${codebase.elasticsearch-simdvec}" {
 //// Everything else:
 
 grant {
-  permission java.lang.RuntimePermission "getClassLoader";
+  // permission java.lang.RuntimePermission "getClassLoader";
 
   // needed by vendored Guice
   permission java.lang.RuntimePermission "accessClassInPackage.jdk.internal.vm.annotation";

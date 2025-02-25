@@ -122,6 +122,7 @@ grant codeBase "${codebase.netty-common}" {
    permission java.io.FilePermission "/proc/sys/net/core/somaxconn", "read";
    // Netty sets custom classloader for some of its internal threads
    permission java.lang.RuntimePermission "setContextClassLoader";
+   permission java.lang.RuntimePermission "getClassLoader";
    permission java.net.SocketPermission "*", "accept,connect";
 };
 

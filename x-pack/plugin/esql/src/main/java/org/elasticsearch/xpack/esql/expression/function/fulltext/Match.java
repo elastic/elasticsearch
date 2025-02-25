@@ -452,8 +452,8 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
     }
 
     @Override
-    public Object queryAsObject() {
-        Object queryAsObject = query().fold(FoldContext.small() /* TODO remove me */);
+    public Object queryAsObject(FoldContext foldContext) {
+        Object queryAsObject = query().fold(foldContext);
 
         // Convert BytesRef to string for string-based values
         if (queryAsObject instanceof BytesRef bytesRef) {
@@ -478,7 +478,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
     }
 
     @Override
-    protected Query translate(TranslatorHandler handler) {
+    protected Query translate(TranslatorHandler handler, FoldContext foldContext) {
         var fieldAttribute = fieldAsFieldAttribute();
         Check.notNull(fieldAttribute, "Match must have a field attribute as the first argument");
         String fieldName = fieldAttribute.name();
@@ -487,7 +487,7 @@ public class Match extends FullTextFunction implements OptionalArgument, PostAna
             fieldName = multiTypeEsField.getName();
         }
         // Make query lenient so mixed field types can be queried when a field type is incompatible with the value provided
-        return new MatchQuery(source(), fieldName, queryAsObject(), matchQueryOptions());
+        return new MatchQuery(source(), fieldName, queryAsObject(foldContext), matchQueryOptions());
     }
 
     private FieldAttribute fieldAsFieldAttribute() {

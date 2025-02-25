@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.capabilities;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
@@ -27,11 +28,11 @@ public interface TranslationAware {
      * If during translation a child needs to be translated first, the handler needs to be used even if the child implements this
      * interface as well. This is to ensure that the child is wrapped in a SingleValueQuery if necessary.
      * <p>So use this:</p>
-     * <p>{@code Query childQuery = handler.asQuery(child);}</p>
+     * <p>{@code Query childQuery = handler.asQuery(child, foldContext);}</p>
      * <p>and <b>not</b> this:</p>
-     * <p>{@code Query childQuery = child.asQuery(handler);}</p>
+     * <p>{@code Query childQuery = child.asQuery(handler, foldContext);}</p>
      */
-    Query asQuery(TranslatorHandler handler);
+    Query asQuery(TranslatorHandler handler, FoldContext foldContext);
 
     /**
      * Subinterface for expressions that can only process single values (and null out on MVs).

@@ -80,7 +80,7 @@ public class IsNotNull extends UnaryScalarFunction implements Negatable<UnarySca
     }
 
     @Override
-    public Query asQuery(TranslatorHandler handler) {
+    public Query asQuery(TranslatorHandler handler, FoldContext foldContext) {
         return new ExistsQuery(source(), handler.nameOf(field()));
     }
 }

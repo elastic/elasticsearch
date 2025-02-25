@@ -81,7 +81,7 @@ public class IsNull extends UnaryScalarFunction implements Negatable<UnaryScalar
     }
 
     @Override
-    public Query asQuery(TranslatorHandler handler) {
+    public Query asQuery(TranslatorHandler handler, FoldContext foldContext) {
         return new NotQuery(source(), new ExistsQuery(source(), handler.nameOf(field())));
     }
 }

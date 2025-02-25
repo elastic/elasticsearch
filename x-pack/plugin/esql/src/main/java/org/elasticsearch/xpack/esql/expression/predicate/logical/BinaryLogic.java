@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
@@ -81,8 +82,8 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
     }
 
     @Override
-    public Query asQuery(TranslatorHandler handler) {
-        return boolQuery(source(), handler.asQuery(left()), handler.asQuery(right()), this instanceof And);
+    public Query asQuery(TranslatorHandler handler, FoldContext foldContext) {
+        return boolQuery(source(), handler.asQuery(left(), foldContext), handler.asQuery(right(), foldContext), this instanceof And);
     }
 
     public static Query boolQuery(Source source, Query left, Query right, boolean isAnd) {

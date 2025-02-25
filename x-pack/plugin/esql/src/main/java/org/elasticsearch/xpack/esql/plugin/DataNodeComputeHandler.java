@@ -91,6 +91,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
         String clusterAlias,
         CancellableTask parentTask,
         Configuration configuration,
+        FoldContext foldContext,
         PhysicalPlan dataNodePlan,
         Set<String> concreteIndices,
         OriginalIndices originalIndices,
@@ -184,7 +185,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             clusterAlias,
             concreteIndices,
             originalIndices,
-            PlannerUtils.requestTimestampFilter(dataNodePlan),
+            PlannerUtils.requestTimestampFilter(dataNodePlan, foldContext),
             runOnTaskFailure,
             ActionListener.releaseAfter(outListener, exchangeSource.addEmptySink())
         );

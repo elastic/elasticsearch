@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -101,8 +102,8 @@ public class QueryString extends FullTextFunction {
     }
 
     @Override
-    protected Query translate(TranslatorHandler handler) {
-        return new QueryStringQuery(source(), Objects.toString(queryAsObject()), Map.of(), Map.of());
+    protected Query translate(TranslatorHandler handler, FoldContext foldContext) {
+        return new QueryStringQuery(source(), Objects.toString(queryAsObject(foldContext)), Map.of(), Map.of());
     }
 
     @Override

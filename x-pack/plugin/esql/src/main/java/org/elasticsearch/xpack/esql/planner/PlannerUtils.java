@@ -211,8 +211,8 @@ public class PlannerUtils {
     /**
      * Extracts the ES query for the <code>@timestamp</code> field for the passed plan.
      */
-    public static QueryBuilder requestTimestampFilter(PhysicalPlan plan) {
-        return detectFilter(plan, "@timestamp");
+    public static QueryBuilder requestTimestampFilter(PhysicalPlan plan, FoldContext foldContext) {
+        return detectFilter(plan, "@timestamp", foldContext);
     }
 
     /**
@@ -220,7 +220,7 @@ public class PlannerUtils {
      * We currently only use this filter for the @timestamp field, which is always a date field. Any tests that wish to use this should
      * take care to not use it with TEXT fields.
      */
-    static QueryBuilder detectFilter(PhysicalPlan plan, String fieldName) {
+    static QueryBuilder detectFilter(PhysicalPlan plan, String fieldName, FoldContext foldContext) {
         // first position is the REST filter, the second the query filter
         var requestFilter = new QueryBuilder[] { null, null };
 
@@ -247,7 +247,7 @@ public class PlannerUtils {
                     }
                 }
                 if (matches.size() > 0) {
-                    requestFilter[1] = TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(matches)).asBuilder();
+                    requestFilter[1] = TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(matches), foldContext).asBuilder();
                 }
             });
         });

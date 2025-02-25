@@ -12,6 +12,7 @@ import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -26,14 +27,19 @@ import java.util.Set;
 /**
  * Some {@link FullTextFunction} implementations such as {@link org.elasticsearch.xpack.esql.expression.function.fulltext.Match}
  * will be translated to a {@link QueryBuilder} that require a rewrite phase on the coordinator.
- * {@link QueryBuilderResolver#resolveQueryBuilders(LogicalPlan, TransportActionServices, ActionListener)} will rewrite the plan by
+ * {@link QueryBuilderResolver#resolveQueryBuilders(LogicalPlan, FoldContext, TransportActionServices, ActionListener)} will rewrite the plan by
  * replacing {@link FullTextFunction} expression with new ones that hold rewritten {@link QueryBuilder}s.
  */
 public final class QueryBuilderResolver {
 
     private QueryBuilderResolver() {}
 
-    public static void resolveQueryBuilders(LogicalPlan plan, TransportActionServices services, ActionListener<LogicalPlan> listener) {
+    public static void resolveQueryBuilders(
+        LogicalPlan plan,
+        FoldContext foldContext,
+        TransportActionServices services,
+        ActionListener<LogicalPlan> listener
+    ) {
         var hasFullTextFunctions = plan.anyMatch(p -> {
             Holder<Boolean> hasFullTextFunction = new Holder<>(false);
             p.forEachExpression(FullTextFunction.class, unused -> hasFullTextFunction.set(true));
@@ -41,7 +47,7 @@ public final class QueryBuilderResolver {
         });
         if (hasFullTextFunctions) {
             Rewriteable.rewriteAndFetch(
-                new FullTextFunctionsRewritable(plan),
+                new FullTextFunctionsRewritable(plan, foldContext),
                 queryRewriteContext(services, indexNames(plan)),
                 listener.delegateFailureAndWrap((l, r) -> l.onResponse(r.plan))
             );
@@ -69,14 +75,16 @@ public final class QueryBuilderResolver {
         return indexNames;
     }
 
-    private record FullTextFunctionsRewritable(LogicalPlan plan) implements Rewriteable<QueryBuilderResolver.FullTextFunctionsRewritable> {
+    private record FullTextFunctionsRewritable(LogicalPlan plan, FoldContext foldContext)
+        implements
+            Rewriteable<QueryBuilderResolver.FullTextFunctionsRewritable> {
         @Override
         public FullTextFunctionsRewritable rewrite(QueryRewriteContext ctx) throws IOException {
             Holder<IOException> exceptionHolder = new Holder<>();
             Holder<Boolean> updated = new Holder<>(false);
             LogicalPlan newPlan = plan.transformExpressionsDown(FullTextFunction.class, f -> {
                 QueryBuilder builder = f.queryBuilder(), initial = builder;
-                builder = builder == null ? f.asQuery(TranslatorHandler.TRANSLATOR_HANDLER).asBuilder() : builder;
+                builder = builder == null ? f.asQuery(TranslatorHandler.TRANSLATOR_HANDLER, foldContext).asBuilder() : builder;
                 try {
                     builder = builder.rewrite(ctx);
                 } catch (IOException e) {
@@ -89,7 +97,7 @@ public final class QueryBuilderResolver {
             if (exceptionHolder.get() != null) {
                 throw exceptionHolder.get();
             }
-            return updated.get() ? new FullTextFunctionsRewritable(newPlan) : this;
+            return updated.get() ? new FullTextFunctionsRewritable(newPlan, foldContext) : this;
         }
     }
 }

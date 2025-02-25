@@ -58,7 +58,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         for (Expression exp : splitAnd(filterExec.condition())) {
             (canPushToSource(exp, LucenePushdownPredicates.from(ctx.searchStats())) ? pushable : nonPushable).add(exp);
         }
-        return rewrite(filterExec, queryExec, pushable, nonPushable, List.of());
+        return rewrite(filterExec, queryExec, pushable, nonPushable, List.of(), ctx);
     }
 
     private static PhysicalPlan planFilterExec(
@@ -76,7 +76,7 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         }
         // Replace field references with their actual field attributes
         pushable.replaceAll(e -> e.transformDown(ReferenceAttribute.class, r -> aliasReplacedBy.resolve(r, r)));
-        return rewrite(filterExec, queryExec, pushable, nonPushable, evalExec.fields());
+        return rewrite(filterExec, queryExec, pushable, nonPushable, evalExec.fields(), ctx);
     }
 
     static AttributeMap<Attribute> getAliasReplacedBy(EvalExec evalExec) {
@@ -94,12 +94,13 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         EsQueryExec queryExec,
         List<Expression> pushable,
         List<Expression> nonPushable,
-        List<Alias> evalFields
+        List<Alias> evalFields,
+        LocalPhysicalOptimizerContext ctx
     ) {
         // Combine GT, GTE, LT and LTE in pushable to Range if possible
         List<Expression> newPushable = combineEligiblePushableToRange(pushable);
         if (newPushable.size() > 0) { // update the executable with pushable conditions
-            Query queryDSL = TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(newPushable));
+            Query queryDSL = TRANSLATOR_HANDLER.asQuery(Predicates.combineAnd(newPushable), ctx.foldCtx());
             QueryBuilder planQuery = queryDSL.asBuilder();
             var query = Queries.combine(Queries.Clause.FILTER, asList(queryExec.query(), planQuery));
             queryExec = new EsQueryExec(

@@ -463,11 +463,11 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
     }
 
     @Override
-    public Query asQuery(TranslatorHandler handler) {
-        return translate(handler);
+    public Query asQuery(TranslatorHandler handler, FoldContext foldContext) {
+        return translate(handler, foldContext);
     }
 
-    private Query translate(TranslatorHandler handler) {
+    private Query translate(TranslatorHandler handler, FoldContext foldContext) {
         TypedAttribute attribute = LucenePushdownPredicates.checkIsPushableAttribute(value());
 
         Set<Object> terms = new LinkedHashSet<>();
@@ -479,7 +479,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
                     // delegates to BinaryComparisons translator to ensure consistent handling of date and time values
                     // TODO:
                     // Query query = BinaryComparisons.translate(new Equals(in.source(), in.value(), rhs), handler);
-                    Query query = handler.asQuery(new Equals(source(), value(), rhs));
+                    Query query = handler.asQuery(new Equals(source(), value(), rhs), foldContext);
 
                     if (query instanceof TermQuery) {
                         terms.add(((TermQuery) query).value());
@@ -487,7 +487,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
                         queries.add(query);
                     }
                 } else {
-                    terms.add(valueOf(FoldContext.small() /* TODO remove me */, rhs));
+                    terms.add(valueOf(foldContext, rhs));
                 }
             }
         }

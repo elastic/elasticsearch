@@ -144,13 +144,10 @@ public class EndsWith extends EsqlScalarFunction implements TranslationAware.Sin
     }
 
     @Override
-    public Query asQuery(TranslatorHandler handler) {
+    public Query asQuery(TranslatorHandler handler, FoldContext foldContext) {
         LucenePushdownPredicates.checkIsPushableAttribute(str);
         var fieldName = handler.nameOf(str instanceof FieldAttribute fa ? fa.exactAttribute() : str);
-
-        // TODO: Get the real FoldContext here
-        var wildcardQuery = "*" + QueryParser.escape(BytesRefs.toString(suffix.fold(FoldContext.small())));
-
+        var wildcardQuery = "*" + QueryParser.escape(BytesRefs.toString(suffix.fold(foldContext)));
         return new WildcardQuery(source(), fieldName, wildcardQuery);
     }
 

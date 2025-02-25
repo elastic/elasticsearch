@@ -349,7 +349,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
      *  input to the operation.
      */
     @Override
-    public Query asQuery(TranslatorHandler handler) {
+    public Query asQuery(TranslatorHandler handler, FoldContext foldContext) {
         Check.isTrue(
             right().foldable(),
             "Line {}:{}: Comparisons against fields are not (currently) supported; offender [{}] in [{}]",

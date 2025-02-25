@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermQuery;
@@ -140,8 +141,8 @@ public class Term extends FullTextFunction implements PostAnalysisPlanVerificati
     }
 
     @Override
-    protected Query translate(TranslatorHandler handler) {
-        return new TermQuery(source(), ((FieldAttribute) field()).name(), queryAsObject());
+    protected Query translate(TranslatorHandler handler, FoldContext foldContext) {
+        return new TermQuery(source(), ((FieldAttribute) field()).name(), queryAsObject(foldContext));
     }
 
     @Override

@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -135,7 +136,7 @@ public class EndsWithTests extends AbstractScalarFunctionTestCase {
 
         assertThat(function.translatable(LucenePushdownPredicates.DEFAULT), equalTo(true));
 
-        var query = function.asQuery(TranslatorHandler.TRANSLATOR_HANDLER);
+        var query = function.asQuery(TranslatorHandler.TRANSLATOR_HANDLER, FoldContext.small());
 
         assertThat(query, equalTo(new WildcardQuery(Source.EMPTY, "field", "*a\\*b\\?c\\\\")));
     }

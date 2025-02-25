@@ -141,13 +141,10 @@ public class StartsWith extends EsqlScalarFunction implements TranslationAware.S
     }
 
     @Override
-    public Query asQuery(TranslatorHandler handler) {
+    public Query asQuery(TranslatorHandler handler, FoldContext foldContext) {
         LucenePushdownPredicates.checkIsPushableAttribute(str);
         var fieldName = handler.nameOf(str instanceof FieldAttribute fa ? fa.exactAttribute() : str);
-
-        // TODO: Get the real FoldContext here
         var wildcardQuery = QueryParser.escape(BytesRefs.toString(prefix.fold(FoldContext.small()))) + "*";
-
         return new WildcardQuery(source(), fieldName, wildcardQuery);
     }
 

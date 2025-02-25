@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Predicates;
@@ -65,11 +64,10 @@ public class TransportSetUpgradeModeAction extends AbstractTransportSetUpgradeMo
         ClusterService clusterService,
         PersistentTasksClusterService persistentTasksClusterService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         Client client,
         PersistentTasksService persistentTasksService
     ) {
-        super(SetUpgradeModeAction.NAME, "ml", transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver);
+        super(SetUpgradeModeAction.NAME, "ml", transportService, clusterService, threadPool, actionFilters);
         this.persistentTasksClusterService = persistentTasksClusterService;
         this.client = new OriginSettingClient(client, ML_ORIGIN);
         this.persistentTasksService = persistentTasksService;

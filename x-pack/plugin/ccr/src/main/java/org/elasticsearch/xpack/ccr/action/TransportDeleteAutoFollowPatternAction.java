@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.Maps;
@@ -40,8 +39,7 @@ public class TransportDeleteAutoFollowPatternAction extends AcknowledgedTranspor
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        ProjectResolver projectResolver,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        ProjectResolver projectResolver
     ) {
         super(
             DeleteAutoFollowPatternAction.NAME,

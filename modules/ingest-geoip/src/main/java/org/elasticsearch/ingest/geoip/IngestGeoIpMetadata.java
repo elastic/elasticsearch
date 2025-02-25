@@ -45,7 +45,7 @@ public final class IngestGeoIpMetadata implements Metadata.ProjectCustom {
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<IngestGeoIpMetadata, Void> PARSER = new ConstructingObjectParser<>(
-        "ingest_geoip_metadata",
+        TYPE,
         a -> new IngestGeoIpMetadata(
             ((List<DatabaseConfigurationMetadata>) a[0]).stream().collect(Collectors.toMap((m) -> m.database().id(), Function.identity()))
         )

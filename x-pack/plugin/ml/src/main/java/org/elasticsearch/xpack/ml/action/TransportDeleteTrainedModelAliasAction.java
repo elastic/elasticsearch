@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -55,8 +54,7 @@ public class TransportDeleteTrainedModelAliasAction extends AcknowledgedTranspor
         ThreadPool threadPool,
         ActionFilters actionFilters,
         InferenceAuditor auditor,
-        IngestService ingestService,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IngestService ingestService
     ) {
         super(
             DeleteTrainedModelAliasAction.NAME,

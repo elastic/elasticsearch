@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -66,7 +65,6 @@ public class TransportClusterRerouteActionTests extends ESTestCase {
             threadPool,
             mock(AllocationService.class),
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class),
             DefaultProjectResolver.INSTANCE
         );
         Mockito.clearInvocations(transportService);
@@ -83,7 +81,6 @@ public class TransportClusterRerouteActionTests extends ESTestCase {
             mock(ThreadPool.class),
             mock(AllocationService.class),
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class),
             TestProjectResolvers.allProjects()
         );
 
@@ -105,7 +102,6 @@ public class TransportClusterRerouteActionTests extends ESTestCase {
             mock(ThreadPool.class),
             mock(AllocationService.class),
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class),
             TestProjectResolvers.singleProject(randomProjectIdOrDefault())
         );
 

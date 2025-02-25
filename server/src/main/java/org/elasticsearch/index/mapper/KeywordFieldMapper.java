@@ -444,8 +444,9 @@ public final class KeywordFieldMapper extends FieldMapper {
                 indexSourceKeepMode,
                 hasDocValues.getValue(),
                 stored.getValue(),
+                this,
                 indexCreatedVersion,
-                this
+                IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD
             );
             return new KeywordFieldMapper(
                 leafName(),

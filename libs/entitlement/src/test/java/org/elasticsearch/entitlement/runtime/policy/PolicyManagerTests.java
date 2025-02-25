@@ -477,8 +477,8 @@ public class PolicyManagerTests extends ESTestCase {
                             List.of(
                                 new FilesEntitlement(
                                     List.of(
-                                        FilesEntitlement.FileData.ofPath(
-                                            Path.of("/tmp/test/foo"), FilesEntitlement.Mode.READ).withExclusive(true),
+                                        FilesEntitlement.FileData.ofPath(Path.of("/tmp/test/foo"), FilesEntitlement.Mode.READ)
+                                            .withExclusive(true),
                                         FilesEntitlement.FileData.ofPath(Path.of("/tmp/"), FilesEntitlement.Mode.READ)
                                     )
                                 )

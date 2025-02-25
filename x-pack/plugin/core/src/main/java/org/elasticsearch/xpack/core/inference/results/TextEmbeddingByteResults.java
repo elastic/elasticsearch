@@ -14,7 +14,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xcontent.ToXContent;
@@ -63,12 +63,12 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings)
         if (embeddings.isEmpty()) {
             throw new IllegalStateException("Embeddings list is empty");
         }
-        return embeddings.getFirst().values().length;
+        return embeddings.get(0).values().length;
     }
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return ChunkedToXContentHelper.array(TEXT_EMBEDDING_BYTES, embeddings.iterator());
+        return ChunkedToXContent.builder(params).array(TEXT_EMBEDDING_BYTES, embeddings.iterator());
     }
 
     @Override

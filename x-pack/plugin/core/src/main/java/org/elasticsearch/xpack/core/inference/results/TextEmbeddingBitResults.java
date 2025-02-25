@@ -55,7 +55,7 @@ public record TextEmbeddingBitResults(List<TextEmbeddingByteResults.Embedding> e
         if (embeddings.isEmpty()) {
             throw new IllegalStateException("Embeddings list is empty");
         }
-        return embeddings.getFirst().values().length;
+        return embeddings.get(0).values().length;
     }
 
     @Override

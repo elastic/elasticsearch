@@ -391,14 +391,14 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
             var results = listener.actionGet(TIMEOUT);
             assertThat(results, instanceOf(List.class));
             assertThat(results, hasSize(2));
-            var firstResult = results.getFirst();
+            var firstResult = results.get(0);
             assertThat(firstResult, instanceOf(ChunkedInferenceEmbedding.class));
             Class<?> expectedClass = switch (taskType) {
                 case TEXT_EMBEDDING -> TextEmbeddingFloatResults.Chunk.class;
                 case SPARSE_EMBEDDING -> SparseEmbeddingResults.Chunk.class;
                 default -> null;
             };
-            assertThat(((ChunkedInferenceEmbedding) firstResult).chunks().getFirst(), instanceOf(expectedClass));
+            assertThat(((ChunkedInferenceEmbedding) firstResult).chunks().get(0), instanceOf(expectedClass));
         }
     }
 

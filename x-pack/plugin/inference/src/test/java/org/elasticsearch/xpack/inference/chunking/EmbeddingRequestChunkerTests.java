@@ -93,7 +93,7 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         List<String> inputs = List.of("1st small", "2nd small", "3rd small");
         var batches = new EmbeddingRequestChunker(inputs, 100, 100, 10).batchRequestsWithListeners(testListener());
         assertThat(batches, hasSize(1));
-        EmbeddingRequestChunker.BatchRequest batch = batches.getFirst().batch();
+        EmbeddingRequestChunker.BatchRequest batch = batches.get(0).batch();
         assertEquals(batch.inputs(), inputs);
         for (int i = 0; i < inputs.size(); i++) {
             var request = batch.requests().get(i);

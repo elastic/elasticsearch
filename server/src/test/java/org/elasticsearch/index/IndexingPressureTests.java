@@ -41,22 +41,18 @@ public class IndexingPressureTests extends ESTestCase {
         IndexingPressure indexingPressure = new IndexingPressure(settings);
 
         try (
-            IndexingPressure.Coordinating coordinating1 = indexingPressure.markCoordinatingOperationStarted(
-                10,
-                randomIntBetween(1, 127),
-                false
-            );
-            IndexingPressure.Coordinating coordinating2 = indexingPressure.markCoordinatingOperationStarted(
+            IndexingPressure.Incremental coordinating1 = indexingPressure.startIncrementalCoordinating(10, randomIntBetween(1, 127), false);
+            IndexingPressure.Incremental coordinating2 = indexingPressure.startIncrementalCoordinating(
                 10,
                 randomIntBetween(128, 1023),
                 false
             );
-            IndexingPressure.Coordinating coordinating3 = indexingPressure.markCoordinatingOperationStarted(
+            IndexingPressure.Incremental coordinating3 = indexingPressure.startIncrementalCoordinating(
                 10,
                 randomIntBetween(1024, 6000),
                 false
             );
-            Releasable ignored1 = indexingPressure.markCoordinatingOperationStarted(
+            Releasable ignored1 = indexingPressure.startIncrementalCoordinating(
                 10,
                 1 + (8 * 1024) - indexingPressure.stats().getCurrentCoordinatingBytes(),
                 false

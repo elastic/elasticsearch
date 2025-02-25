@@ -97,7 +97,7 @@ public class IncrementalBulkService {
 
         private final ArrayList<Releasable> releasables = new ArrayList<>(4);
         private final ArrayList<BulkResponse> responses = new ArrayList<>(2);
-        private final IndexingPressure.Coordinating coordinatingOperation;
+        private final IndexingPressure.Incremental incrementalOperation;
         private boolean closed = false;
         private boolean globalFailure = false;
         private boolean incrementalRequestSubmitted = false;
@@ -116,8 +116,12 @@ public class IncrementalBulkService {
             this.waitForActiveShards = waitForActiveShards != null ? ActiveShardCount.parseString(waitForActiveShards) : null;
             this.timeout = timeout;
             this.refresh = refresh;
-            this.coordinatingOperation = indexingPressure.markCoordinatingOperationStarted(0, 0, false);
+            this.incrementalOperation = indexingPressure.startIncrementalCoordinating(0, 0, false);
             createNewBulkRequest(EMPTY_STATE);
+        }
+
+        public IndexingPressure.Incremental getIncrementalOperation() {
+            return incrementalOperation;
         }
 
         public void addItems(List<DocWriteRequest<?>> items, Releasable releasable, Runnable nextItems) {
@@ -129,7 +133,8 @@ public class IncrementalBulkService {
             } else {
                 assert bulkRequest != null;
                 if (internalAddItems(items, releasable)) {
-                    if (coordinatingOperation.shouldSplit()) {
+                    if (incrementalOperation.shouldSplit()) {
+                        IndexingPressure.Coordinating coordinating = incrementalOperation.split();
                         final boolean isFirstRequest = incrementalRequestSubmitted == false;
                         incrementalRequestSubmitted = true;
                         final ArrayList<Releasable> toRelease = new ArrayList<>(releasables);
@@ -151,7 +156,7 @@ public class IncrementalBulkService {
                             }
                         }, () -> {
                             bulkInProgress = false;
-                            coordinatingOperation.releaseCurrent();
+                            coordinating.close();
                             toRelease.forEach(Releasable::close);
                             nextItems.run();
                         }));
@@ -172,6 +177,7 @@ public class IncrementalBulkService {
             } else {
                 assert bulkRequest != null;
                 if (internalAddItems(items, releasable)) {
+                    IndexingPressure.Coordinating coordinating = incrementalOperation.split();
                     final ArrayList<Releasable> toRelease = new ArrayList<>(releasables);
                     releasables.clear();
                     // We do not need to set this back to false as this will be the last request.
@@ -192,7 +198,7 @@ public class IncrementalBulkService {
                             errorResponse(listener);
                         }
                     }, () -> {
-                        coordinatingOperation.releaseCurrent();
+                        coordinating.close();
                         toRelease.forEach(Releasable::close);
                     }));
                 } else {
@@ -205,7 +211,7 @@ public class IncrementalBulkService {
         public void close() {
             if (closed == false) {
                 closed = true;
-                coordinatingOperation.close();
+                incrementalOperation.close();
                 releasables.forEach(Releasable::close);
                 releasables.clear();
             }
@@ -213,7 +219,7 @@ public class IncrementalBulkService {
 
         private void shortCircuitDueToTopLevelFailure(List<DocWriteRequest<?>> items, Releasable releasable) {
             assert releasables.isEmpty();
-            assert coordinatingOperation.currentSize() == 0;
+            assert incrementalOperation.currentOperationsSize() == 0;
             assert bulkRequest == null;
             if (globalFailure == false) {
                 addItemLevelFailures(items);
@@ -258,11 +264,11 @@ public class IncrementalBulkService {
                 bulkRequest.add(items);
                 releasables.add(releasable);
                 long size = items.stream().mapToLong(Accountable::ramBytesUsed).sum();
-                coordinatingOperation.increment(items.size(), size);
+                incrementalOperation.increment(items.size(), size);
                 return true;
             } catch (EsRejectedExecutionException e) {
                 handleBulkFailure(incrementalRequestSubmitted == false, e);
-                coordinatingOperation.releaseCurrent();
+                incrementalOperation.split().close();
                 releasables.forEach(Releasable::close);
                 releasables.clear();
                 return false;

@@ -20,6 +20,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.index.IndexVersion;
@@ -42,11 +43,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 /**
  * Tests for {@link RestBulkAction}.
@@ -228,10 +225,7 @@ public class RestBulkActionTests extends ESTestCase {
             .build();
         FakeRestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
 
-        IndexingPressure indexingPressure = mock(IndexingPressure.class);
-        when(indexingPressure.markCoordinatingOperationStarted(anyInt(), anyLong(), anyBoolean())).thenReturn(
-            mock(IndexingPressure.Coordinating.class)
-        );
+        IndexingPressure indexingPressure = new IndexingPressure(Settings.EMPTY);
         RestBulkAction.ChunkHandler chunkHandler = new RestBulkAction.ChunkHandler(true, request, () -> {
             return new IncrementalBulkService.Handler(null, indexingPressure, null, null, null) {
 

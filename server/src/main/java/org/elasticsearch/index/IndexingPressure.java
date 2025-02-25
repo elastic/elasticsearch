@@ -138,24 +138,111 @@ public class IndexingPressure {
         };
     }
 
+    public Incremental startIncrementalCoordinating(int operations, long bytes, boolean forceExecution) {
+        Incremental coordinating = new Incremental(forceExecution);
+        coordinating.coordinating.increment(operations, bytes);
+        return coordinating;
+    }
+
     public Coordinating markCoordinatingOperationStarted(int operations, long bytes, boolean forceExecution) {
         Coordinating coordinating = new Coordinating(forceExecution);
         coordinating.increment(operations, bytes);
         return coordinating;
     }
 
+    public class Incremental implements Releasable {
+
+        private final AtomicBoolean closed = new AtomicBoolean();
+        private final boolean forceExecution;
+        private long currentUnparsedSize = 0;
+        private long totalParsedBytes = 0;
+        private Coordinating coordinating;
+
+        public Incremental(boolean forceExecution) {
+            this.forceExecution = forceExecution;
+            this.coordinating = new Coordinating(forceExecution);
+        }
+
+        public long totalParsedBytes() {
+            return totalParsedBytes;
+        }
+
+        public void incrementUnparsedBytes(long bytes) {
+            assert closed.get() == false;
+            // TODO: Implement integration with IndexingPressure for unparsed bytes
+            currentUnparsedSize += bytes;
+        }
+
+        public void transferUnparsedBytesToParsed(long bytes) {
+            assert closed.get() == false;
+            assert currentUnparsedSize >= bytes;
+            currentUnparsedSize -= bytes;
+            totalParsedBytes += bytes;
+        }
+
+        public void increment(int operations, long bytes) {
+            // TODO: Eventually most of the memory will already be accounted for in unparsed.
+            coordinating.increment(operations, bytes);
+        }
+
+        public long currentOperationsSize() {
+            return coordinating.currentOperationsSize;
+        }
+
+        public boolean shouldSplit() {
+            long currentUsage = (currentCombinedCoordinatingAndPrimaryBytes.get() + currentReplicaBytes.get());
+            long currentOperationsSize = coordinating.currentOperationsSize;
+            if (currentUsage >= highWatermark && currentOperationsSize >= highWatermarkSize) {
+                highWaterMarkSplits.getAndIncrement();
+                logger.trace(
+                    () -> Strings.format(
+                        "Split bulk due to high watermark: current bytes [%d] and size [%d]",
+                        currentUsage,
+                        currentOperationsSize
+                    )
+                );
+                return true;
+            }
+            if (currentUsage >= lowWatermark && currentOperationsSize >= lowWatermarkSize) {
+                lowWaterMarkSplits.getAndIncrement();
+                logger.trace(
+                    () -> Strings.format(
+                        "Split bulk due to low watermark: current bytes [%d] and size [%d]",
+                        currentUsage,
+                        currentOperationsSize
+                    )
+                );
+                return true;
+            }
+            return false;
+        }
+
+        public Coordinating split() {
+            Coordinating toReturn = coordinating;
+            coordinating = new Coordinating(forceExecution);
+            return toReturn;
+        }
+
+        @Override
+        public void close() {
+            coordinating.close();
+        }
+    }
+
+    // TODO: Maybe this should be re-named and used for primary operations too. Eventually we will need to account for: ingest pipeline
+    // expansions, reading updates, etc. This could just be a generic OP that could be expanded as appropriate
     public class Coordinating implements Releasable {
 
         private final AtomicBoolean closed = new AtomicBoolean();
         private final boolean forceExecution;
         private int currentOperations = 0;
-        private long currentSize = 0;
+        private long currentOperationsSize = 0;
 
         public Coordinating(boolean forceExecution) {
             this.forceExecution = forceExecution;
         }
 
-        public void increment(int operations, long bytes) {
+        private void increment(int operations, long bytes) {
             assert closed.get() == false;
             long combinedBytes = currentCombinedCoordinatingAndPrimaryBytes.addAndGet(bytes);
             long replicaWriteBytes = currentReplicaBytes.get();
@@ -186,7 +273,7 @@ public class IndexingPressure {
                 );
             }
             currentOperations += operations;
-            currentSize += bytes;
+            currentOperationsSize += bytes;
             logger.trace(() -> Strings.format("adding [%d] coordinating operations and [%d] bytes", operations, bytes));
             currentCoordinatingBytes.getAndAdd(bytes);
             currentCoordinatingOps.getAndAdd(operations);
@@ -196,43 +283,17 @@ public class IndexingPressure {
             totalCoordinatingRequests.getAndIncrement();
         }
 
-        public long currentSize() {
-            return currentSize;
-        }
-
-        public void releaseCurrent() {
-            currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-currentSize);
-            currentCoordinatingBytes.getAndAdd(-currentSize);
-            currentCoordinatingOps.getAndAdd(-currentOperations);
-            currentSize = 0;
-            currentOperations = 0;
-        }
-
-        public boolean shouldSplit() {
-            long currentUsage = (currentCombinedCoordinatingAndPrimaryBytes.get() + currentReplicaBytes.get());
-            if (currentUsage >= highWatermark && currentSize >= highWatermarkSize) {
-                highWaterMarkSplits.getAndIncrement();
-                logger.trace(
-                    () -> Strings.format("Split bulk due to high watermark: current bytes [%d] and size [%d]", currentUsage, currentSize)
-                );
-                return true;
-            }
-            if (currentUsage >= lowWatermark && currentSize >= lowWatermarkSize) {
-                lowWaterMarkSplits.getAndIncrement();
-                logger.trace(
-                    () -> Strings.format("Split bulk due to low watermark: current bytes [%d] and size [%d]", currentUsage, currentSize)
-                );
-                return true;
-            }
-            return false;
-
-        }
-
         @Override
         public void close() {
             if (closed.compareAndSet(false, true)) {
-                logger.trace(() -> Strings.format("removing [%d] coordinating operations and [%d] bytes", currentOperations, currentSize));
-                releaseCurrent();
+                logger.trace(
+                    () -> Strings.format("removing [%d] coordinating operations and [%d] bytes", currentOperations, currentOperationsSize)
+                );
+                currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-currentOperationsSize);
+                currentCoordinatingBytes.getAndAdd(-currentOperationsSize);
+                currentCoordinatingOps.getAndAdd(-currentOperations);
+                currentOperationsSize = 0;
+                currentOperations = 0;
             } else {
                 logger.error("IndexingPressure memory is adjusted twice", new IllegalStateException("Releasable is called twice"));
                 assert false : "IndexingPressure is adjusted twice";

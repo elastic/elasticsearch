@@ -55,8 +55,24 @@ public final class FileAccessTree {
             ExclusivePath currentExclusivePath = exclusivePaths.get(0);
             for (int i = 1; i < exclusivePaths.size(); ++i) {
                 ExclusivePath nextPath = exclusivePaths.get(i);
-                if (isParent(currentExclusivePath.path(), nextPath.path())) {
+                if (currentExclusivePath.path().equals(nextPath.path) || isParent(currentExclusivePath.path(), nextPath.path())) {
+                    throw new IllegalArgumentException(
+                        "duplicate/overlapping exclusive paths found in files entitlements: "
+                            + "[["
+                            + currentExclusivePath.componentName()
+                            + "] ["
+                            + currentExclusivePath.moduleName()
+                            + "] ["
+                            + currentExclusivePath.path()
+                            + "]] and [["
 
+                            + nextPath.componentName()
+                            + "] ["
+                            + nextPath.moduleName()
+                            + "] ["
+                            + nextPath.path()
+                            + "]]"
+                    );
                 }
                 currentExclusivePath = nextPath;
             }
@@ -89,7 +105,7 @@ public final class FileAccessTree {
         BiConsumer<Path, Mode> addPath = (path, mode) -> {
             var normalized = normalizePath(path);
             for (String exclusivePath : updatedExclusivePaths) {
-                if (isParent(exclusivePath, normalized)) {
+                if (exclusivePath.equals(normalized) || isParent(exclusivePath, normalized)) {
                     throw new IllegalArgumentException(
                         "[" + componentName + "] [" + moduleName + "] cannot use exclusive path [" + exclusivePath + "]"
                     );

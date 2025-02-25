@@ -11,13 +11,12 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleVector;
-import org.elasticsearch.compute.data.DoubleVectorBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 
 import java.util.HashMap;
 
-public class RrfScoreEvalOperator implements Operator{
+public class RrfScoreEvalOperator implements Operator {
 
     public record Factory(int forkPosition, int scorePosition) implements OperatorFactory {
         @Override
@@ -79,7 +78,7 @@ public class RrfScoreEvalOperator implements Operator{
 
             int rank = counters.getOrDefault(fork, 1);
             counters.put(fork, rank + 1);
-            scores.appendDouble(1.0 / ( 60 + rank));
+            scores.appendDouble(1.0 / (60 + rank));
         }
 
         Block scoreBlock = scores.build().asBlock();

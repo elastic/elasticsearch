@@ -954,6 +954,46 @@ false                  | null
 false                  | null
 ;
 
+startsWithLucenePushdown
+
+from hosts
+| where starts_with(host, "bet") and starts_with(host_group, "Kuber")
+| keep host, host_group
+| sort host, host_group;
+
+host:keyword | host_group:text
+beta         | Kubernetes cluster
+beta         | Kubernetes cluster
+beta         | Kubernetes cluster
+;
+
+startsWithLuceneDisabledPushdown
+
+from hosts
+| where host == "unknown host" or (starts_with(host, "bet") and starts_with(host_group, "Kuber"))
+| keep host, host_group
+| sort host, host_group;
+
+host:keyword | host_group:text
+beta         | Kubernetes cluster
+beta         | Kubernetes cluster
+beta         | Kubernetes cluster
+;
+
+startsWithLucenePushdownIgnoreMultivalues
+
+from hosts
+| where starts_with(description, "epsilon")
+| keep description
+| sort description;
+
+warning:Line 2:9: evaluation of [starts_with(description, \"epsilon\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+description:text
+epsilon gw instance
+;
+
 substringOfText
 
 from hosts | where host=="epsilon" | eval l1 = substring(host_group, 0, 5), l2 = substring(description, 0, 5) | keep l1, l2;

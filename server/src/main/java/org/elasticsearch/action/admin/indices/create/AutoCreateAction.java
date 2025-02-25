@@ -92,7 +92,6 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             ClusterService clusterService,
             ThreadPool threadPool,
             ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver,
             MetadataCreateIndexService createIndexService,
             MetadataCreateDataStreamService metadataCreateDataStreamService,
             AutoCreateIndex autoCreateIndex,

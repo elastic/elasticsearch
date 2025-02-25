@@ -63,8 +63,11 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.DATA;
+import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.SHARED_REPO;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ_WRITE;
+import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Platform.LINUX;
 
 /**
  * Called by the agent during {@code agentmain} to configure the entitlement system,
@@ -138,6 +141,7 @@ public class EntitlementInitialization {
             getUserHome(),
             bootstrapArgs.configDir(),
             bootstrapArgs.dataDirs(),
+            bootstrapArgs.sharedRepoDirs(),
             bootstrapArgs.tempDir(),
             bootstrapArgs.settingResolver(),
             bootstrapArgs.settingGlobResolver()
@@ -152,8 +156,8 @@ public class EntitlementInitialization {
                     new CreateClassLoaderEntitlement(),
                     new FilesEntitlement(
                         List.of(
-                            FileData.ofPath(bootstrapArgs.repoDirResolver().apply(""), READ_WRITE),
-                            FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE)
+                            FileData.ofRelativePath(Path.of(""), SHARED_REPO, READ_WRITE),
+                            FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE)
                         )
                     )
                 )
@@ -175,26 +179,26 @@ public class EntitlementInitialization {
                             FileData.ofPath(bootstrapArgs.tempDir(), READ_WRITE),
                             FileData.ofPath(bootstrapArgs.configDir(), READ),
                             FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
-                            FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE),
-                            FileData.ofPath(bootstrapArgs.repoDirResolver().apply(""), READ_WRITE),
+                            FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE),
+                            FileData.ofRelativePath(Path.of(""), SHARED_REPO, READ_WRITE),
 
                             // OS release on Linux
-                            FileData.ofPath(Path.of("/etc/os-release"), READ),
-                            FileData.ofPath(Path.of("/etc/system-release"), READ),
-                            FileData.ofPath(Path.of("/usr/lib/os-release"), READ),
+                            FileData.ofPath(Path.of("/etc/os-release"), READ).withPlatform(LINUX),
+                            FileData.ofPath(Path.of("/etc/system-release"), READ).withPlatform(LINUX),
+                            FileData.ofPath(Path.of("/usr/lib/os-release"), READ).withPlatform(LINUX),
                             // read max virtual memory areas
-                            FileData.ofPath(Path.of("/proc/sys/vm/max_map_count"), READ),
-                            FileData.ofPath(Path.of("/proc/meminfo"), READ),
+                            FileData.ofPath(Path.of("/proc/sys/vm/max_map_count"), READ).withPlatform(LINUX),
+                            FileData.ofPath(Path.of("/proc/meminfo"), READ).withPlatform(LINUX),
                             // load averages on Linux
-                            FileData.ofPath(Path.of("/proc/loadavg"), READ),
+                            FileData.ofPath(Path.of("/proc/loadavg"), READ).withPlatform(LINUX),
                             // control group stats on Linux. cgroup v2 stats are in an unpredicable
                             // location under `/sys/fs/cgroup`, so unfortunately we have to allow
                             // read access to the entire directory hierarchy.
-                            FileData.ofPath(Path.of("/proc/self/cgroup"), READ),
-                            FileData.ofPath(Path.of("/sys/fs/cgroup/"), READ),
+                            FileData.ofPath(Path.of("/proc/self/cgroup"), READ).withPlatform(LINUX),
+                            FileData.ofPath(Path.of("/sys/fs/cgroup/"), READ).withPlatform(LINUX),
                             // // io stats on Linux
-                            FileData.ofPath(Path.of("/proc/self/mountinfo"), READ),
-                            FileData.ofPath(Path.of("/proc/diskstats"), READ)
+                            FileData.ofPath(Path.of("/proc/self/mountinfo"), READ).withPlatform(LINUX),
+                            FileData.ofPath(Path.of("/proc/diskstats"), READ).withPlatform(LINUX)
                         )
                     )
                 )
@@ -210,21 +214,21 @@ public class EntitlementInitialization {
                         List.of(
                             FileData.ofPath(bootstrapArgs.configDir(), READ),
                             FileData.ofPath(bootstrapArgs.tempDir(), READ),
-                            FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE)
+                            FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE)
                         )
                     )
                 )
             ),
             new Scope(
                 "org.apache.lucene.misc",
-                List.of(new FilesEntitlement(List.of(FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE))))
+                List.of(new FilesEntitlement(List.of(FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE))))
             ),
             new Scope("org.apache.logging.log4j.core", List.of(new ManageThreadsEntitlement())),
             new Scope(
                 "org.elasticsearch.nativeaccess",
                 List.of(
                     new LoadNativeLibrariesEntitlement(),
-                    new FilesEntitlement(List.of(FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE)))
+                    new FilesEntitlement(List.of(FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE)))
                 )
             )
         );

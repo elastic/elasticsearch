@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.ProjectId;
@@ -33,7 +32,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
-import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockUtils;
@@ -130,10 +128,6 @@ public class TransportCreateIndexActionTests extends ESTestCase {
         super.setUp();
         threadContext = new ThreadContext(Settings.EMPTY);
         final var projectResolver = TestProjectResolvers.usingRequestHeader(threadContext);
-        IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance(
-            SYSTEM_INDICES,
-            projectResolver
-        );
         this.metadataCreateIndexService = mock(MetadataCreateIndexService.class);
 
         final ThreadPool threadPool = mock(ThreadPool.class);

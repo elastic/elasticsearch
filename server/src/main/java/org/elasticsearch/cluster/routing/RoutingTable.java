@@ -447,7 +447,9 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             return indicesRouting.get(index);
         }
 
-        public ShardRoutingRoleStrategy getShardRoutingRoleStrategy() { return shardRoutingRoleStrategy; }
+        public ShardRoutingRoleStrategy getShardRoutingRoleStrategy() {
+            return shardRoutingRoleStrategy;
+        }
 
         private static void addShard(
             final Map<String, IndexRoutingTable.Builder> indexRoutingTableBuilders,

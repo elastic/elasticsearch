@@ -22,6 +22,8 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -29,10 +31,13 @@ import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.util.Scanner;
 import java.util.jar.JarFile;
+import java.util.logging.FileHandler;
 import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
 
 import static java.nio.charset.Charset.defaultCharset;
+import static java.nio.file.StandardOpenOption.CREATE;
+import static java.nio.file.StandardOpenOption.WRITE;
 import static java.util.zip.ZipFile.OPEN_DELETE;
 import static java.util.zip.ZipFile.OPEN_READ;
 import static org.elasticsearch.entitlement.qa.entitled.EntitledActions.createTempFileForWrite;
@@ -475,6 +480,87 @@ class FileCheckActions {
     @EntitlementTest(expectedAccess = PLUGINS)
     static void createScannerFileWithCharsetName() throws FileNotFoundException {
         new Scanner(readFile().toFile(), "UTF-8");
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void fileHandler() throws IOException {
+        new FileHandler();
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void fileHandler_String() throws IOException {
+        new FileHandler(readFile().toString());
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void fileHandler_StringBoolean() throws IOException {
+        new FileHandler(readFile().toString(), false);
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void fileHandler_StringIntInt() throws IOException {
+        new FileHandler(readFile().toString(), 1, 2);
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void fileHandler_StringIntIntBoolean() throws IOException {
+        new FileHandler(readFile().toString(), 1, 2, false);
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void fileHandler_StringLongIntBoolean() throws IOException {
+        new FileHandler(readFile().toString(), 1L, 2, false);
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void httpRequestBodyPublishersOfFile() throws IOException {
+        HttpRequest.BodyPublishers.ofFile(readFile());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void httpResponseBodyHandlersOfFile() {
+        HttpResponse.BodyHandlers.ofFile(readWriteFile());
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void httpResponseBodyHandlersOfFile_readOnly() {
+        HttpResponse.BodyHandlers.ofFile(readFile());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void httpResponseBodyHandlersOfFileDownload() {
+        HttpResponse.BodyHandlers.ofFileDownload(readWriteDir());
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void httpResponseBodyHandlersOfFileDownload_readOnly() {
+        HttpResponse.BodyHandlers.ofFileDownload(readDir());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void httpResponseBodySubscribersOfFile_File() {
+        HttpResponse.BodySubscribers.ofFile(readWriteFile());
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void httpResponseBodySubscribersOfFile_File_readOnly() {
+        HttpResponse.BodySubscribers.ofFile(readFile());
+    }
+
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void httpResponseBodySubscribersOfFile_FileOpenOptions() {
+        // Note that, unlike other methods like BodyHandlers.ofFile, this is indeed
+        // an overload distinct from ofFile with no OpenOptions, and so it needs its
+        // own instrumentation and its own test.
+        HttpResponse.BodySubscribers.ofFile(readWriteFile(), CREATE, WRITE);
+    }
+
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void httpResponseBodySubscribersOfFile_FileOpenOptions_readOnly() {
+        // Note that, unlike other methods like BodyHandlers.ofFile, this is indeed
+        // an overload distinct from ofFile with no OpenOptions, and so it needs its
+        // own instrumentation and its own test.
+        HttpResponse.BodySubscribers.ofFile(readFile(), CREATE, WRITE);
     }
 
     private FileCheckActions() {}

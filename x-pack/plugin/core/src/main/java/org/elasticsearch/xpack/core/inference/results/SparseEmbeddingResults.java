@@ -9,16 +9,18 @@ package org.elasticsearch.xpack.core.inference.results;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.InferenceResults;
-import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
@@ -33,13 +35,15 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 
-public record SparseEmbeddingResults(List<Embedding> embeddings) implements InferenceServiceResults {
+public record SparseEmbeddingResults(List<Embedding> embeddings)
+    implements
+        EmbeddingResults<SparseEmbeddingResults.Chunk, SparseEmbeddingResults.Embedding> {
 
     public static final String NAME = "sparse_embedding_results";
     public static final String SPARSE_EMBEDDING = TaskType.SPARSE_EMBEDDING.toString();
 
     public SparseEmbeddingResults(StreamInput in) throws IOException {
-        this(in.readCollectionAsList(Embedding::new));
+        this(in.readCollectionAsList(SparseEmbeddingResults.Embedding::new));
     }
 
     public static SparseEmbeddingResults of(List<? extends InferenceResults> results) {
@@ -47,7 +51,9 @@ public record SparseEmbeddingResults(List<Embedding> embeddings) implements Infe
 
         for (InferenceResults result : results) {
             if (result instanceof TextExpansionResults expansionResults) {
-                embeddings.add(Embedding.create(expansionResults.getWeightedTokens(), expansionResults.isTruncated()));
+                embeddings.add(
+                    SparseEmbeddingResults.Embedding.create(expansionResults.getWeightedTokens(), expansionResults.isTruncated())
+                );
             } else if (result instanceof org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults errorResult) {
                 if (errorResult.getException() instanceof ElasticsearchStatusException statusException) {
                     throw statusException;
@@ -87,7 +93,7 @@ public record SparseEmbeddingResults(List<Embedding> embeddings) implements Infe
 
     public Map<String, Object> asMap() {
         Map<String, Object> map = new LinkedHashMap<>();
-        var embeddingList = embeddings.stream().map(Embedding::asMap).toList();
+        var embeddingList = embeddings.stream().map(SparseEmbeddingResults.Embedding::asMap).toList();
 
         map.put(SPARSE_EMBEDDING, embeddingList);
         return map;
@@ -114,7 +120,11 @@ public record SparseEmbeddingResults(List<Embedding> embeddings) implements Infe
             .toList();
     }
 
-    public record Embedding(List<WeightedToken> tokens, boolean isTruncated) implements Writeable, ToXContentObject {
+    public record Embedding(List<WeightedToken> tokens, boolean isTruncated)
+        implements
+            Writeable,
+            ToXContentObject,
+            EmbeddingResults.Embedding<Chunk> {
 
         public static final String EMBEDDING = "embedding";
         public static final String IS_TRUNCATED = "is_truncated";
@@ -162,6 +172,30 @@ public record SparseEmbeddingResults(List<Embedding> embeddings) implements Infe
         @Override
         public String toString() {
             return Strings.toString(this);
+        }
+
+        @Override
+        public Chunk toChunk(String text, ChunkedInference.TextOffset offset) {
+            return new Chunk(tokens, text, offset);
+        }
+    }
+
+    public record Chunk(List<WeightedToken> weightedTokens, String matchedText, ChunkedInference.TextOffset offset)
+        implements
+            EmbeddingResults.Chunk {
+
+        public ChunkedInference.Chunk toChunk(XContent xcontent) throws IOException {
+            return new ChunkedInference.Chunk(matchedText, offset, toBytesReference(xcontent, weightedTokens));
+        }
+
+        private static BytesReference toBytesReference(XContent xContent, List<WeightedToken> tokens) throws IOException {
+            XContentBuilder b = XContentBuilder.builder(xContent);
+            b.startObject();
+            for (var weightedToken : tokens) {
+                weightedToken.toXContent(b, ToXContent.EMPTY_PARAMS);
+            }
+            b.endObject();
+            return BytesReference.bytes(b);
         }
     }
 }

@@ -19,6 +19,10 @@ import java.util.Map;
 import static org.elasticsearch.xpack.application.analytics.event.parser.field.DocumentAnalyticsEventField.DOCUMENT_FIELD;
 import static org.elasticsearch.xpack.application.analytics.event.parser.field.PageAnalyticsEventField.PAGE_FIELD;
 
+/**
+ * @deprecated in 9.0
+ */
+@Deprecated
 public class SearchResultAnalyticsEventField {
     public static final ParseField SEARCH_RESULTS_TOTAL_FIELD = new ParseField("total_results");
 

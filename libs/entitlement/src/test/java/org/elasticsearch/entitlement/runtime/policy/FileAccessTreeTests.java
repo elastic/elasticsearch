@@ -10,12 +10,16 @@
 package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.runtime.policy.FileAccessTree.ExclusivePath;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -24,6 +28,7 @@ import java.util.Map;
 import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
 import static org.hamcrest.Matchers.is;
 
+@ESTestCase.WithoutSecurityManager
 public class FileAccessTreeTests extends ESTestCase {
 
     static Path root;
@@ -212,6 +217,45 @@ public class FileAccessTreeTests extends ESTestCase {
         // Forward slashes also work
         assertThat(tree.canRead(path("a/b")), is(true));
         assertThat(tree.canRead(path("m/n")), is(true));
+    }
+
+    public void testJdkAccess() {
+        Path jdkDir = Paths.get(System.getProperty("java.home"));
+        var confDir = jdkDir.resolve("conf");
+        var tree = accessTree(FilesEntitlement.EMPTY, List.of());
+
+        assertThat(tree.canRead(confDir), is(true));
+        assertThat(tree.canWrite(confDir), is(false));
+        assertThat(tree.canRead(jdkDir), is(false));
+    }
+
+    @SuppressForbidden(reason = "don't care about the directory location in tests")
+    public void testFollowLinks() throws IOException {
+        Path baseSourceDir = Files.createTempDirectory("fileaccess_source");
+        Path source1Dir = baseSourceDir.resolve("source1");
+        Files.createDirectory(source1Dir);
+        Path source2Dir = baseSourceDir.resolve("source2");
+        Files.createDirectory(source2Dir);
+
+        Path baseTargetDir = Files.createTempDirectory("fileaccess_target");
+        Path readTarget = baseTargetDir.resolve("read_link");
+        Path writeTarget = baseTargetDir.resolve("write_link");
+        Files.createSymbolicLink(readTarget, source1Dir);
+        Files.createSymbolicLink(writeTarget, source2Dir);
+        var tree = accessTree(entitlement(readTarget.toString(), "read", writeTarget.toString(), "read_write"), List.of());
+
+        assertThat(tree.canRead(baseSourceDir), is(false));
+        assertThat(tree.canRead(baseTargetDir), is(false));
+
+        assertThat(tree.canRead(readTarget), is(true));
+        assertThat(tree.canWrite(readTarget), is(false));
+        assertThat(tree.canRead(source1Dir), is(true));
+        assertThat(tree.canWrite(source1Dir), is(false));
+
+        assertThat(tree.canRead(writeTarget), is(true));
+        assertThat(tree.canWrite(writeTarget), is(true));
+        assertThat(tree.canRead(source2Dir), is(true));
+        assertThat(tree.canWrite(source2Dir), is(true));
     }
 
     public void testTempDirAccess() {

@@ -67,6 +67,7 @@ import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEnt
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.SHARED_REPO;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ_WRITE;
+import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Platform.LINUX;
 
 /**
  * Called by the agent during {@code agentmain} to configure the entitlement system,
@@ -158,22 +159,22 @@ public class EntitlementInitialization {
             FileData.ofRelativePath(Path.of(""), SHARED_REPO, READ_WRITE),
 
             // OS release on Linux
-            FileData.ofPath(Path.of("/etc/os-release"), READ),
-            FileData.ofPath(Path.of("/etc/system-release"), READ),
-            FileData.ofPath(Path.of("/usr/lib/os-release"), READ),
+            FileData.ofPath(Path.of("/etc/os-release"), READ).withPlatform(LINUX),
+            FileData.ofPath(Path.of("/etc/system-release"), READ).withPlatform(LINUX),
+            FileData.ofPath(Path.of("/usr/lib/os-release"), READ).withPlatform(LINUX),
             // read max virtual memory areas
-            FileData.ofPath(Path.of("/proc/sys/vm/max_map_count"), READ),
-            FileData.ofPath(Path.of("/proc/meminfo"), READ),
+            FileData.ofPath(Path.of("/proc/sys/vm/max_map_count"), READ).withPlatform(LINUX),
+            FileData.ofPath(Path.of("/proc/meminfo"), READ).withPlatform(LINUX),
             // load averages on Linux
-            FileData.ofPath(Path.of("/proc/loadavg"), READ),
+            FileData.ofPath(Path.of("/proc/loadavg"), READ).withPlatform(LINUX),
             // control group stats on Linux. cgroup v2 stats are in an unpredicable
             // location under `/sys/fs/cgroup`, so unfortunately we have to allow
             // read access to the entire directory hierarchy.
-            FileData.ofPath(Path.of("/proc/self/cgroup"), READ),
-            FileData.ofPath(Path.of("/sys/fs/cgroup/"), READ),
+            FileData.ofPath(Path.of("/proc/self/cgroup"), READ).withPlatform(LINUX),
+            FileData.ofPath(Path.of("/sys/fs/cgroup/"), READ).withPlatform(LINUX),
             // // io stats on Linux
-            FileData.ofPath(Path.of("/proc/self/mountinfo"), READ),
-            FileData.ofPath(Path.of("/proc/diskstats"), READ)
+            FileData.ofPath(Path.of("/proc/self/mountinfo"), READ).withPlatform(LINUX),
+            FileData.ofPath(Path.of("/proc/diskstats"), READ).withPlatform(LINUX)
         );
         if (bootstrapArgs.pidFile() != null) {
             serverModuleFileDatas.add(FileData.ofPath(bootstrapArgs.pidFile(), READ_WRITE));

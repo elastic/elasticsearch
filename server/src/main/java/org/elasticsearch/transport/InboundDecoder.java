@@ -113,10 +113,8 @@ public class InboundDecoder implements Releasable {
                 bytesConsumed += bytesConsumedThisDecode;
                 ReleasableBytesReference decompressed;
                 while ((decompressed = decompressor.pollDecompressedPage(isDone())) != null) {
-                    try {
-                        fragmentConsumer.accept(decompressed);
-                    } finally {
-                        decompressed.close();
+                    try (var buf = decompressed) {
+                        fragmentConsumer.accept(buf);
                     }
                 }
             } else {

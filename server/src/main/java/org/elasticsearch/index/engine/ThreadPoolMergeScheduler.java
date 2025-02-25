@@ -14,6 +14,7 @@ import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeRateLimiter;
 import org.apache.lucene.index.MergeScheduler;
 import org.apache.lucene.index.MergeTrigger;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
@@ -210,16 +211,19 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     }
 
     private void mergeDone(MergeTask mergeTask) {
-        synchronized (this) {
-            boolean removed = currentlyRunningMergeTasks.remove(mergeTask.onGoingMerge.getMerge()) != null;
-            assert removed : "completed merge task [" + mergeTask + "] not registered as running";
-            // when one merge is done, maybe a backlogged one can now execute
-            enqueueBackloggedTasks();
-            // signal here, because, when closing, we wait for all currently running merges to finish
-            maybeSignalAllMergesDoneAfterClose();
+        try {
+            synchronized (this) {
+                boolean removed = currentlyRunningMergeTasks.remove(mergeTask.onGoingMerge.getMerge()) != null;
+                assert removed : "completed merge task [" + mergeTask + "] not registered as running";
+                // when one merge is done, maybe a backlogged one can now execute
+                enqueueBackloggedTasks();
+                // signal here, because, when closing, we wait for all currently running merges to finish
+                maybeSignalAllMergesDoneAfterClose();
+            }
+        } finally {
+            doneMergeTaskCount.incrementAndGet();
+            checkMergeTaskThrottling();
         }
-        doneMergeTaskCount.incrementAndGet();
-        checkMergeTaskThrottling();
     }
 
     private synchronized void maybeSignalAllMergesDoneAfterClose() {
@@ -374,8 +378,12 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                     message(String.format(Locale.ROOT, "merge task %s end", this));
                 }
                 mergeDone(this);
-                // kick-off next merge, if any
-                merge(mergeSource, MergeTrigger.MERGE_FINISHED);
+                try {
+                    // kick-off next merge, if any
+                    merge(mergeSource, MergeTrigger.MERGE_FINISHED);
+                } catch (@SuppressWarnings("unused") AlreadyClosedException ace) {
+                    // OK, this is what the {@code ConcurrentMergeScheduler} does
+                }
             }
         }
 

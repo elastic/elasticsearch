@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -26,7 +25,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
@@ -118,8 +116,6 @@ public class TransportCreateIndexActionTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, SYSTEM_INDICES);
         this.metadataCreateIndexService = mock(MetadataCreateIndexService.class);
 
         final ThreadPool threadPool = mock(ThreadPool.class);
@@ -130,7 +126,6 @@ public class TransportCreateIndexActionTests extends ESTestCase {
             threadPool,
             metadataCreateIndexService,
             mock(ActionFilters.class),
-            indexNameExpressionResolver,
             SYSTEM_INDICES
         );
     }

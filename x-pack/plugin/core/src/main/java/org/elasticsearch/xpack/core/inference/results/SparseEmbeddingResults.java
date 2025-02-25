@@ -185,7 +185,7 @@ public record SparseEmbeddingResults(List<Embedding> embeddings)
             EmbeddingResults.Chunk {
 
         public ChunkedInference.Chunk toChunk(XContent xcontent) throws IOException {
-            return new ChunkedInference.Chunk(matchedText, offset, toBytesReference(xcontent, weightedTokens));
+            return new ChunkedInference.Chunk(offset, toBytesReference(xcontent, weightedTokens));
         }
 
         private static BytesReference toBytesReference(XContent xContent, List<WeightedToken> tokens) throws IOException {

@@ -229,7 +229,7 @@ public record TextEmbeddingFloatResults(List<Embedding> embeddings)
     public record Chunk(float[] embedding, String matchedText, ChunkedInference.TextOffset offset) implements EmbeddingResults.Chunk {
 
         public ChunkedInference.Chunk toChunk(XContent xcontent) throws IOException {
-            return new ChunkedInference.Chunk(matchedText, offset, toBytesReference(xcontent, embedding));
+            return new ChunkedInference.Chunk(offset, toBytesReference(xcontent, embedding));
         }
 
         /**

@@ -198,7 +198,7 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings)
     public record Chunk(byte[] embedding, String matchedText, ChunkedInference.TextOffset offset) implements EmbeddingResults.Chunk {
 
         public ChunkedInference.Chunk toChunk(XContent xcontent) throws IOException {
-            return new ChunkedInference.Chunk(matchedText, offset, toBytesReference(xcontent, embedding));
+            return new ChunkedInference.Chunk(offset, toBytesReference(xcontent, embedding));
         }
 
         private static BytesReference toBytesReference(XContent xContent, byte[] value) throws IOException {

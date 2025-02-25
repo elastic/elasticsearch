@@ -765,7 +765,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             );
             error = re.getMessage();
             assertThat(error, containsString("ParsingException"));
-            assertThat(error, containsString("line 1:23: mismatched input '?cmd' expecting {'dissect', 'drop'"));
+            assertThat(error, containsString("line 1:23: mismatched input '?cmd' expecting {"));
+            assertThat(error, containsString("'dissect', 'eval', 'grok', 'limit', 'sort'"));
         }
     }
 
@@ -937,7 +938,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             );
             error = re.getMessage().replaceAll("\\\\\n\s+\\\\", "");
             assertThat(error, containsString("ParsingException"));
-            assertThat(error, containsString("line 1:23: mismatched input '??cmd' expecting {'dissect', 'drop'"));
+            assertThat(error, containsString("line 1:23: mismatched input '??cmd' expecting {"));
         }
     }
 

@@ -179,7 +179,7 @@ public class ReservedComposableIndexTemplateAction
 
         // 4. validate for v2 composable template overlaps
         for (var request : composables) {
-            MetadataIndexTemplateService.v2TemplateOverlaps(state, request.name(), request.indexTemplate(), true);
+            MetadataIndexTemplateService.v2TemplateOverlaps(state.metadata().templatesV2(), request.name(), request.indexTemplate(), true);
         }
 
         Set<String> componentEntities = components.stream().map(r -> reservedComponentName(r.name())).collect(Collectors.toSet());

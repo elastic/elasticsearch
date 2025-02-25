@@ -369,8 +369,16 @@ public class MetadataIndexTemplateService {
             .build();
     }
 
+    /**
+     * Mappings in templates don't have to include <code>_doc</code>, so update the mappings to include this single type if necessary
+     *
+     * @param mappings mappings from a template
+     * @param xContentRegistry the xcontent registry used for parsing
+     * @return a normalized form of the mapping provided
+     * @throws IOException if reading or writing the mapping encounters a problem
+     */
     @Nullable
-    private static CompressedXContent wrapMappingsIfNecessary(@Nullable CompressedXContent mappings, NamedXContentRegistry xContentRegistry)
+    public static CompressedXContent wrapMappingsIfNecessary(@Nullable CompressedXContent mappings, NamedXContentRegistry xContentRegistry)
         throws IOException {
         // Mappings in templates don't have to include _doc, so update
         // the mappings to include this single type if necessary
@@ -526,8 +534,16 @@ public class MetadataIndexTemplateService {
     }
 
     public static void validateV2TemplateRequest(Metadata metadata, String name, ComposableIndexTemplate template) {
+        validateV2TemplateRequest(metadata.componentTemplates(), name, template);
+    }
+
+    public static void validateV2TemplateRequest(
+        Map<String, ComponentTemplate> componentTemplates,
+        String name,
+        ComposableIndexTemplate template
+    ) {
         if (template.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern)) {
-            Settings mergedSettings = resolveSettings(template, metadata.componentTemplates());
+            Settings mergedSettings = resolveSettings(template, componentTemplates);
             if (IndexMetadata.INDEX_HIDDEN_SETTING.exists(mergedSettings)) {
                 throw new InvalidIndexTemplateException(
                     name,
@@ -536,7 +552,6 @@ public class MetadataIndexTemplateService {
             }
         }
 
-        final Map<String, ComponentTemplate> componentTemplates = metadata.componentTemplates();
         final List<String> ignoreMissingComponentTemplates = (template.getIgnoreMissingComponentTemplates() == null
             ? List.of()
             : template.getIgnoreMissingComponentTemplates());
@@ -588,7 +603,7 @@ public class MetadataIndexTemplateService {
             throw new IllegalArgumentException("index template [" + name + "] already exists");
         }
 
-        Map<String, List<String>> overlaps = v2TemplateOverlaps(currentState, name, template, validateV2Overlaps);
+        Map<String, List<String>> overlaps = v2TemplateOverlaps(currentState.metadata().templatesV2(), name, template, validateV2Overlaps);
 
         overlaps = findConflictingV1Templates(currentState, name, template.indexPatterns());
         if (overlaps.size() > 0) {
@@ -641,20 +656,20 @@ public class MetadataIndexTemplateService {
      * we throw an {@link IllegalArgumentException} with information about the conflicting templates.
      * <p>
      * This method doesn't check for conflicting overlaps with v1 templates.
-     * @param currentState the current cluster state
+     * @param templatesV2 the templates to check overlap against
      * @param name the composable index template name
      * @param template the full composable index template object we check for overlaps
      * @param validate should we throw {@link IllegalArgumentException} if conflicts are found or just compute them
      * @return a map of v2 template names to their index patterns for v2 templates that would overlap with the given template
      */
     public static Map<String, List<String>> v2TemplateOverlaps(
-        ClusterState currentState,
+        Map<String, ComposableIndexTemplate> templatesV2,
         String name,
         final ComposableIndexTemplate template,
         boolean validate
     ) {
         Map<String, List<String>> overlaps = findConflictingV2Templates(
-            currentState,
+            templatesV2,
             name,
             template.indexPatterns(),
             true,
@@ -917,7 +932,7 @@ public class MetadataIndexTemplateService {
         final String candidateName,
         final List<String> indexPatterns
     ) {
-        return findConflictingV2Templates(state, candidateName, indexPatterns, false, 0L);
+        return findConflictingV2Templates(state.metadata().templatesV2(), candidateName, indexPatterns, false, 0L);
     }
 
     /**
@@ -931,7 +946,7 @@ public class MetadataIndexTemplateService {
      * index templates with the same priority).
      */
     static Map<String, List<String>> findConflictingV2Templates(
-        final ClusterState state,
+        final Map<String, ComposableIndexTemplate> templatesV2,
         final String candidateName,
         final List<String> indexPatterns,
         boolean checkPriority,
@@ -939,7 +954,7 @@ public class MetadataIndexTemplateService {
     ) {
         Automaton v1automaton = Regex.simpleMatchToAutomaton(indexPatterns.toArray(Strings.EMPTY_ARRAY));
         Map<String, List<String>> overlappingTemplates = new TreeMap<>();
-        for (Map.Entry<String, ComposableIndexTemplate> entry : state.metadata().templatesV2().entrySet()) {
+        for (Map.Entry<String, ComposableIndexTemplate> entry : templatesV2.entrySet()) {
             String name = entry.getKey();
             ComposableIndexTemplate template = entry.getValue();
             Automaton v2automaton = Regex.simpleMatchToAutomaton(template.indexPatterns().toArray(Strings.EMPTY_ARRAY));
@@ -1818,7 +1833,7 @@ public class MetadataIndexTemplateService {
         });
     }
 
-    private static void validateTemplate(Settings validateSettings, CompressedXContent mappings, IndicesService indicesService)
+    public static void validateTemplate(Settings validateSettings, CompressedXContent mappings, IndicesService indicesService)
         throws Exception {
         // Hard to validate settings if they're non-existent, so used empty ones if none were provided
         Settings settings = validateSettings;
@@ -1867,7 +1882,7 @@ public class MetadataIndexTemplateService {
         }
     }
 
-    private void validate(String name, ComponentTemplate template) {
+    public void validate(String name, ComponentTemplate template) {
         validate(name, template.template(), Collections.emptyList());
     }
 

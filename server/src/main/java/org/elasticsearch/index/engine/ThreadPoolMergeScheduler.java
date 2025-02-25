@@ -244,8 +244,15 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     /**
      * Does the actual merge, by calling {@link org.apache.lucene.index.MergeScheduler.MergeSource#merge}
      */
-    protected void doMerge(MergeSource mergeSource, MergePolicy.OneMerge merge) throws IOException {
-        mergeSource.merge(merge);
+    void doMerge(MergeSource mergeSource, MergePolicy.OneMerge oneMerge) {
+        try {
+            mergeSource.merge(oneMerge);
+        } catch (Throwable t) {
+            // OK to ignore MergeAbortedException. This is what Lucene's ConcurrentMergeScheduler does.
+            if (t instanceof MergePolicy.MergeAbortedException == false) {
+                handleMergeException(t);
+            }
+        }
     }
 
     @Override
@@ -254,6 +261,9 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         // Note: the rate limiter is only per thread (per merge). So, if there are multiple merge threads running
         // the combined IO rate per node is, roughly, 'thread_pool_size * merge_queue#targetMBPerSec', as
         // the per-thread IO rate is updated, best effort, for all running merge threads concomitantly.
+        if (merge.isAborted()) {
+            return in;
+        }
         MergeTask mergeTask = currentlyRunningMergeTasks.get(merge);
         if (mergeTask == null) {
             throw new IllegalStateException("associated merge task for executing merge not found");
@@ -349,12 +359,6 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                                 )
                             );
                         }
-                    } catch (Throwable t) {
-                        if (t instanceof MergePolicy.MergeAbortedException) {
-                            // OK to ignore. This is what Lucene's ConcurrentMergeScheduler does
-                        } else {
-                            handleMergeException(t);
-                        }
                     } finally {
                         long tookMS = TimeValue.nsecToMSec(System.nanoTime() - mergeStartTimeNS.get());
                         mergeTracking.mergeFinished(onGoingMerge.getMerge(), onGoingMerge, tookMS);
@@ -376,13 +380,12 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         }
 
         void abortOnGoingMerge() {
-            // This would interrupt an IndexWriter if it were actually performing the merge. We just set this here because it seems
-            // appropriate as we are not going to move forward with the merge.
+            // This interrupts the IndexWriter.
             onGoingMerge.getMerge().setAborted();
-            // It is fine to mark this merge as finished. Lucene will eventually produce a new merge including this segment even if
-            // this merge did not actually execute.
-            mergeSource.onMergeFinished(onGoingMerge.getMerge());
-            doneMergeTaskCount.incrementAndGet();
+            // This ensures {@code OneMerge#close} gets invoked.
+            // {@code IndexWriter} considers a merge as "running" once it has been pulled from the {@code MergeSource#getNextMerge},
+            // so in theory it's not enough to just call {@code MergeSource#onMergeFinished} on it (as for "pending" ones).
+            doMerge(mergeSource, onGoingMerge.getMerge());
         }
 
         @Override

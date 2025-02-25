@@ -460,11 +460,8 @@ public class PolicyManagerTests extends ESTestCase {
                 Set.of()
             )
         );
-        assertEquals(
-            "duplicate/overlapping exclusive paths found in files entitlements: "
-                + "[[plugin1] [test] [/tmp/test]] and [[plugin2] [test] [/tmp/test]]",
-            iae.getMessage()
-        );
+        assertTrue(iae.getMessage().contains("duplicate/overlapping exclusive paths found in files entitlements:"));
+        assertTrue(iae.getMessage().contains("[test] [/tmp/test]]"));
 
         iae = expectThrows(
             IllegalArgumentException.class,

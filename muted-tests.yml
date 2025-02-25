@@ -257,9 +257,6 @@ tests:
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   method: test {yaml=snapshot.delete/10_basic/Delete a snapshot asynchronously}
   issue: https://github.com/elastic/elasticsearch/issues/122102
-- class: org.elasticsearch.search.SearchCancellationIT
-  method: testCancelFailedSearchWhenPartialResultDisallowed
-  issue: https://github.com/elastic/elasticsearch/issues/121719
 - class: org.elasticsearch.datastreams.TSDBPassthroughIndexingIT
   issue: https://github.com/elastic/elasticsearch/issues/121716
 - class: org.elasticsearch.smoketest.SmokeTestMonitoringWithSecurityIT
@@ -309,8 +306,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackIT
   method: testEnrichExplosionManyMatches
   issue: https://github.com/elastic/elasticsearch/issues/122913
-- class: org.elasticsearch.xpack.search.AsyncSearchSecurityIT
-  issue: https://github.com/elastic/elasticsearch/issues/122940
 - class: org.elasticsearch.test.apmintegration.TracesApmIT
   method: testApmIntegration
   issue: https://github.com/elastic/elasticsearch/issues/122129
@@ -344,6 +339,9 @@ tests:
 - class: org.elasticsearch.xpack.ilm.TimeSeriesDataStreamsIT
   method: testSearchableSnapshotAction
   issue: https://github.com/elastic/elasticsearch/issues/123214
+- class: org.elasticsearch.action.admin.indices.diskusage.IndexDiskUsageAnalyzerTests
+  method: testCompletionField
+  issue: https://github.com/elastic/elasticsearch/issues/123269
 
 # Examples:
 #

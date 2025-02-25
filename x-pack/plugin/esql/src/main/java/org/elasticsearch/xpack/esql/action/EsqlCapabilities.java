@@ -205,6 +205,11 @@ public class EsqlCapabilities {
         FN_ROUND_UL_FIXES,
 
         /**
+         * Fixes for multiple functions not serializing their source, and emitting warnings with wrong line number and text.
+         */
+        FUNCTIONS_SOURCE_SERIALIZATION_WARNINGS,
+
+        /**
          * All functions that take TEXT should never emit TEXT, only KEYWORD. #114334
          */
         FUNCTIONS_NEVER_EMIT_TEXT,

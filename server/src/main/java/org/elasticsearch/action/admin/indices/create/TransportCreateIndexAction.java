@@ -58,7 +58,6 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         ThreadPool threadPool,
         MetadataCreateIndexService createIndexService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
         SystemIndices systemIndices
     ) {
         super(

@@ -42,6 +42,7 @@ public class FileAccessTreeTests extends ESTestCase {
         Path.of("/home"),
         Path.of("/config"),
         new Path[] { Path.of("/data1"), Path.of("/data2") },
+        new Path[] { Path.of("/shared1"), Path.of("/shared2") },
         Path.of("/tmp"),
         setting -> settings.get(setting),
         glob -> settings.getGlobValues(glob)
@@ -94,6 +95,36 @@ public class FileAccessTreeTests extends ESTestCase {
         assertThat(tree.canWrite(path("foo")), is(false));
         assertThat(tree.canRead(path("foo/bar")), is(true));
         assertThat(tree.canWrite(path("foo/bar")), is(true));
+    }
+
+    public void testPrunedPaths() {
+        var tree = accessTree(entitlement("foo", "read", "foo/baz", "read", "foo/bar", "read"));
+        assertThat(tree.canRead(path("foo")), is(true));
+        assertThat(tree.canWrite(path("foo")), is(false));
+        assertThat(tree.canRead(path("foo/bar")), is(true));
+        assertThat(tree.canWrite(path("foo/bar")), is(false));
+        assertThat(tree.canRead(path("foo/baz")), is(true));
+        assertThat(tree.canWrite(path("foo/baz")), is(false));
+        // also test a non-existent subpath
+        assertThat(tree.canRead(path("foo/barf")), is(true));
+        assertThat(tree.canWrite(path("foo/barf")), is(false));
+
+        tree = accessTree(entitlement("foo", "read", "foo/bar", "read_write"));
+        assertThat(tree.canRead(path("foo")), is(true));
+        assertThat(tree.canWrite(path("foo")), is(false));
+        assertThat(tree.canRead(path("foo/bar")), is(true));
+        assertThat(tree.canWrite(path("foo/bar")), is(true));
+        assertThat(tree.canRead(path("foo/baz")), is(true));
+        assertThat(tree.canWrite(path("foo/baz")), is(false));
+    }
+
+    public void testPathAndFileWithSamePrefix() {
+        var tree = accessTree(entitlement("foo/bar/", "read", "foo/bar.xml", "read"));
+        assertThat(tree.canRead(path("foo")), is(false));
+        assertThat(tree.canRead(path("foo/bar")), is(true));
+        assertThat(tree.canRead(path("foo/bar/baz")), is(true));
+        assertThat(tree.canRead(path("foo/bar.xml")), is(true));
+        assertThat(tree.canRead(path("foo/bar.txt")), is(false));
     }
 
     public void testReadWithRelativePath() {
@@ -150,8 +181,21 @@ public class FileAccessTreeTests extends ESTestCase {
     public void testNormalizePath() {
         var tree = accessTree(entitlement("foo/../bar", "read"));
         assertThat(tree.canRead(path("foo/../bar")), is(true));
+        assertThat(tree.canRead(path("foo/../bar/")), is(true));
         assertThat(tree.canRead(path("foo")), is(false));
         assertThat(tree.canRead(path("")), is(false));
+    }
+
+    public void testNormalizeTrailingSlashes() {
+        var tree = accessTree(entitlement("/trailing/slash/", "read", "/no/trailing/slash", "read"));
+        assertThat(tree.canRead(path("/trailing/slash")), is(true));
+        assertThat(tree.canRead(path("/trailing/slash/")), is(true));
+        assertThat(tree.canRead(path("/trailing/slash.xml")), is(false));
+        assertThat(tree.canRead(path("/trailing/slash/file.xml")), is(true));
+        assertThat(tree.canRead(path("/no/trailing/slash")), is(true));
+        assertThat(tree.canRead(path("/no/trailing/slash/")), is(true));
+        assertThat(tree.canRead(path("/no/trailing/slash.xml")), is(false));
+        assertThat(tree.canRead(path("/no/trailing/slash/file.xml")), is(true));
     }
 
     public void testForwardSlashes() {

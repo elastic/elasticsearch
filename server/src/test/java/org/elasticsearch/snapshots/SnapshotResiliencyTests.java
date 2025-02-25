@@ -2374,7 +2374,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         threadPool,
                         metadataCreateIndexService,
                         actionFilters,
-                        indexNameExpressionResolver,
                         EmptySystemIndices.INSTANCE
                     )
                 );
@@ -2490,14 +2489,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 );
                 actions.put(
                     TransportRestoreSnapshotAction.TYPE,
-                    new TransportRestoreSnapshotAction(
-                        transportService,
-                        clusterService,
-                        threadPool,
-                        restoreService,
-                        actionFilters,
-                        indexNameExpressionResolver
-                    )
+                    new TransportRestoreSnapshotAction(transportService, clusterService, threadPool, restoreService, actionFilters)
                 );
                 actions.put(
                     TransportDeleteIndexAction.TYPE,
@@ -2513,58 +2505,23 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 );
                 actions.put(
                     TransportPutRepositoryAction.TYPE,
-                    new TransportPutRepositoryAction(
-                        transportService,
-                        clusterService,
-                        repositoriesService,
-                        threadPool,
-                        actionFilters,
-                        indexNameExpressionResolver
-                    )
+                    new TransportPutRepositoryAction(transportService, clusterService, repositoriesService, threadPool, actionFilters)
                 );
                 actions.put(
                     TransportCleanupRepositoryAction.TYPE,
-                    new TransportCleanupRepositoryAction(
-                        transportService,
-                        clusterService,
-                        repositoriesService,
-                        threadPool,
-                        actionFilters,
-                        indexNameExpressionResolver
-                    )
+                    new TransportCleanupRepositoryAction(transportService, clusterService, repositoriesService, threadPool, actionFilters)
                 );
                 actions.put(
                     TransportCreateSnapshotAction.TYPE,
-                    new TransportCreateSnapshotAction(
-                        transportService,
-                        clusterService,
-                        threadPool,
-                        snapshotsService,
-                        actionFilters,
-                        indexNameExpressionResolver
-                    )
+                    new TransportCreateSnapshotAction(transportService, clusterService, threadPool, snapshotsService, actionFilters)
                 );
                 actions.put(
                     TransportCloneSnapshotAction.TYPE,
-                    new TransportCloneSnapshotAction(
-                        transportService,
-                        clusterService,
-                        threadPool,
-                        snapshotsService,
-                        actionFilters,
-                        indexNameExpressionResolver
-                    )
+                    new TransportCloneSnapshotAction(transportService, clusterService, threadPool, snapshotsService, actionFilters)
                 );
                 actions.put(
                     TransportClusterRerouteAction.TYPE,
-                    new TransportClusterRerouteAction(
-                        transportService,
-                        clusterService,
-                        threadPool,
-                        allocationService,
-                        actionFilters,
-                        indexNameExpressionResolver
-                    )
+                    new TransportClusterRerouteAction(transportService, clusterService, threadPool, allocationService, actionFilters)
                 );
                 actions.put(
                     ClusterStateAction.INSTANCE,
@@ -2602,14 +2559,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 );
                 actions.put(
                     TransportDeleteSnapshotAction.TYPE,
-                    new TransportDeleteSnapshotAction(
-                        transportService,
-                        clusterService,
-                        threadPool,
-                        snapshotsService,
-                        actionFilters,
-                        indexNameExpressionResolver
-                    )
+                    new TransportDeleteSnapshotAction(transportService, clusterService, threadPool, snapshotsService, actionFilters)
                 );
                 client.initialize(
                     actions,

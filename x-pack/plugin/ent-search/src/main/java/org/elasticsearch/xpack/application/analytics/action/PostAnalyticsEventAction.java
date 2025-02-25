@@ -41,7 +41,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  * @deprecated in 9.0
  */
 @Deprecated
-@UpdateForV10(owner=UpdateForV10.Owner.ENTERPRISE_SEARCH)
+@UpdateForV10(owner = UpdateForV10.Owner.ENTERPRISE_SEARCH)
 public class PostAnalyticsEventAction {
 
     public static final String NAME = "cluster:admin/xpack/application/analytics/post_event";

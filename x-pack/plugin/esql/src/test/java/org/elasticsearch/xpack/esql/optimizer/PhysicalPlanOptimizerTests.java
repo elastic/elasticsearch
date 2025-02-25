@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -7711,6 +7712,33 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         PhysicalPlan reduction = PlannerUtils.reductionPlan(plans.v2());
         AggregateExec reductionAggs = as(reduction, AggregateExec.class);
         assertThat(reductionAggs.estimatedRowSize(), equalTo(58)); // double and keyword
+    }
+
+    public void testAdjustLimit() {
+        var plan = physicalPlan("""
+            FROM test
+            | LIMIT 100
+            """);
+        Holder<Integer> collectedRows = new Holder<>(0);
+        Tuple<PhysicalPlan, PhysicalPlan> plans = PlannerUtils.breakPlanBetweenCoordinatorAndDataNode(plan, config);
+        PhysicalPlan dataNode = plans.v2();
+        var fragmentOptimizer = new QueryProgressFragmentOptimizer(collectedRows::get);
+        assertSame(dataNode, fragmentOptimizer.optimizeFragment(dataNode));
+        collectedRows.set(30);
+        PhysicalPlan p30 = fragmentOptimizer.optimizeFragment(dataNode);
+        assertNotNull(p30);
+        LimitExec limit70 = as(PlannerUtils.reductionPlan(p30), LimitExec.class);
+        assertThat(limit70.limit().fold(FoldContext.small()), equalTo(70));
+
+        collectedRows.set(60);
+        PhysicalPlan p60 = fragmentOptimizer.optimizeFragment(dataNode);
+        assertNotNull(p60);
+        LimitExec limit40 = as(PlannerUtils.reductionPlan(p60), LimitExec.class);
+        assertThat(limit40.limit().fold(FoldContext.small()), equalTo(40));
+
+        collectedRows.set(between(100, 120));
+        PhysicalPlan p100 = fragmentOptimizer.optimizeFragment(dataNode);
+        assertNull(p100);
     }
 
     @SuppressWarnings("SameParameterValue")

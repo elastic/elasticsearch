@@ -13,6 +13,8 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -23,9 +25,10 @@ import java.util.TreeMap;
 
 public class FieldArrayContext {
 
+    private static final String OFFSETS_FIELD_NAME_SUFFIX = ".offsets";
     private final Map<String, Offsets> offsetsPerField = new HashMap<>();
 
-    void recordOffset(String field, String value) {
+    void recordOffset(String field, Comparable<?> value) {
         Offsets arrayOffsets = offsetsPerField.computeIfAbsent(field, k -> new Offsets());
         int nextOffset = arrayOffsets.currentOffset++;
         var offsets = arrayOffsets.valueToOffsets.computeIfAbsent(value, s -> new ArrayList<>(2));
@@ -79,13 +82,41 @@ public class FieldArrayContext {
         return offsetToOrd;
     }
 
+    static String getOffsetsFieldName(
+        MapperBuilderContext context,
+        Mapper.SourceKeepMode indexSourceKeepMode,
+        boolean hasDocValues,
+        boolean isStored,
+        FieldMapper.Builder fieldMapperBuilder,
+        IndexVersion indexCreatedVersion
+    ) {
+        var sourceKeepMode = fieldMapperBuilder.sourceKeepMode.orElse(indexSourceKeepMode);
+        if (context.isSourceSynthetic()
+            && sourceKeepMode == Mapper.SourceKeepMode.ARRAYS
+            && hasDocValues
+            && isStored == false
+            && fieldMapperBuilder.copyTo.copyToFields().isEmpty()
+            && fieldMapperBuilder.multiFieldsBuilder.hasMultiFields() == false
+            && indexCreatedVersion.onOrAfter(IndexVersions.SYNTHETIC_SOURCE_STORE_ARRAYS_NATIVELY_KEYWORD)) {
+            // Skip stored, we will be synthesizing from stored fields, no point to keep track of the offsets
+            // Skip copy_to and multi fields, supporting that requires more work. However, copy_to usage is rare in metrics and
+            // logging use cases
+
+            // keep track of value offsets so that we can reconstruct arrays from doc values in order as was specified during indexing
+            // (if field is stored then there is no point of doing this)
+            return context.buildFullName(fieldMapperBuilder.leafName() + FieldArrayContext.OFFSETS_FIELD_NAME_SUFFIX);
+        } else {
+            return null;
+        }
+    }
+
     private static class Offsets {
 
         int currentOffset;
         // Need to use TreeMap here, so that we maintain the order in which each value (with offset) stored inserted,
         // (which is in the same order the document gets parsed) so we store offsets in right order. This is the same
         // order in what the values get stored in SortedSetDocValues.
-        final Map<String, List<Integer>> valueToOffsets = new TreeMap<>();
+        final Map<Comparable<?>, List<Integer>> valueToOffsets = new TreeMap<>();
         final List<Integer> nullValueOffsets = new ArrayList<>(2);
 
     }

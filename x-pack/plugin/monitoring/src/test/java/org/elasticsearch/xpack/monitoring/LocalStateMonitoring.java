@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -52,10 +51,9 @@ public class LocalStateMonitoring extends LocalStateCompositeXPackPlugin {
             TransportService transportService,
             ClusterService clusterService,
             ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver,
             NodeClient client
         ) {
-            super(threadPool, transportService, clusterService, actionFilters, indexNameExpressionResolver, client);
+            super(threadPool, transportService, clusterService, actionFilters, client);
         }
 
         @Override

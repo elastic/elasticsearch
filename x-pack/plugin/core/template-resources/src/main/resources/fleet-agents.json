@@ -311,7 +311,7 @@
           "type": "keyword"
         },
         "upgrade_attempts": {
-          "type": "integer"
+          "type": "date"
         },
         "user_provided_metadata": {
           "type": "object",

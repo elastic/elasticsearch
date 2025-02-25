@@ -7,52 +7,53 @@
 
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 
 public class RrfScoreEval extends UnaryPlan {
-    public static NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        LogicalPlan.class,
-        "RrfScoreEval",
-        RrfScoreEval::new
-    );
+    private final Attribute forkAttr;
+    private final Attribute scoreAttr;
 
-    public RrfScoreEval(Source source, LogicalPlan child) {
+    public RrfScoreEval(Source source, LogicalPlan child, Attribute scoreAttr, Attribute forkAttr) {
         super(source, child);
-    }
-
-    private RrfScoreEval(StreamInput in) throws IOException {
-        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(LogicalPlan.class));
-    }
-
-    @Override
-    public String getWriteableName() {
-        return ENTRY.name;
+        this.scoreAttr = scoreAttr;
+        this.forkAttr = forkAttr;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        Source.EMPTY.writeTo(out);
+        throw new UnsupportedOperationException("not serialized");
+    }
+
+    @Override
+    public String getWriteableName() {
+        throw new UnsupportedOperationException("not serialized");
     }
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, RrfScoreEval::new, child());
+        return NodeInfo.create(this, RrfScoreEval::new, child(), scoreAttr, forkAttr);
     }
 
     @Override
     public boolean expressionsResolved() {
-        return child().expressionsResolved();
+        return scoreAttr.resolved() && forkAttr.resolved();
     }
 
     @Override
     public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return new RrfScoreEval(source(), newChild);
+        return new RrfScoreEval(source(), newChild, scoreAttr, forkAttr);
+    }
+
+    public Attribute scoreAttribute() {
+        return scoreAttr;
+    }
+
+    public Attribute forkAttribute() {
+        return forkAttr;
     }
 }

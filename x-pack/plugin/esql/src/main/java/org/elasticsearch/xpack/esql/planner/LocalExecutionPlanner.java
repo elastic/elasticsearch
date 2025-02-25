@@ -281,6 +281,13 @@ public class LocalExecutionPlanner {
             pos += 1;
         }
 
+        if (scorePosition == -1) {
+            throw new IllegalStateException("can't find _score attribute position");
+        }
+        if (forkPosition == -1) {
+            throw new IllegalStateException("can'find _fork attribute position");
+        }
+
         return source.with(new RrfScoreEvalOperator.Factory(forkPosition, scorePosition), source.layout);
     }
 

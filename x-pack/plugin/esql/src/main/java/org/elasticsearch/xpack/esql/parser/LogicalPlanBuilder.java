@@ -702,7 +702,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 new Alias(source, "_fork", new Values(source, forkAttr, new Literal(source, true, DataType.BOOLEAN)))
             );
 
-            LogicalPlan dedup = new Dedup(source, new RrfScoreEval(source, input), aggregates);
+            LogicalPlan dedup = new Dedup(source, new RrfScoreEval(source, input, scoreAttr, forkAttr), aggregates);
 
             List<Order> order = List.of(
                 new Order(source, scoreAttr, Order.OrderDirection.DESC, Order.NullsPosition.LAST),

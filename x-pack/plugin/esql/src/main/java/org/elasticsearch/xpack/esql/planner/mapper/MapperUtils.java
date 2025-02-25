@@ -114,7 +114,7 @@ class MapperUtils {
         }
 
         if (p instanceof RrfScoreEval rrf) {
-            return new RrfScoreEvalExec(rrf.source(), child);
+            return new RrfScoreEvalExec(rrf.source(), child, rrf.scoreAttribute(), rrf.forkAttribute());
         }
 
         return unsupported(p);

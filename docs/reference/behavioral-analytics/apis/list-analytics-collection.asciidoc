@@ -2,6 +2,7 @@
 [[list-analytics-collection]]
 === List Analytics Collections
 
+deprecated:[9.0.0]
 beta::[]
 
 ++++
@@ -13,22 +14,6 @@ beta::[]
 --
 For the most up-to-date API details, refer to {api-es}/group/endpoint-analytics[Behavioral analytics APIs].
 --
-
-////
-[source,console]
-----
-PUT _application/analytics/my_analytics_collection
-PUT _application/analytics/my_analytics_collection2
-----
-// TESTSETUP
-
-[source,console]
-----
-DELETE _application/analytics/my_analytics_collection
-DELETE _application/analytics/my_analytics_collection2
-----
-// TEARDOWN
-////
 
 Returns information about <<behavioral-analytics-overview,Behavioral Analytics>> Collections.
 
@@ -46,8 +31,9 @@ Requires the `manage_behavioral_analytics` cluster privilege.
 ==== {api-path-parms-title}
 
 `<criteria>`::
-(optional, string)
-Criteria is used to find a matching analytics collection. This could be the name of the collection or a pattern to match multiple. If not specified, will return all analytics collections.
+(optional, string) Criteria is used to find a matching analytics collection.
+This could be the name of the collection or a pattern to match multiple.
+If not specified, will return all analytics collections.
 
 [[list-analytics-collection-response-codes]]
 ==== {api-response-codes-title}
@@ -66,6 +52,7 @@ The following example lists all configured Analytics Collections:
 ----
 GET _application/analytics/
 ----
+// TEST[skip:Behavioral Analytics APIs emit deprecation warnings and will not be updated]
 
 A sample response:
 
@@ -91,6 +78,7 @@ The following example returns the Analytics Collection that matches `my_analytic
 ----
 GET _application/analytics/my_analytics_collection
 ----
+// TEST[skip:Behavioral Analytics APIs emit deprecation warnings and will not be updated]
 
 A sample response:
 
@@ -111,6 +99,7 @@ The following example returns all Analytics Collections prefixed with `my`:
 ----
 GET _application/analytics/my*
 ----
+// TEST[skip:Behavioral Analytics APIs emit deprecation warnings and will not be updated]
 
 A sample response:
 

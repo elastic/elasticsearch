@@ -1,6 +1,7 @@
 [[behavioral-analytics-apis]]
 == Behavioral Analytics APIs
 
+deprecated:[9.0.0]
 beta::[]
 
 ++++

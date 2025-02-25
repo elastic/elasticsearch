@@ -9,7 +9,6 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.entitlement.runtime.policy.FileAccessTree.ExclusivePath;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
@@ -25,7 +24,6 @@ import java.util.Map;
 import static org.elasticsearch.core.PathUtils.getDefaultFileSystem;
 import static org.hamcrest.Matchers.is;
 
-@LuceneTestCase.SuppressFileSystems("*")
 public class FileAccessTreeTests extends ESTestCase {
 
     static Path root;

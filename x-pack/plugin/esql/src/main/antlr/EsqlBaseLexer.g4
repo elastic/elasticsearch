@@ -195,14 +195,12 @@ IN: 'in';
 IS: 'is';
 LAST : 'last';
 LIKE: 'like';
-LP : '(';
 NOT : 'not';
 NULL : 'null';
 NULLS : 'nulls';
 OR : 'or';
 PARAM: '?';
 RLIKE: 'rlike';
-RP : ')';
 TRUE : 'true';
 
 EQ  : '==';
@@ -223,8 +221,6 @@ LEFT_BRACES : '{';
 RIGHT_BRACES : '}';
 
 NESTED_WHERE : WHERE -> type(WHERE);
-NESTED_SORT : {this.isDevVersion()}? SORT -> type(SORT);
-NESTED_LIMIT : {this.isDevVersion()}? LIMIT -> type(LIMIT);
 
 NAMED_OR_POSITIONAL_PARAM
     : PARAM (LETTER | UNDERSCORE) UNQUOTED_ID_BODY*
@@ -238,6 +234,9 @@ NAMED_OR_POSITIONAL_PARAM
 // the explain mode needs, we double push when we see that.
 OPENING_BRACKET : '[' -> pushMode(EXPRESSION_MODE), pushMode(EXPRESSION_MODE);
 CLOSING_BRACKET : ']' -> popMode, popMode;
+
+LP : '(' -> pushMode(EXPRESSION_MODE), pushMode(EXPRESSION_MODE);
+RP : ')' -> popMode, popMode;
 
 UNQUOTED_IDENTIFIER
     : LETTER UNQUOTED_ID_BODY*
@@ -678,8 +677,8 @@ INSIST_MULTILINE_COMMENT : MULTILINE_COMMENT -> channel(HIDDEN);
 //
 mode FORK_MODE;
 FORK_LP : LP -> type(LP), pushMode(DEFAULT_MODE);
-FORK_RP : RP -> type(RP), popMode;
 FORK_PIPE : PIPE -> type(PIPE), popMode;
+
 FORK_WS : WS -> channel(HIDDEN);
 FORK_LINE_COMMENT : LINE_COMMENT -> channel(HIDDEN);
 FORK_MULTILINE_COMMENT : MULTILINE_COMMENT -> channel(HIDDEN);

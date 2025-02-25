@@ -96,6 +96,27 @@ public class FileAccessTreeTests extends ESTestCase {
         assertThat(tree.canWrite(path("foo/bar")), is(true));
     }
 
+    public void testPrunedPaths() {
+        var tree = accessTree(entitlement("foo", "read", "foo/baz", "read", "foo/bar", "read"));
+        assertThat(tree.canRead(path("foo")), is(true));
+        assertThat(tree.canWrite(path("foo")), is(false));
+        assertThat(tree.canRead(path("foo/bar")), is(true));
+        assertThat(tree.canWrite(path("foo/bar")), is(false));
+        assertThat(tree.canRead(path("foo/baz")), is(true));
+        assertThat(tree.canWrite(path("foo/baz")), is(false));
+        // also test a non-existent subpath
+        assertThat(tree.canRead(path("foo/barf")), is(true));
+        assertThat(tree.canWrite(path("foo/barf")), is(false));
+
+        tree = accessTree(entitlement("foo", "read", "foo/bar", "read_write"));
+        assertThat(tree.canRead(path("foo")), is(true));
+        assertThat(tree.canWrite(path("foo")), is(false));
+        assertThat(tree.canRead(path("foo/bar")), is(true));
+        assertThat(tree.canWrite(path("foo/bar")), is(true));
+        assertThat(tree.canRead(path("foo/baz")), is(true));
+        assertThat(tree.canWrite(path("foo/baz")), is(false));
+    }
+
     public void testReadWithRelativePath() {
         for (var dir : List.of("config", "home")) {
             var tree = accessTree(entitlement(Map.of("relative_path", "foo", "mode", "read", "relative_to", dir)));

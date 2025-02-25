@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -147,6 +148,11 @@ public final class ClusterPersistentTasksCustomMetadata extends AbstractNamedDif
         return doToXContentChunked();
     }
 
+    @Override
+    public Builder toBuilder() {
+        return builder(this);
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -168,6 +174,13 @@ public final class ClusterPersistentTasksCustomMetadata extends AbstractNamedDif
         @Override
         public ClusterPersistentTasksCustomMetadata build() {
             return new ClusterPersistentTasksCustomMetadata(getLastAllocationId(), Collections.unmodifiableMap(getCurrentTasks()));
+        }
+
+        @Override
+        protected ClusterState doBuildAndUpdate(ClusterState currentState, ProjectId projectId) {
+            return ClusterState.builder(currentState)
+                .metadata(Metadata.builder(currentState.metadata()).putCustom(ClusterPersistentTasksCustomMetadata.TYPE, build()))
+                .build();
         }
     }
 

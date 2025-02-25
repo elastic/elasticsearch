@@ -11,11 +11,15 @@ package org.elasticsearch.persistent;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -34,7 +38,10 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import static org.elasticsearch.persistent.PersistentTasksClusterService.assertAllocationIdsConsistency;
+import static org.elasticsearch.persistent.PersistentTasksClusterService.assertUniqueTaskIdForClusterScopeTasks;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
@@ -105,6 +112,51 @@ public interface PersistentTasks {
             Iterators.single((builder, params) -> builder.field("last_allocation_id", getLastAllocationId())),
             ChunkedToXContentHelper.array("tasks", tasks().iterator())
         );
+    }
+
+    /**
+     * Convert the PersistentTasks object into the corresponding builder
+     */
+    Builder<?> toBuilder();
+
+    /**
+     * Retrieve the persistent tasks for the specified project or the cluster.
+     *
+     * @param clusterState The cluster state
+     * @param projectId The project for which the persistent tasks should be retrieved. {@code null} for cluster-scoped tasks.
+     * @return The persistent tasks associated to the specific project or the cluster if the projectId is null.
+     */
+    @Nullable
+    static PersistentTasks getTasks(ClusterState clusterState, @Nullable ProjectId projectId) {
+        if (projectId != null) {
+            return PersistentTasksCustomMetadata.get(clusterState.metadata().getProject(projectId));
+        } else {
+            return ClusterPersistentTasksCustomMetadata.get(clusterState.metadata());
+        }
+    }
+
+    static Stream<Tuple<ProjectId, PersistentTasks>> getAllTasks(final ClusterState currentState) {
+        final Stream<Tuple<ProjectId, PersistentTasks>> streamOfProjectTasks = currentState.metadata()
+            .projects()
+            .keySet()
+            .stream()
+            .filter(projectId -> getTasks(currentState, projectId) != null)
+            .map(projectId -> new Tuple<>(projectId, getTasks(currentState, projectId)));
+
+        final var clusterTasks = getTasks(currentState, null);
+        if (clusterTasks == null) {
+            return streamOfProjectTasks;
+        } else {
+            return Stream.concat(Stream.of(new Tuple<>(null, clusterTasks)), streamOfProjectTasks);
+        }
+    }
+
+    static String taskTypeString(@Nullable ProjectId projectId) {
+        return taskTypeString(projectId == null ? null : projectId.id());
+    }
+
+    static String taskTypeString(@Nullable String projectId) {
+        return projectId == null ? "cluster" : "project [" + projectId + "]";
     }
 
     class Parsers {
@@ -236,6 +288,10 @@ public interface PersistentTasks {
         }
     }
 
+    static long getMaxLastAllocationId(ClusterState clusterState) {
+        return getAllTasks(clusterState).map(tuple -> tuple.v2().getLastAllocationId()).max(Long::compare).orElse(0L);
+    }
+
     abstract class Builder<T extends Builder<T>> {
         private final Map<String, PersistentTask<?>> tasks = new HashMap<>();
         private long lastAllocationId;
@@ -260,6 +316,10 @@ public interface PersistentTasks {
         protected T setLastAllocationId(long currentId) {
             this.lastAllocationId = currentId;
             return (T) this;
+        }
+
+        protected T setLastAllocationId(ClusterState clusterState) {
+            return setLastAllocationId(getMaxLastAllocationId(clusterState));
         }
 
         @SuppressWarnings("unchecked")
@@ -371,5 +431,18 @@ public interface PersistentTasks {
         }
 
         public abstract PersistentTasks build();
+
+        public final ClusterState buildAndUpdate(ClusterState currentState, ProjectId projectId) {
+            if (isChanged()) {
+                final ClusterState updatedClusterState = doBuildAndUpdate(currentState, projectId);
+                assert assertAllocationIdsConsistency(updatedClusterState);
+                assert assertUniqueTaskIdForClusterScopeTasks(updatedClusterState);
+                return updatedClusterState;
+            } else {
+                return currentState;
+            }
+        }
+
+        protected abstract ClusterState doBuildAndUpdate(ClusterState currentState, ProjectId projectId);
     }
 }

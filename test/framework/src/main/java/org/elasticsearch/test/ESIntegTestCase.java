@@ -117,6 +117,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.gateway.PersistedClusterStateService;
@@ -140,6 +141,7 @@ import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.ingest.IngestPipelineTestUtils;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.node.NodeMocksPlugin;
+import org.elasticsearch.persistent.PersistentTasks;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -1166,11 +1168,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Retrieves the persistent tasks with the requested task names from the given cluster state.
      */
     public static List<PersistentTasksCustomMetadata.PersistentTask<?>> findTasks(ClusterState clusterState, Set<String> taskNames) {
-        PersistentTasksCustomMetadata tasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(clusterState);
-        if (tasks == null) {
-            return List.of();
-        }
-        return tasks.tasks().stream().filter(t -> taskNames.contains(t.getTaskName())).toList();
+        return PersistentTasks.getAllTasks(clusterState)
+            .map(Tuple::v2)
+            .flatMap(tasks -> tasks.tasks().stream().filter(t -> taskNames.contains(t.getTaskName())))
+            .toList();
     }
 
     /**

@@ -195,6 +195,16 @@ public class PersistentTasksService {
         }, clusterState -> predicate.test(PersistentTasksCustomMetadata.getTaskWithId(clusterState, taskId)), timeout, logger);
     }
 
+    // visible for testing
+    ClusterService getClusterService() {
+        return clusterService;
+    }
+
+    // visible for testing
+    ThreadPool getThreadPool() {
+        return threadPool;
+    }
+
     /**
      * Waits for persistent tasks to comply with a given predicate, then call back the listener accordingly.
      *

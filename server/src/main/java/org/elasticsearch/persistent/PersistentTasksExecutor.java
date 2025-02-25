@@ -12,11 +12,13 @@ package org.elasticsearch.persistent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.tasks.TaskId;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.Predicate;
@@ -81,14 +83,14 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
     ) {
         long minLoad = Long.MAX_VALUE;
         DiscoveryNode minLoadedNode = null;
-        PersistentTasksCustomMetadata persistentTasks = clusterState.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
+        final List<PersistentTasks> allPersistentTasks = PersistentTasks.getAllTasks(clusterState).map(Tuple::v2).toList();
         for (DiscoveryNode node : candidateNodes) {
             if (selector.test(node)) {
-                if (persistentTasks == null) {
+                if (allPersistentTasks.isEmpty()) {
                     // We don't have any task running yet, pick the first available node
                     return node;
                 }
-                long numberOfTasks = persistentTasks.getNumberOfTasksOnNode(node.getId(), taskName);
+                long numberOfTasks = allPersistentTasks.stream().mapToLong(p -> p.getNumberOfTasksOnNode(node.getId(), taskName)).sum();
                 if (minLoad > numberOfTasks) {
                     minLoad = numberOfTasks;
                     minLoadedNode = node;

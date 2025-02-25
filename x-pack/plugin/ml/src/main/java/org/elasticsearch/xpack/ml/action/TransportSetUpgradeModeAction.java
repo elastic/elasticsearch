@@ -18,6 +18,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
@@ -223,8 +224,11 @@ public class TransportSetUpgradeModeAction extends AbstractTransportSetUpgradeMo
         );
 
         for (PersistentTask<?> task : mlTasks) {
+            @FixForMultiProject
+            final var projectId = Metadata.DEFAULT_PROJECT_ID;
             chainTaskExecutor.add(
                 chainedTask -> persistentTasksClusterService.unassignPersistentTask(
+                    projectId,
                     task.getId(),
                     task.getAllocationId(),
                     AWAITING_UPGRADE.getExplanation(),

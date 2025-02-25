@@ -44,14 +44,8 @@ export GRADLE_BUILD_CACHE_USERNAME
 GRADLE_BUILD_CACHE_PASSWORD=$(vault read -field=password secret/ci/elastic-elasticsearch/migrated/gradle-build-cache)
 export GRADLE_BUILD_CACHE_PASSWORD
 
-DEVELOCITY_ACCESS_KEY="$(vault read -field=accesskey secret/ci/elastic-elasticsearch/migrated/gradle-build-cache)"
-if [ -n "${DEVELOCITY_ACCESS_KEY}" ]
-then
-    DEVELOCITY_ACCESS_KEY="gradle-enterprise.elastic.co=${DEVELOCITY_ACCESS_KEY}"
-    export DEVELOCITY_ACCESS_KEY
-else
-    printf "%s: Error obtaining DEVELOCITY_ACCESS_KEY from Vault" "$0" | tee -a /dev/stderr
-fi
+DEVELOCITY_ACCESS_KEY="gradle-enterprise.elastic.co=$(vault read -field=accesskey secret/ci/elastic-elasticsearch/migrated/gradle-build-cache)"
+export DEVELOCITY_ACCESS_KEY
 
 BUILDKITE_API_TOKEN=$(vault read -field=token secret/ci/elastic-elasticsearch/buildkite-api-token)
 export BUILDKITE_API_TOKEN

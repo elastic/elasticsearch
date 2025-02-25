@@ -13,11 +13,13 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigExclusion;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -28,12 +30,15 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.SuppressForbidden;
@@ -47,13 +52,22 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.alias.RandomAliasActionsGenerator;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestMetadata;
+import org.elasticsearch.persistent.ClusterPersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasks;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksExecutorRegistry;
+import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.upgrades.SystemIndexMigrationExecutor;
+import org.elasticsearch.upgrades.SystemIndexMigrationTaskParams;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -111,6 +125,8 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class MetadataTests extends ESTestCase {
 
@@ -750,6 +766,10 @@ public class MetadataTests extends ESTestCase {
                     {
                       "id": "health-node",
                       "task":{ "health-node": {"params":{}} }
+                    },
+                    {
+                      "id": "upgrade-system-indices",
+                      "task":{ "upgrade-system-indices": {"params":{}} }
                     }
                   ]
                 },
@@ -797,17 +817,45 @@ public class MetadataTests extends ESTestCase {
         registry.addAll(ClusterModule.getNamedXWriteables());
         registry.addAll(IndicesModule.getNamedXContents());
         registry.addAll(HealthNodeTaskExecutor.getNamedXContentParsers());
+        registry.addAll(SystemIndexMigrationExecutor.getNamedXContentParsers());
+
+        final var clusterService = mock(ClusterService.class);
+        when(clusterService.threadPool()).thenReturn(mock(ThreadPool.class));
+        final var healthNodeTaskExecutor = HealthNodeTaskExecutor.create(
+            clusterService,
+            mock(PersistentTasksService.class),
+            Settings.EMPTY,
+            ClusterSettings.createBuiltInClusterSettings()
+        );
+        final var systemIndexMigrationExecutor = new SystemIndexMigrationExecutor(
+            mock(Client.class),
+            clusterService,
+            mock(SystemIndices.class),
+            mock(MetadataUpdateSettingsService.class),
+            mock(MetadataCreateIndexService.class),
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS
+        );
+        new PersistentTasksExecutorRegistry(List.of(healthNodeTaskExecutor, systemIndexMigrationExecutor));
 
         XContentParserConfiguration config = XContentParserConfiguration.EMPTY.withRegistry(new NamedXContentRegistry(registry));
         try (XContentParser parser = JsonXContent.jsonXContent.createParser(config, json)) {
             final var metatdata = Metadata.fromXContent(parser);
             assertThat(metatdata, notNullValue());
             assertThat(metatdata.clusterUUID(), is("aba1aa1ababbbaabaabaab"));
-            assertThat(metatdata.customs().keySet(), containsInAnyOrder("desired_nodes"));
+            assertThat(metatdata.customs().keySet(), containsInAnyOrder("desired_nodes", "cluster_persistent_tasks"));
+            @FixForMultiProject(description = "adjust the assertion once health-node becomes cluster-scoped")
+            final var clusterTasks = ClusterPersistentTasksCustomMetadata.get(metatdata);
+            assertThat(clusterTasks.tasks(), hasSize(0));
             assertThat(
                 metatdata.getProject().customs().keySet(),
                 containsInAnyOrder("persistent_tasks", "index-graveyard", "component_template")
             );
+            final var projectTasks = PersistentTasksCustomMetadata.get(metatdata.getProject());
+            assertThat(
+                projectTasks.tasks().stream().map(PersistentTasksCustomMetadata.PersistentTask::getTaskName).toList(),
+                containsInAnyOrder("health-node", "upgrade-system-indices")
+            );
+            assertThat(clusterTasks.getLastAllocationId(), equalTo(projectTasks.getLastAllocationId()));
         }
     }
 
@@ -2534,16 +2582,52 @@ public class MetadataTests extends ESTestCase {
     }
 
     public void testMultiProjectXContent() throws IOException {
-        final List<ProjectMetadata> projects = randomList(1, 5, () -> randomProject(new ProjectId(randomUUID()), randomIntBetween(1, 3)));
+        final long lastAllocationId = randomNonNegativeLong();
+        final List<ProjectMetadata> projects = randomList(1, 5, () -> randomProject(new ProjectId(randomUUID()), randomIntBetween(1, 3)))
+            .stream()
+            .map(
+                project -> ProjectMetadata.builder(project)
+                    .putCustom(
+                        PersistentTasksCustomMetadata.TYPE,
+                        new PersistentTasksCustomMetadata(
+                            lastAllocationId,
+                            Map.of(
+                                SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME,
+                                new PersistentTasksCustomMetadata.PersistentTask<>(
+                                    SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME,
+                                    SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME,
+                                    new SystemIndexMigrationTaskParams(),
+                                    lastAllocationId,
+                                    PersistentTasks.INITIAL_ASSIGNMENT
+                                )
+                            )
+                        )
+                    )
+                    .build()
+            )
+            .toList();
+
+        @FixForMultiProject(description = "considering adding health-node into metadata customs once health-node becomes a cluster task")
         final Metadata originalMeta = randomMetadata(projects);
+
         ToXContent.Params p = new ToXContent.MapParams(
             Map.of("multi-project", "true", Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_GATEWAY)
         );
 
         final BytesReference bytes = toXContentBytes(originalMeta, p);
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, bytes)) {
+        final List<NamedXContentRegistry.Entry> registry = new ArrayList<>();
+        registry.addAll(ClusterModule.getNamedXWriteables());
+        registry.addAll(SystemIndexMigrationExecutor.getNamedXContentParsers());
+        final var config = XContentParserConfiguration.EMPTY.withRegistry(new NamedXContentRegistry(registry));
+
+        try (XContentParser parser = createParser(config, JsonXContent.jsonXContent, bytes)) {
             Metadata fromXContentMeta = Metadata.fromXContent(parser);
             assertThat(fromXContentMeta.projects().keySet(), equalTo(originalMeta.projects().keySet()));
+            for (var project : fromXContentMeta.projects().values()) {
+                final var projectTasks = PersistentTasksCustomMetadata.get(project);
+                assertThat(projectTasks.getLastAllocationId(), equalTo(lastAllocationId));
+                assertThat(projectTasks.taskMap().keySet(), equalTo(Set.of(SystemIndexMigrationTaskParams.SYSTEM_INDEX_UPGRADE_TASK_NAME)));
+            }
         }
     }
 

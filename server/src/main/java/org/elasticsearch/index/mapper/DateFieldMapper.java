@@ -1030,16 +1030,15 @@ public final class DateFieldMapper extends FieldMapper {
      * Determines whether the doc values skipper (sparse index) should be used for the {@code @timestamp} field.
      * <p>
      * The doc values skipper is enabled only if {@code index.mapping.use_doc_values_skipper} is set to {@code true},
-     * the index was created on or after {@link IndexVersions#TIMESTAMP_DOC_VALUES_SPARSE_INDEX}
-     * ({@link IndexVersions#TSDB_TIMESTAMP_DOC_VALUES_SPARSE_INDEX} for time-series indices), and the
-     * field has doc values enabled. Additionally, the index mode must be {@link IndexMode#LOGSDB} or {@link IndexMode#TIME_SERIES}, and for
-     * logsdb indices the index sorting configuration must include the {@code @timestamp} field.
+     * the index was created on or after {@link IndexVersions#TIMESTAMP_DOC_VALUES_SPARSE_INDEX}, and the
+     * field has doc values enabled. Additionally, the index mode must be {@link IndexMode#LOGSDB} or {@link IndexMode#TIME_SERIES}, and
+     * the index sorting configuration must include the {@code @timestamp} field.
      *
      * @param indexCreatedVersion  The version of the index when it was created.
      * @param useDocValuesSkipper  Whether the doc values skipper feature is enabled via the {@code index.mapping.use_doc_values_skipper}
      *                             setting.
      * @param hasDocValues         Whether the field has doc values enabled.
-     * @param indexMode            The index mode, which must be {@link IndexMode#LOGSDB}.
+     * @param indexMode            The index mode, which must be {@link IndexMode#LOGSDB} or {@link IndexMode#TIME_SERIES}.
      * @param indexSortConfig      The index sorting configuration, which must include the {@code @timestamp} field.
      * @param fullFieldName        The full name of the field being checked, expected to be {@code @timestamp}.
      * @return {@code true} if the doc values skipper should be used, {@code false} otherwise.
@@ -1053,22 +1052,13 @@ public final class DateFieldMapper extends FieldMapper {
         final IndexSortConfig indexSortConfig,
         final String fullFieldName
     ) {
-        if (IndexMode.LOGSDB.equals(indexMode)) {
-            return indexCreatedVersion.onOrAfter(IndexVersions.TIMESTAMP_DOC_VALUES_SPARSE_INDEX)
-                && useDocValuesSkipper
-                && hasDocValues
-                && indexSortConfig != null
-                && indexSortConfig.hasSortOnField(fullFieldName)
-                && DataStreamTimestampFieldMapper.DEFAULT_PATH.equals(fullFieldName);
-        } else if (IndexMode.TIME_SERIES.equals(indexMode)) {
-            // We don't need to check the sort config because TSDB indices are always sorted by _tsid and @timestamp
-            return indexCreatedVersion.onOrAfter(IndexVersions.TSDB_TIMESTAMP_DOC_VALUES_SPARSE_INDEX)
-                && useDocValuesSkipper
-                && hasDocValues
-                && DataStreamTimestampFieldMapper.DEFAULT_PATH.equals(fullFieldName);
-        } else {
-            return false;
-        }
+        return indexCreatedVersion.onOrAfter(IndexVersions.TIMESTAMP_DOC_VALUES_SPARSE_INDEX)
+            && useDocValuesSkipper
+            && hasDocValues
+            && (IndexMode.LOGSDB.equals(indexMode) || IndexMode.TIME_SERIES.equals(indexMode))
+            && indexSortConfig != null
+            && indexSortConfig.hasSortOnField(fullFieldName)
+            && DataStreamTimestampFieldMapper.DEFAULT_PATH.equals(fullFieldName);
     }
 
     @Override

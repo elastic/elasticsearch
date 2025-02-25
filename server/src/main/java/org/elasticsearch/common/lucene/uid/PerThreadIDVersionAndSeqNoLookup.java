@@ -101,6 +101,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
         if (loadTimestampRange && info != null) {
             if (info.docValuesSkipIndexType() == DocValuesSkipIndexType.RANGE) {
                 DocValuesSkipper skipper = reader.getDocValuesSkipper(DataStream.TIMESTAMP_FIELD_NAME);
+                assert skipper != null : "no skipper for reader:" + reader + " and parent:" + reader.getContext().parent.reader();
                 minTimestamp = skipper.minValue();
                 maxTimestamp = skipper.maxValue();
             } else {

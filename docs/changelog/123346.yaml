@@ -1,0 +1,6 @@
+pr: 123346
+summary: Reduce license checks in `LicensedWriteLoadForecaster`
+area: CRUD
+type: bug
+issues:
+ - 123247

@@ -287,7 +287,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         };
     }
 
-    final class MergeTask implements Runnable, Comparable<MergeTask> {
+    class MergeTask implements Runnable, Comparable<MergeTask> {
         private final String name;
         private final AtomicLong mergeStartTimeNS;
         private final MergeSource mergeSource;

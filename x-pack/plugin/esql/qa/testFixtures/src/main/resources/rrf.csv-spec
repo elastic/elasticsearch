@@ -5,10 +5,11 @@
 simpleRrf
 required_capability: fork
 required_capability: rrf
+required_capability: match_operator_colon
 
 FROM employees METADATA _id, _index, _score
-| FORK ( WHERE emp_no == 10001 )
-       ( WHERE emp_no == 10002 )
+| FORK ( WHERE emp_no:10001 )
+       ( WHERE emp_no:10002 )
 | RRF
 | KEEP _score, _fork, emp_no
 ;
@@ -21,6 +22,7 @@ _score:double       | _fork:keyword  | emp_no:integer
 rrfWithMatchAndScore
 required_capability: fork
 required_capability: rrf
+required_capability: match_operator_colon
 
 FROM books METADATA _id, _index, _score
 | FORK ( WHERE title:"Tolkien" | SORT _score DESC | LIMIT 3 )

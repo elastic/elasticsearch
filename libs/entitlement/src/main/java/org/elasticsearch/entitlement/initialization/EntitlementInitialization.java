@@ -272,7 +272,8 @@ public class EntitlementInitialization {
             resolver,
             AGENTS_PACKAGE_NAME,
             ENTITLEMENTS_MODULE,
-            pathLookup
+            pathLookup,
+            bootstrapArgs.suppressFailureLogClasses()
         );
     }
 

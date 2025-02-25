@@ -61,10 +61,34 @@ public class FilesEntitlementTests extends ESTestCase {
         assertThat(ex.getMessage(), is("invalid relative directory: bar, valid values: [config, data, home]"));
     }
 
-    public void testFileDataRelativeWithEmptyDirectory() {
+    public void testFileDataRelativeWithAbsoluteDirectoryFails() {
         var fileData = FileData.ofRelativePath(Path.of(""), FilesEntitlement.BaseDir.DATA, READ_WRITE);
         var dataDirs = fileData.resolvePaths(TEST_PATH_LOOKUP);
         assertThat(dataDirs.toList(), contains(Path.of("/data1/"), Path.of("/data2")));
+    }
+
+    public void testFileDataAbsoluteWithRelativeDirectoryFails() {
+        var ex = expectThrows(
+            PolicyValidationException.class,
+            () -> FilesEntitlement.build(List.of((Map.of("path", "foo", "mode", "read"))))
+        );
+
+        assertThat(ex.getMessage(), is("'path' [foo] must be absolute"));
+    }
+
+    public void testFileDataRelativeWithEmptyDirectory() {
+        var ex = expectThrows(
+            PolicyValidationException.class,
+            () -> FilesEntitlement.build(List.of((Map.of("relative_path", "/foo", "mode", "read", "relative_to", "config"))))
+        );
+
+        var ex2 = expectThrows(
+            PolicyValidationException.class,
+            () -> FilesEntitlement.build(List.of((Map.of("relative_path", "C:\\foo", "mode", "read", "relative_to", "config"))))
+        );
+
+        assertThat(ex.getMessage(), is("'relative_path' [/foo] must be relative"));
+        assertThat(ex2.getMessage(), is("'relative_path' [C:\\foo] must be relative"));
     }
 
     public void testPathSettingResolve() {

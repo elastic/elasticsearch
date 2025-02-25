@@ -28,7 +28,7 @@ final class SystemJvmOptions {
     static List<String> systemJvmOptions(Settings nodeSettings, final Map<String, String> sysprops) {
         String distroType = sysprops.get("es.distribution.type");
         boolean isHotspot = sysprops.getOrDefault("sun.management.compiler", "").contains("HotSpot");
-        boolean entitlementsExplicitlyEnabled = Booleans.parseBoolean(sysprops.getOrDefault("es.entitlements.enabled", "false"));
+        boolean entitlementsExplicitlyEnabled = Booleans.parseBoolean(sysprops.getOrDefault("es.entitlements.enabled", "true"));
         // java 24+ only supports entitlements, but it may be enabled on earlier versions explicitly
         boolean useEntitlements = RuntimeVersionFeature.isSecurityManagerAvailable() == false || entitlementsExplicitlyEnabled;
         return Stream.of(

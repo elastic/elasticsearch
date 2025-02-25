@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -120,13 +121,29 @@ public final class DiffableUtils {
     }
 
     /**
-     * Create a new MapDiff by removing the key from any of its deletes, diffs and upserts
+     * Create a new MapDiff by removing the keys from any of its deletes, diffs and upserts
      */
-    public static <K, T, M extends Map<K, T>> MapDiff<K, T, M> removeKey(MapDiff<K, T, M> diff, K key) {
-        final List<K> deletes = diff.getDeletes().stream().filter(k -> k.equals(key) == false).toList();
-        final List<Map.Entry<K, Diff<T>>> diffs = diff.getDiffs().stream().filter(entry -> entry.getKey().equals(key) == false).toList();
-        final List<Map.Entry<K, T>> upserts = diff.getUpserts().stream().filter(entry -> entry.getKey().equals(key) == false).toList();
+    public static <K, T, M extends Map<K, T>> MapDiff<K, T, M> removeKeys(MapDiff<K, T, M> diff, Set<K> keys) {
+        final List<K> deletes = diff.getDeletes().stream().filter(k -> keys.contains(k) == false).toList();
+        final List<Map.Entry<K, Diff<T>>> diffs = diff.getDiffs().stream().filter(entry -> keys.contains(entry.getKey()) == false).toList();
+        final List<Map.Entry<K, T>> upserts = diff.getUpserts().stream().filter(entry -> keys.contains(entry.getKey()) == false).toList();
         return new MapDiff<>(diff.keySerializer, diff.valueSerializer, deletes, diffs, upserts, diff.builderCtor);
+    }
+
+    /**
+     * Check whether the specified MapDiff has any changes associated with the specified key
+     */
+    public static <K, T, M extends Map<K, T>> boolean hasKey(MapDiff<K, T, M> diff, K key) {
+        if (diff.getDeletes().contains(key)) {
+            return true;
+        }
+        if (diff.getDiffs().stream().map(Map.Entry::getKey).anyMatch(k -> Objects.equals(k, key))) {
+            return true;
+        }
+        if (diff.getUpserts().stream().map(Map.Entry::getKey).anyMatch(k -> Objects.equals(k, key))) {
+            return true;
+        }
+        return false;
     }
 
     /**

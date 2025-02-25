@@ -48,6 +48,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class MetadataPersistentTasksTests extends ESTestCase {
 
     private NamedWriteableRegistry namedWriteableRegistry;
+    private NamedWriteableRegistry namedWriteableRegistryBwc;
 
     @Before
     public void initializeRegistries() {
@@ -60,6 +61,25 @@ public class MetadataPersistentTasksTests extends ESTestCase {
         namedWriteableRegistry = new NamedWriteableRegistry(
             Stream.concat(
                 ClusterModule.getNamedWriteables().stream(),
+                Stream.of(
+                    new NamedWriteableRegistry.Entry(
+                        PersistentTaskParams.class,
+                        TestClusterPersistentTasksParams.NAME,
+                        TestClusterPersistentTasksParams::new
+                    ),
+                    new NamedWriteableRegistry.Entry(
+                        PersistentTaskParams.class,
+                        TestProjectPersistentTasksParams.NAME,
+                        TestProjectPersistentTasksParams::new
+                    )
+                )
+            ).toList()
+        );
+        namedWriteableRegistryBwc = new NamedWriteableRegistry(
+            Stream.concat(
+                ClusterModule.getNamedWriteables()
+                    .stream()
+                    .filter(entry -> entry.name.equals(ClusterPersistentTasksCustomMetadata.TYPE) == false),
                 Stream.of(
                     new NamedWriteableRegistry.Entry(
                         PersistentTaskParams.class,
@@ -114,7 +134,7 @@ public class MetadataPersistentTasksTests extends ESTestCase {
         out.setTransportVersion(previousVersion);
         orig.writeTo(out);
 
-        final var in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistry);
+        final var in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistryBwc);
         in.setTransportVersion(previousVersion);
         final Metadata fromStream = Metadata.readFrom(in);
 
@@ -148,7 +168,7 @@ public class MetadataPersistentTasksTests extends ESTestCase {
         out.setTransportVersion(previousVersion);
         diff.writeTo(out);
 
-        final var in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistry);
+        final var in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistryBwc);
         in.setTransportVersion(previousVersion);
         final Diff<Metadata> diffFromStream = Metadata.readDiffFrom(in);
         final Metadata metadataFromDiff = diffFromStream.apply(before);

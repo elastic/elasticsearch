@@ -998,12 +998,20 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             if (combinedTasksDiff == null) {
                 // No combined diff means either (1) no tasks are involved or (2) the diff is from an old node
                 // In both cases, we can proceed without further changes.
+                // For both cases, no cluster persistent tasks should exist in the merged diff
+                assert DiffableUtils.hasKey(mergedClusterAndProjectCustomDiff, ClusterPersistentTasksCustomMetadata.TYPE) == false;
+                // Unless it is (2), the merge diff should not contain project persistent tasks
+                assert fromNodeBeforeMultiProjectsSupport
+                    || DiffableUtils.hasKey(mergedClusterAndProjectCustomDiff, PersistentTasksCustomMetadata.TYPE) == false;
                 return mergedClusterAndProjectCustomDiff;
             } else {
                 // We need first delete the persistent tasks entries from the diffs by cluster and project customs themselves.
                 // Then add the combined tasks diff to the result.
                 return DiffableUtils.merge(
-                    DiffableUtils.removeKey(mergedClusterAndProjectCustomDiff, PersistentTasksCustomMetadata.TYPE),
+                    DiffableUtils.removeKeys(
+                        mergedClusterAndProjectCustomDiff,
+                        Set.of(PersistentTasksCustomMetadata.TYPE, ClusterPersistentTasksCustomMetadata.TYPE)
+                    ),
                     combinedTasksDiff,
                     DiffableUtils.getStringKeySerializer(),
                     BWC_CUSTOM_VALUE_SERIALIZER

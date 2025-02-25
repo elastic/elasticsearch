@@ -18,7 +18,6 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.unified.UnifiedChatCompletionRequestEntity;
 import org.elasticsearch.xpack.inference.services.deepseek.DeepSeekChatCompletionModel;
 
 import java.io.IOException;
@@ -26,7 +25,6 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.external.openai.OpenAiUnifiedStreamingProcessor.MODEL_FIELD;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 
 public class DeepSeekChatCompletionRequest implements Request {
@@ -52,12 +50,8 @@ public class DeepSeekChatCompletionRequest implements Request {
     }
 
     private ByteArrayEntity createEntity() {
-        var modelId = Objects.requireNonNullElseGet(unifiedChatInput.getRequest().model(), model::model);
         try (var builder = JsonXContent.contentBuilder()) {
-            builder.startObject();
-            new UnifiedChatCompletionRequestEntity(unifiedChatInput).toXContent(builder, ToXContent.EMPTY_PARAMS);
-            builder.field(MODEL_FIELD, modelId);
-            builder.endObject();
+            new DeepSeekChatCompletionRequestEntity(unifiedChatInput, model).toXContent(builder, ToXContent.EMPTY_PARAMS);
             return new ByteArrayEntity(Strings.toString(builder).getBytes(StandardCharsets.UTF_8));
         } catch (IOException e) {
             throw new ElasticsearchException("Failed to serialize request payload.", e);

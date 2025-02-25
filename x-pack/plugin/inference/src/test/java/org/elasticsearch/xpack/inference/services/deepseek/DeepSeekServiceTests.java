@@ -12,7 +12,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -23,9 +25,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
@@ -41,12 +46,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureListener;
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoSuccessListener;
 import static org.elasticsearch.common.Strings.format;
+import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isA;
 import static org.mockito.Mockito.mock;
@@ -264,6 +272,93 @@ public class DeepSeekServiceTests extends ESTestCase {
         var result = doInfer(true);
         InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoErrors().hasEvent("""
             {"completion":[{"delta":"hello, world"}]}""");
+    }
+
+    public void testUnifiedCompletionError() throws Exception {
+        String responseJson = """
+            {
+                "error": {
+                    "message": "The model `deepseek-not-chat` does not exist or you do not have access to it.",
+                    "type": "invalid_request_error",
+                    "param": null,
+                    "code": "model_not_found"
+                }
+            }""";
+        webServer.enqueue(new MockResponse().setResponseCode(404).setBody(responseJson));
+        testStreamError("""
+            {\
+            "error":{\
+            "code":"model_not_found",\
+            "message":"Received an unsuccessful status code for request from inference entity id [inference-id] status \
+            [404]. Error message: [The model `deepseek-not-chat` does not exist or you do not have access to it.]",\
+            "type":"invalid_request_error"\
+            }}""");
+    }
+
+    private void testStreamError(String expectedResponse) throws Exception {
+        try (var service = createService()) {
+            var model = createModel(service, TaskType.CHAT_COMPLETION);
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.unifiedCompletionInfer(
+                model,
+                UnifiedCompletionRequest.of(
+                    List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null))
+                ),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var result = listener.actionGet(TIMEOUT);
+
+            InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoEvents().hasErrorMatching(e -> {
+                e = unwrapCause(e);
+                assertThat(e, isA(UnifiedChatCompletionException.class));
+                try (var builder = XContentFactory.jsonBuilder()) {
+                    ((UnifiedChatCompletionException) e).toXContentChunked(EMPTY_PARAMS).forEachRemaining(xContent -> {
+                        try {
+                            xContent.toXContent(builder, EMPTY_PARAMS);
+                        } catch (IOException ex) {
+                            throw new RuntimeException(ex);
+                        }
+                    });
+                    var json = XContentHelper.convertToJson(BytesReference.bytes(builder), false, builder.contentType());
+
+                    assertThat(json, is(expectedResponse));
+                }
+            });
+        }
+    }
+
+    public void testMidStreamUnifiedCompletionError() throws Exception {
+        String responseJson = """
+            event: error
+            data: { "error": { "message": "Timed out waiting for more data", "type": "timeout" } }
+
+            """;
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+        testStreamError("""
+            {\
+            "error":{\
+            "message":"Received an error response for request from inference entity id [inference-id]. Error message: \
+            [Timed out waiting for more data]",\
+            "type":"timeout"\
+            }}""");
+    }
+
+    public void testUnifiedCompletionMalformedError() throws Exception {
+        String responseJson = """
+            data: { invalid json }
+
+            """;
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+        testStreamError("""
+            {\
+            "error":{\
+            "code":"bad_request",\
+            "message":"[1:3] Unexpected character ('i' (code 105)): was expecting double-quote to start field name\\n\
+             at [Source: (String)\\"{ invalid json }\\"; line: 1, column: 3]",\
+            "type":"x_content_parse_exception"\
+            }}""");
     }
 
     public void testDoChunkedInferAlwaysFails() throws IOException {

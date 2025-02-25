@@ -46,7 +46,7 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
     static {
         PARSER.declareString(Builder::setId, new ParseField("id"));
         PARSER.declareField(
-            (parser, builder, aVoid) -> builder.setConfig(parser.map()),
+            (parser, builder, aVoid) -> builder.setConfig(parser.mapOrdered()),
             new ParseField("config"),
             ObjectParser.ValueType.OBJECT
         );

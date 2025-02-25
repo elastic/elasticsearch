@@ -10,6 +10,7 @@
 package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
@@ -225,6 +226,7 @@ public class FileAccessTreeTests extends ESTestCase {
         assertThat(tree.canRead(jdkDir), is(false));
     }
 
+    @SuppressForbidden(reason = "don't care about the directory location in tests")
     public void testFollowLinks() throws IOException {
         Path baseSourceDir = Files.createTempDirectory("fileaccess_source");
         Path source1Dir = baseSourceDir.resolve("source1");

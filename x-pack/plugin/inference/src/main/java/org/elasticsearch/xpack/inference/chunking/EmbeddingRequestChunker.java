@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbeddingS
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.core.inference.results.InferenceByteEmbedding;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingBitResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 
@@ -46,13 +47,14 @@ public class EmbeddingRequestChunker {
     public enum EmbeddingType {
         FLOAT,
         BYTE,
+        BIT,
         SPARSE;
 
         public static EmbeddingType fromDenseVectorElementType(DenseVectorFieldMapper.ElementType elementType) {
             return switch (elementType) {
                 case BYTE -> EmbeddingType.BYTE;
                 case FLOAT -> EmbeddingType.FLOAT;
-                case BIT -> throw new IllegalArgumentException("Bit vectors are not supported");
+                case BIT -> EmbeddingType.BIT;
             };
         }
     };
@@ -71,6 +73,7 @@ public class EmbeddingRequestChunker {
     private List<ChunkOffsetsAndInput> chunkedOffsets;
     private List<AtomicArray<List<InferenceTextEmbeddingFloatResults.InferenceFloatEmbedding>>> floatResults;
     private List<AtomicArray<List<InferenceByteEmbedding>>> byteResults;
+    private List<AtomicArray<List<InferenceByteEmbedding>>> bitResults;
     private List<AtomicArray<List<SparseEmbeddingResults.Embedding>>> sparseResults;
     private AtomicArray<Exception> errors;
     private ActionListener<List<ChunkedInference>> finalListener;
@@ -122,6 +125,7 @@ public class EmbeddingRequestChunker {
         switch (embeddingType) {
             case FLOAT -> floatResults = new ArrayList<>(inputs.size());
             case BYTE -> byteResults = new ArrayList<>(inputs.size());
+            case BIT -> bitResults = new ArrayList<>(inputs.size());
             case SPARSE -> sparseResults = new ArrayList<>(inputs.size());
         }
         errors = new AtomicArray<>(inputs.size());
@@ -134,6 +138,7 @@ public class EmbeddingRequestChunker {
             switch (embeddingType) {
                 case FLOAT -> floatResults.add(new AtomicArray<>(numberOfSubBatches));
                 case BYTE -> byteResults.add(new AtomicArray<>(numberOfSubBatches));
+                case BIT -> bitResults.add(new AtomicArray<>(numberOfSubBatches));
                 case SPARSE -> sparseResults.add(new AtomicArray<>(numberOfSubBatches));
             }
             chunkedOffsets.add(offSetsAndInput);
@@ -233,6 +238,7 @@ public class EmbeddingRequestChunker {
             switch (embeddingType) {
                 case FLOAT -> handleFloatResults(inferenceServiceResults);
                 case BYTE -> handleByteResults(inferenceServiceResults);
+                case BIT -> handleBitResults(inferenceServiceResults);
                 case SPARSE -> handleSparseResults(inferenceServiceResults);
             }
         }
@@ -280,6 +286,27 @@ public class EmbeddingRequestChunker {
                 onFailure(
                     unexpectedResultTypeException(inferenceServiceResults.getWriteableName(), InferenceTextEmbeddingByteResults.NAME)
                 );
+            }
+        }
+
+        private void handleBitResults(InferenceServiceResults inferenceServiceResults) {
+            if (inferenceServiceResults instanceof InferenceTextEmbeddingBitResults bitEmbeddings) {
+                if (failIfNumRequestsDoNotMatch(bitEmbeddings.embeddings().size())) {
+                    return;
+                }
+
+                int start = 0;
+                for (var pos : positions) {
+                    bitResults.get(pos.inputIndex())
+                        .setOnce(pos.chunkIndex(), bitEmbeddings.embeddings().subList(start, start + pos.embeddingCount()));
+                    start += pos.embeddingCount();
+                }
+
+                if (resultCount.incrementAndGet() == totalNumberOfRequests) {
+                    sendResponse();
+                }
+            } else {
+                onFailure(unexpectedResultTypeException(inferenceServiceResults.getWriteableName(), InferenceTextEmbeddingBitResults.NAME));
             }
         }
 
@@ -358,6 +385,7 @@ public class EmbeddingRequestChunker {
         return switch (embeddingType) {
             case FLOAT -> mergeFloatResultsWithInputs(chunkedOffsets.get(resultIndex), floatResults.get(resultIndex));
             case BYTE -> mergeByteResultsWithInputs(chunkedOffsets.get(resultIndex), byteResults.get(resultIndex));
+            case BIT -> mergeBitResultsWithInputs(chunkedOffsets.get(resultIndex), bitResults.get(resultIndex));
             case SPARSE -> mergeSparseResultsWithInputs(chunkedOffsets.get(resultIndex), sparseResults.get(resultIndex));
         };
     }
@@ -389,6 +417,32 @@ public class EmbeddingRequestChunker {
     }
 
     private ChunkedInferenceEmbeddingByte mergeByteResultsWithInputs(
+        ChunkOffsetsAndInput chunks,
+        AtomicArray<List<InferenceByteEmbedding>> debatchedResults
+    ) {
+        var all = new ArrayList<InferenceByteEmbedding>();
+        for (int i = 0; i < debatchedResults.length(); i++) {
+            var subBatch = debatchedResults.get(i);
+            all.addAll(subBatch);
+        }
+
+        assert chunks.size() == all.size();
+
+        var embeddingChunks = new ArrayList<ChunkedInferenceEmbeddingByte.ByteEmbeddingChunk>();
+        for (int i = 0; i < chunks.size(); i++) {
+            embeddingChunks.add(
+                new ChunkedInferenceEmbeddingByte.ByteEmbeddingChunk(
+                    all.get(i).values(),
+                    chunks.chunkText(i),
+                    new ChunkedInference.TextOffset(chunks.offsets().get(i).start(), chunks.offsets().get(i).end())
+                )
+            );
+        }
+
+        return new ChunkedInferenceEmbeddingByte(embeddingChunks);
+    }
+
+    private ChunkedInferenceEmbeddingByte mergeBitResultsWithInputs(
         ChunkOffsetsAndInput chunks,
         AtomicArray<List<InferenceByteEmbedding>> debatchedResults
     ) {

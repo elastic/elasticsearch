@@ -257,9 +257,6 @@ tests:
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   method: test {yaml=snapshot.delete/10_basic/Delete a snapshot asynchronously}
   issue: https://github.com/elastic/elasticsearch/issues/122102
-- class: org.elasticsearch.search.SearchCancellationIT
-  method: testCancelFailedSearchWhenPartialResultDisallowed
-  issue: https://github.com/elastic/elasticsearch/issues/121719
 - class: org.elasticsearch.datastreams.TSDBPassthroughIndexingIT
   issue: https://github.com/elastic/elasticsearch/issues/121716
 - class: org.elasticsearch.smoketest.SmokeTestMonitoringWithSecurityIT

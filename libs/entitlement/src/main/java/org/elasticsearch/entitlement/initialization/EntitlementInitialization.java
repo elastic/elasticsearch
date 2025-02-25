@@ -67,6 +67,7 @@ import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEnt
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.BaseDir.SHARED_REPO;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ;
 import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ_WRITE;
+import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Platform.LINUX;
 
 /**
  * Called by the agent during {@code agentmain} to configure the entitlement system,
@@ -147,6 +148,36 @@ public class EntitlementInitialization {
         );
 
         List<Scope> serverScopes = new ArrayList<>();
+        List<FileData> serverModuleFileDatas = new ArrayList<>();
+        Collections.addAll(
+            serverModuleFileDatas,
+            // Base ES directories
+            FileData.ofPath(bootstrapArgs.configDir(), READ),
+            FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
+            FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE),
+            FileData.ofRelativePath(Path.of(""), SHARED_REPO, READ_WRITE),
+
+            // OS release on Linux
+            FileData.ofPath(Path.of("/etc/os-release"), READ).withPlatform(LINUX),
+            FileData.ofPath(Path.of("/etc/system-release"), READ).withPlatform(LINUX),
+            FileData.ofPath(Path.of("/usr/lib/os-release"), READ).withPlatform(LINUX),
+            // read max virtual memory areas
+            FileData.ofPath(Path.of("/proc/sys/vm/max_map_count"), READ).withPlatform(LINUX),
+            FileData.ofPath(Path.of("/proc/meminfo"), READ).withPlatform(LINUX),
+            // load averages on Linux
+            FileData.ofPath(Path.of("/proc/loadavg"), READ).withPlatform(LINUX),
+            // control group stats on Linux. cgroup v2 stats are in an unpredicable
+            // location under `/sys/fs/cgroup`, so unfortunately we have to allow
+            // read access to the entire directory hierarchy.
+            FileData.ofPath(Path.of("/proc/self/cgroup"), READ).withPlatform(LINUX),
+            FileData.ofPath(Path.of("/sys/fs/cgroup/"), READ).withPlatform(LINUX),
+            // // io stats on Linux
+            FileData.ofPath(Path.of("/proc/self/mountinfo"), READ).withPlatform(LINUX),
+            FileData.ofPath(Path.of("/proc/diskstats"), READ).withPlatform(LINUX)
+        );
+        if (bootstrapArgs.pidFile() != null) {
+            serverModuleFileDatas.add(FileData.ofPath(bootstrapArgs.pidFile(), READ_WRITE));
+        }
         Collections.addAll(
             serverScopes,
             new Scope(
@@ -172,34 +203,7 @@ public class EntitlementInitialization {
                     new OutboundNetworkEntitlement(),
                     new LoadNativeLibrariesEntitlement(),
                     new ManageThreadsEntitlement(),
-                    new FilesEntitlement(
-                        List.of(
-                            // Base ES directories
-                            FileData.ofPath(bootstrapArgs.tempDir(), READ_WRITE),
-                            FileData.ofPath(bootstrapArgs.configDir(), READ),
-                            FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE),
-                            FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE),
-                            FileData.ofRelativePath(Path.of(""), SHARED_REPO, READ_WRITE),
-
-                            // OS release on Linux
-                            FileData.ofPath(Path.of("/etc/os-release"), READ),
-                            FileData.ofPath(Path.of("/etc/system-release"), READ),
-                            FileData.ofPath(Path.of("/usr/lib/os-release"), READ),
-                            // read max virtual memory areas
-                            FileData.ofPath(Path.of("/proc/sys/vm/max_map_count"), READ),
-                            FileData.ofPath(Path.of("/proc/meminfo"), READ),
-                            // load averages on Linux
-                            FileData.ofPath(Path.of("/proc/loadavg"), READ),
-                            // control group stats on Linux. cgroup v2 stats are in an unpredicable
-                            // location under `/sys/fs/cgroup`, so unfortunately we have to allow
-                            // read access to the entire directory hierarchy.
-                            FileData.ofPath(Path.of("/proc/self/cgroup"), READ),
-                            FileData.ofPath(Path.of("/sys/fs/cgroup/"), READ),
-                            // // io stats on Linux
-                            FileData.ofPath(Path.of("/proc/self/mountinfo"), READ),
-                            FileData.ofPath(Path.of("/proc/diskstats"), READ)
-                        )
-                    )
+                    new FilesEntitlement(serverModuleFileDatas)
                 )
             ),
             new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),
@@ -210,11 +214,7 @@ public class EntitlementInitialization {
                     new LoadNativeLibrariesEntitlement(),
                     new ManageThreadsEntitlement(),
                     new FilesEntitlement(
-                        List.of(
-                            FileData.ofPath(bootstrapArgs.configDir(), READ),
-                            FileData.ofPath(bootstrapArgs.tempDir(), READ),
-                            FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE)
-                        )
+                        List.of(FileData.ofPath(bootstrapArgs.configDir(), READ), FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE))
                     )
                 )
             ),
@@ -222,7 +222,10 @@ public class EntitlementInitialization {
                 "org.apache.lucene.misc",
                 List.of(new FilesEntitlement(List.of(FileData.ofRelativePath(Path.of(""), DATA, READ_WRITE))))
             ),
-            new Scope("org.apache.logging.log4j.core", List.of(new ManageThreadsEntitlement())),
+            new Scope(
+                "org.apache.logging.log4j.core",
+                List.of(new ManageThreadsEntitlement(), new FilesEntitlement(List.of(FileData.ofPath(bootstrapArgs.logsDir(), READ_WRITE))))
+            ),
             new Scope(
                 "org.elasticsearch.nativeaccess",
                 List.of(
@@ -255,7 +258,9 @@ public class EntitlementInitialization {
             new FilesEntitlement(
                 List.of(
                     FileData.ofPath(Path.of("/co/elastic/apm/agent/"), READ),
-                    FileData.ofPath(Path.of("/agent/co/elastic/apm/agent/"), READ)
+                    FileData.ofPath(Path.of("/agent/co/elastic/apm/agent/"), READ),
+                    FileData.ofPath(Path.of("/proc/meminfo"), READ),
+                    FileData.ofPath(Path.of("/sys/fs/cgroup/"), READ)
                 )
             )
         );
@@ -267,7 +272,8 @@ public class EntitlementInitialization {
             resolver,
             AGENTS_PACKAGE_NAME,
             ENTITLEMENTS_MODULE,
-            pathLookup
+            pathLookup,
+            bootstrapArgs.suppressFailureLogClasses()
         );
     }
 

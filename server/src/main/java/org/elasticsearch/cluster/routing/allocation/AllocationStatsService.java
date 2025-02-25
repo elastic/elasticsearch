@@ -44,6 +44,8 @@ public class AllocationStatsService {
     public Map<String, NodeAllocationStats> stats() {
         assert Transports.assertNotTransportThread("too expensive for a transport worker");
 
+        writeLoadForecaster.refreshLicense();
+
         var state = clusterService.state();
         var info = clusterInfoService.getClusterInfo();
         var desiredBalance = desiredBalanceShardsAllocator != null ? desiredBalanceShardsAllocator.getDesiredBalance() : null;

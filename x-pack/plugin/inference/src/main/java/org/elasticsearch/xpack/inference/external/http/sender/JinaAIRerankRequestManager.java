@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
@@ -21,6 +22,8 @@ import org.elasticsearch.xpack.inference.services.jinaai.rerank.JinaAIRerankMode
 
 import java.util.Objects;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.inference.TaskType.RERANK;
 
 public class JinaAIRerankRequestManager extends JinaAIRequestManager {
     private static final Logger logger = LogManager.getLogger(JinaAIRerankRequestManager.class);
@@ -52,5 +55,10 @@ public class JinaAIRerankRequestManager extends JinaAIRequestManager {
         JinaAIRerankRequest request = new JinaAIRerankRequest(rerankInput.getQuery(), rerankInput.getChunks(), model);
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
+    }
+
+    @Override
+    public TaskType taskType() {
+        return RERANK;
     }
 }

@@ -70,7 +70,7 @@ public class NodeAllocationStatsAndWeightsCalculator {
         ClusterInfo clusterInfo,
         @Nullable DesiredBalance desiredBalance
     ) {
-        if (metadata.indices().isEmpty() == false) {
+        if (metadata.hasAnyIndices()) {
             // must not use licensed features when just starting up
             writeLoadForecaster.refreshLicense();
         }

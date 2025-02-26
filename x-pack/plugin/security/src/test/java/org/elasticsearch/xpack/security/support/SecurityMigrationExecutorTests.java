@@ -213,11 +213,7 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
             }))
         );
 
-        securityMigrationExecutor.nodeOperation(
-                mockTask,
-                new SecurityMigrationTaskParams(0, true),
-                mock(PersistentTaskState.class)
-            );
+        securityMigrationExecutor.nodeOperation(mockTask, new SecurityMigrationTaskParams(0, true), mock(PersistentTaskState.class));
         verify(mockTask, times(1)).markAsFailed(any());
         verify(mockTask, times(0)).markAsCompleted();
     }

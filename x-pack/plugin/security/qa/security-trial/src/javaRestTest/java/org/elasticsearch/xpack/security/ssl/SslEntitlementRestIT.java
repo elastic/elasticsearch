@@ -18,14 +18,12 @@ import org.junit.ClassRule;
 
 public class SslEntitlementRestIT extends ESRestTestCase {
 
-    private static MutableSettingsProvider settingsProvider = new MutableSettingsProvider();
+    private static final MutableSettingsProvider settingsProvider = new MutableSettingsProvider();
 
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .apply(SecurityOnTrialLicenseRestTestCase.commonTrialSecurityClusterConfig)
         .settings(settingsProvider)
-        // .setting("xpack.security.transport.ssl.enabled", "true")
-        // .setting("xpack.security.transport.ssl.keystore.path", "/bad/path")
         .systemProperty("es.entitlements.enabled", "true")
         .build();
 
@@ -34,9 +32,10 @@ public class SslEntitlementRestIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
-    public void testSslEntitlement() {
+    public void testSslEntitlementInaccessiblePath() {
         settingsProvider.put("xpack.security.transport.ssl.keystore.path", "/bad/path");
         expectThrows(Exception.class, () -> cluster.restart(false));
+        // TODO assert on cluster logs
     }
 
     @Override
@@ -51,4 +50,9 @@ public class SslEntitlementRestIT extends ESRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
+    @Override
+    protected boolean preserveClusterUponCompletion() {
+        // as the cluster is dead its state can not be wiped successfully so we have to bypass wiping the cluster
+        return true;
+    }
 }

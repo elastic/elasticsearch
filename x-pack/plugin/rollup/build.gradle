@@ -3,7 +3,11 @@ esplugin {
   name = 'x-pack-rollup'
   description = 'Elasticsearch Expanded Pack Plugin - Rollup'
   classname ='org.elasticsearch.xpack.rollup.Rollup'
-  extendedPlugins = ['x-pack-core']
+  extendedPluginProjects {
+    "x-pack-core" {
+      projectPath = ':x-pack:plugin:core'
+    }
+  }
 }
 
 base {

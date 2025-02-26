@@ -12,7 +12,11 @@ esplugin {
   name = 'x-pack-identity-provider'
   description = 'Elasticsearch Expanded Pack Plugin - Identity Provider'
   classname = 'org.elasticsearch.xpack.idp.IdentityProviderPlugin'
-  extendedPlugins = ['x-pack-core']
+  extendedPluginProjects {
+    "x-pack-core" {
+      projectPath = ':x-pack:plugin:core'
+    }
+  }
 }
 
 base {

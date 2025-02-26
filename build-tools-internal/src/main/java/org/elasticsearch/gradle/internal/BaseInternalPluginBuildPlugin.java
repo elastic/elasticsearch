@@ -20,10 +20,14 @@ import org.elasticsearch.gradle.plugin.PluginPropertiesExtension;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
+import org.gradle.api.Action;
+import org.gradle.api.GradleException;
+import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 
+import java.util.HashMap;
 import java.util.Optional;
 
 /**
@@ -47,6 +51,23 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
         project.getConfigurations().getByName("testImplementation").getDependencies().clear();
         var extension = project.getExtensions().getByType(PluginPropertiesExtension.class);
 
+        extension.getExtendedPluginsContainer().whenObjectAdded((Action<Named>) named -> {
+            if (ExtendedPluginInternal.class.isAssignableFrom(named.getClass()) == false) {
+                throw new GradleException(
+                    "Using `extendedPlugins` is not supported for internal plugins. Use `extendedPluginProjects` instead."
+                );
+            }
+        });
+        NamedDomainObjectContainer<ExtendedPluginInternal> container = project.container(
+            ExtendedPluginInternal.class,
+            name -> new ExtendedPluginInternal(name)
+        );
+        container.whenObjectAdded(
+            internal -> extension.getExtendedPluginsContainer().add(internal)
+        );
+
+        HashMap<String, String> value = new HashMap<>();
+        extension.getExtensions().add("extendedPluginProjects", container);
         // We've ported this from multiple build scripts where we see this pattern into
         // an extension method as a first step of consolidation.
         // We might want to port this into a general pattern later on.
@@ -86,11 +107,12 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
             NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
                 .getExtensions()
                 .getByName(TestClustersPlugin.EXTENSION_NAME);
-            p.getExtensions().getByType(PluginPropertiesExtension.class).getExtendedPlugins().forEach(pluginName -> {
+            extension.getExtendedPlugins().forEach(pluginName -> {
                 // Auto add any dependent modules
-                findModulePath(project, pluginName).ifPresent(
-                    path -> testClusters.configureEach(elasticsearchCluster -> elasticsearchCluster.module(path))
-                );
+                findModulePath(project, pluginName).ifPresent(path -> {
+                    System.out.println("module name:" + pluginName + " path: '" + path + "'");
+                    testClusters.configureEach(elasticsearchCluster -> elasticsearchCluster.module(path));
+                });
             });
         });
     }
@@ -127,6 +149,22 @@ public class BaseInternalPluginBuildPlugin implements Plugin<Project> {
                 noticeTask.source(Util.getJavaMainSourceSet(project).get().getAllJava());
             });
             bundleSpec.from(generateNotice);
+        }
+    }
+
+    public static class ExtendedPluginInternal extends PluginPropertiesExtension.ExtendedPlugin {
+        String projectPath;
+
+        public ExtendedPluginInternal(String name) {
+            super(name);
+        }
+
+        public String getProjectPath() {
+            return projectPath;
+        }
+
+        public void setProjectPath(String projectPath) {
+            this.projectPath = projectPath;
         }
     }
 }

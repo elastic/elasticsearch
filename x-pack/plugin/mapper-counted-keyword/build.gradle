@@ -11,7 +11,11 @@ esplugin {
   name = 'counted-keyword'
   description = 'Module for the counted-keyword field type, which allows to consider duplicates in an array of values of that type.'
   classname ='org.elasticsearch.xpack.countedkeyword.CountedKeywordMapperPlugin'
-  extendedPlugins = ['x-pack-core']
+  extendedPluginProjects {
+    "x-pack-core" {
+      projectPath = ':x-pack:plugin:core'
+    }
+  }
 }
 base {
   archivesName = 'x-pack-counted-keyword'

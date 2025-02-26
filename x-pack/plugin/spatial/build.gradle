@@ -12,7 +12,17 @@ esplugin {
   name = 'spatial'
   description = 'A plugin for Basic Spatial features'
   classname ='org.elasticsearch.xpack.spatial.SpatialPlugin'
-  extendedPlugins = ['x-pack-core', 'legacy-geo', 'lang-painless']
+  extendedPluginProjects {
+    "x-pack-core" {
+      projectPath = ':x-pack:plugin:core'
+    }
+    "legacy-geo" {
+      projectPath = ':modules:legacy-geo'
+    }
+    "lang-painless" {
+      projectPath = ':modules:lang-painless'
+    }
+  }
 }
 
 dependencies {

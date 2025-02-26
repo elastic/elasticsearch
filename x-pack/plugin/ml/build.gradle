@@ -15,7 +15,14 @@ esplugin {
   description = 'Elasticsearch Expanded Pack Plugin - Machine Learning'
   classname ='org.elasticsearch.xpack.ml.MachineLearning'
   hasNativeController =true
-  extendedPlugins = ['x-pack-autoscaling', 'lang-painless']
+  extendedPluginProjects {
+    "lang-painless" {
+      projectPath = ':modules:lang-painless'
+    }
+    "x-pack-autoscaling" {
+      projectPath = ':x-pack:plugin:autoscaling'
+    }
+  }
 }
 
 if (useDra == false) {

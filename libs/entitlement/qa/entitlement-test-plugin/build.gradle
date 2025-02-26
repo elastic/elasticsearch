@@ -17,7 +17,11 @@ esplugin {
   name = 'entitlement-test-plugin'
   description = 'A test plugin that invokes methods checked by entitlements'
   classname = 'org.elasticsearch.entitlement.qa.test.EntitlementTestPlugin'
-  extendedPlugins = ['entitled']
+  extendedPluginProjects {
+    entitled {
+      projectPath = ':libs:entitlement:qa:entitled-plugin'
+    }
+  }
 }
 
 dependencies {

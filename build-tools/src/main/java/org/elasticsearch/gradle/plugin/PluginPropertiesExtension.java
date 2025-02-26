@@ -9,10 +9,13 @@
 
 package org.elasticsearch.gradle.plugin;
 
+import org.gradle.api.Named;
+import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.file.CopySpec;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.plugins.BasePluginExtension;
+import org.gradle.api.plugins.ExtensionAware;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 
 import java.io.File;
@@ -23,7 +26,7 @@ import java.util.List;
  * A container for plugin properties that will be written to the plugin descriptor, for easy
  * manipulation in the gradle DSL.
  */
-public class PluginPropertiesExtension {
+abstract public class PluginPropertiesExtension implements ExtensionAware {
     private String name;
 
     private String version;
@@ -33,7 +36,7 @@ public class PluginPropertiesExtension {
     private String classname;
 
     /** Other plugins this plugin extends through SPI */
-    private List<String> extendedPlugins = new ArrayList<>();
+    private NamedDomainObjectContainer<ExtendedPlugin> extendedPlugins;
 
     private boolean hasNativeController;
 
@@ -57,6 +60,7 @@ public class PluginPropertiesExtension {
 
     public PluginPropertiesExtension(Project project) {
         this.project = project;
+        this.extendedPlugins = project.container(ExtendedPlugin.class);
     }
 
     public String getName() {
@@ -94,6 +98,10 @@ public class PluginPropertiesExtension {
     }
 
     public List<String> getExtendedPlugins() {
+        return this.extendedPlugins.getNames().stream().toList();
+    }
+
+    public NamedDomainObjectContainer<ExtendedPlugin> getExtendedPluginsContainer() {
         return this.extendedPlugins;
     }
 
@@ -152,7 +160,8 @@ public class PluginPropertiesExtension {
     }
 
     public void setExtendedPlugins(List<String> extendedPlugins) {
-        this.extendedPlugins = extendedPlugins;
+        List<ExtendedPlugin> list = extendedPlugins.stream().map((name) -> new ExtendedPlugin(name)).toList();
+        this.extendedPlugins.addAll(list);
     }
 
     public void setBundleSpec(CopySpec bundleSpec) {
@@ -162,4 +171,19 @@ public class PluginPropertiesExtension {
     public CopySpec getBundleSpec() {
         return bundleSpec;
     }
+
+
+    public static class ExtendedPlugin implements Named {
+
+        private final String name;
+        public ExtendedPlugin(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public String getName() {
+            return name;
+        }
+    }
+
 }

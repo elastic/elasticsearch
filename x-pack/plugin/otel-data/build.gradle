@@ -12,7 +12,11 @@ esplugin {
   name = 'x-pack-otel-data'
   description = 'The OTEL plugin defines OTEL data streams and ingest pipelines.'
   classname ='org.elasticsearch.xpack.oteldata.OTelPlugin'
-  extendedPlugins = ['x-pack-core']
+  extendedPluginProjects {
+    "x-pack-core" {
+      projectPath = ':x-pack:plugin:core'
+    }
+  }
 }
 
 dependencies {

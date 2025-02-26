@@ -6,7 +6,11 @@ esplugin {
   name = 'snapshot-repo-test-kit'
   description = 'A plugin for a test kit for snapshot repositories'
   classname = 'org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositoryTestKit'
-  extendedPlugins = ['x-pack-core']
+  extendedPluginProjects {
+    "x-pack-core" {
+      projectPath = ':x-pack:plugin:core'
+    }
+  }
 }
 base {
   archivesName = 'x-pack-snapshot-repo-test-kit'

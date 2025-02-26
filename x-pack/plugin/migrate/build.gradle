@@ -5,7 +5,11 @@ esplugin {
   name = 'x-pack-migrate'
   description = 'Elasticsearch Expanded Pack Plugin - Index and Data Stream Migration'
   classname = 'org.elasticsearch.xpack.migrate.MigratePlugin'
-  extendedPlugins = ['x-pack-core']
+  extendedPluginProjects {
+    "x-pack-core" {
+      projectPath = ':x-pack:plugin:core'
+    }
+  }
   hasNativeController =false
   requiresKeystore =true
 }

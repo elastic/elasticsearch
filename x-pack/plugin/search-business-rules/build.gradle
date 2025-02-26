@@ -5,7 +5,11 @@ esplugin {
   name = 'search-business-rules'
   description = 'A plugin for applying business rules to search result rankings'
   classname ='org.elasticsearch.xpack.searchbusinessrules.SearchBusinessRules'
-  extendedPlugins = ['x-pack-core']
+  extendedPluginProjects {
+    "x-pack-core" {
+      projectPath = ':x-pack:plugin:core'
+    }
+  }
 }
 base {
   archivesName = 'x-pack-searchbusinessrules'

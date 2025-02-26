@@ -13,7 +13,11 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   description = 'Adds "built in" aggregations to Elasticsearch.'
   classname ='org.elasticsearch.aggregations.AggregationsPlugin'
-  extendedPlugins = ['lang-painless']
+  extendedPluginProjects {
+    "lang-painless" {
+      projectPath = ':modules:lang-painless'
+    }
+  }
 }
 
 restResources {

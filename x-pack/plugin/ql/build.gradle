@@ -5,7 +5,11 @@ esplugin {
   name = 'x-pack-ql'
   description = 'Elasticsearch infrastructure plugin for EQL and SQL for Elasticsearch'
   classname ='org.elasticsearch.xpack.ql.plugin.QlPlugin'
-  extendedPlugins = ['x-pack-core']
+  extendedPluginProjects {
+    "x-pack-core" {
+      projectPath = ':x-pack:plugin:core'
+    }
+  }
 }
 
 base {

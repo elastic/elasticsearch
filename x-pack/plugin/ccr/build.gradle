@@ -6,7 +6,11 @@ esplugin {
   classname ='org.elasticsearch.xpack.ccr.Ccr'
   hasNativeController =false
   requiresKeystore =true
-  extendedPlugins = ['x-pack-core']
+  extendedPluginProjects {
+    "x-pack-core" {
+      projectPath = ':x-pack:plugin:core'
+    }
+  }
 }
 base {
   archivesName = 'x-pack-ccr'

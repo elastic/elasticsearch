@@ -5,7 +5,11 @@ esplugin {
   name = 'x-pack-stack'
   description = 'Elasticsearch Expanded Pack Plugin - Stack'
   classname ='org.elasticsearch.xpack.stack.StackPlugin'
-  extendedPlugins = ['x-pack-core']
+  extendedPluginProjects {
+    "x-pack-core" {
+      projectPath = ':x-pack:plugin:core'
+    }
+  }
   hasNativeController =false
   requiresKeystore =true
 }

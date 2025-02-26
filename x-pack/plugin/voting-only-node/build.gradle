@@ -4,7 +4,11 @@ esplugin {
   name = 'x-pack-voting-only-node'
   description = 'Elasticsearch Expanded Pack Plugin - Voting-only node'
   classname ='org.elasticsearch.cluster.coordination.votingonly.VotingOnlyNodePlugin'
-  extendedPlugins = ['x-pack-core']
+  extendedPluginProjects {
+    "x-pack-core" {
+      projectPath = ':x-pack:plugin:core'
+    }
+  }
 }
 
 dependencies {

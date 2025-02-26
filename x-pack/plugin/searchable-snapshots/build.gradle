@@ -6,7 +6,14 @@ esplugin {
   name = 'searchable-snapshots'
   description = 'A plugin for the searchable snapshots functionality'
   classname = 'org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots'
-  extendedPlugins = ['x-pack-core', 'blob-cache']
+  extendedPluginProjects {
+    "x-pack-core" {
+      projectPath = ':x-pack:plugin:core'
+    }
+    "blob-cache" {
+      projectPath = ':x-pack:plugin:blob-cache'
+    }
+  }
 }
 base {
   archivesName = 'x-pack-searchable-snapshots'

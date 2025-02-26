@@ -6,7 +6,14 @@ esplugin {
   classname ='org.elasticsearch.xpack.watcher.Watcher'
   hasNativeController =false
   requiresKeystore =false
-  extendedPlugins = ['x-pack-core', 'lang-painless']
+  extendedPluginProjects {
+    "lang-painless" {
+      projectPath = ':modules:lang-painless'
+    }
+    "x-pack-core" {
+      projectPath = ':x-pack:plugin:core'
+    }
+  }
 }
 
 base {

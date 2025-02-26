@@ -6,7 +6,11 @@ esplugin {
   name = 'x-pack-monitoring'
   description = 'Elasticsearch Expanded Pack Plugin - Monitoring'
   classname ='org.elasticsearch.xpack.monitoring.Monitoring'
-  extendedPlugins = ['x-pack-core']
+  extendedPluginProjects {
+    "x-pack-core" {
+      projectPath = ':x-pack:plugin:core'
+    }
+  }
 }
 base {
   archivesName = 'x-pack-monitoring'

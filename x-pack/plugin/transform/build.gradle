@@ -4,7 +4,11 @@ esplugin {
   name = 'transform'
   description = 'A plugin to transform data'
   classname ='org.elasticsearch.xpack.transform.Transform'
-  extendedPlugins = ['x-pack-core']
+  extendedPluginProjects {
+    "x-pack-core" {
+      projectPath = ':x-pack:plugin:core'
+    }
+  }
 }
 
 dependencies {

@@ -4,7 +4,11 @@ esplugin {
   name = 'x-pack-graph'
   description = 'Elasticsearch Expanded Pack Plugin - Graph'
   classname ='org.elasticsearch.xpack.graph.Graph'
-  extendedPlugins = ['x-pack-core']
+  extendedPluginProjects {
+    "x-pack-core" {
+      projectPath = ':x-pack:plugin:core'
+    }
+  }
 }
 base {
   archivesName = 'x-pack-graph'

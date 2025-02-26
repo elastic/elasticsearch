@@ -12,7 +12,14 @@ esplugin {
   name = 'wildcard'
   description = 'A plugin for a keyword field type with efficient wildcard search'
   classname = 'org.elasticsearch.xpack.wildcard.Wildcard'
-  extendedPlugins = ['x-pack-core', 'lang-painless']
+  extendedPluginProjects {
+    "lang-painless" {
+      projectPath = ':modules:lang-painless'
+    }
+    "x-pack-core" {
+      projectPath = ':x-pack:plugin:core'
+    }
+  }
 }
 
 base {

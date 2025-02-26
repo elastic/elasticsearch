@@ -14,7 +14,11 @@ esplugin {
   name = 'ml-package-loader'
   description = 'Loader for prepackaged Machine Learning Models from Elastic'
   classname ='org.elasticsearch.xpack.ml.packageloader.MachineLearningPackageLoader'
-  extendedPlugins = ['x-pack-core']
+  extendedPluginProjects {
+    "x-pack-core" {
+      projectPath = ':x-pack:plugin:core'
+    }
+  }
 }
 
 dependencies {

@@ -174,7 +174,7 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
 
   // this path is produced by the extractLibs task above
   String testLibraryPath = TestUtil.getTestLibraryPath("${elasticsearchProject.left()}/libs/native/libraries/build/platform")
-
+  def enableIdeaCC = providers.gradleProperty("org.elasticsearch.idea-configuration-cache").getOrElse("true").toBoolean()
   idea {
     project {
       vcs = 'Git'
@@ -201,6 +201,13 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
           javac {
             generateDeprecationWarnings = false
             preferTargetJDKCompiler = false
+          }
+        }
+        runConfigurations {
+          defaults(org.jetbrains.gradle.ext.Gradle) {
+            scriptParameters = enableIdeaCC ? [
+              '--configuration-cache'
+            ].join(' ') : ''
           }
         }
         runConfigurations {

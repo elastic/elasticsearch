@@ -459,3 +459,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=data_stream/80_resolve_index_data_streams/Resolve index with hidden and closed indices}
   issue: https://github.com/elastic/elasticsearch/issues/123081
+- class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
+  method: test {yaml=analysis-common/40_token_filters/stemmer_override file access}
+  issue: https://github.com/elastic/elasticsearch/issues/121625

@@ -662,7 +662,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
             return this;
         }
 
-        void ensureShardArray(int shardCount) {
+        public void ensureShardArray(int shardCount) {
             if (shards == null) {
                 shards = new IndexShardRoutingTable.Builder[shardCount];
             } else if (shards.length < shardCount) {

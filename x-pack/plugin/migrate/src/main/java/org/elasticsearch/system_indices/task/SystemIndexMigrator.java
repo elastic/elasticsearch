@@ -486,8 +486,11 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
 
     private void createIndexRetryOnFailure(SystemIndexMigrationInfo migrationInfo, ActionListener<CreateIndexResponse> listener) {
         createIndex(migrationInfo, listener.delegateResponse((l, e) -> {
-            logger.warn("createIndex failed with {}, retrying after removing index [{}] from previous attempt",
-                e.getMessage(), migrationInfo.getNextIndexName());
+            logger.warn(
+                "createIndex failed with {}, retrying after removing index [{}] from previous attempt",
+                e.getMessage(),
+                migrationInfo.getNextIndexName()
+            );
             deleteIndex(migrationInfo, ActionListener.wrap(cleanupResponse -> createIndex(migrationInfo, l.delegateResponse((l3, e3) -> {
                 logger.error(
                     "createIndex failed after retrying, aborting system index migration. index: " + migrationInfo.getNextIndexName(),

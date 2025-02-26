@@ -102,8 +102,7 @@ public class TransportHandshakerTests extends ESTestCase {
 
     @TestLogging(reason = "testing WARN logging", value = "org.elasticsearch.transport.TransportHandshaker:WARN")
     public void testIncompatibleHandshakeRequest() throws IOException {
-        var olderThanMinCompatible = randomBoolean();
-        var remoteVersion = getRandomIncompatibleTransportVersion(olderThanMinCompatible);
+        var remoteVersion = getRandomIncompatibleTransportVersion();
         TransportHandshaker.HandshakeRequest handshakeRequest = new TransportHandshaker.HandshakeRequest(remoteVersion, randomIdentifier());
         BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
         bytesStreamOutput.setTransportVersion(HANDSHAKE_REQUEST_VERSION);
@@ -163,12 +162,11 @@ public class TransportHandshakerTests extends ESTestCase {
 
         assertFalse(versionFuture.isDone());
 
-        var olderThanMinCompatible = randomBoolean();
-        var remoteVersion = getRandomIncompatibleTransportVersion(olderThanMinCompatible);
+        var remoteVersion = getRandomIncompatibleTransportVersion();
         var releaseVersion = randomIdentifier();
         final var handshakeResponse = new TransportHandshaker.HandshakeResponse(remoteVersion, releaseVersion);
 
-        MockLog.awaitLogger(
+        MockLog.assertThatLogger(
             () -> handler.handleResponse(handshakeResponse),
             TransportHandshaker.class,
             new MockLog.SeenEventExpectation(
@@ -198,8 +196,8 @@ public class TransportHandshakerTests extends ESTestCase {
         }
     }
 
-    private static TransportVersion getRandomIncompatibleTransportVersion(boolean olderThanMinCompatible) {
-        return olderThanMinCompatible
+    private static TransportVersion getRandomIncompatibleTransportVersion() {
+        return randomBoolean()
             // either older than MINIMUM_COMPATIBLE
             ? new TransportVersion(between(1, TransportVersions.MINIMUM_COMPATIBLE.id() - 1))
             // or between MINIMUM_COMPATIBLE and current but not known

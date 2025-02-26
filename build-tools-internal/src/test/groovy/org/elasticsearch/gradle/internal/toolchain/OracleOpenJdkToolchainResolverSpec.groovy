@@ -30,9 +30,10 @@ class OracleOpenJdkToolchainResolverSpec extends AbstractToolchainResolverSpec {
                 return null
             }
         }
-        toolChain.builds = toolChain.builds.findAll { it instanceof OracleOpenJdkToolchainResolver.EarlyAccessJdkBuild } + [
-            new OracleOpenJdkToolchainResolver.ReleasedJdkBuild(
+        toolChain.builds = toolChain.builds + [
+            new OracleOpenJdkToolchainResolver.ReleaseJdkBuild(
                 JavaLanguageVersion.of(20),
+                "download.oracle.com",
                 "20",
                 "36",
                 "bdc68b4b9cbc4ebcb30745c85038d91d"
@@ -52,16 +53,16 @@ class OracleOpenJdkToolchainResolverSpec extends AbstractToolchainResolverSpec {
          [20, anyVendor(), LINUX, AARCH64, "https://download.oracle.com/java/GA/jdk20/bdc68b4b9cbc4ebcb30745c85038d91d/36/GPL/openjdk-20_linux-aarch64_bin.tar.gz"],
          [20, anyVendor(), WINDOWS, X86_64, "https://download.oracle.com/java/GA/jdk20/bdc68b4b9cbc4ebcb30745c85038d91d/36/GPL/openjdk-20_windows-x64_bin.zip"],
          // https://download.java.net/java/early_access/jdk23/23/GPL/openjdk-23-ea+23_macos-aarch64_bin.tar.gz
-         [24, ORACLE, MAC_OS, X86_64, "https://download.java.net/java/early_access/jdk24/29/GPL/openjdk-24-ea+29_macos-x64_bin.tar.gz"],
-         [24, ORACLE, MAC_OS, AARCH64, "https://download.java.net/java/early_access/jdk24/29/GPL/openjdk-24-ea+29_macos-aarch64_bin.tar.gz"],
-         [24, ORACLE, LINUX, X86_64, "https://download.java.net/java/early_access/jdk24/29/GPL/openjdk-24-ea+29_linux-x64_bin.tar.gz"],
-         [24, ORACLE, LINUX, AARCH64, "https://download.java.net/java/early_access/jdk24/29/GPL/openjdk-24-ea+29_linux-aarch64_bin.tar.gz"],
-         [24, ORACLE, WINDOWS, X86_64, "https://download.java.net/java/early_access/jdk24/29/GPL/openjdk-24-ea+29_windows-x64_bin.zip"],
-         [24, anyVendor(), MAC_OS, X86_64, "https://download.java.net/java/early_access/jdk24/29/GPL/openjdk-24-ea+29_macos-x64_bin.tar.gz"],
-         [24, anyVendor(), MAC_OS, AARCH64, "https://download.java.net/java/early_access/jdk24/29/GPL/openjdk-24-ea+29_macos-aarch64_bin.tar.gz"],
-         [24, anyVendor(), LINUX, X86_64, "https://download.java.net/java/early_access/jdk24/29/GPL/openjdk-24-ea+29_linux-x64_bin.tar.gz"],
-         [24, anyVendor(), LINUX, AARCH64, "https://download.java.net/java/early_access/jdk24/29/GPL/openjdk-24-ea+29_linux-aarch64_bin.tar.gz"],
-         [24, anyVendor(), WINDOWS, X86_64, "https://download.java.net/java/early_access/jdk24/29/GPL/openjdk-24-ea+29_windows-x64_bin.zip"]]
+         [24, ORACLE, MAC_OS, X86_64, "https://download.java.net/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_macos-x64_bin.tar.gz"],
+         [24, ORACLE, MAC_OS, AARCH64, "https://download.java.net/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_macos-aarch64_bin.tar.gz"],
+         [24, ORACLE, LINUX, X86_64, "https://download.java.net/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_linux-x64_bin.tar.gz"],
+         [24, ORACLE, LINUX, AARCH64, "https://download.java.net/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_linux-aarch64_bin.tar.gz"],
+         [24, ORACLE, WINDOWS, X86_64, "https://download.java.net/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_windows-x64_bin.zip"],
+         [24, anyVendor(), MAC_OS, X86_64, "https://download.java.net/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_macos-x64_bin.tar.gz"],
+         [24, anyVendor(), MAC_OS, AARCH64, "https://download.java.net/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_macos-aarch64_bin.tar.gz"],
+         [24, anyVendor(), LINUX, X86_64, "https://download.java.net/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_linux-x64_bin.tar.gz"],
+         [24, anyVendor(), LINUX, AARCH64, "https://download.java.net/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_linux-aarch64_bin.tar.gz"],
+         [24, anyVendor(), WINDOWS, X86_64, "https://download.java.net/java/GA/jdk24/1f9ff9062db4449d8ca828c504ffae90/36/GPL/openjdk-24_windows-x64_bin.zip"]]
     }
 
     @RestoreSystemProperties
@@ -85,16 +86,6 @@ class OracleOpenJdkToolchainResolverSpec extends AbstractToolchainResolverSpec {
 
         where:
         version | vendor      | os      | arch    | expectedUrl
-        24      | ORACLE      | MAC_OS  | X86_64  | urlPrefix(24) + "42/GPL/openjdk-24-ea+42_macos-x64_bin.tar.gz"
-        24      | ORACLE      | MAC_OS  | AARCH64 | urlPrefix(24) + "42/GPL/openjdk-24-ea+42_macos-aarch64_bin.tar.gz"
-        24      | ORACLE      | LINUX   | X86_64  | urlPrefix(24) + "42/GPL/openjdk-24-ea+42_linux-x64_bin.tar.gz"
-        24      | ORACLE      | LINUX   | AARCH64 | urlPrefix(24) + "42/GPL/openjdk-24-ea+42_linux-aarch64_bin.tar.gz"
-        24      | ORACLE      | WINDOWS | X86_64  | urlPrefix(24) + "42/GPL/openjdk-24-ea+42_windows-x64_bin.zip"
-        24      | anyVendor() | MAC_OS  | X86_64  | urlPrefix(24) + "42/GPL/openjdk-24-ea+42_macos-x64_bin.tar.gz"
-        24      | anyVendor() | MAC_OS  | AARCH64 | urlPrefix(24) + "42/GPL/openjdk-24-ea+42_macos-aarch64_bin.tar.gz"
-        24      | anyVendor() | LINUX   | X86_64  | urlPrefix(24) + "42/GPL/openjdk-24-ea+42_linux-x64_bin.tar.gz"
-        24      | anyVendor() | LINUX   | AARCH64 | urlPrefix(24) + "42/GPL/openjdk-24-ea+42_linux-aarch64_bin.tar.gz"
-        24      | anyVendor() | WINDOWS | X86_64  | urlPrefix(24) + "42/GPL/openjdk-24-ea+42_windows-x64_bin.zip"
         25      | ORACLE      | MAC_OS  | X86_64  | urlPrefix(25) + "13/GPL/openjdk-25-ea+13_macos-x64_bin.tar.gz"
         25      | ORACLE      | MAC_OS  | AARCH64 | urlPrefix(25) + "13/GPL/openjdk-25-ea+13_macos-aarch64_bin.tar.gz"
         25      | ORACLE      | LINUX   | X86_64  | urlPrefix(25) + "13/GPL/openjdk-25-ea+13_linux-x64_bin.tar.gz"

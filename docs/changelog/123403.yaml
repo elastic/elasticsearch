@@ -1,0 +1,5 @@
+pr: 123403
+summary: Use ordered maps for `PipelineConfiguration` xcontent deserialization
+area: Ingest Node
+type: bug
+issues: []

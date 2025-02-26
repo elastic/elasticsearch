@@ -89,6 +89,9 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         public OptionalDouble getForecastedWriteLoad(IndexMetadata indexMetadata) {
             return indexMetadata.getForecastedWriteLoad();
         }
+
+        @Override
+        public void refreshLicense() {}
     };
 
     public static MockAllocationService createAllocationService() {

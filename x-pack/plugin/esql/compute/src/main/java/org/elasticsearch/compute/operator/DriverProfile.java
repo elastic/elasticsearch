@@ -21,98 +21,42 @@ import org.elasticsearch.xcontent.ToXContent;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Profile results from a single {@link Driver}.
+ *
+ * @param taskDescription Description of the task this driver is running. This description should be short and meaningful
+ *                        as a grouping identifier. We use the phase of the query right now: "data", "node_reduce", "final".
+ * @param startMillis Millis since epoch when the driver started.
+ * @param stopMillis Millis since epoch when the driver stopped.
+ * @param tookNanos Nanos between creation and completion of the {@link Driver}.
+ * @param cpuNanos Nanos this {@link Driver} has been running on the cpu. Does not include async or waiting time.
+ * @param iterations The number of times the driver has moved a single page up the chain of operators as far as it'll go.
+ * @param operators Status of each {@link Operator} in the driver when it finished.
  */
-public class DriverProfile implements Writeable, ChunkedToXContentObject {
-    /**
-     * Description of the task this driver is running. This description should be
-     * short and meaningful as a grouping identifier. We use the phase of the
-     * query right now: "data", "node_reduce", "final".
-     */
-    private final String taskDescription;
+public record DriverProfile(
+    String taskDescription,
+    long startMillis,
+    long stopMillis,
+    long tookNanos,
+    long cpuNanos,
+    long iterations,
+    List<OperatorStatus> operators,
+    DriverSleeps sleeps
+) implements Writeable, ChunkedToXContentObject {
 
-    /**
-     * Millis since epoch when the driver started.
-     */
-    private final long startMillis;
-
-    /**
-     * Millis since epoch when the driver stopped.
-     */
-    private final long stopMillis;
-
-    /**
-     * Nanos between creation and completion of the {@link Driver}.
-     */
-    private final long tookNanos;
-
-    /**
-     * Nanos this {@link Driver} has been running on the cpu. Does not
-     * include async or waiting time.
-     */
-    private final long cpuNanos;
-
-    /**
-     * The number of times the driver has moved a single page up the
-     * chain of operators as far as it'll go.
-     */
-    private final long iterations;
-
-    /**
-     * Status of each {@link Operator} in the driver when it finished.
-     */
-    private final List<DriverStatus.OperatorStatus> operators;
-
-    private final DriverSleeps sleeps;
-
-    public DriverProfile(
-        String taskDescription,
-        long startMillis,
-        long stopMillis,
-        long tookNanos,
-        long cpuNanos,
-        long iterations,
-        List<DriverStatus.OperatorStatus> operators,
-        DriverSleeps sleeps
-    ) {
-        this.taskDescription = taskDescription;
-        this.startMillis = startMillis;
-        this.stopMillis = stopMillis;
-        this.tookNanos = tookNanos;
-        this.cpuNanos = cpuNanos;
-        this.iterations = iterations;
-        this.operators = operators;
-        this.sleeps = sleeps;
-    }
-
-    public DriverProfile(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_90)) {
-            this.taskDescription = in.readString();
-        } else {
-            this.taskDescription = "";
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            this.startMillis = in.readVLong();
-            this.stopMillis = in.readVLong();
-        } else {
-            this.startMillis = 0;
-            this.stopMillis = 0;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            this.tookNanos = in.readVLong();
-            this.cpuNanos = in.readVLong();
-            this.iterations = in.readVLong();
-        } else {
-            this.tookNanos = 0;
-            this.cpuNanos = 0;
-            this.iterations = 0;
-        }
-        this.operators = in.readCollectionAsImmutableList(DriverStatus.OperatorStatus::new);
-        this.sleeps = DriverSleeps.read(in);
+    public static DriverProfile readFrom(StreamInput in) throws IOException {
+        return new DriverProfile(
+            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION)
+                || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_DRIVER_TASK_DESCRIPTION_90) ? in.readString() : "",
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readVLong() : 0,
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readVLong() : 0,
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0,
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0,
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0) ? in.readVLong() : 0,
+            in.readCollectionAsImmutableList(OperatorStatus::readFrom),
+            DriverSleeps.read(in)
+        );
     }
 
     @Override
@@ -132,64 +76,6 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
         }
         out.writeCollection(operators);
         sleeps.writeTo(out);
-    }
-
-    /**
-     * Description of the task this driver is running.
-     */
-    public String taskDescription() {
-        return taskDescription;
-    }
-
-    /**
-     * Millis since epoch when the driver started.
-     */
-    public long startMillis() {
-        return startMillis;
-    }
-
-    /**
-     * Millis since epoch when the driver stopped.
-     */
-    public long stopMillis() {
-        return stopMillis;
-    }
-
-    /**
-     * Nanos between creation and completion of the {@link Driver}.
-     */
-    public long tookNanos() {
-        return tookNanos;
-    }
-
-    /**
-     * Nanos this {@link Driver} has been running on the cpu. Does not
-     * include async or waiting time.
-     */
-    public long cpuNanos() {
-        return cpuNanos;
-    }
-
-    /**
-     * The number of times the driver has moved a single page up the
-     * chain of operators as far as it'll go.
-     */
-    public long iterations() {
-        return iterations;
-    }
-
-    /**
-     * Status of each {@link Operator} in the driver when it finished.
-     */
-    public List<DriverStatus.OperatorStatus> operators() {
-        return operators;
-    }
-
-    /**
-     * Records of the times the driver has slept.
-     */
-    public DriverSleeps sleeps() {
-        return sleeps;
     }
 
     @Override
@@ -213,30 +99,6 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
             ChunkedToXContentHelper.chunk((b, p) -> b.field("sleeps", sleeps)),
             ChunkedToXContentHelper.endObject()
         );
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        DriverProfile that = (DriverProfile) o;
-        return taskDescription.equals(that.taskDescription)
-            && startMillis == that.startMillis
-            && stopMillis == that.stopMillis
-            && tookNanos == that.tookNanos
-            && cpuNanos == that.cpuNanos
-            && iterations == that.iterations
-            && Objects.equals(operators, that.operators)
-            && sleeps.equals(that.sleeps);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(taskDescription, startMillis, stopMillis, tookNanos, cpuNanos, iterations, operators, sleeps);
     }
 
     @Override

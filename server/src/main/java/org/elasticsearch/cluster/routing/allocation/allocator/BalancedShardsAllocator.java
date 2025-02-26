@@ -145,6 +145,11 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     @Override
     public void allocate(RoutingAllocation allocation) {
+        if (allocation.metadata().indices().isEmpty() == false) {
+            // must not use licensed features when just starting up
+            writeLoadForecaster.refreshLicense();
+        }
+
         assert allocation.ignoreDisable() == false;
 
         if (allocation.routingNodes().size() == 0) {
@@ -162,6 +167,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         balancer.moveShards();
         balancer.balance();
 
+        // Node weights are calculated after each internal balancing round and saved to the RoutingNodes copy.
         collectAndRecordNodeWeightStats(balancer, weightFunction, allocation);
     }
 

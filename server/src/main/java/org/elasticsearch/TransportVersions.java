@@ -204,6 +204,7 @@ public class TransportVersions {
     public static final TransportVersion VOYAGE_AI_INTEGRATION_ADDED = def(9_014_0_00);
     public static final TransportVersion BYTE_SIZE_VALUE_ALWAYS_USES_BYTES = def(9_015_0_00);
     public static final TransportVersion ESQL_SERIALIZE_SOURCE_FUNCTIONS_WARNINGS = def(9_016_0_00);
+    public static final TransportVersion ESQL_DRIVER_NODE_DESCRIPTION = def(9_017_0_00);
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -264,7 +265,7 @@ public class TransportVersions {
      * Reference to the earliest compatible transport version to this version of the codebase.
      * This should be the transport version used by the highest minor version of the previous major.
      */
-    public static final TransportVersion MINIMUM_COMPATIBLE = BYTE_SIZE_VALUE_ALWAYS_USES_BYTES_1;
+    public static final TransportVersion MINIMUM_COMPATIBLE = INITIAL_ELASTICSEARCH_8_19;
 
     /**
      * Reference to the minimum transport version that can be used with CCS.

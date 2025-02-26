@@ -282,7 +282,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             new RoleDescriptor(
                 "role",
                 null,
-                new IndicesPrivileges[] { IndicesPrivileges.builder().indices(authorizedIndices).privileges("all").build() },
+                new IndicesPrivileges[] { IndicesPrivileges.builder().indices(authorizedIndices).privileges("all").build(), },
                 null
             )
         );
@@ -333,7 +333,9 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             new RoleDescriptor(
                 "data_stream_test2",
                 null,
-                new IndicesPrivileges[] { IndicesPrivileges.builder().indices(otherDataStreamName + "*").privileges("all").build() },
+                new IndicesPrivileges[] {
+                    IndicesPrivileges.builder().indices(otherDataStreamName + "*").privileges("all").build(),
+                    IndicesPrivileges.builder().indices(otherDataStreamName + "*::failures").privileges("all").build() },
                 null
             )
         );
@@ -342,7 +344,9 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             new RoleDescriptor(
                 "data_stream_test3",
                 null,
-                new IndicesPrivileges[] { IndicesPrivileges.builder().indices("logs*").privileges("all").build() },
+                new IndicesPrivileges[] {
+                    IndicesPrivileges.builder().indices("logs*").privileges("all").build(),
+                    IndicesPrivileges.builder().indices("logs*::failures").privileges("all").build() },
                 null
             )
         );
@@ -2365,6 +2369,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         final AuthorizedIndices authorizedIndices = buildAuthorizedIndices(user, TransportSearchAction.TYPE.name(), request);
         for (String dsName : expectedDataStreams) {
             DataStream dataStream = metadata.dataStreams().get(dsName);
+
             assertThat(authorizedIndices.all().get(), hasItem(dsName));
             assertThat(authorizedIndices.check(dsName), is(true));
             for (Index i : dataStream.getIndices()) {

@@ -4,7 +4,7 @@ area: Infra/Core
 type: deprecation
 issues: []
 deprecation:
-  title: Add deprecation warning to `TransportHandshaker`
+  title: Deprecate ability to connect to nodes of versions 8.17 and earlier
   area: REST API
   details: >
     Users will now see a deprecation log when a remote node, who's version is < v8.18, performs a transport handshake

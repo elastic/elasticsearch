@@ -98,7 +98,7 @@ public class SumFloatAggregatorFunctionTests extends AggregatorFunctionTestCase 
         }
         driverContext = driverContext();
         try (
-            Driver d = TestDriver(
+            Driver d = TestDriverFactory.create(
                 driverContext,
                 new SequenceFloatBlockSourceOperator(driverContext.blockFactory(), Stream.of(values)),
                 List.of(simple().get(driverContext)),

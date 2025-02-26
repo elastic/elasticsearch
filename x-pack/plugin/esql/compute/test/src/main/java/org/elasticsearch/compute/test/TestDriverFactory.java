@@ -28,19 +28,7 @@ public class TestDriverFactory {
         List<Operator> intermediateOperators,
         SinkOperator sink
     ) {
-        return new Driver(
-            "unset",
-            "test-description",
-            System.currentTimeMillis(),
-            System.nanoTime(),
-            driverContext,
-            () -> null,
-            source,
-            intermediateOperators,
-            sink,
-            Driver.DEFAULT_STATUS_INTERVAL,
-            () -> {}
-        );
+        return create(driverContext, source, intermediateOperators, sink, () -> {});
     }
 
     public static Driver create(

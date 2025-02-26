@@ -1495,7 +1495,12 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         List<Page> results = new ArrayList<>();
         boolean success = false;
         try (
-            Driver d = TestDriver(driverContext, new CannedSourceOperator(input), operators, new TestResultPageSinkOperator(results::add))
+            Driver d = TestDriverFactory.create(
+                driverContext,
+                new CannedSourceOperator(input),
+                operators,
+                new TestResultPageSinkOperator(results::add)
+            )
         ) {
             runDriver(d);
             success = true;

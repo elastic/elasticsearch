@@ -27,7 +27,6 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.FilterClient;
@@ -42,6 +41,7 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -271,21 +271,8 @@ public class IndexServiceAccountTokenStoreTests extends ESTestCase {
                     .toArray(SearchHit[]::new);
                 ActionListener.respondAndRelease(
                     l,
-                    new SearchResponse(
-                        SearchHits.unpooled(hits, new TotalHits(nhits, TotalHits.Relation.EQUAL_TO), randomFloat(), null, null, null),
-                        null,
-                        null,
-                        false,
-                        null,
-                        null,
-                        0,
-                        randomAlphaOfLengthBetween(3, 8),
-                        1,
-                        1,
-                        0,
-                        10,
-                        null,
-                        null
+                    SearchResponseUtils.successfulResponse(
+                        SearchHits.unpooled(hits, new TotalHits(nhits, TotalHits.Relation.EQUAL_TO), randomFloat(), null, null, null)
                     )
                 );
             } else if (r instanceof ClearScrollRequest) {

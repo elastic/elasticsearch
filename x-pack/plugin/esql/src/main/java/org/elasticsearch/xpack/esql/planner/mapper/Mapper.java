@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.Merge;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
@@ -33,10 +34,12 @@ import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -61,6 +64,10 @@ public class Mapper {
 
         if (p instanceof BinaryPlan binary) {
             return mapBinary(binary);
+        }
+
+        if (p instanceof Merge merge) {
+            return mapMerge(merge);
         }
 
         return MapperUtils.unsupported(p);
@@ -211,6 +218,15 @@ public class Mapper {
         }
 
         return MapperUtils.unsupported(bp);
+    }
+
+    private PhysicalPlan mapMerge(Merge merge) {
+        List<PhysicalPlan> physicalChildren = new ArrayList<>();
+        for (var child : merge.children()) {
+            var mappedChild = new FragmentExec(child);
+            physicalChildren.add(mappedChild);
+        }
+        return new MergeExec(merge.source(), physicalChildren, merge.output());
     }
 
     public static boolean isPipelineBreaker(LogicalPlan p) {

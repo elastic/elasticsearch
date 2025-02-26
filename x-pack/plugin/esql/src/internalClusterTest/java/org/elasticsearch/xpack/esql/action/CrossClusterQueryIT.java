@@ -948,7 +948,7 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
 
     Map<String, Object> setupFailClusters() throws IOException {
         int numShardsLocal = randomIntBetween(1, 3);
-        populateLocalIndices(LOCAL_INDEX, numShardsLocal);
+        populateIndex(LOCAL_CLUSTER, LOCAL_INDEX, numShardsLocal, 10);
 
         int numShardsRemote = randomIntBetween(1, 3);
         populateRemoteIndicesFail(REMOTE_CLUSTER_1, REMOTE_INDEX, numShardsRemote);

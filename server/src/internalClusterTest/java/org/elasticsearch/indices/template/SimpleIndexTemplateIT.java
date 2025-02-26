@@ -471,7 +471,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         createIndex("test");
 
-        GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings("test").get();
+        GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "test").get();
         assertNull(getSettingsResponse.getIndexToSettings().get("test").get("index.does_not_exist"));
     }
 
@@ -907,7 +907,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         // finally, create a valid index
         prepareCreate("test_good", Settings.builder().put("index.number_of_shards", 7).put("index.number_of_routing_shards", 7)).get();
 
-        GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings("test_good").get();
+        GetSettingsResponse getSettingsResponse = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "test_good").get();
         assertEquals("6", getSettingsResponse.getIndexToSettings().get("test_good").get("index.routing_partition_size"));
     }
 

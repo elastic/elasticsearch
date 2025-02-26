@@ -703,4 +703,10 @@ public class SettingsTests extends ESTestCase {
             {"ant.bee":{"cat.dog":{"ewe":"value3"},"cat":"value2"},"ant":"value1"}""", Strings.toString(builder));
     }
 
+    public void testGlobValues() throws IOException {
+        Settings test = Settings.builder().put("foo.x.bar", "1").put("foo.y.bar", "2").build();
+        var values = test.getGlobValues("foo.*.bar").toList();
+        assertThat(values, containsInAnyOrder("1", "2"));
+    }
+
 }

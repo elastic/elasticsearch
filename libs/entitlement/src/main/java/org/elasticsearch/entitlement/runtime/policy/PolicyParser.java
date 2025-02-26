@@ -14,8 +14,10 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.InboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.ManageThreadsEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetworkEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.SetHttpsConnectionPropertiesEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.WriteAllSystemPropertiesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.WriteSystemPropertiesEntitlement;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
@@ -45,20 +47,22 @@ import java.util.stream.Stream;
  */
 public class PolicyParser {
 
-    private static final Map<String, Class<?>> EXTERNAL_ENTITLEMENTS = Stream.of(
-        FilesEntitlement.class,
+    private static final Map<String, Class<? extends Entitlement>> EXTERNAL_ENTITLEMENTS = Stream.of(
         CreateClassLoaderEntitlement.class,
-        SetHttpsConnectionPropertiesEntitlement.class,
-        OutboundNetworkEntitlement.class,
+        FilesEntitlement.class,
         InboundNetworkEntitlement.class,
-        WriteSystemPropertiesEntitlement.class,
-        LoadNativeLibrariesEntitlement.class
+        LoadNativeLibrariesEntitlement.class,
+        ManageThreadsEntitlement.class,
+        OutboundNetworkEntitlement.class,
+        SetHttpsConnectionPropertiesEntitlement.class,
+        WriteAllSystemPropertiesEntitlement.class,
+        WriteSystemPropertiesEntitlement.class
     ).collect(Collectors.toUnmodifiableMap(PolicyParser::getEntitlementTypeName, Function.identity()));
 
     protected final XContentParser policyParser;
     protected final String policyName;
     private final boolean isExternalPlugin;
-    private final Map<String, Class<?>> externalEntitlements;
+    private final Map<String, Class<? extends Entitlement>> externalEntitlements;
 
     static String getEntitlementTypeName(Class<? extends Entitlement> entitlementClass) {
         var entitlementClassName = entitlementClass.getSimpleName();
@@ -81,8 +85,12 @@ public class PolicyParser {
     }
 
     // package private for tests
-    PolicyParser(InputStream inputStream, String policyName, boolean isExternalPlugin, Map<String, Class<?>> externalEntitlements)
-        throws IOException {
+    PolicyParser(
+        InputStream inputStream,
+        String policyName,
+        boolean isExternalPlugin,
+        Map<String, Class<? extends Entitlement>> externalEntitlements
+    ) throws IOException {
         this.policyParser = YamlXContent.yamlXContent.createParser(XContentParserConfiguration.EMPTY, Objects.requireNonNull(inputStream));
         this.policyName = policyName;
         this.isExternalPlugin = isExternalPlugin;

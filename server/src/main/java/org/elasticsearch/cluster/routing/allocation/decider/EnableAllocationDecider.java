@@ -146,6 +146,11 @@ public class EnableAllocationDecider extends AllocationDecider {
         };
     }
 
+    /**
+     * Rebalancing is limited by the {@link Rebalance} value set on the cluster setting {@link #CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING}.
+     * We might allow movement only of primary shards, or replica shards, or none, or all.
+     * This method only concerns itself with whether {@link Rebalance#NONE} is set: rebalancing is allowed for all other setting values.
+     */
     @Override
     public Decision canRebalance(RoutingAllocation allocation) {
         if (allocation.ignoreDisable()) {
@@ -243,7 +248,7 @@ public class EnableAllocationDecider extends AllocationDecider {
     }
 
     /**
-     * Rebalance values or rather their string representation to be used used with
+     * Rebalance values or rather their string representation to be used with
      * {@link EnableAllocationDecider#CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING} /
      * {@link EnableAllocationDecider#INDEX_ROUTING_REBALANCE_ENABLE_SETTING}
      * via cluster / index settings.

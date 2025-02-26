@@ -34,10 +34,6 @@ public final class EntitledActions {
         return testRootDir.resolve("read_write_dir");
     }
 
-    static void System_clearProperty(String key) {
-        System.clearProperty(key);
-    }
-
     public static UserPrincipal getFileOwner(Path path) throws IOException {
         return Files.getOwner(path);
     }

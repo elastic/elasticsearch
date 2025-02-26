@@ -229,7 +229,10 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         assertThat(repositoryMetadata.name(), equalTo(fsRepoName));
         assertThat(repositoryMetadata.uuid(), not(equalTo(RepositoryData.MISSING_UUID)));
 
-        final Settings settings = indicesAdmin().prepareGetSettings(restoredIndexName).get().getIndexToSettings().get(restoredIndexName);
+        final Settings settings = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, restoredIndexName)
+            .get()
+            .getIndexToSettings()
+            .get(restoredIndexName);
         assertThat(SearchableSnapshots.SNAPSHOT_REPOSITORY_UUID_SETTING.get(settings), equalTo(repositoryMetadata.uuid()));
         assertThat(SearchableSnapshots.SNAPSHOT_REPOSITORY_NAME_SETTING.get(settings), equalTo(fsRepoName));
         assertThat(SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING.get(settings), equalTo(snapshotName));
@@ -335,7 +338,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         ensureGreen(clonedIndexName);
         assertTotalHits(clonedIndexName, originalAllHits, originalBarHits);
 
-        final Settings clonedIndexSettings = indicesAdmin().prepareGetSettings(clonedIndexName)
+        final Settings clonedIndexSettings = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, clonedIndexName)
             .get()
             .getIndexToSettings()
             .get(clonedIndexName);
@@ -567,7 +570,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
             ensureGreen(restoredIndexName);
 
-            final Settings settings = indicesAdmin().prepareGetSettings(restoredIndexName)
+            final Settings settings = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, restoredIndexName)
                 .get()
                 .getIndexToSettings()
                 .get(restoredIndexName);
@@ -600,7 +603,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
             ensureGreen(restoredIndexName);
 
-            final Settings settings = indicesAdmin().prepareGetSettings(restoredIndexName)
+            final Settings settings = indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, restoredIndexName)
                 .get()
                 .getIndexToSettings()
                 .get(restoredIndexName);
@@ -1090,7 +1093,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         {
             final String mountedIndex = mountSnapshot(repository, snapshot, index, Settings.EMPTY);
             assertThat(
-                indicesAdmin().prepareGetSettings(mountedIndex)
+                indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, mountedIndex)
                     .get()
                     .getIndexToSettings()
                     .get(mountedIndex)
@@ -1108,7 +1111,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 Settings.builder().put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), overridingCheckOnStartup).build()
             );
             assertThat(
-                indicesAdmin().prepareGetSettings(mountedIndex)
+                indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, mountedIndex)
                     .get()
                     .getIndexToSettings()
                     .get(mountedIndex)

@@ -213,7 +213,8 @@ public class AllocationService {
 
         for (FailedShard failedShardEntry : failedShards) {
             ShardRouting shardToFail = failedShardEntry.routingEntry();
-            assert allocation.metadata().getProject().hasIndex(shardToFail.shardId().getIndex());
+            assert allocation.metadata().findIndex(shardToFail.shardId().getIndex()).isPresent()
+                : "Expected index [" + shardToFail.shardId().getIndexName() + "] of failed shard to still exist";
             allocation.addIgnoreShardForNode(shardToFail.shardId(), shardToFail.currentNodeId());
             // failing a primary also fails initializing replica shards, re-resolve ShardRouting
             ShardRouting failedShard = allocation.routingNodes()

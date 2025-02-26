@@ -263,50 +263,61 @@ public class IndexMetadataUpdater implements RoutingChangesObserver {
      * This method is called in AllocationService before any changes to the routing table are made.
      */
     public static ClusterState removeStaleIdsWithoutRoutings(ClusterState clusterState, List<StaleShard> staleShards, Logger logger) {
-        Metadata oldMetadata = clusterState.metadata();
-        RoutingTable oldRoutingTable = clusterState.routingTable();
+        final Metadata oldMetadata = clusterState.metadata();
         Metadata.Builder metadataBuilder = null;
         // group staleShards entries by index
-        for (Map.Entry<Index, List<StaleShard>> indexEntry : staleShards.stream()
-            .collect(Collectors.groupingBy(fs -> fs.shardId().getIndex()))
-            .entrySet()) {
-            final IndexMetadata oldIndexMetadata = oldMetadata.getProject().getIndexSafe(indexEntry.getKey());
-            IndexMetadata.Builder indexMetadataBuilder = null;
-            // group staleShards entries by shard id
-            for (Map.Entry<ShardId, List<StaleShard>> shardEntry : indexEntry.getValue()
-                .stream()
-                .collect(Collectors.groupingBy(StaleShard::shardId))
-                .entrySet()) {
-                int shardNumber = shardEntry.getKey().getId();
-                Set<String> oldInSyncAllocations = oldIndexMetadata.inSyncAllocationIds(shardNumber);
-                Set<String> idsToRemove = shardEntry.getValue().stream().map(StaleShard::allocationId).collect(Collectors.toSet());
-                assert idsToRemove.stream().allMatch(id -> oldRoutingTable.getByAllocationId(shardEntry.getKey(), id) == null)
-                    : "removing stale ids: " + idsToRemove + ", some of which have still a routing entry: " + oldRoutingTable;
-                Set<String> remainingInSyncAllocations = Sets.difference(oldInSyncAllocations, idsToRemove);
-                assert remainingInSyncAllocations.isEmpty() == false
-                    : "Set of in-sync ids cannot become empty for shard "
-                        + shardEntry.getKey()
-                        + " (before: "
-                        + oldInSyncAllocations
-                        + ", ids to remove: "
-                        + idsToRemove
-                        + ")";
-                // be extra safe here: if the in-sync set were to become empty, this would create an empty primary on the next allocation
-                // (see ShardRouting#allocatedPostIndexCreate)
-                if (remainingInSyncAllocations.isEmpty() == false) {
-                    if (indexMetadataBuilder == null) {
-                        indexMetadataBuilder = IndexMetadata.builder(oldIndexMetadata);
+        final var staleShardsByIndex = staleShards.stream().collect(Collectors.groupingBy(fs -> fs.shardId().getIndex()));
+        // group indices by project
+        final var indicesByProject = staleShardsByIndex.keySet().stream().collect(Collectors.groupingBy(oldMetadata::projectFor));
+        for (Map.Entry<ProjectMetadata, List<Index>> projectEntry : indicesByProject.entrySet()) {
+            final ProjectMetadata oldProject = projectEntry.getKey();
+            final RoutingTable oldRoutingTable = clusterState.routingTable(oldProject.id());
+            ProjectMetadata.Builder projectBuilder = null;
+            for (Index index : projectEntry.getValue()) {
+                final IndexMetadata oldIndexMetadata = oldProject.getIndexSafe(index);
+                IndexMetadata.Builder indexMetadataBuilder = null;
+                // group staleShards entries by shard id
+                for (Map.Entry<ShardId, List<StaleShard>> shardEntry : staleShardsByIndex.get(index)
+                    .stream()
+                    .collect(Collectors.groupingBy(StaleShard::shardId))
+                    .entrySet()) {
+                    int shardNumber = shardEntry.getKey().getId();
+                    Set<String> oldInSyncAllocations = oldIndexMetadata.inSyncAllocationIds(shardNumber);
+                    Set<String> idsToRemove = shardEntry.getValue().stream().map(StaleShard::allocationId).collect(Collectors.toSet());
+                    assert idsToRemove.stream().allMatch(id -> oldRoutingTable.getByAllocationId(shardEntry.getKey(), id) == null)
+                        : "removing stale ids: " + idsToRemove + ", some of which have still a routing entry: " + oldRoutingTable;
+                    Set<String> remainingInSyncAllocations = Sets.difference(oldInSyncAllocations, idsToRemove);
+                    assert remainingInSyncAllocations.isEmpty() == false
+                        : "Set of in-sync ids cannot become empty for shard "
+                            + shardEntry.getKey()
+                            + " (before: "
+                            + oldInSyncAllocations
+                            + ", ids to remove: "
+                            + idsToRemove
+                            + ")";
+                    // be extra safe here: if the in-sync set were to become empty, this would create an empty primary on the next
+                    // allocation (see ShardRouting#allocatedPostIndexCreate)
+                    if (remainingInSyncAllocations.isEmpty() == false) {
+                        if (indexMetadataBuilder == null) {
+                            indexMetadataBuilder = IndexMetadata.builder(oldIndexMetadata);
+                        }
+                        indexMetadataBuilder.putInSyncAllocationIds(shardNumber, remainingInSyncAllocations);
                     }
-                    indexMetadataBuilder.putInSyncAllocationIds(shardNumber, remainingInSyncAllocations);
+                    logger.warn("{} marking unavailable shards as stale: {}", shardEntry.getKey(), idsToRemove);
                 }
-                logger.warn("{} marking unavailable shards as stale: {}", shardEntry.getKey(), idsToRemove);
-            }
 
-            if (indexMetadataBuilder != null) {
+                if (indexMetadataBuilder != null) {
+                    if (projectBuilder == null) {
+                        projectBuilder = ProjectMetadata.builder(oldProject);
+                    }
+                    projectBuilder.put(indexMetadataBuilder);
+                }
+            }
+            if (projectBuilder != null) {
                 if (metadataBuilder == null) {
                     metadataBuilder = Metadata.builder(oldMetadata);
                 }
-                metadataBuilder.put(indexMetadataBuilder);
+                metadataBuilder.put(projectBuilder);
             }
         }
 

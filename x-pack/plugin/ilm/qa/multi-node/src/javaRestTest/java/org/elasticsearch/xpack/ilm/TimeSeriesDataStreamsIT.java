@@ -82,11 +82,11 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         assertBusy(() -> {
             final var backingIndices = getBackingIndices(client(), dataStream);
             assertEquals(2, backingIndices.size());
-            assertTrue(Boolean.parseBoolean((String) getIndexSettingsAsMap(backingIndices.getLast()).get("index.hidden")));
+            assertTrue(Boolean.parseBoolean((String) getIndexSettingsAsMap(backingIndices.get(1)).get("index.hidden")));
         });
         assertBusy(() -> {
             final var backingIndices = getBackingIndices(client(), dataStream);
-            assertEquals(PhaseCompleteStep.finalStep("hot").getKey(), getStepKeyForIndex(client(), backingIndices.getFirst()));
+            assertEquals(PhaseCompleteStep.finalStep("hot").getKey(), getStepKeyForIndex(client(), backingIndices.get(0)));
         });
     }
 
@@ -97,7 +97,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
 
         indexDocument(client(), dataStream, true);
 
-        String firstGenerationIndex = getBackingIndices(client(), dataStream).getFirst();
+        String firstGenerationIndex = getBackingIndices(client(), dataStream).get(0);
         assertBusy(
             () -> assertThat(getStepKeyForIndex(client(), firstGenerationIndex).name(), equalTo(WaitForRolloverReadyStep.NAME)),
             30,
@@ -125,7 +125,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         createComposableTemplate(client(), template, dataStream + "*", getTemplate(policyName));
         indexDocument(client(), dataStream, true);
 
-        String backingIndexName = getBackingIndices(client(), dataStream).getFirst();
+        String backingIndexName = getBackingIndices(client(), dataStream).get(0);
         assertBusy(
             () -> assertThat(
                 "original index must wait in the " + CheckNotDataStreamWriteIndexStep.NAME + " until it is not the write index anymore",
@@ -159,7 +159,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         createComposableTemplate(client(), template, dataStream + "*", getTemplate(policyName));
         indexDocument(client(), dataStream, true);
 
-        String backingIndexName = getBackingIndices(client(), dataStream).getFirst();
+        String backingIndexName = getBackingIndices(client(), dataStream).get(0);
         String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndexName;
 
         assertBusy(
@@ -190,7 +190,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         createComposableTemplate(client(), template, dataStream + "*", getTemplate(policyName));
         indexDocument(client(), dataStream, true);
 
-        String backingIndexName = getBackingIndices(client(), dataStream).getFirst();
+        String backingIndexName = getBackingIndices(client(), dataStream).get(0);
         assertBusy(
             () -> assertThat(
                 "index must wait in the " + CheckNotDataStreamWriteIndexStep.NAME + " until it is not the write index anymore",
@@ -220,7 +220,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         createComposableTemplate(client(), template, dataStream + "*", getTemplate(policyName));
         indexDocument(client(), dataStream, true);
 
-        String backingIndexName = getBackingIndices(client(), dataStream).getFirst();
+        String backingIndexName = getBackingIndices(client(), dataStream).get(0);
         assertBusy(
             () -> assertThat(
                 "index must wait in the " + CheckNotDataStreamWriteIndexStep.NAME + " until it is not the write index anymore",
@@ -249,7 +249,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         createComposableTemplate(client(), template, dataStream + "*", getTemplate(policyName));
         indexDocument(client(), dataStream, true);
 
-        String backingIndexName = getBackingIndices(client(), dataStream).getFirst();
+        String backingIndexName = getBackingIndices(client(), dataStream).get(0);
         assertBusy(
             () -> assertThat(
                 "index must wait in the " + CheckNotDataStreamWriteIndexStep.NAME + " until it is not the write index anymore",

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.common.ssl;
 
+import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
@@ -98,6 +100,8 @@ public final class PemTrustConfig implements SslTrustConfig {
         try {
             return PemUtils.readCertificates(paths);
         } catch (AccessControlException e) {
+            throw SslFileUtil.accessControlFailure(CA_FILE_TYPE, paths, e, basePath);
+        } catch (NotEntitledException e) {
             throw SslFileUtil.accessControlFailure(CA_FILE_TYPE, paths, e, basePath);
         } catch (IOException e) {
             throw SslFileUtil.ioException(CA_FILE_TYPE, paths, e);

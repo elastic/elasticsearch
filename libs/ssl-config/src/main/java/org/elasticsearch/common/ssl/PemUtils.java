@@ -10,6 +10,7 @@
 package org.elasticsearch.common.ssl;
 
 import org.elasticsearch.core.CharArrays;
+import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -111,6 +112,8 @@ public final class PemUtils {
             }
             return privateKey;
         } catch (AccessControlException e) {
+            throw SslFileUtil.accessControlFailure("PEM private key", List.of(path), e, null);
+        } catch (NotEntitledException e) {
             throw SslFileUtil.accessControlFailure("PEM private key", List.of(path), e, null);
         } catch (IOException e) {
             throw SslFileUtil.ioException("PEM private key", List.of(path), e);

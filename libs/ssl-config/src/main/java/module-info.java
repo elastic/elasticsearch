@@ -8,7 +8,7 @@
  */
 
 module org.elasticsearch.sslconfig {
-    requires org.elasticsearch.base;
+    requires org.elasticsearch.entitlement;
 
     exports org.elasticsearch.common.ssl;
 }

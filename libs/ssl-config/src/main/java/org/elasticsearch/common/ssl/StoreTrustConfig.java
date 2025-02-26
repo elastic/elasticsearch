@@ -9,6 +9,8 @@
 
 package org.elasticsearch.common.ssl;
 
+import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
+
 import java.io.IOException;
 import java.nio.file.Path;
 import java.security.AccessControlException;
@@ -94,6 +96,8 @@ public final class StoreTrustConfig implements SslTrustConfig {
         try {
             return KeyStoreUtil.readKeyStore(path, type, password);
         } catch (AccessControlException e) {
+            throw SslFileUtil.accessControlFailure(fileTypeForException(), List.of(path), e, configBasePath);
+        } catch (NotEntitledException e) {
             throw SslFileUtil.accessControlFailure(fileTypeForException(), List.of(path), e, configBasePath);
         } catch (IOException e) {
             throw SslFileUtil.ioException(fileTypeForException(), List.of(path), e, getAdditionalErrorDetails());

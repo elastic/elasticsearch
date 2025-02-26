@@ -129,7 +129,7 @@ public final class PemKeyConfig implements SslKeyConfig {
         } catch (AccessControlException e) {
             throw SslFileUtil.accessControlFailure(KEY_FILE_TYPE, List.of(path), e, configBasePath);
         } catch (NotEntitledException e) {
-            throw SslFileUtil.accessControlFailure(KEY_FILE_TYPE, List.of(path), e, configBasePath);
+            throw SslFileUtil.notEntitledFailure(KEY_FILE_TYPE, List.of(path), e, configBasePath);
         } catch (IOException e) {
             throw SslFileUtil.ioException(KEY_FILE_TYPE, List.of(path), e);
         } catch (GeneralSecurityException e) {

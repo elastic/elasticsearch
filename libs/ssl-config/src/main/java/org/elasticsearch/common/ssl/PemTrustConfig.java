@@ -102,7 +102,7 @@ public final class PemTrustConfig implements SslTrustConfig {
         } catch (AccessControlException e) {
             throw SslFileUtil.accessControlFailure(CA_FILE_TYPE, paths, e, basePath);
         } catch (NotEntitledException e) {
-            throw SslFileUtil.accessControlFailure(CA_FILE_TYPE, paths, e, basePath);
+            throw SslFileUtil.notEntitledFailure(CA_FILE_TYPE, paths, e, basePath);
         } catch (IOException e) {
             throw SslFileUtil.ioException(CA_FILE_TYPE, paths, e);
         } catch (GeneralSecurityException e) {

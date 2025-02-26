@@ -114,7 +114,7 @@ public final class PemUtils {
         } catch (AccessControlException e) {
             throw SslFileUtil.accessControlFailure("PEM private key", List.of(path), e, null);
         } catch (NotEntitledException e) {
-            throw SslFileUtil.accessControlFailure("PEM private key", List.of(path), e, null);
+            throw SslFileUtil.notEntitledFailure("PEM private key", List.of(path), e, null);
         } catch (IOException e) {
             throw SslFileUtil.ioException("PEM private key", List.of(path), e);
         } catch (GeneralSecurityException e) {

@@ -80,7 +80,7 @@ final class SslFileUtil {
         return new SslConfigException(message, cause);
     }
 
-    static SslConfigException accessControlFailure(String fileType, List<Path> paths, NotEntitledException cause, Path basePath) {
+    static SslConfigException notEntitledFailure(String fileType, List<Path> paths, NotEntitledException cause, Path basePath) {
         return innerAccessControlFailure(fileType, paths, cause, basePath);
     }
 

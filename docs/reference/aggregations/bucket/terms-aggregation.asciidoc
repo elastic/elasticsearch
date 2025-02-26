@@ -769,6 +769,10 @@ There are different mechanisms by which terms aggregations can be executed:
  - by using field values directly in order to aggregate data per-bucket (`map`)
  - by using global ordinals of the field and allocating one bucket per global ordinal (`global_ordinals`)
 
+`Execution hint` only works for `bytes/strings` value(`keyword`, `ip`, etc.)'s aggregation.
+As for `numeric` value's aggregation, its mechanism similar to `map`.
+If you hava many documents to aggregate on a `numeric` field, consider to add a `keyword` field for this field, and use this `keyword` field to execute aggregation to gain a better performance.
+
 Elasticsearch tries to have sensible defaults so this is something that generally doesn't need to be configured.
 
 `global_ordinals` is the default option for `keyword` field, it uses global ordinals to allocates buckets dynamically

@@ -92,6 +92,7 @@ public class TransportGetDesiredBalanceAction extends TransportMasterNodeReadAct
             return;
         }
         var clusterInfo = clusterInfoService.getClusterInfo();
+        writeLoadForecaster.refreshLicense();
         listener.onResponse(
             new DesiredBalanceResponse(
                 desiredBalanceShardsAllocator.getStats(),

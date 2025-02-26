@@ -1,5 +1,5 @@
 ---
-navigation_title: "Elasticsearch"
+navigation_title: "{{es}} deprecations"
 ---
 
 # {{es}} deprecations [elasticsearch-deprecations]

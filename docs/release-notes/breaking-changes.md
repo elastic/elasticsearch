@@ -1,5 +1,5 @@
 ---
-navigation_title: "Elasticsearch"
+navigation_title: "Elasticsearch breaking changes"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/breaking-changes.html
 ---

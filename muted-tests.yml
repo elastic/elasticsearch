@@ -161,9 +161,6 @@ tests:
 - class: org.elasticsearch.oldrepos.OldRepositoryAccessIT
   method: testOldSourceOnlyRepoAccess
   issue: https://github.com/elastic/elasticsearch/issues/120080
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=snapshot/10_basic/Failed to snapshot indices with synthetic source}
-  issue: https://github.com/elastic/elasticsearch/issues/120332
 - class: org.elasticsearch.xpack.ccr.FollowIndexSecurityIT
   method: testCleanShardFollowTaskAfterDeleteFollower
   issue: https://github.com/elastic/elasticsearch/issues/120339
@@ -313,9 +310,6 @@ tests:
 - class: org.elasticsearch.repositories.gcs.GoogleCloudStorageServiceTests
   method: testClientsAreNotSharedAcrossRepositories
   issue: https://github.com/elastic/elasticsearch/issues/123090
-- class: org.elasticsearch.xpack.esql.action.EnrichIT
-  method: testAvgDurationByArtist
-  issue: https://github.com/elastic/elasticsearch/issues/123093
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/troubleshooting/common-issues/disk-usage-exceeded/line_65}
   issue: https://github.com/elastic/elasticsearch/issues/123094
@@ -340,6 +334,12 @@ tests:
 - class: org.elasticsearch.action.admin.indices.diskusage.IndexDiskUsageAnalyzerTests
   method: testCompletionField
   issue: https://github.com/elastic/elasticsearch/issues/123269
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test151MachineDependentHeapWithSizeOverride
+  issue: https://github.com/elastic/elasticsearch/issues/123437
+- class: org.elasticsearch.xpack.esql.action.CrossClusterQueryWithPartialResultsIT
+  method: testOneRemoteClusterPartial
+  issue: https://github.com/elastic/elasticsearch/issues/123451
 
 # Examples:
 #

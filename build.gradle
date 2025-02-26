@@ -8,22 +8,15 @@
  */
 
 
-import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
-import com.avast.gradle.dockercompose.tasks.ComposePull
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 
-import org.elasticsearch.gradle.DistributionDownloadPlugin
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.internal.BaseInternalPluginBuildPlugin
-import org.elasticsearch.gradle.internal.ResolveAllDependencies
 import org.elasticsearch.gradle.util.GradleUtils
-import org.gradle.plugins.ide.eclipse.model.AccessRule
 
 import java.nio.file.Files
 
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING
-import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure
 
 buildscript {
   repositories {
@@ -229,10 +222,6 @@ boolean bwcTestsEnabled = true
 if (project.gradle.startParameter.taskNames.any { it.startsWith("checkPart") || it == 'functionalTests' }) {
   // Disable BWC tests for checkPart* tasks and platform support tests as it's expected that this will run on it's own check
   bwcTestsEnabled = false
-}
-
-subprojects { proj ->
-  apply plugin: 'elasticsearch.base'
 }
 
 allprojects {

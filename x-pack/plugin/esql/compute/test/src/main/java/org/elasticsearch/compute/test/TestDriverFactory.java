@@ -40,7 +40,7 @@ public class TestDriverFactory {
     ) {
         return new Driver(
             "unset",
-            "test-description",
+            "test-task",
             System.currentTimeMillis(),
             System.nanoTime(),
             driverContext,

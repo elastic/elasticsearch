@@ -19,7 +19,11 @@ esplugin {
   name = 'x-pack-inference'
   description = 'Configuration and evaluation of inference models'
   classname ='org.elasticsearch.xpack.inference.InferencePlugin'
-  extendedPlugins = ['x-pack-core']
+  extendedPluginProjects {
+    "x-pack-core" {
+      path = ':x-pack:plugin:core'
+    }
+  }
 }
 
 base {

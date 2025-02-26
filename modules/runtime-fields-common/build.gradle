@@ -14,7 +14,11 @@ apply plugin: 'elasticsearch.yaml-rest-compat-test'
 esplugin {
   description = 'Module for runtime fields features and extensions that have large dependencies'
   classname = 'org.elasticsearch.runtimefields.RuntimeFieldsCommonPlugin'
-  extendedPlugins = ['lang-painless']
+  extendedPluginProjects {
+    "lang-painless" {
+      path = ':modules:lang-painless'
+    }
+  }
 }
 
 dependencies {

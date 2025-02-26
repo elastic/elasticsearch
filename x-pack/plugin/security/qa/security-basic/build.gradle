@@ -12,7 +12,14 @@ esplugin {
   name = 'queryable-reserved-roles-test'
   description = 'A test plugin for testing that changes to reserved roles are made queryable'
   classname = 'org.elasticsearch.xpack.security.role.QueryableBuiltInRolesTestPlugin'
-  extendedPlugins = ['x-pack-core', 'x-pack-security']
+  extendedPluginProjects {
+    "x-pack-core" {
+      path = ':x-pack:plugin:core'
+    }
+    "x-pack-security" {
+      path = ':x-pack:plugin:security'
+    }
+  }
 }
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('security'))))

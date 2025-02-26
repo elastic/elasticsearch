@@ -59,6 +59,7 @@ import org.elasticsearch.compute.test.AnyOperatorTestCase;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.test.TestBlockFactory;
+import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
@@ -1298,8 +1299,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         );
         var vsShardContext = new ValuesSourceReaderOperator.ShardContext(reader(indexKey), () -> SourceLoader.FROM_STORED_SOURCE);
         try (
-            Driver driver = new Driver(
-                "test",
+            Driver driver = TestDriverFactory.create(
                 driverContext,
                 luceneFactory.get(driverContext),
                 List.of(
@@ -1328,8 +1328,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                     } finally {
                         page.releaseBlocks();
                     }
-                }),
-                () -> {}
+                })
             )
         ) {
             runDriver(driver);
@@ -1376,8 +1375,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         List<ValuesSourceReaderOperator.ShardContext> shardContexts = initShardContexts();
         int[] pages = new int[] { 0 };
         try (
-            Driver d = new Driver(
-                "test",
+            Driver d = TestDriverFactory.create(
                 driverContext,
                 simpleInput(driverContext, 10),
                 List.of(
@@ -1400,8 +1398,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
                     } finally {
                         page.releaseBlocks();
                     }
-                }),
-                () -> {}
+                })
             )
         ) {
             runDriver(d);
@@ -1498,14 +1495,7 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         List<Page> results = new ArrayList<>();
         boolean success = false;
         try (
-            Driver d = new Driver(
-                "test",
-                driverContext,
-                new CannedSourceOperator(input),
-                operators,
-                new TestResultPageSinkOperator(results::add),
-                () -> {}
-            )
+            Driver d = TestDriver(driverContext, new CannedSourceOperator(input), operators, new TestResultPageSinkOperator(results::add))
         ) {
             runDriver(d);
             success = true;

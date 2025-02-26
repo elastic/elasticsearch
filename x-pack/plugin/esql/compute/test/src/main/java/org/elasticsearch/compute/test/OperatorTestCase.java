@@ -188,13 +188,11 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         while (source.hasNext()) {
             List<Page> in = source.next();
             try (
-                Driver d = new Driver(
-                    "test",
+                Driver d = TestDriverFactory.create(
                     driverContext(),
                     new CannedSourceOperator(in.iterator()),
                     operators.get(),
-                    new PageConsumerOperator(result::add),
-                    () -> {}
+                    new PageConsumerOperator(result::add)
                 )
             ) {
                 runDriver(d);
@@ -263,13 +261,11 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         List<Page> results = new ArrayList<>();
         boolean success = false;
         try (
-            Driver d = new Driver(
-                "test",
+            Driver d = TestDriverFactory.create(
                 driverContext,
                 new CannedSourceOperator(input),
                 operators,
-                new TestResultPageSinkOperator(results::add),
-                () -> {}
+                new TestResultPageSinkOperator(results::add)
             )
         ) {
             runDriver(d);

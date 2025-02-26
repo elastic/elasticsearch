@@ -89,3 +89,5 @@ elastic.apm.agent:
       properties:
         - AsyncProfiler.safemode
   - load_native_libraries
+  - manage_threads
+  - outbound_network

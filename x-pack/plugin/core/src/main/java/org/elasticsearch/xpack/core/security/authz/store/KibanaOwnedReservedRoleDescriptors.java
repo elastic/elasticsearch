@@ -231,7 +231,7 @@ class KibanaOwnedReservedRoleDescriptors {
                 RoleDescriptor.IndicesPrivileges.builder().indices("logs-fleet_server*").privileges("read", "delete_index").build(),
                 // Fleet creates and writes this index for sync integrations feature
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("fleet-synced-integrations")
+                    .indices("fleet-synced-integrations*")
                     .privileges("create_index", "manage", "read", "write")
                     .build(),
                 // Legacy "Alerts as data" used in Security Solution.

@@ -69,13 +69,13 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
     public void testBackloggedMergeTasksAreAllExecutedExactlyOnce() throws Exception {
         int mergeExecutorThreadCount = randomIntBetween(1, 2);
         Settings settings = Settings.builder()
-                .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
-                // results in few merge threads, in order to increase contention
-                .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
-                .build();
+            .put(ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING.getKey(), true)
+            // results in few merge threads, in order to increase contention
+            .put(EsExecutors.NODE_PROCESSORS_SETTING.getKey(), mergeExecutorThreadCount)
+            .build();
         try (TestThreadPool testThreadPool = new TestThreadPool("test", settings)) {
             ThreadPoolMergeExecutorService threadPoolMergeExecutorService = ThreadPoolMergeExecutorService
-                    .maybeCreateThreadPoolMergeExecutorService(testThreadPool, settings);
+                .maybeCreateThreadPoolMergeExecutorService(testThreadPool, settings);
             assertNotNull(threadPoolMergeExecutorService);
             assertThat(threadPoolMergeExecutorService.getMaxConcurrentMerges(), equalTo(mergeExecutorThreadCount));
             int mergeTaskCount = randomIntBetween(3, 30);
@@ -84,7 +84,7 @@ public class ThreadPoolMergeExecutorServiceTests extends ESTestCase {
             CountDownLatch submitTaskLatch = new CountDownLatch(1);
             Collection<ThreadPoolMergeScheduler.MergeTask> generatedMergeTasks = ConcurrentCollections.newConcurrentSet();
             for (int i = 0; i < mergeTaskCount; i++) {
-                new Thread(()-> {
+                new Thread(() -> {
                     ThreadPoolMergeScheduler.MergeTask mergeTask = mock(ThreadPoolMergeScheduler.MergeTask.class);
                     when(mergeTask.isRunning()).thenReturn(false);
                     boolean supportsIOThrottling = randomBoolean();

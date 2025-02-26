@@ -26,7 +26,9 @@ import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 
 /**
  * Event ingest is done through a {@link BulkProcessor2}. This class is responsible for instantiating the bulk processor.
+ * @deprecated in 9.0
  */
+@Deprecated
 public class BulkProcessorFactory {
     private static final Logger logger = LogManager.getLogger(AnalyticsEventEmitter.class);
 

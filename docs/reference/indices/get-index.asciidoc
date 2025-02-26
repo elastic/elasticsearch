@@ -65,6 +65,6 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=include-defaults]
 If `false`, requests that target a missing index return an error. Defaults to
 `false`.
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=local]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=local-deprecated-9.0.0]
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]

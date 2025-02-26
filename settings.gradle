@@ -175,4 +175,5 @@ gradle.lifecycle.beforeProject {
   // unfortunately we cannot nest script plugins
   apply plugin: 'elasticsearch.eclipse'
   apply plugin: 'elasticsearch.formatting'
+  apply plugin: 'elasticsearch.forbidden-dependencies'
 }

@@ -15,4 +15,4 @@ deprecation:
     from version 9.0.0 onwards. You must upgrade all your clusters to version 8.18.0 or later before upgrading
     any of your clusters to 9.0.0 or later.
   impact: >
-   Users should upgrade any clusters older than v8.18 to >= 8.18 to maintain compatibility with clusters upgraded to v9.
+   Upgrade all of your clusters to at least 8.18.0 before upgrading any of them to 9.0.0 or later.

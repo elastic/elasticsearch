@@ -336,8 +336,9 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         String bwcTaskName = buildBwcTaskName(projectName);
         bwcSetupExtension.bwcTask(bwcTaskName, c -> {
             boolean useNativeExpanded = projectArtifact.expandedDistDir != null;
+            boolean isReleaseBuild = System.getProperty("tests.bwc.snapshot", "true").equals("false");
             File expectedOutputFile = useNativeExpanded
-                ? new File(projectArtifact.expandedDistDir, "elasticsearch-" + bwcVersion.get() + "-SNAPSHOT")
+                ? new File(projectArtifact.expandedDistDir, "elasticsearch-" + bwcVersion.get() + (isReleaseBuild ? "" : "-SNAPSHOT"))
                 : projectArtifact.distFile;
             c.getInputs().file(new File(project.getBuildDir(), "refspec"));
             if (useNativeExpanded) {

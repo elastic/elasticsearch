@@ -4,7 +4,7 @@
   "targetPRLabels" : [ "backport" ],
   "branchLabelMapping" : {
     "^v9.1.0$" : "main",
-    "^v8.19.0$" : "8.x",
+    "^v8.17.3$" : "8.x",
     "^v(\\d+).(\\d+).\\d+(?:-(?:alpha|beta|rc)\\d+)?$" : "$1.$2"
   }
 }

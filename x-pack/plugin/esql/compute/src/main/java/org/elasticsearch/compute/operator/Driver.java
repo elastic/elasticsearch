@@ -77,7 +77,7 @@ public class Driver implements Releasable, Describable {
     private final DriverContext driverContext;
     private final Supplier<String> description;
     private final List<Operator> activeOperators;
-    private final List<DriverStatus.OperatorStatus> statusOfCompletedOperators = new ArrayList<>();
+    private final List<OperatorStatus> statusOfCompletedOperators = new ArrayList<>();
     private final Releasable releasable;
     private final long statusNanos;
 
@@ -152,37 +152,6 @@ public class Driver implements Releasable, Describable {
                 List.of(),
                 DriverSleeps.empty()
             )
-        );
-    }
-
-    /**
-     * Creates a new driver with a chain of operators.
-     * @param driverContext the driver context
-     * @param source source operator
-     * @param intermediateOperators  the chain of operators to execute
-     * @param sink sink operator
-     * @param releasable a {@link Releasable} to invoked once the chain of operators has run to completion
-     */
-    public Driver(
-        String taskDescription,
-        DriverContext driverContext,
-        SourceOperator source,
-        List<Operator> intermediateOperators,
-        SinkOperator sink,
-        Releasable releasable
-    ) {
-        this(
-            "unset",
-            taskDescription,
-            System.currentTimeMillis(),
-            System.nanoTime(),
-            driverContext,
-            () -> null,
-            source,
-            intermediateOperators,
-            sink,
-            DEFAULT_STATUS_INTERVAL,
-            releasable
         );
     }
 
@@ -329,7 +298,7 @@ public class Driver implements Releasable, Describable {
                 Iterator<Operator> itr = finishedOperators.iterator();
                 while (itr.hasNext()) {
                     Operator op = itr.next();
-                    statusOfCompletedOperators.add(new DriverStatus.OperatorStatus(op.toString(), op.status()));
+                    statusOfCompletedOperators.add(new OperatorStatus(op.toString(), op.status()));
                     op.close();
                     itr.remove();
                 }
@@ -555,7 +524,7 @@ public class Driver implements Releasable, Describable {
                 prev.iterations() + extraIterations,
                 status,
                 statusOfCompletedOperators,
-                activeOperators.stream().map(op -> new DriverStatus.OperatorStatus(op.toString(), op.status())).toList(),
+                activeOperators.stream().map(op -> new OperatorStatus(op.toString(), op.status())).toList(),
                 sleeps
             );
         });

@@ -7,9 +7,12 @@
 
 module org.elasticsearch.xcore {
     requires org.elasticsearch.cli;
+    requires org.elasticsearch.entitlement;
+    requires org.elasticsearch.base;
     requires org.elasticsearch.grok;
     requires org.elasticsearch.server;
     requires org.elasticsearch.sslconfig;
+    requires org.elasticsearch.xcontent;
     requires org.apache.httpcomponents.httpcore;
     requires org.apache.httpcomponents.httpclient;
     requires org.apache.httpcomponents.httpasyncclient;
@@ -20,9 +23,6 @@ module org.elasticsearch.xcore {
     requires unboundid.ldapsdk;
     requires org.elasticsearch.tdigest;
     requires org.elasticsearch.xcore.templates;
-    requires org.elasticsearch.entitlement;
-    requires org.elasticsearch.xcontent;
-    requires org.elasticsearch.base;
 
     exports org.elasticsearch.index.engine.frozen;
     exports org.elasticsearch.license;

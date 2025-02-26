@@ -7,14 +7,22 @@
 
 package org.elasticsearch.xpack.security.ssl;
 
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.LogType;
 import org.elasticsearch.test.cluster.MutableSettingsProvider;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
 import org.junit.ClassRule;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.hamcrest.Matchers.is;
 
 public class SslEntitlementRestIT extends ESRestTestCase {
 
@@ -32,10 +40,24 @@ public class SslEntitlementRestIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
-    public void testSslEntitlementInaccessiblePath() {
+    public void testSslEntitlementInaccessiblePath() throws IOException {
         settingsProvider.put("xpack.security.transport.ssl.keystore.path", "/bad/path");
         expectThrows(Exception.class, () -> cluster.restart(false));
-        // TODO assert on cluster logs
+        for (int i = 0; i < cluster.getNumNodes(); i++) {
+            AtomicBoolean found = new AtomicBoolean(false);
+            try (InputStream log = cluster.getNodeLog(i, LogType.SERVER)) {
+                Streams.readAllLines(log, line -> {
+                    if (line.contains(
+                        "failed to load SSL configuration [xpack.security.transport.ssl] - "
+                            + "cannot read configured [jks] keystore (as a truststore) "
+                            + "[/bad/path] because access to read the file is blocked;"
+                    )) {
+                        found.set(true);
+                    }
+                });
+            }
+            assertThat(found.get(), is(true));
+        }
     }
 
     @Override

@@ -34,8 +34,7 @@ public class ElasticsearchDistributionExtension {
     private Configuration moduleZip(Project module) {
         var moduleConfigurationCoords = Map.of("path", module.getPath(), "configuration", EXPLODED_BUNDLE_CONFIG);
         var dep = project.getDependencies().project(moduleConfigurationCoords);
-        Configuration detachedConfiguration = project.getConfigurations().detachedConfiguration(dep);
-        return detachedConfiguration;
+        return project.getConfigurations().detachedConfiguration(dep);
     }
 
     public void copyModule(TaskProvider<? extends AbstractCopyTask> copyTask, Project module) {

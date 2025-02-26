@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapperTestUtils;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.Model;
@@ -82,8 +83,10 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                 assertThat(actualChunk.endOffset(), equalTo(expectedChunks.get(i).endOffset()));
                 switch (modelSettings.taskType()) {
                     case TEXT_EMBEDDING -> {
-                        Integer embeddingLength = modelSettings.embeddingLength();
-                        assert embeddingLength != null;
+                        int embeddingLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(
+                            modelSettings.elementType(),
+                            modelSettings.dimensions()
+                        );
 
                         double[] expectedVector = parseDenseVector(
                             expectedChunks.get(i).rawEmbeddings(),
@@ -173,9 +176,8 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
 
     public static ChunkedInferenceEmbedding randomChunkedInferenceEmbeddingByte(Model model, List<String> inputs) {
         DenseVectorFieldMapper.ElementType elementType = model.getServiceSettings().elementType();
-        Integer embeddingLength = model.getServiceSettings().embeddingLength();
+        int embeddingLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(elementType, model.getServiceSettings().dimensions());
         assert elementType == DenseVectorFieldMapper.ElementType.BYTE || elementType == DenseVectorFieldMapper.ElementType.BIT;
-        assert embeddingLength != null;
 
         List<TextEmbeddingByteResults.Chunk> chunks = new ArrayList<>();
         for (String input : inputs) {
@@ -189,9 +191,9 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
     }
 
     public static ChunkedInferenceEmbedding randomChunkedInferenceEmbeddingFloat(Model model, List<String> inputs) {
-        Integer embeddingLength = model.getServiceSettings().embeddingLength();
-        assert model.getServiceSettings().elementType() == DenseVectorFieldMapper.ElementType.FLOAT;
-        assert embeddingLength != null;
+        DenseVectorFieldMapper.ElementType elementType = model.getServiceSettings().elementType();
+        int embeddingLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(elementType, model.getServiceSettings().dimensions());
+        assert elementType == DenseVectorFieldMapper.ElementType.FLOAT;
 
         List<TextEmbeddingFloatResults.Chunk> chunks = new ArrayList<>();
         for (String input : inputs) {
@@ -324,10 +326,12 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                 return new ChunkedInferenceEmbedding(chunks);
             }
             case TEXT_EMBEDDING -> {
-                Integer embeddingLength = field.inference().modelSettings().embeddingLength();
-                assert embeddingLength != null;
-
                 var elementType = field.inference().modelSettings().elementType();
+                int embeddingLength = DenseVectorFieldMapperTestUtils.getEmbeddingLength(
+                    elementType,
+                    field.inference().modelSettings().dimensions()
+                );
+
                 List<EmbeddingResults.Chunk> chunks = new ArrayList<>();
                 for (var entry : field.inference().chunks().entrySet()) {
                     String entryField = entry.getKey();

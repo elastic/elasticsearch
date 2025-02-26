@@ -124,14 +124,6 @@ public record MinimalServiceSettings(
         validate();
     }
 
-    public Integer embeddingLength() {
-        if (taskType != TEXT_EMBEDDING) {
-            return null;
-        }
-
-        return elementType.getEmbeddingLength(dimensions);
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();

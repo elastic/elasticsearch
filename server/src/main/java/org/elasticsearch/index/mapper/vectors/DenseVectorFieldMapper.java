@@ -522,16 +522,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             @Override
-            public int getEmbeddingLength(int dimensions) {
-                return dimensions;
-            }
-
-            @Override
-            public int getDimensions(int embeddingLength) {
-                return embeddingLength;
-            }
-
-            @Override
             public ByteBuffer createByteBuffer(IndexVersion indexVersion, int numBytes) {
                 return ByteBuffer.wrap(new byte[numBytes]);
             }
@@ -727,16 +717,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             @Override
             public int getNumBytes(int dimensions) {
                 return dimensions * Float.BYTES;
-            }
-
-            @Override
-            public int getEmbeddingLength(int dimensions) {
-                return dimensions;
-            }
-
-            @Override
-            public int getDimensions(int embeddingLength) {
-                return embeddingLength;
             }
 
             @Override
@@ -954,17 +934,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
 
             @Override
-            public int getEmbeddingLength(int dimensions) {
-                assert dimensions % Byte.SIZE == 0;
-                return dimensions / Byte.SIZE;
-            }
-
-            @Override
-            public int getDimensions(int embeddingLength) {
-                return embeddingLength * Byte.SIZE;
-            }
-
-            @Override
             public ByteBuffer createByteBuffer(IndexVersion indexVersion, int numBytes) {
                 return ByteBuffer.wrap(new byte[numBytes]);
             }
@@ -1021,10 +990,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         ) throws IOException;
 
         public abstract int getNumBytes(int dimensions);
-
-        public abstract int getEmbeddingLength(int dimensions);
-
-        public abstract int getDimensions(int embeddingLength);
 
         public abstract ByteBuffer createByteBuffer(IndexVersion indexVersion, int numBytes);
 

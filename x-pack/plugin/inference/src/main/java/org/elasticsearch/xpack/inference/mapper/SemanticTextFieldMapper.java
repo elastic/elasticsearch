@@ -710,7 +710,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
                         MlTextEmbeddingResults textEmbeddingResults = (MlTextEmbeddingResults) inferenceResults;
                         float[] inference = textEmbeddingResults.getInferenceAsFloat();
-                        int dimensions = modelSettings.elementType().getDimensions(inference.length);
+                        int dimensions = modelSettings.elementType() == DenseVectorFieldMapper.ElementType.BIT
+                            ? inference.length * Byte.SIZE // Bit vectors encode 8 dimensions into each byte value
+                            : inference.length;
                         if (dimensions != modelSettings.dimensions()) {
                             throw new IllegalArgumentException(
                                 generateDimensionCountMismatchMessage(dimensions, modelSettings.dimensions())

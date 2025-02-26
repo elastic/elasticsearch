@@ -230,7 +230,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
          * @return An embedding
          */
         private static List<Float> generateEmbedding(String input, int dimensions, DenseVectorFieldMapper.ElementType elementType) {
-            int embeddingLength = elementType.getEmbeddingLength(dimensions);
+            int embeddingLength = getEmbeddingLength(elementType, dimensions);
             List<Float> embedding = new ArrayList<>(embeddingLength);
 
             byte[] byteArray = Integer.toString(input.hashCode()).getBytes(StandardCharsets.UTF_8);
@@ -249,6 +249,16 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             }
 
             return embedding;
+        }
+
+        private static int getEmbeddingLength(DenseVectorFieldMapper.ElementType elementType, int dimensions) {
+            return switch (elementType) {
+                case FLOAT, BYTE -> dimensions;
+                case BIT -> {
+                    assert dimensions % Byte.SIZE == 0;
+                    yield dimensions / Byte.SIZE;
+                }
+            };
         }
 
         public static class Configuration {

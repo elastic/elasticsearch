@@ -174,7 +174,7 @@ def commonPackageConfig(String type, String architecture) {
     } else {
       assert type == 'rpm'
       into('/usr/share/elasticsearch') {
-        from(rootProject.file('licenses')) {
+        from(layout.settingsDirectory.file('licenses').asFile) {
           include 'ELASTIC-LICENSE-2.0.txt'
           rename { 'LICENSE.txt' }
         }

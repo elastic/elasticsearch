@@ -104,7 +104,7 @@ tasks.named("processResources").configure {
   } else {
     throw new IllegalArgumentException('Property license.key must be set for release build')
   }
-  File licenseKeyFile = rootProject.file(licenseKey)
+  File licenseKeyFile = layout.settingsDirectory.file(licenseKey).asFile
   if (licenseKeyFile.exists() == false) {
     throw new IllegalArgumentException('license.key at specified path [' + licenseKey + '] does not exist')
   }

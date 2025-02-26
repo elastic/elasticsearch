@@ -21,6 +21,7 @@ import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
+import org.junit.After;
 
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthorizationExceptionDefaultUsers;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationExceptionDefaultUsers;
@@ -32,9 +33,14 @@ import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 public class WriteActionsTests extends SecurityIntegTestCase {
 
+    @After
+    public void cleanupSecurityIndex() {
+        super.deleteSecurityIndex();
+    }
+
     @Override
     protected String configRoles() {
-        return Strings.format("""
+        return super.configRoles() + "\n" + Strings.format("""
             %s:
               cluster: [ ALL ]
               indices:

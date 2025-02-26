@@ -22,19 +22,24 @@ import java.util.function.Supplier;
  * This class is only used to generates docs for the match operator - all testing is the same as {@link MatchTests}
  */
 @FunctionName("match_operator")
-public class MatchOperatorTests extends MatchTests {
+public class MatchOperatorTests extends AbstractMatchFullTextFunctionTests {
 
     public MatchOperatorTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
-        super(testCaseSupplier);
+        this.testCase = testCaseSupplier.get();
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return AbstractMatchFullTextFunctionTests.parameters();
+        return parameterSuppliersFromTypedData(testCaseSuppliers());
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new MatchOperator(source, args.get(0), args.get(1));
+    }
+
+    @Override
+    public void testSerializationOfSimple() {
+        // MatchOperator is not a separate function that needs to be serialized, it's serialized via Match
     }
 }

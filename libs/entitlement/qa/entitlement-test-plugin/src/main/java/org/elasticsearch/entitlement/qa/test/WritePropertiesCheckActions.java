@@ -10,6 +10,10 @@
 package org.elasticsearch.entitlement.qa.test;
 
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.entitlement.qa.entitled.EntitledPlugin;
+
+import java.util.Locale;
+import java.util.TimeZone;
 
 @SuppressForbidden(reason = "testing entitlements")
 class WritePropertiesCheckActions {
@@ -26,10 +30,23 @@ class WritePropertiesCheckActions {
     }
 
     static void clearSystemProperty() {
+        EntitledPlugin.selfTest(); // TODO: find a better home
         System.clearProperty("es.entitlements.checkClearSystemProperty");
     }
 
     static void setSystemProperties() {
         System.setProperties(System.getProperties()); // no side effect in case if allowed (but shouldn't)
+    }
+
+    static void setDefaultLocale() {
+        Locale.setDefault(Locale.getDefault());
+    }
+
+    static void setDefaultLocaleForCategory() {
+        Locale.setDefault(Locale.Category.DISPLAY, Locale.getDefault(Locale.Category.DISPLAY));
+    }
+
+    static void setDefaultTimeZone() {
+        TimeZone.setDefault(TimeZone.getDefault());
     }
 }

@@ -84,6 +84,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     public void testLuceneSourceOperatorHugeRowSize() throws IOException {
         int estimatedRowSize = randomEstimatedRowSize(estimatedRowSizeIsHuge);
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
+            "test",
             FoldContext.small(),
             new EsQueryExec(
                 Source.EMPTY,
@@ -110,6 +111,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         EsQueryExec.FieldSort sort = new EsQueryExec.FieldSort(sortField, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
         Literal limit = new Literal(Source.EMPTY, 10, DataType.INTEGER);
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
+            "test",
             FoldContext.small(),
             new EsQueryExec(
                 Source.EMPTY,
@@ -136,6 +138,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         EsQueryExec.GeoDistanceSort sort = new EsQueryExec.GeoDistanceSort(sortField, Order.OrderDirection.ASC, 1, -1);
         Literal limit = new Literal(Source.EMPTY, 10, DataType.INTEGER);
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
+            "test",
             FoldContext.small(),
             new EsQueryExec(
                 Source.EMPTY,
@@ -169,6 +172,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     }
 
     private LocalExecutionPlanner planner() throws IOException {
+        List<EsPhysicalOperationProviders.ShardContext> shardContexts = createShardContexts();
         return new LocalExecutionPlanner(
             "test",
             "",
@@ -181,7 +185,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             null,
             null,
             null,
-            esPhysicalOperationProviders()
+            esPhysicalOperationProviders(shardContexts),
+            shardContexts
         );
     }
 
@@ -197,11 +202,16 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             StringUtils.EMPTY,
             false,
             Map.of(),
-            System.nanoTime()
+            System.nanoTime(),
+            randomBoolean()
         );
     }
 
-    private EsPhysicalOperationProviders esPhysicalOperationProviders() throws IOException {
+    private EsPhysicalOperationProviders esPhysicalOperationProviders(List<EsPhysicalOperationProviders.ShardContext> shardContexts) {
+        return new EsPhysicalOperationProviders(FoldContext.small(), shardContexts, null);
+    }
+
+    private List<EsPhysicalOperationProviders.ShardContext> createShardContexts() throws IOException {
         int numShards = randomIntBetween(1, 1000);
         List<EsPhysicalOperationProviders.ShardContext> shardContexts = new ArrayList<>(numShards);
         var searcher = new ContextIndexSearcher(
@@ -221,7 +231,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             );
         }
         releasables.add(searcher);
-        return new EsPhysicalOperationProviders(FoldContext.small(), shardContexts, null);
+        return shardContexts;
     }
 
     private IndexReader reader() {

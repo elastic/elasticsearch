@@ -1760,7 +1760,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         new Thread(() -> {
             try {
                 downsample(sourceIndex, targetIndex, config);
-            } catch (ResourceAlreadyExistsException e) {
+            } catch (ElasticsearchException e) {
                 firstFailed.set(true);
             } finally {
                 downsampleComplete.countDown();
@@ -1770,7 +1770,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         new Thread(() -> {
             try {
                 downsample(sourceIndex, targetIndex, config);
-            } catch (ResourceAlreadyExistsException e) {
+            } catch (ElasticsearchException e) {
                 secondFailed.set(true);
             } finally {
                 downsampleComplete.countDown();

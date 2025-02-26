@@ -1,0 +1,5 @@
+pr: 119308
+summary: Upgrade to Lucene 10.1.0
+area: Search
+type: upgrade
+issues: []

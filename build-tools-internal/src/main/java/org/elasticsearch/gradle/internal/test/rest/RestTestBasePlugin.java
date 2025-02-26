@@ -223,7 +223,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
                     }
 
                     Version version = (Version) args[0];
-                    boolean isReleased = bwcVersions.unreleasedInfo(version) == null;
+                    boolean isReleased = bwcVersions.unreleasedInfo(version) == null && version.toString().equals("0.0.0") == false;
                     String versionString = version.toString();
                     ElasticsearchDistribution bwcDistro = createDistribution(project, "bwc_" + versionString, versionString);
 

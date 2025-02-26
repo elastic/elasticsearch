@@ -37,6 +37,12 @@ If `true`, enables built-in index and component templates.
 streams. If `false`, {es} disables these index and component templates. Defaults
 to `true`.
 
+NOTE: It is not recommended to disable the built-in stack templates, as some functionality of {es}
+or Kibana will not work correctly when disabled. Features like log and metric collection, as well as
+Kibana reporting, may malfunction without the built-in stack templates. Stack templates should only
+be disabled temporarily, if necessary, to resolve upgrade issues, then re-enabled after any issues
+have been resolved.
+
 This setting affects the following built-in index templates:
 
 include::{es-ref-dir}/indices/index-templates.asciidoc[tag=built-in-index-template-patterns]

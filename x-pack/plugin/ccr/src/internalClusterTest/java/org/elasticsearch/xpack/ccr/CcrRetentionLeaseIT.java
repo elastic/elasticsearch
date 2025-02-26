@@ -302,7 +302,12 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
          * times that we sample the retention leases, which would cause our check to fail.
          */
         final TimeValue syncIntervalSetting = IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.get(
-            leaderClient().admin().indices().prepareGetSettings(leaderIndex).get().getIndexToSettings().get(leaderIndex)
+            leaderClient().admin()
+                .indices()
+                .prepareGetSettings(TEST_REQUEST_TIMEOUT, leaderIndex)
+                .get()
+                .getIndexToSettings()
+                .get(leaderIndex)
         );
         final long syncEnd = System.nanoTime();
         Thread.sleep(Math.max(0, randomIntBetween(2, 4) * syncIntervalSetting.millis() - TimeUnit.NANOSECONDS.toMillis(syncEnd - start)));
@@ -721,7 +726,12 @@ public class CcrRetentionLeaseIT extends CcrIntegTestCase {
          * times that we sample the retention leases, which would cause our check to fail.
          */
         final TimeValue syncIntervalSetting = IndexService.RETENTION_LEASE_SYNC_INTERVAL_SETTING.get(
-            leaderClient().admin().indices().prepareGetSettings(leaderIndex).get().getIndexToSettings().get(leaderIndex)
+            leaderClient().admin()
+                .indices()
+                .prepareGetSettings(TEST_REQUEST_TIMEOUT, leaderIndex)
+                .get()
+                .getIndexToSettings()
+                .get(leaderIndex)
         );
         final long syncEnd = System.nanoTime();
         Thread.sleep(Math.max(0, randomIntBetween(2, 4) * syncIntervalSetting.millis() - TimeUnit.NANOSECONDS.toMillis(syncEnd - start)));

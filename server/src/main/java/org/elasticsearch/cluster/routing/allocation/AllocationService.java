@@ -12,6 +12,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
@@ -19,6 +20,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.AutoExpandReplicas;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -573,15 +575,71 @@ public class AllocationService {
         });
 
         clusterService.addListener((changeEvent) -> {
-            if (changeEvent.nodesAdded() && changeEvent.state().getRoutingNodes().hasAllocationFailures()) {
+            if (shouldResetAllocationFailures(changeEvent)) {
                 taskQueue.submitTask("reset-allocation-failures", (e) -> { assert MasterService.isPublishFailureException(e); }, null);
             }
         });
     }
 
+    /**
+     *  We should reset allocation/relocation failure count to allow further retries when:
+     *
+     *  1. A new node joins the cluster.
+     *  2. A node shutdown metadata is added that could lead to a node being removed or replaced in the cluster.
+     *
+     * Note that removing a non-RESTART shutdown metadata from a node that is still in the cluster is treated similarly and
+     * will cause resetting the allocation/relocation failures.
+     */
+    private boolean shouldResetAllocationFailures(ClusterChangedEvent changeEvent) {
+        final var clusterState = changeEvent.state();
+
+        if (clusterState.getRoutingNodes().hasAllocationFailures() == false
+            && clusterState.getRoutingNodes().hasRelocationFailures() == false) {
+            return false;
+        }
+        if (changeEvent.nodesAdded()) {
+            return true;
+        }
+
+        final var currentNodeShutdowns = clusterState.metadata().nodeShutdowns();
+        final var previousNodeShutdowns = changeEvent.previousState().metadata().nodeShutdowns();
+
+        if (currentNodeShutdowns.equals(previousNodeShutdowns)) {
+            return false;
+        }
+
+        for (var currentShutdown : currentNodeShutdowns.getAll().entrySet()) {
+            var previousNodeShutdown = previousNodeShutdowns.get(currentShutdown.getKey());
+            if (currentShutdown.equals(previousNodeShutdown)) {
+                continue;
+            }
+            // A RESTART doesn't necessarily move around shards, so no need to consider it for a reset.
+            // Furthermore, once the node rejoins after restarting, there will be a reset if necessary.
+            if (currentShutdown.getValue().getType() == SingleNodeShutdownMetadata.Type.RESTART) {
+                continue;
+            }
+            // A node with no shutdown marker or a RESTART marker receives a non-RESTART shutdown marker
+            if (previousNodeShutdown == null || previousNodeShutdown.getType() == Type.RESTART) {
+                return true;
+            }
+        }
+
+        for (var previousShutdown : previousNodeShutdowns.getAll().entrySet()) {
+            var nodeId = previousShutdown.getKey();
+            // A non-RESTART marker is removed but the node is still in the cluster. We could re-attempt failed relocations/allocations.
+            if (currentNodeShutdowns.get(nodeId) == null
+                && previousShutdown.getValue().getType() != SingleNodeShutdownMetadata.Type.RESTART
+                && clusterState.nodes().get(nodeId) != null) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private ClusterState rerouteWithResetFailedCounter(ClusterState clusterState) {
         RoutingAllocation allocation = createRoutingAllocation(clusterState, currentNanoTime());
-        allocation.routingNodes().resetFailedCounter(allocation.changes());
+        allocation.routingNodes().resetFailedCounter(allocation);
         reroute(allocation, routingAllocation -> shardsAllocator.allocate(routingAllocation, ActionListener.noop()));
         return buildResultAndLogHealthChange(clusterState, allocation, "reroute with reset failed counter");
     }

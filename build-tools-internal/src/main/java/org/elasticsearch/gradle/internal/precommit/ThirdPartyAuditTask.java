@@ -60,6 +60,7 @@ import static org.gradle.api.JavaVersion.VERSION_20;
 import static org.gradle.api.JavaVersion.VERSION_21;
 import static org.gradle.api.JavaVersion.VERSION_22;
 import static org.gradle.api.JavaVersion.VERSION_23;
+import static org.gradle.api.JavaVersion.VERSION_24;
 
 @CacheableTask
 public abstract class ThirdPartyAuditTask extends DefaultTask {
@@ -341,8 +342,12 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
                 spec.setExecutable(javaHome.get() + "/bin/java");
             }
             spec.classpath(getForbiddenAPIsClasspath(), getThirdPartyClasspath());
-            // Enable explicitly for each release as appropriate. Just JDK 20/21/22/23 for now, and just the vector module.
-            if (isJavaVersion(VERSION_20) || isJavaVersion(VERSION_21) || isJavaVersion(VERSION_22) || isJavaVersion(VERSION_23)) {
+            // Enable explicitly for each release as appropriate. Just JDK 20/21/22/23/24 for now, and just the vector module.
+            if (isJavaVersion(VERSION_20)
+                || isJavaVersion(VERSION_21)
+                || isJavaVersion(VERSION_22)
+                || isJavaVersion(VERSION_23)
+                || isJavaVersion(VERSION_24)) {
                 spec.jvmArgs("--add-modules", "jdk.incubator.vector");
             }
             spec.jvmArgs("-Xmx1g");

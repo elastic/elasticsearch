@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -67,17 +66,16 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
 
     private static final Logger logger = LogManager.getLogger(DiskHealthIndicatorService.class);
 
-    private static final String IMPACT_INGEST_UNAVAILABLE_ID = "ingest_capability_unavailable";
+    // VisibleForTesting
+    public static final String IMPACT_INGEST_UNAVAILABLE_ID = "ingest_capability_unavailable";
     private static final String IMPACT_INGEST_AT_RISK_ID = "ingest_capability_at_risk";
     private static final String IMPACT_CLUSTER_STABILITY_AT_RISK_ID = "cluster_stability_at_risk";
     private static final String IMPACT_CLUSTER_FUNCTIONALITY_UNAVAILABLE_ID = "cluster_functionality_unavailable";
 
     private final ClusterService clusterService;
-    private final FeatureService featureService;
 
-    public DiskHealthIndicatorService(ClusterService clusterService, FeatureService featureService) {
+    public DiskHealthIndicatorService(ClusterService clusterService) {
         this.clusterService = clusterService;
-        this.featureService = featureService;
     }
 
     @Override

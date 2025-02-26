@@ -305,6 +305,8 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
         internalCluster().setBootstrapMasterNodeIndex(0);
         final String masterNode = internalCluster().getMasterName();
         ensureGreen();
+        deleteSecurityIndex(); // hack to force a new security index to be created
+        ensureGreen();
         CountDownLatch awaitMigrations = awaitMigrationVersionUpdates(
             masterNode,
             SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION

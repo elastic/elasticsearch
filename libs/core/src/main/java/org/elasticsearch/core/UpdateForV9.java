@@ -24,14 +24,11 @@ public @interface UpdateForV9 {
     enum Owner {
         CORE_INFRA,
         DATA_MANAGEMENT,
-        DISTRIBUTED_COORDINATION,
         DISTRIBUTED_INDEXING,
         ENTERPRISE_SEARCH,
         MACHINE_LEARNING,
         PROFILING,
         SEARCH_ANALYTICS,
-        SEARCH_FOUNDATIONS,
-        SEARCH_RELEVANCE,
         SECURITY,
     }
 

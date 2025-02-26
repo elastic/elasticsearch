@@ -89,6 +89,7 @@ PUT _rollup/job/sensor
 }
 --------------------------------------------------
 // TEST[setup:sensor_index]
+// TEST[warning:The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information.]
 
 We can then retrieve the rollup capabilities of that index pattern (`sensor-*`)
 via the following command:
@@ -98,6 +99,7 @@ via the following command:
 GET _rollup/data/sensor-*
 --------------------------------------------------
 // TEST[continued]
+// TEST[warning:The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information.]
 
 Which will yield the following response:
 
@@ -170,6 +172,7 @@ We could also retrieve the same information with a request to `_all`:
 GET _rollup/data/_all
 --------------------------------------------------
 // TEST[continued]
+// TEST[warning:The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information.]
 
 But note that if we use the concrete index name (`sensor-1`), we'll retrieve no
 rollup capabilities:
@@ -179,6 +182,7 @@ rollup capabilities:
 GET _rollup/data/sensor-1
 --------------------------------------------------
 // TEST[continued]
+// TEST[warning:The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information.]
 
 [source,console-result]
 ----

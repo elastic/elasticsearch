@@ -112,7 +112,9 @@ it is necessary to use the search function, like <<esql-match>>, in a <<esql-whe
 directly after the <<esql-from>> source command, or close enough to it.
 Otherwise, the query will fail with a validation error.
 Another limitation is that any <<esql-where>> command containing a full-text search function
-cannot also use disjunctions (`OR`) unless all functions used in the OR clauses are full-text functions themselves.
+cannot use disjunctions (`OR`), unless:
+
+* All functions used in the OR clauses are full-text functions themselves, or scoring is not used
 
 For example, this query is valid:
 
@@ -131,19 +133,27 @@ FROM books
 | WHERE MATCH(author, "Faulkner")
 ----
 
-And this query will fail due to the disjunction:
+And this query that uses a disjunction will succeed:
 
 [source,esql]
 ----
 FROM books
+| WHERE MATCH(author, "Faulkner") OR QSTR("author: Hemingway")
+----
+
+However using scoring will fail because it uses a non full text function as part of the disjunction:
+
+[source,esql]
+----
+FROM books METADATA _score
 | WHERE MATCH(author, "Faulkner") OR author LIKE "Hemingway"
 ----
 
-However this query will succeed because it uses full text functions on both `OR` clauses:
+Scoring will work in the following query, as it uses full text functions on both `OR` clauses:
 
 [source,esql]
 ----
-FROM books
+FROM books METADATA _score
 | WHERE MATCH(author, "Faulkner") OR QSTR("author: Hemingway")
 ----
 

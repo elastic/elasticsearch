@@ -37,8 +37,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.VersionInformation;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.GroupShardsIteratorTests;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -151,7 +149,7 @@ public class TransportSearchActionTests extends ESTestCase {
         String clusterAlias
     ) {
         ShardId shardId = new ShardId(index, id);
-        List<ShardRouting> shardRoutings = GroupShardsIteratorTests.randomShardRoutings(shardId);
+        List<ShardRouting> shardRoutings = SearchShardIteratorTests.randomShardRoutings(shardId);
         return new SearchShardIterator(clusterAlias, shardId, shardRoutings, originalIndices);
     }
 
@@ -250,7 +248,7 @@ public class TransportSearchActionTests extends ESTestCase {
         Collections.shuffle(localShardIterators, random());
         Collections.shuffle(remoteShardIterators, random());
 
-        GroupShardsIterator<SearchShardIterator> groupShardsIterator = TransportSearchAction.mergeShardsIterators(
+        List<SearchShardIterator> groupShardsIterator = TransportSearchAction.mergeShardsIterators(
             localShardIterators,
             remoteShardIterators
         );

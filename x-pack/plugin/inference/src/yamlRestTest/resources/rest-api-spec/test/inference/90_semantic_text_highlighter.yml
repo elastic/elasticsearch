@@ -55,22 +55,32 @@ setup:
             index.mapping.semantic_text.use_legacy_format: false
           mappings:
             properties:
+              title:
+                type: text
               body:
                 type: semantic_text
                 inference_id: dense-inference-id
 
----
-"Highlighting using a sparse embedding model":
   - do:
       index:
         index: test-sparse-index
         id: doc_1
         body:
+          title: "Elasticsearch"
           body: ["ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides.", "You Know, for Search!"]
         refresh: true
 
-  - match: { result: created }
+  - do:
+      index:
+        index: test-dense-index
+        id: doc_1
+        body:
+          title: "Elasticsearch"
+          body: [ "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides.", "You Know, for Search!" ]
+        refresh: true
 
+---
+"Highlighting using a sparse embedding model":
   - do:
       search:
         index: test-sparse-index
@@ -154,16 +164,6 @@ setup:
 ---
 "Highlighting using a dense embedding model":
   - do:
-      index:
-        index: test-dense-index
-        id: doc_1
-        body:
-          body: ["ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides.", "You Know, for Search!"]
-        refresh: true
-
-  - match: { result: created }
-
-  - do:
       search:
         index: test-dense-index
         body:
@@ -243,4 +243,51 @@ setup:
   - match:  { hits.hits.0.highlight.body.0: "You Know, for Search!" }
   - match:  { hits.hits.0.highlight.body.1: "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides." }
 
+---
+"Default highlighter for fields":
+  - requires:
+        cluster_features: "semantic_text.highlighter.default"
+        reason: semantic text field defaults to the semantic highlighter
+
+  - do:
+      search:
+        index: test-dense-index
+        body:
+          query:
+            match:
+              body: "What is Elasticsearch?"
+          highlight:
+            fields:
+              body:
+                order: "score"
+                number_of_fragments: 2
+
+  - match:  { hits.total.value: 1 }
+  - match:  { hits.hits.0._id: "doc_1" }
+  - length: { hits.hits.0.highlight.body: 2 }
+  - match:  { hits.hits.0.highlight.body.0: "You Know, for Search!" }
+  - match:  { hits.hits.0.highlight.body.1: "ElasticSearch is an open source, distributed, RESTful, search engine which is built on top of Lucene internally and enjoys all the features it provides." }
+
+---
+"semantic highlighter ignores non-inference fields":
+  - requires:
+      cluster_features: "semantic_text.highlighter.default"
+      reason: semantic text field defaults to the semantic highlighter
+
+  - do:
+      search:
+        index: test-dense-index
+        body:
+          query:
+            match:
+              title: "Elasticsearch"
+          highlight:
+            fields:
+              title:
+                type: semantic
+                number_of_fragments: 2
+
+  - match:      { hits.total.value: 1 }
+  - match:      { hits.hits.0._id: "doc_1" }
+  - not_exists: hits.hits.0.highlight.title
 

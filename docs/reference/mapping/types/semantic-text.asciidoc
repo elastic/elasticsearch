@@ -130,17 +130,16 @@ You can extract the most relevant fragments from a semantic text field by using 
 
 [source,console]
 ------------------------------------------------------------
-PUT test-index
+POST test-index/_search
 {
     "query": {
-        "semantic": {
-            "field": "my_semantic_field"
+        "match": {
+            "my_semantic_field": "Which country is Paris in?"
         }
     },
     "highlight": {
         "fields": {
             "my_semantic_field": {
-                "type": "semantic",
                 "number_of_fragments": 2,  <1>
                 "order": "score"           <2>
             }
@@ -151,6 +150,33 @@ PUT test-index
 // TEST[skip:Requires inference endpoint]
 <1> Specifies the maximum number of fragments to return.
 <2> Sorts highlighted fragments by score when set to `score`. By default, fragments will be output in the order they appear in the field (order: none).
+
+Highlighting is supported on fields other than semantic_text.
+However, if you want to restrict highlighting to the semantic highlighter and return no fragments when the field is not of type semantic_text,
+you can explicitly enforce the `semantic` highlighter in the query:
+
+[source,console]
+------------------------------------------------------------
+PUT test-index
+{
+    "query": {
+        "match": {
+            "my_field": "Which country is Paris in?"
+        }
+    },
+    "highlight": {
+        "fields": {
+            "my_field": {
+                "type": "semantic",         <1>
+                "number_of_fragments": 2,
+                "order": "score"
+            }
+        }
+    }
+}
+------------------------------------------------------------
+// TEST[skip:Requires inference endpoint]
+<1> Ensures that highlighting is applied exclusively to semantic_text fields.
 
 [discrete]
 [[custom-indexing]]

@@ -355,8 +355,6 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             }
 
         };
-        // the set of headers to copy
-        Set<RestHeaderDefinition> headers = Set.of(new RestHeaderDefinition(Task.TRACE_PARENT_HTTP_HEADER, false));
         // sample request headers to test with
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put(Task.TRACE_PARENT_HTTP_HEADER, Collections.singletonList(traceParentValue));
@@ -397,7 +395,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
                 @Override
                 protected void populatePerRequestThreadContext(RestRequest restRequest, ThreadContext threadContext) {
-                    getFakeActionModule(headers).copyRequestHeadersToThreadContext(restRequest.getHttpRequest(), threadContext);
+                    getFakeActionModule(Set.of()).copyRequestHeadersToThreadContext(restRequest.getHttpRequest(), threadContext);
                 }
             }
         ) {

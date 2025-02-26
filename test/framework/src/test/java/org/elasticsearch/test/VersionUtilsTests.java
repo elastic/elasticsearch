@@ -21,13 +21,6 @@ import static org.elasticsearch.Version.fromId;
  */
 public class VersionUtilsTests extends ESTestCase {
 
-    public void testAllVersionsSorted() {
-        List<Version> allVersions = VersionUtils.allVersions();
-        for (int i = 0, j = 1; j < allVersions.size(); ++i, ++j) {
-            assertTrue(allVersions.get(i).before(allVersions.get(j)));
-        }
-    }
-
     public void testRandomVersionBetween() {
         // TODO: rework this test to use a dummy Version class so these don't need to change with each release
         // full range
@@ -50,9 +43,9 @@ public class VersionUtilsTests extends ESTestCase {
         got = VersionUtils.randomVersionBetween(random(), null, fromId(7000099));
         assertTrue(got.onOrAfter(VersionUtils.getFirstVersion()));
         assertTrue(got.onOrBefore(fromId(7000099)));
-        got = VersionUtils.randomVersionBetween(random(), null, VersionUtils.allVersions().get(0));
+        got = VersionUtils.randomVersionBetween(random(), null, VersionUtils.allVersions().getFirst());
         assertTrue(got.onOrAfter(VersionUtils.getFirstVersion()));
-        assertTrue(got.onOrBefore(VersionUtils.allVersions().get(0)));
+        assertTrue(got.onOrBefore(VersionUtils.allVersions().getFirst()));
 
         // unbounded upper
         got = VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(), null);

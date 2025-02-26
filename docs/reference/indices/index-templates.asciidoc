@@ -58,7 +58,8 @@ applying the templates, do one or more of the following:
 
 - To disable all built-in index and component templates, set
 <<stack-templates-enabled,`stack.templates.enabled`>> to `false` using the
-<<cluster-update-settings,cluster update settings API>>.
+<<cluster-update-settings,cluster update settings API>>. Note, however, that this is not
+recommended, see the <<stack-templates-enabled,setting documentation>> for more information.
 
 - Use a non-overlapping index pattern.
 

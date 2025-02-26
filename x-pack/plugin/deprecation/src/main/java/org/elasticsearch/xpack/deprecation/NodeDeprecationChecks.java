@@ -9,15 +9,12 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
@@ -43,6 +40,60 @@ import static org.elasticsearch.common.settings.Setting.Property.OperatorDynamic
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.RESERVED_REALM_AND_DOMAIN_NAME_PREFIX;
 
 public class NodeDeprecationChecks {
+
+    // Visible for testing
+    static final List<
+        NodeDeprecationCheck<Settings, PluginsAndModules, ClusterState, XPackLicenseState, DeprecationIssue>> SINGLE_NODE_CHECKS = List.of(
+            NodeDeprecationChecks::checkMultipleDataPaths,
+            NodeDeprecationChecks::checkDataPathsList,
+            NodeDeprecationChecks::checkSharedDataPathSetting,
+            NodeDeprecationChecks::checkReservedPrefixedRealmNames,
+            NodeDeprecationChecks::checkExporterUseIngestPipelineSettings,
+            NodeDeprecationChecks::checkExporterPipelineMasterTimeoutSetting,
+            NodeDeprecationChecks::checkExporterCreateLegacyTemplateSetting,
+            NodeDeprecationChecks::checkMonitoringSettingHistoryDuration,
+            NodeDeprecationChecks::checkMonitoringSettingHistoryDuration,
+            NodeDeprecationChecks::checkMonitoringSettingCollectIndexRecovery,
+            NodeDeprecationChecks::checkMonitoringSettingCollectIndices,
+            NodeDeprecationChecks::checkMonitoringSettingCollectCcrTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingCollectEnrichStatsTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingCollectIndexRecoveryStatsTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingCollectIndexStatsTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingCollectMlJobStatsTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingCollectNodeStatsTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingCollectClusterStatsTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingExportersHost,
+            NodeDeprecationChecks::checkMonitoringSettingExportersBulkTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingExportersConnectionTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingExportersConnectionReadTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingExportersAuthUsername,
+            NodeDeprecationChecks::checkMonitoringSettingExportersAuthPass,
+            NodeDeprecationChecks::checkMonitoringSettingExportersSSL,
+            NodeDeprecationChecks::checkMonitoringSettingExportersProxyBase,
+            NodeDeprecationChecks::checkMonitoringSettingExportersSniffEnabled,
+            NodeDeprecationChecks::checkMonitoringSettingExportersHeaders,
+            NodeDeprecationChecks::checkMonitoringSettingExportersTemplateTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingExportersMasterTimeout,
+            NodeDeprecationChecks::checkMonitoringSettingExportersEnabled,
+            NodeDeprecationChecks::checkMonitoringSettingExportersType,
+            NodeDeprecationChecks::checkMonitoringSettingExportersAlertsEnabled,
+            NodeDeprecationChecks::checkMonitoringSettingExportersAlertsBlacklist,
+            NodeDeprecationChecks::checkMonitoringSettingExportersIndexNameTimeFormat,
+            NodeDeprecationChecks::checkMonitoringSettingDecommissionAlerts,
+            NodeDeprecationChecks::checkMonitoringSettingEsCollectionEnabled,
+            NodeDeprecationChecks::checkMonitoringSettingCollectionEnabled,
+            NodeDeprecationChecks::checkMonitoringSettingCollectionInterval,
+            NodeDeprecationChecks::checkScriptContextCache,
+            NodeDeprecationChecks::checkScriptContextCompilationsRateLimitSetting,
+            NodeDeprecationChecks::checkScriptContextCacheSizeSetting,
+            NodeDeprecationChecks::checkScriptContextCacheExpirationSetting,
+            NodeDeprecationChecks::checkEnforceDefaultTierPreferenceSetting,
+            NodeDeprecationChecks::checkLifecyleStepMasterTimeoutSetting,
+            NodeDeprecationChecks::checkEqlEnabledSetting,
+            NodeDeprecationChecks::checkNodeAttrData,
+            NodeDeprecationChecks::checkWatcherBulkConcurrentRequestsSetting,
+            NodeDeprecationChecks::checkTracingApmSettings
+        );
 
     static DeprecationIssue checkDeprecatedSetting(
         final Settings clusterSettings,
@@ -78,15 +129,6 @@ public class NodeDeprecationChecks {
 
     private static Map<String, Object> createMetaMapForRemovableSettings(boolean canAutoRemoveSetting, List<String> removableSettings) {
         return canAutoRemoveSetting ? DeprecationIssue.createMetaMapForRemovableSettings(removableSettings) : null;
-    }
-
-    static DeprecationIssue checkRemovedSetting(
-        final Settings clusterSettings,
-        final Settings nodeSettings,
-        final Setting<?> removedSetting,
-        final String url
-    ) {
-        return checkRemovedSetting(clusterSettings, nodeSettings, removedSetting, url, null, DeprecationIssue.Level.CRITICAL);
     }
 
     static DeprecationIssue checkRemovedSetting(
@@ -1016,42 +1058,8 @@ public class NodeDeprecationChecks {
         );
     }
 
-    static DeprecationIssue checkSourceModeInComponentTemplates(
-        final Settings settings,
-        final PluginsAndModules pluginsAndModules,
-        final ClusterState clusterState,
-        final XPackLicenseState licenseState
-    ) {
-        List<String> templates = new ArrayList<>();
-        var templateNames = clusterState.metadata().componentTemplates().keySet();
-        for (String templateName : templateNames) {
-            ComponentTemplate template = clusterState.metadata().componentTemplates().get(templateName);
-            if (template.template().mappings() != null) {
-                var sourceAsMap = (Map<?, ?>) XContentHelper.convertToMap(template.template().mappings().uncompressed(), true)
-                    .v2()
-                    .get("_doc");
-                if (sourceAsMap != null) {
-                    Object source = sourceAsMap.get("_source");
-                    if (source instanceof Map<?, ?> sourceMap) {
-                        if (sourceMap.containsKey("mode")) {
-                            templates.add(templateName);
-                        }
-                    }
-                }
-            }
-
-        }
-        if (templates.isEmpty()) {
-            return null;
-        }
-        Collections.sort(templates);
-        return new DeprecationIssue(
-            DeprecationIssue.Level.CRITICAL,
-            SourceFieldMapper.DEPRECATION_WARNING,
-            "https://github.com/elastic/elasticsearch/pull/117172",
-            SourceFieldMapper.DEPRECATION_WARNING + " Affected component templates: [" + String.join(", ", templates) + "]",
-            false,
-            null
-        );
+    @FunctionalInterface
+    public interface NodeDeprecationCheck<A, B, C, D, R> {
+        R apply(A first, B second, C third, D fourth);
     }
 }

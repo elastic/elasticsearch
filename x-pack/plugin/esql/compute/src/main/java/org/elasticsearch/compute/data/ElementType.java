@@ -33,7 +33,7 @@ public enum ElementType {
     /**
      * Composite blocks which contain array of sub-blocks.
      */
-    COMPOSITE("Composite", (blockFactory, estimatedSize) -> { throw new UnsupportedOperationException("can't build composite blocks"); }),
+    COMPOSITE("Composite", BlockFactory::newAggregateMetricDoubleBlockBuilder),
 
     /**
      * Intermediate blocks which don't support retrieving elements.
@@ -73,6 +73,8 @@ public enum ElementType {
             elementType = BYTES_REF;
         } else if (type == Boolean.class) {
             elementType = BOOLEAN;
+        } else if (type == AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral.class) {
+            elementType = COMPOSITE;
         } else if (type == null || type == Void.class) {
             elementType = NULL;
         } else {

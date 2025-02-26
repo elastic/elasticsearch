@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -236,7 +235,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
     /**
      * @return <code>true</code> if an index is available to service search queries.
      */
-    public boolean readyForSearch(ClusterState clusterState) {
+    public boolean readyForSearch() {
         for (IndexShardRoutingTable shardRoutingTable : this.shards) {
             boolean found = false;
             for (int idx = 0; idx < shardRoutingTable.size(); idx++) {

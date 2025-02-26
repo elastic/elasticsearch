@@ -56,6 +56,8 @@ is performed on the local cluster and a user's role names are passed to the
 remote cluster. In this model, a superuser on the local cluster gains total read
 access to the remote cluster, so it is only suitable for clusters that are in
 the same security domain. <<remote-clusters-cert>>.
++
+deprecated::[9.0.0, "Use <<remote-clusters-api-key,API key based security model>> instead."]
 
 [[sniff-proxy-modes]]
 [discrete]

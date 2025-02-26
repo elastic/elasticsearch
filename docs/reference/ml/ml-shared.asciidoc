@@ -918,7 +918,7 @@ An array of index names. Wildcards are supported. For example:
 `["it_ops_metrics", "server*"]`.
 +
 --
-NOTE: If any indices are in remote clusters then the {ml} nodes need to have the
+NOTE: If any indices are in remote clusters then the master nodes and the {ml} nodes need to have the
 `remote_cluster_client` role.
 
 --

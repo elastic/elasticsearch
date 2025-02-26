@@ -7,14 +7,16 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.data.BlockWritables;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.DriverSleeps;
-import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.List;
@@ -49,6 +51,7 @@ public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCa
 
     private DriverProfile randomDriverProfile() {
         return new DriverProfile(
+            RandomStrings.randomAsciiLettersOfLength(random(), 5),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
@@ -59,7 +62,7 @@ public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCa
         );
     }
 
-    private DriverStatus.OperatorStatus randomOperatorStatus() {
+    private OperatorStatus randomOperatorStatus() {
         String name = randomAlphaOfLength(4);
         Operator.Status status = randomBoolean()
             ? null
@@ -69,6 +72,6 @@ public class EsqlQueryResponseProfileTests extends AbstractWireSerializingTestCa
                 randomNonNegativeLong(),
                 randomNonNegativeLong()
             );
-        return new DriverStatus.OperatorStatus(name, status);
+        return new OperatorStatus(name, status);
     }
 }

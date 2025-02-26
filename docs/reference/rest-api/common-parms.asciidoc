@@ -808,6 +808,7 @@ currently supported:
 * <<search-aggregations-pipeline-bucket-script-aggregation,Bucket script>>
 * <<search-aggregations-pipeline-bucket-selector-aggregation,Bucket selector>>
 * <<search-aggregations-metrics-cardinality-aggregation,Cardinality>>
+* <<search-aggregations-metrics-extendedstats-aggregation,Extended Stats>>
 * <<search-aggregations-bucket-filter-aggregation,Filter>>
 * <<search-aggregations-metrics-geobounds-aggregation,Geo bounds>>
 * <<search-aggregations-metrics-geocentroid-aggregation,Geo centroid>>
@@ -1338,7 +1339,7 @@ that lower ranked documents have more influence. This value must be greater than
 equal to `1`. Defaults to `60`.
 end::rrf-rank-constant[]
 
-tag::rrf-rank-window-size[]
+tag::compound-retriever-rank-window-size[]
 `rank_window_size`::
 (Optional, integer)
 +
@@ -1347,15 +1348,54 @@ query. A higher value will improve result relevance at the cost of performance. 
 ranked result set is pruned down to the search request's <<search-size-param, size>>.
 `rank_window_size` must be greater than or equal to `size` and greater than or equal to `1`.
 Defaults to the `size` parameter.
-end::rrf-rank-window-size[]
+end::compound-retriever-rank-window-size[]
 
-tag::rrf-filter[]
+tag::compound-retriever-filter[]
 `filter`::
 (Optional, <<query-dsl, query object or list of query objects>>)
 +
 Applies the specified <<query-dsl-bool-query, boolean query filter>> to all of the specified sub-retrievers,
 according to each retriever's specifications.
-end::rrf-filter[]
+end::compound-retriever-filter[]
+
+tag::linear-retriever-components[]
+`retrievers`::
+(Required, array of objects)
++
+A list of the sub-retrievers' configuration, that we will take into account and whose result sets
+we will merge through a weighted sum. Each configuration can have a different weight and normalization depending
+on the specified retriever.
+
+Each entry specifies the following parameters:
+
+* `retriever`::
+(Required, a <<retriever, retriever>> object)
++
+Specifies the retriever for which we will compute the top documents for. The retriever will produce `rank_window_size`
+results, which will later be merged based on the specified `weight` and `normalizer`.
+
+* `weight`::
+(Optional, float)
++
+The weight that each score of this retriever's top docs will be multiplied with. Must be greater or equal to 0. Defaults to 1.0.
+
+* `normalizer`::
+(Optional, String)
++
+Specifies how we will normalize the retriever's scores, before applying the specified `weight`.
+Available values are: `minmax`, and `none`. Defaults to `none`.
+
+** `none`
+** `minmax` :
+A `MinMaxScoreNormalizer` that normalizes scores based on the following formula
++
+```
+score = (score - min) / (max - min)
+```
+
+See also <<retrievers-examples-linear-retriever, this hybrid search example>> using a linear retriever on how to
+independently configure and apply normalizers to retrievers.
+end::linear-retriever-components[]
 
 tag::knn-rescore-vector[]
 

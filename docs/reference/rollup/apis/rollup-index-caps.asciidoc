@@ -86,6 +86,7 @@ PUT _rollup/job/sensor
 }
 --------------------------------------------------
 // TEST[setup:sensor_index]
+// TEST[warning:The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information.]
 
 If at a later date, we'd like to determine what jobs and capabilities were
 stored in the `sensor_rollup` index, we can use the get rollup index API:
@@ -95,6 +96,7 @@ stored in the `sensor_rollup` index, we can use the get rollup index API:
 GET /sensor_rollup/_rollup/data
 --------------------------------------------------
 // TEST[continued]
+// TEST[warning:The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information.]
 
 Note how we are requesting the concrete rollup index name (`sensor_rollup`) as
 the first part of the URL. This will yield the following response:
@@ -170,3 +172,4 @@ instead of explicit indices:
 GET /*_rollup/_rollup/data
 --------------------------------------------------
 // TEST[continued]
+// TEST[warning:The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information.]

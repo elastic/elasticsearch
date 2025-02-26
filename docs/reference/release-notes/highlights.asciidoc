@@ -8,6 +8,11 @@ ifeval::["{release-state}"!="unreleased"]
 For detailed information about this release, see the <<es-release-notes>> and
 <<breaking-changes>>.
 
+// Add previous release to the list
+Other versions:
+
+{ref-bare}/9.0/release-highlights.html[9.0]
+
 endif::[]
 
 // The notable-highlights tag marks entries that

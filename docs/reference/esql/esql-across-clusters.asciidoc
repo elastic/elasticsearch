@@ -39,6 +39,8 @@ If you're using the API key authentication method, you'll see the `"cluster_cred
 [[esql-ccs-security-model-certificate]]
 ===== TLS certificate authentication
 
+deprecated::[9.0.0, "Use <<esql-ccs-security-model-api-key,API key authentication>> instead."]
+
 TLS certificate authentication secures remote clusters with mutual TLS.
 This could be the preferred model when a single administrator has full control over both clusters.
 We generally recommend that roles and their privileges be identical in both clusters.

@@ -579,7 +579,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         final String nodeName = internalCluster().startNode();
         createIndex("test", Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).build());
         final String customDataPath = IndexMetadata.INDEX_DATA_PATH_SETTING.get(
-            indicesAdmin().prepareGetSettings("test").get().getIndexToSettings().get("test")
+            indicesAdmin().prepareGetSettings(TEST_REQUEST_TIMEOUT, "test").get().getIndexToSettings().get("test")
         );
         final Index index = resolveIndex("test");
         final ShardId shardId = new ShardId(index, 0);

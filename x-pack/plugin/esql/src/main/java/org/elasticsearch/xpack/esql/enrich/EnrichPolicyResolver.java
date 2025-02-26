@@ -434,8 +434,8 @@ public class EnrichPolicyResolver {
     }
 
     protected Map<String, EnrichPolicy> availablePolicies() {
-        final EnrichMetadata metadata = clusterService.state().metadata().custom(EnrichMetadata.TYPE);
-        return metadata == null ? Map.of() : metadata.getPolicies();
+        final EnrichMetadata metadata = clusterService.state().metadata().custom(EnrichMetadata.TYPE, EnrichMetadata.EMPTY);
+        return metadata.getPolicies();
     }
 
     protected void getRemoteConnection(String cluster, ActionListener<Transport.Connection> listener) {

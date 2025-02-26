@@ -46,13 +46,13 @@ public class CreateIndexFromSourceTransportAction extends HandledTransportAction
     private final ClusterService clusterService;
     private final Client client;
     private final IndexScopedSettings indexScopedSettings;
-    private static final Settings REMOVE_INDEX_BLOCKS_SETTING_OVERRIDE = Settings.builder()
-        .putNull(IndexMetadata.SETTING_READ_ONLY)
-        .putNull(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE)
-        .putNull(IndexMetadata.SETTING_BLOCKS_WRITE)
-        .putNull(IndexMetadata.SETTING_BLOCKS_METADATA)
-        .putNull(IndexMetadata.SETTING_BLOCKS_READ)
-        .build();
+    private static final Set<String> INDEX_BLOCK_SETTINGS = Set.of(
+        IndexMetadata.SETTING_READ_ONLY,
+        IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE,
+        IndexMetadata.SETTING_BLOCKS_WRITE,
+        IndexMetadata.SETTING_BLOCKS_METADATA,
+        IndexMetadata.SETTING_BLOCKS_READ
+    );
 
     @Inject
     public CreateIndexFromSourceTransportAction(
@@ -89,12 +89,15 @@ public class CreateIndexFromSourceTransportAction extends HandledTransportAction
 
         Settings.Builder settings = Settings.builder()
             // first settings from source index
-            .put(filterSettings(sourceIndex))
-            // then override with request settings
-            .put(request.settingsOverride());
+            .put(filterSettings(sourceIndex));
+
+        if (request.settingsOverride().isEmpty() == false) {
+            applyOverrides(settings, request.settingsOverride());
+        }
+
         if (request.removeIndexBlocks()) {
             // lastly, override with settings to remove index blocks if requested
-            settings.put(REMOVE_INDEX_BLOCKS_SETTING_OVERRIDE);
+            INDEX_BLOCK_SETTINGS.forEach(settings::remove);
         }
 
         Map<String, Object> mergeMappings;
@@ -114,6 +117,16 @@ public class CreateIndexFromSourceTransportAction extends HandledTransportAction
         client.admin().indices().create(createIndexRequest, listener.map(response -> response));
     }
 
+    private void applyOverrides(Settings.Builder settings, Settings overrides) {
+        overrides.keySet().forEach(key -> {
+            if (overrides.get(key) != null) {
+                settings.put(key, overrides.get(key));
+            } else {
+                settings.remove(key);
+            }
+        });
+    }
+
     private static Map<String, Object> toMap(@Nullable MappingMetadata sourceMapping) {
         return Optional.ofNullable(sourceMapping)
             .map(MappingMetadata::source)
@@ -122,10 +135,14 @@ public class CreateIndexFromSourceTransportAction extends HandledTransportAction
             .orElse(Map.of());
     }
 
+    @SuppressWarnings("unchecked")
     private static Map<String, Object> mergeMappings(@Nullable MappingMetadata sourceMapping, Map<String, Object> mappingAddition)
         throws IOException {
         Map<String, Object> combinedMappingMap = new HashMap<>(toMap(sourceMapping));
         XContentHelper.update(combinedMappingMap, mappingAddition, true);
+        if (sourceMapping != null && combinedMappingMap.size() == 1 && combinedMappingMap.containsKey(sourceMapping.type())) {
+            combinedMappingMap = (Map<String, Object>) combinedMappingMap.get(sourceMapping.type());
+        }
         return combinedMappingMap;
     }
 

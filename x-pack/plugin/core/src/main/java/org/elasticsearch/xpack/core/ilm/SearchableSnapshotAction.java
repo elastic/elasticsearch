@@ -17,10 +17,13 @@ import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -33,6 +36,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.TransportVersions.ILM_ADD_SEARCHABLE_SNAPSHOT_ADD_REPLICATE_FOR;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY;
@@ -51,6 +55,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
     public static final ParseField SNAPSHOT_REPOSITORY = new ParseField("snapshot_repository");
     public static final ParseField FORCE_MERGE_INDEX = new ParseField("force_merge_index");
     public static final ParseField TOTAL_SHARDS_PER_NODE = new ParseField("total_shards_per_node");
+    public static final ParseField REPLICATE_FOR = new ParseField("replicate_for");
     public static final String CONDITIONAL_DATASTREAM_CHECK_KEY = BranchingStep.NAME + "-on-datastream-check";
     public static final String CONDITIONAL_SKIP_ACTION_STEP = BranchingStep.NAME + "-check-prerequisites";
     public static final String CONDITIONAL_SKIP_GENERATE_AND_CLEAN = BranchingStep.NAME + "-check-existing-snapshot";
@@ -60,13 +65,19 @@ public class SearchableSnapshotAction implements LifecycleAction {
 
     private static final ConstructingObjectParser<SearchableSnapshotAction, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
-        a -> new SearchableSnapshotAction((String) a[0], a[1] == null || (boolean) a[1], (Integer) a[2])
+        a -> new SearchableSnapshotAction((String) a[0], a[1] == null || (boolean) a[1], (Integer) a[2], (TimeValue) a[3])
     );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), SNAPSHOT_REPOSITORY);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FORCE_MERGE_INDEX);
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), TOTAL_SHARDS_PER_NODE);
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
+            p -> TimeValue.parseTimeValue(p.textOrNull(), REPLICATE_FOR.getPreferredName()),
+            REPLICATE_FOR,
+            ObjectParser.ValueType.STRING
+        );
     }
 
     public static SearchableSnapshotAction parse(XContentParser parser) {
@@ -77,8 +88,15 @@ public class SearchableSnapshotAction implements LifecycleAction {
     private final boolean forceMergeIndex;
     @Nullable
     private final Integer totalShardsPerNode;
+    @Nullable
+    private final TimeValue replicateFor;
 
-    public SearchableSnapshotAction(String snapshotRepository, boolean forceMergeIndex, @Nullable Integer totalShardsPerNode) {
+    public SearchableSnapshotAction(
+        String snapshotRepository,
+        boolean forceMergeIndex,
+        @Nullable Integer totalShardsPerNode,
+        @Nullable TimeValue replicateFor
+    ) {
         if (Strings.hasText(snapshotRepository) == false) {
             throw new IllegalArgumentException("the snapshot repository must be specified");
         }
@@ -89,20 +107,30 @@ public class SearchableSnapshotAction implements LifecycleAction {
             throw new IllegalArgumentException("[" + TOTAL_SHARDS_PER_NODE.getPreferredName() + "] must be >= 1");
         }
         this.totalShardsPerNode = totalShardsPerNode;
+
+        if (replicateFor != null && replicateFor.millis() <= 0) {
+            throw new IllegalArgumentException(
+                "[" + REPLICATE_FOR.getPreferredName() + "] must be positive [" + replicateFor.getStringRep() + "]"
+            );
+        }
+        this.replicateFor = replicateFor;
     }
 
     public SearchableSnapshotAction(String snapshotRepository, boolean forceMergeIndex) {
-        this(snapshotRepository, forceMergeIndex, null);
+        this(snapshotRepository, forceMergeIndex, null, null);
     }
 
     public SearchableSnapshotAction(String snapshotRepository) {
-        this(snapshotRepository, true, null);
+        this(snapshotRepository, true, null, null);
     }
 
     public SearchableSnapshotAction(StreamInput in) throws IOException {
         this.snapshotRepository = in.readString();
         this.forceMergeIndex = in.readBoolean();
         this.totalShardsPerNode = in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0) ? in.readOptionalInt() : null;
+        this.replicateFor = in.getTransportVersion().onOrAfter(ILM_ADD_SEARCHABLE_SNAPSHOT_ADD_REPLICATE_FOR)
+            ? in.readOptionalTimeValue()
+            : null;
     }
 
     boolean isForceMergeIndex() {
@@ -116,6 +144,11 @@ public class SearchableSnapshotAction implements LifecycleAction {
     @Nullable
     public Integer getTotalShardsPerNode() {
         return totalShardsPerNode;
+    }
+
+    @Nullable
+    public TimeValue getReplicateFor() {
+        return replicateFor;
     }
 
     @Override
@@ -145,6 +178,8 @@ public class SearchableSnapshotAction implements LifecycleAction {
         StepKey swapAliasesKey = new StepKey(phase, NAME, SwapAliasesAndDeleteSourceIndexStep.NAME);
         StepKey replaceDataStreamIndexKey = new StepKey(phase, NAME, ReplaceDataStreamBackingIndexStep.NAME);
         StepKey deleteIndexKey = new StepKey(phase, NAME, DeleteStep.NAME);
+        StepKey replicateForKey = new StepKey(phase, NAME, WaitUntilReplicateForTimePassesStep.NAME);
+        StepKey dropReplicasKey = new StepKey(phase, NAME, UpdateSettingsStep.NAME);
 
         // Before going through all these steps, first check if we need to do them at all. For example, the index could already be
         // a searchable snapshot of the same type and repository, in which case we don't need to do anything. If that is detected,
@@ -319,7 +354,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
             getRestoredIndexPrefix(mountSnapshotKey),
             storageType,
             totalShardsPerNode,
-            0
+            replicateFor != null ? 1 : 0 // if the 'replicate_for' option is set, then have a replica, otherwise don't
         );
         WaitForIndexColorStep waitForGreenIndexHealthStep = new WaitForIndexColorStep(
             waitForGreenRestoredIndexKey,
@@ -327,11 +362,12 @@ public class SearchableSnapshotAction implements LifecycleAction {
             ClusterHealthStatus.GREEN,
             getRestoredIndexPrefix(waitForGreenRestoredIndexKey)
         );
+        StepKey keyForReplicateForOrContinue = replicateFor != null ? replicateForKey : nextStepKey;
         CopyExecutionStateStep copyMetadataStep = new CopyExecutionStateStep(
             copyMetadataKey,
             copyLifecyclePolicySettingKey,
             (index, executionState) -> getRestoredIndexPrefix(copyMetadataKey) + index,
-            nextStepKey
+            keyForReplicateForOrContinue
         );
         CopySettingsStep copySettingsStep = new CopySettingsStep(
             copyLifecyclePolicySettingKey,
@@ -364,6 +400,16 @@ public class SearchableSnapshotAction implements LifecycleAction {
             getRestoredIndexPrefix(swapAliasesKey)
         );
 
+        // note that the replicateForStep and dropReplicasStep will only be used if replicateFor != null, see the construction of
+        // the list of steps below
+        Step replicateForStep = new WaitUntilReplicateForTimePassesStep(replicateForKey, dropReplicasKey, replicateFor);
+        UpdateSettingsStep dropReplicasStep = new UpdateSettingsStep(
+            dropReplicasKey,
+            nextStepKey,
+            client,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+
         List<Step> steps = new ArrayList<>();
         steps.add(conditionalSkipActionStep);
         steps.add(checkNoWriteIndexStep);
@@ -382,6 +428,10 @@ public class SearchableSnapshotAction implements LifecycleAction {
         steps.add(waitForGreenIndexHealthStep);
         steps.add(copyMetadataStep);
         steps.add(copySettingsStep);
+        if (replicateFor != null) {
+            steps.add(replicateForStep);
+            steps.add(dropReplicasStep);
+        }
         steps.add(isDataStreamBranchingStep);
         steps.add(replaceDataStreamBackingIndex);
         steps.add(deleteSourceIndexStep);
@@ -426,6 +476,9 @@ public class SearchableSnapshotAction implements LifecycleAction {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
             out.writeOptionalInt(totalShardsPerNode);
         }
+        if (out.getTransportVersion().onOrAfter(ILM_ADD_SEARCHABLE_SNAPSHOT_ADD_REPLICATE_FOR)) {
+            out.writeOptionalTimeValue(replicateFor);
+        }
     }
 
     @Override
@@ -435,6 +488,9 @@ public class SearchableSnapshotAction implements LifecycleAction {
         builder.field(FORCE_MERGE_INDEX.getPreferredName(), forceMergeIndex);
         if (totalShardsPerNode != null) {
             builder.field(TOTAL_SHARDS_PER_NODE.getPreferredName(), totalShardsPerNode);
+        }
+        if (replicateFor != null) {
+            builder.field(REPLICATE_FOR.getPreferredName(), replicateFor);
         }
         builder.endObject();
         return builder;
@@ -451,12 +507,13 @@ public class SearchableSnapshotAction implements LifecycleAction {
         SearchableSnapshotAction that = (SearchableSnapshotAction) o;
         return Objects.equals(snapshotRepository, that.snapshotRepository)
             && Objects.equals(forceMergeIndex, that.forceMergeIndex)
-            && Objects.equals(totalShardsPerNode, that.totalShardsPerNode);
+            && Objects.equals(totalShardsPerNode, that.totalShardsPerNode)
+            && Objects.equals(replicateFor, that.replicateFor);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(snapshotRepository, forceMergeIndex, totalShardsPerNode);
+        return Objects.hash(snapshotRepository, forceMergeIndex, totalShardsPerNode, replicateFor);
     }
 
     @Nullable

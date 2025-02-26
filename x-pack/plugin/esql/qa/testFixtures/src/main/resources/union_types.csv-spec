@@ -133,7 +133,7 @@ mc:l | count:l
 
 multiIndexIpString
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: casting_operator
 required_capability: union_types_remove_fields
 
@@ -162,7 +162,7 @@ sample_data_str | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233         
 
 multiIndexIpStringRename
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: casting_operator
 required_capability: union_types_remove_fields
 
@@ -191,7 +191,7 @@ sample_data_str | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233         
 
 multiIndexIpStringRenameToString
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_str METADATA _index
@@ -219,7 +219,7 @@ sample_data_str | 2023-10-23T12:15:03.360Z  |  172.21.2.162     |  3450233      
 
 multiIndexWhereIpString
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_str METADATA _index
@@ -237,7 +237,7 @@ sample_data_str | 2023-10-23T12:15:03.360Z  |  3450233              |  Connected
 
 multiIndexWhereIpStringLike
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_str METADATA _index
@@ -445,7 +445,7 @@ count:long  |  message:keyword
 
 multiIndexMissingIpToString
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_missing_field
 
 FROM sample_data, sample_data_str, missing_ip_sample_data METADATA _index
@@ -480,7 +480,7 @@ sample_data_str        | 2023-10-23T12:15:03.360Z  |  172.21.2.162       |  3450
 
 multiIndexMissingIpToIp
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_missing_field
 
 FROM sample_data, sample_data_str, missing_ip_sample_data METADATA _index
@@ -515,7 +515,7 @@ sample_data_str        | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233  
 
 multiIndexTsLong
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_ts_long METADATA _index
@@ -543,7 +543,7 @@ sample_data_ts_long | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233     
 
 multiIndexTsLongRename
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_ts_long METADATA _index
@@ -573,7 +573,7 @@ sample_data_ts_long | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233     
 multiIndexTsNanosRename
 required_capability: to_date_nanos
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_ts_nanos METADATA _index
@@ -602,7 +602,7 @@ sample_data_ts_nanos | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233    
 multiIndexTsNanosRenameToNanos
 required_capability: to_date_nanos
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_ts_nanos METADATA _index
@@ -631,7 +631,7 @@ sample_data_ts_nanos | 2023-10-23T12:15:03.360123456Z  |  172.21.2.162  |  34502
 multiIndex sort millis and nanos as nanos
 required_capability: to_date_nanos
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_ts_nanos METADATA _index
@@ -660,7 +660,7 @@ sample_data          | 2023-10-23T12:15:03.360000000Z  |  172.21.2.162  |  34502
 multiIndex sort millis and nanos as millis
 required_capability: to_date_nanos
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_ts_nanos METADATA _index
@@ -691,7 +691,7 @@ multiIndexTsNanosRenameToNanosWithFiltering
 required_capability: to_date_nanos
 required_capability: date_nanos_binary_comparison
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_ts_nanos METADATA _index
@@ -716,7 +716,7 @@ sample_data_ts_nanos | 2023-10-23T13:33:34.937123456Z  |  172.21.0.5    |  12323
 
 multiIndexTsLongRenameToString
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_ts_long METADATA _index
@@ -744,7 +744,7 @@ sample_data_ts_long | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233     
 
 multiIndexWhereTsLong
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 
 FROM sample_data, sample_data_ts_long METADATA _index
@@ -979,7 +979,7 @@ count:long  |  message:keyword
 
 multiIndexIpStringTsLong
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 required_capability: to_date_nanos
 
@@ -1022,7 +1022,7 @@ sample_data_ts_nanos | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233    
 
 multiIndexIpStringTsLongDropped
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: to_date_nanos
 
 FROM sample_data* METADATA _index
@@ -1064,7 +1064,7 @@ sample_data_ts_nanos |  8268153              |  Connection error
 
 multiIndexIpStringTsLongRename
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 required_capability: to_date_nanos
 
@@ -1107,7 +1107,7 @@ sample_data_ts_nanos | 2023-10-23T12:15:03.360Z  |  172.21.2.162  |  3450233    
 
 multiIndexIpStringTsLongRenameDropped
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: to_date_nanos
 
 FROM sample_data* METADATA _index
@@ -1149,7 +1149,7 @@ sample_data_ts_nanos |  8268153              |  Connection error
 
 multiIndexIpStringTsLongRenameToString
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 required_capability: to_date_nanos
 
@@ -1192,7 +1192,7 @@ sample_data_ts_nanos | 2023-10-23T12:15:03.360Z  |  172.21.2.162     |  3450233 
 
 multiIndexWhereIpStringTsLong
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 required_capability: to_date_nanos
 
@@ -1226,7 +1226,7 @@ count:long  |  message:keyword
 
 multiIndexWhereIpStringLikeTsLong
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 required_capability: to_date_nanos
 
@@ -1260,7 +1260,7 @@ count:long  |  message:keyword
 
 multiIndexMultiColumnTypesRename
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 required_capability: to_date_nanos
 
@@ -1279,7 +1279,7 @@ null                   | null                  |  8268153            | Connectio
 
 multiIndexMultiColumnTypesRenameAndKeep
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 required_capability: to_date_nanos
 
@@ -1299,7 +1299,7 @@ sample_data_ts_nanos | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015123456
 
 multiIndexMultiColumnTypesRenameAndDrop
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: union_types_remove_fields
 required_capability: to_date_nanos
 
@@ -1591,7 +1591,7 @@ FROM sample_data, sample_data_ts_long
 
 shortIntegerWidening
 required_capability: union_types
-required_capability: metadata_fields
+required_capability: index_metadata_field
 required_capability: casting_operator
 required_capability: union_types_numeric_widening
 

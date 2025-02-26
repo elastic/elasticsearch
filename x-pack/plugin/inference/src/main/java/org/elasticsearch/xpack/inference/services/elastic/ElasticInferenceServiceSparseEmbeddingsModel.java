@@ -20,14 +20,10 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.elastic.ElasticInferenceServiceActionVisitor;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.Locale;
 import java.util.Map;
-
-import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.ELASTIC_INFERENCE_SERVICE_IDENTIFIER;
 
 public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferenceServiceExecutableActionModel {
 
@@ -95,36 +91,15 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
     }
 
     private URI createUri() throws ElasticsearchStatusException {
-        String modelId = getServiceSettings().modelId();
-        String modelIdUriPath;
-
-        switch (modelId) {
-            case ElserModels.ELSER_V2_MODEL -> modelIdUriPath = "ELSERv2";
-            default -> throw new ElasticsearchStatusException(
-                String.format(
-                    Locale.ROOT,
-                    "Unsupported model [%s] for service [%s] and task type [%s]",
-                    modelId,
-                    ELASTIC_INFERENCE_SERVICE_IDENTIFIER,
-                    TaskType.SPARSE_EMBEDDING
-                ),
-                RestStatus.BAD_REQUEST
-            );
-        }
-
         try {
             // TODO, consider transforming the base URL into a URI for better error handling.
-            return new URI(
-                elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/embed/text/sparse/" + modelIdUriPath
-            );
+            return new URI(elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/embed/text/sparse");
         } catch (URISyntaxException e) {
             throw new ElasticsearchStatusException(
                 "Failed to create URI for service ["
                     + this.getConfigurations().getService()
                     + "] with taskType ["
                     + this.getTaskType()
-                    + "] with model ["
-                    + this.getServiceSettings().modelId()
                     + "]: "
                     + e.getMessage(),
                 RestStatus.BAD_REQUEST,

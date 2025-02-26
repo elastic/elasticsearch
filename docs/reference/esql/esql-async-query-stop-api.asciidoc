@@ -23,7 +23,7 @@ field set to `true`.
 
 [source,console]
 ----
-POST /query/async/FkpMRkJGS1gzVDRlM3g4ZzMyRGlLbkEaTXlJZHdNT09TU2VTZVBoNDM3cFZMUToxMDM=/stop
+POST /_query/async/FkpMRkJGS1gzVDRlM3g4ZzMyRGlLbkEaTXlJZHdNT09TU2VTZVBoNDM3cFZMUToxMDM=/stop
 ----
 // TEST[skip: no access to query ID]
 

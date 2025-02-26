@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.external.action.elastic;
 
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.ElasticInferenceServiceSparseEmbeddingsRequestManager;
@@ -29,15 +30,23 @@ public class ElasticInferenceServiceActionCreator implements ElasticInferenceSer
 
     private final TraceContext traceContext;
 
-    public ElasticInferenceServiceActionCreator(Sender sender, ServiceComponents serviceComponents, TraceContext traceContext) {
+    private final InputType inputType;
+
+    public ElasticInferenceServiceActionCreator(
+        Sender sender,
+        ServiceComponents serviceComponents,
+        TraceContext traceContext,
+        InputType inputType
+    ) {
         this.sender = Objects.requireNonNull(sender);
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
         this.traceContext = traceContext;
+        this.inputType = inputType;
     }
 
     @Override
     public ExecutableAction create(ElasticInferenceServiceSparseEmbeddingsModel model) {
-        var requestManager = new ElasticInferenceServiceSparseEmbeddingsRequestManager(model, serviceComponents, traceContext);
+        var requestManager = new ElasticInferenceServiceSparseEmbeddingsRequestManager(model, serviceComponents, traceContext, inputType);
         var errorMessage = constructFailedToSendRequestMessage(
             model.uri(),
             String.format(Locale.ROOT, "%s sparse embeddings", ELASTIC_INFERENCE_SERVICE_IDENTIFIER)

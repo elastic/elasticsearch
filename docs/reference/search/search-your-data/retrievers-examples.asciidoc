@@ -36,6 +36,9 @@ PUT retrievers_example
            },
            "topic": {
                "type": "keyword"
+           },
+           "timestamp": {
+               "type": "date"
            }
        }
    }
@@ -46,7 +49,8 @@ POST /retrievers_example/_doc/1
  "vector": [0.23, 0.67, 0.89],
  "text": "Large language models are revolutionizing information retrieval by boosting search precision, deepening contextual understanding, and reshaping user experiences in data-rich environments.",
  "year": 2024,
- "topic": ["llm", "ai", "information_retrieval"]
+ "topic": ["llm", "ai", "information_retrieval"],
+ "timestamp": "2021-01-01T12:10:30"
 }
 
 POST /retrievers_example/_doc/2
@@ -54,7 +58,8 @@ POST /retrievers_example/_doc/2
  "vector": [0.12, 0.56, 0.78],
  "text": "Artificial intelligence is transforming medicine, from advancing diagnostics and tailoring treatment plans to empowering predictive patient care for improved health outcomes.",
  "year": 2023,
- "topic": ["ai", "medicine"]
+ "topic": ["ai", "medicine"],
+ "timestamp": "2022-01-01T12:10:30"
 }
 
 POST /retrievers_example/_doc/3
@@ -62,7 +67,8 @@ POST /retrievers_example/_doc/3
  "vector": [0.45, 0.32, 0.91],
   "text": "AI is redefining security by enabling advanced threat detection, proactive risk analysis, and dynamic defenses against increasingly sophisticated cyber threats.",
  "year": 2024,
- "topic": ["ai", "security"]
+ "topic": ["ai", "security"],
+ "timestamp": "2023-01-01T12:10:30"
 }
 
 POST /retrievers_example/_doc/4
@@ -70,7 +76,8 @@ POST /retrievers_example/_doc/4
  "vector": [0.34, 0.21, 0.98],
  "text": "Elastic introduces Elastic AI Assistant, the open, generative AI sidekick powered by ESRE to democratize cybersecurity and enable users of every skill level.",
  "year": 2023,
- "topic": ["ai", "elastic", "assistant"]
+ "topic": ["ai", "elastic", "assistant"],
+ "timestamp": "2024-01-01T12:10:30"
 }
 
 POST /retrievers_example/_doc/5
@@ -78,7 +85,8 @@ POST /retrievers_example/_doc/5
  "vector": [0.11, 0.65, 0.47],
  "text": "Learn how to spin up a deployment of our hosted Elasticsearch Service and use Elastic Observability to gain deeper insight into the behavior of your applications and systems.",
  "year": 2024,
- "topic": ["documentation", "observability", "elastic"]
+ "topic": ["documentation", "observability", "elastic"],
+ "timestamp": "2025-01-01T12:10:30"
 }
 
 POST /retrievers_example/_refresh
@@ -183,6 +191,248 @@ This returns the following response based on the final rrf score for each result
 }
 ----
 // TESTRESPONSE[s/"took": 42/"took": $body.took/]
+==============
+
+[discrete]
+[[retrievers-examples-linear-retriever]]
+==== Example: Hybrid search with linear retriever
+
+A different, and more intuitive, way to provide hybrid search, is to linearly combine the top documents of different
+retrievers using a weighted sum of the original scores. Since, as above, the scores could lie in different ranges,
+we can also specify a `normalizer` that would ensure that all scores for the top ranked documents of a retriever
+lie in a specific range.
+
+To implement this, we define a `linear` retriever, and along with a set of retrievers that will generate the heterogeneous
+results sets that we will combine. We will solve a problem similar to the above, by merging the results of a `standard` and a `knn`
+retriever. As the `standard` retriever's scores are based on BM25 and are not strictly bounded, we will also define a
+`minmax` normalizer to ensure that the scores lie in the [0, 1] range. We will apply the same normalizer to `knn` as well
+to ensure that we capture the importance of each document within the result set.
+
+So, let's now specify the `linear` retriever whose final score is computed as follows:
+
+[source, text]
+----
+score = weight(standard) * score(standard) + weight(knn) * score(knn)
+score = 2 * score(standard) + 1.5 * score(knn)
+----
+// NOTCONSOLE
+
+[source,console]
+----
+GET /retrievers_example/_search
+{
+    "retriever": {
+        "linear": {
+            "retrievers": [
+                {
+                    "retriever": {
+                        "standard": {
+                            "query": {
+                                "query_string": {
+                                    "query": "(information retrieval) OR (artificial intelligence)",
+                                    "default_field": "text"
+                                }
+                            }
+                        }
+                    },
+                    "weight": 2,
+                    "normalizer": "minmax"
+                },
+                {
+                    "retriever": {
+                        "knn": {
+                            "field": "vector",
+                            "query_vector": [
+                                0.23,
+                                0.67,
+                                0.89
+                            ],
+                            "k": 3,
+                            "num_candidates": 5
+                        }
+                    },
+                    "weight": 1.5,
+                    "normalizer": "minmax"
+                }
+            ],
+            "rank_window_size": 10
+        }
+    },
+    "_source": false
+}
+----
+// TEST[continued]
+
+This returns the following response based on the normalized weighted score for each result.
+
+.Example response
+[%collapsible]
+==============
+[source,console-result]
+----
+{
+    "took": 42,
+    "timed_out": false,
+    "_shards": {
+        "total": 1,
+        "successful": 1,
+        "skipped": 0,
+        "failed": 0
+    },
+    "hits": {
+        "total": {
+            "value": 3,
+            "relation": "eq"
+        },
+        "max_score": -1,
+        "hits": [
+            {
+                "_index": "retrievers_example",
+                "_id": "2",
+                "_score": -1
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "1",
+                "_score": -2
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "3",
+                "_score": -3
+            }
+        ]
+    }
+}
+----
+// TESTRESPONSE[s/"took": 42/"took": $body.took/]
+// TESTRESPONSE[s/"max_score": -1/"max_score": $body.hits.max_score/]
+// TESTRESPONSE[s/"_score": -1/"_score": $body.hits.hits.0._score/]
+// TESTRESPONSE[s/"_score": -2/"_score": $body.hits.hits.1._score/]
+// TESTRESPONSE[s/"_score": -3/"_score": $body.hits.hits.2._score/]
+==============
+
+By normalizing scores and leveraging `function_score` queries, we can also implement more complex ranking strategies,
+such as sorting results based on their timestamps, assign the timestamp as a score, and then normalizing this score to
+[0, 1].
+Then, we can easily combine the above with a `knn` retriever as follows:
+
+[source,console]
+----
+GET /retrievers_example/_search
+{
+    "retriever": {
+        "linear": {
+            "retrievers": [
+                {
+                    "retriever": {
+                        "standard": {
+                            "query": {
+                                "function_score": {
+                                    "query": {
+                                        "term": {
+                                            "topic": "ai"
+                                        }
+                                    },
+                                    "functions": [
+                                        {
+                                            "script_score": {
+                                                "script": {
+                                                    "source": "doc['timestamp'].value.millis"
+                                                }
+                                            }
+                                        }
+                                    ],
+                                    "boost_mode": "replace"
+                                }
+                            },
+                            "sort": {
+                                "timestamp": {
+                                    "order": "asc"
+                                }
+                            }
+                        }
+                    },
+                    "weight": 2,
+                    "normalizer": "minmax"
+                },
+                {
+                    "retriever": {
+                        "knn": {
+                            "field": "vector",
+                            "query_vector": [
+                                0.23,
+                                0.67,
+                                0.89
+                            ],
+                            "k": 3,
+                            "num_candidates": 5
+                        }
+                    },
+                    "weight": 1.5
+                }
+            ],
+            "rank_window_size": 10
+        }
+    },
+    "_source": false
+}
+----
+// TEST[continued]
+
+Which would return the following results:
+
+.Example response
+[%collapsible]
+==============
+[source,console-result]
+----
+{
+    "took": 42,
+    "timed_out": false,
+    "_shards": {
+        "total": 1,
+        "successful": 1,
+        "skipped": 0,
+        "failed": 0
+    },
+    "hits": {
+        "total": {
+            "value": 4,
+            "relation": "eq"
+        },
+        "max_score": -1,
+        "hits": [
+            {
+                "_index": "retrievers_example",
+                "_id": "3",
+                "_score": -1
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "2",
+                "_score": -2
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "4",
+                "_score": -3
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "1",
+                "_score": -4
+            }
+        ]
+    }
+}
+----
+// TESTRESPONSE[s/"took": 42/"took": $body.took/]
+// TESTRESPONSE[s/"max_score": -1/"max_score": $body.hits.max_score/]
+// TESTRESPONSE[s/"_score": -1/"_score": $body.hits.hits.0._score/]
+// TESTRESPONSE[s/"_score": -2/"_score": $body.hits.hits.1._score/]
+// TESTRESPONSE[s/"_score": -3/"_score": $body.hits.hits.2._score/]
+// TESTRESPONSE[s/"_score": -4/"_score": $body.hits.hits.3._score/]
 ==============
 
 [discrete]

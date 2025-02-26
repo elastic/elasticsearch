@@ -612,11 +612,7 @@ public class ShardStateActionTests extends ESTestCase {
         final String allocationId = randomRealisticUnicodeOfCodepointLengthBetween(10, 100);
         final long primaryTerm = randomIntBetween(0, 100);
         final String message = randomRealisticUnicodeOfCodepointLengthBetween(10, 100);
-        final TransportVersion version = randomFrom(
-            getFirstVersion(),
-            getPreviousVersion(TransportVersions.MINIMUM_COMPATIBLE),
-            getPreviousVersion(TransportVersions.V_8_15_0)
-        );
+        final TransportVersion version = randomFrom(getFirstVersion(), getPreviousVersion(TransportVersions.V_8_15_0));
         final ShardLongFieldRange timestampRange = ShardLongFieldRangeWireTests.randomRange();
         final ShardLongFieldRange eventIngestedRange = ShardLongFieldRangeWireTests.randomRange();
         var startedShardEntry = new StartedShardEntry(shardId, allocationId, primaryTerm, message, timestampRange, eventIngestedRange);

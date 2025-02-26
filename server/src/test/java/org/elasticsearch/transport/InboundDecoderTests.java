@@ -18,7 +18,6 @@ import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.transport.InboundDecoder.ChannelType;
@@ -122,105 +121,6 @@ public class InboundDecoderTests extends ESTestCase {
             assertTrue(releasable2.hasReferences());
             assertTrue(releasable2.decRef());
             assertEquals(InboundDecoder.END_CONTENT, endMarker);
-        }
-
-    }
-
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // can delete test in v9
-    public void testDecodePreHeaderSizeVariableInt() throws IOException {
-        Compression.Scheme compressionScheme = randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.DEFLATE, null);
-        String action = "test-request";
-        long requestId = randomNonNegativeLong();
-        final TransportVersion preHeaderVariableInt = TransportHandshaker.V7_HANDSHAKE_VERSION;
-        final String contentValue = randomAlphaOfLength(100);
-        // 8.0 is only compatible with handshakes on a pre-variable int version
-        final OutboundMessage message = new OutboundMessage.Request(
-            threadContext,
-            new TestRequest(contentValue),
-            preHeaderVariableInt,
-            action,
-            requestId,
-            true,
-            compressionScheme
-        );
-
-        try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
-            final BytesReference totalBytes = message.serialize(os);
-            int partialHeaderSize = TcpHeader.headerSize(preHeaderVariableInt);
-
-            InboundDecoder decoder = new InboundDecoder(recycler);
-            final ArrayList<Object> fragments = new ArrayList<>();
-            final ReleasableBytesReference releasable1 = wrapAsReleasable(totalBytes);
-            int bytesConsumed = decoder.decode(releasable1, fragments::add);
-            assertEquals(partialHeaderSize, bytesConsumed);
-            assertTrue(releasable1.hasReferences());
-
-            final Header header = (Header) fragments.get(0);
-            assertEquals(requestId, header.getRequestId());
-            assertEquals(preHeaderVariableInt, header.getVersion());
-            if (compressionScheme == null) {
-                assertFalse(header.isCompressed());
-            } else {
-                assertTrue(header.isCompressed());
-            }
-            assertTrue(header.isHandshake());
-            assertTrue(header.isRequest());
-            assertTrue(header.needsToReadVariableHeader());
-            fragments.clear();
-
-            final BytesReference bytes2 = totalBytes.slice(bytesConsumed, totalBytes.length() - bytesConsumed);
-            final ReleasableBytesReference releasable2 = wrapAsReleasable(bytes2);
-            int bytesConsumed2 = decoder.decode(releasable2, fragments::add);
-            if (compressionScheme == null) {
-                assertEquals(2, fragments.size());
-            } else {
-                assertEquals(3, fragments.size());
-                final Object body = fragments.get(1);
-                assertThat(body, instanceOf(ReleasableBytesReference.class));
-                ((ReleasableBytesReference) body).close();
-            }
-            assertEquals(InboundDecoder.END_CONTENT, fragments.get(fragments.size() - 1));
-            assertEquals(totalBytes.length() - bytesConsumed, bytesConsumed2);
-        }
-    }
-
-    public void testDecodeHandshakeV7Compatibility() throws IOException {
-        String action = "test-request";
-        long requestId = randomNonNegativeLong();
-        final String headerKey = randomAlphaOfLength(10);
-        final String headerValue = randomAlphaOfLength(20);
-        threadContext.putHeader(headerKey, headerValue);
-        TransportVersion handshakeCompat = TransportHandshaker.V7_HANDSHAKE_VERSION;
-        OutboundMessage message = new OutboundMessage.Request(
-            threadContext,
-            new TestRequest(randomAlphaOfLength(100)),
-            handshakeCompat,
-            action,
-            requestId,
-            true,
-            null
-        );
-
-        try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
-            final BytesReference bytes = message.serialize(os);
-            int totalHeaderSize = TcpHeader.headerSize(handshakeCompat);
-
-            InboundDecoder decoder = new InboundDecoder(recycler);
-            final ArrayList<Object> fragments = new ArrayList<>();
-            final ReleasableBytesReference releasable1 = wrapAsReleasable(bytes);
-            int bytesConsumed = decoder.decode(releasable1, fragments::add);
-            assertEquals(totalHeaderSize, bytesConsumed);
-            assertTrue(releasable1.hasReferences());
-
-            final Header header = (Header) fragments.get(0);
-            assertEquals(requestId, header.getRequestId());
-            assertEquals(handshakeCompat, header.getVersion());
-            assertFalse(header.isCompressed());
-            assertTrue(header.isHandshake());
-            assertTrue(header.isRequest());
-            // TODO: On 9.0 this will be true because all compatible versions with contain the variable header int
-            assertTrue(header.needsToReadVariableHeader());
-            fragments.clear();
         }
 
     }
@@ -451,46 +351,6 @@ public class InboundDecoderTests extends ESTestCase {
             assertEquals(InboundDecoder.END_CONTENT, endMarker);
         }
 
-    }
-
-    public void testCompressedDecodeHandshakeCompatibility() throws IOException {
-        String action = "test-request";
-        long requestId = randomNonNegativeLong();
-        final String headerKey = randomAlphaOfLength(10);
-        final String headerValue = randomAlphaOfLength(20);
-        threadContext.putHeader(headerKey, headerValue);
-        TransportVersion handshakeCompat = TransportHandshaker.V7_HANDSHAKE_VERSION;
-        OutboundMessage message = new OutboundMessage.Request(
-            threadContext,
-            new TestRequest(randomAlphaOfLength(100)),
-            handshakeCompat,
-            action,
-            requestId,
-            true,
-            Compression.Scheme.DEFLATE
-        );
-
-        try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
-            final BytesReference bytes = message.serialize(os);
-            int totalHeaderSize = TcpHeader.headerSize(handshakeCompat);
-
-            InboundDecoder decoder = new InboundDecoder(recycler);
-            final ArrayList<Object> fragments = new ArrayList<>();
-            final ReleasableBytesReference releasable1 = wrapAsReleasable(bytes);
-            int bytesConsumed = decoder.decode(releasable1, fragments::add);
-            assertEquals(totalHeaderSize, bytesConsumed);
-            assertTrue(releasable1.hasReferences());
-
-            final Header header = (Header) fragments.get(0);
-            assertEquals(requestId, header.getRequestId());
-            assertEquals(handshakeCompat, header.getVersion());
-            assertTrue(header.isCompressed());
-            assertTrue(header.isHandshake());
-            assertTrue(header.isRequest());
-            // TODO: On 9.0 this will be true because all compatible versions with contain the variable header int
-            assertTrue(header.needsToReadVariableHeader());
-            fragments.clear();
-        }
     }
 
     public void testVersionIncompatibilityDecodeException() throws IOException {

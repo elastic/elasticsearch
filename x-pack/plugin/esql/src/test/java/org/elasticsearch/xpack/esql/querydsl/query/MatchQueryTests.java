@@ -14,10 +14,10 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.tree.SourceTests;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
-import org.elasticsearch.xpack.esql.expression.predicate.fulltext.MatchQueryPredicate;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
@@ -51,33 +51,29 @@ public class MatchQueryTests extends ESTestCase {
     }
 
     public void testQueryBuilding() {
-        MatchQueryBuilder qb = getBuilder("lenient=true");
-        assertThat(qb.lenient(), equalTo(true));
 
-        qb = getBuilder("lenient=true;operator=AND");
+        MatchQueryBuilder qb = getBuilder(Map.of("lenient", true, "operator", "AND"));
         assertThat(qb.lenient(), equalTo(true));
         assertThat(qb.operator(), equalTo(Operator.AND));
 
-        Exception e = expectThrows(IllegalArgumentException.class, () -> getBuilder("pizza=yummy"));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> getBuilder(Map.of("pizza", "yummy")));
         assertThat(e.getMessage(), equalTo("illegal match option [pizza]"));
 
-        e = expectThrows(IllegalArgumentException.class, () -> getBuilder("operator=aoeu"));
+        e = expectThrows(IllegalArgumentException.class, () -> getBuilder(Map.of("operator", "aoeu")));
         assertThat(e.getMessage(), equalTo("No enum constant org.elasticsearch.index.query.Operator.AOEU"));
     }
 
-    private static MatchQueryBuilder getBuilder(String options) {
+    private static MatchQueryBuilder getBuilder(Map<String, Object> options) {
         final Source source = new Source(1, 1, StringUtils.EMPTY);
         FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", KEYWORD, emptyMap(), true));
-        final MatchQueryPredicate mmqp = new MatchQueryPredicate(source, fa, "eggplant", options);
-        final MatchQuery mmq = new MatchQuery(source, "eggplant", "foo", mmqp.optionMap());
+        final MatchQuery mmq = new MatchQuery(source, "eggplant", "foo", options);
         return (MatchQueryBuilder) mmq.asBuilder();
     }
 
     public void testToString() {
         final Source source = new Source(1, 1, StringUtils.EMPTY);
         FieldAttribute fa = new FieldAttribute(EMPTY, "a", new EsField("af", KEYWORD, emptyMap(), true));
-        final MatchQueryPredicate mmqp = new MatchQueryPredicate(source, fa, "eggplant", "");
-        final MatchQuery mmq = new MatchQuery(source, "eggplant", "foo", mmqp.optionMap());
+        final MatchQuery mmq = new MatchQuery(source, "eggplant", "foo");
         assertEquals("MatchQuery@1:2[eggplant:foo]", mmq.toString());
     }
 }

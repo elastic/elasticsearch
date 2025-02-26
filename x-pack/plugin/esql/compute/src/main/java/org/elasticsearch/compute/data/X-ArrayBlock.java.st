@@ -29,7 +29,7 @@ import java.util.BitSet;
 $if(BytesRef)$
  * Does not take ownership of the given {@link BytesRefArray} and does not adjust circuit breakers to account for it.
 $endif$
- * This class is generated. Do not edit it.
+ * This class is generated. Edit {@code X-ArrayBlock.java.st} instead.
  */
 final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$Block {
 

@@ -51,7 +51,7 @@ include::inference-shared.asciidoc[tag=chat-completion-docs]
 (Optional, object)
 include::inference-shared.asciidoc[tag=chunking-settings]
 
-`max_chunking_size`:::
+`max_chunk_size`:::
 (Optional, integer)
 include::inference-shared.asciidoc[tag=chunking-settings-max-chunking-size]
 

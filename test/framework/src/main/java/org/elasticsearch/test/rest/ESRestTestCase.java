@@ -64,7 +64,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.IndexSettings;
@@ -165,6 +165,22 @@ public abstract class ESRestTestCase extends ESTestCase {
     private static final Pattern SEMANTIC_VERSION_PATTERN = Pattern.compile("^(\\d+\\.\\d+\\.\\d+)\\D?.*");
 
     private static final Logger SUITE_LOGGER = LogManager.getLogger(ESRestTestCase.class);
+
+    private static final String EXPECTED_ROLLUP_WARNING_MESSAGE =
+        "The rollup functionality will be removed in Elasticsearch 10.0. See docs for more information.";
+    public static final RequestOptions.Builder ROLLUP_REQUESTS_OPTIONS = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
+        if (warnings.isEmpty()) {
+            return false;
+        } else {
+            // Sometimes multiple rollup deprecation warnings. Transport actions can be invoked multiple time on different nodes.
+            for (String warning : warnings) {
+                if (EXPECTED_ROLLUP_WARNING_MESSAGE.equals(warning) == false) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    });
 
     /**
      * Convert the entity from a {@link Response} into a map of maps.
@@ -998,14 +1014,21 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     private void waitForClusterUpdates() throws Exception {
         logger.info("Waiting for all cluster updates up to this moment to be processed");
+
         try {
             assertOK(adminClient().performRequest(new Request("GET", "_cluster/health?wait_for_events=languid")));
         } catch (ResponseException e) {
             if (e.getResponse().getStatusLine().getStatusCode() == HttpStatus.SC_REQUEST_TIMEOUT) {
+                StringBuilder logMessage = new StringBuilder("Timed out waiting for cluster updates to be processed.");
                 final var pendingTasks = getPendingClusterStateTasks();
                 if (pendingTasks != null) {
-                    logger.error("Timed out waiting for cluster updates to be processed, {}", pendingTasks);
+                    logMessage.append('\n').append(pendingTasks);
                 }
+                final var hotThreads = getHotThreads();
+                if (hotThreads != null) {
+                    logMessage.append("\nHot threads: ").append(hotThreads);
+                }
+                logger.error(logMessage.toString());
             }
             throw e;
         }
@@ -1015,8 +1038,8 @@ public abstract class ESRestTestCase extends ESTestCase {
         try {
             Response response = adminClient().performRequest(new Request("GET", "/_cluster/pending_tasks"));
             List<?> tasks = (List<?>) entityAsMap(response).get("tasks");
-            if (false == tasks.isEmpty()) {
-                StringBuilder message = new StringBuilder("there are still running tasks:");
+            if (tasks.isEmpty() == false) {
+                StringBuilder message = new StringBuilder("There are still running tasks:");
                 for (Object task : tasks) {
                     message.append('\n').append(task.toString());
                 }
@@ -1024,6 +1047,18 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
         } catch (IOException e) {
             fail(e, "Failed to retrieve pending tasks in the cluster during cleanup");
+        }
+        return null;
+    }
+
+    private String getHotThreads() {
+        try {
+            Response response = adminClient().performRequest(
+                new Request("GET", "/_nodes/hot_threads?ignore_idle_threads=false&threads=9999")
+            );
+            return EntityUtils.toString(response.getEntity());
+        } catch (IOException e) {
+            logger.error("Failed to retrieve hot threads in the cluster during cleanup", e);
         }
         return null;
     }
@@ -1305,7 +1340,9 @@ public abstract class ESRestTestCase extends ESTestCase {
     private void wipeRollupJobs() throws IOException {
         final Response response;
         try {
-            response = adminClient().performRequest(new Request("GET", "/_rollup/job/_all"));
+            var request = new Request("GET", "/_rollup/job/_all");
+            request.setOptions(ROLLUP_REQUESTS_OPTIONS);
+            response = adminClient().performRequest(request);
         } catch (ResponseException e) {
             // If we don't see the rollup endpoint (possibly because of running against an older ES version) we just bail
             if (e.getResponse().getStatusLine().getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
@@ -1325,6 +1362,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             @SuppressWarnings("unchecked")
             String jobId = (String) ((Map<String, Object>) jobConfig.get("config")).get("id");
             Request request = new Request("POST", "/_rollup/job/" + jobId + "/_stop");
+            request.setOptions(ROLLUP_REQUESTS_OPTIONS);
             setIgnoredErrorResponseCodes(request, RestStatus.NOT_FOUND);
             request.addParameter("wait_for_completion", "true");
             request.addParameter("timeout", "10s");
@@ -1336,6 +1374,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             @SuppressWarnings("unchecked")
             String jobId = (String) ((Map<String, Object>) jobConfig.get("config")).get("id");
             Request request = new Request("DELETE", "/_rollup/job/" + jobId);
+            request.setOptions(ROLLUP_REQUESTS_OPTIONS);
             setIgnoredErrorResponseCodes(request, RestStatus.NOT_FOUND); // 404s imply someone was racing us to delete this
             logger.debug("deleting rollup job [{}]", jobId);
             adminClient().performRequest(request);
@@ -1929,7 +1968,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    protected Map<String, Object> getIndexSettingsAsMap(String index) throws IOException {
+    protected static Map<String, Object> getIndexSettingsAsMap(String index) throws IOException {
         Map<String, Object> indexSettings = getIndexSettings(index);
         return (Map<String, Object>) ((Map<String, Object>) indexSettings.get(index)).get("settings");
     }
@@ -1954,11 +1993,12 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
-     * Deprecation message emitted since 7.12.0 for the rest of the 7.x series. Can be removed in v9 since it is not
-     * emitted in v8. Note that this message is also permitted in certain YAML test cases, it can be removed there too.
-     * See https://github.com/elastic/elasticsearch/issues/66419 for more details.
+     * Deprecation message emitted since 7.12.0 for the rest of the 7.x series. Can be removed in v10 since it is not
+     * emitted in v8 or v9 and N-2 versions are now supported.
+     * Note that this message is also permitted in certain YAML test cases, it can be removed there too.
+     * See https://github.com/elastic/elasticsearch/issues/66419 and https://github.com/elastic/elasticsearch/pull/119594 for more details.
      */
-    @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)
     private static final String WAIT_FOR_ACTIVE_SHARDS_DEFAULT_DEPRECATION_MESSAGE = "the default value for the ?wait_for_active_shards "
         + "parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' "
         + "to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour";

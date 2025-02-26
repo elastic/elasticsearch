@@ -1,0 +1,5 @@
+pr: 120799
+summary: Remove duplicate code in ESIntegTestCase
+area: Search
+type: bug
+issues: []

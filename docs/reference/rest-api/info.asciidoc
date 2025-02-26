@@ -177,7 +177,7 @@ Example response:
       },
       "logsdb": {
         "available": true,
-        "enabled": false
+        "enabled": true
       }
    },
    "tagline" : "You know, for X"

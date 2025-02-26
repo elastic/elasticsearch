@@ -105,7 +105,7 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
         assertTrue(stats.hasField("field2"));
         // positions because of span query
         assertEquals(
-            Set.of(UsageContext.TERMS, UsageContext.POSTINGS, UsageContext.FREQS, UsageContext.POSITIONS),
+            Set.of(UsageContext.TERMS, UsageContext.POSTINGS, UsageContext.FREQS, UsageContext.POSITIONS, UsageContext.NORMS),
             stats.get("field2").keySet()
         );
         assertEquals(1L * numShards, stats.get("field2").getTerms());

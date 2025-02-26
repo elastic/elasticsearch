@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -85,9 +86,9 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
     public static final boolean QUERYABLE_BUILT_IN_ROLES_ENABLED;
     static {
         final var propertyValue = System.getProperty("es.queryable_built_in_roles_enabled");
-        if (propertyValue == null || propertyValue.isEmpty() || "false".equals(propertyValue)) {
+        if ("false".equals(propertyValue)) {
             QUERYABLE_BUILT_IN_ROLES_ENABLED = false;
-        } else if ("true".equals(propertyValue)) {
+        } else if (propertyValue == null || propertyValue.isEmpty() || "true".equals(propertyValue)) {
             QUERYABLE_BUILT_IN_ROLES_ENABLED = true;
         } else {
             throw new IllegalStateException(
@@ -307,7 +308,8 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
             || cause instanceof ResourceAlreadyExistsException
             || cause instanceof VersionConflictEngineException
             || cause instanceof DocumentMissingException
-            || cause instanceof FailedToMarkBuiltInRolesAsSyncedException;
+            || cause instanceof FailedToMarkBuiltInRolesAsSyncedException
+            || (e instanceof FailedToCommitClusterStateException && "node closed".equals(cause.getMessage()));
     }
 
     private boolean shouldSyncBuiltInRoles(final ClusterState state) {

@@ -138,7 +138,7 @@ public class ReservedPipelineActionTests extends ESTestCase {
                 clusterService,
                 mock(ReservedClusterStateService.class),
                 newEnvironment(Settings.EMPTY),
-                new FileSettingsService.FileSettingsHealthIndicatorService()
+                new FileSettingsService.FileSettingsHealthIndicatorService(Settings.EMPTY)
             )
         );
     }

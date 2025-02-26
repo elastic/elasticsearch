@@ -15,6 +15,7 @@ import org.elasticsearch.test.cluster.local.PluginInstallSpec;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
+import org.junit.rules.ExternalResource;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TemporaryFolder;
 import org.junit.rules.TestRule;
@@ -23,9 +24,28 @@ import org.junit.runners.model.Statement;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
 
 class EntitlementsTestRule implements TestRule {
+
+    // entitlements that test methods may use, see EntitledActions
+    private static final PolicyBuilder ENTITLED_POLICY = (builder, tempDir) -> {
+        builder.value("manage_threads");
+        builder.value(
+            Map.of(
+                "files",
+                List.of(
+                    Map.of("path", tempDir.resolve("read_dir"), "mode", "read_write"),
+                    Map.of("path", tempDir.resolve("read_write_dir"), "mode", "read_write"),
+                    Map.of("path", tempDir.resolve("read_file"), "mode", "read"),
+                    Map.of("path", tempDir.resolve("read_write_file"), "mode", "read_write")
+                )
+            )
+        );
+    };
 
     interface PolicyBuilder {
         void build(XContentBuilder builder, Path tempDir) throws IOException;
@@ -38,13 +58,26 @@ class EntitlementsTestRule implements TestRule {
     @SuppressWarnings("this-escape")
     EntitlementsTestRule(boolean modular, PolicyBuilder policyBuilder) {
         testDir = new TemporaryFolder();
+        var tempDirSetup = new ExternalResource() {
+            @Override
+            protected void before() throws Throwable {
+                Path testPath = testDir.getRoot().toPath();
+                Files.createDirectory(testPath.resolve("read_dir"));
+                Files.createDirectory(testPath.resolve("read_write_dir"));
+                Files.writeString(testPath.resolve("read_file"), "");
+                Files.writeString(testPath.resolve("read_write_file"), "");
+            }
+        };
         cluster = ElasticsearchCluster.local()
+            .module("entitled", spec -> buildEntitlements(spec, "org.elasticsearch.entitlement.qa.entitled", ENTITLED_POLICY))
             .module("entitlement-test-plugin", spec -> setupEntitlements(spec, modular, policyBuilder))
             .systemProperty("es.entitlements.enabled", "true")
             .systemProperty("es.entitlements.testdir", () -> testDir.getRoot().getAbsolutePath())
             .setting("xpack.security.enabled", "false")
+            // Logs in libs/entitlement/qa/build/test-results/javaRestTest/TEST-org.elasticsearch.entitlement.qa.EntitlementsXXX.xml
+            // .setting("logger.org.elasticsearch.entitlement", "DEBUG")
             .build();
-        ruleChain = RuleChain.outerRule(testDir).around(cluster);
+        ruleChain = RuleChain.outerRule(testDir).around(tempDirSetup).around(cluster);
     }
 
     @Override
@@ -52,28 +85,30 @@ class EntitlementsTestRule implements TestRule {
         return ruleChain.apply(statement, description);
     }
 
+    private void buildEntitlements(PluginInstallSpec spec, String moduleName, PolicyBuilder policyBuilder) {
+        spec.withEntitlementsOverride(old -> {
+            try (var builder = YamlXContent.contentBuilder()) {
+                builder.startObject();
+                builder.field(moduleName);
+                builder.startArray();
+
+                policyBuilder.build(builder, testDir.getRoot().toPath());
+                builder.endArray();
+                builder.endObject();
+
+                String policy = Strings.toString(builder);
+                System.out.println("Using entitlement policy for module " + moduleName + ":\n" + policy);
+                return Resource.fromString(policy);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
+    }
+
     private void setupEntitlements(PluginInstallSpec spec, boolean modular, PolicyBuilder policyBuilder) {
         String moduleName = modular ? "org.elasticsearch.entitlement.qa.test" : "ALL-UNNAMED";
         if (policyBuilder != null) {
-            spec.withEntitlementsOverride(old -> {
-                try {
-                    try (var builder = YamlXContent.contentBuilder()) {
-                        builder.startObject();
-                        builder.field(moduleName);
-                        builder.startArray();
-                        policyBuilder.build(builder, testDir.getRoot().toPath());
-                        builder.endArray();
-                        builder.endObject();
-
-                        String policy = Strings.toString(builder);
-                        System.out.println("Using entitlement policy:\n" + policy);
-                        return Resource.fromString(policy);
-                    }
-
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            });
+            buildEntitlements(spec, moduleName, policyBuilder);
         }
 
         if (modular == false) {

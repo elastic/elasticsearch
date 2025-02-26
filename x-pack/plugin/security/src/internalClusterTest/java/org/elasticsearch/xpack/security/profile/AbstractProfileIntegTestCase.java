@@ -49,7 +49,7 @@ public abstract class AbstractProfileIntegTestCase extends SecurityIntegTestCase
     }
 
     @Before
-    public void createNativeUsers() {
+    public void createNativeUsers() throws Exception {
         final PutUserRequest putUserRequest1 = new PutUserRequest();
         putUserRequest1.username(RAC_USER_NAME);
         putUserRequest1.roles(RAC_ROLE, NATIVE_RAC_ROLE);
@@ -57,6 +57,7 @@ public abstract class AbstractProfileIntegTestCase extends SecurityIntegTestCase
         putUserRequest1.passwordHash(nativeRacUserPasswordHash.toCharArray());
         putUserRequest1.email(RAC_USER_NAME + "@example.com");
         assertThat(client().execute(PutUserAction.INSTANCE, putUserRequest1).actionGet().created(), is(true));
+        assertSecurityIndexActive();
     }
 
     @Override

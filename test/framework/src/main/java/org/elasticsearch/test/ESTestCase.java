@@ -1459,7 +1459,8 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Runs the code block for the provided interval, waiting for no assertions to trip.
+     * Runs the code block for the provided interval, waiting for no assertions to trip. Retries on AssertionError
+     * with exponential backoff until provided time runs out
      */
     public static void assertBusy(CheckedRunnable<Exception> codeBlock, long maxWaitTime, TimeUnit unit) throws Exception {
         long maxTimeInMillis = TimeUnit.MILLISECONDS.convert(maxWaitTime, unit);
@@ -2657,6 +2658,15 @@ public abstract class ESTestCase extends LuceneTestCase {
             "Expected exception " + expectedType.getSimpleName() + " but no exception was thrown",
             () -> builder.get().decRef() // dec ref if we unexpectedly fail to not leak transport response
         );
+    }
+
+    /**
+     * Checks a specific exception class with matched message is thrown by the given runnable, and returns it.
+     */
+    public static <T extends Throwable> T expectThrows(Class<T> expectedType, Matcher<String> messageMatcher, ThrowingRunnable runnable) {
+        var e = expectThrows(expectedType, runnable);
+        assertThat(e.getMessage(), messageMatcher);
+        return e;
     }
 
     /**

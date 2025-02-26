@@ -46,7 +46,6 @@ import org.elasticsearch.xpack.application.analytics.action.TransportPostAnalyti
 import org.elasticsearch.xpack.application.analytics.action.TransportPutAnalyticsCollectionAction;
 import org.elasticsearch.xpack.application.analytics.ingest.AnalyticsEventIngestConfig;
 import org.elasticsearch.xpack.application.connector.ConnectorAPIFeature;
-import org.elasticsearch.xpack.application.connector.ConnectorIndexService;
 import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
 import org.elasticsearch.xpack.application.connector.action.DeleteConnectorAction;
 import org.elasticsearch.xpack.application.connector.action.GetConnectorAction;
@@ -125,7 +124,6 @@ import org.elasticsearch.xpack.application.connector.secrets.action.TransportDel
 import org.elasticsearch.xpack.application.connector.secrets.action.TransportGetConnectorSecretAction;
 import org.elasticsearch.xpack.application.connector.secrets.action.TransportPostConnectorSecretAction;
 import org.elasticsearch.xpack.application.connector.secrets.action.TransportPutConnectorSecretAction;
-import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobIndexService;
 import org.elasticsearch.xpack.application.connector.syncjob.action.CancelConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.CheckInConnectorSyncJobAction;
 import org.elasticsearch.xpack.application.connector.syncjob.action.ClaimConnectorSyncJobAction;
@@ -234,6 +232,10 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
     public static final String FEATURE_NAME = "ent_search";
 
     private final boolean enabled;
+
+    // NOTE: Behavioral Analytics is deprecated in 9.0 but not 8.x.
+    public static final String BEHAVIORAL_ANALYTICS_DEPRECATION_MESSAGE =
+        "Behavioral Analytics is deprecated and will be removed in a future release.";
 
     public EnterpriseSearch(Settings settings) {
         this.enabled = XPackSettings.ENTERPRISE_SEARCH_ENABLED.get(settings);
@@ -479,12 +481,7 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         Collection<SystemIndexDescriptor> systemIndices = new ArrayList<>(
-            List.of(
-                SearchApplicationIndexService.getSystemIndexDescriptor(),
-                QueryRulesIndexService.getSystemIndexDescriptor(),
-                ConnectorSyncJobIndexService.getSystemIndexDescriptor(),
-                ConnectorIndexService.getSystemIndexDescriptor()
-            )
+            List.of(SearchApplicationIndexService.getSystemIndexDescriptor(), QueryRulesIndexService.getSystemIndexDescriptor())
         );
 
         if (ConnectorSecretsFeature.isEnabled()) {

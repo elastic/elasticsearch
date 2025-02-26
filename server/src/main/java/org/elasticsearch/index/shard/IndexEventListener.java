@@ -17,8 +17,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 
-import java.util.function.Supplier;
-
 /**
  * An index event listener is the primary extension point for plugins and build-in services
  * to react / listen to per-index and per-shard events. These listeners are registered per-index
@@ -87,6 +85,25 @@ public interface IndexEventListener {
         IndexShardState currentState,
         @Nullable String reason
     ) {}
+
+    /**
+     * Invoked before a shard performs a mutable operation. Mutable operations include, but are not limited to:
+     * <ul>
+     *     <li>Indexing operations</li>
+     *     <li>Force merges</li>
+     * </ul>
+     *
+     * This method ensures that the shard is ready to accept mutating operations. This is particularly useful in cases
+     * where the shard initializes its internal {@link org.elasticsearch.index.engine.Engine} lazily, which may take some time.
+     * The provided listener should be notified once the shard is prepared to proceed with the operation.
+     * This can be called from a transport thread and therefore the function should be lightweight and not block the thread.
+     *
+     * @param indexShard the shard where the mutable operation will be performed
+     * @param listener   the listener to be notified when the shard is ready to proceed
+     */
+    default void beforeIndexShardMutableOperation(IndexShard indexShard, ActionListener<Void> listener) {
+        listener.onResponse(null);
+    }
 
     /**
      * Called before the index gets created. Note that this is also called
@@ -192,14 +209,4 @@ public interface IndexEventListener {
      * @param indexShard the shard that is recovering
      */
     default void afterFilesRestoredFromRepository(IndexShard indexShard) {}
-
-    /**
-     * Called when a single primary permit is acquired for the given shard (see
-     * {@link IndexShard#acquirePrimaryOperationPermit(ActionListener, java.util.concurrent.Executor)}).
-     *
-     * @param indexShard the shard of which a primary permit is requested
-     * @param onPermitAcquiredListenerSupplier call this immediately to get a listener when the permit is acquired. The listener must be
-     *                                         completed in order for the permit to be given to the acquiring operation.
-     */
-    default void onAcquirePrimaryOperationPermit(IndexShard indexShard, Supplier<ActionListener<Void>> onPermitAcquiredListenerSupplier) {}
 }

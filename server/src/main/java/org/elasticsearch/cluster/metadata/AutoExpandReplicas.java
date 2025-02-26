@@ -156,9 +156,8 @@ public record AutoExpandReplicas(int minReplicas, int maxReplicas, boolean enabl
                 )) {
                     if (indexMetadata.getNumberOfReplicas() == 0) {
                         nrReplicasChanged.computeIfAbsent(1, ArrayList::new).add(indexMetadata.getIndex().getName());
-                    } else {
-                        continue;
                     }
+                    continue;
                 }
                 if (allocation == null) {
                     allocation = allocationSupplier.get();

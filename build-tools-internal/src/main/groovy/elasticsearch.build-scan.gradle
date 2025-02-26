@@ -32,7 +32,9 @@ develocity {
     // Automatically publish scans from Elasticsearch CI
     if (onCI) {
       publishing.onlyIf { true }
-      server = 'https://gradle-enterprise.elastic.co'
+      if(server.isPresent() == false) {
+        server = 'https://gradle-enterprise.elastic.co'
+      }
     } else if( server.isPresent() == false) {
       publishing.onlyIf { false }
     }

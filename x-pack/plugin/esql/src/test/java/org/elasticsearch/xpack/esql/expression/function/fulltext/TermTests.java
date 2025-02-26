@@ -122,6 +122,6 @@ public class TermTests extends AbstractFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Match(source, args.get(0), args.get(1));
+        return new Match(source, args.get(0), args.get(1), args.size() > 2 ? args.get(2) : null);
     }
 }

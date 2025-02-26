@@ -27,8 +27,8 @@ public class TopBooleanAggregatorFunctionTests extends AggregatorFunctionTestCas
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
-        return new TopBooleanAggregatorFunctionSupplier(inputChannels, LIMIT, true);
+    protected AggregatorFunctionSupplier aggregatorFunction() {
+        return new TopBooleanAggregatorFunctionSupplier(LIMIT, true);
     }
 
     @Override

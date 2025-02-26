@@ -188,8 +188,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
 
 public class EsqlFunctionRegistry {
 
-    private static final Map<Class<? extends Function>, List<DataType>> DATA_TYPES_FOR_STRING_LITERAL_CONVERSIONS = new LinkedHashMap<>();
-
     private static final Map<DataType, Integer> DATA_TYPE_CASTING_PRIORITY;
 
     static {
@@ -225,6 +223,7 @@ public class EsqlFunctionRegistry {
     private final Map<String, FunctionDefinition> defs = new LinkedHashMap<>();
     private final Map<String, String> aliases = new HashMap<>();
     private final Map<Class<? extends Function>, String> names = new HashMap<>();
+    private final Map<Class<? extends Function>, List<DataType>> dataTypesForStringLiteralConversions = new LinkedHashMap<>();
 
     private SnapshotFunctionRegistry snapshotRegistry = null;
 
@@ -320,7 +319,6 @@ public class EsqlFunctionRegistry {
                 def(Greatest.class, Greatest::new, "greatest"),
                 def(Hypot.class, Hypot::new, "hypot"),
                 def(Log.class, Log::new, "log"),
-                def(Log10.class, Log10::new, "log10"),
                 def(Least.class, Least::new, "least"),
                 def(Pi.class, Pi::new, "pi"),
                 def(Pow.class, Pow::new, "pow"),
@@ -445,7 +443,8 @@ public class EsqlFunctionRegistry {
                 // This is an experimental function and can be removed without notice.
                 def(Delay.class, Delay::new, "delay"),
                 def(Rate.class, Rate::withUnresolvedTimestamp, "rate"),
-                def(Term.class, bi(Term::new), "term") } };
+                def(Term.class, bi(Term::new), "term"),
+                def(Log10.class, Log10::new, "log10") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {
@@ -711,20 +710,8 @@ public class EsqlFunctionRegistry {
         return constructors[0];
     }
 
-    private void buildDataTypesForStringLiteralConversion(FunctionDefinition[]... groupFunctions) {
-        for (FunctionDefinition[] group : groupFunctions) {
-            for (FunctionDefinition def : group) {
-                FunctionDescription signature = description(def);
-                DATA_TYPES_FOR_STRING_LITERAL_CONVERSIONS.put(
-                    def.clazz(),
-                    signature.args().stream().map(EsqlFunctionRegistry.ArgSignature::targetDataType).collect(Collectors.toList())
-                );
-            }
-        }
-    }
-
     public List<DataType> getDataTypeForStringLiteralConversion(Class<? extends Function> clazz) {
-        return DATA_TYPES_FOR_STRING_LITERAL_CONVERSIONS.get(clazz);
+        return dataTypesForStringLiteralConversions.get(clazz);
     }
 
     private static class SnapshotFunctionRegistry extends EsqlFunctionRegistry {
@@ -733,6 +720,7 @@ public class EsqlFunctionRegistry {
                 throw new IllegalStateException("build snapshot function registry for non-snapshot build");
             }
             register(snapshotFunctions());
+            buildDataTypesForStringLiteralConversion(snapshotFunctions());
         }
 
     }
@@ -791,6 +779,18 @@ public class EsqlFunctionRegistry {
                         )
                 )
         );
+    }
+
+    protected void buildDataTypesForStringLiteralConversion(FunctionDefinition[]... groupFunctions) {
+        for (FunctionDefinition[] group : groupFunctions) {
+            for (FunctionDefinition def : group) {
+                FunctionDescription signature = description(def);
+                dataTypesForStringLiteralConversions.put(
+                    def.clazz(),
+                    signature.args().stream().map(EsqlFunctionRegistry.ArgSignature::targetDataType).collect(Collectors.toList())
+                );
+            }
+        }
     }
 
     protected FunctionDefinition cloneDefinition(String name, FunctionDefinition definition) {

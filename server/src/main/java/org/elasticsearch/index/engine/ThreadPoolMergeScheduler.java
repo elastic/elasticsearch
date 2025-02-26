@@ -311,7 +311,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         @Override
         public int compareTo(MergeTask other) {
             // sort smaller merges first, so they are executed before larger ones
-            return Long.compare(onGoingMerge.getMerge().estimatedMergeBytes, other.onGoingMerge.getMerge().estimatedMergeBytes);
+            return Long.compare(estimatedMergeSize(), other.estimatedMergeSize());
         }
 
         public boolean supportsIOThrottling() {
@@ -394,6 +394,10 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
             // {@code IndexWriter} considers a merge as "running" once it has been pulled from the {@code MergeSource#getNextMerge},
             // so in theory it's not enough to just call {@code MergeSource#onMergeFinished} on it (as for "pending" ones).
             doMerge(mergeSource, onGoingMerge.getMerge());
+        }
+
+        long estimatedMergeSize() {
+            return onGoingMerge.getMerge().estimatedMergeBytes;
         }
 
         @Override

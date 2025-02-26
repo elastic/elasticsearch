@@ -36,10 +36,20 @@ public class ThreadPoolMergeExecutorService {
      * Initial value for IO write rate limit of individual merge tasks when doAutoIOThrottle is true
      */
     private static final ByteSizeValue START_IO_RATE = ByteSizeValue.ofMb(20L);
+    /**
+     * Total number of submitted merge tasks that support IO auto throttling and that have not yet been executed.
+     * This includes merge tasks that are currently running and that are backlogged (by their respective merge schedulers).
+     */
     private final AtomicInteger currentlySubmittedIOThrottledMergeTasksCount = new AtomicInteger();
+    /**
+     * The merge tasks that are waiting execution. This does NOT include backlogged or currently executing merge tasks.
+     * For instance, this can be empty while there are backlogged merge tasks awaiting re-enqueuing.
+     */
     private final PriorityBlockingQueue<MergeTask> queuedMergeTasks = new PriorityBlockingQueue<>();
-    // the set of all merge tasks currently being executed by merge threads from the pool,
-    // in order to be able to update the IO throttle rate of merge tasks also after they have started (while executing)
+    /**
+     * The set of all merge tasks currently being executed by merge threads from the pool.
+     * These are tracked notably in order to be able to update their disk IO throttle rate, after they have started, while executing.
+     */
     private final Set<MergeTask> currentlyRunningMergeTasks = ConcurrentCollections.newConcurrentSet();
     /**
      * Current IO write throttle rate, in bytes per sec, that's in effect for all currently running merge tasks,
@@ -47,6 +57,9 @@ public class ThreadPoolMergeExecutorService {
      */
     private final AtomicLong targetIORateBytesPerSec = new AtomicLong(START_IO_RATE.getBytes());
     private final ExecutorService executorService;
+    /**
+     * The maximum number of concurrently running merges, given the number of threads in the pool.
+     */
     private final int maxConcurrentMerges;
 
     public static @Nullable ThreadPoolMergeExecutorService maybeCreateThreadPoolMergeExecutorService(
@@ -200,6 +213,11 @@ public class ThreadPoolMergeExecutorService {
     // exposed for stats
     double getTargetMBPerSec() {
         return ByteSizeValue.ofBytes(targetIORateBytesPerSec.get()).getMbFrac();
+    }
+
+    // exposed for tests
+    int getMaxConcurrentMerges() {
+        return maxConcurrentMerges;
     }
 
     public boolean allDone() {

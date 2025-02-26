@@ -318,7 +318,8 @@ public class EsqlFunctionRegistry {
                 def(Floor.class, Floor::new, "floor"),
                 def(Greatest.class, Greatest::new, "greatest"),
                 def(Hypot.class, Hypot::new, "hypot"),
-                def(Log.class, Log::new, "log"),
+                def(Log.class, Log::new, "log"),,
+                def(Log10.class, Log10::new, "log10"),
                 def(Least.class, Least::new, "least"),
                 def(Pi.class, Pi::new, "pi"),
                 def(Pow.class, Pow::new, "pow"),
@@ -443,8 +444,7 @@ public class EsqlFunctionRegistry {
                 // This is an experimental function and can be removed without notice.
                 def(Delay.class, Delay::new, "delay"),
                 def(Rate.class, Rate::withUnresolvedTimestamp, "rate"),
-                def(Term.class, bi(Term::new), "term"),
-                def(Log10.class, Log10::new, "log10") } };
+                def(Term.class, bi(Term::new), "term") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

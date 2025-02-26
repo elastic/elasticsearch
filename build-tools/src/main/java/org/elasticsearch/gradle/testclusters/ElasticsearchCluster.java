@@ -296,8 +296,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     private Provider<RegularFile> maybeCreatePluginOrModuleDependency(String path, String consumingConfiguration) {
         var configuration = pluginAndModuleConfigurations.computeIfAbsent(path, key -> {
             var bundleDependency = this.project.getDependencies().project(Map.of("path", path, "configuration", consumingConfiguration));
-            Configuration detachedConfiguration = project.getConfigurations().detachedConfiguration(bundleDependency);
-            return detachedConfiguration;
+            return project.getConfigurations().detachedConfiguration(bundleDependency);
         });
 
         Provider<File> fileProvider = configuration.getElements()
